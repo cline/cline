@@ -51,7 +51,12 @@
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
 		"./theme/base.css": "./theme/base.css",
-		"./package.json": "./package.json"
+		"./package.json": "./package.json",
+		"./components/message-scroller": {
+			"types": "./dist/components/message-scroller.d.ts",
+			"import": "./dist/components/message-scroller.js"
+		},
+		"./components/message-scroller.css": "./components/message-scroller.css"
 	},
 	"files": [
 		"components.css",
@@ -105,7 +110,9 @@
 		"ADOPTION.md",
 		"README.md",
 		"RADIX-COLORS-LICENSE",
-		"components/agent-composer.tsx"
+		"components/agent-composer.tsx",
+		"components/message-scroller.tsx",
+		"components/message-scroller.css"
 	],
 	"sideEffects": [
 		"./components.css",
@@ -197,6 +204,7 @@
 	"dependencies": {
 		"@cline/shared": "workspace:*",
 		"@radix-ui/react-slot": "1.2.4",
+		"@shadcn/react": "0.3.1",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"lucide-react": "^0.564.0"

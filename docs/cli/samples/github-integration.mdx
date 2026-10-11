@@ -43,15 +43,7 @@ Before you begin, you'll need:
 
 
 
-Copy the workflow file from this sample to your repository. The workflow file must be placed in the `.github/workflows/` directory in your repository root for GitHub Actions to detect and run it. In this case, we'll name it `cline-responder.yml`.
-
-```bash
-# In your repository root
-mkdir -p .github/workflows
-curl -o .github/workflows/cline-responder.yml https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-integration/cline-responder.yml
-```
-
-Alternatively, you can copy the full workflow file directly into `.github/workflows/cline-responder.yml`:
+GitHub Actions runs workflow files in the `.github/workflows/` directory of your repository. Copy this workflow into `.github/workflows/cline-responder.yml`:
 
 <Accordion title="Click to view the complete cline-responder.yml workflow">
 ```yaml
@@ -61,114 +53,120 @@ on:
   issue_comment:
     types: [created, edited]
 
-permissions:
-  issues: write
+# No permissions by default; each job asks for what it needs.
+permissions: {}
 
 jobs:
-  respond:
+  authorize:
+    # Runs for @cline mentions on issues, not pull requests.
+    if: |
+      contains(github.event.comment.body, '@cline') &&
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Read-only, and uses no secrets.
+    permissions:
+      contents: read
+
+    outputs:
+      allowed: ${{ steps.check.outputs.allowed }}
+
+    steps:
+      # Checks the comment's author, not whoever edited it last, so that
+      # editing someone else's comment doesn't start Cline on their text.
+      - name: Check that the comment's author can write to the repository
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          PERMISSION=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$AUTHOR/permission" --jq .permission)
+          echo "$AUTHOR has $PERMISSION permission"
+          if [ "$PERMISSION" = admin ] || [ "$PERMISSION" = write ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  analyze:
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-latest
     environment: cline-actions
+    timeout-minutes: 30
+
+    # Read-only: Cline runs in this job.
+    permissions:
+      contents: read
+      issues: read
+
     steps:
-      - name: Check for @cline mention
-        id: detect
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = context.payload.comment?.body || "";
-            const isPR = !!context.payload.issue?.pull_request;
-            const hit = body.toLowerCase().includes("@cline");
-            core.setOutput("hit", (!isPR && hit) ? "true" : "false");
-            core.setOutput("issue_number", String(context.payload.issue?.number || ""));
-            core.setOutput("issue_url", context.payload.issue?.html_url || "");
-            core.setOutput("comment_body", body);
-
       - name: Checkout repository
-        if: steps.detect.outputs.hit == 'true'
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      # Node v20+ is needed for Cline CLI on GitHub Actions Linux
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: 22
 
       - name: Install Cline CLI
-        if: steps.detect.outputs.hit == 'true'
         run: npm install -g cline
 
       - name: Configure Cline Authentication
-        if: steps.detect.outputs.hit == 'true'
         env:
-          CLINE_DIR: ${{ runner.temp }}/cline
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          # Configure API key using the auth command
-          cline auth --provider openrouter --apikey "${{ secrets.OPENROUTER_API_KEY }}"
-
-      - name: Download analyze script
-        if: steps.detect.outputs.hit == 'true'
-        run: |
-          export GITORG="YOUR-GITHUB-ORG"
-          export GITREPO="YOUR-GITHUB-REPO"
-
-          curl -L https://raw.githubusercontent.com/${GITORG}/${GITREPO}/refs/heads/main/git-scripts/analyze-issue.sh -o analyze-issue.sh
-          chmod +x analyze-issue.sh
+          cline auth --provider openrouter \
+            --apikey "$OPENROUTER_API_KEY" \
+            --modelid anthropic/claude-sonnet-5.5
 
       - name: Run analysis
-        if: steps.detect.outputs.hit == 'true'
-        id: analyze
         env:
-          ISSUE_URL: ${{ steps.detect.outputs.issue_url }}
-          COMMENT: ${{ steps.detect.outputs.comment_body }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          COMMENT: ${{ github.event.comment.body }}
         run: |
           set -euo pipefail
-          
-          RESULT=$(./analyze-issue.sh "${ISSUE_URL}" "Analyze this issue. The user asked: ${COMMENT}")
-          
-          {
-            echo 'result<<EOF'
-            printf "%s\n" "$RESULT"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          bash git-scripts/analyze-issue.sh "$ISSUE_URL" "Analyze this issue. The user asked: $COMMENT" > response.md
 
-      - name: Post response
-        if: steps.detect.outputs.hit == 'true'
-        uses: actions/github-script@v7
-        env:
-          ISSUE_NUMBER: ${{ steps.detect.outputs.issue_number }}
-          RESULT: ${{ steps.analyze.outputs.result }}
+      - name: Save the response
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: Number(process.env.ISSUE_NUMBER),
-              body: process.env.RESULT || "(no output)"
-            });
+          name: response
+          path: response.md
+          if-no-files-found: error
+
+  post:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Can write issues, but runs no code from the repository or from Cline.
+    permissions:
+      issues: write
+
+    steps:
+      - name: Download the response
+        uses: actions/download-artifact@v4
+        with:
+          name: response
+          path: ${{ runner.temp }}/response
+
+      - name: Post the response
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/response/response.md"
 ```
 </Accordion>
 
-<Warning>
-**You MUST edit the workflow file before committing!**
+The workflow has three jobs, so that only people who can write to the repository can start Cline, and the job that runs Cline can't change your repository or your issues:
 
-Open `.github/workflows/cline-responder.yml` and update the "Download analyze script" step within the workflow to specify your GitHub organization and repository where the analysis script is stored:
-
-```yaml
-export GITORG="YOUR-GITHUB-ORG"      # Change this!
-export GITREPO="YOUR-GITHUB-REPO"    # Change this!
-```
-
-**Example:** If your repository is `github.com/acme/myproject`, set:
-```yaml
-export GITORG="acme"
-export GITREPO="myproject"
-```
-
-This tells the workflow where to download the analysis script from your repository after you commit it in step 3.
-</Warning>
-
-The workflow will look for new or updated issues, check for `@cline` mentions, and then
-start up the Cline CLI to dig into the issue, providing feedback as a reply to the issue.
+1. **`authorize`** runs when someone mentions `@cline` in an issue comment. It looks up the comment author's permission on the repository, and the workflow stops unless they can write to it. GitHub reports the maintain role as write.
+2. **`analyze`** gets a read-only token, runs the analysis script from your repository, and saves Cline's answer to a file.
+3. **`post`** gets permission to write issues, but doesn't check out code or run Cline. It posts the file as a comment on the issue.
 
 ### 2. Configure API Keys
 
@@ -202,20 +200,7 @@ Now you're ready to supply Cline with the credentials it needs in a GitHub Actio
 
 ### 3. Add Analysis Script
 
-Add the analysis script from the `github-issue-rca` sample to your repository. **First, you'll need to create a `git-scripts` directory in your repository root where the script will be located.** Choose one of these options:
-
-**Option A: Download directly (Recommended)**
-
-```bash
-# In your repository root, create the directory and download the script
-mkdir -p git-scripts
-curl -o git-scripts/analyze-issue.sh https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
-chmod +x git-scripts/analyze-issue.sh
-```
-
-**Option B: Manual copy-paste**
-
-Create the directory and file manually, then paste the script content:
+Add the analysis script from the `github-issue-rca` sample to your repository, in a `git-scripts` directory at the repository root. Create the directory and file, then paste the script content:
 
 ```bash
 # In your repository root
@@ -240,10 +225,12 @@ fi
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
 
+# Fail if Cline fails, not only if jq does
+set -o pipefail
+
 # Ask Cline for its analysis, showing only the summary
 cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
-    jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
-    sed 's/\\n/\n/g'
+    jq -r 'select(.type == "run_result") | .text'
 ```
 
 After pasting the script content, make it executable:
@@ -252,8 +239,8 @@ chmod +x git-scripts/analyze-issue.sh
 ```
 </Accordion>
 
-This analysis script calls Cline to execute a prompt on a GitHub issue,
-summarizing the output to populate the reply to the issue.
+This analysis script calls Cline to execute a prompt on a GitHub issue and
+prints Cline's final answer, which becomes the reply to the issue.
 
 ### 4. Commit and Push
 
@@ -276,28 +263,23 @@ Once set up, simply mention `@cline` in any issue comment:
 @cline what are the security implications?
 ```
 
-GitHub Actions will:
-1. Detect the `@cline` mention
-2. Start a Cline CLI instance
-3. Download the analysis script
-4. Analyze the issue using Act mode with auto-approval enabled
-5. Post Cline's analysis as a new comment
-
 **Note**: The workflow only triggers on issue comments, not pull request
-comments.
+comments, and only for comments from people with write access to the repository.
 
 ## How It Works
 
 The workflow (`cline-responder.yml`):
 
-1. **Triggers** on issue comments (created or edited)
-2. **Detects** `@cline` mentions (case-insensitive)
+1. **Triggers** on issue comments (created or edited) that mention `@cline`
+2. **Checks** that the comment's author can write to the repository
 3. **Installs** Cline CLI globally using npm
-4. **Configures** authentication using `cline auth --provider openrouter --apikey ...`
-6. **Downloads** the reusable `analyze-issue.sh` script from the
-   `github-issue-rca` sample
-7. **Runs** analysis in Cline CLI
-8. **Posts** the analysis result as a comment
+4. **Configures** authentication using `cline auth --provider openrouter --apikey ... --modelid ...`
+5. **Runs** `git-scripts/analyze-issue.sh` from your repository, which runs Cline in Act mode with auto-approval
+6. **Posts** the analysis as a comment, from a separate job that doesn't run Cline
+
+## What the Analysis Job Can Still Do
+
+With `--auto-approve true`, Cline can run any shell command in the `analyze` job. Text in the issue or the comment could persuade Cline to do something other than analyze it. The read-only token stops Cline from changing your repository or issues, but the job can still read your code and your provider API key, and it can reach the internet. Use a provider key with a spending limit, and don't give the job any other secrets.
 
 ## Related Samples
 
