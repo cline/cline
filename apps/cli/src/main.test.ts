@@ -377,6 +377,7 @@ describe("runCli lightweight command dispatch", () => {
 			value: originalStdoutIsTTY,
 			configurable: true,
 		});
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 		vi.resetModules();
 	});
@@ -803,6 +804,115 @@ describe("runCli lightweight command dispatch", () => {
 			}),
 			expect.anything(),
 		);
+	});
+
+	describe("piped stdin", () => {
+		// fd 0 is a FIFO that delivers each chunk once its promise resolves; a
+		// promise that never resolves is a pipe held open with nothing written.
+		function pipeStdin(chunks: Array<string | Promise<string>>) {
+			Object.defineProperty(process.stdin, "isTTY", {
+				value: false,
+				configurable: true,
+			});
+			Object.defineProperty(process.stdout, "isTTY", {
+				value: false,
+				configurable: true,
+			});
+			vi.mocked(fstatSync).mockReturnValue({
+				isFIFO: () => true,
+				isFile: () => false,
+			} as unknown as ReturnType<typeof fstatSync>);
+			let startedReading = () => {};
+			const reading = new Promise<void>((resolve) => {
+				startedReading = resolve;
+			});
+			vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(
+				async function* (): AsyncGenerator<Buffer, undefined> {
+					startedReading();
+					for (const chunk of chunks) {
+						yield Buffer.from(await chunk);
+					}
+					return undefined;
+				},
+			);
+			const destroy = vi
+				.spyOn(process.stdin, "destroy")
+				.mockImplementation(() => process.stdin);
+			return { reading, destroy };
+		}
+
+		function pendingText() {
+			let send: (text: string) => void = () => {};
+			const text = new Promise<string>((resolve) => {
+				send = resolve;
+			});
+			return { text, send };
+		}
+
+		it("runs the prompt argument when the pipe stays open without data", async () => {
+			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+			const stdin = pipeStdin([pendingText().text]);
+			process.argv = ["bun", "src/index.ts", "say hello"];
+
+			const { runCli } = await import("./main");
+			const run = runCli();
+			await stdin.reading;
+			await vi.advanceTimersByTimeAsync(2_999);
+			expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(1);
+
+			await expect(run).resolves.toBeUndefined();
+			expect(stdin.destroy).toHaveBeenCalledTimes(1);
+			expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+				"say hello",
+				expect.any(Object),
+				expect.anything(),
+			);
+		});
+
+		it("reads to EOF once data starts, even past the first-chunk deadline", async () => {
+			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+			const tail = pendingText();
+			const stdin = pipeStdin(["first chunk", tail.text]);
+			process.argv = ["bun", "src/index.ts", "explain this"];
+
+			const { runCli } = await import("./main");
+			const run = runCli();
+			await stdin.reading;
+			await vi.advanceTimersByTimeAsync(10_000);
+			expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+			tail.send("\nsecond chunk");
+
+			await expect(run).resolves.toBeUndefined();
+			expect(stdin.destroy).not.toHaveBeenCalled();
+			expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+				"explain this\n\nfirst chunk\nsecond chunk",
+				expect.any(Object),
+				expect.anything(),
+			);
+		});
+
+		it("keeps waiting for stdin when there is no prompt argument", async () => {
+			vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+			const input = pendingText();
+			const stdin = pipeStdin([input.text]);
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+			const run = runCli();
+			await stdin.reading;
+			await vi.advanceTimersByTimeAsync(60_000);
+			expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+			input.send("from pipe");
+
+			await expect(run).resolves.toBeUndefined();
+			expect(stdin.destroy).not.toHaveBeenCalled();
+			expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+				"from pipe",
+				expect.any(Object),
+				expect.anything(),
+			);
+		});
 	});
 
 	it("validates resumed sessions before creating a worktree", async () => {

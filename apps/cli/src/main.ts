@@ -74,6 +74,42 @@ export function stdinHasPipedInput(): boolean {
 	}
 }
 
+// With a prompt argument, piped stdin is optional extra context. CI runners or
+// a parent like Python's `subprocess.Popen(..., stdin=PIPE)` can leave fd 0 as a pipe
+// that is never written to or closed, so only wait this long for it to start.
+const PIPED_STDIN_FIRST_CHUNK_TIMEOUT_MS = 3_000;
+
+/**
+ * Reads piped stdin to EOF. When `firstChunkTimeoutMs` is set and nothing
+ * (not even EOF) arrives within it, stops reading and returns undefined.
+ */
+async function readPipedStdin(
+	firstChunkTimeoutMs?: number,
+): Promise<string | undefined> {
+	const iterator = process.stdin[Symbol.asyncIterator]();
+	const first = iterator.next();
+	if (firstChunkTimeoutMs !== undefined) {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const firstOrTimeout = await Promise.race([
+			first,
+			new Promise<"timeout">((resolve) => {
+				timer = setTimeout(() => resolve("timeout"), firstChunkTimeoutMs);
+			}),
+		]).finally(() => clearTimeout(timer));
+		if (firstOrTimeout === "timeout") {
+			// Releases the pipe handle so it cannot keep the process alive. The
+			// pending read then rejects into the race above, which already settled.
+			process.stdin.destroy();
+			return undefined;
+		}
+	}
+	const chunks: Buffer[] = [];
+	for (let result = await first; !result.done; result = await iterator.next()) {
+		chunks.push(result.value as Buffer);
+	}
+	return Buffer.concat(chunks).toString("utf-8").trim();
+}
+
 async function createProviderSettingsManager() {
 	const { ProviderSettingsManager } = await import("@cline/core");
 	return new ProviderSettingsManager();
@@ -1135,11 +1171,20 @@ export async function runCli(): Promise<void> {
 		// redundant fstat work). `stdinHasPipedInput` also checks `isTTY`, but callers may hit
 		// inconsistent state in tests or embedded hosts.
 		if (!process.stdin.isTTY && stdinHasPipedInput() && !args.interactive) {
-			const chunks: Buffer[] = [];
-			for await (const chunk of process.stdin) {
-				chunks.push(chunk as Buffer);
+			const pipedInput = await readPipedStdin(
+				args.prompt ? PIPED_STDIN_FIRST_CHUNK_TIMEOUT_MS : undefined,
+			);
+			if (pipedInput === undefined) {
+				loggerAdapter.core.log(
+					"Piped stdin timed out, using prompt argument only",
+					{
+						timeoutMs: PIPED_STDIN_FIRST_CHUNK_TIMEOUT_MS,
+					},
+				);
+				writeln(
+					`${c.dim}[stdin] nothing received after ${PIPED_STDIN_FIRST_CHUNK_TIMEOUT_MS / 1000}s, continuing with the prompt argument only (use < /dev/null to skip the wait)${c.reset}`,
+				);
 			}
-			const pipedInput = Buffer.concat(chunks).toString("utf-8").trim();
 
 			if (pipedInput) {
 				const prompt = args.prompt
