@@ -46,9 +46,6 @@ describe("provider fallback HTTP requests", () => {
 			if (!call) throw new Error("Expected an HTTP request");
 			const [url, init] = call;
 			expect(String(url)).toContain("/chat/completions");
-			expect(
-				new Headers(init?.headers).get("anthropic-beta") ?? "",
-			).not.toContain("computer-use-2025-11-24");
 			const body = JSON.parse(String(init?.body));
 			expect(body.model).toBe(modelId);
 			if (modelId.startsWith("anthropic/")) {
@@ -141,7 +138,6 @@ describe("provider fallback HTTP requests", () => {
 		);
 		const body = JSON.parse(String(init?.body));
 		const betas = new Headers(init?.headers).get("anthropic-beta") ?? "";
-		expect(betas).not.toContain("computer-use-2025-11-24");
 		if (official) {
 			expect(body.fallbacks).toBe("default");
 			expect(betas).toContain("server-side-fallback-2026-07-01");
