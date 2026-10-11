@@ -10,12 +10,28 @@ function truncate(text: string, limit: number): string {
 	return text.length <= limit ? text : `${text.slice(0, limit)}…`;
 }
 
+function redactComputerInput(input: unknown): unknown {
+	if (!input || typeof input !== "object" || Array.isArray(input)) {
+		return input;
+	}
+	const { text, ...preview } = input as Record<string, unknown>;
+	return {
+		...preview,
+		hasText: text !== undefined,
+		...(Array.isArray(preview.actions)
+			? { actions: preview.actions.map(redactComputerInput) }
+			: {}),
+	};
+}
+
 /**
- * Reduces one committed message part to a journal-safe payload. Tool
- * outputs and images are reduced to name/ok/hasImage — the computer-use
- * backend already journals every screenshot once, in execution order, so
- * copying outputs here would store each image twice and make the journal
- * unboundedly large.
+ * Reduces one committed message part to a bounded preview. Tool results keep
+ * only name/ok, and image parts are omitted: qbt retains screenshots in its
+ * native action journal, so host events do not duplicate their bytes.
+ * Computer inputs replace text (including key combinations and sequence-step
+ * text) with hasText before serialization, without changing the tool input.
+ * This is not general transcript redaction: other tool inputs, messages, and
+ * reasoning remain visible. Qbt's native action journal still stores raw text.
  */
 function partPayload(
 	part: AgentMessagePart,
@@ -46,7 +62,11 @@ function partPayload(
 					role: "tool_call",
 					toolName: part.toolName,
 					input: truncate(
-						JSON.stringify(part.input ?? {}),
+						JSON.stringify(
+							part.toolName === "computer"
+								? redactComputerInput(part.input ?? {})
+								: (part.input ?? {}),
+						),
 						TOOL_INPUT_PREVIEW_LIMIT,
 					),
 				},

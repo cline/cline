@@ -27,7 +27,7 @@ const DEFAULT_READY_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 
 export interface ComputerBackendRestartOptions {
-	/** Reuse the tools' connection. The caller retains ownership of this client. */
+	/** Reuse the tools' ordinary connection. The caller retains client ownership. */
 	client?: ComputerUseClient;
 	/** Backend host, defaults to loopback. */
 	host?: string;
@@ -130,10 +130,10 @@ export class ComputerBackendRestart {
 	}
 
 	/**
-	 * Replaces the backend process this instance launched, even when it still
-	 * answers probes. This recovers native resources that can become invalid
-	 * while the process remains alive. A responsive process owned by someone
-	 * else is never killed.
+	 * Replaces the backend even when it still answers probes, recovering native
+	 * resources that can become invalid while its process remains alive. An
+	 * independently started compatible backend is asked to exit on a separate
+	 * control connection; OS termination is limited to this instance's child.
 	 */
 	async forceRestart(
 		signal?: AbortSignal,
@@ -227,9 +227,18 @@ export class ComputerBackendRestart {
 	}
 
 	private async requestShutdown(signal: AbortSignal): Promise<void> {
+		// qbt handles shutdown out of band only as the first frame of a new
+		// connection. Reusing the action client would queue behind ongoing work
+		// and merely acknowledge shutdown without stopping the server.
+		const controlClient = new ComputerUseClient({
+			host: this.options.host,
+			port: this.options.port,
+			connectTimeoutMs: this.probeTimeoutMs,
+			requestTimeoutMs: this.probeTimeoutMs,
+		});
 		let response: ComputerUseResponse;
 		try {
-			response = await this.client.send(
+			response = await controlClient.send(
 				{ action: SHUTDOWN_BACKEND_ACTION },
 				{ signal },
 			);
@@ -238,8 +247,11 @@ export class ComputerBackendRestart {
 			if ((error as NodeJS.ErrnoException).code !== "ECONNREFUSED") throw error;
 			// A refused connection means there is no process to stop. Other
 			// transport failures do not prove that launching a duplicate is safe.
-			this.client.close();
 			return;
+		} finally {
+			// send's bounded connection attempt has settled before closing, so
+			// this temporary client cannot reconnect after the operation ends.
+			controlClient.close();
 		}
 		if (!response.ok) {
 			throw new Error(response.error ?? "backend refused shutdown");
@@ -432,9 +444,15 @@ export class ComputerBackendRestart {
 			return true;
 		} catch (error) {
 			signal.throwIfAborted();
-			// A queued request timing out does not establish that the backend died.
-			// During startup keep waiting; before launch fail rather than duplicate it.
-			if (!starting && (this.client.isConnected || timeout.signal.aborted)) {
+			// A lost action connection or response does not establish that the
+			// listener died. Only a refused connection permits a new launch;
+			// during startup keep probing the process already launched.
+			if (
+				!starting &&
+				((error as NodeJS.ErrnoException).code !== "ECONNREFUSED" ||
+					this.client.isConnected ||
+					timeout.signal.aborted)
+			) {
 				throw new Error(
 					`backend did not answer the probe; refusing to launch a duplicate: ${String(error)}`,
 				);
@@ -444,8 +462,8 @@ export class ComputerBackendRestart {
 			clearTimeout(timer);
 			probeSignal.removeEventListener("abort", onAbort);
 			if (!this.options.client && probeSignal.aborted) {
-				// send cannot cancel a pending TCP connect. Its bounded connect must
-				// settle before closing an owned client, so it cannot reopen afterwards.
+				// Settle the cancelled probe before releasing this module's client.
+				// A borrowed client remains under the host's lifecycle control.
 				await request.catch(() => {});
 				this.client.close();
 			}

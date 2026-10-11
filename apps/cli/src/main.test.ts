@@ -632,7 +632,7 @@ describe("runCli lightweight command dispatch", () => {
 		const stdout = vi
 			.spyOn(process.stdout, "write")
 			.mockImplementation(() => true);
-		process.env.CLINE_COMPUTER_USE_PORT = "1234";
+		vi.stubEnv("CLINE_COMPUTER_USE_PORT", "1234");
 		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "say hello"];
 
@@ -647,7 +647,7 @@ describe("runCli lightweight command dispatch", () => {
 			);
 			expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		} finally {
-			delete process.env.CLINE_COMPUTER_USE_PORT;
+			vi.unstubAllEnvs();
 			stdout.mockRestore();
 		}
 	});
@@ -656,7 +656,7 @@ describe("runCli lightweight command dispatch", () => {
 		const stdout = vi
 			.spyOn(process.stdout, "write")
 			.mockImplementation(() => true);
-		process.env.CLINE_COMPUTER_USE_PORT = "1234";
+		vi.stubEnv("CLINE_COMPUTER_USE_PORT", "1234");
 		process.argv = ["bun", "src/index.ts"];
 
 		try {
@@ -670,7 +670,7 @@ describe("runCli lightweight command dispatch", () => {
 			);
 			expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
 		} finally {
-			delete process.env.CLINE_COMPUTER_USE_PORT;
+			vi.unstubAllEnvs();
 			stdout.mockRestore();
 		}
 	});

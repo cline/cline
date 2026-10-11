@@ -71,6 +71,8 @@ export type ComputerUseClientEvent =
 export type ComputerUseClientObserver = (event: ComputerUseClientEvent) => void;
 
 export interface ComputerUseSendOptions {
+	/** Per-action response budget; overrides the client's default for long input sequences. */
+	requestTimeoutMs?: number;
 	/**
 	 * Cancels waiting for the response. Cancellation removes the pending
 	 * entry and rejects the returned promise, but an input event the backend
@@ -108,6 +110,8 @@ interface PendingRequest {
 export class ComputerUseClient {
 	private socket: Socket | undefined;
 	private connectPromise: Promise<Socket> | undefined;
+	private rejectConnect: ((error: Error) => void) | undefined;
+	private connectionGeneration = 0;
 	private buffer = "";
 	private nextRequestId = 1;
 	private readonly pending = new Map<number, PendingRequest>();
@@ -128,6 +132,37 @@ export class ComputerUseClient {
 		const actionId = options?.actionId ?? `act_${nanoid(10)}`;
 		const startedAt = Date.now();
 		const signal = options?.signal;
+		const generation = this.connectionGeneration;
+		const id = this.nextRequestId++;
+		const fullRequest: ComputerUseRequest = { ...request, id };
+		let line: string;
+		try {
+			line = `${JSON.stringify(fullRequest)}\n`;
+		} catch (error) {
+			const normalized =
+				error instanceof Error ? error : new Error(String(error));
+			this.notify({
+				type: "action_requested",
+				actionId,
+				request: { action: request.action, id },
+				at: startedAt,
+			});
+			this.notify({
+				type: "action_failed",
+				actionId,
+				error: normalized,
+				durationMs: Date.now() - startedAt,
+				at: Date.now(),
+			});
+			throw normalized;
+		}
+		this.notify({
+			type: "action_requested",
+			actionId,
+			// A detached preview cannot change the already-serialized wire request.
+			request: JSON.parse(line) as ComputerUseRequest,
+			at: startedAt,
+		});
 
 		if (signal?.aborted) {
 			const error = abortReasonToError(signal.reason);
@@ -143,16 +178,19 @@ export class ComputerUseClient {
 
 		let socket: Socket;
 		try {
+			if (generation !== this.connectionGeneration)
+				throw new Error("Computer-use client closed");
 			socket = await this.ensureConnected();
+			if (
+				generation !== this.connectionGeneration ||
+				socket !== this.socket ||
+				socket.destroyed
+			) {
+				throw new Error("Computer-use client closed");
+			}
 		} catch (error) {
 			const normalized =
 				error instanceof Error ? error : new Error(String(error));
-			this.notify({
-				type: "action_requested",
-				actionId,
-				request: { ...request, id: -1 },
-				at: startedAt,
-			});
 			this.notify({
 				type: "action_failed",
 				actionId,
@@ -163,18 +201,10 @@ export class ComputerUseClient {
 			throw normalized;
 		}
 
-		const id = this.nextRequestId++;
-		const fullRequest: ComputerUseRequest = { ...request, id };
-		const line = `${JSON.stringify(fullRequest)}\n`;
-		this.notify({
-			type: "action_requested",
-			actionId,
-			request: fullRequest,
-			at: startedAt,
-		});
-
 		const timeoutMs =
-			this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+			options?.requestTimeoutMs ??
+			this.options.requestTimeoutMs ??
+			DEFAULT_REQUEST_TIMEOUT_MS;
 		return new Promise<ComputerUseResponse>((resolve, reject) => {
 			// Single settle path: whichever outcome fires first (response,
 			// failure, timeout, abort) clears the timer, detaches the abort
@@ -294,6 +324,9 @@ export class ComputerUseClient {
 
 	/** Closes the underlying socket, if any. Safe to call multiple times. */
 	close(): void {
+		this.connectionGeneration += 1;
+		this.rejectConnect?.(new Error("Computer-use client closed"));
+		this.rejectConnect = undefined;
 		this.socket?.destroy();
 		this.socket = undefined;
 		this.connectPromise = undefined;
@@ -301,7 +334,12 @@ export class ComputerUseClient {
 	}
 
 	private async ensureConnected(): Promise<Socket> {
-		if (this.socket && !this.socket.destroyed) {
+		if (this.socket?.destroyed) {
+			this.socket = undefined;
+			this.connectPromise = undefined;
+			this.failAllPending(new Error("Computer-use backend connection closed"));
+		}
+		if (this.socket && !this.socket.destroyed && !this.socket.connecting) {
 			return this.socket;
 		}
 		if (!this.connectPromise) {
@@ -315,12 +353,29 @@ export class ComputerUseClient {
 		const port = this.options.port;
 		const connectTimeoutMs =
 			this.options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
+		const generation = this.connectionGeneration;
 
 		return new Promise<Socket>((resolve, reject) => {
 			const socket = connect({ host, port });
-			const onConnectTimeout = setTimeout(() => {
+			this.socket = socket;
+			const ownsConnection = () =>
+				this.socket === socket && this.connectionGeneration === generation;
+			let connected = false;
+			let settled = false;
+			const rejectConnection = (error: Error) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(onConnectTimeout);
+				if (ownsConnection()) {
+					this.connectPromise = undefined;
+					this.rejectConnect = undefined;
+				}
 				socket.destroy();
-				reject(
+				reject(error);
+			};
+			this.rejectConnect = rejectConnection;
+			const onConnectTimeout = setTimeout(() => {
+				rejectConnection(
 					new Error(
 						`Timed out connecting to computer-use backend at ${host}:${port}`,
 					),
@@ -328,24 +383,35 @@ export class ComputerUseClient {
 			}, connectTimeoutMs);
 
 			socket.once("connect", () => {
+				if (!ownsConnection() || settled) {
+					rejectConnection(new Error("Computer-use client closed"));
+					return;
+				}
+				settled = true;
+				connected = true;
 				clearTimeout(onConnectTimeout);
-				this.socket = socket;
+				this.rejectConnect = undefined;
 				this.buffer = "";
 				// Don't let an idle backend connection keep the host process
-				// alive on its own; the socket is reference-counted back in
-				// while a request is in flight via the write/response cycle.
+				// alive on its own; pending requests have referenced deadline timers.
 				socket.unref();
 				resolve(socket);
 			});
 
 			socket.once("error", (error) => {
-				clearTimeout(onConnectTimeout);
-				this.connectPromise = undefined;
-				this.failAllPending(error);
-				reject(error);
+				rejectConnection(error);
+				if (ownsConnection()) {
+					this.socket = undefined;
+					this.connectPromise = undefined;
+					this.failAllPending(error);
+				}
 			});
 
 			socket.once("close", () => {
+				if (!connected)
+					rejectConnection(new Error("Computer-use backend connection closed"));
+				if (!ownsConnection()) return;
+				this.socket = undefined;
 				this.connectPromise = undefined;
 				this.failAllPending(
 					new Error("Computer-use backend connection closed"),
@@ -353,7 +419,9 @@ export class ComputerUseClient {
 			});
 
 			socket.setEncoding("utf8");
-			socket.on("data", (chunk: string) => this.onData(chunk));
+			socket.on("data", (chunk: string) => {
+				if (ownsConnection()) this.onData(chunk);
+			});
 		});
 	}
 
@@ -380,6 +448,14 @@ export class ComputerUseClient {
 			return;
 		}
 		if (!isComputerUseResponse(parsed)) {
+			if (parsed && typeof parsed === "object") {
+				const id = (parsed as { id?: unknown }).id;
+				if (typeof id === "number") {
+					this.pending
+						.get(id)
+						?.reject(new Error("Invalid computer-use backend response"));
+				}
+			}
 			return;
 		}
 		const pending = this.pending.get(parsed.id);
@@ -392,10 +468,11 @@ export class ComputerUseClient {
 	}
 
 	private failAllPending(error: Error): void {
-		for (const [id, pending] of this.pending) {
+		const requests = [...this.pending.values()];
+		this.pending.clear();
+		for (const pending of requests) {
 			clearTimeout(pending.timeout);
 			pending.reject(error);
-			this.pending.delete(id);
 		}
 	}
 }

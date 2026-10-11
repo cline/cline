@@ -38,6 +38,7 @@ function fixtureLaunchCommand(port: number): string {
 async function startProbeServer() {
 	let connections = 0;
 	let respond = true;
+	let disconnectNextRequest = false;
 	let onRequest: (() => void) | undefined;
 	const sockets = new Set<net.Socket>();
 	const server = net.createServer((socket) => {
@@ -53,6 +54,11 @@ async function startProbeServer() {
 			for (const line of lines) {
 				onRequest?.();
 				onRequest = undefined;
+				if (disconnectNextRequest) {
+					disconnectNextRequest = false;
+					socket.destroy();
+					break;
+				}
 				if (respond)
 					socket.write(
 						`${JSON.stringify({
@@ -70,8 +76,14 @@ async function startProbeServer() {
 		get connections() {
 			return connections;
 		},
+		get activeConnections() {
+			return sockets.size;
+		},
 		set respond(value: boolean) {
 			respond = value;
+		},
+		set disconnectNextRequest(value: boolean) {
+			disconnectNextRequest = value;
 		},
 		nextRequest: () =>
 			new Promise<void>((resolve) => {
@@ -123,10 +135,12 @@ async function portAcceptsConnections(port: number): Promise<boolean> {
 }
 
 /** Spawns the fake backend directly (not via ComputerBackendRestart). */
-async function startFakeBackend(port: number) {
-	const child = spawn(process.execPath, [fixturePath, String(port)], {
-		stdio: "ignore",
-	});
+async function startFakeBackend(port: number, extraArguments: string[] = []) {
+	const child = spawn(
+		process.execPath,
+		[fixturePath, String(port), "15000", "0", "", "", ...extraArguments],
+		{ stdio: "ignore" },
+	);
 	await (async function waitForReady(attempt = 0): Promise<void> {
 		if (await probePort(port, 500)) {
 			return;
@@ -203,6 +217,78 @@ describe("ComputerBackendRestart", () => {
 			server.respond = true;
 			await client.getDisplayInfo();
 			expect(server.connections).toBe(1);
+		} finally {
+			await restart.dispose();
+			client.close();
+			await server.close();
+		}
+	});
+
+	it("does not launch after a probe connection closes while the listener stays alive", async () => {
+		const server = await startProbeServer();
+		const client = new ComputerUseClient({ port: server.port });
+		const directory = mkdtempSync(join(tmpdir(), "restart-disconnect-"));
+		const marker = join(directory, "launched");
+		const restart = new ComputerBackendRestart({
+			client,
+			port: server.port,
+			command: `${fixtureLaunchCommand(server.port)} 15000 0 ${shellQuote(marker)}`,
+			probeTimeoutMs: 1_000,
+			readyTimeoutMs: 1_000,
+			pollIntervalMs: 50,
+		});
+		try {
+			await client.getDisplayInfo();
+			server.disconnectNextRequest = true;
+			await expect(restart.ensureRunning()).resolves.toMatchObject({
+				status: "failed_to_start",
+				error: expect.stringContaining("refusing to launch a duplicate"),
+			});
+			expect(existsSync(marker)).toBe(false);
+			await expect(client.getDisplayInfo()).resolves.toEqual({
+				widthPx: 100,
+				heightPx: 100,
+			});
+		} finally {
+			await restart.dispose();
+			client.close();
+			await server.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	it.each([
+		"timeout",
+		"dispose",
+	])("closes the shutdown control connection on %s without closing the borrowed client", async (action) => {
+		const server = await startProbeServer();
+		const client = new ComputerUseClient({ port: server.port });
+		const restart = new ComputerBackendRestart({
+			client,
+			port: server.port,
+			command: "exit 9",
+			probeTimeoutMs: 500,
+		});
+		try {
+			await expect(restart.ensureRunning()).resolves.toEqual({
+				status: "already_running",
+			});
+			server.respond = false;
+			const requested = server.nextRequest();
+			const result = restart.forceRestart();
+			await requested;
+			expect(server.connections).toBe(2);
+			if (action === "dispose") await restart.dispose();
+			await expect(result).resolves.toMatchObject({
+				status: "failed_to_start",
+				error: expect.stringContaining(
+					action === "dispose" ? "disposed" : "timed out",
+				),
+			});
+			await expect.poll(() => server.activeConnections).toBe(1);
+			server.respond = true;
+			await client.getDisplayInfo();
+			expect(server.connections).toBe(2);
 		} finally {
 			await restart.dispose();
 			client.close();
@@ -378,26 +464,83 @@ describe("ComputerBackendRestart", () => {
 		}
 	});
 
-	it("cooperatively replaces an independently started compatible backend", async () => {
+	it("cooperatively replaces an external backend after warming the shared client", async () => {
 		const port = await freePort();
 		const original = await startFakeBackend(port);
+		const client = new ComputerUseClient({ port });
 		const restart = new ComputerBackendRestart({
+			client,
 			port,
 			command: fixtureLaunchCommand(port),
 			readyTimeoutMs: 15_000,
 			pollIntervalMs: 100,
 		});
 		try {
+			await expect(restart.ensureRunning()).resolves.toEqual({
+				status: "already_running",
+			});
+			await client.send({
+				action: "publish_event",
+				kind: "test.warmed_client",
+				payload: {},
+			});
 			await expect(restart.forceRestart()).resolves.toMatchObject({
 				status: "started",
 			});
 			await expect
 				.poll(() => original.exitCode, { timeout: 2_000 })
 				.not.toBeNull();
-			expect(await probePort(port, 1_000)).toBe(true);
+			await expect(client.getDisplayInfo()).resolves.toEqual({
+				widthPx: 100,
+				heightPx: 100,
+			});
 		} finally {
 			await restart.dispose();
+			client.close();
 			if (original.exitCode === null) original.kill();
+		}
+	});
+
+	it("cooperative shutdown bypasses a long action on the shared connection", async () => {
+		const port = await freePort();
+		const directory = mkdtempSync(join(tmpdir(), "restart-control-"));
+		const marker = join(directory, "waiting");
+		const original = await startFakeBackend(port, [`wait-file=${marker}`]);
+		const client = new ComputerUseClient({ port });
+		const restart = new ComputerBackendRestart({
+			client,
+			port,
+			command: fixtureLaunchCommand(port),
+			probeTimeoutMs: 1_000,
+			readyTimeoutMs: 15_000,
+			pollIntervalMs: 100,
+		});
+		try {
+			await expect(restart.ensureRunning()).resolves.toEqual({
+				status: "already_running",
+			});
+			const waiting = client.send({ action: "wait", durationSeconds: 60 }).then(
+				() => "completed",
+				() => "disconnected",
+			);
+			await expect
+				.poll(() => existsSync(marker), { timeout: 5_000 })
+				.toBe(true);
+			await expect(restart.forceRestart()).resolves.toEqual({
+				status: "started",
+			});
+			await expect(waiting).resolves.toBe("disconnected");
+			await expect.poll(() => original.exitCode, { timeout: 2_000 }).toBe(0);
+			await expect(
+				client.send({ action: "screenshot" }),
+			).resolves.toMatchObject({
+				ok: true,
+			});
+		} finally {
+			await restart.dispose();
+			client.close();
+			if (original.exitCode === null) original.kill();
+			rmSync(directory, { recursive: true, force: true });
 		}
 	});
 

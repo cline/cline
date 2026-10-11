@@ -20,7 +20,7 @@ function makeEvent(clientSequence: number): ComputerTaskArtifactEvent {
 }
 
 describe("createJournalEventSink", () => {
-	it("publishes events in emission order and reports completeness", async () => {
+	it("publishes events in emission order and reports acknowledged publishes", async () => {
 		const sent: Array<{ kind: string; payload: unknown }> = [];
 		const sink = createJournalEventSink({
 			send: async (request) => {

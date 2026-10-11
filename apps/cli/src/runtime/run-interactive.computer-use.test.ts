@@ -93,5 +93,9 @@ describe("interactive computer-use ownership", () => {
 			),
 		).rejects.toThrow(error);
 		expect(dispose).toHaveBeenCalledOnce();
+		if (failure !== "repository discovery")
+			expect(mocks.cleanup).toHaveBeenCalledOnce();
+		expect(process.rawListeners("SIGINT")).toEqual(originalSigint);
+		expect(process.rawListeners("SIGTERM")).toEqual(originalSigterm);
 	});
 });

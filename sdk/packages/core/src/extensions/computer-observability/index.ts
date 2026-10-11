@@ -1,11 +1,11 @@
 /**
  * Computer-use task observability.
  *
- * A shared artifact recorder assigns one total order (`clientSequence`)
- * across driver-transcript and computer-action events so an off-VM viewer can
- * replay the task as a synchronized timeline. The event contract lives in
- * ./artifact-events.ts; the qwanban observatory (`qbt/src/observed.rs` +
- * `observatory/`) is the ingress this stream is designed to feed.
+ * A recorder orders host events with `clientSequence`. The journal sink sends
+ * them to qbt, whose separate sequence combines them with native computer
+ * actions and screenshots for the observatory's recent timeline. The journal
+ * is bounded and in-memory; acknowledgements do not guarantee durable replay.
+ * The event contract lives in ./artifact-events.ts.
  */
 export {
 	ARTIFACT_EVENT_VERSION,

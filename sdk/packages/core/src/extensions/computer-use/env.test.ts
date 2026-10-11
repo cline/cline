@@ -5,7 +5,10 @@ import {
 	type Socket,
 } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { createComputerUseToolFromEnv } from "./env";
+import {
+	createComputerUseToolFromEnv,
+	resolveComputerUseTargetFromEnv,
+} from "./env";
 import type { ComputerUseResponse } from "./protocol";
 
 /**
@@ -82,6 +85,27 @@ describe("createComputerUseToolFromEnv", () => {
 
 	it("returns undefined when the port variable is unset", async () => {
 		await expect(createComputerUseToolFromEnv({})).resolves.toBeUndefined();
+	});
+
+	it.each([
+		"1234junk",
+		"1234.5",
+		"1e3",
+		"65536",
+		"999999999999999999999",
+		" ",
+		"-1",
+		"0",
+	])("rejects invalid TCP port %s", (port) => {
+		expect(
+			resolveComputerUseTargetFromEnv({ CLINE_COMPUTER_USE_PORT: port }),
+		).toBeUndefined();
+	});
+
+	it.each(["1", "65535", " 1234 "])("accepts a decimal TCP port %s", (port) => {
+		expect(
+			resolveComputerUseTargetFromEnv({ CLINE_COMPUTER_USE_PORT: port })?.port,
+		).toBe(Number(port));
 	});
 
 	it("returns undefined when the port variable is not a positive integer", async () => {
