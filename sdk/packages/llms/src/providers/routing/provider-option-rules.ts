@@ -369,13 +369,15 @@ const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
 	description:
-		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets.",
+		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets, and only on models that advertise one; level-only models reject thinkingBudget.",
 	suppresses: { genericThinking: true },
 	applies: (input) =>
 		(input.request.providerId === "google" ||
 			input.request.providerId === "gemini" ||
 			input.request.providerId === "vertex") &&
-		typeof input.request.reasoning?.budgetTokens === "number",
+		typeof input.request.reasoning?.budgetTokens === "number" &&
+		getModelReasoningControls(input.context.model.reasoningOptions)?.budget !==
+			undefined,
 	build: (input) => {
 		const providerOptionsName =
 			input.request.providerId === "vertex" ? "vertex" : "google";

@@ -2009,7 +2009,9 @@ describe("models.json model overlays", () => {
 			expect(provider).toMatchObject({
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
-				defaultModelId: CLINE_DEFAULT_MODEL_ID,
+				defaultModelId:
+					LlmsModels.GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+					CLINE_DEFAULT_MODEL_ID,
 			});
 
 			const { models } = await getLocalProviderModels("cline");
