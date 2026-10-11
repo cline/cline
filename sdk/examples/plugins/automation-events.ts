@@ -68,9 +68,7 @@ export const plugin: AgentPlugin = {
 			});
 		}, intervalMs);
 
-		// Stop emitting when the session that set this plugin up ends. The
-		// host also clears timers a plugin creates, but explicit cleanup keeps
-		// the plugin correct in any host.
+		// Stop emitting when the session that set this plugin up ends.
 		ctx.onDispose?.(() => clearInterval(timer));
 	},
 };

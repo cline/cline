@@ -17,9 +17,7 @@ import {
 import { filterDisabledPluginPaths } from "../../services/global-settings";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import {
-	derivePluginNameFromPath,
 	getProcessPluginRegistry,
-	isPluginEnabledByPolicy,
 	type PluginHookErrorMode,
 	type PluginRegistry,
 } from "./plugin-registry";
@@ -319,7 +317,10 @@ export interface ResolveAndLoadAgentPluginsOptions
 	automation?: PluginSetupContext["automation"];
 	logger?: PluginSetupContext["logger"];
 	telemetry?: PluginSetupContext["telemetry"];
-	/** Per-session plugin selection (`"*"` default plus per-plugin overrides). */
+	/**
+	 * Per-session plugin selection (`"*"` default plus per-plugin overrides).
+	 * In-process only; the sandbox loads every discovered plugin.
+	 */
 	policy?: PluginPolicies;
 	/** How a failing plugin hook affects the run. Defaults to `"ignore"`. */
 	hookErrorMode?: PluginHookErrorMode;
@@ -393,28 +394,16 @@ export async function resolveAndLoadAgentPlugins(
 		};
 	}
 
-	// Apply the session policy before starting the sandbox so a plugin the
-	// session turned off is not imported at all when its file name matches;
-	// plugins named only by their exported `name` are filtered after import.
-	const policyIssues: SessionPluginIssue[] = [];
-	const paths = resolveAgentPluginPaths(options).filter((pluginPath) => {
-		const name = derivePluginNameFromPath(pluginPath);
-		if (isPluginEnabledByPolicy(options.policy, [name])) return true;
-		policyIssues.push({
-			name,
-			pluginPath,
-			state: "disabled",
-			reason: "session_policy",
-		});
-		return false;
-	});
+	// The sandbox does not apply the per-session `policy`; it is an opt-in
+	// escape hatch and loads every discovered plugin.
+	const paths = resolveAgentPluginPaths(options);
 	if (paths.length === 0) {
 		return {
 			extensions: [],
 			failures: [],
 			warnings: [],
 			pluginPaths: [],
-			issues: policyIssues,
+			issues: [],
 		};
 	}
 	const sandboxed = await loadSandboxedPlugins({
@@ -434,53 +423,28 @@ export async function resolveAndLoadAgentPlugins(
 		workspaceInfo: options.workspaceInfo,
 		logger: options.logger,
 	});
-	const keptPaths = new Set<string>();
-	const extensions = (sandboxed.extensions ?? []).filter((extension) => {
-		const pluginPath = (extension as { __clinePluginPath?: string })
-			.__clinePluginPath;
-		const names = [
-			extension.name,
-			...(pluginPath ? [derivePluginNameFromPath(pluginPath)] : []),
-		];
-		if (isPluginEnabledByPolicy(options.policy, names)) {
-			if (pluginPath) keptPaths.add(resolve(pluginPath));
-			return true;
-		}
-		policyIssues.push({
-			name: extension.name,
-			pluginPath: pluginPath ?? extension.name,
-			state: "disabled",
-			reason: "session_policy",
-		});
-		return false;
-	});
 	return {
-		extensions,
+		extensions: sandboxed.extensions ?? [],
 		shutdown: sandboxed.shutdown,
 		failures: sandboxed.failures,
-		pluginPaths: sandboxed.pluginPaths.filter((pluginPath) =>
-			keptPaths.has(resolve(pluginPath)),
-		),
+		pluginPaths: sandboxed.pluginPaths,
 		warnings: sandboxed.warnings,
-		issues: [
-			...policyIssues,
-			...sandboxed.failures.map(
-				(failure): SessionPluginIssue => ({
-					name:
-						failure.pluginName ??
-						basename(failure.pluginPath, extname(failure.pluginPath)),
+		issues: sandboxed.failures.map(
+			(failure): SessionPluginIssue => ({
+				name:
+					failure.pluginName ??
+					basename(failure.pluginPath, extname(failure.pluginPath)),
+				pluginPath: failure.pluginPath,
+				state: "failed",
+				reason: "error",
+				lastError: {
+					phase: failure.phase === "setup" ? "setup" : "import",
+					message: failure.message,
+					stack: failure.stack,
 					pluginPath: failure.pluginPath,
-					state: "failed",
-					reason: "error",
-					lastError: {
-						phase: failure.phase === "setup" ? "setup" : "import",
-						message: failure.message,
-						stack: failure.stack,
-						pluginPath: failure.pluginPath,
-						timestamp: Date.now(),
-					},
-				}),
-			),
-		],
+					timestamp: Date.now(),
+				},
+			}),
+		),
 	};
 }
