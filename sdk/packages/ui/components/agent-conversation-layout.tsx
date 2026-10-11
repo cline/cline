@@ -58,7 +58,6 @@ export function AgentConversationHeader({
 export interface AgentConversationLayoutProps {
 	/** Switches between the welcome composition and an existing conversation. */
 	welcome: boolean;
-	compactWelcome?: boolean;
 	welcomeHeader?: ReactNode;
 	body: ReactNode;
 	composer: ReactNode;
@@ -75,7 +74,6 @@ export interface AgentConversationLayoutProps {
 /** Keeps transcript and composer containers mounted while the welcome state changes. */
 export function AgentConversationLayout({
 	welcome,
-	compactWelcome = false,
 	welcomeHeader,
 	body,
 	composer,
@@ -105,7 +103,7 @@ export function AgentConversationLayout({
 						welcome
 							? clsx(
 									"mx-auto flex w-full max-w-240 flex-col px-6 max-[720px]:px-4",
-									compactWelcome
+									welcomeSetup
 										? "min-h-full justify-end py-8"
 										: "pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:pb-20 max-[720px]:pt-16",
 								)

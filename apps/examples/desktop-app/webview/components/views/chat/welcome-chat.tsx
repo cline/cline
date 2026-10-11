@@ -463,7 +463,6 @@ export function WelcomeScreen({
 	return (
 		<AgentConversationLayout
 			welcome={active}
-			compactWelcome={cloudOnboardingVariant === "signed_out"}
 			body={body}
 			bodyClassName="cline-view-enter"
 			composer={composer}
