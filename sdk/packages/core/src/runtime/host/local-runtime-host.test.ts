@@ -237,11 +237,14 @@ describe("LocalRuntimeHost", () => {
 				data: {
 					sessionId: "meta-session",
 					tools: [
-						{
-							slug: "COMPOSIO_SEARCH_TOOLS",
-							input_parameters: { type: "object", properties: {} },
-						},
-					],
+						"COMPOSIO_SEARCH_TOOLS",
+						"COMPOSIO_MANAGE_CONNECTIONS",
+						"COMPOSIO_WAIT_FOR_CONNECTIONS",
+						"COMPOSIO_MULTI_EXECUTE_TOOL",
+					].map((slug) => ({
+						slug,
+						input_parameters: { type: "object", properties: {} },
+					})),
 				},
 			}),
 		);
