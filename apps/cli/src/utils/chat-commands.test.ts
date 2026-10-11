@@ -5,6 +5,20 @@ import {
 	maybeHandleChatCommand,
 	normalizeCommandName,
 } from "./chat-commands";
+import { createKanbanTask } from "./kanban-task";
+
+vi.mock("./kanban-task", async () => {
+	const real = await import("./kanban-task");
+	return {
+		...real,
+		createKanbanTask: vi.fn(async () => ({
+			ok: true,
+			taskId: "65f2d",
+			message:
+				"Added to the partyshare backlog: Congelar a margem (card 65f2d)",
+		})),
+	};
+});
 
 describe("chat commands", () => {
 	it("shows connector help for /help and /start", async () => {
@@ -358,5 +372,154 @@ describe("chat commands", () => {
 		expect(handled).toBe(true);
 		expect(abort).toHaveBeenCalledTimes(1);
 		expect(reply).not.toHaveBeenCalled();
+	});
+});
+
+describe("/task", () => {
+	function context(
+		reply: (text: string) => Promise<void>,
+		cwd: string,
+		workspaceRoot: string,
+	) {
+		return {
+			enabled: true,
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd,
+				workspaceRoot,
+			}),
+			setState: async () => undefined,
+			reply,
+		};
+	}
+
+	it("creates the card against the conversation's repository, not its worktree", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		const handled = await maybeHandleChatCommand(
+			"/task Congelar a margem no aceite",
+			context(
+				reply,
+				"/home/me/.cline/worktrees/461e5/partyshare",
+				"/code/partyshare",
+			),
+		);
+
+		expect(handled).toBe(true);
+		expect(createKanbanTask).toHaveBeenCalledWith({
+			description: "Congelar a margem no aceite",
+			projectPath: "/code/partyshare",
+			start: false,
+			source: undefined,
+		});
+		expect(reply).toHaveBeenCalledWith(
+			"Added to the partyshare backlog: Congelar a margem (card 65f2d)",
+		);
+	});
+
+	it("shows usage instead of creating an empty card", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		vi.mocked(createKanbanTask).mockClear();
+		const handled = await maybeHandleChatCommand(
+			"/task",
+			context(reply, "/code/app", "/code/app"),
+		);
+
+		expect(handled).toBe(true);
+		expect(createKanbanTask).not.toHaveBeenCalled();
+		expect(reply).toHaveBeenCalledWith(expect.stringContaining("Usage: /task"));
+	});
+
+	it("is listed in the help, or nobody would find it", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		await maybeHandleChatCommand(
+			"/help",
+			context(reply, "/code/app", "/code/app"),
+		);
+		expect(reply).toHaveBeenCalledWith(
+			expect.stringContaining("/task [--start] [--brainstorm]"),
+		);
+	});
+
+	it("hands the brainstorm to the agent instead of filing the card", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		const submitPrompt = vi.fn<(prompt: string) => Promise<void>>(
+			async () => undefined,
+		);
+		vi.mocked(createKanbanTask).mockClear();
+
+		const handled = await maybeHandleChatCommand(
+			"/task --brainstorm melhorar o aceite",
+			{
+				...context(reply, "/code/partyshare", "/code/partyshare"),
+				submitPrompt,
+			},
+		);
+
+		expect(handled).toBe(true);
+		expect(createKanbanTask).not.toHaveBeenCalled();
+		expect(submitPrompt).toHaveBeenCalledWith(
+			expect.stringContaining("Interview the person about it"),
+		);
+		expect(submitPrompt).toHaveBeenCalledWith(
+			expect.stringContaining("melhorar o aceite"),
+		);
+	});
+
+	it("says so plainly when the surface has no agent to brainstorm with", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		vi.mocked(createKanbanTask).mockClear();
+
+		await maybeHandleChatCommand(
+			"/task --brainstorm melhorar o aceite",
+			context(reply, "/code/partyshare", "/code/partyshare"),
+		);
+
+		expect(createKanbanTask).not.toHaveBeenCalled();
+		expect(reply).toHaveBeenCalledWith(
+			expect.stringContaining("cannot brainstorm here"),
+		);
+	});
+
+	it("asks for the card to be started when told to", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		vi.mocked(createKanbanTask).mockClear();
+
+		await maybeHandleChatCommand(
+			"/task --start medir a suite",
+			context(reply, "/code/partyshare", "/code/partyshare"),
+		);
+
+		expect(createKanbanTask).toHaveBeenCalledWith({
+			description: "medir a suite",
+			projectPath: "/code/partyshare",
+			start: true,
+			source: undefined,
+		});
+	});
+});
+
+describe("where a card says it came from", () => {
+	it("files the card with the surface that asked for it", async () => {
+		// On a board one person works, who filed it says something; whose face it is does not.
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		vi.mocked(createKanbanTask).mockClear();
+
+		await maybeHandleChatCommand("/task medir a suite", {
+			enabled: true,
+			transport: "telegram",
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/code/app",
+				workspaceRoot: "/code/app",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(vi.mocked(createKanbanTask).mock.calls[0]?.[0]).toMatchObject({
+			source: "telegram",
+		});
 	});
 });

@@ -1,6 +1,11 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { resolveWorkspaceRoot } from "./helpers";
+import {
+	buildBrainstormPrompt,
+	createKanbanTask,
+	parseTaskCommand,
+} from "./kanban-task";
 
 export type ChatCommandState = {
 	enableTools: boolean;
@@ -31,6 +36,8 @@ export type MuteCommandInput = {
 
 export type ChatCommandContext = {
 	enabled: boolean;
+	/** The surface this command arrived on: "telegram", "slack", and so on. */
+	transport?: string;
 	botUserName?: string;
 	requireBotMention?: boolean;
 	host?: ChatCommandHost;
@@ -283,6 +290,7 @@ function formatHelp(state: ChatCommandState): string {
 		"/tools [on|off|toggle] - allow repo/file/shell tools",
 		"/yolo [on|off|toggle] - auto-approve tool use",
 		"/cwd <path> - change working directory",
+		"/task [--start] [--brainstorm] [--tags a,b] [--category x] [--priority p] <what needs doing> - add it to the Kanban backlog",
 		"/schedule create/list/trigger/delete - manage scheduled workflows",
 		"/abort - stop the current task",
 		"/mute [target] - ignore this thread or target until /unmute",
@@ -420,6 +428,62 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					workspaceRoot,
 				});
 				await context.reply(`cwd=${nextCwd}\nworkspaceRoot=${workspaceRoot}`);
+			},
+		})
+		.register("command", {
+			names: ["/task"],
+			run: async ({ args, state }, context) => {
+				const { start, brainstorm, tags, category, priority, description } =
+					parseTaskCommand(args);
+				if (!description) {
+					await context.reply(
+						[
+							"Usage: /task [--start] [--brainstorm] <what needs doing>",
+							"Adds it to the Kanban backlog for this workspace.",
+							"  --start       run it as soon as the card exists",
+							"  --brainstorm  work the demand out with me first, then file it",
+							"  --tags a,b    tags for finding it later",
+							"  --category x  one category, e.g. bug | feature | infra",
+							"  --priority p  high | medium | low",
+						].join("\n"),
+					);
+					return;
+				}
+				// The conversation's repository, never its cwd when that is a worktree: a card
+				// belongs to the project, and its ready-for-review notification routes back by
+				// this same path.
+				const projectPath = state.workspaceRoot || state.cwd;
+				if (brainstorm) {
+					if (!context.submitPrompt) {
+						await context.reply(
+							"I cannot brainstorm here -- this surface has no agent to hand the demand to. Use /task without --brainstorm to file it as written.",
+						);
+						return;
+					}
+					await context.submitPrompt(
+						buildBrainstormPrompt({
+							description,
+							projectPath,
+							start,
+							tags,
+							category,
+							priority,
+						}),
+					);
+					return;
+				}
+				const result = await createKanbanTask({
+					description,
+					projectPath,
+					start,
+					tags,
+					category,
+					priority,
+					// Where it came from, so the board can show it. An avatar on a board one
+					// person works says nothing; the origin does.
+					source: context.transport,
+				});
+				await context.reply(result.message);
 			},
 		})
 		.register("command", {

@@ -402,7 +402,7 @@ export async function handleConnectorUserTurn<
 	if (!resolvedInput) {
 		return;
 	}
-	const runtimeInput = input.runtimeText?.trim() || resolvedInput;
+	let runtimeInput = input.runtimeText?.trim() || resolvedInput;
 
 	const initialState = await loadThreadState(
 		input.thread,
@@ -484,9 +484,15 @@ export async function handleConnectorUserTurn<
 		input.botUserName,
 	);
 	const isConnectorCommand = commandName !== undefined;
+	// Telegram's "address me explicitly in groups" etiquette exists so several bots in one room
+	// do not all answer the same /start. A connector with an authorization hook already decides
+	// for itself who may talk to it, so the etiquette buys nothing and costs everything: an
+	// unaddressed command in a group vanished with no reply at all, while plain text in the very
+	// same thread was answered normally.
 	if (
 		isConnectorCommand &&
 		!input.thread.isDM &&
+		!input.hookCommand &&
 		!isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName)
 	) {
 		input.logger.core.log("Unaddressed connector chat command ignored", {
@@ -611,11 +617,17 @@ export async function handleConnectorUserTurn<
 		return;
 	}
 
+	// A command may hand the turn a prompt of its own instead of answering and stopping:
+	// `/task --brainstorm` wants the agent to interview the person before filing the card. The
+	// interactive runtime has always supported this; connectors declared the capability in the
+	// context type and never provided it, so such a command had nowhere to go.
+	let submittedPrompt: string | undefined;
 	if (
 		await maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
+			transport: input.transport,
 			botUserName: input.botUserName,
-			requireBotMention: !input.thread.isDM,
+			requireBotMention: !input.thread.isDM && !input.hookCommand,
 			host: input.chatCommandHost,
 			getState: async () => {
 				const current = await loadThreadState(
@@ -700,6 +712,12 @@ export async function handleConnectorUserTurn<
 			},
 			reply: async (message) => {
 				await postConnectorText(input.thread, input.transport, message);
+			},
+			submitPrompt: (prompt) => {
+				const trimmed = prompt.trim();
+				if (trimmed) {
+					submittedPrompt = trimmed;
+				}
 			},
 			reset: async () => {
 				await clearSession({
@@ -995,7 +1013,10 @@ export async function handleConnectorUserTurn<
 			},
 		})
 	) {
-		return;
+		if (submittedPrompt === undefined) {
+			return;
+		}
+		runtimeInput = submittedPrompt;
 	}
 
 	const currentState = await loadThreadState(
