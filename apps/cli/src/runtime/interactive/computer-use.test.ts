@@ -412,6 +412,40 @@ describe("createInteractiveComputerUse", () => {
 		expect(publishes()).toHaveLength(2);
 	});
 
+	it("publishes committed tool calls before their computer action", async () => {
+		backend = await startStubBackend();
+		runtime = await createInteractiveComputerUse({
+			config: makeConfig(),
+			env: { CLINE_COMPUTER_USE_PORT: String(backend.port) },
+		});
+		if (!runtime) throw new Error("computer-use host was not created");
+		await runtime.driverRecordingHooks.onEvent?.({
+			type: "message-added",
+			snapshot: { agentId: "driver-agent" } as never,
+			message: {
+				id: "before-action",
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Inspecting the desktop" },
+					{
+						type: "tool-call",
+						toolCallId: "screen",
+						toolName: "computer",
+						input: { action: "screenshot" },
+					},
+				],
+				createdAt: 0,
+			},
+		});
+		await tool("computer").execute({ action: "screenshot" }, toolContext);
+		expect(backend.requests.map(({ action }) => action)).toEqual([
+			"get_display_info",
+			"publish_event",
+			"publish_event",
+			"screenshot",
+		]);
+	});
+
 	it.each([
 		undefined,
 		"exit 9",

@@ -97,10 +97,21 @@ avoiding protocol overhead, not about avoiding the plugin system.
 `brief_pause` waits for a fixed 300 ms and then returns a screenshot. Use it
 inside `run_sequence` after opening transient UI and before typing into it.
 
-`shutdown_backend` is an internal recovery request. qbt acknowledges it, then
-shuts down its agent and observatory listeners and exits cleanly. Cline uses
-this only for an explicit forced restart; normal computer actions never stop a
-responsive backend.
+The `computer` tool validates input before recovery or network activity. A
+single action or sequence has a maximum 120-second estimated work budget:
+explicit `wait`/`hold_key` durations, 90 ms per Unicode code point typed, 300 ms
+per `brief_pause`, and 250 ms per action. A sequence shares this aggregate
+budget across its 1–20 steps. Each duration must be finite and between 0 and
+120 seconds; the aggregate limit still applies (a lone wait can be at most
+119.75 seconds after its overhead). The action response has a 150-second
+timeout: 120 seconds of work plus 30 seconds for execution and capture.
+Backend recovery and connection setup have separate wait budgets.
+
+`shutdown_backend` is an internal recovery request sent as the first frame on
+a fresh control connection, so it bypasses the ordinary action queue. qbt
+acknowledges it, then shuts down its agent and observatory listeners and exits
+cleanly. Cline uses this only for an explicit forced restart; normal computer
+actions never stop a responsive backend.
 
 ### Response (backend -> Cline)
 
@@ -154,19 +165,23 @@ description to stop embedding them — a wire-protocol change tracked under
 
 `createComputerUseToolFromEnv()` (`env.ts`) returns a ready-to-use tool (or
 `undefined` if computer-use isn't configured for the current process) and is
-also `async` for the same reason:
+also `async` for the same reason. It reads the port and host only; the backend
+must already be running. The interactive CLI additionally honors the backend
+command:
 
 | Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |
 | `CLINE_COMPUTER_USE_PORT` | yes (enables the tool) | — | Backend TCP port |
 | `CLINE_COMPUTER_USE_HOST` | no | `127.0.0.1` | Backend host |
-| `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Shell command that starts the backend before the initial display query and again if it becomes unreachable. Also enables the `computer_restart_backend` tool |
+| `CLINE_COMPUTER_USE_BACKEND_COMMAND` | no | — | Interactive CLI only: shell command that starts an absent backend before the initial display query and before computer actions. Also enables `computer_restart_backend` |
 
 Display size is deliberately not configurable — see "Display size" above.
 
 ### Backend command
 
-`CLINE_COMPUTER_USE_BACKEND_COMMAND` is optional: leave it unset if you manage qbt yourself. When set with a loopback backend address, Cline probes qbt and launches the command if needed before constructing the computer tool and before each computer action. The agent also gets `computer_restart_backend` to recover a backend that answers probes but cannot take screenshots. A forced restart asks a compatible qbt at the configured loopback port to shut down cleanly, or kills the process tree when Cline launched it, then starts the configured replacement. It never searches for processes by name. Restart the CLI after changing these variables.
+`CLINE_COMPUTER_USE_BACKEND_COMMAND` is optional in the interactive CLI: leave it unset if you manage qbt yourself. When set with a loopback backend address, the CLI probes qbt and launches the command only when a connection is refused, before constructing the computer tool and before each computer action. A timeout or reset does not prove the backend stopped, so recovery fails without launching a duplicate. The agent also gets `computer_restart_backend` to recover a backend that answers probes but cannot take screenshots. A forced restart asks a compatible qbt at the configured loopback port to shut down cleanly on a fresh control connection, or kills the process tree when Cline launched it, then starts the configured replacement. It never searches for processes by name. Restart the CLI after changing these variables.
+
+Other SDK hosts must wire recovery explicitly: construct `ComputerBackendRestart`, call `ensureRunning()` before building the computer tool, pass it as `backendAvailability`, and register `createComputerBackendRestartTool()` separately. Share the ordinary `ComputerUseClient` between tools, recovery probes, and journal publishing; dispose recovery before closing the client. `createComputerUseToolFromEnv()` does not perform this wiring or return a restart tool.
 
 Install qwanban's qbt on PATH from its Git repository. Plain `cargo install qbt` names an unrelated qBittorrent crate.
 
@@ -185,7 +200,7 @@ Replace the executable path with your qbt installation. The first port is the ag
 
 The command runs on the CLI host through its platform shell (`cmd.exe` on Windows, `/bin/sh` on Unix), from the CLI workspace directory and with the CLI environment. Installing qbt on PATH makes executable lookup independent of that directory. Use an absolute executable path or an explicit directory change for a checkout-local build. PowerShell syntax inside the command requires an explicit PowerShell invocation. Setting `CLINE_COMPUTER_USE_HOST` does not run the command remotely.
 
-At startup and before each computer action, Cline probes `get_display_info` first. A responsive backend is left running; otherwise the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend except through the explicit cooperative restart described above. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
+At startup and before each computer action, the interactive CLI probes `get_display_info` first. A responsive backend is left running; when a connection is refused, the command is launched and given up to roughly two minutes to answer. Use a foreground command such as `qbt serve`, not `start` or a shell background operator, so Cline can clean up the child it owns. Cline stops its own child during disposal or failed startup, but does not adopt or terminate an independently started backend except through the explicit cooperative restart described above. Command output is discarded; reproduce the command in a terminal to diagnose startup failures.
 
 ## CLI integration
 
@@ -204,8 +219,10 @@ observatory lives in `src/extensions/computer-observability/`.
 
 - No auth/handshake — this assumes the backend is a locally-spawned trusted
   process on loopback. Do not bind the backend to a non-loopback address.
-  (The observatory's WebSocket side binds externally by design; it is
-  read-only over the journal, but still unauthenticated.)
+  The observatory's unauthenticated WebSocket side binds externally by design.
+  Observers can read the journal and request fresh desktop screenshots, but
+  cannot send keyboard or mouse input. Restrict network access to trusted
+  observers; exposing it publicly exposes the desktop and transcript.
 - No reconnect/backoff policy in the client; a dropped connection fails all
   in-flight requests and reconnects lazily on the next call.
 - No persisted setting/UI toggle; env-var opt-in only, matching this being a

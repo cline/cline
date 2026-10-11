@@ -518,14 +518,20 @@ async function runInteractiveSession(
 		attachmentCount: prompt.attachmentCount,
 	});
 
+	let tuiApp:
+		| Awaited<ReturnType<typeof import("../tui/index")["renderOpenTui"]>>
+		| undefined;
 	process.on("SIGINT", handleSigint);
 	process.on("SIGTERM", handleSigterm);
 
 	disableOpenTuiGraphicsProbe();
-	const { renderOpenTui } = await import("../tui/index");
+	const { renderOpenTui } = await import("../tui/index").catch(
+		async (error) => {
+			await cleanupRuntime();
+			throw error;
+		},
+	);
 
-	// eslint-disable-next-line prefer-const
-	let tuiApp: Awaited<ReturnType<typeof renderOpenTui>> | undefined;
 	setActiveRuntimeCleanup(() => {
 		tuiApp?.destroy();
 	});
@@ -898,6 +904,9 @@ async function runInteractiveSession(
 		setModeChangeNotifier: (fn) => {
 			tuiModeChanged.current = fn;
 		},
+	}).catch(async (error) => {
+		await cleanupRuntime();
+		throw error;
 	});
 
 	if (!loadDeferredInitialMessages && options?.startupTarget !== "history") {

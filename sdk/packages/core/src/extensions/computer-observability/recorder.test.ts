@@ -83,9 +83,9 @@ describe("ComputerTaskArtifactRecorder", () => {
 			payload: {},
 		});
 		recorder.record({
-			type: "helper.note",
-			source: { kind: "computer_user", sessionId: "helper" },
-			payload: { message: "starting" },
+			type: "computer.action_requested",
+			source: { kind: "computer", sessionId: "drv" },
+			payload: { action: "screenshot" },
 		});
 		recorder.record({
 			type: "session.ended",
@@ -94,6 +94,11 @@ describe("ComputerTaskArtifactRecorder", () => {
 		});
 
 		expect(events.map((event) => event.clientSequence)).toEqual([1, 2, 3]);
+		expect(events.map((event) => event.source.kind)).toEqual([
+			"driver",
+			"computer",
+			"driver",
+		]);
 		expect(new Set(events.map((event) => event.eventId)).size).toBe(3);
 		expect(events.every((event) => event.artifactId === "artifact_1")).toBe(
 			true,
@@ -113,7 +118,7 @@ describe("ComputerTaskArtifactRecorder", () => {
 		const recorder = new ComputerTaskArtifactRecorder("artifact_2", sink);
 		const client = new ComputerUseClient({
 			port: started.port,
-			observer: recorder.createComputerObserver({ sessionId: "helper" }),
+			observer: recorder.createComputerObserver({ sessionId: "drv" }),
 		});
 
 		await client.send({ action: "type", text: "hunter2" });
@@ -123,11 +128,16 @@ describe("ComputerTaskArtifactRecorder", () => {
 			"computer.action_completed",
 		]);
 		const [requested, completed] = events;
+		expect(events.map((event) => event.clientSequence)).toEqual([1, 2]);
+		expect(events.map((event) => event.source)).toEqual([
+			{ kind: "computer", sessionId: "drv" },
+			{ kind: "computer", sessionId: "drv" },
+		]);
 		expect(requested?.correlation?.computerActionId).toBeDefined();
 		expect(requested?.correlation?.computerActionId).toBe(
 			completed?.correlation?.computerActionId,
 		);
-		// Typed text must never enter the artifact stream.
+		// The host lifecycle event omits typed text; the backend still receives it.
 		expect(JSON.stringify(requested?.payload)).not.toContain("hunter2");
 		expect(requested?.payload.hasText).toBe(true);
 		expect(completed?.payload.hasImage).toBe(true);
@@ -151,7 +161,7 @@ describe("ComputerTaskArtifactRecorder", () => {
 		const client = new ComputerUseClient({
 			port: started.port,
 			requestTimeoutMs: 5_000,
-			observer: recorder.createComputerObserver({ sessionId: "helper" }),
+			observer: recorder.createComputerObserver({ sessionId: "drv" }),
 		});
 
 		const controller = new AbortController();

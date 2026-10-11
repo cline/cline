@@ -86,6 +86,150 @@ describe("ComputerUseClient", () => {
 		client.close();
 	});
 
+	it("closing during connection rejects the old action but allows a new connection", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		const client = new ComputerUseClient({ port: started.port });
+		try {
+			const old = client.send({ action: "left_click", coordinate: [1, 2] });
+			client.close();
+			const next = client.send({ action: "screenshot" });
+			await expect(old).rejects.toThrow("client closed");
+			await expect(next).resolves.toMatchObject({ ok: true });
+			expect(seen).toEqual(["screenshot"]);
+			expect(client.isConnected).toBe(true);
+		} finally {
+			client.close();
+		}
+	});
+
+	it("does not reconnect when an observer closes the requested action", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		const client = new ComputerUseClient({
+			port: started.port,
+			observer: (event) => {
+				if (event.type === "action_requested") client.close();
+			},
+		});
+		await expect(client.send({ action: "screenshot" })).rejects.toThrow(
+			"client closed",
+		);
+		expect(client.isConnected).toBe(false);
+		expect(seen).toEqual([]);
+	});
+
+	it("observer mutations cannot change the wire request or caller input", async () => {
+		const seen: Record<string, unknown>[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request);
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		const client = new ComputerUseClient({
+			port: started.port,
+			observer: (event) => {
+				if (event.type !== "action_requested") return;
+				event.request.id = 999;
+				event.request.action = "screenshot";
+				if (event.request.actions?.[0])
+					event.request.actions[0].text = "modified";
+			},
+		});
+		const request = {
+			action: "run_sequence" as const,
+			actions: [{ action: "type" as const, text: "original" }],
+		};
+		try {
+			await expect(client.send(request)).resolves.toMatchObject({ ok: true });
+			expect(seen).toEqual([{ ...request, id: 1 }]);
+			expect(request.actions[0].text).toBe("original");
+		} finally {
+			client.close();
+		}
+	});
+
+	it.each([
+		{ display: {} },
+		{ display: { widthPx: 0, heightPx: 768 } },
+		{ display: { widthPx: -1, heightPx: 768 } },
+		{ display: { widthPx: 1024.5, heightPx: 768 } },
+		{ image: {} },
+		{ text: 1 },
+		{ aborted: "true" },
+	])("rejects a malformed matching response %j", async (fields) => {
+		const started = await startFakeBackend(
+			(request) =>
+				({
+					id: request.id as number,
+					ok: true,
+					...fields,
+				}) as unknown as ComputerUseResponse,
+		);
+		server = started.server;
+		const client = new ComputerUseClient({ port: started.port });
+		try {
+			await expect(client.send({ action: "screenshot" })).rejects.toThrow(
+				"Invalid computer-use backend response",
+			);
+		} finally {
+			client.close();
+		}
+	});
+
+	it("pairs requested and cancelled events for a pre-aborted action", async () => {
+		const events: ComputerUseClientEvent[] = [];
+		const client = new ComputerUseClient({
+			port: 1,
+			observer: (event) => events.push(event),
+		});
+		const controller = new AbortController();
+		controller.abort("cancelled");
+		await expect(
+			client.send({ action: "screenshot" }, { signal: controller.signal }),
+		).rejects.toThrow("cancelled");
+		expect(events.map(({ type }) => type)).toEqual([
+			"action_requested",
+			"action_cancelled",
+		]);
+		expect(new Set(events.map(({ actionId }) => actionId)).size).toBe(1);
+		expect(client.isConnected).toBe(false);
+	});
+
+	it("pairs requested and failed events when request serialization fails", async () => {
+		const events: ComputerUseClientEvent[] = [];
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+		}));
+		server = started.server;
+		const client = new ComputerUseClient({
+			port: started.port,
+			observer: (event) => events.push(event),
+		});
+		const payload: Record<string, unknown> = {};
+		payload.self = payload;
+		try {
+			await expect(
+				client.send({ action: "publish_event", kind: "test", payload }),
+			).rejects.toThrow();
+			expect(events.map(({ type }) => type)).toEqual([
+				"action_requested",
+				"action_failed",
+			]);
+		} finally {
+			client.close();
+		}
+	});
+
 	it("does not send an action cancelled while connecting", async () => {
 		const seen: string[] = [];
 		const started = await startFakeBackend((request) => {

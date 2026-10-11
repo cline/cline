@@ -5,12 +5,15 @@ const PORT_ENV_VAR = "CLINE_COMPUTER_USE_PORT";
 const HOST_ENV_VAR = "CLINE_COMPUTER_USE_HOST";
 const BACKEND_COMMAND_ENV_VAR = "CLINE_COMPUTER_USE_BACKEND_COMMAND";
 
-function parsePositiveInt(value: string | undefined): number | undefined {
-	if (!value) {
+function parsePort(value: string | undefined): number | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed || !/^\d+$/.test(trimmed)) {
 		return undefined;
 	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+	const parsed = Number(trimmed);
+	return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535
+		? parsed
+		: undefined;
 }
 
 /**
@@ -22,7 +25,7 @@ function parsePositiveInt(value: string | undefined): number | undefined {
 export function resolveComputerUseTargetFromEnv(
 	env: NodeJS.ProcessEnv = process.env,
 ): { host?: string; port: number } | undefined {
-	const port = parsePositiveInt(env[PORT_ENV_VAR]);
+	const port = parsePort(env[PORT_ENV_VAR]);
 	if (!port) {
 		return undefined;
 	}

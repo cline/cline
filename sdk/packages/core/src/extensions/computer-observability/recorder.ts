@@ -13,11 +13,9 @@ import {
 /**
  * Assigns the artifact's client sequence and fans events into the sink.
  *
- * One recorder instance exists per computer-use task, shared by every
- * observer (driver session and computer client).
- * Sharing one recorder is what makes `clientSequence` a single total order
- * across all sources — separate recorders would produce interleavings the
- * replay viewer cannot reconstruct.
+ * Observers sharing one recorder have a common host-event emission order.
+ * The CLI records the driver transcript here and lets qbt journal native
+ * computer actions separately; those actions are not in `clientSequence`.
  */
 export class ComputerTaskArtifactRecorder {
 	private nextSequence = 1;
@@ -50,10 +48,10 @@ export class ComputerTaskArtifactRecorder {
 	}
 
 	/**
-	 * Builds a `ComputerUseClientOptions.observer` that records every
-	 * computer action under this artifact. Screenshot bytes are NOT copied
-	 * into the event; completed responses record only whether an image was
-	 * present (blob upload is the ingress transport's job).
+	 * Optional `ComputerUseClientOptions.observer` adapter for a client's request
+	 * lifecycle. Completed responses record only whether an image was present;
+	 * this adapter does not upload images or create screenshot references.
+	 * The CLI uses qbt's native action journal instead to avoid duplicate events.
 	 */
 	createComputerObserver(
 		source: Omit<ArtifactEventSource, "kind">,
@@ -73,7 +71,7 @@ export class ComputerTaskArtifactRecorder {
 							coordinate: event.request.coordinate,
 							startCoordinate: event.request.startCoordinate,
 							// Deliberately omit `text`: typed text can contain
-							// credentials. The replay shows that typing happened
+							// credentials. The host event shows that typing happened
 							// and where, not what was typed.
 							hasText: event.request.text !== undefined,
 						},

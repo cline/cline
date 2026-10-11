@@ -5,7 +5,7 @@ import {
 	type Socket,
 } from "node:net";
 import type { AgentToolContext } from "@cline/shared";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ComputerUseClient } from "./client";
 import type { ComputerUseResponse } from "./protocol";
 import { createComputerUseTool } from "./tool";
@@ -17,8 +17,10 @@ import { createComputerUseTool } from "./tool";
  * Other actions go to the test's `respond`.
  */
 function startFakeBackend(
-	respond: (request: Record<string, unknown>) => ComputerUseResponse,
-	displayInfo: { widthPx: number; heightPx: number } = {
+	respond: (
+		request: Record<string, unknown>,
+	) => ComputerUseResponse | Promise<ComputerUseResponse>,
+	displayInfo: { widthPx: number; heightPx: number } | null = {
 		widthPx: 1024,
 		heightPx: 768,
 	},
@@ -35,15 +37,25 @@ function startFakeBackend(
 					buffer = buffer.slice(newlineIndex + 1);
 					if (line.trim().length > 0) {
 						const request = JSON.parse(line) as Record<string, unknown>;
-						const response: ComputerUseResponse =
+						const response =
 							request.action === "get_display_info"
-								? {
-										id: request.id as number,
-										ok: true,
-										display: displayInfo,
-									}
+								? displayInfo
+									? {
+											id: request.id as number,
+											ok: true,
+											display: displayInfo,
+										}
+									: {
+											id: request.id as number,
+											ok: false,
+											error: "display unavailable",
+										}
 								: respond(request);
-						socket.write(`${JSON.stringify(response)}\n`);
+						void Promise.resolve(response).then((result) => {
+							if (!socket.destroyed) {
+								socket.write(`${JSON.stringify(result)}\n`);
+							}
+						});
 					}
 					newlineIndex = buffer.indexOf("\n");
 				}
@@ -69,6 +81,7 @@ describe("createComputerUseTool", () => {
 	afterEach(async () => {
 		client?.close();
 		client = undefined;
+		vi.restoreAllMocks();
 		if (!server) {
 			return;
 		}
@@ -209,6 +222,555 @@ describe("createComputerUseTool", () => {
 		expect(tool.description).toContain("1024x768");
 	});
 
+	it("exposes the same strict raw-action and numeric constraints used at runtime", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+		}));
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const tool = await createComputerUseTool({ client, port: started.port });
+		expect(tool.inputSchema).toMatchObject({
+			type: "object",
+			additionalProperties: false,
+			required: ["action"],
+			properties: {
+				coordinate: {
+					minItems: 2,
+					maxItems: 2,
+					items: { type: "integer", minimum: 0, maximum: 2_147_483_647 },
+				},
+				duration: { type: "number", minimum: 0, maximum: 120 },
+				scroll_amount: { type: "integer", minimum: 0, maximum: 4_294_967_295 },
+				actions: {
+					minItems: 1,
+					maxItems: 20,
+					items: {
+						type: "object",
+						additionalProperties: false,
+						properties: {
+							region: { minItems: 4, maxItems: 4 },
+							expect_unchanged: { minItems: 4, maxItems: 4 },
+						},
+					},
+				},
+			},
+		});
+		const properties = tool.inputSchema.properties as Record<
+			string,
+			Record<string, unknown>
+		>;
+		const steps = properties.actions.items as {
+			properties: Record<string, { enum?: string[] }>;
+		};
+		expect(properties.action.enum).toEqual([
+			...((steps.properties.action.enum ?? []) as string[]),
+			"run_sequence",
+		]);
+		for (const action of [
+			"get_display_info",
+			"publish_event",
+			"shutdown_backend",
+			"get_clipboard",
+			"set_clipboard",
+		]) {
+			expect(properties.action.enum).not.toContain(action);
+		}
+		expect(steps.properties).not.toHaveProperty("actions");
+		expect(JSON.stringify(tool.inputSchema)).not.toContain("prefixItems");
+		expect(tool.description).toContain("120-second estimated work budget");
+		expect(tool.description).toContain("Split oversized");
+		expect(tool.timeoutMs).toBe(183_000);
+	});
+
+	it("rejects malformed and missing action inputs before enrollment, recovery, or sending", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const beforeAction = vi.fn(async () => undefined);
+		const ensureRunning = vi.fn(async () => ({
+			status: "already_running" as const,
+		}));
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			beforeAction,
+			backendAvailability: { budgetMs: 1_000, ensureRunning },
+		});
+		const send = vi.spyOn(client, "send");
+		const invalid: unknown[] = [
+			null,
+			[],
+			"screenshot",
+			{},
+			{ action: 1 },
+			{ action: "unknown_action" },
+			{ action: "get_display_info" },
+			{ action: "publish_event", kind: "event", payload: {} },
+			{ action: "shutdown_backend" },
+			{ action: "get_clipboard" },
+			{ action: "set_clipboard", text: "secret" },
+			{ action: "screenshot", id: 1 },
+			{ action: "key", text: "ctrl+c", keys: ["ctrl", "c"] },
+			{ action: "screenshot", actions: [{ action: "screenshot" }] },
+			{ action: "mouse_move", coordinate: [0] },
+			{ action: "mouse_move", coordinate: [0, 1, 2] },
+			{ action: "mouse_move", coordinate: [0.5, 1] },
+			{ action: "mouse_move", coordinate: [-1, 1] },
+			{ action: "mouse_move", coordinate: [Number.NaN, 1] },
+			{ action: "mouse_move", coordinate: [Number.POSITIVE_INFINITY, 1] },
+			{ action: "mouse_move", coordinate: [2_147_483_648, 1] },
+			{ action: "mouse_move", coordinate: [Number.MAX_SAFE_INTEGER + 1, 1] },
+			{ action: "left_click_drag", coordinate: [0, 1], start_coordinate: [0] },
+			{ action: "zoom", region: [0, 1, 2] },
+			{ action: "zoom", region: [0, 1, 2, 3, 4] },
+			{ action: "zoom", region: [0, 1, 2, -3] },
+			{ action: "zoom", region: [0, 1, 2, 3.5] },
+			{ action: "zoom", region: [0, 1, 2, 2_147_483_648] },
+			{ action: "left_click", coordinate: [0, 1], expect_unchanged: [0, 1] },
+			{
+				action: "left_click",
+				coordinate: [0, 1],
+				expect_unchanged: [0, 1, 2, -3],
+			},
+			{ action: "wait", duration: -1 },
+			{ action: "wait", duration: Number.NaN },
+			{ action: "wait", duration: Number.POSITIVE_INFINITY },
+			{ action: "wait", duration: 120.01 },
+			{ action: "wait", duration: "1" },
+			{ action: "hold_key", text: "shift", duration: -0.5 },
+			{ action: "type", text: 123 },
+			{ action: "key", text: null },
+			{
+				action: "scroll",
+				coordinate: [0, 1],
+				scroll_direction: "diagonal",
+				scroll_amount: 1,
+			},
+			{
+				action: "scroll",
+				coordinate: [0, 1],
+				scroll_direction: "down",
+				scroll_amount: -1,
+			},
+			{
+				action: "scroll",
+				coordinate: [0, 1],
+				scroll_direction: "down",
+				scroll_amount: 1.5,
+			},
+			{
+				action: "scroll",
+				coordinate: [0, 1],
+				scroll_direction: "down",
+				scroll_amount: Number.NaN,
+			},
+			{
+				action: "scroll",
+				coordinate: [0, 1],
+				scroll_direction: "down",
+				scroll_amount: 4_294_967_296,
+			},
+			{ action: "run_sequence" },
+			{ action: "run_sequence", actions: [] },
+			{
+				action: "run_sequence",
+				actions: Array.from({ length: 21 }, () => ({ action: "screenshot" })),
+			},
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "run_sequence", actions: [{ action: "screenshot" }] },
+				],
+			},
+			{
+				action: "run_sequence",
+				actions: [{ action: "screenshot", actions: [] }],
+			},
+			{ action: "run_sequence", actions: [{ action: "get_clipboard" }] },
+			{ action: "run_sequence", actions: [{ action: "get_display_info" }] },
+			{ action: "run_sequence", actions: [{ action: "publish_event" }] },
+			{ action: "run_sequence", actions: [{ action: "shutdown_backend" }] },
+			{
+				action: "run_sequence",
+				actions: [{ action: "screenshot" }, { action: "wait", duration: -1 }],
+			},
+			{
+				action: "run_sequence",
+				actions: [{ action: "screenshot" }, { action: "left_click" }],
+			},
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "screenshot" },
+					{ action: "screenshot", extra: true },
+				],
+			},
+		];
+		for (const action of [
+			"mouse_move",
+			"left_click",
+			"right_click",
+			"middle_click",
+			"double_click",
+			"triple_click",
+			"left_mouse_down",
+			"left_mouse_up",
+			"key",
+			"type",
+			"wait",
+			"zoom",
+		]) {
+			invalid.push({ action });
+		}
+		invalid.push(
+			{ action: "left_click_drag", coordinate: [0, 1] },
+			{ action: "left_click_drag", start_coordinate: [0, 1] },
+			{ action: "hold_key", text: "shift" },
+			{ action: "hold_key", duration: 1 },
+			{ action: "scroll", coordinate: [0, 1], scroll_direction: "up" },
+			{ action: "scroll", coordinate: [0, 1], scroll_amount: 1 },
+			{ action: "scroll", scroll_direction: "up", scroll_amount: 1 },
+		);
+		for (const input of invalid) {
+			await expect(
+				tool.execute(input, ctx),
+				JSON.stringify(input),
+			).rejects.toThrow();
+		}
+		expect(beforeAction).not.toHaveBeenCalled();
+		expect(ensureRunning).not.toHaveBeenCalled();
+		expect(send).not.toHaveBeenCalled();
+		expect(seen).toEqual([]);
+	});
+
+	it("bounds aggregate waits, holds, Unicode typing, pauses, and step overhead before side effects", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true, text: "completed" };
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const beforeAction = vi.fn(async () => undefined);
+		const ensureRunning = vi.fn(async () => ({
+			status: "already_running" as const,
+		}));
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			beforeAction,
+			backendAvailability: { budgetMs: 1_000, ensureRunning },
+		});
+		const send = vi.spyOn(client, "send");
+		const oversized: unknown[] = [
+			{ action: "wait", duration: 120 },
+			{ action: "hold_key", text: "shift", duration: 119.751 },
+			{ action: "type", text: "a".repeat(1_331) },
+			{ action: "type", text: "😀".repeat(1_331) },
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "wait", duration: 60 },
+					{ action: "hold_key", text: "shift", duration: 60 },
+				],
+			},
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "wait", duration: 119.201 },
+					{ action: "brief_pause" },
+				],
+			},
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "type", text: "😀".repeat(1_301) },
+					{ action: "wait", duration: 2.5 },
+				],
+			},
+		];
+		for (const input of oversized) {
+			await expect(tool.execute(input, ctx)).rejects.toThrow(
+				"Split oversized waits, typing, or sequences across calls",
+			);
+		}
+		expect(beforeAction).not.toHaveBeenCalled();
+		expect(ensureRunning).not.toHaveBeenCalled();
+		expect(send).not.toHaveBeenCalled();
+		expect(seen).toEqual([]);
+
+		const withinBudget: unknown[] = [
+			{ action: "wait", duration: 0 },
+			{ action: "wait", duration: 119.75 },
+			{ action: "hold_key", text: "shift", duration: 119.75 },
+			{ action: "type", text: "" },
+			{ action: "type", text: "a".repeat(1_330) },
+			{ action: "type", text: "😀".repeat(1_330) },
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "wait", duration: 60 },
+					{ action: "hold_key", text: "shift", duration: 59.5 },
+				],
+			},
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "wait", duration: 119.2 },
+					{ action: "brief_pause" },
+				],
+			},
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "type", text: "😀".repeat(1_300) },
+					{ action: "wait", duration: 2.5 },
+				],
+			},
+			{
+				action: "run_sequence",
+				actions: Array.from({ length: 20 }, () => ({ action: "screenshot" })),
+			},
+		];
+		for (const input of withinBudget) {
+			await expect(tool.execute(input, ctx)).resolves.toBe("completed");
+		}
+		expect(beforeAction).toHaveBeenCalledTimes(withinBudget.length);
+		expect(ensureRunning).toHaveBeenCalledTimes(withinBudget.length);
+		expect(send).toHaveBeenCalledTimes(withinBudget.length);
+		expect(seen).toHaveLength(withinBudget.length);
+	});
+
+	it("awaits journal enrollment before recovery or action delivery", async () => {
+		const order: string[] = [];
+		const started = await startFakeBackend((request) => {
+			order.push("action");
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		let finishEnrollment!: () => void;
+		const enrolled = new Promise<void>((resolve) => {
+			finishEnrollment = resolve;
+		});
+		const beforeAction = vi.fn(async () => {
+			order.push("enroll");
+			await enrolled;
+			order.push("enrolled");
+		});
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			beforeAction,
+			backendAvailability: {
+				budgetMs: 1_000,
+				ensureRunning: async () => {
+					order.push("recover");
+					return { status: "already_running" };
+				},
+			},
+		});
+		const send = vi.spyOn(client, "send");
+		const result = tool.execute({ action: "screenshot" }, ctx);
+		await Promise.resolve();
+		expect(order).toEqual(["enroll"]);
+		expect(send).not.toHaveBeenCalled();
+		finishEnrollment();
+		await expect(result).resolves.toBe('Action "screenshot" completed.');
+		expect(order).toEqual(["enroll", "enrolled", "recover", "action"]);
+		expect(beforeAction).toHaveBeenCalledOnce();
+	});
+
+	it("does not recover or send when journal enrollment rejects", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+		}));
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const ensureRunning = vi.fn(async () => ({
+			status: "already_running" as const,
+		}));
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			beforeAction: async () => {
+				throw new Error("journal enrollment failed");
+			},
+			backendAvailability: { budgetMs: 1_000, ensureRunning },
+		});
+		const send = vi.spyOn(client, "send");
+		await expect(tool.execute({ action: "screenshot" }, ctx)).rejects.toThrow(
+			"journal enrollment failed",
+		);
+		expect(ensureRunning).not.toHaveBeenCalled();
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("does not enroll, recover, or send an already-cancelled action", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+		}));
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const beforeAction = vi.fn(async () => undefined);
+		const ensureRunning = vi.fn(async () => ({
+			status: "already_running" as const,
+		}));
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			beforeAction,
+			backendAvailability: { budgetMs: 1_000, ensureRunning },
+		});
+		const send = vi.spyOn(client, "send");
+		const controller = new AbortController();
+		controller.abort(new Error("cancelled"));
+		await expect(
+			tool.execute(
+				{ action: "screenshot" },
+				{ ...ctx, signal: controller.signal },
+			),
+		).rejects.toThrow("cancelled");
+		expect(beforeAction).not.toHaveBeenCalled();
+		expect(ensureRunning).not.toHaveBeenCalled();
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("does not recover or send after cancellation during enrollment", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+		}));
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const controller = new AbortController();
+		const ensureRunning = vi.fn(async () => ({
+			status: "already_running" as const,
+		}));
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			beforeAction: async () => controller.abort(new Error("cancelled")),
+			backendAvailability: { budgetMs: 1_000, ensureRunning },
+		});
+		const send = vi.spyOn(client, "send");
+		await expect(
+			tool.execute(
+				{ action: "screenshot" },
+				{ ...ctx, signal: controller.signal },
+			),
+		).rejects.toThrow("cancelled");
+		expect(ensureRunning).not.toHaveBeenCalled();
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("uses a separate long-action deadline without extending client probes or journals", async () => {
+		const started = await startFakeBackend(async (request) => {
+			// Simulate backend work that exceeds the tiny client default, without
+			// actually waiting 20 seconds or typing 200 characters.
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			return { id: request.id as number, ok: true, text: "completed" };
+		});
+		server = started.server;
+		client = new ComputerUseClient({
+			port: started.port,
+			requestTimeoutMs: 25,
+		});
+		const tool = await createComputerUseTool({
+			client,
+			port: started.port,
+			connectTimeoutMs: 5_000,
+			backendAvailability: {
+				budgetMs: 1_000,
+				ensureRunning: async () => ({ status: "already_running" }),
+			},
+		});
+		const send = vi.spyOn(client, "send");
+		const controller = new AbortController();
+		for (const input of [
+			{ action: "wait", duration: 20 },
+			{ action: "type", text: "a".repeat(200) },
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "wait", duration: 20 },
+					{ action: "type", text: "a".repeat(200) },
+				],
+			},
+		]) {
+			await expect(
+				tool.execute(input, { ...ctx, signal: controller.signal }),
+			).resolves.toBe("completed");
+		}
+		expect(tool.timeoutMs).toBe(186_000);
+		for (const [_request, options] of send.mock.calls) {
+			expect(options).toEqual({
+				signal: controller.signal,
+				requestTimeoutMs: 150_000,
+			});
+		}
+		await expect(
+			client.send({ action: "publish_event", kind: "test", payload: {} }),
+		).rejects.toThrow("timed out after 25ms");
+		await expect(client.send({ action: "screenshot" })).rejects.toThrow(
+			"timed out after 25ms",
+		);
+	});
+
+	it("closes its private client when tool construction fails", async () => {
+		const started = await startFakeBackend(
+			(request) => ({ id: request.id as number, ok: true }),
+			null,
+		);
+		server = started.server;
+		const connectionClosed = new Promise<void>((resolve) => {
+			server?.once("connection", (socket) => socket.once("close", resolve));
+		});
+		const close = vi.spyOn(ComputerUseClient.prototype, "close");
+		await expect(createComputerUseTool({ port: started.port })).rejects.toThrow(
+			"display unavailable",
+		);
+		expect(close).toHaveBeenCalledOnce();
+		const ownedClient = close.mock.contexts[0] as ComputerUseClient;
+		expect(ownedClient).toBeInstanceOf(ComputerUseClient);
+		// The server saw a real display-info connection; it must not be left open.
+		await connectionClosed;
+		await new Promise<void>((resolve, reject) => {
+			server?.getConnections((error, count) => {
+				if (error) reject(error);
+				else {
+					expect(count).toBe(0);
+					resolve();
+				}
+			});
+		});
+	});
+
+	it("leaves an injected client open when tool construction fails", async () => {
+		const started = await startFakeBackend(
+			(request) => ({ id: request.id as number, ok: true, text: "still open" }),
+			null,
+		);
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const close = vi.spyOn(client, "close");
+		await expect(
+			createComputerUseTool({ client, port: started.port }),
+		).rejects.toThrow("display unavailable");
+		expect(close).not.toHaveBeenCalled();
+		await expect(client.send({ action: "screenshot" })).resolves.toMatchObject({
+			ok: true,
+			text: "still open",
+		});
+	});
+
 	it("embeds the backend-reported display size in the description", async () => {
 		const started = await startFakeBackend(
 			(request) => ({
@@ -277,7 +839,7 @@ describe("createComputerUseTool", () => {
 		);
 		expect(readiness).toEqual(["checked"]);
 		expect(seen).toEqual(["screenshot"]);
-		expect(tool.timeoutMs).toBe(31_000);
+		expect(tool.timeoutMs).toBe(184_000);
 	});
 
 	it("does not send the action when backend recovery fails", async () => {
@@ -351,6 +913,9 @@ describe("createComputerUseTool", () => {
 		);
 
 		expect(result).toBe("keys=none text=ctrl+alt+delete");
+		await expect(
+			tool.execute({ action: "hold_key", text: "shift", duration: 0.5 }, ctx),
+		).resolves.toBe("keys=none text=shift");
 	});
 
 	it("throws with the backend error message on failure", async () => {

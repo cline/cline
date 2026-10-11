@@ -83,6 +83,9 @@ export async function createInteractiveComputerUse(input: {
 			...target,
 			client: computerClient,
 			backendAvailability: backendRestart,
+			// Publish earlier transcript parts before the action's native journal
+			// entry. On degradation flush reports the gap without blocking input.
+			beforeAction: () => recorder.flush(),
 		});
 		return {
 			driverTools: [

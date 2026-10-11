@@ -33,12 +33,16 @@ const MAX_PENDING_EVENTS = 500;
  * An `ArtifactEventSink` that publishes each event into the computer-use
  * backend's journal (a `publish_event` request per event, `kind` = the
  * artifact event type). The backend assigns the journal order and fans the
- * event out to observatory clients.
+ * event out to observatory clients. A successful response acknowledges an
+ * append to qbt's bounded in-memory journal, not durable storage. This sink
+ * does not retry, deduplicate event IDs, or upload referenced blobs.
  *
  * `emit` never blocks the caller: a bounded queue sends events in emission
  * order. If more than 500 events wait, the oldest unsent events are dropped.
  * A failed or dropped send degrades the sink without breaking the action path;
  * `flush()` reports the gap rather than pretending completeness.
+ * This queue orders publishes only. Hosts sharing the transport with native
+ * actions need a flush barrier if those actions must follow queued events.
  * Hosts call `dispose()` before closing the shared transport so queued or late
  * events cannot reconnect after shutdown.
  */

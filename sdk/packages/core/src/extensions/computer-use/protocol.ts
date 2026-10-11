@@ -189,5 +189,31 @@ export function isComputerUseResponse(
 		return false;
 	}
 	const candidate = value as Record<string, unknown>;
-	return typeof candidate.id === "number" && typeof candidate.ok === "boolean";
+	if (!Number.isSafeInteger(candidate.id) || typeof candidate.ok !== "boolean")
+		return false;
+	for (const key of ["text", "error"] as const) {
+		if (candidate[key] !== undefined && typeof candidate[key] !== "string")
+			return false;
+	}
+	if (candidate.aborted !== undefined && typeof candidate.aborted !== "boolean")
+		return false;
+	if (candidate.image !== undefined) {
+		if (!candidate.image || typeof candidate.image !== "object") return false;
+		const image = candidate.image as Record<string, unknown>;
+		if (typeof image.data !== "string" || typeof image.mediaType !== "string")
+			return false;
+	}
+	if (candidate.display !== undefined) {
+		if (!candidate.display || typeof candidate.display !== "object")
+			return false;
+		const display = candidate.display as Record<string, unknown>;
+		if (
+			![display.widthPx, display.heightPx].every(
+				(size) =>
+					typeof size === "number" && Number.isSafeInteger(size) && size > 0,
+			)
+		)
+			return false;
+	}
+	return true;
 }
