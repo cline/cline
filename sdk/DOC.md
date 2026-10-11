@@ -359,4 +359,6 @@ Without tool activity, an unknown response is preserved in history and continued
 using a host-authenticated `ConnectorsRequest(path, init)` transport. Paths start
 with `/api/v1/connectors`; the host supplies the API origin and user authentication.
 Omit `request` to use the saved Cline account and its local connector schemas.
-Create the extension per runtime, including restore. Execution is never retried.
+For `LocalRuntimeHost`, pass `connectorsRequest: request` to initialize tools on
+startup and restore without local account discovery. Direct extension users create
+it per runtime. Execution is never retried.

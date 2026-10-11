@@ -411,7 +411,7 @@ describe("installed connectors", () => {
 			resolveMe({ email: "dev@cline.bot", displayName: "Dev" }),
 		);
 		expect(container.textContent).toContain(
-			"Connectors aren't enabled for your account yet",
+			"Connectors are currently unavailable",
 		);
 	});
 
@@ -448,7 +448,7 @@ describe("installed connectors", () => {
 		expect(mocks.openExternalUrl).toHaveBeenCalledWith("https://app.cline.bot");
 	});
 
-	it("explains the beta rollout when signed in without connector access", async () => {
+	it("explains connector unavailability when signed in", async () => {
 		mocks.configured = false;
 		mocks.invoke.mockResolvedValue({
 			email: "dev@cline.bot",
@@ -462,7 +462,7 @@ describe("installed connectors", () => {
 			),
 		);
 		expect(container.textContent).toContain(
-			"Connectors aren't enabled for your account yet",
+			"Connectors are currently unavailable",
 		);
 		expect(button("Sign in")).toBeUndefined();
 		await act(async () => button("Check again")?.click());

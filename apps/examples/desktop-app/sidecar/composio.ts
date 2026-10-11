@@ -794,7 +794,7 @@ export async function connectComposioToolkit(
 	const ctx: ClineAuthTelemetryContext = { logger };
 	if (!(await isConnectorsAvailable(scope, { ctx }))) {
 		throw new Error(
-			"Sign in to your Cline account to use connectors. If you are signed in, connectors may not be enabled for your account yet.",
+			"Sign in to your Cline account to use connectors. If you are signed in, connectors are currently unavailable.",
 		);
 	}
 	const existingPending = scope.pendingConnections.get(toolkit);

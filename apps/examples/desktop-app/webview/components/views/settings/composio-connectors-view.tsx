@@ -807,7 +807,7 @@ function ConnectorsUnavailable({
 				<div className="grid gap-2">
 					<h2 className="text-lg font-semibold text-foreground">
 						{signedIn
-							? "Connectors aren't enabled for your account yet"
+							? "Connectors are currently unavailable"
 							: "Sign in to Cline to use connectors"}
 					</h2>
 					<p className="text-sm text-muted-foreground">

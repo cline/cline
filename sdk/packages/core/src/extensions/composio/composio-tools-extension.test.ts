@@ -249,7 +249,7 @@ describe("createComposioToolsExtension", () => {
 
 		const [url, init] = fetchMock.mock.calls[0] as unknown as [
 			string,
-			{ method: string; headers: HeadersInit; body: string },
+			{ method: string; headers: RequestInit["headers"]; body: string },
 		];
 		expect(url).toBe(
 			"https://api.cline.bot/api/v1/connectors/tools/GMAIL_SEND_EMAIL/execute",

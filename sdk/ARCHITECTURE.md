@@ -988,9 +988,11 @@ and execution within a session, including when no connections are saved.
 
 Hosts can call `createComposioToolsExtension({ request })` with their own
 user-scoped transport. This path creates a meta-tool session without reading
-local credentials or schemas. Hosts recreate the extension when rebuilding a
-runtime. Session discovery has a five-second timeout and unavailable endpoints
-leave the runtime without meta tools. Executions are never automatically retried;
+local credentials or schemas. `LocalRuntimeHost` accepts the same callback as
+`connectorsRequest` and recreates the extension during startup and restore;
+sessions with tools disabled skip discovery. Session discovery has a five-second
+timeout and unavailable endpoints leave the runtime without meta tools. Executions
+are never automatically retried;
 structured failure responses retain completed actions from partially failed batches.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
