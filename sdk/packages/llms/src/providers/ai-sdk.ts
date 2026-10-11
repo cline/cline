@@ -765,6 +765,7 @@ function toAiSdkMessages(
 		const content: AiSdkFormatterPart[] = [];
 		let skippedReasoning = false;
 		let hasSerializableReasoning = false;
+		let hasToolCall = false;
 		for (const part of message.content) {
 			if (part.type === "text") {
 				content.push({ type: "text", text: sanitizeSurrogates(part.text) });
@@ -823,6 +824,7 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "tool-call") {
+				hasToolCall = true;
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
 					metadata?.thoughtSignature ??
@@ -858,11 +860,13 @@ function toAiSdkMessages(
 		if (
 			requireAssistantReasoning &&
 			message.role === "assistant" &&
+			hasToolCall &&
 			!hasSerializableReasoning
 		) {
 			// @ai-sdk/openai-compatible only emits reasoning_content for a
-			// non-empty reasoning part. A space keeps the required field on the
-			// wire while remaining an empty reasoning value to the model.
+			// non-empty reasoning part, so a whitespace-only part is the smallest
+			// value that keeps the field on the wire. Scoped to tool-call turns,
+			// the shape the endpoint is known to reject.
 			content.unshift({ type: "reasoning", text: " " });
 		}
 

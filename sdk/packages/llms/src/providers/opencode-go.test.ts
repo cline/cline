@@ -183,6 +183,43 @@ describe("OpenCode Go HTTP integration", () => {
 		);
 	});
 
+	it("does not add reasoning_content to DeepSeek text-only assistant turns", async () => {
+		const fetchMock = vi.fn(
+			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
+				new Response(chatResponse, {
+					headers: { "content-type": "text/event-stream" },
+				}),
+		);
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "opencode-go",
+					apiKey: "test-key",
+					fetch: fetchMock as unknown as typeof fetch,
+				},
+			],
+		});
+
+		for await (const _event of await gateway.stream({
+			providerId: "opencode-go",
+			modelId: "deepseek-v4.1-flash",
+			messages: [
+				{ role: "user", content: [{ type: "text", text: "Hi" }] },
+				{ role: "assistant", content: [{ type: "text", text: "Hello" }] },
+				{ role: "user", content: [{ type: "text", text: "Again" }] },
+			],
+		})) {
+			/* Drain the real adapter stream. */
+		}
+
+		const [, init] = fetchMock.mock.calls[0] ?? [];
+		const body = JSON.parse(String(init?.body));
+		const assistant = body.messages.find(
+			(m: { role: string }) => m.role === "assistant",
+		);
+		expect(assistant).not.toHaveProperty("reasoning_content");
+	});
+
 	it.each([
 		["openai-compatible", { apiProtocol: "openai-responses" }],
 		["opencode-go", {}],
