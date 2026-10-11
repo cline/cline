@@ -94,7 +94,7 @@ jobs:
         run: |
           cline auth --provider anthropic \
             --apikey "$ANTHROPIC_API_KEY" \
-            --modelid claude-opus-4-5-20251101
+            --modelid claude-opus-5-5
 
       - name: Review PR with Cline
         env:
@@ -188,9 +188,9 @@ A `pull_request` run uses the workflow file from the pull request, so anyone who
 
 ### Authentication
 ```bash
-cline auth --provider anthropic --apikey "..."
+cline auth --provider anthropic --apikey "..." --modelid claude-opus-5-5
 ```
-The `auth` command configures Cline in the CI environment without interactive prompts. You can switch providers (e.g., `openai`, `openrouter`) by changing the flags.
+The `auth` command configures Cline in the CI environment without interactive prompts. It needs both `--apikey` and `--modelid`. You can switch providers (e.g., `openai-native`, `openrouter`) by changing the flags.
 
 ### Autonomous Mode (`--auto-approve true`)
 ```bash
