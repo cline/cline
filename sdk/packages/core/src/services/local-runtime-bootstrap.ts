@@ -428,6 +428,8 @@ export async function prepareLocalRuntimeBootstrap(
 				rootSessionId: sessionId,
 				logger: localConfig?.logger,
 				workspaceInfo,
+				// A session started over prior messages is a resume.
+				resumed: (input.initialMessages?.length ?? 0) > 0,
 				// Detached hooks are never awaited, so their runtime is
 				// invisible today. Measuring it is what tells us whether
 				// run-start hooks could safely become blocking.

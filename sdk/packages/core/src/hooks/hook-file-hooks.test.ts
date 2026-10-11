@@ -842,6 +842,58 @@ describe("createHookConfigFileHooks", () => {
 		});
 	});
 
+	it.each([
+		{ resumed: true, env: undefined, expected: "agent_resume" },
+		{ resumed: false, env: "1", expected: "agent_start" },
+	])("dispatches $expected when the session says resumed=$resumed, regardless of CLINE_HOOK_AGENT_RESUME=$env", async ({
+		resumed,
+		env,
+		expected,
+	}) => {
+		const outputPath = join(tmpdir(), `hooks-resume-${Date.now()}.jsonl`);
+		const script = `let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data.trim()+"\\n");});\n`;
+		const { workspace } = await createWorkspaceWithHook("TaskStart.js", script);
+		const previousEnv = process.env.CLINE_HOOK_AGENT_RESUME;
+		try {
+			await writeFile(
+				join(workspace, ".clinerules", "hooks", "TaskResume.js"),
+				script,
+				"utf8",
+			);
+			if (env === undefined) {
+				delete process.env.CLINE_HOOK_AGENT_RESUME;
+			} else {
+				process.env.CLINE_HOOK_AGENT_RESUME = env;
+			}
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+				resumed,
+			});
+			const snapshot = beforeToolContext().snapshot;
+			await hooks?.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
+
+			const payloads = (await waitForJsonLines(outputPath, 1)).map(
+				(line) => JSON.parse(line) as { hookName: string },
+			);
+			expect(payloads.map((payload) => payload.hookName)).toEqual([expected]);
+		} finally {
+			if (previousEnv === undefined) {
+				delete process.env.CLINE_HOOK_AGENT_RESUME;
+			} else {
+				process.env.CLINE_HOOK_AGENT_RESUME = previousEnv;
+			}
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
+
 	it("dispatches agent_start and prompt_submit exactly once when both are configured", async () => {
 		const outputPath = join(tmpdir(), `hooks-start-prompt-${Date.now()}.jsonl`);
 		const { workspace } = await createWorkspaceWithHook(
