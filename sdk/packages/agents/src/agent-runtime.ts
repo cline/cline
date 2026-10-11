@@ -621,11 +621,11 @@ export class AgentRuntime {
 	}
 
 	async run(input: AgentRunInput): Promise<AgentRunResult> {
-		return this.execute(input);
+		return this.execute(input, "run");
 	}
 
 	async continue(input?: AgentRunInput): Promise<AgentRunResult> {
-		return this.execute(input);
+		return this.execute(input, "continue");
 	}
 
 	/** Interrupt only the current model request; running tools finish normally. */
@@ -771,7 +771,10 @@ export class AgentRuntime {
 		text: string,
 		metadata: AgentMessage["metadata"] = {},
 	): Promise<AgentMessage> {
+		// Runtime reminders are not the user's words: displayRole "system" keeps
+		// them out of prompt hooks and the user-facing transcript.
 		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			displayRole: "system",
 			...metadata,
 			userRunSpan: 0,
 		});
@@ -784,7 +787,10 @@ export class AgentRuntime {
 		return reminderMessage;
 	}
 
-	private async execute(input?: AgentRunInput): Promise<AgentRunResult> {
+	private async execute(
+		input?: AgentRunInput,
+		entry: "run" | "continue" = "run",
+	): Promise<AgentRunResult> {
 		await this.ensureInitialized();
 		if (this.state.status === "running") {
 			throw new Error("Agent runtime is already running");
@@ -808,7 +814,7 @@ export class AgentRuntime {
 		this.maxTokensRecoveryAttempted = false;
 
 		try {
-			await this.callBeforeRunHooks();
+			await this.callBeforeRunHooks(entry, !input);
 			await this.emit({ type: "run-started", snapshot: this.snapshot() });
 
 			for (const message of input ? normalizeInput(input) : []) {
@@ -1130,10 +1136,15 @@ export class AgentRuntime {
 		});
 	}
 
-	private async callBeforeRunHooks(): Promise<void> {
+	private async callBeforeRunHooks(
+		entry: "run" | "continue",
+		noInput: boolean,
+	): Promise<void> {
 		for (const hook of this.hooks.beforeRun) {
 			const result = await hook({
 				snapshot: this.snapshot(),
+				entry,
+				promptSeeded: entry === "run" && noInput,
 			});
 			this.applyStopControl(result);
 			// Collected here, injected after the run's input messages are
