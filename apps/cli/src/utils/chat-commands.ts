@@ -433,8 +433,15 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 		.register("command", {
 			names: ["/task"],
 			run: async ({ args, state }, context) => {
-				const { start, brainstorm, tags, category, priority, description } =
-					parseTaskCommand(args);
+				const {
+					start,
+					brainstorm,
+					tags,
+					category,
+					priority,
+					agentId,
+					description,
+				} = parseTaskCommand(args);
 				if (!description) {
 					await context.reply(
 						[
@@ -445,6 +452,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 							"  --tags a,b    tags for finding it later",
 							"  --category x  one category, e.g. bug | feature | infra",
 							"  --priority p  high | medium | low",
+							"  --agent a     which agent runs it, e.g. claude | cline",
 						].join("\n"),
 					);
 					return;
@@ -468,6 +476,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 							tags,
 							category,
 							priority,
+							agentId,
 						}),
 					);
 					return;
@@ -479,6 +488,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					tags,
 					category,
 					priority,
+					agentId,
 					// Where it came from, so the board can show it. An avatar on a board one
 					// person works says nothing; the origin does.
 					source: context.transport,

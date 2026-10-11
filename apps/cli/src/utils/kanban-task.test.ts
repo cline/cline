@@ -357,3 +357,42 @@ describe("buildKanbanCreateArgs with attributes", () => {
 		expect(args).not.toContain("--priority");
 	});
 });
+
+describe("/task --agent", () => {
+	// The agents differ in what they can do: only some can stop and ask. Without this flag a
+	// card filed from chat was stuck with the board default and the question never arrived.
+	it("reads the agent off the front of the line", () => {
+		expect(
+			parseTaskCommand(["--agent", "claude", "list", "the", "files"]),
+		).toMatchObject({
+			agentId: "claude",
+			description: "list the files",
+		});
+	});
+
+	it("accepts the long spelling too", () => {
+		expect(parseTaskCommand(["--agent-id", "cline", "do", "it"])).toMatchObject(
+			{
+				agentId: "cline",
+				description: "do it",
+			},
+		);
+	});
+
+	it("passes it to Kanban as the create flag", () => {
+		expect(
+			buildKanbanCreateArgs({
+				description: "do it",
+				projectPath: "/code/app",
+				agentId: "claude",
+			}),
+		).toContain("--agent-id");
+	});
+
+	// A demand that merely mentions an agent is not a flag: flags are read only from the front.
+	it("leaves a mention inside the demand alone", () => {
+		const parsed = parseTaskCommand(["fix", "the", "--agent", "flag"]);
+		expect(parsed.agentId).toBeUndefined();
+		expect(parsed.description).toBe("fix the --agent flag");
+	});
+});

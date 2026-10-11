@@ -25,6 +25,8 @@ export interface TaskCommandInput {
 	tags?: string;
 	category?: string;
 	priority?: string;
+	/** Agent the card runs with, for a demand that needs one that can ask questions. */
+	agentId?: string;
 	description: string;
 }
 
@@ -32,17 +34,30 @@ export interface TaskCommandInput {
  * Flags are read only from the front of the line, so a demand is free to contain "--" in its
  * own text: `/task --start fix the --dry-run flag` starts a card about `--dry-run`.
  */
-const VALUE_FLAGS = new Map<string, "tags" | "category" | "priority">([
+const VALUE_FLAGS = new Map<
+	string,
+	"tags" | "category" | "priority" | "agentId"
+>([
 	["--tags", "tags"],
 	["--tag", "tags"],
 	["--category", "category"],
 	["--priority", "priority"],
+	// The agents differ in what they can do: only some can stop and ask the person a question.
+	// Without this, a card filed from chat was stuck with the board's configured agent and
+	// could never ask for anything -- the question simply never came.
+	["--agent", "agentId"],
+	["--agent-id", "agentId"],
 ]);
 
 export function parseTaskCommand(args: string[]): TaskCommandInput {
 	let start = false;
 	let brainstorm = false;
-	const values: { tags?: string; category?: string; priority?: string } = {};
+	const values: {
+		tags?: string;
+		category?: string;
+		priority?: string;
+		agentId?: string;
+	} = {};
 	let index = 0;
 	for (; index < args.length; index += 1) {
 		const flag = args[index]?.toLowerCase() ?? "";
@@ -88,6 +103,8 @@ export interface KanbanTaskRequest {
 	priority?: string;
 	/** Which surface filed the card, so the board can show where a demand came from. */
 	source?: string;
+	/** Agent the card runs with; left out, Kanban uses the board's configured agent. */
+	agentId?: string;
 }
 
 export interface KanbanTaskResult {
@@ -141,6 +158,7 @@ export function buildKanbanCreateArgs(request: KanbanTaskRequest): string[] {
 		...(request.category ? ["--category", request.category] : []),
 		...(request.priority ? ["--priority", request.priority] : []),
 		...(request.source ? ["--source", request.source] : []),
+		...(request.agentId ? ["--agent-id", request.agentId] : []),
 	];
 }
 
@@ -277,6 +295,7 @@ export function buildBrainstormPrompt(input: {
 	tags?: string;
 	category?: string;
 	priority?: string;
+	agentId?: string;
 }): string {
 	return [
 		`A demand came in for the Kanban board of ${input.projectPath}, written as:`,
@@ -299,7 +318,8 @@ export function buildBrainstormPrompt(input: {
 		`  kanban task create --project-path ${input.projectPath} --title <short line> --prompt <the agreed demand>` +
 			(input.tags ? ` --tags ${input.tags}` : "") +
 			(input.category ? ` --category ${input.category}` : "") +
-			(input.priority ? ` --priority ${input.priority}` : ""),
+			(input.priority ? ` --priority ${input.priority}` : "") +
+			(input.agentId ? ` --agent-id ${input.agentId}` : ""),
 		...(input.start
 			? [
 					"",
