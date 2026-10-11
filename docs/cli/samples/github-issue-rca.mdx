@@ -66,12 +66,7 @@ gh auth login
 
 ## Getting the Script
 
-**Option 1: Download directly with curl**
-```bash
-curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
-```
-
-**Option 2: Copy the full script**
+Save this script as `analyze-issue.sh`:
 
 <Accordion title="Click to view the complete analyze-issue.sh script">
 
@@ -89,16 +84,19 @@ fi
 # Gather the args
 ISSUE_URL="$1"
 PROMPT="${2:-What is the root cause of this issue?}"
+
+# Fail if Cline fails, not only if jq does
+set -o pipefail
+
 # Ask Cline for its analysis, showing only the summary
 cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
-    jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
-    sed 's/\\n/\n/g'
+    jq -r 'select(.type == "run_result") | .text'
 ```
 
 </Accordion>
 
 <Note>
-**After downloading or creating the script**, make it executable by running:
+**After creating the script**, make it executable by running:
 ```bash
 chmod +x analyze-issue.sh
 ```
@@ -166,18 +164,21 @@ PROMPT="${2:-What is the root cause of this issue?}"
 **Explanation:**
 - `ISSUE_URL="$1"` - First argument is always the issue URL
 - `PROMPT="${2:-...}"` - Second argument is optional, defaults to root cause analysis
-- The SDK CLI runs the task directly, so no address flag is required.
 
 ### The Core Analysis Pipeline
 
 This is where the magic happens:
 
 ```bash
+# Fail if Cline fails, not only if jq does
+set -o pipefail
+
 # Ask Cline for its analysis, showing only the summary
 cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
-    jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text' | \
-    sed 's/\\n/\n/g'
+    jq -r 'select(.type == "run_result") | .text'
 ```
+
+When a run fails, the `run_result` line holds the error message, so the script prints it. `set -o pipefail` makes the script exit with an error too, so that a calling script or workflow knows the analysis failed.
 
 <Accordion title="Pipeline Breakdown: Understanding Each Component">
 
@@ -188,14 +189,10 @@ cline --auto-approve true --json "$PROMPT: $ISSUE_URL" | \
    - `--json` emits newline-delimited JSON for parsing
    - Constructs prompt with issue URL
 
-**2. `jq -r 'select(.type == "agent_event" and .event.type == "done") | .event.text'`**
-   - Filters for the final agent `done` event
-   - Extracts the final text field
-   - `-r` outputs raw strings (no JSON quotes)
-
-**3. `sed 's/\\n/\n/g'`**
-   - Converts escaped newlines to actual newlines
-   - Makes output readable
+**2. `jq -r 'select(.type == "run_result") | .text'`**
+   - Keeps the `run_result` line, which the CLI prints when the run finishes
+   - Prints its `text` field, Cline's final answer
+   - `-r` prints the text itself, with real line breaks and no JSON quotes
 
 </Accordion>
 

@@ -39,15 +39,6 @@ export class SessionNotFoundError extends Error {
 	}
 }
 
-export class SessionAlreadyExistsError extends Error {
-	readonly code = "session_already_exists";
-
-	constructor(readonly sessionId: string) {
-		super(`session already exists: ${sessionId}`);
-		this.name = "SessionAlreadyExistsError";
-	}
-}
-
 export function isSessionNotFoundError(
 	error: unknown,
 ): error is SessionNotFoundError {

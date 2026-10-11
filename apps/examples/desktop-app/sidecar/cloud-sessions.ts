@@ -1,8 +1,4 @@
-import {
-	ClineAccountService,
-	ProviderSettingsManager,
-	resolveFreshClineAuthToken,
-} from "@cline/core";
+import { ClineAccountService, ProviderSettingsManager } from "@cline/core";
 import {
 	type CloudCreationOptions,
 	CloudSessionApi,
@@ -12,6 +8,7 @@ import {
 	type CreateCloudSessionInput,
 } from "@cline/core/cloud";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	getEnvironmentContext,
 	getSidecarContextOwner,

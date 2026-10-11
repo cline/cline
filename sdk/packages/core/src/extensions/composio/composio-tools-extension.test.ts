@@ -1,18 +1,36 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { AgentRuntime } from "@cline/agents";
+import type { AgentModel, AgentTool, ITelemetryService } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RuntimeEventAdapter } from "../../runtime/orchestration/runtime-event-adapter";
 import {
-	type ConnectorsRequest,
-	listConnections,
-	listToolkitTools,
-} from "../../services/connectors/cline-connectors-api";
+	type AgentEventContext,
+	handleAgentEvent,
+} from "../../services/agent-events";
+import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
+import type { CoreSessionConfig } from "../../types/config";
+
+// These tests supply a scripted model; no provider gateway is involved.
+vi.mock("@cline/llms", () => ({
+	createGateway: vi.fn(() => {
+		throw new Error("Unexpected provider gateway in scripted-model test");
+	}),
+	classifyProviderError: vi.fn(),
+	isRetryableProviderError: vi.fn(),
+}));
 
 /**
  * Connector tools execute through the Cline API connectors proxy, so the
  * extension resolves a Cline account token. Mock the token resolution so
  * tests can drive the signed-in / signed-out cases without a real account.
  */
+const beta = vi.hoisted(() => ({ enabled: true }));
+vi.mock("../../services/feature-flags/cline-account-feature-flags", () => ({
+	isClineAccountFeatureEnabled: async () => beta.enabled,
+}));
+
 const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
 	accountId: "account-a" as string | undefined,
@@ -27,6 +45,9 @@ vi.mock("../../runtime/orchestration/runtime-oauth-token-manager", () => ({
 		}
 	},
 }));
+vi.mock("../../services/providers/local-provider-service", () => ({
+	resolveLocalClineAuthToken: () => auth.token,
+}));
 vi.mock("../../services/storage/provider-settings-manager", () => ({
 	ProviderSettingsManager: class {
 		getProviderSettings() {
@@ -35,11 +56,25 @@ vi.mock("../../services/storage/provider-settings-manager", () => ({
 	},
 }));
 
-import { resolveComposioToolsStatePath } from "../../services/connectors/composio-tools";
-import { createComposioToolsExtension } from "./composio-tools-extension";
+const meta = vi.hoisted(() => ({
+	session: undefined as
+		| { sessionId: string; tools: Array<Record<string, unknown>> }
+		| undefined,
+}));
+vi.mock("./composio-meta-tools", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./composio-meta-tools")>()),
+	createComposioMetaToolSession: vi.fn(async () => meta.session),
+}));
+
+import { createComposioMetaToolSession } from "./composio-meta-tools";
+import {
+	createComposioToolsExtension,
+	resolveComposioToolsStatePath,
+} from "./composio-tools-extension";
 
 type RegisteredTool = {
 	name: string;
+	resultPolicy?: "cache-oversized";
 	description: string;
 	inputSchema: Record<string, unknown>;
 	retryable?: boolean;
@@ -56,10 +91,8 @@ function writeState(state: unknown): void {
 	writeFileSync(path, JSON.stringify(state, null, "\t"));
 }
 
-async function setupTools(
-	options?: Parameters<typeof createComposioToolsExtension>[0],
-): Promise<RegisteredTool[]> {
-	const extension = await createComposioToolsExtension(options);
+async function setupTools(): Promise<RegisteredTool[]> {
+	const extension = await createComposioToolsExtension();
 	const tools: RegisteredTool[] = [];
 	if (!extension) {
 		return tools;
@@ -74,11 +107,13 @@ async function setupTools(
 }
 
 beforeEach(() => {
+	beta.enabled = true;
 	tempDataDir = mkdtempSync(join(tmpdir(), "composio-ext-test-"));
 	process.env.CLINE_DATA_DIR = tempDataDir;
 	auth.token = "cline_token_123";
 	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
+	meta.session = undefined;
 });
 
 afterEach(() => {
@@ -135,6 +170,39 @@ describe("createComposioToolsExtension", () => {
 		expect(await createComposioToolsExtension()).toBeUndefined();
 	});
 
+	it("does not register saved tools without beta access", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		beta.enabled = false;
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("refuses execution when beta access is removed after registration", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		const tools = await setupTools();
+		beta.enabled = false;
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		expect(await tools[0].execute({})).toEqual({
+			successful: false,
+			error: "Composio connectors are not enabled for this account.",
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("registers one snake_case tool per stored schema", async () => {
 		writeState({
 			toolkits: {
@@ -165,6 +233,9 @@ describe("createComposioToolsExtension", () => {
 			"gmail_fetch_emails",
 			"gmail_send_email",
 		]);
+		expect(tools.every((tool) => tool.resultPolicy === "cache-oversized")).toBe(
+			true,
+		);
 		expect(tools.find((t) => t.name === "gmail_send_email")?.retryable).toBe(
 			false,
 		);
@@ -254,7 +325,7 @@ describe("createComposioToolsExtension", () => {
 	});
 
 	it.each([
-		401, 403, 404, 502,
+		401, 403, 502,
 	])("returns structured errors on HTTP %i instead of throwing", async (status) => {
 		writeState({
 			toolkits: {
@@ -310,177 +381,266 @@ describe("createComposioToolsExtension", () => {
 			error: string;
 		};
 		expect(result.successful).toBe(false);
-		expect(result.error).toBe("Cline API request failed: network down");
-	});
-});
-
-describe("host-supplied Composio tools", () => {
-	beforeEach(() => {
-		auth.accountId = undefined;
-		auth.token = undefined;
+		expect(result.error).toContain("network down");
 	});
 
-	it("uses the existing API lists to register and execute without a local login or state file", async () => {
-		const schema = {
-			slug: "GMAIL_FETCH_EMAILS",
-			version: "20250101_00",
-			input_parameters: {
-				type: "object",
-				properties: { limit: { type: "number" } },
+	it("registers meta tools even when no toolkit is connected", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [
+				{ slug: "COMPOSIO_SEARCH_TOOLS" },
+				{
+					slug: "COMPOSIO_MANAGE_CONNECTIONS",
+					description: "First call COMPOSIO_SEARCH_TOOLS for the user's query.",
+					input_parameters: {
+						type: "object",
+						properties: { session_id: { type: "string" } },
+					},
+				},
+				{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
+				{ slug: "COMPOSIO_MULTI_EXECUTE_TOOL" },
+			],
+		};
+		const tools = await setupTools();
+		expect(tools.map((tool) => tool.name)).toEqual([
+			"composio_search_tools",
+			"composio_manage_connections",
+			"composio_wait_for_connections",
+			"composio_multi_execute_tool",
+		]);
+		expect(tools[0]?.retryable).toBe(false);
+		// Composio's descriptions and schemas, as the session returned them.
+		expect(tools[1]?.description).toBe(
+			"First call COMPOSIO_SEARCH_TOOLS for the user's query.",
+		);
+		expect(tools[1]?.inputSchema.properties).toHaveProperty("session_id");
+	});
+
+	it("searches, connects, waits, and executes in one session without saved connections", async () => {
+		const actual = await vi.importActual<
+			typeof import("./composio-meta-tools")
+		>("./composio-meta-tools");
+		vi.mocked(createComposioMetaToolSession).mockImplementationOnce(
+			actual.createComposioMetaToolSession,
+		);
+		const steps = [
+			{
+				slug: "COMPOSIO_SEARCH_TOOLS",
+				arguments: { queries: [{ use_case: "Send an email" }] },
+				data: { tools: [{ tool_slug: "GMAIL_SEND_EMAIL" }], connected: false },
+			},
+			{
+				slug: "COMPOSIO_MANAGE_CONNECTIONS",
+				arguments: { toolkits: ["gmail"] },
+				data: { redirect_url: "https://connect.example/gmail" },
+			},
+			{
+				slug: "COMPOSIO_WAIT_FOR_CONNECTIONS",
+				arguments: { toolkits: ["gmail"] },
+				data: { connected: true },
+			},
+			{
+				slug: "COMPOSIO_MULTI_EXECUTE_TOOL",
+				arguments: {
+					tools: [
+						{
+							tool_slug: "GMAIL_SEND_EMAIL",
+							arguments: { to: "someone@example.com" },
+						},
+					],
+				},
+				data: {
+					results: [
+						{ tool_slug: "GMAIL_SEND_EMAIL", response: { successful: true } },
+					],
+				},
+			},
+		];
+		const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+			if (url.endsWith("/meta-tools/sessions")) {
+				return Response.json({
+					success: true,
+					data: {
+						sessionId: "trs_flow",
+						tools: steps.map(({ slug }) => ({
+							slug,
+							description:
+								slug === "COMPOSIO_MANAGE_CONNECTIONS"
+									? "First call COMPOSIO_SEARCH_TOOLS for the user's query."
+									: slug,
+							input_parameters: { type: "object", properties: {} },
+						})),
+					},
+				});
+			}
+			const step = steps[fetchMock.mock.calls.length - 2];
+			return Response.json({ successful: true, data: step.data });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = await setupTools();
+		expect(tools.map((tool) => tool.name)).toEqual(
+			steps.map((step) => step.slug.toLowerCase()),
+		);
+		let turn = 0;
+		const model: AgentModel = {
+			async *stream() {
+				const step = steps[turn++];
+				if (step) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: `call-${turn}`,
+						toolName: step.slug.toLowerCase(),
+						inputText: JSON.stringify(step.arguments),
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "Email sent." };
+					yield { type: "finish", reason: "stop" };
+				}
 			},
 		};
-		const connection = {
-			id: "c1",
-			toolkit: { slug: "gmail" },
-			status: "ACTIVE",
-		};
-		const page = (items: unknown[]) =>
-			Response.json({ success: true, data: { items, nextToken: "" } });
-		const request = vi
-			.fn<ConnectorsRequest>()
-			.mockResolvedValueOnce(page([connection]))
-			.mockResolvedValueOnce(page([schema]))
-			.mockResolvedValueOnce(
-				Response.json({ successful: true, data: { messages: [] } }),
+		const runtime = new AgentRuntime({ model, tools: tools as AgentTool[] });
+		expect((await runtime.run("Send an email using Gmail")).status).toBe(
+			"completed",
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+		expect(fetchMock.mock.calls[0][0]).toBe(
+			"https://api.cline.bot/api/v1/connectors/meta-tools/sessions",
+		);
+		for (const [, init] of fetchMock.mock.calls) {
+			expect(init?.method).toBe("POST");
+			expect((init?.headers as Record<string, string>).authorization).toBe(
+				"Bearer cline_token_123",
 			);
-		const globalFetch = vi.fn();
-		vi.stubGlobal("fetch", globalFetch);
-		const ctx = { request };
-		const [connected] = await listConnections(ctx);
-		const toolkits = {
-			[connected.toolkit.slug]: await listToolkitTools(
-				connected.toolkit.slug,
-				ctx,
-			),
+		}
+		for (const [index, step] of steps.entries()) {
+			const [url, init] = fetchMock.mock.calls[index + 1];
+			expect(url).toBe(
+				`https://api.cline.bot/api/v1/connectors/meta-tools/${step.slug}/execute`,
+			);
+			expect(JSON.parse(init?.body as string)).toEqual({
+				sessionId: "trs_flow",
+				arguments: step.arguments,
+			});
+		}
+	});
+
+	it("executes meta tools with the session id through the proxy", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
 		};
-		const tools = await setupTools({ toolkits, request });
-		expect(tools.map((tool) => tool.name)).toEqual(["gmail_fetch_emails"]);
-		expect(tools[0].retryable).toBe(false);
-		expect(tools[0].inputSchema).toEqual(schema.input_parameters);
-		expect(await tools[0].execute({ limit: 1 })).toEqual({
-			successful: true,
-			data: { messages: [] },
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({ data: { redirect_url: "https://connect" } }),
+				),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const [tool] = await setupTools();
+		const result = await tool?.execute({ toolkits: ["gmail"] });
+
+		expect(result).toEqual({ data: { redirect_url: "https://connect" } });
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe(
+			"https://api.cline.bot/api/v1/connectors/meta-tools/COMPOSIO_MANAGE_CONNECTIONS/execute",
+		);
+		expect((init.headers as Record<string, string>).authorization).toBe(
+			"Bearer cline_token_123",
+		);
+		expect(JSON.parse(init.body as string)).toEqual({
+			sessionId: "trs_1",
+			arguments: { toolkits: ["gmail"] },
 		});
-		expect(request).toHaveBeenCalledTimes(3);
-		expect(JSON.parse(request.mock.calls[2][1].body as string)).toEqual({
-			arguments: { limit: 1 },
-			version: "20250101_00",
-		});
-		expect(globalFetch).not.toHaveBeenCalled();
+	});
+
+	it("refuses meta tool execution after switching accounts", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
+		};
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const [tool] = await setupTools();
+		auth.accountId = "account-b";
+		expect(await tool?.execute({})).toMatchObject({ successful: false });
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it.each([
-		1024, 1025, 1026,
-	])("normalizes a supplied description of %i characters like local connections", async (length) => {
-		const description = "x".repeat(length);
-		const request = vi.fn<ConnectorsRequest>();
-		const tools = await setupTools({
-			request,
-			toolkits: {
-				gmail: [
-					{ slug: "GMAIL_FETCH_EMAILS", description: `  ${description}  ` },
-				],
-			},
-		});
-		const normalized =
-			length > 1024 ? `${description.slice(0, 1024)}…` : description;
-		expect(tools[0].description).toBe(
-			`${normalized} (gmail account connected via Composio)`,
+		"COMPOSIO_MANAGE_CONNECTIONS",
+		"COMPOSIO_WAIT_FOR_CONNECTIONS",
+	])("records %s usage once through the runtime event pipeline", async (slug) => {
+		meta.session = { sessionId: "trs_1", tools: [{ slug }] };
+		const fetchMock = vi.fn(async () =>
+			Response.json({ successful: true, data: {} }),
 		);
-	});
-
-	it("normalizes supplied versions, names and primitive input parameters like local connections", async () => {
-		const request = vi
-			.fn<ConnectorsRequest>()
-			.mockResolvedValue(Response.json({ successful: true }));
-		const tools = await setupTools({
-			request,
-			toolkits: {
-				gmail: [
-					{
-						slug: "GMAIL_FETCH_EMAILS",
-						name: "  Read mail  ",
-						description: "  ",
-						version: "  v1  ",
-						input_parameters: "invalid",
-					},
-				],
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = await setupTools();
+		const toolName = slug.toLowerCase();
+		let turn = 0;
+		const model: AgentModel = {
+			async *stream() {
+				if (turn++ === 0) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "connect-call",
+						toolName,
+						inputText: "{}",
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "Connected." };
+					yield { type: "finish", reason: "stop" };
+				}
 			},
+		};
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as ITelemetryService;
+		const ctx: AgentEventContext = {
+			sessionId: "session-connect",
+			config: {
+				telemetry,
+				providerId: "cline",
+				modelId: "test-model",
+			} as CoreSessionConfig,
+			liveSession: undefined,
+			usageBySession: new Map(),
+			aggregateUsageBySession: new Map(),
+			persistMessages: vi.fn(),
+			emit: vi.fn(),
+		};
+		const runtime = new AgentRuntime({ model, tools: tools as AgentTool[] });
+		const adapter = new RuntimeEventAdapter();
+		runtime.subscribe((event) => {
+			for (const translated of adapter.translate(event)) {
+				handleAgentEvent(ctx, translated, {
+					agentId: runtime.snapshot().agentId,
+				});
+			}
 		});
-		expect(tools[0].description).toBe(
-			"Read mail (gmail account connected via Composio)",
+
+		expect((await runtime.run("Connect the app")).status).toBe("completed");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const toolUsage = capture.mock.calls.filter(
+			([event]) => event.event === CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
 		);
-		expect(tools[0].inputSchema).toEqual({ type: "object", properties: {} });
-		await tools[0].execute({});
-		expect(JSON.parse(request.mock.calls[0][1].body as string)).toEqual({
-			arguments: {},
-			version: "v1",
-		});
-	});
-
-	it("keeps a snapshot and uses the supplied transport even if a desktop user signs in", async () => {
-		const request = vi
-			.fn<ConnectorsRequest>()
-			.mockResolvedValue(Response.json({ successful: true }));
-		const toolkits = { gmail: [{ slug: "GMAIL_FETCH_EMAILS", version: "v1" }] };
-		const tools = await setupTools({ toolkits, request });
-		toolkits.gmail[0].version = "v2";
-		auth.accountId = "some-desktop-user";
-		auth.token = "unrelated-token";
-		await tools[0].execute({});
-		expect(JSON.parse(request.mock.calls[0][1].body as string).version).toBe(
-			"v1",
-		);
-		expect(
-			new Headers(request.mock.calls[0][1].headers).has("authorization"),
-		).toBe(false);
-	});
-
-	it("registers nothing for an empty supplied snapshot", async () => {
-		const request = vi.fn<ConnectorsRequest>();
-		expect(
-			await createComposioToolsExtension({ toolkits: {}, request }),
-		).toBeUndefined();
-		expect(
-			await createComposioToolsExtension({ toolkits: { gmail: [] }, request }),
-		).toBeUndefined();
-		expect(request).not.toHaveBeenCalled();
-	});
-
-	it("preserves deduplication and malformed schema handling for supplied tools", async () => {
-		const request = vi.fn<ConnectorsRequest>();
-		const tools = await setupTools({
-			request,
-			toolkits: {
-				gmail: [
-					{ slug: "READ_MAIL" },
-					{
-						slug: "BROKEN",
-						input_parameters: {
-							allOf: [{ type: "string" }, { type: "number" }],
-						},
-					},
-				],
-				other: [{ slug: "READ_MAIL" }],
-			},
-		});
-		expect(tools.map((tool) => tool.name)).toEqual(["read_mail"]);
-	});
-
-	it("surfaces execution revocation without retrying or changing credentials", async () => {
-		const request = vi
-			.fn<ConnectorsRequest>()
-			.mockResolvedValue(
-				Response.json({ error: "connection revoked" }, { status: 403 }),
-			);
-		const tools = await setupTools({
-			request,
-			toolkits: { gmail: [{ slug: "GMAIL_FETCH_EMAILS" }] },
-		});
-		expect(await tools[0].execute({})).toMatchObject({
-			successful: false,
-			error: expect.stringContaining("connection revoked"),
-		});
-		expect(request).toHaveBeenCalledOnce();
+		expect(toolUsage).toEqual([
+			[
+				expect.objectContaining({
+					properties: expect.objectContaining({
+						ulid: "session-connect",
+						tool: toolName,
+						success: true,
+						provider: "cline",
+						modelId: "test-model",
+						agentId: runtime.snapshot().agentId,
+					}),
+				}),
+			],
+		]);
 	});
 });

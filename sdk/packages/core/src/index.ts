@@ -523,6 +523,7 @@ export {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
+	loadRulesForSystemPromptFromRecords,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
@@ -536,7 +537,6 @@ export {
 } from "./runtime/tools/tool-approval";
 export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
-export { resolveComposioToolsStatePath } from "./services/connectors/composio-tools";
 export {
 	disableConnectorAutostart,
 	getPersistedConnectorConnection,
@@ -637,6 +637,7 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpHeaders,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./services/mcp-install";
@@ -945,10 +946,7 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export {
-	type ComposioToolsExtensionOptions,
-	createComposioToolsExtension,
-} from "./extensions/composio/composio-tools-extension";
+export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
@@ -1009,32 +1007,6 @@ export {
 } from "./extensions/tools";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
-export { resolveFreshClineAuthToken } from "./services/connectors/cline-auth";
-export {
-	type ConnectorCatalogEntry,
-	type ConnectorConnection,
-	type ConnectorInitiateResult,
-	ConnectorsApiError,
-	type ConnectorsRequest,
-	type ConnectorsRequestContext,
-	type ConnectorToolSchema,
-	deleteConnection,
-	executeConnectorTool,
-	fetchConnectableToolkits,
-	initiateConnection,
-	listConnections,
-	listToolkitTools,
-	waitForConnectionActive,
-} from "./services/connectors/cline-connectors-api";
-export {
-	abandonComposioConnectsForOwner,
-	cancelComposioConnect,
-	connectComposioToolkit,
-	disconnectComposioToolkit,
-	getComposioStatus,
-	listComposioToolkits,
-	parseComposioToolkitSlug,
-} from "./services/connectors/composio";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
 	applyClineFeaturedModels,

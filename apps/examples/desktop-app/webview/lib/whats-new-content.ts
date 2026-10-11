@@ -25,6 +25,9 @@ import {
  * 3. Preview it from Settings → About → "Show what's new", which replays the
  *    latest entry without marking it seen.
  *
+ * A launch big enough to carry the dialog alone can instead be a `spotlight`,
+ * which `WhatsNewDialog` renders with its own layout and call to action.
+ *
  * New installs never see a catch-up: onboarding marks the current entry as
  * seen, because everything is new to a first-time user anyway.
  */
@@ -35,13 +38,16 @@ export type WhatsNewHighlight = {
 	icon: LucideIcon;
 };
 
-export type WhatsNewRelease = {
-	id: string;
-	title: string;
-	highlights: WhatsNewHighlight[];
-};
+export type WhatsNewRelease =
+	| { id: string; title: string; highlights: WhatsNewHighlight[] }
+	| { id: string; title: string; spotlight: "connectors" };
 
 export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
+	{
+		id: "2026-10-connectors",
+		title: "Connect Cline to your apps",
+		spotlight: "connectors",
+	},
 	{
 		id: "2026-09-remote-and-parallel",
 		title: "Work anywhere, in parallel",

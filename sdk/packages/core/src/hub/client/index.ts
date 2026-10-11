@@ -11,6 +11,7 @@ import {
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import NodeWebSocket from "ws";
+import corePackage from "../../../package.json";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -180,6 +181,10 @@ export interface HubClientOptions {
 	clientId?: string;
 	clientType?: string;
 	displayName?: string;
+	/** Version reported to the hub; defaults to the @cline/core version. */
+	clientVersion?: string;
+	/** Additional registration metadata; version and pid are owned by the client. */
+	metadata?: Record<string, unknown>;
 	workspaceRoot?: string;
 	cwd?: string;
 	/** Hub token sent with the `cline-hub-auth.*` WebSocket subprotocol. */
@@ -433,6 +438,11 @@ export class NodeHubClient {
 					transport: "native",
 					actorKind: "client",
 					capabilities: this.capabilities,
+					metadata: {
+						...this.options.metadata,
+						version: this.options.clientVersion ?? String(corePackage.version),
+						pid: process.pid,
+					},
 					workspaceContext: {
 						workspaceRoot: this.options.workspaceRoot,
 						cwd: this.options.cwd,

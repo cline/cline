@@ -27,6 +27,7 @@ export async function createMcpTools(
 
 		return createTool({
 			name: agentToolName,
+			resultPolicy: "cache-oversized",
 			description: defaultMcpDescription(options.serverName, descriptor),
 			inputSchema: descriptor.inputSchema,
 			timeoutMs: options.timeoutMs,

@@ -22,7 +22,6 @@ import { getToolCatalog } from "../runtime/tools";
 import { createCliCore } from "../session/session";
 import { loadInteractiveConfigData } from "../tui/interactive-config";
 import type { CliOutputMode } from "../utils/types";
-import { runInstalledConnectorsCommand } from "./connector";
 
 type ConfigIo = {
 	writeln: (text?: string) => void;
@@ -484,12 +483,6 @@ export function createConfigCommand(
 			}
 
 			switch (target) {
-				case "connectors":
-					actionExitCode = await runInstalledConnectorsCommand(
-						getOutputMode() === "json",
-						io,
-					);
-					break;
 				case "workflows":
 					actionExitCode = await runWorkflowsConfigCommand(
 						getCwd(),
@@ -545,7 +538,7 @@ export function createConfigCommand(
 					break;
 				default:
 					io.writeErr(
-						`config requires one of: workflows, rules, skills, agents, plugins, hooks, mcp, tools, connectors (got "${target}")`,
+						`config requires one of: workflows, rules, skills, agents, plugins, hooks, mcp, tools (got "${target}")`,
 					);
 					actionExitCode = 1;
 			}

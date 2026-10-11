@@ -65,6 +65,7 @@ export const GENERATED_PROVIDER_IDS = [
 	"echo",
 	"edenai",
 	"empiriolabs",
+	"engy",
 	"evroc",
 	"fastrouter",
 	"fireworks",

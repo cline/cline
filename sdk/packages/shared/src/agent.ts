@@ -172,6 +172,8 @@ export interface AgentToolDefinition {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** Core may cache oversized output for bounded model recovery. Original output is retained. */
+	resultPolicy?: "cache-oversized";
 	lifecycle?: {
 		/**
 		 * Whether a successful call to this tool completes the current run.
@@ -274,10 +276,11 @@ export interface AgentRuntimePrepareTurnResult {
  * left both surfacing as "Model returned empty response", which tells a
  * user to retry something that cannot succeed.
  *
- * Provider finish reasons with no dedicated member here (`other`,
- * `unknown`, ...) still normalize to `stop`.
+ * Missing or unrecognized provider finish reasons normalize to `unknown`: the
+ * response may be cut off and must not be treated as successful completion.
  */
 export type AgentModelFinishReason =
+	| "unknown"
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"

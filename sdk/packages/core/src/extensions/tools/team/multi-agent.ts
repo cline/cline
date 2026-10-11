@@ -33,6 +33,52 @@ import {
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
+import {
+	type TeamRunResultRecord,
+	toTeamRunResultRecord,
+} from "./persistence-policy";
+
+/**
+ * Incremental change set produced by `AgentTeamsRuntime.drainStateDelta()`.
+ * Only entities mutated since the previous drain are included, so the cost of
+ * persisting it is proportional to what changed, not to team history.
+ */
+export interface TeamRuntimeStateDelta {
+	teamId: string;
+	teamName: string;
+	/** When true, the store must drop all persisted entities before applying. */
+	reset: boolean;
+	/** Members are few and cheap; always included in full. */
+	members: TeamMemberSnapshot[];
+	tasks: TeamTask[];
+	mailbox: TeamMailboxMessage[];
+	missionLog: MissionLogEntry[];
+	runs: TeamRunRecord[];
+	outcomes: TeamOutcome[];
+	outcomeFragments: TeamOutcomeFragment[];
+}
+
+interface TeamDirtySet {
+	reset: boolean;
+	tasks: Set<string>;
+	mailbox: Set<string>;
+	missionLog: Set<string>;
+	runs: Set<string>;
+	outcomes: Set<string>;
+	outcomeFragments: Set<string>;
+}
+
+function createDirtySet(): TeamDirtySet {
+	return {
+		reset: false,
+		tasks: new Set(),
+		mailbox: new Set(),
+		missionLog: new Set(),
+		runs: new Set(),
+		outcomes: new Set(),
+		outcomeFragments: new Set(),
+	};
+}
 
 // Re-export shared types for backward compatibility
 export {
@@ -134,6 +180,11 @@ export interface AgentTeamsRuntimeOptions {
 	missionLogIntervalMs?: number;
 	maxConcurrentRuns?: number;
 	onTeamEvent?: (event: TeamEvent) => void;
+	/**
+	 * Called when persisted state changes without a team event (mailbox read
+	 * receipts, cleanup), so a persistence writer can schedule a flush.
+	 */
+	onStateDirty?: () => void;
 }
 
 export interface SpawnTeammateOptions {
@@ -537,6 +588,7 @@ export class AgentTeamsRuntime {
 	private readonly teamId: string;
 	private readonly teamName: string;
 	private readonly onTeamEvent?: (event: TeamEvent) => void;
+	private readonly onStateDirty?: () => void;
 	private readonly members: Map<string, TeamMemberState> = new Map();
 	private readonly tasks: Map<string, TeamTask> = new Map();
 	private readonly missionLog: MissionLogEntry[] = [];
@@ -548,8 +600,11 @@ export class AgentTeamsRuntime {
 	private runCounter = 0;
 	private outcomeCounter = 0;
 	private outcomeFragmentCounter = 0;
-	private readonly runs: Map<string, TeamRunRecord & { result?: AgentResult }> =
-		new Map();
+	private readonly runs: Map<
+		string,
+		TeamRunRecord & { result?: TeamRunResultRecord }
+	> = new Map();
+	private dirty: TeamDirtySet = createDirtySet();
 	private readonly runQueue: string[] = [];
 	private queuedRunDispatchTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly outcomes: Map<string, TeamOutcome> = new Map();
@@ -563,6 +618,7 @@ export class AgentTeamsRuntime {
 		this.teamName = options.teamName;
 		this.teamId = `t_${sanitizeFileName(nanoid(10))}`;
 		this.onTeamEvent = options.onTeamEvent;
+		this.onStateDirty = options.onStateDirty;
 		this.missionLogIntervalSteps = Math.max(
 			1,
 			options.missionLogIntervalSteps ?? 3,
@@ -664,10 +720,16 @@ export class AgentTeamsRuntime {
 				: messages;
 		if (markRead) {
 			const now = new Date();
+			let changed = false;
 			for (const message of selected) {
 				if (!message.readAt) {
 					message.readAt = now;
+					this.dirty.mailbox.add(message.id);
+					changed = true;
 				}
+			}
+			if (changed) {
+				this.notifyStateDirty();
 			}
 		}
 		return selected.map((message) => ({ ...message }));
@@ -738,6 +800,8 @@ export class AgentTeamsRuntime {
 
 	hydrateState(state: TeamRuntimeState): void {
 		this.clearQueuedRunDispatchTimer();
+		// Hydrated state came from storage, so it starts clean.
+		this.dirty = createDirtySet();
 		this.tasks.clear();
 		for (const task of state.tasks) {
 			this.tasks.set(task.id, { ...task });
@@ -751,8 +815,10 @@ export class AgentTeamsRuntime {
 
 		this.runs.clear();
 		for (const run of state.runs ?? []) {
-			this.runs.set(run.id, { ...run } as TeamRunRecord & {
-				result?: AgentResult;
+			// Older persisted runs may carry a full AgentResult; compact on load.
+			this.runs.set(run.id, {
+				...run,
+				result: toTeamRunResultRecord(run.result),
 			});
 		}
 		this.runQueue.length = 0;
@@ -1121,7 +1187,7 @@ export class AgentTeamsRuntime {
 		},
 	): TeamRunRecord {
 		const runId = `run_${String(++this.runCounter).padStart(5, "0")}`;
-		const record: TeamRunRecord & { result?: AgentResult } = {
+		const record: TeamRunRecord & { result?: TeamRunResultRecord } = {
 			id: runId,
 			agentId,
 			taskId: options?.taskId,
@@ -1226,7 +1292,7 @@ export class AgentTeamsRuntime {
 	}
 
 	private async executeQueuedRun(
-		run: TeamRunRecord & { result?: AgentResult },
+		run: TeamRunRecord & { result?: TeamRunResultRecord },
 	): Promise<void> {
 		const recoveredRun = run.currentActivity === RECOVERED_QUEUED_ACTIVITY;
 		run.nextAttemptAt = undefined;
@@ -1267,7 +1333,8 @@ export class AgentTeamsRuntime {
 				throw new Error(result.text || "Teammate run failed");
 			}
 			run.status = "completed";
-			run.result = result;
+			// Keep only the summary; the transcript lives in session storage.
+			run.result = toTeamRunResultRecord(result);
 			run.endedAt = new Date();
 			run.currentActivity = "completed";
 			this.emitEvent({ type: TeamMessageType.RunCompleted, run: { ...run } });
@@ -1634,6 +1701,7 @@ export class AgentTeamsRuntime {
 		this.outcomeFragments.set(fragment.id, fragment);
 		if (outcome.status === "draft") {
 			outcome.status = "in_review";
+			this.dirty.outcomes.add(outcome.id);
 		}
 		this.emitEvent({
 			type: TeamMessageType.OutcomeFragmentAttached,
@@ -1735,6 +1803,10 @@ export class AgentTeamsRuntime {
 				this.members.delete(memberId);
 			}
 		}
+		// Everything was removed; the store must drop its rows too.
+		this.dirty = createDirtySet();
+		this.dirty.reset = true;
+		this.notifyStateDirty();
 	}
 
 	private requireTask(taskId: string): TeamTask {
@@ -1915,7 +1987,148 @@ export class AgentTeamsRuntime {
 		return lines.join("\n");
 	}
 
+	/**
+	 * Record which persisted entity an event mutated. Every durable state
+	 * change flows through `emitEvent`, so this is the single point that keeps
+	 * the dirty set in sync with the in-memory maps.
+	 */
+	private markDirtyFromEvent(event: TeamEvent): void {
+		switch (event.type) {
+			case TeamMessageType.TeamTaskUpdated:
+				this.dirty.tasks.add(event.task.id);
+				break;
+			case TeamMessageType.TeamMessage:
+				this.dirty.mailbox.add(event.message.id);
+				break;
+			case TeamMessageType.TeamMissionLog:
+				this.dirty.missionLog.add(event.entry.id);
+				break;
+			case TeamMessageType.RunQueued:
+			case TeamMessageType.RunStarted:
+			case TeamMessageType.RunCompleted:
+			case TeamMessageType.RunFailed:
+			case TeamMessageType.RunCancelled:
+			case TeamMessageType.RunInterrupted:
+			case TeamMessageType.RunProgress:
+				this.dirty.runs.add(event.run.id);
+				break;
+			case TeamMessageType.OutcomeCreated:
+			case TeamMessageType.OutcomeFinalized:
+				this.dirty.outcomes.add(event.outcome.id);
+				break;
+			case TeamMessageType.OutcomeFragmentAttached:
+			case TeamMessageType.OutcomeFragmentReviewed:
+				this.dirty.outcomeFragments.add(event.fragment.id);
+				break;
+			default:
+				break;
+		}
+	}
+
+	/** True when there are unpersisted changes. */
+	hasPendingStateDelta(): boolean {
+		const d = this.dirty;
+		return (
+			d.reset ||
+			d.tasks.size > 0 ||
+			d.mailbox.size > 0 ||
+			d.missionLog.size > 0 ||
+			d.runs.size > 0 ||
+			d.outcomes.size > 0 ||
+			d.outcomeFragments.size > 0
+		);
+	}
+
+	/**
+	 * Return entities mutated since the last drain and clear the dirty set.
+	 * Ids whose entity no longer exists are skipped (a `reset` covers removal).
+	 */
+	drainStateDelta(): TeamRuntimeStateDelta {
+		const dirty = this.dirty;
+		this.dirty = createDirtySet();
+		const pick = <T>(ids: Set<string>, get: (id: string) => T | undefined) => {
+			const out: T[] = [];
+			for (const id of ids) {
+				const value = get(id);
+				if (value !== undefined) {
+					out.push({ ...value });
+				}
+			}
+			return out;
+		};
+		// Only index the (unbounded) mailbox / mission log when they changed.
+		const mailboxById =
+			dirty.mailbox.size > 0
+				? new Map(this.mailbox.map((m) => [m.id, m] as const))
+				: undefined;
+		const missionById =
+			dirty.missionLog.size > 0
+				? new Map(this.missionLog.map((entry) => [entry.id, entry] as const))
+				: undefined;
+		return {
+			teamId: this.teamId,
+			teamName: this.teamName,
+			reset: dirty.reset,
+			members: this.exportMembers(),
+			tasks: pick(dirty.tasks, (id) => this.tasks.get(id)),
+			mailbox: pick(dirty.mailbox, (id) => mailboxById?.get(id)),
+			missionLog: pick(dirty.missionLog, (id) => missionById?.get(id)),
+			runs: pick(dirty.runs, (id) => this.runs.get(id)),
+			outcomes: pick(dirty.outcomes, (id) => this.outcomes.get(id)),
+			outcomeFragments: pick(dirty.outcomeFragments, (id) =>
+				this.outcomeFragments.get(id),
+			),
+		};
+	}
+
+	/**
+	 * Put a drained delta back so a failed write is retried by the next flush.
+	 * Entities are re-read at drain time, so only ids and the reset flag matter.
+	 */
+	requeueStateDelta(delta: TeamRuntimeStateDelta): void {
+		this.dirty.reset = this.dirty.reset || delta.reset;
+		for (const t of delta.tasks) this.dirty.tasks.add(t.id);
+		for (const m of delta.mailbox) this.dirty.mailbox.add(m.id);
+		for (const e of delta.missionLog) this.dirty.missionLog.add(e.id);
+		for (const r of delta.runs) this.dirty.runs.add(r.id);
+		for (const o of delta.outcomes) this.dirty.outcomes.add(o.id);
+		for (const f of delta.outcomeFragments) {
+			this.dirty.outcomeFragments.add(f.id);
+		}
+	}
+
+	private notifyStateDirty(): void {
+		try {
+			this.onStateDirty?.();
+		} catch {
+			// Ignore callback errors to avoid disrupting execution.
+		}
+	}
+
+	/** Mark the whole state dirty (used after hydrate/cleanup or a migration). */
+	markAllStateDirty(reset = true): void {
+		this.dirty.reset = this.dirty.reset || reset;
+		for (const id of this.tasks.keys()) this.dirty.tasks.add(id);
+		for (const m of this.mailbox) this.dirty.mailbox.add(m.id);
+		for (const e of this.missionLog) this.dirty.missionLog.add(e.id);
+		for (const id of this.runs.keys()) this.dirty.runs.add(id);
+		for (const id of this.outcomes.keys()) this.dirty.outcomes.add(id);
+		for (const id of this.outcomeFragments.keys()) {
+			this.dirty.outcomeFragments.add(id);
+		}
+	}
+
+	private exportMembers(): TeamMemberSnapshot[] {
+		return Array.from(this.members.values()).map((member) => ({
+			agentId: member.agentId,
+			role: member.role,
+			description: member.description,
+			status: member.status,
+		}));
+	}
+
 	private emitEvent(event: TeamEvent): void {
+		this.markDirtyFromEvent(event);
 		try {
 			this.onTeamEvent?.(event);
 		} catch {

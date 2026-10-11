@@ -20,7 +20,11 @@ import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
 	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
 	normalizeCloudRepositoryUrl,
+	readCloudRepositorySelection,
+	resolveRememberedCloudBranch,
+	writeCloudRepositorySelection,
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
@@ -45,8 +49,12 @@ type CloudSetupState = {
 		| "ready"
 		| "not_connected"
 		| "no_repositories"
+		| "restore_error"
 		| "error";
 	connectUrl: string;
+	scope: string | null;
+	requestId: number;
+	repositories: CloudRepositoryOption[];
 	/** Normalized URLs of repositories the account can currently access. */
 	repositoryUrls: string[];
 };
@@ -93,11 +101,21 @@ export function WelcomeScreen({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
+	const cloudScope = user
+		? JSON.stringify([
+				getClineEnvironmentConfig().appBaseUrl,
+				user.id,
+				activeOrganization?.organizationId ?? null,
+			])
+		: null;
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
+		scope: null,
+		requestId: 0,
+		repositories: [],
 		repositoryUrls: [],
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
@@ -111,8 +129,11 @@ export function WelcomeScreen({
 		selectChat,
 	} = useWorkspace();
 	const applyCloudSetupResult = useCallback(
-		(result: CloudRepositoryListResult) => {
+		(result: CloudRepositoryListResult, requestId: number) => {
 			setCloudSetup({
+				scope: cloudScope,
+				requestId,
+				repositories: result.repositories,
 				status:
 					result.connected === false
 						? "not_connected"
@@ -125,7 +146,7 @@ export function WelcomeScreen({
 				),
 			});
 		},
-		[],
+		[cloudScope],
 	);
 	const fetchCloudRepositories = useCallback(
 		() =>
@@ -138,9 +159,17 @@ export function WelcomeScreen({
 	const listCloudRepositories = useCallback(async () => {
 		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
-		const result = await fetchCloudRepositories();
+		const result = await fetchCloudRepositories().catch((error) => {
+			// Resume saved-selection restoration if the picker refresh fails.
+			setCloudSetup((prev) =>
+				cloudSetupRequestRef.current === requestId && prev.status === "ready"
+					? { ...prev, requestId }
+					: prev,
+			);
+			throw error;
+		});
 		if (cloudSetupRequestRef.current === requestId) {
-			applyCloudSetupResult(result);
+			applyCloudSetupResult(result, requestId);
 		}
 		return result;
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
@@ -189,7 +218,7 @@ export function WelcomeScreen({
 		try {
 			const result = await fetchCloudRepositories();
 			if (cloudSetupRequestRef.current !== requestId) return;
-			applyCloudSetupResult(result);
+			applyCloudSetupResult(result, requestId);
 		} catch {
 			if (cloudSetupRequestRef.current !== requestId) return;
 			setCloudSetup((prev) => ({ ...prev, status: "error" }));
@@ -243,6 +272,74 @@ export function WelcomeScreen({
 			void checkCloudSetup();
 		});
 	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
+
+	// Keep sending blocked until the saved repository and branch are validated.
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			repoUrl ||
+			cloudSetup.status !== "ready" ||
+			cloudSetup.scope !== cloudScope ||
+			cloudSetup.requestId !== cloudSetupRequestRef.current
+		)
+			return;
+		const saved = readCloudRepositorySelection(cloudScope);
+		const repository = cloudSetup.repositories.find(
+			(candidate) =>
+				normalizeCloudRepositoryUrl(candidate.url) === saved?.repoUrl,
+		);
+		if (!saved || !repository) return;
+		let cancelled = false;
+		void resolveRememberedCloudBranch(
+			repository.id,
+			saved.branch,
+			repository.defaultBranch,
+			listCloudBranches,
+		)
+			.then((branch) => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				onRepoUrlChange(saved.repoUrl);
+				onCloudBranchChange(branch);
+			})
+			.catch(() => {
+				if (cancelled || cloudSetup.requestId !== cloudSetupRequestRef.current)
+					return;
+				setCloudSetup((prev) => ({ ...prev, status: "restore_error" }));
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudModeActive,
+		cloudScope,
+		cloudSetup,
+		repoUrl,
+		listCloudBranches,
+		onRepoUrlChange,
+		onCloudBranchChange,
+	]);
+
+	useEffect(() => {
+		if (
+			!cloudModeActive ||
+			!cloudScope ||
+			cloudSetup.scope !== cloudScope ||
+			(cloudSetup.status !== "ready" &&
+				cloudSetup.status !== "restore_error") ||
+			!repoUrl ||
+			!cloudSetup.repositoryUrls.includes(normalizeCloudRepositoryUrl(repoUrl))
+		)
+			return;
+		writeCloudRepositorySelection(cloudScope, {
+			repoUrl: normalizeCloudRepositoryUrl(repoUrl),
+			branch: cloudBranch,
+		});
+		if (cloudSetup.status === "restore_error") {
+			setCloudSetup((prev) => ({ ...prev, status: "ready" }));
+		}
+	}, [cloudModeActive, cloudScope, cloudSetup, repoUrl, cloudBranch]);
 
 	const agenda = useAgendaTasks(
 		{
@@ -355,10 +452,13 @@ export function WelcomeScreen({
 				? "not_connected"
 				: cloudSetup.status === "no_repositories"
 					? "no_repositories"
-					: cloudSetup.status === "error"
+					: cloudSetup.status === "error" ||
+							cloudSetup.status === "restore_error"
 						? "error"
 						: null;
-	const showCloudOnboarding = cloudOnboardingVariant !== null;
+	// A failed restore must still allow a manual repository selection.
+	const showCloudOnboarding =
+		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";
 
 	return (
 		<AgentConversationLayout
@@ -410,7 +510,7 @@ export function WelcomeScreen({
 				</div>
 			}
 			welcomeSetup={
-				showCloudOnboarding ? (
+				cloudOnboardingVariant !== null ? (
 					<div className="mt-4 w-full">
 						<CloudOnboardingCard
 							checking={cloudSetupChecking}

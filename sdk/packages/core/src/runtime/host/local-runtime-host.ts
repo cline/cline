@@ -141,10 +141,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import {
-	SessionAlreadyExistsError,
-	SessionNotFoundError,
-} from "./runtime-host";
+import { SessionNotFoundError } from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -278,10 +275,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
-	private readonly sessionStarts = new Map<
-		string,
-		Promise<StartSessionResult>
-	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -415,36 +408,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const pending = this.sessionStarts.get(sessionId);
-		if (pending) {
-			try {
-				await pending;
-			} catch {
-				return await this.startSession({
-					...input,
-					config: { ...input.config, sessionId },
-				});
-			}
-			// A successful one-shot start may already have released its runtime.
-			throw new SessionAlreadyExistsError(sessionId);
-		}
-		if (this.sessions.has(sessionId)) {
-			throw new SessionAlreadyExistsError(sessionId);
-		}
-		const starting = this.startNewSession(
-			input,
-			sessionId,
-			requestedSessionId,
-		).finally(() => this.sessionStarts.delete(sessionId));
-		this.sessionStarts.set(sessionId, starting);
-		return await starting;
-	}
-
-	private async startNewSession(
-		input: StartSessionInput,
-		sessionId: string,
-		requestedSessionId: string,
-	): Promise<StartSessionResult> {
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&
@@ -664,25 +627,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		const restoredSessionMetadata = {
-			...(resumedArtifacts?.manifest.metadata ?? {}),
-			...(startInput.sessionMetadata ?? {}),
-		};
 		const initialSessionMetadata = withSessionHistoryOriginMetadata(
 			withSessionGitMetadata(
 				{
-					...restoredSessionMetadata,
-					// Null records an unset preference; missing keys belong to legacy sessions.
-					thinking:
-						bootstrap.config.thinking ??
-						restoredSessionMetadata.thinking ??
-						null,
-					reasoningEffort:
-						bootstrap.config.thinking === false
-							? null
-							: (bootstrap.config.reasoningEffort ??
-								restoredSessionMetadata.reasoningEffort ??
-								null),
+					...(resumedArtifacts?.manifest.metadata ?? {}),
+					...(startInput.sessionMetadata ?? {}),
 				},
 				bootstrap.gitState,
 			),
@@ -1712,33 +1661,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
 		// Keep the persisted manifest in sync so session history reflects the
 		// connection the session is now using, not the one it started with.
-		const reasoningMetadata =
-			Object.hasOwn(updates, "thinking") ||
-			Object.hasOwn(updates, "reasoningEffort")
-				? {
-						thinking: session.config.thinking ?? null,
-						reasoningEffort: session.config.reasoningEffort ?? null,
-					}
-				: undefined;
-		if (reasoningMetadata) {
-			// Empty sessions persist lazily, so retain updates before artifacts exist.
-			session.sessionMetadata = {
-				...session.sessionMetadata,
-				...reasoningMetadata,
-			};
-		}
-		if (updates.providerId || updates.modelId || reasoningMetadata) {
-			await this.mutateSessionManifest(session, async (manifest) => {
+		if (updates.providerId || updates.modelId) {
+			await this.mutateSessionManifest(session, (manifest) => {
 				if (updates.providerId) manifest.provider = updates.providerId;
 				if (updates.modelId) manifest.model = updates.modelId;
-				if (reasoningMetadata) {
-					manifest.metadata = { ...manifest.metadata, ...reasoningMetadata };
-					await this.invokeOptionalValue("updateSession", {
-						sessionId,
-						metadata: manifest.metadata,
-					});
-					session.sessionMetadata = manifest.metadata;
-				}
 			});
 		}
 	}
@@ -1753,7 +1679,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
-		mutate: (manifest: SessionManifest) => void | Promise<void>,
+		mutate: (manifest: SessionManifest) => void,
 	): Promise<SessionManifest | undefined> {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
@@ -1766,7 +1692,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					"readSessionManifest",
 					sessionId,
 				)) ?? artifacts.manifest;
-			await mutate(latest);
+			mutate(latest);
 			artifacts.manifest = latest;
 			await this.invoke<void>(
 				"writeSessionManifest",
@@ -1815,6 +1741,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<AgentResult> {
+		// An abort that arrived between turns targeted a run that had already
+		// ended; only aborts issued from here on belong to this turn.
+		session.aborting = false;
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;
@@ -2015,9 +1944,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		try {
-			const runFn = shouldContinue
-				? () => session.agent.continue(prompt, userImages, userFiles)
-				: () => session.agent.run(prompt, userImages, userFiles);
+			const runFn = () => {
+				const run = shouldContinue
+					? session.agent.continue(prompt, userImages, userFiles)
+					: session.agent.run(prompt, userImages, userFiles);
+				// The agent drops abort() while it has no run in flight, so a Stop
+				// that landed during this turn's preparation (persistence, git
+				// metadata, credential sync) never reached it and the turn would
+				// run to completion behind a UI that already shows it stopped.
+				// Re-issue the abort now that the run exists.
+				if (session.aborting) {
+					session.agent.abort(new Error("Run aborted before it started"));
+				}
+				return run;
+			};
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,

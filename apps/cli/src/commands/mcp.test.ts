@@ -1,6 +1,8 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TextOptions } from "@clack/prompts";
+import * as p from "@clack/prompts";
 import { installMcpServer } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,6 +11,67 @@ import {
 	runMcpInstallCommand,
 	runMcpUninstallCommand,
 } from "./mcp";
+
+const prompts = vi.hoisted(() => ({
+	// Accept the prefilled answer, as a user pressing Enter would, and fail
+	// the test if the prompt's own validation would reject it.
+	acceptPrefill: async (opts: TextOptions): Promise<string> => {
+		const value = opts.initialValue ?? "";
+		const { validate } = opts;
+		if (validate !== undefined && typeof validate !== "function") {
+			throw new Error("wizard prompts validate with a function");
+		}
+		const error = validate?.(value);
+		if (error) throw new Error(`prompt rejected "${value}": ${String(error)}`);
+		return value;
+	},
+}));
+
+vi.mock("@clack/prompts", () => ({
+	intro: vi.fn(),
+	outro: vi.fn(),
+	isCancel: () => false,
+	log: {
+		error: vi.fn(),
+		info: vi.fn(),
+		message: vi.fn(),
+		step: vi.fn(),
+		success: vi.fn(),
+		warn: vi.fn(),
+	},
+	select: vi.fn(async (opts: { initialValue?: unknown }) => opts.initialValue),
+	text: vi.fn(prompts.acceptPrefill),
+}));
+
+async function withTempSettings(
+	run: (readTransport: (name: string) => unknown) => Promise<void>,
+): Promise<void> {
+	const root = mkdtempSync(join(tmpdir(), "cli-mcp-install-wizard-"));
+	const settingsPath = join(root, "cline_mcp_settings.json");
+	vi.stubEnv("CLINE_MCP_SETTINGS_PATH", settingsPath);
+	try {
+		await run((name) => {
+			const written = JSON.parse(readFileSync(settingsPath, "utf8")) as {
+				mcpServers?: Record<string, { transport?: unknown }>;
+			};
+			return written.mcpServers?.[name]?.transport;
+		});
+	} finally {
+		vi.unstubAllEnvs();
+		rmSync(root, { recursive: true, force: true });
+	}
+}
+
+function addRemoteServerInWizard(headers: string[]): Promise<number> {
+	return runMcpInstallCommand({
+		name: "docs",
+		transport: "http",
+		targetArgs: ["https://example.com/mcp"],
+		headers,
+		isTty: true,
+		io: { writeErr: vi.fn() },
+	});
+}
 
 vi.mock("@cline/core", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@cline/core")>();
@@ -191,6 +254,66 @@ describe("mcp install command", () => {
 			type: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
 		});
+	});
+
+	it("saves --header values when the wizard's prefilled answers are accepted", async () => {
+		await withTempSettings(async (readTransport) => {
+			const code = await addRemoteServerInWizard([
+				"Authorization: Bearer token",
+				"Accept: a, b",
+			]);
+
+			expect(code).toBe(0);
+			expect(readTransport("docs")).toEqual({
+				type: "streamableHttp",
+				url: "https://example.com/mcp",
+				headers: { Authorization: "Bearer token", Accept: "a, b" },
+			});
+		});
+	});
+
+	it("warns once, before its prompt, about a prefilled placeholder header", async () => {
+		const header = "Authorization: Bearer <token>";
+		const warn = vi.mocked(p.log.warn);
+		const text = vi.mocked(p.text);
+		warn.mockClear();
+		text.mockClear();
+
+		await withTempSettings(async () => {
+			expect(await addRemoteServerInWizard([header])).toBe(0);
+		});
+
+		const headerPrompt = text.mock.calls.findIndex(
+			([opts]) => opts.initialValue === header,
+		);
+		expect(warn).toHaveBeenCalledOnce();
+		expect(warn).toHaveBeenCalledWith(
+			'Header "Authorization" looks like it contains a placeholder. Update it in MCP settings before using this server.',
+		);
+		expect(warn.mock.invocationCallOrder[0]).toBeLessThan(
+			text.mock.invocationCallOrder[headerPrompt] ?? 0,
+		);
+	});
+
+	it("drops only a prefilled header the user clears", async () => {
+		const dropped = "Authorization: Bearer token";
+		vi.mocked(p.text).mockImplementation(async (opts) =>
+			opts.initialValue === dropped ? "" : prompts.acceptPrefill(opts),
+		);
+		try {
+			await withTempSettings(async (readTransport) => {
+				expect(await addRemoteServerInWizard([dropped, "Accept: a, b"])).toBe(
+					0,
+				);
+				expect(readTransport("docs")).toEqual({
+					type: "streamableHttp",
+					url: "https://example.com/mcp",
+					headers: { Accept: "a, b" },
+				});
+			});
+		} finally {
+			vi.mocked(p.text).mockImplementation(prompts.acceptPrefill);
+		}
 	});
 
 	it("requires a TTY because it opens the wizard", async () => {
