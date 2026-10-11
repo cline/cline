@@ -28,7 +28,11 @@ const REQUIRED_META_TOOL_SLUGS = [
 	"COMPOSIO_MULTI_EXECUTE_TOOL",
 ] as const;
 
-export type ConnectorsAuth = { baseUrl: string; token: string };
+/** The host owns the API origin and user authentication for connector requests. */
+export type ConnectorsRequest = (
+	path: string,
+	init: RequestInit,
+) => Promise<Response>;
 
 export type ComposioMetaTool = {
 	slug: string;
@@ -48,19 +52,15 @@ export type ComposioMetaToolSession = {
  * any network failure. Callers then run without the meta tools.
  */
 export async function createComposioMetaToolSession(
-	auth: ConnectorsAuth,
+	request: ConnectorsRequest,
 	options?: { log?: (message: string) => void },
 ): Promise<ComposioMetaToolSession | undefined> {
 	let response: Response;
 	try {
-		response = await fetch(
-			`${auth.baseUrl}${CONNECTORS_API_PATH}/meta-tools/sessions`,
-			{
-				method: "POST",
-				headers: { authorization: `Bearer ${auth.token}` },
-				signal: AbortSignal.timeout(META_TOOL_SESSION_TIMEOUT_MS),
-			},
-		);
+		response = await request(`${CONNECTORS_API_PATH}/meta-tools/sessions`, {
+			method: "POST",
+			signal: AbortSignal.timeout(META_TOOL_SESSION_TIMEOUT_MS),
+		});
 	} catch (error) {
 		options?.log?.(
 			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -103,18 +103,17 @@ export async function createComposioMetaToolSession(
 }
 
 export async function executeComposioMetaTool(
-	auth: ConnectorsAuth,
+	request: ConnectorsRequest,
 	sessionId: string,
 	slug: string,
 	input: unknown,
 ): Promise<unknown> {
-	const url = `${auth.baseUrl}${CONNECTORS_API_PATH}/meta-tools/${encodeURIComponent(slug)}/execute`;
+	const url = `${CONNECTORS_API_PATH}/meta-tools/${encodeURIComponent(slug)}/execute`;
 	let response: Response;
 	try {
-		response = await fetch(url, {
+		response = await request(url, {
 			method: "POST",
 			headers: {
-				authorization: `Bearer ${auth.token}`,
 				"content-type": "application/json",
 			},
 			body: JSON.stringify({
@@ -136,6 +135,15 @@ export async function executeComposioMetaTool(
 		parsed = undefined;
 	}
 	if (!response.ok) {
+		// Failed batches can contain completed actions; retain their full results.
+		if (
+			typeof parsed === "object" &&
+			parsed !== null &&
+			"successful" in parsed &&
+			parsed.successful === false
+		) {
+			return parsed;
+		}
 		const preview =
 			parsed !== undefined
 				? JSON.stringify(parsed).slice(0, 600)

@@ -24,12 +24,6 @@ vi.mock("./cline-auth", async () => ({
 	getClineAccountId: () => identity.accountId,
 }));
 
-const beta = vi.hoisted(() => ({ enabled: true }));
-vi.mock("@cline/core", async () => ({
-	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
-	isClineAccountFeatureEnabled: async () => beta.enabled,
-}));
-
 const proxy = vi.hoisted(() => ({
 	fetchConnectableToolkits: vi.fn(),
 	initiateConnection: vi.fn(),
@@ -112,7 +106,6 @@ function makeAvailable(connections: unknown[] = []): void {
 
 beforeEach(() => {
 	identity.accountId = "account-a";
-	beta.enabled = true;
 	vi.clearAllMocks();
 	__resetComposioCachesForTesting();
 	// Sensible defaults; individual tests override.
@@ -707,44 +700,27 @@ describe("disconnectComposioToolkit", () => {
 	});
 });
 
-describe("Composio beta access", () => {
-	it("hides saved connectors and catalog without making proxy requests", async () => {
+describe("connector API availability", () => {
+	it("hides connectors on 404 without deleting saved connections", async () => {
 		const dir = useTempDataDir();
-		writeState(dir, {
+		const state = {
 			toolkits: {
 				gmail: {
 					connectedAccountId: "ca_gmail",
 					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
 				},
 			},
-		});
-		beta.enabled = false;
+		};
+		writeState(dir, state);
+		proxy.listConnections.mockRejectedValue(
+			new ConnectorsApiError("Not found", 404),
+		);
 		expect(await getComposioStatus({ refresh: true })).toEqual({
 			configured: false,
 			integrations: [],
 		});
-		expect(await listComposioToolkits()).toEqual({
-			configured: false,
-			toolkits: [],
-		});
-		await expect(connectComposioToolkit("gmail")).rejects.toThrow(
-			/not be enabled/,
-		);
-		expect(proxy.listConnections).not.toHaveBeenCalled();
-		expect(proxy.fetchConnectableToolkits).not.toHaveBeenCalled();
-		expect(proxy.initiateConnection).not.toHaveBeenCalled();
-	});
-
-	it("does not reuse cached availability after beta access is removed", async () => {
-		useTempDataDir();
-		await getComposioStatus();
-		proxy.listConnections.mockClear();
-		beta.enabled = false;
-		expect(await getComposioStatus()).toEqual({
-			configured: false,
-			integrations: [],
-		});
-		expect(proxy.listConnections).not.toHaveBeenCalled();
+		expect(readStateFile(dir).toolkits).toEqual(state.toolkits);
+		expect(proxy.deleteConnection).not.toHaveBeenCalled();
 	});
 });
 

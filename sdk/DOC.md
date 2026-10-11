@@ -352,3 +352,11 @@ numeric exit is reported as `exitCode`.
 The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. Explicit `stop`, `tool-calls`, `content-filter`, and `error` retain their meanings. The agent also treats a stream without a finish event as unknown.
 
 Without tool activity, an unknown response is preserved in history and continued once, with the model-visible user message “Previous turn ended unexpectedly. Continue from where you left off.” The message uses `displayRole: "system"` and `userRunSpan: 0`, matching injected hook context so it stays out of live and replayed chat transcripts. The system prompt is unchanged. A second unknown completion fails the run. Queued user instructions are consumed before the continuation, including in the first iteration. Tool calls receive their results through the normal loop; provider-executed actions are not replayed.
+
+## Composio tools
+
+`createComposioToolsExtension({ request, logger })` creates connector meta tools
+using a host-authenticated `ConnectorsRequest(path, init)` transport. Paths start
+with `/api/v1/connectors`; the host supplies the API origin and user authentication.
+Omit `request` to use the saved Cline account and its local connector schemas.
+Create the extension per runtime, including restore. Execution is never retried.

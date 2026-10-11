@@ -26,10 +26,6 @@ vi.mock("@cline/llms", () => ({
  * extension resolves a Cline account token. Mock the token resolution so
  * tests can drive the signed-in / signed-out cases without a real account.
  */
-const beta = vi.hoisted(() => ({ enabled: true }));
-vi.mock("../../services/feature-flags/cline-account-feature-flags", () => ({
-	isClineAccountFeatureEnabled: async () => beta.enabled,
-}));
 
 const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
@@ -91,8 +87,10 @@ function writeState(state: unknown): void {
 	writeFileSync(path, JSON.stringify(state, null, "\t"));
 }
 
-async function setupTools(): Promise<RegisteredTool[]> {
-	const extension = await createComposioToolsExtension();
+async function setupTools(
+	options?: Parameters<typeof createComposioToolsExtension>[0],
+): Promise<RegisteredTool[]> {
+	const extension = await createComposioToolsExtension(options);
 	const tools: RegisteredTool[] = [];
 	if (!extension) {
 		return tools;
@@ -107,7 +105,6 @@ async function setupTools(): Promise<RegisteredTool[]> {
 }
 
 beforeEach(() => {
-	beta.enabled = true;
 	tempDataDir = mkdtempSync(join(tmpdir(), "composio-ext-test-"));
 	process.env.CLINE_DATA_DIR = tempDataDir;
 	auth.token = "cline_token_123";
@@ -168,39 +165,6 @@ describe("createComposioToolsExtension", () => {
 			toolkits: { github: { connectedAccountId: "ca_github", tools: [] } },
 		});
 		expect(await createComposioToolsExtension()).toBeUndefined();
-	});
-
-	it("does not register saved tools without beta access", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		beta.enabled = false;
-		expect(await setupTools()).toEqual([]);
-	});
-
-	it("refuses execution when beta access is removed after registration", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		const tools = await setupTools();
-		beta.enabled = false;
-		const fetchMock = vi.fn();
-		vi.stubGlobal("fetch", fetchMock);
-		expect(await tools[0].execute({})).toEqual({
-			successful: false,
-			error: "Composio connectors are not enabled for this account.",
-		});
-		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("registers one snake_case tool per stored schema", async () => {
@@ -285,15 +249,17 @@ describe("createComposioToolsExtension", () => {
 
 		const [url, init] = fetchMock.mock.calls[0] as unknown as [
 			string,
-			{ method: string; headers: Record<string, string>; body: string },
+			{ method: string; headers: HeadersInit; body: string },
 		];
 		expect(url).toBe(
 			"https://api.cline.bot/api/v1/connectors/tools/GMAIL_SEND_EMAIL/execute",
 		);
 		expect(init.method).toBe("POST");
-		expect(init.headers.authorization).toBe("Bearer cline_token_123");
+		expect(new Headers(init.headers).get("authorization")).toBe(
+			"Bearer cline_token_123",
+		);
 		// No Composio key, and no client-supplied user_id — the proxy derives it.
-		expect(init.headers["x-api-key"]).toBeUndefined();
+		expect(new Headers(init.headers).has("x-api-key")).toBe(false);
 		expect(JSON.parse(init.body)).toEqual({
 			arguments: { to: "someone@example.com" },
 			version: "20250101_00",
@@ -416,7 +382,10 @@ describe("createComposioToolsExtension", () => {
 		expect(tools[1]?.inputSchema.properties).toHaveProperty("session_id");
 	});
 
-	it("searches, connects, waits, and executes in one session without saved connections", async () => {
+	it.each([
+		false,
+		true,
+	])("runs the in-chat connector flow (host transport: %s)", async (hostTransport) => {
 		const actual = await vi.importActual<
 			typeof import("./composio-meta-tools")
 		>("./composio-meta-tools");
@@ -477,7 +446,26 @@ describe("createComposioToolsExtension", () => {
 			return Response.json({ successful: true, data: step.data });
 		});
 		vi.stubGlobal("fetch", fetchMock);
-		const tools = await setupTools();
+		if (hostTransport) {
+			writeState({
+				toolkits: {
+					gmail: {
+						connectedAccountId: "local",
+						tools: [{ slug: "LOCAL_ONLY_TOOL" }],
+					},
+				},
+			});
+			auth.token = undefined;
+			auth.accountId = undefined;
+		}
+		const tools = await setupTools(
+			hostTransport
+				? {
+						request: (path, init) => fetch(`https://host.example${path}`, init),
+					}
+				: undefined,
+		);
+		if (hostTransport) auth.accountId = "account-b";
 		expect(tools.map((tool) => tool.name)).toEqual(
 			steps.map((step) => step.slug.toLowerCase()),
 		);
@@ -504,19 +492,22 @@ describe("createComposioToolsExtension", () => {
 			"completed",
 		);
 		expect(fetchMock).toHaveBeenCalledTimes(5);
+		const origin = hostTransport
+			? "https://host.example"
+			: "https://api.cline.bot";
 		expect(fetchMock.mock.calls[0][0]).toBe(
-			"https://api.cline.bot/api/v1/connectors/meta-tools/sessions",
+			`${origin}/api/v1/connectors/meta-tools/sessions`,
 		);
 		for (const [, init] of fetchMock.mock.calls) {
 			expect(init?.method).toBe("POST");
-			expect((init?.headers as Record<string, string>).authorization).toBe(
-				"Bearer cline_token_123",
+			expect(new Headers(init?.headers).get("authorization")).toBe(
+				hostTransport ? null : "Bearer cline_token_123",
 			);
 		}
 		for (const [index, step] of steps.entries()) {
 			const [url, init] = fetchMock.mock.calls[index + 1];
 			expect(url).toBe(
-				`https://api.cline.bot/api/v1/connectors/meta-tools/${step.slug}/execute`,
+				`${origin}/api/v1/connectors/meta-tools/${step.slug}/execute`,
 			);
 			expect(JSON.parse(init?.body as string)).toEqual({
 				sessionId: "trs_flow",
@@ -548,7 +539,7 @@ describe("createComposioToolsExtension", () => {
 		expect(url).toBe(
 			"https://api.cline.bot/api/v1/connectors/meta-tools/COMPOSIO_MANAGE_CONNECTIONS/execute",
 		);
-		expect((init.headers as Record<string, string>).authorization).toBe(
+		expect(new Headers(init.headers).get("authorization")).toBe(
 			"Bearer cline_token_123",
 		);
 		expect(JSON.parse(init.body as string)).toEqual({

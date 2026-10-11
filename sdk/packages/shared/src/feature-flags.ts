@@ -5,8 +5,6 @@ export const FeatureFlag = {
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
 	/** Shows the GitHub integration step in the desktop app */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
-	/** Enables Composio connectors for the signed-in Cline account. */
-	CLINE_COMPOSIO_BETA: "CLINE_COMPOSIO_BETA",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -74,7 +72,6 @@ export const FeatureFlagDefaultValue: Partial<
 	[FeatureFlag.CLINE_PASS]: false,
 	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
-	[FeatureFlag.CLINE_COMPOSIO_BETA]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

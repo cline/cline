@@ -978,18 +978,20 @@ whether the terminal failure returned or threw, without error/transcript text.
 Desktop reconciliation retains the full live failed turn until a saved terminal
 error reaches its user-run count and is not a previously displayed error ID.
 
-### Composio beta access
+### Composio connectors
 
-Composio management in the desktop sidecar and tool registration/execution in
-local runtimes (including the detached hub) require the account-scoped PostHog
-flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
-evaluator reads the current Cline account ID from provider settings, caches the
-evaluation in memory for one minute, and discards grants on account changes.
-Missing identity, provider configuration, or flag values deny access; internal
-email domains do not bypass this gate. Saved connector schemas alone cannot
-enable tools. Existing sessions recheck access before each tool execution.
-Disconnect/cancel cleanup remains available after access is removed. The Cline
-API proxy must enforce the same flag server-side for authenticated requests.
+The Cline API controls connector availability through its server-side Composio
+project key and scopes requests to the authenticated user. Local runtimes load
+saved schemas and resolve the signed-in account's bearer token; identity changes
+prevent further execution. Meta tools support search, connection authorization,
+and execution within a session, including when no connections are saved.
+
+Hosts can call `createComposioToolsExtension({ request })` with their own
+user-scoped transport. This path creates a meta-tool session without reading
+local credentials or schemas. Hosts recreate the extension when rebuilding a
+runtime. Session discovery has a five-second timeout and unavailable endpoints
+leave the runtime without meta tools. Executions are never automatically retried;
+structured failure responses retain completed actions from partially failed batches.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and
