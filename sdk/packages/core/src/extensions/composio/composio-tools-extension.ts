@@ -35,16 +35,17 @@ import {
  * connectors proxy** (`/api/v1/connectors/tools/{slug}/execute`) — the
  * proxy holds the Composio key server-side and derives the Composio user_id
  * from the authenticated Cline account, so no Composio key ever reaches this
- * process. Execution therefore requires a signed-in Cline account; a
- * signed-out session's connector tools return a structured auth error.
+ * process. Local execution requires a signed-in Cline account; a signed-out
+ * local session's connector tools return a structured auth error. Hosts supplying
+ * a request callback provide their own authentication without local state.
  *
  * Registering in-process (instead of the earlier generated drop-in plugin in
  * `~/.cline/plugins/`) keeps connector tools working in every host — most
  * importantly compiled binaries that cannot spawn the plugin sandbox, such as
  * the packaged desktop app — and gives CLI-hosted sessions the same tools.
  * Deleting the state file (or disconnecting every integration) turns the
- * tools off for new sessions; running sessions keep their frozen tool set,
- * but every execution rechecks the account identity and beta flag.
+ * tools off for new local sessions; running local sessions keep their frozen
+ * tool set, but every execution rechecks the account identity and beta flag.
  *
  * Signed-in sessions also get Composio's meta tools (see
  * `composio-meta-tools.ts`), so the agent can find tools across the project's

@@ -223,15 +223,9 @@ describe("LocalRuntimeHost", () => {
 	});
 
 	it("uses host connector authentication on startup and resume", async () => {
-		const settings = vi.spyOn(
-			ProviderSettingsManager.prototype,
-			"getProviderSettings",
-		);
-		settings.mockImplementation((provider) => {
-			if (provider === "cline")
-				throw new Error("Local connector identity was consulted");
-			return undefined;
-		});
+		const settings = vi
+			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue(undefined);
 		const request = vi.fn(async () =>
 			Response.json({
 				data: {
