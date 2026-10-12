@@ -1158,7 +1158,9 @@ describe("plugin-sandbox (worker only)", () => {
 		const { sandboxed, tool } = await loadToolPlugin(
 			"worker_spin",
 			"if (input.spin) { for (;;) {} } return 'ok';",
-			{ contributionTimeoutMs: 200 },
+			// The recovery call boots a fresh worker and re-imports the plugin
+			// within this same limit, so leave room for slow CI machines.
+			{ contributionTimeoutMs: 3000 },
 		);
 		try {
 			await expect(tool.execute({ spin: true }, context)).rejects.toThrow(
