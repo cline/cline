@@ -673,6 +673,65 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 		);
 	});
 
+	it("does not let a session import that fails after a reload turn off the reloaded plugin", async () => {
+		const path = await write(
+			"slow-import.js",
+			`const gate = globalThis.__slowImportGate;
+if (gate) {
+	await gate;
+	throw new Error("old copy failed to import");
+}
+${toolPlugin("slow-import").replace("export default", "const plugin =")}
+export default plugin;
+`,
+		);
+		const globals = globalThis as Record<string, unknown>;
+		// The first session claims the spare copy, so the next one imports its own.
+		await registry.loadForSession({ sessionId: "first", pluginPaths: [path] });
+
+		let releaseGate: () => void = () => {};
+		globals.__slowImportGate = new Promise<void>((resolve) => {
+			releaseGate = resolve;
+		});
+		const pending = registry.loadForSession({
+			sessionId: "slow",
+			pluginPaths: [path],
+		});
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		// The plugin is reloaded (fixed) while that copy is still importing.
+		delete globals.__slowImportGate;
+		await registry.reload(path);
+		expect(registry.get(path)[0]?.state).toBe("ready");
+
+		releaseGate();
+		const slow = await pending;
+		expect(slow.extensions).toHaveLength(0);
+		expect(slow.issues).toEqual([
+			expect.objectContaining({
+				name: "slow-import",
+				state: "failed",
+				lastError: expect.objectContaining({
+					phase: "import",
+					message: "old copy failed to import",
+				}),
+			}),
+		]);
+
+		// The reloaded plugin stays on for everyone else.
+		expect(registry.get(path)[0]).toMatchObject({
+			state: "ready",
+			errorCount: 0,
+		});
+		const fresh = await registry.loadForSession({
+			sessionId: "fresh",
+			pluginPaths: [path],
+		});
+		expect((await setUp(fresh.extensions[0])).tools.map((t) => t.name)).toEqual(
+			["slow-import_tool"],
+		);
+	});
+
 	it("lets a successful reload clear a block recorded while it was importing", async () => {
 		const path = await write(
 			"flaky.js",

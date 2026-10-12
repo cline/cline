@@ -558,6 +558,7 @@ export class PluginRegistry {
 		const selected: Array<{ entry: PluginEntry; instance: PluginInstance }> =
 			[];
 		for (const { entry } of ordered) {
+			const importId = entry.importId;
 			try {
 				const instance = await this.claimInstance(
 					entry,
@@ -567,6 +568,27 @@ export class PluginRegistry {
 				);
 				selected.push({ entry, instance });
 			} catch (error) {
+				if (entry.importId !== importId) {
+					// A reload or source change re-imported the plugin while this
+					// copy was loading. The failure describes the old module: tell
+					// this session, but leave the current module's status alone.
+					const { message, stack } = toErrorParts(error);
+					issues.push({
+						name: entry.name,
+						pluginPath: entry.pluginPath,
+						state: "failed",
+						reason: "error",
+						lastError: {
+							phase: "import",
+							message,
+							...(stack ? { stack } : {}),
+							pluginPath: entry.pluginPath,
+							timestamp: Date.now(),
+							...(sessionId ? { sessionId } : {}),
+						},
+					});
+					continue;
+				}
 				this.recordFailure(entry, "import", error, {
 					fatal: true,
 					sessionId,
