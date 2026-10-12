@@ -284,15 +284,42 @@ describe("normalizeSdkBaseUrl", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolveProviderFetch", () => {
-	it("gives providers that may point at a local model server the idle-timeout-free fetch", () => {
+	it("gives local model servers the idle-timeout-free fetch", () => {
 		for (const providerId of ["lmstudio", "ollama", "openai-compatible", "litellm"]) {
-			expect(resolveProviderFetch(providerId)).toBe(netModule.fetchWithoutIdleTimeouts)
+			expect(resolveProviderFetch(providerId, undefined)).toBe(netModule.fetchWithoutIdleTimeouts)
+		}
+		for (const baseUrl of [
+			"http://localhost:1234/v1",
+			"http://127.0.0.1:4000",
+			"http://[::1]:8000/v1",
+			"http://192.168.1.20:8000/v1",
+			"http://10.0.0.5:11434",
+			"http://172.20.0.3:8000",
+			"http://100.101.102.103:8000",
+			"http://[fd12::1]:8000",
+			"http://gpu-box:8000/v1",
+			"http://host.docker.internal:1234/v1",
+			"http://studio.local:1234/v1",
+		]) {
+			expect(resolveProviderFetch("openai-compatible", baseUrl)).toBe(netModule.fetchWithoutIdleTimeouts)
+		}
+	})
+
+	it("keeps the proxy-aware fetch for remote gateways", () => {
+		for (const baseUrl of [
+			"https://litellm.corp.example.com/v1",
+			"https://8.8.8.8/v1",
+			"http://172.32.0.1:8000",
+			"https://[2001:db8::1]/v1",
+			"not a url",
+		]) {
+			expect(resolveProviderFetch("litellm", baseUrl)).toBe(netModule.fetch)
 		}
 	})
 
 	it("keeps the proxy-aware fetch for everything else", () => {
 		for (const providerId of ["anthropic", "cline", "openrouter", "bedrock"]) {
-			expect(resolveProviderFetch(providerId)).toBe(netModule.fetch)
+			expect(resolveProviderFetch(providerId, undefined)).toBe(netModule.fetch)
 		}
 	})
 })
