@@ -3,20 +3,21 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
-	addAutonomousOptions,
-	addDeliveryOptions,
 	addSharedOptions,
 	emitJsonOrText,
 	formatResolvedAddressLabel,
-	hasMetadataPatchOpts,
 	isJsonPath,
-	mergeScheduleMetadata,
 	parseJsonObjectFlag,
 	parseList,
 	parseMode,
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
+import {
+	addDeliveryOptions,
+	hasDeliveryFlags,
+	scheduleMetadata,
+} from "./delivery-input";
 import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
 
@@ -161,6 +162,18 @@ export function registerScheduleImportCommand(
 					return;
 				}
 				const { provider, model } = resolveImportedModelSelection(parsed);
+				const metadata =
+					parsed.metadata &&
+					typeof parsed.metadata === "object" &&
+					!Array.isArray(parsed.metadata)
+						? scheduleMetadata({
+								metadata: {
+									object: parsed.metadata as Record<string, unknown>,
+									label: sourcePath,
+									objectPath: "metadata.",
+								},
+							})
+						: undefined;
 				const created = await client.createSchedule({
 					name: String(parsed.name ?? "").trim(),
 					cronPattern: String(parsed.cronPattern ?? parsed.cron ?? "").trim(),
@@ -197,12 +210,7 @@ export function registerScheduleImportCommand(
 								.map((item) => (typeof item === "string" ? item.trim() : ""))
 								.filter((item) => item.length > 0)
 						: undefined,
-					metadata: mergeScheduleMetadata(
-						parsed.metadata && typeof parsed.metadata === "object"
-							? (parsed.metadata as Record<string, unknown>)
-							: undefined,
-						opts,
-					),
+					metadata,
 				});
 				if (!created) {
 					io.writeErr("failed to import schedule");
@@ -246,7 +254,6 @@ export function registerScheduleUpdateCommand(
 		.option("--timeout <n>", "New timeout in seconds")
 		.option("--workspace <path>", "New workspace root");
 	addDeliveryOptions(updateCmd);
-	addAutonomousOptions(updateCmd);
 	addSharedOptions(updateCmd);
 	updateCmd.action(
 		action(async (scheduleId: string) => {
@@ -275,7 +282,8 @@ export function registerScheduleUpdateCommand(
 					return;
 				}
 				let metadata: Record<string, unknown> | undefined;
-				if (hasMetadataPatchOpts(opts)) {
+				const metadataJson = parseJsonObjectFlag(opts.metadataJson);
+				if (metadataJson || hasDeliveryFlags(opts)) {
 					const current = (await client.getSchedule(scheduleId)) as
 						| { metadata?: Record<string, unknown> }
 						| undefined;
@@ -284,11 +292,14 @@ export function registerScheduleUpdateCommand(
 						fail();
 						return;
 					}
-					const metadataBase = {
-						...(current.metadata ?? {}),
-						...(parseJsonObjectFlag(opts.metadataJson) ?? {}),
-					};
-					metadata = mergeScheduleMetadata(metadataBase, opts);
+					metadata = scheduleMetadata({
+						stored: current.metadata ?? {},
+						metadata: metadataJson && {
+							object: metadataJson,
+							label: "--metadata-json",
+						},
+						flags: opts,
+					});
 				}
 				const updated = await client.updateSchedule(scheduleId, {
 					name: opts.name,

@@ -117,6 +117,16 @@ describe("buildUpdateManifest", () => {
 			path.join(dir, "Cline-Code_0.1.0_x86_64.rpm.sig"),
 			"sig-rpm\n",
 		);
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_arm64.deb"), "deb");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_arm64.deb.sig"),
+			"sig-deb-arm64\n",
+		);
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_aarch64.rpm"), "rpm");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_aarch64.rpm.sig"),
+			"sig-rpm-arm64\n",
+		);
 		const manifest = buildUpdateManifest({
 			version: "0.1.0",
 			tag: "desktop-v0.1.0",
@@ -134,11 +144,21 @@ describe("buildUpdateManifest", () => {
 			signature: "sig-rpm",
 			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_x86_64.rpm",
 		});
-		// No bare linux-x86_64 key: the updater would fall back to it for an
+		expect(manifest.platforms["linux-aarch64-deb"]).toEqual({
+			signature: "sig-deb-arm64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_arm64.deb",
+		});
+		expect(manifest.platforms["linux-aarch64-rpm"]).toEqual({
+			signature: "sig-rpm-arm64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_aarch64.rpm",
+		});
+		// No bare linux-<arch> keys: the updater would fall back to them for an
 		// install whose package format has no entry of its own.
 		expect(Object.keys(manifest.platforms).sort()).toEqual([
 			"darwin-aarch64",
 			"darwin-x86_64",
+			"linux-aarch64-deb",
+			"linux-aarch64-rpm",
 			"linux-x86_64-deb",
 			"linux-x86_64-rpm",
 		]);

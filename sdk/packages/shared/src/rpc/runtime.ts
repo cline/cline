@@ -5,7 +5,9 @@ import type {
 	ModelOperation,
 	ModelOperationMode,
 } from "../llms/model-info";
+import type { ModelToolName } from "../llms/model-tools";
 import type { ReasoningLevel } from "../llms/reasoning-options";
+import type { ProviderAuthInfo } from "../provider-auth";
 import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
@@ -208,6 +210,9 @@ export interface ProviderConfigField {
 }
 
 export interface ProviderListItem {
+	/** Native tools offered by at least some models, resolved by the host. */
+	modelTools: ModelToolName[];
+	auth: ProviderAuthInfo;
 	id: string;
 	name: string;
 	models: number | null;

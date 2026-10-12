@@ -29,6 +29,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: ["NEW"],
 			},
 			{
+				id: "openai/gpt-6.1-sol",
+				name: "gpt-6.1-sol",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "moonshotai/kimi-k3",
 				name: "kimi-k3",
 				description:
@@ -38,15 +44,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
-				id: "stealth/pixel-canary",
-				name: "Pixel Canary",
-				description: "Anonymous large model with strong coding capabilities",
-				tags: [],
-			},
-			{
-				id: "stealth/space-bunny-alpha",
-				name: "space-bunny-alpha",
-				description: "Blazing-fast inference with 1M context",
+				id: "cline-free/solar-mini4",
+				name: "Solar Mini 4",
+				description: "Compact 35-billion parameter mixture-of-experts",
 				tags: [],
 			},
 			{
@@ -54,12 +54,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				name: "Mimo V2.6 Flash",
 				description:
 					"Mixture-of-Experts architecture with 309B total parameters",
-				tags: [],
-			},
-			{
-				id: "cline-free/deepseek-v4.1-flash",
-				name: "Deepseek-v4.1-Flash",
-				description: "Fast and efficient with 1M context window ",
 				tags: [],
 			},
 			{
@@ -71,6 +65,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			},
 		],
 		clinePass: [
+			{
+				id: "cline-pass/deepseek-v4.1-flash",
+				name: "cline-pass/deepseek-v4.1-flash",
+				description: "Smarter and more efficient, with 1M context window",
+				tags: [],
+			},
 			{
 				id: "cline-pass/mimo-v2.6-flash",
 				name: "cline-pass/mimo-v2.6-flash",
@@ -99,12 +99,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				id: "cline-pass/qwen3.8-max",
 				name: "cline-pass/qwen3.8-max",
 				description: "Qwen's New SOTA coding model",
-				tags: [],
-			},
-			{
-				id: "cline-pass/deepseek-v4.1-flash",
-				name: "cline-pass/deepseek-v4.1-flash",
-				description: "Smarter and more efficient, with 1M context window",
 				tags: [],
 			},
 			{

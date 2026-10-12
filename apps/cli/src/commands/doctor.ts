@@ -8,7 +8,6 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	readSupersededHubDiscovery,
-	resolveClineDataDir,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
@@ -22,7 +21,7 @@ import {
 import { Command } from "commander";
 import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
-import { getCliBuildInfo } from "../utils/common";
+import { resolveCliLogPath } from "../logging/log-path";
 import open from "../utils/open";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
@@ -199,11 +198,6 @@ function listMatchingProcesses(pattern: string): ProcessRecord[] {
 		records.set(pid, { pid, command });
 	}
 	return [...records.values()].sort((a, b) => a.pid - b.pid);
-}
-
-function resolveCliLogPath(): string {
-	const { name } = getCliBuildInfo();
-	return join(resolveClineDataDir(), "logs", `${name}.log`);
 }
 
 async function defaultOpenPath(target: string): Promise<void> {

@@ -1,5 +1,7 @@
 This is the **Cline** monorepo. Toolchain is **Bun 1.4.2** (package manager + task runner) with **Node >=22** as the runtime. Do not use npm/yarn/pnpm.
 
+Don't add `.changeset/` files or other per-PR changelog entries; changesets aren't used here. Release notes are written into the relevant `CHANGELOG.md` at release time.
+
 ## Cloud Agent Instructions
 
 ### Cline CLI

@@ -45,6 +45,7 @@ import {
 	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
@@ -67,7 +68,6 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -86,7 +86,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -162,7 +162,6 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
@@ -850,58 +849,61 @@ function metadataSessionSearchHits(
 // Git helpers
 // ---------------------------------------------------------------------------
 
+// Resolves to git's stdout, or undefined when the command fails (e.g. the
+// workspace is not a repository). Over SSH each call is its own ssh session.
+async function runGit(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd: string,
+	args: string[],
+): Promise<string | undefined> {
+	if (binding.kind === "ssh") {
+		const remote = ctx.remoteEnvironments;
+		if (!remote) throw new Error("Remote environment service is unavailable");
+		const result = await remote
+			.run(binding.environmentId, { command: "git", args, cwd })
+			.catch(() => undefined);
+		return result?.stdout;
+	}
+	const result = await execFileAsync("git", args, {
+		cwd,
+		encoding: "utf8",
+	}).catch(() => undefined);
+	return result?.stdout;
+}
+
+async function currentGitBranch(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd?: string,
+): Promise<string | undefined> {
+	const targetCwd = cwd?.trim() || binding.workspaceRoot;
+	const current = await runGit(ctx, binding, targetCwd, [
+		"branch",
+		"--show-current",
+	]);
+	return current?.trim() || undefined;
+}
+
 async function listGitBranches(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
 	cwd?: string,
 ): Promise<{ current?: string; branches?: string[] }> {
 	const targetCwd = cwd?.trim() || binding.workspaceRoot;
-	if (binding.kind === "ssh") {
-		const remote = ctx.remoteEnvironments;
-		if (!remote) throw new Error("Remote environment service is unavailable");
-		const [currentResult, branchesResult] = await Promise.all([
-			remote
-				.run(binding.environmentId, {
-					command: "git",
-					args: ["branch", "--show-current"],
-					cwd: targetCwd,
-				})
-				.catch(() => undefined),
-			remote
-				.run(binding.environmentId, {
-					command: "git",
-					args: ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-					cwd: targetCwd,
-				})
-				.catch(() => undefined),
-		]);
-		const current = currentResult?.stdout.trim() ?? "";
-		const branches = (branchesResult?.stdout ?? "")
-			.split("\n")
-			.map((value) => value.trim())
-			.filter(Boolean);
-		return { current: current || undefined, branches };
-	}
-	const [currentResult, branchesResult] = await Promise.all([
-		execFileAsync("git", ["branch", "--show-current"], {
-			cwd: targetCwd,
-			encoding: "utf8",
-		}).catch(() => undefined),
-		execFileAsync(
-			"git",
-			["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-			{
-				cwd: targetCwd,
-				encoding: "utf8",
-			},
-		).catch(() => undefined),
+	const [current, branchesOutput] = await Promise.all([
+		currentGitBranch(ctx, binding, targetCwd),
+		runGit(ctx, binding, targetCwd, [
+			"for-each-ref",
+			"--format=%(refname:short)",
+			"refs/heads",
+		]),
 	]);
-	const current = currentResult?.stdout.trim() ?? "";
-	const branches = (branchesResult?.stdout ?? "")
+	const branches = (branchesOutput ?? "")
 		.split("\n")
-		.map((v) => v.trim())
+		.map((value) => value.trim())
 		.filter(Boolean);
-	return { current: current || undefined, branches };
+	return { current, branches };
 }
 
 /** Where task worktrees live; honors `CLINE_DIR` like the rest of the Cline dir. */
@@ -1630,6 +1632,16 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			// Not sourced from the core catalog: it only lists web_search for a
+			// specific provider/model, and this listing is session-agnostic.
+			{
+				id: "web_search",
+				name: "web_search",
+				description:
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support it; applies to new sessions.",
+				enabled: isModelToolEnabledGlobally("web_search"),
+				source: "builtin",
+			},
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
@@ -2212,6 +2224,9 @@ export async function handleCommand(
 				telemetry: ctx.telemetry,
 			}),
 		};
+	}
+	if (command === "list_cloud_models") {
+		return await getCloudSessionManager(ctx).listModels();
 	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
@@ -3054,7 +3069,7 @@ export async function handleCommand(
 			storageProviderId === "cline"
 				? manager.getProviderSettings(storageProviderId)
 				: undefined;
-		const saved = saveLocalProviderSettings(manager, {
+		const saved = await saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -3065,7 +3080,7 @@ export async function handleCommand(
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});
@@ -3230,13 +3245,6 @@ export async function handleCommand(
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
 		return settings;
-	}
-	if (command === "set_web_search_enabled") {
-		if (typeof args?.web_search_enabled !== "boolean") {
-			throw new Error("web_search_enabled must be a boolean");
-		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
-		return readGlobalSettings();
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -3468,12 +3476,12 @@ export async function handleCommand(
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
 				: binding.workspaceRoot;
-		const branches = await listGitBranches(ctx, binding, cwd);
+		const branch = await currentGitBranch(ctx, binding, cwd);
 		if (binding.kind === "local") {
 			const { prewarmWorkspaceMetadata } = await import("./chat-session");
 			prewarmWorkspaceMetadata(cwd);
 		}
-		return { environmentId: binding.environmentId, branch: branches.current };
+		return { environmentId: binding.environmentId, branch };
 	}
 	if (command === "list_git_branches") {
 		const binding = getCommandRuntimeBinding(ctx, args);
@@ -3617,7 +3625,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
-		for (const name of toolNames) {
+		for (const name of new Set(toolNames)) {
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,

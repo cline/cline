@@ -15,6 +15,13 @@ import {
 import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { resolveLocalClineAuthToken } from "../../services/providers/local-provider-service";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import {
+	CONNECTORS_API_PATH,
+	type ComposioMetaToolSession,
+	type ConnectorsRequest,
+	createComposioMetaToolSession,
+	executeComposioMetaTool,
+} from "./composio-meta-tools";
 
 /**
  * Built-in session extension exposing Composio-connected integrations
@@ -28,20 +35,25 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  * connectors proxy** (`/api/v1/connectors/tools/{slug}/execute`) — the
  * proxy holds the Composio key server-side and derives the Composio user_id
  * from the authenticated Cline account, so no Composio key ever reaches this
- * process. Execution therefore requires a signed-in Cline account; a
- * signed-out session's connector tools return a structured auth error.
+ * process. Local execution requires a signed-in Cline account; a signed-out
+ * local session's connector tools return a structured auth error. Hosts supplying
+ * a request callback provide their own authentication without local state.
  *
  * Registering in-process (instead of the earlier generated drop-in plugin in
  * `~/.cline/plugins/`) keeps connector tools working in every host — most
  * importantly compiled binaries that cannot spawn the plugin sandbox, such as
  * the packaged desktop app — and gives CLI-hosted sessions the same tools.
  * Deleting the state file (or disconnecting every integration) turns the
- * tools off for new sessions; running sessions keep their frozen tool set,
- * but every execution rechecks the account identity and beta flag.
+ * tools off for new local sessions; running local sessions keep their frozen
+ * tool set, but every execution rechecks the account identity and beta flag.
+ *
+ * Signed-in sessions also get Composio's meta tools (see
+ * `composio-meta-tools.ts`), so the agent can find tools across the project's
+ * toolkits, hand the user a Connect Link for an app that is not connected yet,
+ * and run what it found — even when nothing is connected.
  */
 
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
-const CONNECTORS_API_PATH = "/api/v1/connectors";
 
 type StoredComposioTool = {
 	slug: string;
@@ -120,32 +132,65 @@ async function resolveConnectorsAuth(
 	return { baseUrl, token };
 }
 
-async function executeComposioTool(
+/**
+ * Rechecks account identity and beta access before any connector execution,
+ * returning the proxy auth or the structured error to hand back to the agent.
+ */
+async function authorizeExecution(
 	accountId: string,
-	tool: StoredComposioTool,
-	input: unknown,
-): Promise<unknown> {
+): Promise<
+	| { auth: { baseUrl: string; token: string } }
+	| { error: { successful: false; error: string } }
+> {
 	if (getAccountId() !== accountId) {
 		return {
-			successful: false,
-			error:
-				"The Cline account changed. Start a new session to use connector tools.",
+			error: {
+				successful: false,
+				error:
+					"The Cline account changed. Start a new session to use connector tools.",
+			},
 		};
 	}
 	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
 		return {
-			successful: false,
-			error: "Composio connectors are not enabled for this account.",
+			error: {
+				successful: false,
+				error: "Composio connectors are not enabled for this account.",
+			},
 		};
 	}
 	const auth = await resolveConnectorsAuth(accountId);
 	if (!auth) {
 		return {
-			successful: false,
-			error:
-				"Sign in to your Cline account to use connector tools (no account token available).",
+			error: {
+				successful: false,
+				error:
+					"Sign in to your Cline account to use connector tools (no account token available).",
+			},
 		};
 	}
+	return { auth };
+}
+
+function authenticatedRequest(auth: {
+	baseUrl: string;
+	token: string;
+}): ConnectorsRequest {
+	return (path, init) => {
+		const headers = new Headers(init.headers);
+		headers.set("authorization", `Bearer ${auth.token}`);
+		return fetch(`${auth.baseUrl}${path}`, { ...init, headers });
+	};
+}
+
+async function executeComposioTool(
+	accountId: string,
+	tool: StoredComposioTool,
+	input: unknown,
+): Promise<unknown> {
+	const authorized = await authorizeExecution(accountId);
+	if ("error" in authorized) return authorized.error;
+	const { auth } = authorized;
 	const url = `${auth.baseUrl}${CONNECTORS_API_PATH}/tools/${encodeURIComponent(tool.slug)}/execute`;
 	const body: Record<string, unknown> = {
 		arguments: input && typeof input === "object" ? input : {},
@@ -198,34 +243,45 @@ async function executeComposioTool(
  * tool set is frozen at start exactly like the previous plugin's was.
  */
 export async function createComposioToolsExtension(options?: {
+	request?: ConnectorsRequest;
 	logger?: BasicLogger;
 }): Promise<AgentExtension | undefined> {
-	const accountId = getAccountId();
-	if (!accountId) return undefined;
-	const state = loadComposioState(accountId);
-	if (!state?.toolkits) {
-		return undefined;
+	const hostRequest = options?.request;
+	const accountId = hostRequest ? undefined : getAccountId();
+	if (!hostRequest) {
+		if (!accountId) return undefined;
+		if (
+			!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))
+		) {
+			return undefined;
+		}
+		if (getAccountId() !== accountId) return undefined;
 	}
-	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
-		return undefined;
-	}
-	if (getAccountId() !== accountId) return undefined;
-	const toolkits = Object.entries(state.toolkits).filter(
+	const state = accountId ? loadComposioState(accountId) : undefined;
+	const toolkits = Object.entries(state?.toolkits ?? {}).filter(
 		([, toolkit]) =>
 			toolkit?.connectedAccountId && (toolkit.tools?.length ?? 0) > 0,
 	);
-	if (toolkits.length === 0) {
+	const auth = accountId ? await resolveConnectorsAuth(accountId) : undefined;
+	const request =
+		hostRequest ?? (auth ? authenticatedRequest(auth) : undefined);
+	const metaSession: ComposioMetaToolSession | undefined = request
+		? await createComposioMetaToolSession(request, {
+				log: (message) => options?.logger?.log?.(message),
+			})
+		: undefined;
+	if (toolkits.length === 0 && !metaSession?.tools.length) {
 		return undefined;
 	}
 	return {
 		name: "composio-tools",
 		manifest: { capabilities: ["tools"] },
 		setup(api) {
-			if (getAccountId() !== accountId) return;
+			if (!hostRequest && getAccountId() !== accountId) return;
 			const registered = new Set<string>();
 			for (const [toolkitSlug, toolkitState] of toolkits) {
 				for (const tool of toolkitState?.tools ?? []) {
-					if (!tool?.slug) {
+					if (!accountId || !tool?.slug) {
 						continue;
 					}
 					const toolName = tool.slug.toLowerCase().replace(/[^a-z0-9_]/g, "_");
@@ -237,6 +293,7 @@ export async function createComposioToolsExtension(options?: {
 						api.registerTool(
 							createTool({
 								name: toolName,
+								resultPolicy: "cache-oversized",
 								description: `${tool.description || tool.name || tool.slug} (${toolkitSlug} account connected via Composio)`,
 								inputSchema: (tool.input_parameters ?? {
 									type: "object",
@@ -262,6 +319,56 @@ export async function createComposioToolsExtension(options?: {
 							`composio-tools: skipping ${tool.slug}: ${error instanceof Error ? error.message : String(error)}`,
 						);
 					}
+				}
+			}
+			// The server allowlists which meta tools a session exposes; their
+			// descriptions and schemas are Composio's, which reference each other.
+			const metaSessionId = metaSession?.sessionId ?? "";
+			for (const tool of metaSession?.tools ?? []) {
+				const toolName = tool.slug.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+				if (registered.has(toolName)) {
+					continue;
+				}
+				registered.add(toolName);
+				try {
+					api.registerTool(
+						createTool({
+							name: toolName,
+							resultPolicy: "cache-oversized",
+							description: tool.description || tool.name || tool.slug,
+							inputSchema: (tool.input_parameters ?? {
+								type: "object",
+								properties: {},
+							}) as never,
+							timeoutMs: COMPOSIO_TOOL_TIMEOUT_MS,
+							// Multi-execute runs app tools with side effects; never
+							// auto-retry any meta tool.
+							retryable: false,
+							execute: async (input: unknown) => {
+								if (hostRequest) {
+									return executeComposioMetaTool(
+										hostRequest,
+										metaSessionId,
+										tool.slug,
+										input,
+									);
+								}
+								const authorized = await authorizeExecution(accountId!);
+								if ("error" in authorized) return authorized.error;
+								return executeComposioMetaTool(
+									authenticatedRequest(authorized.auth),
+									metaSessionId,
+									tool.slug,
+									input,
+								);
+							},
+						}),
+					);
+				} catch (error) {
+					registered.delete(toolName);
+					options?.logger?.log?.(
+						`composio-tools: skipping ${tool.slug}: ${error instanceof Error ? error.message : String(error)}`,
+					);
 				}
 			}
 			options?.logger?.log?.(
