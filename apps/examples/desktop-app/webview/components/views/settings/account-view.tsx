@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
+import { getClineSignUpUrl } from "@/lib/cline-signup-url";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
@@ -40,7 +41,6 @@ const USER_CREDITS_URL =
 const ORGANIZATION_CREDITS_URL =
 	"https://app.cline.bot/dashboard/organization?tab=credits&redirect=true";
 const CREATE_ORGANIZATION_URL = "https://app.cline.bot/onboarding?step=1";
-const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
 function normalizeAccountViewError(error: unknown): Error {
 	const message = error instanceof Error ? error.message : String(error);
@@ -502,7 +502,7 @@ export function AccountView() {
 					</button>
 					<button
 						type="button"
-						onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+						onClick={() => void openExternalUrl(getClineSignUpUrl())}
 						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 					>
 						Create account

@@ -29,6 +29,7 @@ import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
+import { getClineSignUpUrl } from "@/lib/cline-signup-url";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -52,7 +53,6 @@ import {
 } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 
-const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 const CLINE_PASS_SUBSCRIBE_URL =
 	"https://app.cline.bot/onboarding/individual-plan";
 
@@ -640,7 +640,7 @@ function ConnectStep({
 								</Button>
 							) : (
 								<Button
-									onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+									onClick={() => void openExternalUrl(getClineSignUpUrl())}
 									size="md"
 									tone="neutral"
 									type="button"
