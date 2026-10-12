@@ -93,4 +93,26 @@ describe("WorkerSandbox", () => {
 		await sandbox.shutdown();
 		expect(disposed).toEqual([first, second]);
 	});
+
+	it("does not report an exit during cleanup as a crash", async () => {
+		const unexpected: Error[] = [];
+		const sandbox = new WorkerSandbox({
+			bootstrapScript: [
+				"const { parentPort } = require('node:worker_threads');",
+				"parentPort.on('message', (m) => {",
+				"  if (!m || m.type !== 'call') return;",
+				"  if (m.method === 'dispose') process.exit(3);",
+				"  parentPort.postMessage({ type: 'response', id: m.id, ok: true, result: 'ok' });",
+				"});",
+				"parentPort.postMessage({ type: 'ready' });",
+			].join("\n"),
+			disposeMethod: "dispose",
+			disposeTimeoutMs: 1_000,
+			onUnexpectedExit: (error) => unexpected.push(error),
+		});
+		sandboxes.push(sandbox);
+		await expect(sandbox.call("echo", {})).resolves.toBe("ok");
+		await sandbox.shutdown();
+		expect(unexpected).toEqual([]);
+	});
 });

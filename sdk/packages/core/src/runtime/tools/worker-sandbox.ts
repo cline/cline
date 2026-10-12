@@ -110,6 +110,12 @@ export class WorkerSandbox {
 	 * already cleaned up.
 	 */
 	private draining: Promise<void> | undefined;
+	/**
+	 * Workers this sandbox decided to stop, from the moment cleanup starts.
+	 * An exit while cleanup runs (a disposer calling `process.exit()` or
+	 * throwing from a timer) is part of that stop, not a crash.
+	 */
+	private readonly stopping = new WeakSet<Worker>();
 
 	constructor(options: WorkerSandboxOptions) {
 		this.options = options;
@@ -245,7 +251,7 @@ export class WorkerSandbox {
 				`${this.label} exited (code=${String(code)})${detail ? `: ${detail}` : ""}`,
 			);
 			if (workerError?.stack) error.stack = workerError.stack;
-			const intended = this.shutdowns.has(worker);
+			const intended = this.shutdowns.has(worker) || this.stopping.has(worker);
 			this.failPendingForWorker(worker, error);
 			if (!intended) {
 				try {
@@ -285,6 +291,7 @@ export class WorkerSandbox {
 
 	/** Runs the dispose method (best effort), then terminates the worker. */
 	private async stopGracefully(worker: Worker): Promise<void> {
+		this.stopping.add(worker);
 		const method = this.options.disposeMethod;
 		if (method && this.isAvailable(worker)) {
 			await this.send(
