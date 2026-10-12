@@ -25,6 +25,7 @@ Use this page for providers that follow the same setup pattern.
   - [Hicap](#hicap)
   - [Huawei Cloud MaaS](#huawei-cloud-maas)
   - [Hugging Face](#hugging-face)
+  - [LowRouter](#lowrouter)
   - [Mistral](#mistral)
   - [Moonshot](#moonshot)
   - [Nebius AI Studio](#nebius-ai-studio)
@@ -229,6 +230,17 @@ Hugging Face provides hosted inference access for open-source models.
 1. Sign in to Hugging Face.
 2. Create an access token with inference permissions.
 3. In Cline, select **Hugging Face** and paste the token.
+
+### LowRouter
+LowRouter is an EU-hosted router that serves models from multiple providers through one OpenAI-compatible API, choosing the route by jurisdiction and carbon footprint.
+
+**Website:** [https://lowrouter.ai](https://lowrouter.ai)
+
+#### Basic Setup
+
+1. Create/sign in to [LowRouter](https://lowrouter.ai/).
+2. Create an API key (see the [API keys guide](https://lowrouter.ai/docs/getting-started/api-keys)).
+3. In Cline, choose **LowRouter** and paste the key. Model IDs take the form `auto/<creator>/<model>`.
 
 ### Mistral
 Mistral provides direct API access to its model lineup.
