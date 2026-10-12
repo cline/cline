@@ -23,11 +23,11 @@ import { buildCardAnchorText } from "../card-anchor";
 import { parseNotifiedOptions, resolveCardAnswer } from "../card-answer";
 import {
 	buildAnsweredQuestionText,
+	buildCardActionId,
 	buildQuestionCard,
 	formatQuestionBody,
 	parseCardActionId,
 } from "../card-question-message";
-import { buildCardReference } from "../card-thread";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
 import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
@@ -52,6 +52,12 @@ import {
 } from "../session-runtime";
 import { InMemoryStateAdapter } from "../stores/memory-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
+import {
+	editTelegramCardMessage,
+	postTelegramCardReply,
+	resolveTelegramTopicId,
+	splitTelegramMessageId,
+} from "../telegram-card-reply";
 import {
 	type ConnectorBindingStore,
 	type ConnectorThreadState,
@@ -807,6 +813,8 @@ class TelegramConnector extends ConnectorBase<
 			fallbackStreamingPlaceholderText: null,
 			streamingUpdateIntervalMs: 500,
 		}).registerSingleton();
+		// Captured here because the notify callback shadows `options` with its own.
+		const botToken = options.botToken;
 		const threadQueues = new Map<string, Promise<void>>();
 		const activeTurns = new Map<string, ActiveConnectorTurn>();
 		const pendingApprovals = new Map<string, PendingConnectorApproval>();
@@ -927,7 +935,7 @@ class TelegramConnector extends ConnectorBase<
 		// case is a button that cannot be struck through, not an answer that is lost.
 		const questionMessages = new Map<
 			string,
-			{ message: SentMessage; text: string }
+			{ text: string; edit: (next: string) => Promise<boolean> }
 		>();
 		/**
 		 * Remembers, on disk, which card each delivered notification belongs to, so a reply *to*
@@ -1049,9 +1057,57 @@ class TelegramConnector extends ConnectorBase<
 					});
 					const bodyText = options.supersedesPrevious
 						? anchorText
-						: previous && options.itemId
-							? buildCardReference(options.itemId, questionText)
-							: questionText;
+						: questionText;
+					// A real reply, so the message links back to the card's own message. The
+					// library cannot make one -- its Telegram adapter has no `reply` -- and a
+					// tap is routed from the incoming update alone, so a message sent straight
+					// to the Bot API is as answerable as one the library posted.
+					const anchorRef =
+						!options.supersedesPrevious && previous && options.itemId
+							? splitTelegramMessageId(previous.id)
+							: undefined;
+					if (anchorRef && options.itemId) {
+						const taskId = options.itemId;
+						const replied = await postTelegramCardReply({
+							botToken,
+							request: {
+								chatId: anchorRef.chatId,
+								messageThreadId: resolveTelegramTopicId(threadKey),
+								replyToMessageId: anchorRef.messageId,
+								text: bodyText,
+								options: notifiedOptions,
+								buildActionId: (index) => buildCardActionId(taskId, index),
+							},
+						});
+						if (replied) {
+							if (notifiedOptions.length > 0) {
+								questionMessages.set(replied.messageId, {
+									text: bodyText,
+									edit: (next) =>
+										editTelegramCardMessage({
+											botToken,
+											messageRef: replied.messageId,
+											text: next,
+										}),
+								});
+							}
+							if (options.workspacePath) {
+								rememberCardFor(threadKey, {
+									messageId: replied.messageId,
+									taskId,
+									projectPath: options.workspacePath,
+									options: notifiedOptions,
+								});
+							}
+							loggerAdapter.core.log("Telegram notification delivered", {
+								transport: "telegram",
+								threadKey,
+							});
+							return;
+						}
+						// Telegram refused it; fall through and post through the library rather
+						// than drop the message.
+					}
 					const card = options.itemId
 						? buildQuestionCard({
 								text: bodyText,
@@ -1072,7 +1128,13 @@ class TelegramConnector extends ConnectorBase<
 					// what clears the keyboard, and a live button on an answered question can
 					// be tapped again with nowhere for the tap to go.
 					if (card && notifiedOptions.length > 0) {
-						questionMessages.set(sent.id, { message: sent, text: bodyText });
+						questionMessages.set(sent.id, {
+							text: bodyText,
+							edit: async (next) => {
+								await sent.edit({ raw: next });
+								return true;
+							},
+						});
 					}
 					if (options.itemId && options.workspacePath) {
 						rememberCardFor(threadKey, {
@@ -1353,21 +1415,15 @@ class TelegramConnector extends ConnectorBase<
 				const asked = questionMessages.get(event.messageId);
 				if (asked) {
 					try {
-						await asked.message.edit({
-							raw: buildAnsweredQuestionText(asked.text, chosen),
-						});
+						await asked.edit(buildAnsweredQuestionText(asked.text, chosen));
 						questionMessages.delete(event.messageId);
 					} catch {
-						// An edit can be refused on a message too old to touch. The reply below
-						// still records the answer.
+						// An edit can be refused on a message too old to touch. The question
+						// then keeps its buttons; answering again is refused by the card.
 					}
 				}
-				// And the choice is posted as its own line, naming the card: the adapter has
-				// no reply, so the tie has to be in the text. Without it an answer that only
-				// edited the question would leave no trace in the conversation's flow.
-				await thread.post({
-					raw: buildCardReference(card.taskId, `✅ ${chosen}`),
-				});
+				// No separate line for the choice: the question now shows it, and a second
+				// message saying the same thing is the noise this set out to remove.
 			} else {
 				await thread.post({ raw: result.message });
 			}
