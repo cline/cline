@@ -1,8 +1,10 @@
 /**
- * Bootstrap script for the plugin sandbox subprocess.
+ * Bootstrap script for the plugin sandbox.
  *
- * This file runs inside an isolated Node.js child process spawned by
- * {@link SubprocessSandbox}. It receives RPC calls over IPC and dynamically
+ * This file runs either inside an isolated child process spawned by
+ * {@link SubprocessSandbox} or inside a worker thread started by
+ * {@link WorkerSandbox}. It receives RPC calls over IPC (or the worker's
+ * message port) and dynamically
  * imports plugin modules, wiring up their contributions (tools, commands,
  * message builders, providers) and lifecycle hooks.
  *
@@ -10,6 +12,7 @@
  * depend on local helpers that can be inlined into the sandbox build.
  */
 
+import { isMainThread, parentPort } from "node:worker_threads";
 import {
 	type AgentExtensionMcpServer,
 	type AutomationEventEnvelope,
@@ -339,19 +342,46 @@ function toErrorPayload(error: unknown): { message: string; stack?: string } {
 	return { message, stack };
 }
 
+/**
+ * The host link: the worker's message port when running as a worker thread,
+ * otherwise the child process IPC channel.
+ */
+const port = isMainThread ? undefined : parentPort;
+
+function isDataCloneError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error.name === "DataCloneError" ||
+			/could not be cloned/i.test(error.message))
+	);
+}
+
+function postToHost(message: Record<string, unknown>): void {
+	if (port) {
+		try {
+			port.postMessage(message);
+		} catch (error) {
+			if (!isDataCloneError(error)) throw error;
+			// Structured clone rejects functions that JSON IPC silently drops.
+			// Match the subprocess behavior so plugins act the same in both.
+			port.postMessage(JSON.parse(JSON.stringify(message)));
+		}
+		return;
+	}
+	process.send?.(message);
+}
+
 function sendResponse(
 	id: string,
 	ok: boolean,
 	result: unknown,
 	error?: { message: string; stack?: string },
 ): void {
-	if (!process.send) return;
-	process.send({ type: "response", id, ok, result, error });
+	postToHost({ type: "response", id, ok, result, error });
 }
 
 function emitEvent(name: string, payload?: unknown): void {
-	if (!process.send) return;
-	process.send({ type: "event", name, payload });
+	postToHost({ type: "event", name, payload });
 }
 
 // Expose event emitter to plugins.
@@ -718,7 +748,14 @@ async function initialize(args: {
 	// path resolution inside plugins reflect the correct workspace, not the
 	// host process's cwd (which may differ when --cwd was used without calling
 	// process.chdir() on the host side).
-	if (args.cwd) {
+	// A worker must not chdir: Node throws, and Bun changes the cwd of the
+	// whole host process. Overriding process.cwd() is local to the worker, so
+	// plugins still see the session's directory. Relative fs paths keep
+	// resolving against the host cwd.
+	if (args.cwd && port) {
+		const cwd = args.cwd;
+		process.cwd = () => cwd;
+	} else if (args.cwd) {
 		try {
 			process.chdir(args.cwd);
 		} catch {
@@ -885,31 +922,35 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	resolveRuleContent,
 };
 
-installParentDisconnectGuard();
+async function onHostMessage(message: {
+	type: string;
+	id: string;
+	method: string;
+	args?: unknown;
+}): Promise<void> {
+	if (!message || message.type !== "call") {
+		return;
+	}
+	const method = methods[message.method];
+	if (!method) {
+		sendResponse(message.id, false, undefined, {
+			message: `Unknown method: ${String(message.method)}`,
+		});
+		return;
+	}
+	try {
+		const result = await method((message.args || {}) as never);
+		sendResponse(message.id, true, result);
+	} catch (error) {
+		sendResponse(message.id, false, undefined, toErrorPayload(error));
+	}
+}
 
-process.on(
-	"message",
-	async (message: {
-		type: string;
-		id: string;
-		method: string;
-		args?: unknown;
-	}) => {
-		if (!message || message.type !== "call") {
-			return;
-		}
-		const method = methods[message.method];
-		if (!method) {
-			sendResponse(message.id, false, undefined, {
-				message: `Unknown method: ${String(message.method)}`,
-			});
-			return;
-		}
-		try {
-			const result = await method((message.args || {}) as never);
-			sendResponse(message.id, true, result);
-		} catch (error) {
-			sendResponse(message.id, false, undefined, toErrorPayload(error));
-		}
-	},
-);
+if (port) {
+	// Terminating the worker ends it; there is no IPC channel to watch.
+	port.on("message", onHostMessage);
+	postToHost({ type: "ready" });
+} else {
+	installParentDisconnectGuard();
+	process.on("message", onHostMessage);
+}

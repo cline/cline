@@ -22,3 +22,7 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./tools/tool-approval";
+export {
+	WorkerSandbox,
+	type WorkerSandboxOptions,
+} from "./tools/worker-sandbox";

@@ -438,9 +438,9 @@ async function main(): Promise<void> {
 }
 
 async function preloadDaemonPlugins(cwd: string): Promise<void> {
-	// In sandbox mode plugins must never run inside the Hub process; each
-	// session starts its own sandbox instead.
-	if (resolvePluginExecutionMode() === "sandbox") {
+	// In the isolated modes plugins must never load in the Hub's own module
+	// graph; each session starts its own sandbox or worker instead.
+	if (resolvePluginExecutionMode() !== "in_process") {
 		return;
 	}
 	try {

@@ -16,6 +16,7 @@ import type {
 } from "@cline/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
+import { WorkerSandbox } from "../../runtime/tools/worker-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
 
@@ -27,8 +28,19 @@ export type SandboxedPluginSetupContext = Pick<
 	"session" | "client" | "user" | "workspaceInfo" | "logger"
 >;
 
+/**
+ * Where sandboxed plugins run. `subprocess` spawns a `node`/`bun` child and
+ * needs one on PATH; `worker` runs a worker thread inside the host runtime.
+ */
+export type PluginSandboxTransport = "subprocess" | "worker";
+
+/** The call/shutdown surface both sandbox transports share. */
+type SandboxChannel = Pick<SubprocessSandbox, "call" | "shutdown">;
+
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
+	/** Defaults to `subprocess`. */
+	transport?: PluginSandboxTransport;
 	exportName?: string;
 	/**
 	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
@@ -319,14 +331,25 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
-	const sandbox = new SubprocessSandbox({
-		name: "plugin-sandbox",
-		...("file" in BOOTSTRAP
+	const bootstrap =
+		"file" in BOOTSTRAP
 			? { bootstrapFile: BOOTSTRAP.file }
-			: { bootstrapScript: BOOTSTRAP.script }),
-		idleTimeoutMs,
-		onEvent: options.onEvent,
-	});
+			: { bootstrapScript: BOOTSTRAP.script };
+	// One sandbox per call: each session gets its own process or worker.
+	const sandbox: SandboxChannel =
+		options.transport === "worker"
+			? new WorkerSandbox({
+					name: "plugin-worker",
+					...bootstrap,
+					idleTimeoutMs,
+					onEvent: options.onEvent,
+				})
+			: new SubprocessSandbox({
+					name: "plugin-sandbox",
+					...bootstrap,
+					idleTimeoutMs,
+					onEvent: options.onEvent,
+				});
 	const importTimeoutMs = withTimeoutFallback(
 		options.importTimeoutMs,
 		4000,
@@ -444,8 +467,8 @@ export async function loadSandboxedPlugins(
 // ---------------------------------------------------------------------------
 
 /**
- * Tool contexts and hook payloads cross the sandbox process boundary over
- * JSON IPC, so they must survive JSON.stringify. Host code must not place
+ * Tool contexts and hook payloads cross the sandbox boundary over JSON IPC
+ * (subprocess) or structured clone (worker), so they must be plain data. Host code must not place
  * live host objects (telemetry services, sockets, abort signals) on them,
  * but a single offender would otherwise fail every sandboxed call — the
  * telemetry service on toolContextMetadata did exactly that ("JSON.stringify
@@ -460,7 +483,11 @@ function isSerializationError(error: unknown): boolean {
 	//      "JSON.stringify cannot serialize BigInt."
 	// Node: "Converting circular structure to JSON" /
 	//       "Do not know how to serialize a BigInt"
-	return /cyclic|circular|bigint/i.test(message);
+	// Worker: DataCloneError "... could not be cloned" (Node) /
+	//         "The object can not be cloned" (Bun)
+	return /cyclic|circular|bigint|can ?not be cloned|could not be cloned/i.test(
+		message,
+	);
 }
 
 /**
@@ -550,7 +577,7 @@ async function callWithSerializableFallback<T>(
 
 function registerTools(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
@@ -616,7 +643,7 @@ function registerTools(
 
 function registerCommands(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
@@ -658,7 +685,7 @@ function registerCommands(
 
 function registerRules(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
@@ -731,7 +758,7 @@ function registerSimpleContributions(
 
 function registerMessageBuilders(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
@@ -786,7 +813,7 @@ function isMessageArray(value: unknown): value is Message[] {
 }
 
 function makeHookHandler(
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	pluginId: string,
 	hookName: string,
 	timeoutMs: number,
@@ -819,7 +846,7 @@ function makeHookHandler(
 }
 
 function createSandboxRuntimeHooks(
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	hookTimeoutMs: number,
 	reinitialize: () => Promise<void>,

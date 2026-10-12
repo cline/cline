@@ -497,6 +497,8 @@ describe("plugin-config-loader", () => {
 		expect(resolvePluginExecutionMode("sandbox")).toBe("sandbox");
 		process.env.CLINE_PLUGIN_MODE = "sandbox";
 		expect(resolvePluginExecutionMode()).toBe("sandbox");
+		process.env.CLINE_PLUGIN_MODE = "worker";
+		expect(resolvePluginExecutionMode()).toBe("worker");
 		expect(resolvePluginExecutionMode("in_process")).toBe("in_process");
 	});
 

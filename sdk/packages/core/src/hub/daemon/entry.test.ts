@@ -128,7 +128,10 @@ const { mockAttributeUncaughtError, mockPluginPreload } = vi.hoisted(() => ({
 
 vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
 	resolvePluginExecutionMode: () =>
-		process.env.CLINE_PLUGIN_MODE === "sandbox" ? "sandbox" : "in_process",
+		process.env.CLINE_PLUGIN_MODE === "sandbox" ||
+		process.env.CLINE_PLUGIN_MODE === "worker"
+			? process.env.CLINE_PLUGIN_MODE
+			: "in_process",
 	resolveAgentPluginPathsWithDiagnostics: () => ({
 		paths: [],
 		disabledPaths: [],
@@ -428,7 +431,10 @@ describe("hub daemon entry", () => {
 		mockAttributeUncaughtError.mockImplementation(() => undefined);
 	});
 
-	it("does not import plugins into the hub in sandbox mode", async () => {
+	it.each([
+		"sandbox",
+		"worker",
+	])("does not import plugins into the hub in %s mode", async (mode) => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = ["node", "entry.js", "--cwd", cwd];
@@ -436,7 +442,7 @@ describe("hub daemon entry", () => {
 		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 		mockPluginPreload.mockClear();
 		const previous = process.env.CLINE_PLUGIN_MODE;
-		process.env.CLINE_PLUGIN_MODE = "sandbox";
+		process.env.CLINE_PLUGIN_MODE = mode;
 		try {
 			const { hubDaemonReady } = await import("./entry");
 			await hubDaemonReady;

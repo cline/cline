@@ -94,14 +94,15 @@ function emptyContributions(
  * Runs each plugin's `setup` with a collecting API, for settings surfaces
  * that list what plugins contribute without starting a session. Plugins load
  * the same way sessions load them: through the shared in-process registry by
- * default (failures are recorded there like any other), or through the
- * subprocess sandbox when `CLINE_PLUGIN_MODE=sandbox`.
+ * default (failures are recorded there like any other), or through an
+ * isolated sandbox when `CLINE_PLUGIN_MODE` is `worker` or `sandbox`.
  */
 export async function collectPluginContributions(
 	input: CollectPluginContributionsInput,
 ): Promise<CollectPluginContributionsResult> {
-	if (resolvePluginExecutionMode(input.mode) === "sandbox") {
-		return collectSandboxedContributions(input);
+	const mode = resolvePluginExecutionMode(input.mode);
+	if (mode !== "in_process") {
+		return collectSandboxedContributions(input, mode);
 	}
 	const registry = input.registry ?? getProcessPluginRegistry();
 	const workspaceInfo = input.workspacePath
@@ -177,6 +178,7 @@ export async function collectPluginContributions(
 
 async function collectSandboxedContributions(
 	input: CollectPluginContributionsInput,
+	mode: Exclude<PluginExecutionMode, "in_process">,
 ): Promise<CollectPluginContributionsResult> {
 	if (input.pluginPaths.length === 0) {
 		return { plugins: [], failed: [], failures: [], warnings: [] };
@@ -186,6 +188,7 @@ async function collectSandboxedContributions(
 		: undefined;
 	const sandboxed = await loadSandboxedPlugins({
 		pluginPaths: [...input.pluginPaths],
+		transport: mode === "worker" ? "worker" : "subprocess",
 		cwd: input.cwd,
 		providerId: input.providerId,
 		modelId: input.modelId,

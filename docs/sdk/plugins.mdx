@@ -102,7 +102,12 @@ File-based plugins load in the host process. Each session gets its own copy of e
 
 Plugins still share one process: globals, `process.env`, and the working directory are common to every session, and a plugin stuck in a synchronous loop blocks the hub. Use `ctx.cwd` rather than `process.cwd()`.
 
-The previous subprocess sandbox is still available as an opt-in. Set `CLINE_PLUGIN_MODE=sandbox`, or pass `mode: "sandbox"` to `resolveAndLoadAgentPlugins`. In sandbox mode no plugin code runs in the host process, including tool listing and MCP settings sync. The sandbox needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
+Two isolated modes are available as opt-ins. In both, each session runs its plugins in its own sandbox, and no plugin code loads in the host's module graph, including tool listing and MCP settings sync:
+
+- **Worker** (`CLINE_PLUGIN_MODE=worker`, or `mode: "worker"`): plugins run in a worker thread inside the host runtime. No `node` or `bun` is needed on `PATH`. A plugin stuck in a loop is stopped at its timeout, and a stray throw or `process.exit()` ends only that session's worker; the next call starts a fresh one. `process.cwd()` reports the session's directory, but relative file paths still resolve against the host's, so use `ctx.cwd`. Workers share the host's memory limit and environment, so this is crash isolation, not a security boundary.
+- **Sandbox** (`CLINE_PLUGIN_MODE=sandbox`, or `mode: "sandbox"`): the previous subprocess sandbox. It needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself.
+
+Values passed to and returned from isolated plugins must be plain data; functions are dropped.
 
 Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Edits to the plugin's entry file, or to any file it reaches through a relative `import ... from` or `require()`, are picked up automatically. After changing anything else the plugin loads (a dependency in `node_modules`, a side-effect `import "./x"`, a dynamic import), run `cline hub plugins --reload <plugin>`.
 
@@ -121,7 +126,7 @@ await cline.start({
 })
 ```
 
-A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`. The policy applies to the default in-process mode; the opt-in sandbox loads every discovered plugin.
+A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`. The policy applies to the default in-process mode; the opt-in worker and sandbox modes load every discovered plugin.
 
 ## Setup and Call Context
 

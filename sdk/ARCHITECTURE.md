@@ -728,17 +728,32 @@ Accepted risks of in-process execution: plugins share the process (globals,
 a plugin stuck in a synchronous loop freezes the Hub. Timeouts cannot interrupt
 synchronous code; a call that overran its limit is logged once it returns.
 
-#### Opt-in sandbox
+#### Opt-in sandbox and worker modes
 
-`mode: "sandbox"` on `resolveAndLoadAgentPlugins`, or `CLINE_PLUGIN_MODE=sandbox`,
-keeps the previous subprocess sandbox. It needs a `node` or `bun` runtime on
-`PATH` when the host is not itself `node` or `bun`. In sandbox mode no plugin
-code runs in the host process: the Hub daemon skips its startup preload, and
-plugin tool listing and MCP settings sync inspect plugins through a sandbox
-too. The session `plugins` policy is not applied in sandbox mode; the sandbox
-loads every discovered plugin.
+Two isolated modes share one RPC protocol and one bootstrap
+(`plugin-sandbox-bootstrap.ts`); only the transport differs:
 
-Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
+- `CLINE_PLUGIN_MODE=sandbox` (`mode: "sandbox"`): a `node`/`bun` subprocess
+  (`SubprocessSandbox`, JSON IPC). It needs that runtime on `PATH` when the
+  host is not itself `node` or `bun`.
+- `CLINE_PLUGIN_MODE=worker` (`mode: "worker"`): a worker thread in the host
+  runtime (`WorkerSandbox`, structured clone over the message port). It needs
+  no runtime executable, so it works from the compiled CLI and hub.
+  `terminate()` stops a worker even inside a synchronous loop, and an uncaught
+  error or `process.exit()` ends only the worker. Workers share the host's
+  memory limit, env snapshot, and native addons, so this is crash isolation,
+  not a security boundary. A worker must not `chdir` (Bun would change the
+  host's cwd), so the bootstrap overrides `process.cwd()` inside the worker
+  instead. The bootstrap posts `ready` once it listens; the host holds calls
+  until then because Bun drops messages that arrive earlier.
+
+In either mode no plugin code runs in the host's module graph: the Hub daemon
+skips its startup preload, and plugin tool listing and MCP settings sync
+inspect plugins through a sandbox too. The session `plugins` policy is not
+applied; these modes load every discovered plugin. Each session gets its own
+subprocess or worker.
+
+Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
 through `PluginSandboxOptions.idleTimeoutMs` or
 `CLINE_PLUGIN_IDLE_TIMEOUT_MS`), and the next plugin call starts and

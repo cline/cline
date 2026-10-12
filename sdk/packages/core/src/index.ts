@@ -546,6 +546,10 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	WorkerSandbox,
+	type WorkerSandboxOptions,
+} from "./runtime/tools/worker-sandbox";
 export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
