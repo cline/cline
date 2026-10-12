@@ -53,6 +53,47 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()).toBeUndefined()
 	})
 
+	it("records the mode the active session was built for", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		await lifecycle.startNewSession({
+			config: { providerId: "anthropic", modelId: "claude-sonnet-4", mode: "plan" },
+		} as StartInput)
+
+		expect(lifecycle.getActiveSession()?.mode).toBe("plan")
+	})
+
+	it("waits for tracked session starts, including ones that fail", async () => {
+		const lifecycle = makeLifecycle()
+		let finishStart!: () => void
+		const start = lifecycle.trackSessionStart(
+			() =>
+				new Promise<void>((resolve) => {
+					finishStart = resolve
+				}),
+		)
+		let waited = false
+		const waiting = lifecycle.waitForSessionStarts().then(() => {
+			waited = true
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(waited).toBe(false)
+
+		finishStart()
+		await start
+		await waiting
+		expect(waited).toBe(true)
+
+		const failing = lifecycle.trackSessionStart(async () => {
+			throw new Error("start failed")
+		})
+		await expect(failing).rejects.toThrow("start failed")
+		await expect(lifecycle.waitForSessionStarts()).resolves.toBeUndefined()
+	})
+
 	it("stores the provider and model config used to start the active session", async () => {
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
