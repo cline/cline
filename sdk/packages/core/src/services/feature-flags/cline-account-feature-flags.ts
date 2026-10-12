@@ -2,7 +2,8 @@ import type { FeatureFlag, FeatureFlagsContext } from "@cline/shared";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { FeatureFlagsService } from "./FeatureFlagsService";
 
-// Account-scoped cache for hosts without a client's in-memory flag service.
+// Shared by connector management and tool execution, including detached hub
+// processes where a client's in-memory feature flag service is unavailable.
 // Never persist these grants: startup and account changes must fail closed.
 let current:
 	| {

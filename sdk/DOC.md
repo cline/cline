@@ -353,14 +353,9 @@ The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecogn
 
 Without tool activity, an unknown response is preserved in history and continued once, with the model-visible user message “Previous turn ended unexpectedly. Continue from where you left off.” The message uses `displayRole: "system"` and `userRunSpan: 0`, matching injected hook context so it stays out of live and replayed chat transcripts. The system prompt is unchanged. A second unknown completion fails the run. Queued user instructions are consumed before the continuation, including in the first iteration. Tool calls receive their results through the normal loop; provider-executed actions are not replayed.
 
-## Composio tools
+## Host connector transport
 
-`createComposioToolsExtension({ request, logger })` creates connector meta tools
-using a host-authenticated `ConnectorsRequest(path, init)` transport. Paths start
-with `/api/v1/connectors`; the host supplies the API origin and user authentication.
-Omit `request` to use the saved Cline account and its local connector schemas.
-For `LocalRuntimeHost`, pass `connectorsRequest: request` to initialize tools on
-startup and restore without local account discovery. Direct extension users create
-it per runtime. Schedule hosts pass the same callback to
-`createLocalHubScheduleRuntimeHandlers({ connectorsRequest: request })`.
-Execution is never retried.
+Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost`
+and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
+Paths start with `/api/v1/connectors`; the host supplies the API origin and
+authentication. Omit it to retain local account authentication and rollout checks.

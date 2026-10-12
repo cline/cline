@@ -135,15 +135,6 @@ export async function executeComposioMetaTool(
 		parsed = undefined;
 	}
 	if (!response.ok) {
-		// Failed batches can contain completed actions; retain their full results.
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			"successful" in parsed &&
-			parsed.successful === false
-		) {
-			return parsed;
-		}
 		const preview =
 			parsed !== undefined
 				? JSON.stringify(parsed).slice(0, 600)

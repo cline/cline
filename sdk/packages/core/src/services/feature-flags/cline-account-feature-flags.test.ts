@@ -24,7 +24,7 @@ vi.mock("@cline/core/services/feature-flags/posthog", () => ({
 
 import { isClineAccountFeatureEnabled } from "./cline-account-feature-flags";
 
-const flag = FeatureFlag.CODE_CLOUD_AGENTS;
+const flag = FeatureFlag.CLINE_COMPOSIO_BETA;
 
 beforeEach(async () => {
 	vi.clearAllMocks();

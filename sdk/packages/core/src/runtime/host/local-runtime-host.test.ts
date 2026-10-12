@@ -222,7 +222,7 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("uses host connector authentication on startup and resume, and skips discovery with tools disabled", async () => {
+	it("uses host connector authentication on startup and resume", async () => {
 		const settings = vi.spyOn(
 			ProviderSettingsManager.prototype,
 			"getProviderSettings",
@@ -273,11 +273,6 @@ describe("LocalRuntimeHost", () => {
 			await manager.startSession({
 				...start,
 				config: { ...start.config, sessionId: first.sessionId },
-			});
-			expect(request).toHaveBeenCalledTimes(2);
-			await manager.startSession({
-				...start,
-				config: { ...start.config, enableTools: false },
 			});
 			expect(request).toHaveBeenCalledTimes(2);
 			expect(

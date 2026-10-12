@@ -978,23 +978,25 @@ whether the terminal failure returned or threw, without error/transcript text.
 Desktop reconciliation retains the full live failed turn until a saved terminal
 error reaches its user-run count and is not a previously displayed error ID.
 
-### Composio connectors
+### Host connector transport
 
-The Cline API controls connector availability through its server-side Composio
-project key and scopes requests to the authenticated user. Local runtimes load
-saved schemas and resolve the signed-in account's bearer token; identity changes
-prevent further execution. Meta tools support search, connection authorization,
-and execution within a session, including when no connections are saved.
+`LocalRuntimeHost` and `createLocalHubScheduleRuntimeHandlers` accept an optional
+`connectorsRequest` callback for discovery and execution during startup and resume.
+It supplies host authentication without reading local connector credentials or
+state. Without it, the local behavior described below is unchanged.
 
-Hosts can call `createComposioToolsExtension({ request })` with their own
-user-scoped transport. This path creates a meta-tool session without reading
-local credentials or schemas. `LocalRuntimeHost` accepts the same callback as
-`connectorsRequest` and recreates the extension during startup and restore;
-sessions with tools disabled omit connector tools and discovery. Schedule handlers
-accept `connectorsRequest` for their internal host too. Session discovery has a five-second
-timeout and unavailable endpoints leave the runtime without meta tools. Executions
-are never automatically retried;
-structured failure responses retain completed actions from partially failed batches.
+### Composio beta access
+
+Composio management in the desktop sidecar and tool registration/execution in
+local runtimes (including the detached hub) require the account-scoped PostHog
+flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
+evaluator reads the current Cline account ID from provider settings, caches the
+evaluation in memory for one minute, and discards grants on account changes.
+Missing identity, provider configuration, or flag values deny access; internal
+email domains do not bypass this gate. Saved connector schemas alone cannot
+enable tools. Existing sessions recheck access before each tool execution.
+Disconnect/cancel cleanup remains available after access is removed. The Cline
+API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and

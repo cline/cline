@@ -116,32 +116,6 @@ describe("createComposioMetaToolSession", () => {
 });
 
 describe("executeComposioMetaTool", () => {
-	it("preserves completed actions in a failed batch without retrying", async () => {
-		const result = {
-			successful: false,
-			data: {
-				results: [
-					{ tool_slug: "FIRST_ACTION", error: "credential error ".repeat(50) },
-					{
-						tool_slug: "SECOND_ACTION",
-						response: { successful: true, data: { id: "completed" } },
-					},
-				],
-			},
-			error: "1 of 2 tools failed",
-		};
-		const request = vi.fn(async () => Response.json(result, { status: 502 }));
-		expect(
-			await executeComposioMetaTool(
-				request,
-				"trs_1",
-				"COMPOSIO_MULTI_EXECUTE_TOOL",
-				{},
-			),
-		).toEqual(result);
-		expect(request).toHaveBeenCalledOnce();
-	});
-
 	it("returns a structured error for a non-2xx response", async () => {
 		vi.stubGlobal(
 			"fetch",

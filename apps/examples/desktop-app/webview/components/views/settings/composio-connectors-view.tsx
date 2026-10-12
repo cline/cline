@@ -745,7 +745,7 @@ const PREVIEW_CONNECTORS: { slug: ComposioToolkitSlug; name: string }[] = [
 
 /** Customize > Connectors when the account cannot use connectors: signed out
  * (sign in right here, same device-code flow as the Account page) or signed
- * in while connectors are unavailable (offer a refresh). */
+ * in without beta access (explain and offer a refresh). */
 function ConnectorsUnavailable({
 	onRefresh,
 	refreshing,
@@ -807,12 +807,12 @@ function ConnectorsUnavailable({
 				<div className="grid gap-2">
 					<h2 className="text-lg font-semibold text-foreground">
 						{signedIn
-							? "Connectors are currently unavailable"
+							? "Connectors aren't enabled for your account yet"
 							: "Sign in to Cline to use connectors"}
 					</h2>
 					<p className="text-sm text-muted-foreground">
 						{signedIn
-							? "Connectors are currently unavailable. Try refreshing to check again."
+							? "Connectors are rolling out in beta. Once your Cline account has access, Gmail, Slack, GitHub, and hundreds of other apps will show up here with one-click install."
 							: "Connectors give Cline tools for Gmail, Slack, GitHub, and hundreds of other apps with a quick sign-in to each, no API keys. They require a Cline account."}
 					</p>
 				</div>

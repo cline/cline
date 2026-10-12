@@ -503,15 +503,14 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	// Register saved connector schemas and in-chat meta tools in-process so
-	// compiled hosts do not need a plugin subprocess.
-	const composioToolsExtension =
-		input.config.enableTools === false
-			? undefined
-			: await createComposioToolsExtension({
-					request: connectorsRequest,
-					logger: localConfig?.logger,
-				});
+	// Composio connector tools register in-process from persisted connection
+	// state rather than through a drop-in plugin: compiled hosts (the packaged
+	// desktop app) cannot spawn the plugin sandbox, and every host with the
+	// state file should serve the same tools.
+	const composioToolsExtension = await createComposioToolsExtension({
+		request: connectorsRequest,
+		logger: localConfig?.logger,
+	});
 	const builtInExtensionList = [
 		...(fileHookExtension ? [fileHookExtension] : []),
 		...(composioToolsExtension ? [composioToolsExtension] : []),

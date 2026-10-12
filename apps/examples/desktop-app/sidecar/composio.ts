@@ -7,8 +7,11 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveComposioToolsStatePath } from "@cline/core";
-import type { BasicLogger } from "@cline/shared";
+import {
+	isClineAccountFeatureEnabled,
+	resolveComposioToolsStatePath,
+} from "@cline/core";
+import { type BasicLogger, FeatureFlag } from "@cline/shared";
 import { resolveClineDir } from "@cline/shared/storage";
 import {
 	COMPOSIO_RECOMMENDED_TOOLKITS,
@@ -386,12 +389,12 @@ function readReconciledComposioState(
 	return readComposioState(scope);
 }
 
-// ── Availability ─────────────────────────────────────────────
+// ── Availability (entitlement) ─────────────────────────────────────────────
 
 /**
- * Whether the signed-in account can reach the connectors proxy. The backend
- * registers connector routes only when its Composio project API key is set.
- * A `listConnections` probe returning 401/403/404 means unavailable. Cached briefly to
+ * Whether connectors are available to this install. The proxy enforces
+ * entitlement for the signed-in Cline account on every route; a `listConnections` probe both proves sign-in and
+ * exercises that gate. 401/403 → not available. Result is cached briefly to
  * spare the network the UI's frequent status polls; a forced refresh (or
  * cache miss) re-probes.
  */
@@ -403,6 +406,12 @@ async function isConnectorsAvailable(
 	},
 ): Promise<boolean> {
 	if (getClineAccountId() !== scope.accountId) return false;
+	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
+		scope.configuredCache = null;
+		scope.catalogCache = null;
+		return false;
+	}
+	if (getClineAccountId() !== scope.accountId) return false;
 	if (
 		!options?.forceRefresh &&
 		scope.configuredCache &&
@@ -411,17 +420,15 @@ async function isConnectorsAvailable(
 		return scope.configuredCache.configured;
 	}
 	let configured: boolean;
-	let routesUnavailable = false;
 	try {
 		await listConnections({ ...options?.ctx, accountId: scope.accountId });
 		configured = true;
 	} catch (error) {
 		if (
 			error instanceof ConnectorsApiError &&
-			(error.status === 401 || error.status === 403 || error.status === 404)
+			(error.status === 401 || error.status === 403)
 		) {
 			configured = false;
-			routesUnavailable = error.status === 404;
 		} else {
 			// A transient failure (offline, 5xx) shouldn't flip the feature off
 			// and tear down the UI; assume still-available and let the actual
@@ -435,11 +442,12 @@ async function isConnectorsAvailable(
 	if (getClineAccountId() !== scope.accountId) return false;
 	scope.configuredCache = { checkedAt: Date.now(), configured };
 	if (!configured) {
+		// Signed out or un-entitled: connections in the state file belong to a
+		// session that can no longer act on them. Drop them so no stale
+		// connectors are reported (and so the composio-tools extension, which
+		// also fails closed without a token, and the UI agree).
 		scope.catalogCache = null;
-		// Missing routes mean the backend is disabled, not that connections
-		// were revoked. Preserve local state and pending OAuth attempts; a
-		// DELETE 404 here would not prove that a provider account is gone.
-		if (!routesUnavailable) clearConnectorStateForSignedOut(scope);
+		clearConnectorStateForSignedOut(scope);
 	}
 	return configured;
 }
@@ -794,7 +802,7 @@ export async function connectComposioToolkit(
 	const ctx: ClineAuthTelemetryContext = { logger };
 	if (!(await isConnectorsAvailable(scope, { ctx }))) {
 		throw new Error(
-			"Sign in to your Cline account to use connectors. If you are signed in, connectors are currently unavailable.",
+			"Sign in to your Cline account to use connectors. If you are signed in, connectors may not be enabled for your account yet.",
 		);
 	}
 	const existingPending = scope.pendingConnections.get(toolkit);

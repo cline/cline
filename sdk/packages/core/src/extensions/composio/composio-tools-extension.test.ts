@@ -26,11 +26,16 @@ vi.mock("@cline/llms", () => ({
  * extension resolves a Cline account token. Mock the token resolution so
  * tests can drive the signed-in / signed-out cases without a real account.
  */
+const beta = vi.hoisted(() => ({ enabled: true }));
+vi.mock("../../services/feature-flags/cline-account-feature-flags", () => ({
+	isClineAccountFeatureEnabled: async () => beta.enabled,
+}));
 
 const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
 	accountId: "account-a" as string | undefined,
 	baseUrl: "https://api.cline.bot",
+	forbidLocal: false,
 }));
 
 vi.mock("../../runtime/orchestration/runtime-oauth-token-manager", () => ({
@@ -47,6 +52,8 @@ vi.mock("../../services/providers/local-provider-service", () => ({
 vi.mock("../../services/storage/provider-settings-manager", () => ({
 	ProviderSettingsManager: class {
 		getProviderSettings() {
+			if (auth.forbidLocal)
+				throw new Error("Unexpected local connector credentials");
 			return { baseUrl: auth.baseUrl, auth: { accountId: auth.accountId } };
 		}
 	},
@@ -105,11 +112,13 @@ async function setupTools(
 }
 
 beforeEach(() => {
+	beta.enabled = true;
 	tempDataDir = mkdtempSync(join(tmpdir(), "composio-ext-test-"));
 	process.env.CLINE_DATA_DIR = tempDataDir;
 	auth.token = "cline_token_123";
 	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
+	auth.forbidLocal = false;
 	meta.session = undefined;
 });
 
@@ -165,6 +174,39 @@ describe("createComposioToolsExtension", () => {
 			toolkits: { github: { connectedAccountId: "ca_github", tools: [] } },
 		});
 		expect(await createComposioToolsExtension()).toBeUndefined();
+	});
+
+	it("does not register saved tools without beta access", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		beta.enabled = false;
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("refuses execution when beta access is removed after registration", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		const tools = await setupTools();
+		beta.enabled = false;
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		expect(await tools[0].execute({})).toEqual({
+			successful: false,
+			error: "Composio connectors are not enabled for this account.",
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("registers one snake_case tool per stored schema", async () => {
@@ -249,17 +291,15 @@ describe("createComposioToolsExtension", () => {
 
 		const [url, init] = fetchMock.mock.calls[0] as unknown as [
 			string,
-			{ method: string; headers: RequestInit["headers"]; body: string },
+			{ method: string; headers: Record<string, string>; body: string },
 		];
 		expect(url).toBe(
 			"https://api.cline.bot/api/v1/connectors/tools/GMAIL_SEND_EMAIL/execute",
 		);
 		expect(init.method).toBe("POST");
-		expect(new Headers(init.headers).get("authorization")).toBe(
-			"Bearer cline_token_123",
-		);
+		expect(init.headers.authorization).toBe("Bearer cline_token_123");
 		// No Composio key, and no client-supplied user_id — the proxy derives it.
-		expect(new Headers(init.headers).has("x-api-key")).toBe(false);
+		expect(init.headers["x-api-key"]).toBeUndefined();
 		expect(JSON.parse(init.body)).toEqual({
 			arguments: { to: "someone@example.com" },
 			version: "20250101_00",
@@ -447,6 +487,7 @@ describe("createComposioToolsExtension", () => {
 		});
 		vi.stubGlobal("fetch", fetchMock);
 		if (hostTransport) {
+			beta.enabled = false;
 			writeState({
 				toolkits: {
 					gmail: {
@@ -455,8 +496,7 @@ describe("createComposioToolsExtension", () => {
 					},
 				},
 			});
-			auth.token = undefined;
-			auth.accountId = undefined;
+			auth.forbidLocal = true;
 		}
 		const tools = await setupTools(
 			hostTransport
