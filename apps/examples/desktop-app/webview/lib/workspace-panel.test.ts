@@ -28,10 +28,15 @@ afterEach(() => {
 });
 
 describe("readWorkspacePanelWidth", () => {
-	it("defaults to half the main content area beside the sidebar", () => {
-		mountMain(1260);
+	it("defaults to 66% of the main content area beside the sidebar", () => {
+		mountMain(1600);
 		expect(hasStoredWorkspacePanelWidth()).toBe(false);
-		expect(readWorkspacePanelWidth()).toBe(630);
+		expect(readWorkspacePanelWidth()).toBe(1056);
+	});
+
+	it("still leaves the conversation room in a narrow window", () => {
+		mountMain(900);
+		expect(readWorkspacePanelWidth()).toBe(900 - 420);
 	});
 
 	it("prefers a width the user dragged to, within bounds", () => {
@@ -45,6 +50,6 @@ describe("readWorkspacePanelWidth", () => {
 	});
 
 	it("falls back to the window width before the main area exists", () => {
-		expect(readWorkspacePanelWidth()).toBe(750);
+		expect(readWorkspacePanelWidth()).toBe(990);
 	});
 });

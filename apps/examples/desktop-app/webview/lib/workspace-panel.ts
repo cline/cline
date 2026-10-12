@@ -1,9 +1,11 @@
-// Bumped from v1 when the default changed to half the main content area,
+// Bumped from v1 when the default became a share of the main content area,
 // so earlier fixed widths do not pin the panel narrow.
 const WIDTH_STORAGE_KEY = "cline.code.workspace-panel-width.v2";
 const FALLBACK_WIDTH = 680;
 const MIN_WIDTH = 360;
 const MIN_CONVERSATION_WIDTH = 420;
+/** Share of the main content area the panel takes until the user drags it. */
+const DEFAULT_SHARE = 0.66;
 
 /** Width of the area beside the app sidebar that the panel shares with chat. */
 export function mainContentWidth(): number {
@@ -37,14 +39,14 @@ export function hasStoredWorkspacePanelWidth(): boolean {
 }
 
 /**
- * The user's dragged width, otherwise half the main content area. Shared by
+ * The user's dragged width, otherwise 66% of the main content area. Shared by
  * the panel and the placeholder shown while its code loads, so the layout
  * reserves the final width from the first frame.
  */
 export function readWorkspacePanelWidth(): number {
 	if (typeof window === "undefined") return FALLBACK_WIDTH;
 	return clampWorkspacePanelWidth(
-		readStoredWidth() ?? Math.round(mainContentWidth() / 2),
+		readStoredWidth() ?? Math.round(mainContentWidth() * DEFAULT_SHARE),
 	);
 }
 

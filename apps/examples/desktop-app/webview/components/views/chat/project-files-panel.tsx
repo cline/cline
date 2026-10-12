@@ -327,7 +327,7 @@ export function ProjectFilesPanel({
 		if (view === "files") reloadDirectories();
 	}, [view]);
 
-	// Until the user drags it, the panel tracks half the main content area as
+	// Until the user drags it, the panel tracks its share of the main content area as
 	// the window resizes or the app sidebar collapses.
 	useEffect(() => {
 		const follow = () =>
