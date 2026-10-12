@@ -624,6 +624,7 @@ export function RoutineSchedulesContent({
 
 	useEffect(() => {
 		let cancelled = false;
+		const normalizedProvider = normalizeProviderId(createForm.provider);
 
 		async function loadCatalog() {
 			try {
@@ -634,11 +635,8 @@ export function RoutineSchedulesContent({
 				setProviderModels(payload.providerModels);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					const normalizedCurrentProvider = normalizeProviderId(
-						createForm.provider,
-					);
-					if (normalizedCurrentProvider) {
-						nextProviderIds.add(normalizedCurrentProvider);
+					if (normalizedProvider) {
+						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
 						if (providerId in payload.providerModels) {
@@ -650,26 +648,12 @@ export function RoutineSchedulesContent({
 			} catch {
 				// Keep fallback values if provider catalog is unavailable.
 			}
-		}
 
-		void loadCatalog();
-		return () => {
-			cancelled = true;
-		};
-	}, [createForm.provider]);
-
-	useEffect(() => {
-		const normalizedProvider = normalizeProviderId(createForm.provider);
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadModelsForProvider() {
+			// The catalog is the app's bundled snapshot; replace the selected
+			// provider's list with its live one so retired models drop out.
+			if (!normalizedProvider || cancelled) {
+				return;
+			}
 			try {
 				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
@@ -685,15 +669,15 @@ export function RoutineSchedulesContent({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog values when provider-specific loading fails.
 			}
 		}
 
-		void loadModelsForProvider();
+		void loadCatalog();
 		return () => {
 			cancelled = true;
 		};
-	}, [createForm.provider, providerModels]);
+	}, [createForm.provider]);
 
 	useEffect(() => {
 		if (availableProviders.length === 0) {
