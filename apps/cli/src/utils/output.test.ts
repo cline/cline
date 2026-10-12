@@ -110,3 +110,24 @@ describe("prepareTerminalForPostTuiOutput", () => {
 		expect(writeSpy).not.toHaveBeenCalled();
 	});
 });
+
+describe("routeConsoleToStderr", () => {
+	it("keeps plugin console output off stdout in JSON mode", () => {
+		const stdout = vi
+			.spyOn(process.stdout, "write")
+			.mockImplementation(() => true);
+		const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			setCurrentOutputMode("json");
+			console.log("[metrics] session started");
+			console.info("info line");
+			expect(stdout).not.toHaveBeenCalled();
+			expect(stderr).toHaveBeenCalledWith("[metrics] session started");
+			expect(stderr).toHaveBeenCalledWith("info line");
+		} finally {
+			stdout.mockRestore();
+			stderr.mockRestore();
+			setCurrentOutputMode("text");
+		}
+	});
+});

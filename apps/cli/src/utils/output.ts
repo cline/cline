@@ -26,6 +26,22 @@ let activeCliSession: ActiveCliSession | undefined;
 
 export function setCurrentOutputMode(mode: CliOutputMode): void {
 	currentOutputMode = mode;
+	if (mode === "json") routeConsoleToStderr();
+}
+
+let consoleRoutedToStderr = false;
+
+/**
+ * Sends `console.log/info/debug` to stderr. Plugins run in this process and
+ * log with `console.*`; in machine-readable modes (JSON lines, ACP JSON-RPC)
+ * stdout carries the protocol and must stay clean.
+ */
+export function routeConsoleToStderr(): void {
+	if (consoleRoutedToStderr) return;
+	consoleRoutedToStderr = true;
+	for (const method of ["log", "info", "debug"] as const) {
+		console[method] = (...args: unknown[]) => console.error(...args);
+	}
 }
 
 export function getCurrentOutputMode(): CliOutputMode {

@@ -80,8 +80,28 @@ if (!isMainThread) {
 			process.exit(1);
 		});
 	};
+	// Plugins run in this process when no hub is available (first run, first
+	// run after an update, ACP). A stray error whose stack points into a
+	// plugin is that plugin's failure: the registry turns it off and tells the
+	// session, and the run goes on. Same policy as the hub daemon.
+	const attributeToPlugin = async (
+		kind: "uncaughtException" | "unhandledRejection",
+		error: unknown,
+	): Promise<boolean> => {
+		try {
+			const { getProcessPluginRegistry } = await import("@cline/core");
+			return (
+				getProcessPluginRegistry().attributeUncaughtError(error, kind) !==
+				undefined
+			);
+		} catch {
+			return false;
+		}
+	};
 	process.on("uncaughtException", (error) => {
-		handleFatalProcessError("uncaughtException", error);
+		void attributeToPlugin("uncaughtException", error).then((attributed) => {
+			if (!attributed) handleFatalProcessError("uncaughtException", error);
+		});
 	});
 	process.on("unhandledRejection", (reason, promise) => {
 		if (isAbortInProgress()) {
@@ -90,7 +110,9 @@ if (!isMainThread) {
 			promise.catch(() => {});
 			return;
 		}
-		handleFatalProcessError("unhandledRejection", reason);
+		void attributeToPlugin("unhandledRejection", reason).then((attributed) => {
+			if (!attributed) handleFatalProcessError("unhandledRejection", reason);
+		});
 	});
 
 	void (async () => {

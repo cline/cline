@@ -1,6 +1,6 @@
 import { Readable, Writable } from "node:stream";
 import { registerClineClientIdentity } from "../utils/cline-client-identity";
-import { writeDiagnostic } from "../utils/output";
+import { routeConsoleToStderr, writeDiagnostic } from "../utils/output";
 
 export interface AcpModeOptions {
 	autoApproveTools?: boolean;
@@ -13,6 +13,8 @@ export async function runAcpMode(options?: AcpModeOptions): Promise<void> {
 	const { AcpAgent } = await import("./acpAgent");
 
 	registerClineClientIdentity("cline-acp");
+	// stdout is the JSON-RPC channel; plugin console output must not reach it.
+	routeConsoleToStderr();
 
 	writeDiagnostic("[acp] starting ACP mode over stdio…");
 
