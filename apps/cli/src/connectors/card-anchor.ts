@@ -30,9 +30,11 @@ const COLUMN_DOTS: Record<CardColumn, string> = {
 	backlog: "⚪",
 	in_progress: "🔵",
 	review: "🟠",
+	// The column whose id is `trash` is titled "Done" on the board and painted green there.
+	// Red was wrong twice over: it contradicted the board, and it told someone their finished
+	// card had been thrown away. `done` is the alias the CLI accepts for the same column.
+	trash: "🟢",
 	done: "🟢",
-	// Nothing on the board is orange-red but a discarded card, and it never reads as progress.
-	trash: "🔴",
 };
 
 /** The dot for a column, falling back to the backlog grey for a column we do not know. */

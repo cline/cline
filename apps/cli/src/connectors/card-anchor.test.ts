@@ -10,6 +10,12 @@ describe("resolveColumnDot", () => {
 		expect(resolveColumnDot("done")).toBe("🟢");
 	});
 
+	// The id is `trash` but the board titles that column "Done" and paints it green. Red said
+	// the card had been thrown away, which is the opposite of what the board shows.
+	it("treats the column the board calls Done as done, not as discarded", () => {
+		expect(resolveColumnDot("trash")).toBe("🟢");
+	});
+
 	// A notification from an older build carries no column at all, and a board that grows a
 	// column should not make the message unreadable.
 	it("falls back to backlog for a column it does not know", () => {
