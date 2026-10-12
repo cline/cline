@@ -354,6 +354,10 @@ type ChatInputBarProps = {
 	};
 };
 
+// Below this composer width the full settings row no longer fits, so the
+// provider/model pickers collapse into a menu.
+const COMPACT_COMPOSER_WIDTH = 512;
+
 function ChatInputBarImpl({
 	environmentId,
 	variant = "conversation",
@@ -391,6 +395,21 @@ function ChatInputBarImpl({
 	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
+	// The composer compacts by its own width rather than the window's: beside
+	// the workspace panel it can be narrow in a wide window, and a container
+	// query would turn the settings row into the containing block for the
+	// compact menu's full-screen click-away layer.
+	const composerRef = useRef<HTMLDivElement | null>(null);
+	const [compact, setCompact] = useState(false);
+	useEffect(() => {
+		const element = composerRef.current;
+		if (!element || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(([entry]) => {
+			if (entry) setCompact(entry.contentRect.width < COMPACT_COMPOSER_WIDTH);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, []);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -1107,7 +1126,12 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<AgentComposer variant={variant}>
+		<AgentComposer
+			className="group/composer"
+			data-compact={compact || undefined}
+			ref={composerRef}
+			variant={variant}
+		>
 			{/* Input area */}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
@@ -1481,7 +1505,7 @@ function ChatInputBarImpl({
 
 			{/* Composer settings */}
 			<AgentComposerSettings>
-				<AgentComposerSettingsGroup>
+				<AgentComposerSettingsGroup className="group-data-[compact]/composer:flex-none">
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1543,7 +1567,7 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0">
+					<div className="min-w-0 group-data-[compact]/composer:shrink-0">
 						<ModelSelector
 							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
@@ -1571,7 +1595,7 @@ function ChatInputBarImpl({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden group-data-[compact]/composer:size-7 group-data-[compact]/composer:shrink-0 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
 								cloudSettingsLocked
@@ -1582,7 +1606,7 @@ function ChatInputBarImpl({
 							}
 						>
 							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
+							<span className="group-data-[compact]/composer:sr-only">
 								<SelectValue>{effortLabel}</SelectValue>
 							</span>
 						</SelectTrigger>
@@ -1598,7 +1622,7 @@ function ChatInputBarImpl({
 
 				{/* Reserve room for the model and thinking controls so a long
 				    branch name can't squeeze the model name out entirely. */}
-				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] max-[560px]:max-w-none">
+				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] group-data-[compact]/composer:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -2243,12 +2267,12 @@ const ModelSelector = memo(function ModelSelector({
 		);
 	}
 	return (
-		<div className="relative min-w-0 text-sm">
+		<div className="relative min-w-0 text-sm group-data-[compact]/composer:shrink-0">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 group-data-[compact]/composer:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
@@ -2261,11 +2285,11 @@ const ModelSelector = memo(function ModelSelector({
 				<>
 					<button
 						aria-label="Close model selector"
-						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
+						className="fixed inset-0 z-40 hidden cursor-default opacity-0 group-data-[compact]/composer:block"
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none group-data-[compact]/composer:block">
 						<div className="space-y-1">
 							<div className="text-xs font-medium text-muted-foreground">
 								Provider
@@ -2287,7 +2311,7 @@ const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
+			<div className="flex min-w-0 items-center gap-0.5 group-data-[compact]/composer:hidden">
 				{/* Wide enough for the longest built-in provider names ("Cline
 				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
 				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>
