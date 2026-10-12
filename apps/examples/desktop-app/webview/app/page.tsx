@@ -145,6 +145,7 @@ import {
 	type RemoteWorkspaceEnvironment,
 	remoteWorkspaceEnvironmentFromContext,
 } from "@/lib/workspace-environment";
+import { readWorkspacePanelWidth } from "@/lib/workspace-panel";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -201,12 +202,23 @@ const DiffView = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+const loadProjectFilesPanel = () =>
+	import("@/components/views/chat/project-files-panel");
+
 const ProjectFilesPanel = dynamic(
-	() =>
-		import("@/components/views/chat/project-files-panel").then(
-			(module) => module.ProjectFilesPanel,
+	() => loadProjectFilesPanel().then((module) => module.ProjectFilesPanel),
+	{
+		// Holds the panel's grid cell at its final width while the chunk loads;
+		// an empty cell would let the composer flow into it for a few frames.
+		loading: () => (
+			<aside
+				aria-hidden
+				className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
+				style={{ width: readWorkspacePanelWidth() }}
+			/>
 		),
-	{ ssr: false },
+		ssr: false,
+	},
 );
 
 function makeThreadId(): string {
@@ -2521,6 +2533,14 @@ function ChatThreadPane({
 		],
 	);
 
+	// Fetch the panel's code as soon as a session could show it, so the first
+	// toggle opens it without waiting on the chunk.
+	const mayBrowseFiles =
+		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	useEffect(() => {
+		if (mayBrowseFiles) void loadProjectFilesPanel();
+	}, [mayBrowseFiles]);
+
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
 
@@ -2590,8 +2610,7 @@ function ChatThreadPane({
 			: undefined;
 	// Cloud runs have no reachable workspace, and the welcome state has no
 	// session to browse alongside yet.
-	const canBrowseFiles =
-		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	const canBrowseFiles = mayBrowseFiles;
 	const filesPanelVisible = canBrowseFiles && showFilesPanel;
 
 	return (

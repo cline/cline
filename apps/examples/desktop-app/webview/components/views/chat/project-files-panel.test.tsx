@@ -65,6 +65,12 @@ const { invokeMock, sourceControlState } = vi.hoisted(() => {
 					};
 				case "run_source_control_action":
 					return { environmentId: "local" };
+				case "get_commit_details":
+					return {
+						files: [
+							{ path: "src/app.ts", status: "M", additions: 4, deletions: 2 },
+						],
+					};
 				default:
 					return null;
 			}
@@ -77,27 +83,14 @@ vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: invokeMock },
 }));
 
-// The real renderers need shadow DOM + constructable stylesheets; stand-ins
-// let the test assert which mode is showing.
-vi.mock("@pierre/diffs/react", () => ({
-	File: ({ file }: { file: { name: string; contents: string } }) => (
-		<pre data-testid="file-contents">{file.contents}</pre>
-	),
-}));
-vi.mock("@cline/ui/components/agent-chat/tool-diff", () => ({
-	ToolFileDiff: ({
-		path,
-		oldText,
-		newText,
-	}: {
-		path: string;
-		oldText?: string;
-		newText: string;
-	}) => (
-		<div data-testid="file-diff">
-			{path}|{oldText ?? ""}|{newText}
-		</div>
-	),
+// Plain rendering keeps shiki out of jsdom; highlighted-code.test.tsx covers
+// the highlighter wiring.
+vi.mock("@cline/ui/components/markdown", () => ({
+	markdownCodeHighlighter: {
+		supportsLanguage: () => false,
+		getThemes: () => ["github-light", "github-dark"],
+		highlight: () => null,
+	},
 }));
 
 const fileDiffs: SessionFileDiff[] = [
@@ -189,8 +182,16 @@ function actionCalls() {
 }
 
 describe("ProjectFilesPanel source control view", () => {
-	it("opens on Source Control with staged, unstaged, untracked, and commits", async () => {
+	it("opens on Git with staged, unstaged, untracked, and commits", async () => {
 		await render();
+		const views = Array.from(
+			container.querySelectorAll('[role="tab"]'),
+			(tab) => [tab.textContent, tab.getAttribute("aria-selected")],
+		);
+		expect(views).toEqual([
+			["Git", "true"],
+			["Files", "false"],
+		]);
 		const column = container.querySelector("#source-control-column");
 		expect(column).not.toBeNull();
 		const text = column?.textContent ?? "";
@@ -224,7 +225,7 @@ describe("ProjectFilesPanel source control view", () => {
 		);
 		expect(
 			container.querySelector('[data-testid="file-diff"]')?.textContent,
-		).toBe("/repo/src/app.ts|old src/app.ts|new src/app.ts");
+		).toMatch(/old src\/app\.ts.*new src\/app\.ts/);
 		expect(container.textContent).toContain("staged");
 
 		await click(button(/^README\.md/));
@@ -271,6 +272,49 @@ describe("ProjectFilesPanel source control view", () => {
 			push: false,
 		});
 		expect((byLabel("Commit message") as HTMLTextAreaElement).value).toBe("");
+	});
+
+	it("expands a commit and opens one of its files as a commit diff", async () => {
+		await render();
+		await click(button(/Latest work/));
+		expect(invokeMock).toHaveBeenCalledWith(
+			"get_commit_details",
+			expect.objectContaining({ commit: "a" }),
+		);
+		const commitFile = Array.from(
+			container.querySelectorAll("#source-control-column button"),
+		).find(
+			(el) =>
+				el.getAttribute("title") === "src/app.ts" &&
+				/\+4/.test(el.textContent ?? ""),
+		);
+		expect(commitFile).toBeDefined();
+		await click(commitFile as Element);
+		expect(invokeMock).toHaveBeenCalledWith(
+			"get_git_file_diff",
+			expect.objectContaining({ path: "src/app.ts", commit: "a" }),
+		);
+		// A commit diff has no File/Diff toggle or index actions, and its tab
+		// is separate from the working-copy tab for the same file.
+		expect(container.querySelector('[aria-label="Stage file"]')).toBeNull();
+		expect(container.querySelector('[aria-label="Unstage file"]')).toBeNull();
+		expect(
+			Array.from(container.querySelectorAll("button")).some((el) =>
+				/^file$/i.test(el.textContent ?? ""),
+			),
+		).toBe(false);
+		await click(button(/^app\.ts/));
+		expect(
+			container.querySelectorAll('[aria-label="Close app.ts"]'),
+		).toHaveLength(2);
+		// Collapsing and re-expanding reuses the loaded file list.
+		await click(button(/Latest work/));
+		await click(button(/Latest work/));
+		expect(
+			invokeMock.mock.calls.filter(
+				([command]) => command === "get_commit_details",
+			),
+		).toHaveLength(1);
 	});
 
 	it("keeps the commit message when the commit fails", async () => {
@@ -363,7 +407,7 @@ describe("ProjectFilesPanel source control view", () => {
 		expect(diffReads).toHaveLength(2);
 		expect(
 			container.querySelector('[data-testid="file-diff"]')?.textContent,
-		).toContain("README.md");
+		).toContain("new README.md");
 	});
 
 	it("confirms before discarding and splits untracked paths", async () => {
@@ -431,7 +475,7 @@ describe("ProjectFilesPanel files view", () => {
 		await click(button(/^diff$/i));
 		expect(
 			container.querySelector('[data-testid="file-diff"]')?.textContent,
-		).toContain("/repo/README.md");
+		).toContain("new README.md");
 
 		await click(button(/^src/));
 		await click(button(/^app\.ts/));

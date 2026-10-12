@@ -15,6 +15,15 @@ export type SourceControlFile = {
 	deletions: number | null;
 };
 
+/** A file as changed by a past commit. */
+export type CommitFile = {
+	path: string;
+	originalPath?: string;
+	status: SourceControlStatus;
+	additions: number | null;
+	deletions: number | null;
+};
+
 export type SourceControlCommit = {
 	sha: string;
 	shortSha: string;

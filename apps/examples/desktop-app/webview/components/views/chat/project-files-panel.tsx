@@ -1,16 +1,11 @@
 "use client";
 
-import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import { File as PierreFile } from "@pierre/diffs/react";
 import {
 	Check,
 	ChevronDown,
 	ChevronRight,
 	Copy,
 	ExternalLink,
-	File,
-	Folder,
-	FolderOpen,
 	Loader2,
 	Minus,
 	Plus,
@@ -18,14 +13,7 @@ import {
 	Undo2,
 	X,
 } from "lucide-react";
-import {
-	type CSSProperties,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -38,7 +26,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
+	type CommitFile,
 	type SourceControlAction,
+	type SourceControlCommit,
 	type SourceControlFile,
 	unstagePaths,
 	useSourceControl,
@@ -47,7 +37,14 @@ import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import type { SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
+import {
+	clampWorkspacePanelWidth,
+	readWorkspacePanelWidth,
+	writeWorkspacePanelWidth,
+} from "@/lib/workspace-panel";
 import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
+import { FileIcon, FolderIcon } from "./file-icons";
+import { CodeDiff, CodeFile } from "./highlighted-code";
 import {
 	BranchIndicator,
 	type DiffScope,
@@ -92,18 +89,28 @@ function markStale<T extends { stale?: boolean }>(
 ): Map<string, T> {
 	if (cache.size === 0) return cache;
 	const next = new Map<string, T>();
-	for (const [key, entry] of cache) next.set(key, { ...entry, stale: true });
+	for (const [key, entry] of cache) {
+		// A commit's contents never change, so its diff never goes stale.
+		next.set(
+			key,
+			key.startsWith("commit:") ? entry : { ...entry, stale: true },
+		);
+	}
 	return next;
 }
 
 type PanelView = "source-control" | "files";
 
 type Tab = {
+	/** The path for working-copy tabs; commit tabs add the commit. */
+	id: string;
 	/** Absolute path. */
 	path: string;
 	mode: "file" | "diff";
 	/** Which side of the index a diff opened from source control compares. */
 	scope: DiffScope | null;
+	/** Set for a file as changed by a past commit. */
+	commit?: { sha: string; shortSha: string; file: CommitFile };
 };
 
 type ProjectFilesPanelProps = {
@@ -116,19 +123,11 @@ type ProjectFilesPanelProps = {
 	onClose: () => void;
 };
 
-const DEFAULT_PANEL_WIDTH = 680;
-const MIN_PANEL_WIDTH = 440;
 const COLUMN_WIDTH = 280;
 const VIEWS: Array<{ id: PanelView; label: string }> = [
-	{ id: "source-control", label: "Source Control" },
+	{ id: "source-control", label: "Git" },
 	{ id: "files", label: "Files" },
 ];
-
-// Leave the conversation column at least as wide as the composer needs.
-function clampPanelWidth(width: number): number {
-	const maxWidth = Math.max(MIN_PANEL_WIDTH, window.innerWidth - 760);
-	return Math.min(maxWidth, Math.max(MIN_PANEL_WIDTH, width));
-}
 
 function relativeTo(root: string, path: string): string {
 	const base = root.replace(/[\\/]+$/, "");
@@ -146,53 +145,6 @@ function joinPath(root: string, relative: string): string {
 	return `${root.replace(/[\\/]+$/, "")}${separator}${relative.replace(/^[\\/]/, "")}`;
 }
 
-// Same recovery as @cline/ui's ToolFileDiff: under StrictMode a freshly
-// mounted @pierre/diffs component can adopt a half-rendered shadow tree and
-// stay blank; a rendered file always carries `style[data-theme-css]`, so
-// remount until it does.
-const RENDER_CHECK_DELAY_MS = 400;
-const MAX_RENDER_ATTEMPTS = 3;
-
-function FileContents({ path, contents }: { path: string; contents: string }) {
-	const hostRef = useRef<HTMLDivElement | null>(null);
-	const [renderAttempt, setRenderAttempt] = useState(0);
-	useEffect(() => {
-		if (renderAttempt >= MAX_RENDER_ATTEMPTS) return;
-		const timer = window.setTimeout(() => {
-			const container = hostRef.current?.firstElementChild;
-			if (
-				container &&
-				!container.shadowRoot?.querySelector("style[data-theme-css]")
-			) {
-				setRenderAttempt((attempt) => attempt + 1);
-			}
-		}, RENDER_CHECK_DELAY_MS);
-		return () => window.clearTimeout(timer);
-	}, [renderAttempt]);
-	return (
-		<div ref={hostRef} style={{ display: "contents" }}>
-			<PierreFile
-				file={{ name: path, contents }}
-				key={renderAttempt}
-				options={{
-					disableFileHeader: true,
-					themeType: "system",
-					overflow: "scroll",
-				}}
-				style={
-					{
-						"--diffs-font-size": "var(--text-xs, 0.8rem)",
-						"--diffs-line-height": "calc(var(--text-xs, 0.8rem) * 1.5)",
-						"--diffs-light-bg": "var(--background)",
-						"--diffs-dark-bg": "var(--background)",
-						colorScheme: "inherit",
-					} as CSSProperties
-				}
-			/>
-		</div>
-	);
-}
-
 export function ProjectFilesPanel({
 	environmentId,
 	workspaceRoot,
@@ -201,9 +153,7 @@ export function ProjectFilesPanel({
 	onClose,
 }: ProjectFilesPanelProps) {
 	const [view, setView] = useState<PanelView>("source-control");
-	const [width, setWidth] = useState(() =>
-		clampPanelWidth(DEFAULT_PANEL_WIDTH),
-	);
+	const [width, setWidth] = useState(readWorkspacePanelWidth);
 	const [directories, setDirectories] = useState<Map<string, DirectoryState>>(
 		() => new Map(),
 	);
@@ -211,7 +161,7 @@ export function ProjectFilesPanel({
 		() => new Set([workspaceRoot]),
 	);
 	const [tabs, setTabs] = useState<Tab[]>([]);
-	const [activePath, setActivePath] = useState<string | null>(null);
+	const [activeId, setActiveId] = useState<string | null>(null);
 	const [files, setFiles] = useState<Map<string, FileState>>(() => new Map());
 	const [gitDiffs, setGitDiffs] = useState<Map<string, GitDiffState>>(
 		() => new Map(),
@@ -347,8 +297,6 @@ export function ProjectFilesPanel({
 		[environmentId, workspaceRoot],
 	);
 
-	// The new repository snapshot marks cached contents stale, so files
-	// edited outside the app re-read without blanking the viewer first.
 	// Reloads what is open and forgets the rest, so a folder expanded later
 	// lists what is on disk now; open rows keep their entries while loading.
 	// Read through a ref: callers may fire after an await (pull, discard),
@@ -367,13 +315,16 @@ export function ProjectFilesPanel({
 		});
 		for (const path of open) void loadDirectory(path);
 	}, [loadDirectory]);
+	// The new repository snapshot marks cached contents stale, so files
+	// edited outside the app re-read without blanking the viewer first.
 	const refresh = useCallback(() => {
 		reloadDirectories();
 		void sourceControl.refresh();
 	}, [reloadDirectories, sourceControl.refresh]);
 
 	useEffect(() => {
-		const handleResize = () => setWidth((current) => clampPanelWidth(current));
+		const handleResize = () =>
+			setWidth((current) => clampWorkspacePanelWidth(current));
 		window.addEventListener("resize", handleResize);
 		return () => window.removeEventListener("resize", handleResize);
 	}, []);
@@ -419,32 +370,60 @@ export function ProjectFilesPanel({
 
 	const openTab = useCallback((tab: Tab) => {
 		setTabs((current) => {
-			const index = current.findIndex((item) => item.path === tab.path);
+			const index = current.findIndex((item) => item.id === tab.id);
 			if (index === -1) return [...current, tab];
 			const next = [...current];
 			next[index] = tab;
 			return next;
 		});
-		setActivePath(tab.path);
+		setActiveId(tab.id);
 	}, []);
 	const openFile = useCallback(
-		(path: string) => openTab({ path, mode: "file", scope: null }),
+		(path: string) => openTab({ id: path, path, mode: "file", scope: null }),
 		[openTab],
 	);
 	const openChange = useCallback(
-		(file: SourceControlFile, scope: DiffScope) =>
-			openTab({ path: toAbsolute(file.path), mode: "diff", scope }),
+		(file: SourceControlFile, scope: DiffScope) => {
+			const path = toAbsolute(file.path);
+			openTab({ id: path, path, mode: "diff", scope });
+		},
 		[openTab, toAbsolute],
 	);
-	const setTabMode = useCallback((path: string, mode: Tab["mode"]) => {
+	const openCommitFile = useCallback(
+		(commit: SourceControlCommit, file: CommitFile) => {
+			const path = toAbsolute(file.path);
+			openTab({
+				id: `commit:${commit.sha}:${file.path}`,
+				path,
+				mode: "diff",
+				scope: null,
+				commit: { sha: commit.sha, shortSha: commit.shortSha, file },
+			});
+		},
+		[openTab, toAbsolute],
+	);
+	const loadCommit = useCallback(
+		async (sha: string): Promise<CommitFile[]> => {
+			const result = await desktopClient.invoke<{ files: CommitFile[] }>(
+				"get_commit_details",
+				{ environmentId, cwd: workspaceRoot, commit: sha },
+			);
+			return result.files;
+		},
+		[environmentId, workspaceRoot],
+	);
+	const setTabMode = useCallback((id: string, mode: Tab["mode"]) => {
 		setTabs((current) =>
-			current.map((tab) => (tab.path === path ? { ...tab, mode } : tab)),
+			current.map((tab) => (tab.id === id ? { ...tab, mode } : tab)),
 		);
 	}, []);
 
-	const closeFile = useCallback(
-		(path: string) => {
-			const diffKeys = [`diff:${path}:staged`, `diff:${path}:worktree`];
+	const closeTab = useCallback(
+		(id: string) => {
+			const path = tabs.find((tab) => tab.id === id)?.path ?? id;
+			const diffKeys = id.startsWith("commit:")
+				? [id]
+				: [`diff:${path}:staged`, `diff:${path}:worktree`];
 			invalidateReads([path, ...diffKeys]);
 			setFiles((current) => {
 				if (!current.has(path)) return current;
@@ -459,22 +438,34 @@ export function ProjectFilesPanel({
 				return next;
 			});
 			setTabs((current) => {
-				const index = current.findIndex((tab) => tab.path === path);
-				const next = current.filter((tab) => tab.path !== path);
-				if (activePath === path) {
-					setActivePath(next[Math.min(index, next.length - 1)]?.path ?? null);
+				const index = current.findIndex((tab) => tab.id === id);
+				const next = current.filter((tab) => tab.id !== id);
+				if (activeId === id) {
+					setActiveId(next[Math.min(index, next.length - 1)]?.id ?? null);
 				}
 				return next;
 			});
 		},
-		[activePath, invalidateReads],
+		[activeId, invalidateReads, tabs],
 	);
 
-	const activeTab = tabs.find((tab) => tab.path === activePath) ?? null;
-	const activeChange = activePath ? changesByPath.get(activePath) : undefined;
-	const activeSessionDiff = activePath
-		? diffsByPath.get(activePath)
-		: undefined;
+	const tabStripRef = useRef<HTMLDivElement | null>(null);
+	// A tab opened past the strip's edge would otherwise stay out of sight.
+	useEffect(() => {
+		if (!activeId) return;
+		const element = Array.from(
+			tabStripRef.current?.querySelectorAll<HTMLElement>("[data-tab-id]") ?? [],
+		).find((item) => item.dataset.tabId === activeId);
+		element?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+	}, [activeId]);
+
+	const activeTab = tabs.find((tab) => tab.id === activeId) ?? null;
+	const activePath = activeTab?.path ?? null;
+	const activeCommit = activeTab?.commit;
+	const activeChange =
+		activePath && !activeCommit ? changesByPath.get(activePath) : undefined;
+	const activeSessionDiff =
+		activePath && !activeCommit ? diffsByPath.get(activePath) : undefined;
 	// Prefer the side the tab was opened from; otherwise whichever git has.
 	const activeScope: DiffScope | null = activeChange
 		? activeTab?.scope && activeChange[activeTab.scope]
@@ -483,11 +474,14 @@ export function ProjectFilesPanel({
 				? "worktree"
 				: "staged"
 		: null;
-	const canDiff = Boolean(activeScope || activeSessionDiff);
+	const canDiff = Boolean(activeCommit || activeScope || activeSessionDiff);
 	const effectiveMode: Tab["mode"] =
-		activeTab?.mode === "diff" && canDiff ? "diff" : "file";
-	const gitDiffKey =
-		activePath && activeScope ? `diff:${activePath}:${activeScope}` : null;
+		activeCommit || (activeTab?.mode === "diff" && canDiff) ? "diff" : "file";
+	const gitDiffKey = activeCommit
+		? (activeTab?.id ?? null)
+		: activePath && activeScope
+			? `diff:${activePath}:${activeScope}`
+			: null;
 
 	useEffect(() => {
 		if (!activePath || effectiveMode !== "file") return;
@@ -537,7 +531,7 @@ export function ProjectFilesPanel({
 		if (
 			!gitDiffKey ||
 			!activePath ||
-			!activeScope ||
+			(!activeScope && !activeCommit) ||
 			effectiveMode !== "diff"
 		) {
 			return;
@@ -564,10 +558,12 @@ export function ProjectFilesPanel({
 			}>("get_git_file_diff", {
 				environmentId,
 				cwd: workspaceRoot,
-				path: toRelative(activePath),
+				path: activeCommit ? activeCommit.file.path : toRelative(activePath),
 				staged: activeScope === "staged",
-				originalPath:
-					activeScope === "staged"
+				commit: activeCommit?.sha,
+				originalPath: activeCommit
+					? activeCommit.file.originalPath
+					: activeScope === "staged"
 						? changesByPath.get(activePath)?.staged?.originalPath
 						: undefined,
 			})
@@ -591,6 +587,7 @@ export function ProjectFilesPanel({
 				);
 			});
 	}, [
+		activeCommit,
 		activePath,
 		activeScope,
 		changesByPath,
@@ -643,9 +640,9 @@ export function ProjectFilesPanel({
 		});
 		// Discarded untracked files no longer exist, so their tabs go too.
 		if (ok) {
-			for (const file of untracked) closeFile(toAbsolute(file.path));
+			for (const file of untracked) closeTab(toAbsolute(file.path));
 		}
-	}, [closeFile, pendingDiscard, runAction, toAbsolute]);
+	}, [closeTab, pendingDiscard, runAction, toAbsolute]);
 
 	const handleCopyPath = useCallback(async () => {
 		if (!activePath) return;
@@ -691,9 +688,12 @@ export function ProjectFilesPanel({
 	const handleResizeMove = (event: React.PointerEvent<HTMLDivElement>) => {
 		const drag = dragStateRef.current;
 		if (!drag) return;
-		setWidth(clampPanelWidth(drag.startWidth + (drag.startX - event.clientX)));
+		setWidth(
+			clampWorkspacePanelWidth(drag.startWidth + (drag.startX - event.clientX)),
+		);
 	};
 	const handleResizeEnd = () => {
+		if (dragStateRef.current) writeWorkspacePanelWidth(width);
 		dragStateRef.current = null;
 	};
 
@@ -750,13 +750,9 @@ export function ProjectFilesPanel({
 									<span className="w-3 shrink-0" />
 								)}
 								{isDirectory ? (
-									isExpanded ? (
-										<FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
-									) : (
-										<Folder className="size-3.5 shrink-0 text-muted-foreground" />
-									)
+									<FolderIcon open={isExpanded} path={entry.path} />
 								) : (
-									<File className="size-3.5 shrink-0 text-muted-foreground" />
+									<FileIcon path={entry.path} />
 								)}
 								<span
 									className={cn(
@@ -805,10 +801,11 @@ export function ProjectFilesPanel({
 	const activeGitDiff = gitDiffKey ? gitDiffs.get(gitDiffKey) : undefined;
 	const activeChangeFile =
 		activeScope && activeChange ? activeChange[activeScope] : undefined;
-	const activeStat = activeChangeFile
+	const activeStatSource = activeCommit?.file ?? activeChangeFile;
+	const activeStat = activeStatSource
 		? {
-				additions: activeChangeFile.additions ?? 0,
-				deletions: activeChangeFile.deletions ?? 0,
+				additions: activeStatSource.additions ?? 0,
+				deletions: activeStatSource.deletions ?? 0,
 			}
 		: activeSessionDiff
 			? {
@@ -834,10 +831,10 @@ export function ProjectFilesPanel({
 				className="flex shrink-0 flex-col border-r border-border bg-sidebar/40"
 				style={{ width: COLUMN_WIDTH }}
 			>
-				<div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border/70 px-2">
+				<div className="flex shrink-0 flex-col gap-1 border-b border-border/70 px-2 pb-1.5 pt-2">
 					<div
 						aria-label="Panel view"
-						className="flex h-7 items-center rounded-md bg-secondary p-0.5 text-[11px]"
+						className="grid h-7 grid-cols-2 items-center rounded-md bg-secondary p-0.5 text-[11px]"
 						role="tablist"
 					>
 						{VIEWS.map((item) => (
@@ -858,8 +855,10 @@ export function ProjectFilesPanel({
 							</button>
 						))}
 					</div>
-					<span className="ml-auto flex min-w-0 items-center gap-1">
-						<BranchIndicator state={sourceControl.state} />
+					<div className="flex h-6 min-w-0 items-center gap-1 pl-1">
+						<span className="min-w-0 flex-1">
+							<BranchIndicator state={sourceControl.state} />
+						</span>
 						<Button
 							aria-label="Refresh"
 							className="size-6 shrink-0 text-muted-foreground"
@@ -875,7 +874,7 @@ export function ProjectFilesPanel({
 								)}
 							/>
 						</Button>
-					</span>
+					</div>
 				</div>
 				{view === "source-control" ? (
 					<SourceControlColumn
@@ -883,11 +882,18 @@ export function ProjectFilesPanel({
 						error={sourceControl.error}
 						loading={sourceControl.loading}
 						onAction={runAction}
+						onLoadCommit={loadCommit}
 						onOpen={openChange}
+						onOpenCommitFile={openCommitFile}
 						onRequestDiscard={setPendingDiscard}
 						selected={
 							activePath && activeScope
 								? { path: toRelative(activePath), scope: activeScope }
+								: null
+						}
+						selectedCommitFile={
+							activeCommit
+								? { sha: activeCommit.sha, path: activeCommit.file.path }
 								: null
 						}
 						sessionPaths={sessionRelativePaths}
@@ -907,38 +913,57 @@ export function ProjectFilesPanel({
 			</div>
 			<div className="flex min-w-0 flex-1 flex-col">
 				<div className="flex h-9 shrink-0 items-stretch border-b border-border bg-card">
-					<div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
+					<div
+						className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						ref={tabStripRef}
+					>
 						{tabs.map((tab) => {
-							const isActive = tab.path === activePath;
+							const isActive = tab.id === activeId;
 							const dirty =
-								changesByPath.has(tab.path) || diffsByPath.has(tab.path);
+								!tab.commit &&
+								(changesByPath.has(tab.path) || diffsByPath.has(tab.path));
 							return (
 								<div
 									className={cn(
-										"group flex shrink-0 items-center gap-1.5 border-r border-border pl-3 pr-1.5 text-xs text-muted-foreground",
+										"group relative flex shrink-0 items-center gap-1.5 border-r border-border pl-3 pr-1.5 text-xs text-muted-foreground hover:text-foreground",
 										isActive &&
 											"bg-background text-foreground shadow-[inset_0_1px_0_var(--primary)]",
 									)}
-									key={tab.path}
+									data-tab-id={tab.id}
+									key={tab.id}
 								>
+									{/* The pseudo-element stretches the hit area over the whole
+									    tab; the close button sits above it. */}
 									<button
-										className="flex items-center gap-1.5"
-										onClick={() => setActivePath(tab.path)}
-										title={tab.path}
+										className="flex items-center gap-1.5 after:absolute after:inset-0 after:content-['']"
+										onClick={() => setActiveId(tab.id)}
+										title={
+											tab.commit
+												? `${tab.path} at ${tab.commit.shortSha}`
+												: tab.path
+										}
 										type="button"
 									>
-										<File className="size-3 shrink-0" />
+										<FileIcon className="size-3" path={tab.path} />
 										<span className="max-w-40 truncate">
 											{baseName(tab.path)}
 										</span>
+										{tab.commit ? (
+											<span className="font-mono text-[10px] text-muted-foreground">
+												{tab.commit.shortSha.slice(0, 7)}
+											</span>
+										) : null}
 										{dirty ? (
 											<span className="size-1.5 shrink-0 rounded-full bg-primary" />
 										) : null}
 									</button>
 									<button
 										aria-label={`Close ${baseName(tab.path)}`}
-										className="rounded p-0.5 opacity-0 hover:bg-surface-hover group-hover:opacity-100 focus-visible:opacity-100"
-										onClick={() => closeFile(tab.path)}
+										className={cn(
+											"relative z-10 rounded p-0.5 opacity-0 hover:bg-surface-hover group-hover:opacity-100 focus-visible:opacity-100",
+											isActive && "opacity-100",
+										)}
+										onClick={() => closeTab(tab.id)}
 										type="button"
 									>
 										<X className="size-3" />
@@ -975,6 +1000,11 @@ export function ProjectFilesPanel({
 							{activeScope === "staged" ? (
 								<span className="shrink-0 rounded bg-secondary px-1.5 py-px text-[10px]">
 									staged
+								</span>
+							) : null}
+							{activeCommit ? (
+								<span className="shrink-0 rounded bg-secondary px-1.5 py-px font-mono text-[10px]">
+									{activeCommit.shortSha.slice(0, 7)}
 								</span>
 							) : null}
 							<span className="ml-auto flex shrink-0 items-center gap-1">
@@ -1031,7 +1061,7 @@ export function ProjectFilesPanel({
 										<Minus className="size-3" /> Unstage
 									</Button>
 								) : null}
-								{canDiff ? (
+								{canDiff && !activeCommit ? (
 									<div className="flex h-6 items-center rounded-md bg-secondary p-0.5">
 										{(["file", "diff"] as const).map((item) => (
 											<button
@@ -1043,7 +1073,7 @@ export function ProjectFilesPanel({
 														: "text-muted-foreground",
 												)}
 												key={item}
-												onClick={() => setTabMode(activePath, item)}
+												onClick={() => setTabMode(activeTab.id, item)}
 												type="button"
 											>
 												{item}
@@ -1079,7 +1109,7 @@ export function ProjectFilesPanel({
 							</span>
 						</div>
 						<div className="cline-chat-selectable min-h-0 flex-1 overflow-auto">
-							{effectiveMode === "diff" && activeScope ? (
+							{effectiveMode === "diff" && (activeScope || activeCommit) ? (
 								!activeGitDiff ||
 								(activeGitDiff.loading &&
 									activeGitDiff.newText === undefined) ? (
@@ -1094,27 +1124,23 @@ export function ProjectFilesPanel({
 										review the change.
 									</Centered>
 								) : (
-									<div className="p-3">
-										<ToolFileDiff
-											background="var(--background)"
-											key={`${gitDiffKey}:${activeGitDiff.oldText?.length ?? -1}:${activeGitDiff.newText?.length ?? -1}`}
-											newText={activeGitDiff.newText ?? ""}
-											oldText={activeGitDiff.oldText}
-											path={activePath}
-										/>
-									</div>
+									<CodeDiff
+										newText={activeGitDiff.newText ?? ""}
+										oldText={activeGitDiff.oldText}
+										path={activePath}
+									/>
 								)
 							) : effectiveMode === "diff" && activeSessionDiff ? (
-								<div className="flex flex-col gap-3 p-3">
+								<div className="flex flex-col gap-2">
 									{activeSessionDiff.hunks.map((hunk, index) => {
 										const isCompleteNewContents =
 											hunk.old.length === 0 &&
 											hunk.oldStart === 1 &&
 											hunk.newStart === 1;
 										return (
-											<ToolFileDiff
-												background="var(--background)"
+											<CodeDiff
 												fragment={!isCompleteNewContents}
+												// biome-ignore lint/suspicious/noArrayIndexKey: hunks never reorder within a file
 												key={`${activePath}-${index}-${hunk.oldStart}-${hunk.newStart}`}
 												newText={hunk.new}
 												oldText={isCompleteNewContents ? undefined : hunk.old}
@@ -1133,9 +1159,8 @@ export function ProjectFilesPanel({
 								<Centered>Binary file</Centered>
 							) : (
 								<>
-									<FileContents
+									<CodeFile
 										contents={activeFileState.content ?? ""}
-										key={activePath}
 										path={activePath}
 									/>
 									{activeFileState.truncated ? (
