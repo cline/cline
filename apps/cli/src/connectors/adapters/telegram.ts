@@ -998,6 +998,13 @@ class TelegramConnector extends ConnectorBase<
 					const previous = messageKey
 						? notifyMessages.get(messageKey)
 						: undefined;
+					// A card dragged across the board has something to update and nothing to
+					// announce: someone watching it already has it on screen, and someone who
+					// never asked about that card should not be handed a message because a
+					// board was tidied.
+					if (options.updateOnly && !previous) {
+						return;
+					}
 					// One message per card, edited for its whole life: the dot carries the
 					// column, the line below carries what it is doing. Five unrelated messages
 					// in a row was the thing nobody could read.

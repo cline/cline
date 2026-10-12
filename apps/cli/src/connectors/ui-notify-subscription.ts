@@ -63,6 +63,8 @@ export interface NotifyDeliveryOptions {
 	awaitingAnswer: boolean;
 	/** Column the card sits in, for an adapter that keeps one message per card current. */
 	column?: string;
+	/** Update what is already shown, or do nothing. Never start a new conversation. */
+	updateOnly?: boolean;
 	/** The headline on its own, for an adapter that lays the message out itself. */
 	title?: string;
 	/** The body on its own, for the same reason. */
@@ -84,6 +86,7 @@ function readNotification(payload: unknown):
 			supersedesPrevious: boolean;
 			awaitingAnswer: boolean;
 			column?: string;
+			updateOnly: boolean;
 	  }
 	| undefined {
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -108,6 +111,7 @@ function readNotification(payload: unknown):
 		supersedesPrevious: record.supersedesPrevious === true,
 		awaitingAnswer: record.awaitingAnswer === true,
 		column: typeof record.column === "string" ? record.column : undefined,
+		updateOnly: record.updateOnly === true,
 	};
 }
 
@@ -155,6 +159,7 @@ export async function startUiNotifyDelivery<
 								supersedesPrevious: notification.supersedesPrevious,
 								awaitingAnswer: notification.awaitingAnswer,
 								column: notification.column,
+								updateOnly: notification.updateOnly,
 								title: notification.title,
 								body: notification.body,
 							})

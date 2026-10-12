@@ -281,3 +281,56 @@ describe("whether the thing is waiting on the person", () => {
 		await subscription.stop();
 	});
 });
+
+describe("a notification that may only update", () => {
+	// A card dragged across the board has something to update and nothing to announce. Without
+	// this the adapter cannot tell the two apart, and tidying a board would put a message in
+	// the conversation for every card touched.
+	it("passes the update-only intent through", async () => {
+		const fake = fakeClient();
+		const calls: Array<[string, string, unknown]> = [];
+		const subscription = await startUiNotifyDelivery({
+			createClient: () => fake.client,
+			readBindings: () => ({ t1: { state: { cwd: "/code/app" } } }),
+			deliver: async (threadKey, text, options) => {
+				calls.push([threadKey, text, options]);
+			},
+		});
+
+		fake.emit({
+			title: "sonda",
+			body: "kanban",
+			source: { workspacePath: "/code/app", itemId: "a3ae5" },
+			supersedesPrevious: true,
+			updateOnly: true,
+			column: "review",
+		});
+		await subscription.flush();
+
+		expect(calls[0]?.[2]).toMatchObject({ updateOnly: true, column: "review" });
+		await subscription.stop();
+	});
+
+	it("treats a notification without the field as one that may announce itself", async () => {
+		const fake = fakeClient();
+		const calls: Array<[string, string, unknown]> = [];
+		const subscription = await startUiNotifyDelivery({
+			createClient: () => fake.client,
+			readBindings: () => ({ t1: { state: { cwd: "/code/app" } } }),
+			deliver: async (threadKey, text, options) => {
+				calls.push([threadKey, text, options]);
+			},
+		});
+
+		fake.emit({
+			title: "sonda",
+			body: "kanban",
+			source: { workspacePath: "/code/app", itemId: "a3ae5" },
+			supersedesPrevious: true,
+		});
+		await subscription.flush();
+
+		expect(calls[0]?.[2]).toMatchObject({ updateOnly: false });
+		await subscription.stop();
+	});
+});
