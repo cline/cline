@@ -54,6 +54,7 @@ export enum BUILT_IN_PROVIDER {
 	XIAOMI = "xiaomi",
 	TENCENT_TOKENHUB = "tencent-tokenhub",
 	KILO = "kilo",
+	LOWROUTER = "lowrouter",
 	ZAI = "zai",
 	ZAI_CODING_PLAN = "zai-coding-plan",
 	// Regional/specialized

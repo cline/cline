@@ -151,6 +151,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "opencode", generatedProviderId: "opencode" },
 	{ modelsDevKey: "wandb", generatedProviderId: "wandb" },
 	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
+	{
+		modelsDevKey: "lowrouter",
+		generatedProviderId: "lowrouter",
+		runtimeProviderId: "lowrouter",
+	},
 	{ modelsDevKey: "xiaomi", generatedProviderId: "xiaomi" },
 	{
 		modelsDevKey: "tencent-tokenhub",

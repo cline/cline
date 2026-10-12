@@ -1052,6 +1052,16 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.kilo.ai/api/gateway" },
 	},
 	{
+		id: "lowrouter",
+		name: "LowRouter",
+		description:
+			"EU-based model router with jurisdiction and carbon-aware routing",
+		family: "openai-compatible",
+		defaultModelId: "auto/mistralai/mistral-small-2603",
+		apiKeyEnv: ["LOWROUTER_API_KEY"],
+		defaults: { baseUrl: "https://api.lowrouter.ai/v1" },
+	},
+	{
 		id: "openrouter",
 		name: "OpenRouter",
 		description: "OpenRouter AI platform",
