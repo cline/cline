@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import { loadSqliteDb, type SqliteDb } from "@cline/shared/db";
 import { nanoid } from "nanoid";
-import { opencodeDataDir } from "./paths";
+import { opencodeDataDirs } from "./paths";
 import {
 	type ConvertedImportedSession,
 	type ImportableSessionSummary,
@@ -46,19 +46,56 @@ function toClineProviderId(providerId: string): string {
 export interface OpencodeAdapterOptions {
 	/** Defaults to $XDG_DATA_HOME/opencode or ~/.local/share/opencode */
 	dataDir?: string;
+	/** Override for opencode data directories (CLI + desktop) */
+	dataDirs?: string[];
 }
 
 export class OpencodeImportAdapter implements SessionImportAdapter {
 	readonly tool = "opencode" as const;
-	private readonly dbPath: string;
+	private readonly dataDirs: string[];
+	private snapshot?: { dir: string; dbs: Map<string, SqliteDb> };
 
 	constructor(options: OpencodeAdapterOptions = {}) {
-		const dataDir = options.dataDir ?? opencodeDataDir();
-		this.dbPath = join(dataDir, "opencode.db");
+		this.dataDirs = options.dataDirs ?? opencodeDataDirs();
 	}
 
 	isInstalled(): boolean {
-		return existsSync(this.dbPath);
+		return this.dataDirs.some((dir) => existsSync(join(dir, "opencode.db")));
+	}
+
+	private dbPaths(): string[] {
+		return this.dataDirs
+			.map((dir) => join(dir, "opencode.db"))
+			.filter((p) => existsSync(p));
+	}
+
+	private snapshotDb(dbPath: string): SqliteDb {
+		if (!this.snapshot) {
+			const dir = mkdtempSync(join(tmpdir(), "cline-opencode-import-"));
+			this.snapshot = { dir, dbs: new Map() };
+		}
+		const cached = this.snapshot.dbs.get(dbPath);
+		if (cached) return cached;
+		const copied = join(this.snapshot.dir, `${Buffer.from(dbPath).toString("hex")}.db`);
+		copyFileSync(dbPath, copied);
+		for (const suffix of ["-wal", "-shm"]) {
+			const sidecar = `${dbPath}${suffix}`;
+			if (existsSync(sidecar)) copyFileSync(sidecar, `${copied}${suffix}`);
+		}
+		const db = loadSqliteDb(copied);
+		this.snapshot.dbs.set(dbPath, db);
+		return db;
+	}
+
+	dispose(): void {
+		const snapshot = this.snapshot;
+		this.snapshot = undefined;
+		if (!snapshot) return;
+		try {
+			for (const db of snapshot.dbs.values()) db.close?.();
+		} finally {
+			rmSync(snapshot.dir, { recursive: true, force: true });
+		}
 	}
 
 	/**
@@ -68,96 +105,65 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 	 * for the batch (a large db copied once per imported session was the
 	 * dominant cost) and released by dispose().
 	 */
-	private snapshot?: { dir: string; db: SqliteDb };
-
-	private openSnapshot(): SqliteDb {
-		if (this.snapshot) return this.snapshot.db;
-		const dir = mkdtempSync(join(tmpdir(), "cline-opencode-import-"));
-		try {
-			const copied = join(dir, "opencode.db");
-			copyFileSync(this.dbPath, copied);
-			for (const suffix of ["-wal", "-shm"]) {
-				const sidecarFile = `${this.dbPath}${suffix}`;
-				if (existsSync(sidecarFile)) {
-					copyFileSync(sidecarFile, `${copied}${suffix}`);
-				}
-			}
-			const db = loadSqliteDb(copied);
-			this.snapshot = { dir, db };
-			return db;
-		} catch (error) {
-			rmSync(dir, { recursive: true, force: true });
-			throw error;
-		}
-	}
-
-	dispose(): void {
-		const snapshot = this.snapshot;
-		this.snapshot = undefined;
-		if (!snapshot) return;
-		try {
-			snapshot.db.close?.();
-		} finally {
-			rmSync(snapshot.dir, { recursive: true, force: true });
-		}
-	}
-
-	private withDbCopy<T>(fn: (db: SqliteDb) => T): T {
-		return fn(this.openSnapshot());
-	}
-
-	discover(): ImportableSessionSummary[] {
+	
+		discover(): ImportableSessionSummary[] {
 		if (!this.isInstalled()) return [];
-		return this.withDbCopy((db) => {
-			const counts = new Map<string, number>();
-			for (const row of db
-				.prepare(
-					`SELECT session_id, COUNT(*) AS n FROM message GROUP BY session_id`,
-				)
-				.all()) {
-				counts.set(String(row.session_id), Number(row.n) || 0);
+		const out: ImportableSessionSummary[] = [];
+		const seenSourceIds = new Set<string>();
+		for (const dbPath of this.dbPaths()) {
+			const db = this.snapshotDb(dbPath);
+			try {
+				const counts = new Map<string, number>();
+				for (const row of db
+					.prepare(
+						`SELECT session_id, COUNT(*) AS n FROM message GROUP BY session_id`,
+					)
+					.all()) {
+					counts.set(String(row.session_id), Number(row.n) || 0);
+				}
+				const sessions = db
+					.prepare(
+						`SELECT id, title, directory, time_created, time_updated
+						 FROM session WHERE parent_id IS NULL
+						 ORDER BY time_created DESC`,
+					)
+					.all();
+				for (const row of sessions) {
+					const sourceId = String(row.id ?? "");
+					if (!sourceId || seenSourceIds.has(sourceId)) continue;
+					const messageCount = counts.get(sourceId) ?? 0;
+					if (messageCount === 0) continue;
+					seenSourceIds.add(sourceId);
+					const title =
+						typeof row.title === "string" && row.title.trim()
+							? row.title.trim()
+							: undefined;
+					const needsFallback = !title || title.startsWith("New session");
+					const preview = this.firstUserText(db, sourceId);
+					const displayPreview = truncateForDisplay(preview);
+					out.push({
+						tool: this.tool,
+						sourceId,
+						sourcePath: dbPath,
+						title:
+							(needsFallback ? truncateForDisplay(preview, 120) : undefined) ??
+							truncateForDisplay(title, 120) ??
+							"Untitled session",
+						cwd: typeof row.directory === "string" ? row.directory : "",
+						startedAtMs: asMs(row.time_created) ?? Date.now(),
+						updatedAtMs:
+							asMs(row.time_updated) ??
+							asMs(row.time_created) ??
+							Date.now(),
+						messageCount,
+						...(displayPreview ? { preview: displayPreview } : {}),
+					});
+				}
+			} finally {
 			}
-			const out: ImportableSessionSummary[] = [];
-			const sessions = db
-				.prepare(
-					`SELECT id, title, directory, time_created, time_updated
-					 FROM session WHERE parent_id IS NULL
-					 ORDER BY time_created DESC`,
-				)
-				.all();
-			for (const row of sessions) {
-				const sourceId = String(row.id ?? "");
-				const messageCount = counts.get(sourceId) ?? 0;
-				if (!sourceId || messageCount === 0) continue;
-				const title =
-					typeof row.title === "string" && row.title.trim()
-						? row.title.trim()
-						: undefined;
-				// opencode's placeholder titles ("New session - <date>") carry no
-				// signal; fall back to the first user prompt for those.
-				const needsFallback = !title || title.startsWith("New session");
-				const preview = this.firstUserText(db, sourceId);
-				const displayPreview = truncateForDisplay(preview);
-				out.push({
-					tool: this.tool,
-					sourceId,
-					sourcePath: this.dbPath,
-					title:
-						(needsFallback ? truncateForDisplay(preview, 120) : undefined) ??
-						truncateForDisplay(title, 120) ??
-						"Untitled session",
-					cwd: typeof row.directory === "string" ? row.directory : "",
-					startedAtMs: asMs(row.time_created) ?? Date.now(),
-					updatedAtMs:
-						asMs(row.time_updated) ?? asMs(row.time_created) ?? Date.now(),
-					messageCount,
-					...(displayPreview ? { preview: displayPreview } : {}),
-				});
-			}
-			return out;
-		});
+		}
+		return out;
 	}
-
 	private firstUserText(db: SqliteDb, sessionId: string): string | undefined {
 		const rows = db
 			.prepare(
@@ -188,193 +194,166 @@ export class OpencodeImportAdapter implements SessionImportAdapter {
 		return undefined;
 	}
 
-	convert(sourceId: string): ConvertedImportedSession {
-		if (!this.isInstalled()) {
-			throw new Error("opencode database not found");
-		}
-		return this.withDbCopy((db) => {
+		convert(sourceId: string): ConvertedImportedSession {
+		for (const dbPath of this.dbPaths()) {
+			const db = this.snapshotDb(dbPath);
 			const session = db
 				.prepare(
 					`SELECT id, title, directory, time_created, time_updated
 					 FROM session WHERE id = ?`,
 				)
 				.get(sourceId);
-			if (!session) {
-				throw new Error(`opencode session ${sourceId} not found`);
+			if (session) {
+				return this.convertInDb(db, dbPath, session, sourceId);
 			}
+		}
+		throw new Error(`opencode session ${sourceId} not found`);
+	}
 
-			const messageRows = db
-				.prepare(
-					`SELECT id, data FROM message WHERE session_id = ?
-					 ORDER BY time_created ASC, id ASC`,
-				)
-				.all(sourceId);
+	/** Convert a session from a specific database. */
+	private convertInDb(
+		db: SqliteDb,
+		dbPath: string,
+		session: Record<string, unknown>,
+		sourceId: string,
+	): ConvertedImportedSession {
+		const messageRows = db
+			.prepare(
+				`SELECT id, data FROM message WHERE session_id = ?
+				 ORDER BY time_created ASC, id ASC`,
+			)
+			.all(sourceId);
 
-			const messages: LlmsProviders.MessageWithMetadata[] = [];
-			let provider: string | undefined;
-			let model: string | undefined;
-			let prompt: string | undefined;
-			let endedAtMs: number | undefined;
+		const messages: LlmsProviders.MessageWithMetadata[] = [];
+		let provider: string | undefined;
+		let model: string | undefined;
+		let prompt: string | undefined;
+		let endedAtMs: number | undefined;
 
-			for (const row of messageRows) {
-				const data = parseData(row.data);
-				if (!data) continue;
-				const role = data.role === "assistant" ? "assistant" : "user";
-				const time = isRecord(data.time) ? data.time : undefined;
-				const ts = asMs(time?.created);
-				if (ts) endedAtMs = ts;
+		for (const row of messageRows) {
+			const data = parseData(row.data);
+			if (!data) continue;
+			const role = data.role === "assistant" ? "assistant" : "user";
+			const time = isRecord(data.time) ? data.time : undefined;
+			const ts = asMs(time?.created);
+			if (ts) endedAtMs = ts;
 
-				const parts = db
-					.prepare(`SELECT data FROM part WHERE message_id = ? ORDER BY id ASC`)
-					.all(String(row.id))
-					.map((part) => parseData(part.data))
-					.filter((part): part is JsonRecord => part !== undefined);
+			const parts = db
+				.prepare(`SELECT data FROM part WHERE message_id = ? ORDER BY id ASC`)
+				.all(String(row.id))
+				.map((part) => parseData(part.data))
+				.filter((part): part is JsonRecord => part !== undefined);
 
-				if (role === "user") {
-					const blocks: LlmsProviders.ContentBlock[] = [];
-					for (const part of parts) {
-						if (part.synthetic === true) continue;
-						if (part.type === "text" && typeof part.text === "string") {
-							if (!part.text.trim()) continue;
-							blocks.push({ type: "text", text: part.text });
-							prompt = prompt ?? part.text;
-						} else if (
-							part.type === "file" &&
-							typeof part.url === "string" &&
-							part.url.startsWith("data:") &&
-							typeof part.mime === "string" &&
-							part.mime.startsWith("image/")
-						) {
-							const base64 = part.url.split(",", 2)[1];
-							if (base64) {
-								blocks.push({
-									type: "image",
-									data: base64,
-									mediaType: part.mime,
-								});
-							}
-						}
-					}
-					if (blocks.length > 0) {
-						messages.push({
-							role: "user",
-							content: blocks,
-							...(ts ? { ts } : {}),
+			if (role === "user") {
+				const blocks: LlmsProviders.ContentBlock[] = [];
+				for (const part of parts) {
+					if (part.synthetic === true) continue;
+					if (part.type === "text" && typeof part.text === "string") {
+						if (!part.text.trim()) continue;
+						blocks.push({ type: "text", text: part.text });
+						prompt = prompt ?? part.text;
+					} else if (
+						part.type === "file" &&
+						typeof part.url === "string" &&
+						part.url.startsWith("data:") &&
+						typeof part.mime === "string" &&
+						part.mime.startsWith("image/")
+					) {
+						blocks.push({
+							type: "image",
+							data: part.url.slice("data:".length),
+							mediaType: part.mime,
 						});
 					}
-					continue;
 				}
-
-				// Assistant: tool parts carry both the call and its result, so a
-				// tool part splits the assistant message (tool_use closes it, the
-				// tool_result forms the next user message) to keep the
-				// user/assistant structure providers expect.
-				if (typeof data.providerID === "string" && data.providerID.trim()) {
-					provider = toClineProviderId(data.providerID.trim());
+				if (blocks.length > 0) {
+					messages.push({ role, content: blocks, ...(ts ? { ts } : {}) });
 				}
-				if (typeof data.modelID === "string" && data.modelID.trim()) {
-					model = data.modelID.trim();
-				}
-				const modelInfo =
-					provider && model ? { id: model, provider } : undefined;
-				const tokens = isRecord(data.tokens) ? data.tokens : undefined;
-				const cache = isRecord(tokens?.cache) ? tokens.cache : undefined;
-				const metrics = tokens
-					? {
-							inputTokens: Number(tokens.input) || 0,
-							outputTokens: Number(tokens.output) || 0,
-							cacheReadTokens: Number(cache?.read) || 0,
-							cacheWriteTokens: Number(cache?.write) || 0,
-							cost: Number(data.cost) || 0,
-						}
-					: undefined;
+				continue;
+			}
 
-				let blocks: LlmsProviders.ContentBlock[] = [];
-				let stampedMetrics = false;
-				const flushAssistant = (withMetrics: boolean) => {
-					if (blocks.length === 0) return;
-					messages.push({
-						role: "assistant",
-						content: blocks,
-						...(modelInfo ? { modelInfo } : {}),
-						...(withMetrics && metrics && !stampedMetrics ? { metrics } : {}),
-						...(ts ? { ts } : {}),
-					});
-					if (withMetrics && metrics && !stampedMetrics) stampedMetrics = true;
-					blocks = [];
-				};
-
-				for (const part of parts) {
-					if (part.type === "text" && typeof part.text === "string") {
-						if (part.text.trim())
-							blocks.push({ type: "text", text: part.text });
-					} else if (
-						part.type === "reasoning" &&
-						typeof part.text === "string" &&
-						part.text.trim()
-					) {
-						blocks.push({ type: "thinking", thinking: part.text });
-					} else if (part.type === "tool") {
-						const state = isRecord(part.state) ? part.state : {};
-						const name = typeof part.tool === "string" ? part.tool : "tool";
-						const callId =
-							typeof part.callID === "string"
-								? part.callID
-								: `import_${nanoid()}`;
-						blocks.push({
+			// Assistant message
+			let providerId: string | undefined;
+			let modelId: string | undefined;
+			for (const part of parts) {
+				if (part.type === "text" && typeof part.text === "string") {
+					if (!part.text.trim()) continue;
+					messages.push({ role, content: [{ type: "text", text: part.text }], ...(ts ? { ts } : {}) });
+				} else if (
+					part.type === "reasoning" &&
+					typeof part.text === "string" &&
+					part.text.trim()
+				) {
+					const lastMsg = messages[messages.length - 1];
+					if (lastMsg && lastMsg.role === "assistant" && Array.isArray(lastMsg.content)) {
+						lastMsg.content.push({ type: "thinking", thinking: part.text });
+					}
+				} else if (part.type === "tool") {
+					const state = isRecord(part.state) ? part.state : {};
+					const name = typeof part.tool === "string" ? part.tool : "tool";
+					const callId =
+						typeof part.callID === "string"
+							? part.callID
+							: `import_${nanoid()}`;
+					const blocks: LlmsProviders.ContentBlock[] = [
+						{
 							type: "tool_use",
 							id: callId,
 							name,
 							input: isRecord(state.input) ? state.input : {},
-						});
-						flushAssistant(false);
-						const output =
-							typeof state.output === "string"
-								? state.output
-								: JSON.stringify(state.output ?? "");
-						messages.push({
-							role: "user",
-							content: [
-								{
-									type: "tool_result",
-									tool_use_id: callId,
-									name,
-									content: output,
-									...(state.status === "error" ? { is_error: true } : {}),
-								},
-							],
-						});
+						},
+					];
+					if (providerId === undefined && typeof part.providerID === "string") {
+						providerId = part.providerID.trim();
 					}
-				}
-				flushAssistant(true);
-			}
+					if (modelId === undefined && typeof part.modelID === "string") {
+						modelId = part.modelID.trim();
+					}
+					if (providerId) provider = toClineProviderId(providerId);
+					if (modelId) model = modelId;
 
-			const title =
-				typeof session.title === "string" && session.title.trim()
-					? session.title.trim()
-					: undefined;
-			const needsFallback = !title || title.startsWith("New session");
-			const displayPrompt = truncateForDisplay(prompt, 2000);
-			return {
-				tool: this.tool,
-				sourceId,
-				sourcePath: this.dbPath,
-				title:
-					(needsFallback ? truncateForDisplay(prompt, 120) : undefined) ??
-					truncateForDisplay(title, 120) ??
-					"Untitled session",
-				...(displayPrompt ? { prompt: displayPrompt } : {}),
-				provider: provider ?? "opencode",
-				model: model ?? "opencode",
-				cwd: typeof session.directory === "string" ? session.directory : "",
-				startedAtMs: asMs(session.time_created) ?? Date.now(),
-				endedAtMs:
-					endedAtMs ??
-					asMs(session.time_updated) ??
-					asMs(session.time_created) ??
-					Date.now(),
-				messages,
-			};
-		});
+					const output =
+						typeof state.output === "string"
+							? state.output
+							: JSON.stringify(state.output ?? "");
+					blocks.push({
+						type: "tool_result",
+						tool_use_id: callId,
+						name,
+						content: output,
+						...(state.status === "error" ? { is_error: true } : {}),
+					});
+					messages.push({ role: "assistant", content: blocks, ...(ts ? { ts } : {}) });
+					messages.push({ role: "user", content: blocks.slice(1) });
+				}
+			}
+		}
+
+		const title =
+			typeof session.title === "string" && session.title.trim()
+				? session.title.trim()
+				: undefined;
+		const needsFallback = !title || title.startsWith("New session");
+		const displayPrompt = truncateForDisplay(prompt, 2000);
+		return {
+			tool: this.tool,
+			sourceId,
+			sourcePath: dbPath,
+			title:
+				(needsFallback ? truncateForDisplay(prompt, 120) : undefined) ??
+				truncateForDisplay(title, 120) ??
+				"Untitled session",
+			...(displayPrompt ? { prompt: displayPrompt } : {}),
+			provider: provider ?? "opencode",
+			model: model ?? "opencode",
+			cwd: typeof session.directory === "string" ? session.directory : "",
+			startedAtMs: asMs(session.time_created) ?? Date.now(),
+			endedAtMs:
+				endedAtMs ??
+				asMs(session.time_updated) ??
+				asMs(session.time_created) ??
+				Date.now(),
+			messages,
+		};
 	}
 }

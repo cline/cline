@@ -58,6 +58,40 @@ export function opencodeDataDir(environment = runtimeEnvironment()): string {
 	return environment.joinPath(dataHome, "opencode");
 }
 
+/**
+ * Candidate opencode data directories. The CLI and desktop app may use
+ * different locations. OPENDATA_DATA_DIR override pins to a single directory.
+ */
+export function opencodeDataDirs(
+	environment = runtimeEnvironment(),
+): string[] {
+	const override = nonEmpty(environment.env.OPENCODE_DATA_DIR);
+	if (override) return [override];
+
+	const candidates: string[] = [];
+
+	// Primary XDG / local share location (CLI default)
+	const dataHome =
+		nonEmpty(environment.env.XDG_DATA_HOME) ??
+		environment.joinPath(userHome(environment), ".local", "share");
+	candidates.push(environment.joinPath(dataHome, "opencode"));
+
+	// Windows APPDATA (desktop app default)
+	if (environment.platform === "win32") {
+		const appData = nonEmpty(environment.env.APPDATA);
+		if (appData) candidates.push(environment.joinPath(appData, "opencode"));
+		const localAppData = nonEmpty(environment.env.LOCALAPPDATA);
+		if (localAppData) candidates.push(environment.joinPath(localAppData, "opencode"));
+	} else {
+		// macOS: ~/Library/Application Support/opencode
+		candidates.push(environment.joinPath(userHome(environment), "Library", "Application Support", "opencode"));
+		// Linux: ~/.config/opencode (some desktop builds)
+		candidates.push(environment.joinPath(userHome(environment), ".config", "opencode"));
+	}
+
+	return candidates;
+}
+
 // Design note: the three path helpers below are pure functions of their
 // environment (no node:fs), so paths.test.ts can exercise them without a real
 // machine. Each returns *candidate* locations; the adapter is responsible for
