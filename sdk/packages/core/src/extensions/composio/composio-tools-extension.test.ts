@@ -1,7 +1,25 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { AgentRuntime } from "@cline/agents";
+import type { AgentModel, AgentTool, ITelemetryService } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RuntimeEventAdapter } from "../../runtime/orchestration/runtime-event-adapter";
+import {
+	type AgentEventContext,
+	handleAgentEvent,
+} from "../../services/agent-events";
+import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
+import type { CoreSessionConfig } from "../../types/config";
+
+// These tests supply a scripted model; no provider gateway is involved.
+vi.mock("@cline/llms", () => ({
+	createGateway: vi.fn(() => {
+		throw new Error("Unexpected provider gateway in scripted-model test");
+	}),
+	classifyProviderError: vi.fn(),
+	isRetryableProviderError: vi.fn(),
+}));
 
 /**
  * Connector tools execute through the Cline API connectors proxy, so the
@@ -38,6 +56,17 @@ vi.mock("../../services/storage/provider-settings-manager", () => ({
 	},
 }));
 
+const meta = vi.hoisted(() => ({
+	session: undefined as
+		| { sessionId: string; tools: Array<Record<string, unknown>> }
+		| undefined,
+}));
+vi.mock("./composio-meta-tools", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./composio-meta-tools")>()),
+	createComposioMetaToolSession: vi.fn(async () => meta.session),
+}));
+
+import { createComposioMetaToolSession } from "./composio-meta-tools";
 import {
 	createComposioToolsExtension,
 	resolveComposioToolsStatePath,
@@ -84,6 +113,7 @@ beforeEach(() => {
 	auth.token = "cline_token_123";
 	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
+	meta.session = undefined;
 });
 
 afterEach(() => {
@@ -352,5 +382,265 @@ describe("createComposioToolsExtension", () => {
 		};
 		expect(result.successful).toBe(false);
 		expect(result.error).toContain("network down");
+	});
+
+	it("registers meta tools even when no toolkit is connected", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [
+				{ slug: "COMPOSIO_SEARCH_TOOLS" },
+				{
+					slug: "COMPOSIO_MANAGE_CONNECTIONS",
+					description: "First call COMPOSIO_SEARCH_TOOLS for the user's query.",
+					input_parameters: {
+						type: "object",
+						properties: { session_id: { type: "string" } },
+					},
+				},
+				{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
+				{ slug: "COMPOSIO_MULTI_EXECUTE_TOOL" },
+			],
+		};
+		const tools = await setupTools();
+		expect(tools.map((tool) => tool.name)).toEqual([
+			"composio_search_tools",
+			"composio_manage_connections",
+			"composio_wait_for_connections",
+			"composio_multi_execute_tool",
+		]);
+		expect(tools[0]?.retryable).toBe(false);
+		// Composio's descriptions and schemas, as the session returned them.
+		expect(tools[1]?.description).toBe(
+			"First call COMPOSIO_SEARCH_TOOLS for the user's query.",
+		);
+		expect(tools[1]?.inputSchema.properties).toHaveProperty("session_id");
+	});
+
+	it("searches, connects, waits, and executes in one session without saved connections", async () => {
+		const actual = await vi.importActual<
+			typeof import("./composio-meta-tools")
+		>("./composio-meta-tools");
+		vi.mocked(createComposioMetaToolSession).mockImplementationOnce(
+			actual.createComposioMetaToolSession,
+		);
+		const steps = [
+			{
+				slug: "COMPOSIO_SEARCH_TOOLS",
+				arguments: { queries: [{ use_case: "Send an email" }] },
+				data: { tools: [{ tool_slug: "GMAIL_SEND_EMAIL" }], connected: false },
+			},
+			{
+				slug: "COMPOSIO_MANAGE_CONNECTIONS",
+				arguments: { toolkits: ["gmail"] },
+				data: { redirect_url: "https://connect.example/gmail" },
+			},
+			{
+				slug: "COMPOSIO_WAIT_FOR_CONNECTIONS",
+				arguments: { toolkits: ["gmail"] },
+				data: { connected: true },
+			},
+			{
+				slug: "COMPOSIO_MULTI_EXECUTE_TOOL",
+				arguments: {
+					tools: [
+						{
+							tool_slug: "GMAIL_SEND_EMAIL",
+							arguments: { to: "someone@example.com" },
+						},
+					],
+				},
+				data: {
+					results: [
+						{ tool_slug: "GMAIL_SEND_EMAIL", response: { successful: true } },
+					],
+				},
+			},
+		];
+		const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+			if (url.endsWith("/meta-tools/sessions")) {
+				return Response.json({
+					success: true,
+					data: {
+						sessionId: "trs_flow",
+						tools: steps.map(({ slug }) => ({
+							slug,
+							description:
+								slug === "COMPOSIO_MANAGE_CONNECTIONS"
+									? "First call COMPOSIO_SEARCH_TOOLS for the user's query."
+									: slug,
+							input_parameters: { type: "object", properties: {} },
+						})),
+					},
+				});
+			}
+			const step = steps[fetchMock.mock.calls.length - 2];
+			return Response.json({ successful: true, data: step.data });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = await setupTools();
+		expect(tools.map((tool) => tool.name)).toEqual(
+			steps.map((step) => step.slug.toLowerCase()),
+		);
+		let turn = 0;
+		const model: AgentModel = {
+			async *stream() {
+				const step = steps[turn++];
+				if (step) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: `call-${turn}`,
+						toolName: step.slug.toLowerCase(),
+						inputText: JSON.stringify(step.arguments),
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "Email sent." };
+					yield { type: "finish", reason: "stop" };
+				}
+			},
+		};
+		const runtime = new AgentRuntime({ model, tools: tools as AgentTool[] });
+		expect((await runtime.run("Send an email using Gmail")).status).toBe(
+			"completed",
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+		expect(fetchMock.mock.calls[0][0]).toBe(
+			"https://api.cline.bot/api/v1/connectors/meta-tools/sessions",
+		);
+		for (const [, init] of fetchMock.mock.calls) {
+			expect(init?.method).toBe("POST");
+			expect((init?.headers as Record<string, string>).authorization).toBe(
+				"Bearer cline_token_123",
+			);
+		}
+		for (const [index, step] of steps.entries()) {
+			const [url, init] = fetchMock.mock.calls[index + 1];
+			expect(url).toBe(
+				`https://api.cline.bot/api/v1/connectors/meta-tools/${step.slug}/execute`,
+			);
+			expect(JSON.parse(init?.body as string)).toEqual({
+				sessionId: "trs_flow",
+				arguments: step.arguments,
+			});
+		}
+	});
+
+	it("executes meta tools with the session id through the proxy", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
+		};
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({ data: { redirect_url: "https://connect" } }),
+				),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const [tool] = await setupTools();
+		const result = await tool?.execute({ toolkits: ["gmail"] });
+
+		expect(result).toEqual({ data: { redirect_url: "https://connect" } });
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe(
+			"https://api.cline.bot/api/v1/connectors/meta-tools/COMPOSIO_MANAGE_CONNECTIONS/execute",
+		);
+		expect((init.headers as Record<string, string>).authorization).toBe(
+			"Bearer cline_token_123",
+		);
+		expect(JSON.parse(init.body as string)).toEqual({
+			sessionId: "trs_1",
+			arguments: { toolkits: ["gmail"] },
+		});
+	});
+
+	it("refuses meta tool execution after switching accounts", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [{ slug: "COMPOSIO_MANAGE_CONNECTIONS" }],
+		};
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const [tool] = await setupTools();
+		auth.accountId = "account-b";
+		expect(await tool?.execute({})).toMatchObject({ successful: false });
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"COMPOSIO_MANAGE_CONNECTIONS",
+		"COMPOSIO_WAIT_FOR_CONNECTIONS",
+	])("records %s usage once through the runtime event pipeline", async (slug) => {
+		meta.session = { sessionId: "trs_1", tools: [{ slug }] };
+		const fetchMock = vi.fn(async () =>
+			Response.json({ successful: true, data: {} }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = await setupTools();
+		const toolName = slug.toLowerCase();
+		let turn = 0;
+		const model: AgentModel = {
+			async *stream() {
+				if (turn++ === 0) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "connect-call",
+						toolName,
+						inputText: "{}",
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "Connected." };
+					yield { type: "finish", reason: "stop" };
+				}
+			},
+		};
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as ITelemetryService;
+		const ctx: AgentEventContext = {
+			sessionId: "session-connect",
+			config: {
+				telemetry,
+				providerId: "cline",
+				modelId: "test-model",
+			} as CoreSessionConfig,
+			liveSession: undefined,
+			usageBySession: new Map(),
+			aggregateUsageBySession: new Map(),
+			persistMessages: vi.fn(),
+			emit: vi.fn(),
+		};
+		const runtime = new AgentRuntime({ model, tools: tools as AgentTool[] });
+		const adapter = new RuntimeEventAdapter();
+		runtime.subscribe((event) => {
+			for (const translated of adapter.translate(event)) {
+				handleAgentEvent(ctx, translated, {
+					agentId: runtime.snapshot().agentId,
+				});
+			}
+		});
+
+		expect((await runtime.run("Connect the app")).status).toBe("completed");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const toolUsage = capture.mock.calls.filter(
+			([event]) => event.event === CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+		);
+		expect(toolUsage).toEqual([
+			[
+				expect.objectContaining({
+					properties: expect.objectContaining({
+						ulid: "session-connect",
+						tool: toolName,
+						success: true,
+						provider: "cline",
+						modelId: "test-model",
+						agentId: runtime.snapshot().agentId,
+					}),
+				}),
+			],
+		]);
 	});
 });

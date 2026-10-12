@@ -1349,7 +1349,7 @@ describe("ChatMessages tool disclosures", () => {
 			},
 		]);
 
-		const content = container.querySelector(".cline-chat-conversation-content");
+		const content = container.querySelector(".cline-message-scroller-content");
 		const messageList = content?.querySelector(":scope > div");
 
 		expect(content?.classList.contains("overflow-x-hidden")).toBe(false);
@@ -1929,57 +1929,306 @@ describe("ChatMessages reasoning disclosure", () => {
 	});
 });
 
-describe("ChatMessages send auto-scroll", () => {
-	const baseMessages: ChatMessage[] = [
+describe("ChatMessages transcript navigation", () => {
+	const messages: ChatMessage[] = [
 		{
 			id: "user-1",
 			sessionId: "session-1",
 			role: "user",
-			content: "First",
-			createdAt: 1_000,
+			content: "First prompt",
+			createdAt: 1,
 		},
 		{
 			id: "assistant-1",
 			sessionId: "session-1",
 			role: "assistant",
-			content: "Reply",
-			createdAt: 2_000,
+			content: "First answer",
+			createdAt: 2,
+		},
+		{
+			id: "user-2",
+			sessionId: "session-1",
+			role: "user",
+			content: "Second prompt",
+			createdAt: 3,
+		},
+		{
+			id: "assistant-2",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Second answer",
+			createdAt: 4,
 		},
 	];
 
-	it("scrolls to the bottom when a new user message lands, but not for assistant output", async () => {
-		await renderMessages(baseMessages);
-		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
-		scrollTo.mockClear();
-
-		// Assistant output alone must not force the reader back down.
-		await renderMessages([
-			...baseMessages,
-			{
-				id: "assistant-2",
-				sessionId: "session-1",
-				role: "assistant",
-				content: "More output",
-				createdAt: 3_000,
-			},
-		]);
-		expect(scrollTo).not.toHaveBeenCalledWith(
-			expect.objectContaining({ behavior: "smooth" }),
+	function mockTranscriptLayout(layoutMessages = messages) {
+		vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400);
+		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+			1600,
 		);
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: HTMLElement) {
+				const viewport = this.closest(
+					'[data-slot="message-scroller-viewport"]',
+				);
+				const rowIndex = layoutMessages.findIndex(
+					(message) => message.id === this.dataset.messageId,
+				);
+				const top =
+					rowIndex >= 0 ? rowIndex * 400 - (viewport?.scrollTop ?? 0) : 0;
+				return {
+					top,
+					bottom: top + 400,
+					height: 400,
+					left: 0,
+					right: 800,
+					width: 800,
+					x: 0,
+					y: top,
+					toJSON() {},
+				};
+			},
+		);
+		HTMLElement.prototype.scrollTo = vi.fn(function (
+			this: HTMLElement,
+			options: ScrollToOptions,
+		) {
+			this.scrollTop = options.top ?? 0;
+		});
+		vi.stubGlobal(
+			"matchMedia",
+			vi.fn(() => ({ matches: false })),
+		);
+	}
 
+	afterEach(() => vi.unstubAllGlobals());
+
+	it("registers submitted prompts as anchors and excludes runtime steering from the outline", async () => {
 		await renderMessages([
-			...baseMessages,
+			...messages,
 			{
-				id: "user-2",
+				id: "steering",
 				sessionId: "session-1",
 				role: "user",
-				content: "Second",
-				createdAt: 4_000,
+				content: "[SYSTEM] Continue",
+				createdAt: 5,
+				meta: { userRunSpan: 0 },
 			},
 		]);
-		expect(scrollTo).toHaveBeenCalledWith(
-			expect.objectContaining({ behavior: "smooth" }),
+		const outline = container.querySelector(
+			'nav[aria-label="Transcript outline"]',
 		);
+		expect(outline?.querySelectorAll("button")).toHaveLength(2);
+		expect(outline?.textContent).not.toContain("Continue");
+		expect(
+			container
+				.querySelector('[data-message-id="user-1"]')
+				?.getAttribute("data-scroll-anchor"),
+		).toBe("true");
+		expect(
+			container
+				.querySelector('[data-message-id="assistant-1"]')
+				?.getAttribute("data-scroll-anchor"),
+		).toBe("false");
+	});
+
+	it("opens a saved session at the bottom, including after switching sessions", async () => {
+		mockTranscriptLayout();
+		await renderMessages(messages);
+		expect(
+			container.querySelector<HTMLElement>(
+				'[data-slot="message-scroller-viewport"]',
+			)?.scrollTop,
+		).toBe(1200);
+		await renderMessages(messages, { sessionId: "session-2" });
+		expect(
+			container.querySelector<HTMLElement>(
+				'[data-slot="message-scroller-viewport"]',
+			)?.scrollTop,
+		).toBe(1200);
+	});
+
+	it("shows the user prompt without its transport envelope in outline previews", async () => {
+		// The tooltip measures its trigger; jsdom has no ResizeObserver.
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
+		await renderMessages([
+			{
+				...messages[0],
+				content: '<user_input mode="act">Please fix the tests</user_input>',
+			},
+		]);
+		const button = container.querySelector<HTMLButtonElement>(
+			'nav[aria-label="Transcript outline"] button',
+		);
+		expect(button?.getAttribute("aria-label")).toBe(
+			"Go to message 1: Please fix the tests",
+		);
+		await act(async () => {
+			button?.focus();
+		});
+		const tooltip = document.querySelector('[role="tooltip"]');
+		expect(tooltip?.textContent).toBe("Please fix the tests");
+	});
+
+	it("jumps to a selected prompt and tracks the current turn after scrolling", async () => {
+		mockTranscriptLayout();
+		await renderMessages(messages);
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		if (!viewport) throw new Error("Transcript viewport missing");
+		const buttons = container.querySelectorAll<HTMLButtonElement>(
+			'nav[aria-label="Transcript outline"] button',
+		);
+		await act(async () => buttons[1].click());
+		expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith(
+			expect.objectContaining({ top: 776, behavior: "smooth" }),
+		);
+		await act(async () => {
+			viewport.dispatchEvent(new Event("scroll"));
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(buttons[1].getAttribute("aria-current")).toBe("location");
+		await act(async () => buttons[0].click());
+		await act(async () => {
+			viewport.dispatchEvent(new Event("scroll"));
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport.scrollTop).toBe(0);
+		expect(buttons[0].getAttribute("aria-current")).toBe("location");
+		expect(buttons[1].hasAttribute("aria-current")).toBe(false);
+	});
+
+	it("keeps the reader's position when assistant output arrives after navigating away", async () => {
+		mockTranscriptLayout();
+		// jsdom has no ResizeObserver; capture the scroller's observers so the
+		// test can deliver the resize that real content growth would trigger.
+		const resizeCallbacks: ResizeObserverCallback[] = [];
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				constructor(callback: ResizeObserverCallback) {
+					resizeCallbacks.push(callback);
+				}
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
+		await renderMessages(messages, { status: "running" });
+		// Let the initial scroll-to-end settle before simulating reader input.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		if (!viewport) throw new Error("Transcript viewport missing");
+		await act(async () => {
+			viewport.dispatchEvent(
+				new WheelEvent("wheel", { deltaY: -400, bubbles: true }),
+			);
+			viewport.scrollTop = 100;
+			viewport.dispatchEvent(new Event("scroll"));
+		});
+		await renderMessages(
+			[
+				...messages.slice(0, -1),
+				{ ...messages[3], content: "More streamed output" },
+			],
+			{ status: "running", streamingMessageId: "assistant-2" },
+		);
+		expect(viewport.scrollTop).toBe(100);
+		// The streamed answer grows the transcript; the scroller must not treat
+		// that resize as a reason to follow the end.
+		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+			2000,
+		);
+		expect(resizeCallbacks.length).toBeGreaterThan(0);
+		await act(async () => {
+			for (const callback of resizeCallbacks) {
+				callback([], {} as ResizeObserver);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport.scrollTop).toBe(100);
+	});
+
+	it("anchors a newly submitted prompt near the top of the viewport", async () => {
+		const nextMessages = [
+			...messages,
+			{
+				id: "user-3",
+				sessionId: "session-1",
+				role: "user" as const,
+				content: "New prompt",
+				createdAt: 5,
+			},
+		];
+		mockTranscriptLayout(nextMessages);
+		await renderMessages(messages);
+		await renderMessages(nextMessages, { status: "running" });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		expect(viewport?.scrollTop).toBe(1512);
+	});
+
+	it("stays on the new prompt when the activity row is swapped for the first answer in a saved session", async () => {
+		const newPrompt: ChatMessage = {
+			id: "user-3",
+			sessionId: "session-1",
+			role: "user",
+			content: "New prompt",
+			createdAt: 5,
+		};
+		const firstAnswer: ChatMessage = {
+			id: "assistant-3",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Streaming answer",
+			createdAt: 6,
+		};
+		mockTranscriptLayout([...messages, newPrompt, firstAnswer]);
+		// Saved history arrives after the provider mounted on a loading row.
+		await renderMessages([], { isSessionSwitching: true });
+		await renderMessages(messages);
+		await renderMessages([...messages, newPrompt], { status: "running" });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		expect(viewport?.scrollTop).toBe(1512);
+		// The "Thinking..." row unmounts in the same commit the answer row mounts,
+		// so the transcript's child count is unchanged. The upstream heuristic for
+		// that case must not re-anchor to a history prompt the reader already saw.
+		await renderMessages([...messages, newPrompt, firstAnswer], {
+			status: "running",
+			streamingMessageId: firstAnswer.id,
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport?.scrollTop).toBe(1512);
+	});
+
+	it("hides the outline for an empty chat", async () => {
+		await renderMessages([]);
+		expect(
+			container.querySelector('nav[aria-label="Transcript outline"]'),
+		).toBeNull();
 	});
 });
 
@@ -2244,8 +2493,11 @@ describe("ChatMessages tool approvals", () => {
 
 		const notice = container.querySelector("output");
 		expect(notice?.textContent).toContain("Imported from Claude Code");
-		expect(notice?.parentElement?.firstElementChild).toBe(notice);
-		expect(notice?.parentElement?.textContent).toContain("imported prompt");
+		const transcript = notice?.closest(
+			'[data-slot="message-scroller-content"]',
+		);
+		expect(transcript?.firstElementChild?.contains(notice ?? null)).toBe(true);
+		expect(transcript?.textContent).toContain("imported prompt");
 
 		await renderMessages(messages);
 		expect(container.querySelector("output")).toBeNull();
