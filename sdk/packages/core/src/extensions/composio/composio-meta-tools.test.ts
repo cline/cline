@@ -113,6 +113,24 @@ describe("createComposioMetaToolSession", () => {
 		);
 		expect(await createComposioMetaToolSession(request)).toBeUndefined();
 	});
+
+	it.each([
+		"request",
+		"body",
+	])("times out a stalled %s when the host ignores cancellation", async (stage) => {
+		vi.useFakeTimers();
+		try {
+			const pending = createComposioMetaToolSession(() =>
+				stage === "request"
+					? new Promise<Response>(() => {})
+					: Promise.resolve(new Response(new ReadableStream())),
+			);
+			await vi.advanceTimersByTimeAsync(5_000);
+			await expect(pending).resolves.toBeUndefined();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("executeComposioMetaTool", () => {

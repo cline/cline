@@ -56,16 +56,35 @@ export async function createComposioMetaToolSession(
 	options?: { log?: (message: string) => void },
 ): Promise<ComposioMetaToolSession | undefined> {
 	let response: Response;
+	let body: unknown;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
 	try {
-		response = await request(`${CONNECTORS_API_PATH}/meta-tools/sessions`, {
-			method: "POST",
-			signal: AbortSignal.timeout(META_TOOL_SESSION_TIMEOUT_MS),
-		});
+		const result = await Promise.race([
+			request(`${CONNECTORS_API_PATH}/meta-tools/sessions`, {
+				method: "POST",
+				signal: AbortSignal.timeout(META_TOOL_SESSION_TIMEOUT_MS),
+			}).then(async (response) => ({
+				response,
+				body: response.ok
+					? await response.json().catch(() => undefined)
+					: undefined,
+			})),
+			new Promise<never>((_, reject) => {
+				timeout = setTimeout(
+					() => reject(new Error("Connector discovery timed out")),
+					META_TOOL_SESSION_TIMEOUT_MS,
+				);
+			}),
+		]);
+		response = result.response;
+		body = result.body;
 	} catch (error) {
 		options?.log?.(
 			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		return undefined;
+	} finally {
+		clearTimeout(timeout);
 	}
 	if (!response.ok) {
 		if (response.status !== 404) {
@@ -76,7 +95,7 @@ export async function createComposioMetaToolSession(
 		return undefined;
 	}
 	try {
-		const parsed = (await response.json()) as {
+		const parsed = body as {
 			data?: { sessionId?: unknown; tools?: unknown };
 		};
 		const sessionId = parsed?.data?.sessionId;
