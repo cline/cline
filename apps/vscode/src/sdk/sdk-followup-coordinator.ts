@@ -180,10 +180,15 @@ export class SdkFollowupCoordinator {
 		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
 
 		this.options.sessions.setRunning(true)
+		// Bump the epoch before echoing the bubble, as resumeSessionFromTask does.
+		// Echoed first, the bubble would carry the old epoch while a state snapshot
+		// built moments later carries the new one; that snapshot replaces the
+		// webview transcript wholesale, and the bubble's stale-epoch copies are
+		// then dropped for good.
+		this.options.resetMessageTranslator()
 		if (prompt?.trim() || images?.length || files?.length) {
 			this.emitUserFeedback(sessionId, prompt, images, files)
 		}
-		this.options.resetMessageTranslator()
 
 		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)

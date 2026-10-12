@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 
+import type { ClineAccountOrganization } from "@cline/core";
 import type { AgendaTaskRecord } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared/browser";
 import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import {
+	readCloudRepositorySelection,
+	writeCloudRepositorySelection,
+} from "@/lib/cloud-repositories";
 import { WelcomeScreen } from "./welcome-chat";
 
 const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
@@ -19,7 +25,7 @@ const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
 		),
 		accountRef: {
 			user: null as { id: string } | null,
-			activeOrganization: null as { id: string } | null,
+			activeOrganization: null as ClineAccountOrganization | null,
 		},
 	}));
 
@@ -55,6 +61,9 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+	window.localStorage.clear();
+	accountRef.user = null;
+	accountRef.activeOrganization = null;
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.matchMedia = vi.fn().mockReturnValue({
 		matches: true,
@@ -147,6 +156,212 @@ async function clickButton(
 }
 
 describe("WelcomeScreen", () => {
+	it.each([
+		"none",
+		"retry",
+		"manual",
+		"picker",
+	])("remembers the Cloud repository and branch (failure recovery: %s)", async (recovery) => {
+		accountRef.user = { id: "user-1" };
+		const scope = JSON.stringify([
+			getClineEnvironmentConfig().appBaseUrl,
+			"user-1",
+			null,
+		]);
+		const repoUrl = "https://github.com/org/repo";
+		const repositories = {
+			connected: true,
+			repositories: [
+				{
+					id: 7,
+					name: "repo",
+					fullName: "org/repo",
+					url: repoUrl,
+					defaultBranch: "main",
+				},
+			],
+		};
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const props = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			workspaceRoot: "",
+			workspaces: [],
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		invokeMock.mockImplementation(async (command) =>
+			command === "list_cloud_repositories"
+				? repositories
+				: { available: true, branches: ["main", "feature"] },
+		);
+		await renderWelcomeScreen(props);
+		await clickButton("Select repository");
+		await clickButton("org/repo");
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+		await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "main" });
+		await clickButton("main");
+		await clickButton("feature");
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature");
+		await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "feature" });
+		expect(readCloudRepositorySelection(scope)).toEqual({
+			repoUrl,
+			branch: "feature",
+		});
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		const repoCheck = Promise.withResolvers<unknown>();
+		const branchCheck = Promise.withResolvers<unknown>();
+		invokeMock.mockImplementation((command) =>
+			command === "list_cloud_repositories"
+				? repoCheck.promise
+				: branchCheck.promise,
+		);
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		await renderWelcomeScreen(props);
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		await act(async () => repoCheck.resolve(repositories));
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		if (recovery === "picker") {
+			invokeMock.mockImplementation((command) =>
+				command === "list_cloud_repositories"
+					? Promise.reject(new Error("Picker lookup failed"))
+					: branchCheck.promise,
+			);
+			await clickButton("Select repository");
+			expect(container.textContent).toContain("Could not load repositories.");
+		}
+		if (recovery === "retry" || recovery === "manual") {
+			await act(async () =>
+				branchCheck.reject(new Error("Branch lookup failed")),
+			);
+			expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+			expect(container.textContent).toContain("Select repository");
+			expect(readCloudRepositorySelection(scope)).toEqual({
+				repoUrl,
+				branch: "feature",
+			});
+			if (recovery === "manual") {
+				await clickButton("Select repository");
+				await clickButton("org/repo");
+				expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+				expect(onCloudBranchChange).toHaveBeenLastCalledWith("main");
+				await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "main" });
+				expect(readCloudRepositorySelection(scope)).toEqual({
+					repoUrl,
+					branch: "main",
+				});
+				expect(container.textContent).not.toContain(
+					"Could not reach Cline Cloud",
+				);
+				return;
+			}
+			invokeMock.mockImplementation(async (command) =>
+				command === "list_cloud_repositories"
+					? repositories
+					: { available: true, branches: ["feature"] },
+			);
+			await clickButton("Retry");
+		}
+		await act(async () =>
+			branchCheck.resolve({ available: true, branches: ["feature"] }),
+		);
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature");
+		await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "feature" });
+		expect(
+			container.querySelector(`button[title="${repoUrl}"]`),
+		).not.toBeNull();
+		expect(container.textContent).toContain("feature");
+	});
+
+	it.each([
+		"account",
+		"organization",
+		"revoked",
+		"history",
+		"user-pick",
+	])("does not restore over a changed %s context", async (scenario) => {
+		accountRef.user = { id: "user-1" };
+		const scope = JSON.stringify([
+			getClineEnvironmentConfig().appBaseUrl,
+			"user-1",
+			null,
+		]);
+		const repoUrl = "https://github.com/org/repo";
+		writeCloudRepositorySelection(scope, { repoUrl, branch: "feature" });
+		const branchCheck = Promise.withResolvers<unknown>();
+		invokeMock.mockImplementation((command, args) =>
+			command === "list_cloud_repositories"
+				? Promise.resolve({
+						connected: true,
+						repositories:
+							scenario === "revoked"
+								? []
+								: [
+										{
+											id: 7,
+											name: "repo",
+											fullName: "org/repo",
+											url: repoUrl,
+											defaultBranch: "main",
+										},
+										{
+											id: 8,
+											name: "other",
+											fullName: "org/other",
+											url: "https://github.com/org/other",
+											defaultBranch: "main",
+										},
+									],
+					})
+				: (args as { repositoryId?: number })?.repositoryId === 8
+					? Promise.resolve({ available: true, branches: ["main"] })
+					: branchCheck.promise,
+		);
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const props = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			workspaceRoot: "",
+			workspaces: [],
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		await renderWelcomeScreen(props);
+		if (scenario === "account") accountRef.user = { id: "user-2" };
+		if (scenario === "organization") {
+			accountRef.activeOrganization = {
+				organizationId: "org-2",
+				name: "Organization 2",
+				active: true,
+				memberId: "member-1",
+				roles: ["member"],
+			};
+		}
+		await renderWelcomeScreen({
+			...props,
+			active: scenario !== "history",
+			repoUrl: scenario === "user-pick" ? "https://github.com/org/other" : "",
+			cloudBranch: scenario === "user-pick" ? "main" : "",
+		});
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		await act(async () =>
+			branchCheck.resolve({ available: true, branches: ["feature"] }),
+		);
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		expect(onCloudBranchChange).not.toHaveBeenCalledWith("feature");
+		expect(readCloudRepositorySelection(scope)).toEqual({
+			repoUrl:
+				scenario === "user-pick" ? "https://github.com/org/other" : repoUrl,
+			branch: scenario === "user-pick" ? "main" : "feature",
+		});
+	});
+
 	it("opens the GitHub App install flow from cloud onboarding", async () => {
 		accountRef.user = { id: "user-1" };
 		invokeMock.mockImplementation(async (command: string) => {

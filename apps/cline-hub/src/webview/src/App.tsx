@@ -619,7 +619,13 @@ function HomeView({
 											{clientLabel(client)}
 										</p>
 										<p className="mt-1 truncate text-[13px] text-muted-foreground">
-											{client.clientType}
+											{[
+												client.clientType,
+												client.version ? `v${client.version}` : undefined,
+												client.pid !== undefined ? `pid ${client.pid}` : undefined,
+											]
+												.filter(Boolean)
+												.join(" · ")}
 										</p>
 									</div>
 								</div>

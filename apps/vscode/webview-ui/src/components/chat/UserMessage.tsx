@@ -1,12 +1,12 @@
-import type { WorkspaceRestoreAvailability } from "@shared/ExtensionMessage"
+import { Int64Request } from "@shared/proto/cline/common"
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { CheckpointsServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import { highlightText } from "./task-header/Highlights"
 
 interface UserMessageProps {
@@ -15,11 +15,28 @@ interface UserMessageProps {
 	images?: string[]
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
-	workspaceRestoreAvailability?: WorkspaceRestoreAvailability
+	/** True for messages that started an agent run, which are the only ones Reset Code applies to. */
+	canRestoreWorkspace?: boolean
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, workspaceRestoreAvailability }) => {
-	const { navigateToSettings } = useExtensionState()
+/**
+ * What the Reset Code button can do for the message being edited. The
+ * checkpoint is looked up when the editor opens, so the button is pending
+ * until the answer arrives.
+ */
+type WorkspaceRestoreAvailability =
+	| { state: "pending" }
+	| { state: "available" }
+	| { state: "unavailable"; reason: "checkpoints_disabled" | "checkpoint_unavailable" }
+
+const WORKSPACE_RESTORE_TOOLTIPS: Record<WorkspaceRestoreAvailability["state"], string> = {
+	pending: "Checking for a workspace checkpoint…",
+	available: "Rewind conversation, reset code edits",
+	unavailable: "No workspace checkpoint was created for this message.",
+}
+
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace }) => {
+	const { navigateToSettings, enableCheckpointsSetting } = useExtensionState()
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
@@ -27,11 +44,47 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>()
 	const [workspaceRestorePopoverOpen, setWorkspaceRestorePopoverOpen] = useState(false)
+	const [hasWorkspaceCheckpoint, setHasWorkspaceCheckpoint] = useState<boolean | undefined>()
 	const highlightedText = useMemo(() => highlightText(text), [text])
-	const workspaceRestoreTooltip = workspaceRestoreAvailability?.available
-		? "Rewind conversation, reset code edits"
-		: "No workspace checkpoint was created for this message."
-	const workspaceRestoreUnavailable = workspaceRestoreAvailability?.available === false
+	const workspaceRestoreAvailability: WorkspaceRestoreAvailability | undefined = !canRestoreWorkspace
+		? undefined
+		: hasWorkspaceCheckpoint === undefined
+			? { state: "pending" }
+			: hasWorkspaceCheckpoint
+				? { state: "available" }
+				: {
+						state: "unavailable",
+						reason: enableCheckpointsSetting === false ? "checkpoints_disabled" : "checkpoint_unavailable",
+					}
+	const workspaceRestoreTooltip = workspaceRestoreAvailability && WORKSPACE_RESTORE_TOOLTIPS[workspaceRestoreAvailability.state]
+	const workspaceRestorePending = workspaceRestoreAvailability?.state === "pending"
+
+	// The checkpoint is looked up when the user opens the editor, not pushed
+	// with every state update, so the answer covers the checkpoint written for
+	// the latest turn. A failed lookup is reported as no checkpoint.
+	useEffect(() => {
+		setHasWorkspaceCheckpoint(undefined)
+		if (!isEditing || !canRestoreWorkspace || messageTs === undefined) {
+			return
+		}
+		let cancelled = false
+		CheckpointsServiceClient.checkpointExistsForMessage(Int64Request.create({ value: messageTs }))
+			.then(
+				(result) => result.value,
+				(error) => {
+					console.error("Failed to look up the workspace checkpoint for this message:", error)
+					return false
+				},
+			)
+			.then((exists) => {
+				if (!cancelled) {
+					setHasWorkspaceCheckpoint(exists)
+				}
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [isEditing, canRestoreWorkspace, messageTs])
 
 	const startEditing = () => {
 		setEditedText(text ?? "")
@@ -59,7 +112,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	}
 
 	const handleSave = async (restoreWorkspace: boolean) => {
-		if (!messageTs || savingMode || (restoreWorkspace && workspaceRestoreUnavailable)) {
+		if (!messageTs || savingMode || (restoreWorkspace && workspaceRestoreAvailability?.state !== "available")) {
 			return
 		}
 		setSavingMode(restoreWorkspace ? "workspace" : "chat")
@@ -83,13 +136,19 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 		}
 	}
 
+	// Pending and unavailable states keep the button focusable, so the tooltip
+	// or explanation popover can still be opened from the keyboard.
 	const resetCodeButton = workspaceRestoreAvailability ? (
 		<button
-			aria-disabled={workspaceRestoreUnavailable || undefined}
-			className="shrink-0 whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 aria-disabled:opacity-60 aria-disabled:cursor-not-allowed text-xs"
+			aria-busy={workspaceRestorePending || undefined}
+			aria-disabled={workspaceRestoreAvailability.state !== "available" || undefined}
+			className="inline-flex items-center gap-1 shrink-0 whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 aria-disabled:opacity-60 aria-disabled:cursor-not-allowed aria-busy:cursor-progress text-xs"
 			disabled={!!savingMode}
 			onClick={() => handleSave(true)}
 			type="button">
+			{workspaceRestorePending && (
+				<i aria-hidden="true" className="codicon codicon-loading codicon-modifier-spin text-xs" />
+			)}
 			{savingMode === "workspace" ? "Restoring..." : "Reset Code"}
 		</button>
 	) : null
@@ -177,7 +236,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 								</TooltipTrigger>
 							</Tooltip>
 							{workspaceRestoreAvailability &&
-								(workspaceRestoreUnavailable && workspaceRestoreAvailability.reason === "checkpoints_disabled" ? (
+								(workspaceRestoreAvailability.state === "unavailable" &&
+								workspaceRestoreAvailability.reason === "checkpoints_disabled" ? (
 									<Popover onOpenChange={setWorkspaceRestorePopoverOpen} open={workspaceRestorePopoverOpen}>
 										<PopoverContent className="max-w-xs w-auto text-xs" side="top">
 											No checkpoint is available for this message. Enable Checkpoints in{" "}

@@ -640,6 +640,20 @@ current product contracts should be compared before standardizing them.
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
 
+## Conversation layout and header
+
+`AgentConversationLayout` takes host-rendered `welcomeHeader`, `body`, `composer`,
+`notice`, `welcomeSetup`, and `welcomeFooter` slots. `AgentSessionContent`
+provides the shared content width; `AgentConversationHeader` groups title/status
+children with optional `actions`. Import `components.css` and theme tokens as
+described above.
+
+`welcome` selects the layout; the body remains mounted when hidden.
+`hideWelcomeComposer` hides the welcome composer without unmounting it, but
+switching layouts can remount the composer. Keep drafts in host state.
+`bodyClassName` accepts host animation classes. Hosts retain scrolling, title
+editing, menus, native title-bar behavior, and all event handlers.
+
 ## Composer presentation
 
 `AgentComposer` and its body, field, textarea, action, attachment-list, and
@@ -745,3 +759,75 @@ existing 50%/75% warnings; lifetime token traffic must not be passed as context
 usage. `costLabel` is a separate optional, host-formatted cumulative cost.
 Fetching metrics, choosing the model limit, and computing cumulative cost remain
 host responsibilities.
+
+## Message scroller
+
+Use `@cline/ui/components/message-scroller` with React 19 for transcripts that
+anchor new user turns and preserve the reader's position during streaming.
+The behavior comes from `@shadcn/react`; the shared wrapper adds Cline styles.
+Import `@cline/ui/components.css`, or import
+`@cline/ui/components/message-scroller.css` with theme tokens for a plain CSS
+host. Place the scroller in a parent with a constrained height.
+
+```tsx
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+  useMessageScroller,
+  useMessageScrollerVisibility,
+} from "@cline/ui/components/message-scroller";
+
+function Transcript({ messages }) {
+  return (
+    <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
+      <MessageScroller>
+        <MessageScrollerViewport aria-label="Conversation">
+          <MessageScrollerContent>
+            {messages.map((message) => (
+              <MessageScrollerItem
+                key={message.id}
+                messageId={message.id}
+                scrollAnchor={message.role === "user"}
+              >
+                {message.content}
+              </MessageScrollerItem>
+            ))}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+        <Outline messages={messages} />
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+
+function Outline({ messages }) {
+  const { scrollToMessage } = useMessageScroller();
+  const { currentAnchorId } = useMessageScrollerVisibility();
+  return (
+    <nav aria-label="Transcript outline">
+      {messages.filter((message) => message.role === "user").map((message) => (
+        <button
+          key={message.id}
+          type="button"
+          aria-current={currentAnchorId === message.id ? "location" : undefined}
+          onClick={() => scrollToMessage(message.id, { align: "start" })}
+        >
+          {message.content}
+        </button>
+      ))}
+    </nav>
+  );
+}
+```
+
+Every direct transcript child, including tool groups, loading rows, and
+approval panels, must be a `MessageScrollerItem`. Use stable IDs to support
+jumps and reader-position tracking. A collapsed tool group can keep the same
+row ID as its expanded form. The host chooses which rows anchor turns and
+which messages appear in its outline; transport and session state remain in
+the app. Key the provider by session ID when switching transcripts.

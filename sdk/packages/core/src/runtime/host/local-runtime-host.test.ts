@@ -4100,6 +4100,116 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("aborts a turn whose Stop arrived while the turn was still being prepared", async () => {
+		const sessionId = "sess-abort-during-prep";
+		const manifest = createManifest(sessionId);
+		let releaseStatusUpdate: (() => void) | undefined;
+		const statusUpdateStarted = new Promise<void>((resolve) => {
+			releaseStatusUpdate = resolve;
+		});
+		let finishStatusUpdate: (() => void) | undefined;
+		const statusUpdateGate = new Promise<void>((resolve) => {
+			finishStatusUpdate = resolve;
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			// markTurnRunning is the last preparation step before the agent run;
+			// hold it open so the abort lands while no run exists yet.
+			updateSessionStatus: vi.fn(async (_id: string, status: string) => {
+				if (status === "running") {
+					releaseStatusUpdate?.();
+					await statusUpdateGate;
+				}
+				return { updated: true };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		let activeRun = false;
+		let abortedAfterRunStarted = false;
+		const run = vi.fn(async () => {
+			activeRun = true;
+			// Mirrors SessionRuntime: an abort requested once the run exists ends
+			// it as "aborted" before any model call.
+			await Promise.resolve();
+			activeRun = false;
+			return createResult({
+				text: "",
+				finishReason: abortedAfterRunStarted ? "aborted" : "completed",
+				messages: [{ role: "user", content: "stop me" }],
+			});
+		});
+		const agent = {
+			run,
+			continue: run,
+			abort: vi.fn(() => {
+				if (activeRun) abortedAfterRunStarted = true;
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn(() => []),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// A Stop between turns targets a run that already ended and must not
+			// leak into the next turn.
+			await manager.abort(sessionId, new Error("stale abort"));
+
+			const turn = manager.runTurn({ sessionId, prompt: "stop me" });
+			await statusUpdateStarted;
+			expect(run).not.toHaveBeenCalled();
+			await manager.abort(sessionId, new Error("user cancelled"));
+			finishStatusUpdate?.();
+
+			await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+			expect(run).toHaveBeenCalledTimes(1);
+			// The first abort had no run to cancel; the host re-issued it once
+			// the run existed.
+			expect(agent.abort).toHaveBeenCalledTimes(3);
+			expect(agent.abort.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
+				run.mock.invocationCallOrder[0] ?? 0,
+			);
+			await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+				status: "idle",
+			});
+
+			// The stale abort alone must not abort a later turn.
+			abortedAfterRunStarted = false;
+			await expect(
+				manager.runTurn({ sessionId, prompt: "next" }),
+			).resolves.toMatchObject({ finishReason: "completed" });
+			expect(run).toHaveBeenCalledTimes(2);
+			expect(agent.abort).toHaveBeenCalledTimes(3);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
 		const sessionId = "sess-meta-multi";
 		const manifest = createManifest(sessionId);

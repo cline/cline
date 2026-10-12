@@ -98,7 +98,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: "1.4.2"
 
       # Node is required beyond install: the rollout scripts run under node and
       # publishing shells out to vsce/ovsx. Pinned to Node 22 because newer LTS

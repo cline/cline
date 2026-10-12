@@ -455,7 +455,6 @@ export const e2e = test
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspacePath,
 					],

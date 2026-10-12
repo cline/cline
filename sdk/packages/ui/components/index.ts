@@ -52,6 +52,14 @@ export {
 	type AgentContextUsagePresentation,
 	type AgentContextUsageProps,
 } from "./agent-context-usage.js";
+export {
+	AgentConversationHeader,
+	type AgentConversationHeaderProps,
+	AgentConversationLayout,
+	type AgentConversationLayoutProps,
+	AgentSessionContent,
+	type AgentSessionContentProps,
+} from "./agent-conversation-layout.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentImageLightboxContent,

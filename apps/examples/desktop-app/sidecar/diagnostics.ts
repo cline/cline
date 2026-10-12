@@ -140,7 +140,9 @@ export function writeDiagnosticsReport(
 ): { path: string; sessionIds: string[] } {
 	const now = new Date();
 	const report = buildDiagnosticsReport(sessionIds, now);
-	mkdirSync(outputDir, { recursive: true });
+	// Bun on Windows can throw EEXIST from a recursive mkdir of an existing
+	// directory, so only create the directory when it is actually missing.
+	if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 	const path = join(
 		outputDir,
 		`cline-diagnostics-${packageJson.version}-${formatStamp(now)}.txt`,

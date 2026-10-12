@@ -138,7 +138,7 @@ export async function saveProviderSettings(
 	peer: BrowserPeer,
 	frame: Extract<WebviewInboundMessage, { type: "saveProviderSettings" }>,
 ): Promise<void> {
-	const result = saveLocalProviderSettings(providerSettingsManager, {
+	const result = await saveLocalProviderSettings(providerSettingsManager, {
 		providerId: frame.providerId,
 		enabled: frame.enabled,
 		apiKey: frame.apiKey,

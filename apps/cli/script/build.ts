@@ -4,11 +4,15 @@ import {
 	cpSync,
 	existsSync,
 	mkdirSync,
+	mkdtempSync,
 	readdirSync,
 	readFileSync,
 	realpathSync,
+	rmSync,
 	statSync,
 } from "node:fs";
+import { type AddressInfo, createServer } from "node:net";
+import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { $ } from "bun";
 import {
@@ -163,6 +167,17 @@ function findOpenTuiParserWorker(): string {
 	return realpathSync(parserWorkerPath);
 }
 
+function findFreePort(): Promise<number> {
+	return new Promise((resolvePort, reject) => {
+		const server = createServer();
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			const { port } = server.address() as AddressInfo;
+			server.close(() => resolvePort(port));
+		});
+	});
+}
+
 function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
@@ -253,6 +268,41 @@ for (const item of targets) {
 				);
 			}
 			console.log(`  Passed: ${actualVersion}`);
+
+			// `--version` only proves the binary launches. Bun's bundler has had
+			// compile-time regressions (chunk ordering with `splitting: true`)
+			// that only surface once real modules load, so also boot the hub
+			// daemon from this binary in an isolated data dir and confirm it
+			// answers a health probe before shipping.
+			console.log(`  Smoke test: ${outfile} hub start/status/stop`);
+			const smokeHome = mkdtempSync(join(tmpdir(), "cline-smoke-"));
+			const smokeEnv = {
+				...process.env,
+				HOME: smokeHome,
+				USERPROFILE: smokeHome,
+				CLINE_DIR: join(smokeHome, ".cline"),
+				CLINE_DATA_DIR: join(smokeHome, "data"),
+				// Keep clear of a developer's real hub: its discovery record
+				// (which CLINE_HUB_DISCOVERY_PATH can point anywhere) and the
+				// default port.
+				CLINE_HUB_DISCOVERY_PATH: join(smokeHome, "hub-discovery.json"),
+				CLINE_HUB_PORT: String(await findFreePort()),
+			};
+			try {
+				await $`${outfile} hub start`.env(smokeEnv).quiet();
+				const status = JSON.parse(
+					await $`${outfile} hub status`.env(smokeEnv).text(),
+				) as { running?: boolean; coreVersion?: string };
+				if (!status.running || !status.coreVersion) {
+					throw new Error(
+						`Expected a healthy hub, got ${JSON.stringify(status)}`,
+					);
+				}
+				console.log(`  Passed: hub core ${status.coreVersion}`);
+			} finally {
+				await $`${outfile} hub stop`.env(smokeEnv).quiet().nothrow();
+				rmSync(smokeHome, { recursive: true, force: true });
+			}
 		} catch (e) {
 			console.error(`  Smoke test FAILED for ${name}:`, e);
 			process.exit(1);

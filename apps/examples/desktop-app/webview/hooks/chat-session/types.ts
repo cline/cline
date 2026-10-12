@@ -109,6 +109,8 @@ export type ChatApiResult = {
 		totalCost?: number;
 	};
 	iterations?: number;
+	/** The sidecar rebuilt the session after Cline Hub restarted mid-turn. */
+	hubInterrupted?: boolean;
 	finishReason?:
 		| "completed"
 		| "max_iterations"

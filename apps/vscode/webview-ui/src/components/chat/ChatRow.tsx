@@ -158,7 +158,6 @@ export const ChatRowContent = memo(
 			clineMessages,
 			showFeatureTips,
 			enableCheckpointsSetting,
-			workspaceRestoreAvailabilityByMessageTs,
 			turnState,
 		} = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
@@ -911,21 +910,12 @@ export const ChatRowContent = memo(
 					case "user_feedback":
 						return (
 							<UserMessage
+								canRestoreWorkspace={canRestoreWorkspaceFromMessage(clineMessages, message.ts)}
 								files={message.files}
 								images={message.images}
 								messageTs={message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
 								text={message.text}
-								workspaceRestoreAvailability={
-									canRestoreWorkspaceFromMessage(clineMessages, message.ts)
-										? (workspaceRestoreAvailabilityByMessageTs?.[message.ts] ?? {
-												available: false,
-												reason: enableCheckpointsSetting
-													? "checkpoint_unavailable"
-													: "checkpoints_disabled",
-											})
-										: undefined
-								}
 							/>
 						)
 					case "user_feedback_diff":
@@ -1035,8 +1025,6 @@ export const ChatRowContent = memo(
 								</button>
 							</div>
 						)
-					case "task_progress":
-						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					case "compaction":
 						return <CompactionRow message={message} />
 					default:

@@ -56,6 +56,9 @@ jobs:
                           - 'apps/vscode/esbuild.mjs'
                           - 'apps/vscode/bunfig.toml'
                           - 'apps/vscode/.vscode-test.mjs'
+                          # ext-vscode-test-e2e builds without lint; list its Playwright config
+                          # here so Quality Checks lints it.
+                          - 'apps/vscode/playwright*.ts'
                           - 'apps/vscode/test-setup.js'
                           - '.github/workflows/ext-vscode-test.yml'
                       testing_platform:
@@ -92,7 +95,7 @@ jobs:
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: 1.3.14
+                  bun-version: "1.4.2"
 
             # Single root install resolves the entire bun workspace (apps/vscode,
             # webview-ui, testing-platform and the @cline/* SDK symlinks) at once,
@@ -144,7 +147,7 @@ jobs:
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: 1.3.14
+                  bun-version: "1.4.2"
 
             # Single root install resolves the entire bun workspace at once (replaces
             # the per-package `npm ci` steps for apps/vscode + webview-ui).
@@ -284,7 +287,7 @@ jobs:
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
-                  bun-version: 1.3.14
+                  bun-version: "1.4.2"
 
             # Single root install resolves the whole bun workspace, including the
             # testing-platform package, so the separate per-package `npm ci` steps
