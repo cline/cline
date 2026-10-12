@@ -71,6 +71,7 @@ avoiding protocol overhead, not about avoiding the plugin system.
             "double_click" | "triple_click" | "left_mouse_down" |
             "left_mouse_up" | "key" | "hold_key" | "type" | "scroll" |
             "brief_pause" | "wait" | "zoom" | "run_sequence" |
+            "mark" | "list_marks" | "flipbook" | "clear_marks" |
             // Internal query, not one of Anthropic's `computer` tool
             // actions. Sent once at startup to build the tool's
             // description/schema with the real, native display size
@@ -87,6 +88,9 @@ avoiding protocol overhead, not about avoiding the plugin system.
   "scrollAmount": 3,               // optional, for "scroll"
   "region": [x0, y0, x1, y1],     // optional, for "zoom"
   "expectUnchanged": [x, y, width, height], // optional click guard
+  "label": "Editor open",          // required for "mark"
+  "name": "load-file",             // required for "flipbook"
+  "marks": [1, 3] | "2-5" | "3-",  // optional for "flipbook"/"clear_marks"
   "actions": [                    // required for "run_sequence", 1–20 steps
     { "action": "mouse_move", "coordinate": [x, y] },
     { "action": "key", "text": "Return" }
@@ -96,6 +100,17 @@ avoiding protocol overhead, not about avoiding the plugin system.
 
 `brief_pause` waits for a fixed 300 ms and then returns a screenshot. Use it
 inside `run_sequence` after opening transient UI and before typing into it.
+
+`mark` saves the most recent screenshot and a short label to disk under
+qbt's artifact root and answers with the PNG path; it is the one mark action
+allowed as a `run_sequence` step. `list_marks` numbers the pending marks.
+`flipbook` encodes all or a `marks` selection of them into a captioned
+animated WebP (half-size frames, 1 fps, the last frame held 3.5 s) and
+answers with its path and the path of each full-size frame. `clear_marks`
+deletes pending marks. These three answer with text, so they are rejected
+inside `run_sequence`. Marks live on disk, so they survive a backend
+restart; qbt's `--artifact-root` (default: its working directory) decides
+where. See qwanban's README for the on-disk layout.
 
 The `computer` tool validates input before recovery or network activity. A
 single action or sequence has a maximum 120-second estimated work budget:
@@ -196,7 +211,7 @@ $env:CLINE_COMPUTER_USE_PORT = '1234'
 $env:CLINE_COMPUTER_USE_BACKEND_COMMAND = 'qbt serve 1234 5678'
 ```
 
-Replace the executable path with your qbt installation. The first port is the agent port and must match `CLINE_COMPUTER_USE_PORT`; the second is the optional observatory WebSocket port.
+Replace the executable path with your qbt installation. The first port is the agent port and must match `CLINE_COMPUTER_USE_PORT`; the second is the optional observatory WebSocket port. Add `--artifact-root <dir>` to choose where `mark` and `flipbook` write; without it qbt uses the directory it was started from, which for a Cline-launched backend is the CLI workspace.
 
 The command runs on the CLI host through its platform shell (`cmd.exe` on Windows, `/bin/sh` on Unix), from the CLI workspace directory and with the CLI environment. Installing qbt on PATH makes executable lookup independent of that directory. Use an absolute executable path or an explicit directory change for a checkout-local build. PowerShell syntax inside the command requires an explicit PowerShell invocation. Setting `CLINE_COMPUTER_USE_HOST` does not run the command remotely.
 

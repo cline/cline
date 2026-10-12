@@ -31,7 +31,10 @@
  * it executes a queue of the other actions back-to-back and answers with a
  * single screenshot of the final state. `brief_pause` is another backend
  * extension: it waits for a fixed 300 ms so transient UI can become ready
- * without making the model choose an arbitrary duration.
+ * without making the model choose an arbitrary duration. `mark`,
+ * `list_marks`, `flipbook`, and `clear_marks` are backend extensions that
+ * keep chosen screenshots on disk and turn them into a captioned animated
+ * WebP; only `mark` may run inside `run_sequence`.
  */
 export type ComputerUseAction =
 	| "screenshot"
@@ -52,6 +55,10 @@ export type ComputerUseAction =
 	| "brief_pause"
 	| "wait"
 	| "zoom"
+	| "mark"
+	| "list_marks"
+	| "flipbook"
+	| "clear_marks"
 	| "run_sequence";
 
 /**
@@ -82,11 +89,22 @@ export type ComputerUseInternalAction =
 	| typeof PUBLISH_EVENT_ACTION
 	| typeof SHUTDOWN_BACKEND_ACTION;
 
-/** Actions valid as one non-recursive step inside `run_sequence`. */
+/**
+ * Actions valid as one non-recursive step inside `run_sequence`. The mark
+ * actions that answer with text are excluded: a sequence returns only its
+ * final screenshot, so their answer would be lost.
+ */
 export type ComputerUseSequenceAction = Exclude<
 	ComputerUseAction,
-	"run_sequence"
+	"run_sequence" | "list_marks" | "flipbook" | "clear_marks"
 >;
+
+/**
+ * Which pending marks `flipbook` or `clear_marks` applies to: 1-based mark
+ * numbers as listed by `list_marks`, or a string such as "2-5", "3-", "-3",
+ * "1,4-6", or "all". Omitted means all pending marks.
+ */
+export type ComputerUseMarkSelector = readonly number[] | string;
 
 /** Native display dimensions reported by the backend. */
 export interface ComputerUseDisplayInfo {
@@ -136,6 +154,12 @@ export interface ComputerUseRequest {
 	 * it changed, the click is aborted and a fresh screenshot is returned.
 	 */
 	expectUnchanged?: readonly [number, number, number, number];
+	/** Short caption for "mark"; it is drawn on the flipbook frame. */
+	label?: string;
+	/** Flipbook name for "flipbook"; slugged into the output file name. */
+	name?: string;
+	/** Mark selection for "flipbook" and "clear_marks". */
+	marks?: ComputerUseMarkSelector;
 }
 
 /**
@@ -145,12 +169,14 @@ export interface ComputerUseRequest {
  */
 export type ComputerUseSequenceItem = Omit<
 	ComputerUseRequest,
-	"id" | "action" | "actions" | "kind" | "payload"
+	"id" | "action" | "actions" | "kind" | "payload" | "name" | "marks"
 > & {
 	action: ComputerUseSequenceAction;
 	actions?: never;
 	kind?: never;
 	payload?: never;
+	name?: never;
+	marks?: never;
 };
 
 /** A single image returned by the backend (typically a screenshot). */
