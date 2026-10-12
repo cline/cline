@@ -1964,6 +1964,11 @@ export function useChatSession(environmentId: string) {
 							rekeyedOptimisticIdByMessageIdRef.current[userMessageId];
 						for (let i = prev.length - 1; i >= 0; i--) {
 							const candidate = prev[i];
+							// Session start appends plugin warnings after the optimistic
+							// bubble; look past them to the prompt.
+							if (candidate.meta?.messageKind === "plugin_issue") {
+								continue;
+							}
 							if (candidate.role !== "user") {
 								break;
 							}
