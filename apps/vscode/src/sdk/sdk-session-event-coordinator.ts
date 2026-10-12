@@ -141,17 +141,12 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
-		// `done` event carries no transcript message, yet the authoritative phase just changed to
-		// completed/awaiting_followup/error above; without posting here the webview would stay on
-		// the prior phase (footer stuck on the streaming/scroll state). The webview reducer gates
-		// turnState by seq, so an extra no-message post is safe.
-		if (
-			result.messages.length > 0 ||
-			result.sessionEnded ||
-			result.turnComplete ||
-			event.type === "pending_prompt_submitted"
-		) {
+		// Transcript changes already travel through subscribeToPartialMessage. Rebuilding and
+		// serializing the complete ExtensionState for every streamed delta duplicates that work
+		// and, for resumed long tasks, repeatedly sends multi-megabyte snapshots that can starve
+		// the extension host. Reserve full snapshots for state boundaries the partial stream does
+		// not carry: turn start and turn/session completion (including error completion).
+		if (result.sessionEnded || result.turnComplete || event.type === "pending_prompt_submitted") {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
