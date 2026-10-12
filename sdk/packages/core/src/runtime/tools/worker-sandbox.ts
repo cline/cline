@@ -40,6 +40,15 @@ export interface WorkerSandboxOptions {
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 }
 
+type QueuedCall = { id: string; message: SandboxCallMessage };
+
+interface SandboxCallMessage {
+	type: "call";
+	id: string;
+	method: string;
+	args: unknown;
+}
+
 type PendingRequest = {
 	worker: Worker;
 	resolve: (value: unknown) => void;
@@ -80,7 +89,7 @@ export class WorkerSandbox {
 	 * them), and the bootstrap may still be importing when the first call is
 	 * made.
 	 */
-	private readonly outboxes = new WeakMap<Worker, unknown[]>();
+	private readonly outboxes = new WeakMap<Worker, QueuedCall[]>();
 
 	constructor(options: WorkerSandboxOptions) {
 		this.options = options;
@@ -271,12 +280,13 @@ export class WorkerSandbox {
 			}
 			this.pending.set(id, pending);
 			try {
-				const message = { type: "call", id, method, args };
+				const message: SandboxCallMessage = { type: "call", id, method, args };
 				const outbox = this.outboxes.get(worker);
 				if (outbox) {
-					// Surface DataCloneError now, as postMessage would.
-					structuredClone(message);
-					outbox.push(message);
+					// Queue a snapshot, as postMessage would send: the caller may
+					// change `args` before the worker is ready, and cloning now
+					// surfaces DataCloneError here instead of at flush time.
+					outbox.push({ id, message: structuredClone(message) });
 				} else {
 					worker.postMessage(message);
 				}
@@ -341,7 +351,15 @@ export class WorkerSandbox {
 			const outbox = this.outboxes.get(worker);
 			this.outboxes.delete(worker);
 			for (const queued of outbox ?? []) {
-				worker.postMessage(queued);
+				// A queued call whose request already timed out is dropped.
+				if (!this.pending.has(queued.id)) continue;
+				try {
+					worker.postMessage(queued.message);
+				} catch (error) {
+					// Snapshots are clones, so this should not happen; if it does,
+					// reject that call rather than throw from the message listener.
+					this.clearPendingRequest(queued.id)?.reject(asError(error));
+				}
 			}
 			return;
 		}
