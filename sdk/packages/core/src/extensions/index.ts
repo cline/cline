@@ -59,4 +59,5 @@ export {
 	getProcessPluginRegistry,
 	PluginCallTimeoutError,
 	PluginRegistry,
+	runOutsidePluginScope,
 } from "./plugin/plugin-registry";

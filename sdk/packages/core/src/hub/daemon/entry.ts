@@ -12,6 +12,7 @@ import {
 import {
 	getProcessPluginRegistry,
 	type PluginRegistry,
+	runOutsidePluginScope,
 } from "../../extensions/plugin/plugin-registry";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
@@ -268,37 +269,49 @@ async function main(): Promise<void> {
 	// instead of taking Node/Bun's default exit path and leaving stale discovery.
 	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
 	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
-	process.on("uncaughtException", (error) => {
-		if (attributeUncaughtErrorToPlugin("uncaughtException", error)) {
-			return;
-		}
-		shutdownFatal("uncaughtException", error);
-	});
-	process.on("unhandledRejection", (reason) => {
-		if (isAbortRejection(reason)) {
-			const message = reason instanceof Error ? reason.message : String(reason);
+	// Both handlers run in the async context of the code that failed, which can
+	// be a plugin's; shutdown must not inherit it or the plugin exit guard
+	// would refuse the daemon's own exit.
+	process.on("uncaughtException", (error) =>
+		runOutsidePluginScope(() => {
+			if (attributeUncaughtErrorToPlugin("uncaughtException", error)) {
+				return;
+			}
+			shutdownFatal("uncaughtException", error);
+		}),
+	);
+	process.on("unhandledRejection", (reason) =>
+		runOutsidePluginScope(() => {
+			if (isAbortRejection(reason)) {
+				const message =
+					reason instanceof Error ? reason.message : String(reason);
+				process.stderr.write(
+					`[hub-daemon] ignored abort rejection: ${message}\n`,
+				);
+				return;
+			}
+			if (attributeUncaughtErrorToPlugin("unhandledRejection", reason)) {
+				return;
+			}
+			if (getProcessPluginRegistry().list().length === 0) {
+				shutdownFatal("unhandledRejection", reason);
+				return;
+			}
+			// With plugins loaded, a rejection they leave behind often carries
+			// no plugin frame (a fire-and-forget fetch rejects from runtime
+			// internals), so it cannot be attributed. Ending the daemon would
+			// drop every session for one plugin's loose promise; log and keep
+			// serving. Exceptions stay fatal: unlike a rejection, they can leave
+			// the synchronous work that threw half done.
+			const message =
+				reason instanceof Error
+					? (reason.stack ?? reason.message)
+					: String(reason);
 			process.stderr.write(
-				`[hub-daemon] ignored abort rejection: ${message}\n`,
+				`[hub-daemon] unhandledRejection (not attributed to a plugin; continuing): ${message}\n`,
 			);
-			return;
-		}
-		if (attributeUncaughtErrorToPlugin("unhandledRejection", reason)) {
-			return;
-		}
-		// Plugins run in this process, and a rejection they leave behind often
-		// carries no plugin frame (a fire-and-forget fetch rejects from runtime
-		// internals), so it cannot be attributed. Ending the daemon here would
-		// drop every session for one plugin's loose promise; log and keep
-		// serving. Exceptions stay fatal: unlike a rejection, they can leave the
-		// synchronous work that threw half done.
-		const message =
-			reason instanceof Error
-				? (reason.stack ?? reason.message)
-				: String(reason);
-		process.stderr.write(
-			`[hub-daemon] unhandledRejection (not attributed to a plugin; continuing): ${message}\n`,
-		);
-	});
+		}),
+	);
 
 	// A hub being retired can keep the port bound for a couple of seconds
 	// after acking shutdown (its watchdog force-exits below the 3s retire

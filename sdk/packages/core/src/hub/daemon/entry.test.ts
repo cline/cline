@@ -119,12 +119,14 @@ vi.mock("./bind-diagnostics", () => ({
 	describeAddressInUse: mockDescribeAddressInUse,
 }));
 
-const { mockAttributeUncaughtError, mockPluginPreload } = vi.hoisted(() => ({
-	mockAttributeUncaughtError: vi.fn(
-		(_error: unknown, _label?: string): unknown => undefined,
-	),
-	mockPluginPreload: vi.fn(async () => []),
-}));
+const { mockAttributeUncaughtError, mockPluginPreload, mockPluginList } =
+	vi.hoisted(() => ({
+		mockPluginList: vi.fn((): unknown[] => []),
+		mockAttributeUncaughtError: vi.fn(
+			(_error: unknown, _label?: string): unknown => undefined,
+		),
+		mockPluginPreload: vi.fn(async () => []),
+	}));
 
 vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
 	resolvePluginExecutionMode: () =>
@@ -140,7 +142,9 @@ vi.mock("../../extensions/plugin/plugin-registry", () => ({
 	getProcessPluginRegistry: () => ({
 		attributeUncaughtError: mockAttributeUncaughtError,
 		preload: mockPluginPreload,
+		list: mockPluginList,
 	}),
+	runOutsidePluginScope: <T>(fn: () => T): T => fn(),
 }));
 
 const originalArgv = [...process.argv];
@@ -326,7 +330,7 @@ describe("hub daemon entry", () => {
 		}
 	});
 
-	it("logs unhandled rejections instead of shutting down", async () => {
+	it("ignores abort rejections, and logs unattributed ones only while plugins are loaded", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = ["node", "entry.js", "--cwd", cwd];
@@ -364,9 +368,10 @@ describe("hub daemon entry", () => {
 		onUnhandledRejection?.(nodeAbort);
 		expect(exitSpy).not.toHaveBeenCalled();
 
-		// A rejection that cannot be attributed to a plugin (a plugin's
-		// fire-and-forget fetch rejects from runtime internals with no plugin
-		// frame) is logged, and the daemon keeps serving its sessions.
+		// With plugins loaded, a rejection that cannot be attributed (a
+		// plugin's fire-and-forget fetch rejects from runtime internals with no
+		// plugin frame) is logged, and the daemon keeps serving its sessions.
+		mockPluginList.mockReturnValue([{ name: "some-plugin" }]);
 		onUnhandledRejection?.(new Error("boom"));
 		expect(exitSpy).not.toHaveBeenCalled();
 		expect(
@@ -375,8 +380,9 @@ describe("hub daemon entry", () => {
 			),
 		).toBe(true);
 
-		// Exceptions stay fatal.
-		handlers.get("uncaughtException")?.(new Error("hub bug"));
+		// Without plugins, any other rejection is still fatal.
+		mockPluginList.mockReturnValue([]);
+		onUnhandledRejection?.(new Error("hub bug"));
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});

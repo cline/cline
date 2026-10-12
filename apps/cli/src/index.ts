@@ -83,25 +83,32 @@ if (!isMainThread) {
 	// Plugins run in this process when no hub is available (first run, first
 	// run after an update, ACP). A stray error whose stack points into a
 	// plugin is that plugin's failure: the registry turns it off and tells the
-	// session, and the run goes on. Same policy as the hub daemon.
-	const attributeToPlugin = async (
+	// session, and the run goes on. Same policy as the hub daemon. The handler
+	// runs in the async context of the code that failed, which can be a
+	// plugin's, so the fatal path leaves that scope or the plugin exit guard
+	// would refuse the CLI's own exit.
+	const handleProcessError = (
 		kind: "uncaughtException" | "unhandledRejection",
 		error: unknown,
-	): Promise<boolean> => {
-		try {
-			const { getProcessPluginRegistry } = await import("@cline/core");
-			return (
-				getProcessPluginRegistry().attributeUncaughtError(error, kind) !==
-				undefined
-			);
-		} catch {
-			return false;
-		}
+	) => {
+		void import("@cline/core").then(
+			({ getProcessPluginRegistry, runOutsidePluginScope }) =>
+				runOutsidePluginScope(() => {
+					let attributed = false;
+					try {
+						attributed =
+							getProcessPluginRegistry().attributeUncaughtError(error, kind) !==
+							undefined;
+					} catch {
+						// Attribution is best effort; fall through to the fatal path.
+					}
+					if (!attributed) handleFatalProcessError(kind, error);
+				}),
+			() => handleFatalProcessError(kind, error),
+		);
 	};
 	process.on("uncaughtException", (error) => {
-		void attributeToPlugin("uncaughtException", error).then((attributed) => {
-			if (!attributed) handleFatalProcessError("uncaughtException", error);
-		});
+		handleProcessError("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason, promise) => {
 		if (isAbortInProgress()) {
@@ -110,9 +117,7 @@ if (!isMainThread) {
 			promise.catch(() => {});
 			return;
 		}
-		void attributeToPlugin("unhandledRejection", reason).then((attributed) => {
-			if (!attributed) handleFatalProcessError("unhandledRejection", reason);
-		});
+		handleProcessError("unhandledRejection", reason);
 	});
 
 	void (async () => {

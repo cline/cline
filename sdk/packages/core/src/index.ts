@@ -271,6 +271,7 @@ export {
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
 	resolvePluginSkillDirectoriesFromPaths,
+	runOutsidePluginScope,
 } from "./extensions";
 export type {
 	AvailableRuntimeCommand,

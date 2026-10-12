@@ -349,6 +349,16 @@ export function installPluginHostShim(): void {
 	};
 }
 
+/**
+ * Runs `fn`, and the async work it starts, outside any plugin call scope.
+ * Process error handlers run in the async context of the code that failed,
+ * which can be a plugin's; host shutdown started from there must not be
+ * refused by the `process.exit` guard below.
+ */
+export function runOutsidePluginScope<T>(fn: () => T): T {
+	return pluginCallScope.exit(fn);
+}
+
 let processExitGuardInstalled = false;
 
 /**
