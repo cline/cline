@@ -76,6 +76,13 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	/** A plugin finished importing and its `setup()` is starting. */
 	onSetupStarted?: (pluginPath: string) => void;
 	/**
+	 * Session plugin policy, applied inside the sandbox after each plugin is
+	 * imported (when its own name is known) and before its `setup()` runs.
+	 */
+	policy?: Record<string, { enabled?: boolean } | undefined>;
+	/** Per plugin path: other names the policy may use (its file name). */
+	policyNames?: Record<string, string[]>;
+	/**
 	 * The session's working directory. Forwarded to the sandbox subprocess so
 	 * that `process.cwd()` returns the correct path inside the sandbox even
 	 * when `--cwd` was passed without calling `process.chdir()` on the host.
@@ -163,6 +170,7 @@ type SandboxedPluginDescriptor = {
 
 type SandboxedInitializeResult = {
 	plugins: SandboxedPluginDescriptor[];
+	disabledByPolicy?: Array<{ pluginPath: string; name: string }>;
 } & PluginLoadDiagnostics;
 
 function normalizeDescriptor(
@@ -381,6 +389,8 @@ export async function loadSandboxedPlugins(
 	{
 		extensions: AgentConfig["extensions"];
 		pluginPaths: string[];
+		/** Plugins the `policy` turned off; their setup did not run. */
+		disabledByPolicy: Array<{ pluginPath: string; name: string }>;
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
@@ -454,6 +464,8 @@ export async function loadSandboxedPlugins(
 		loggerEnabled: Boolean(options.logger),
 		telemetryEnabled: options.telemetryAvailable === true,
 		setupTimeoutMs,
+		policy: options.policy,
+		policyNames: options.policyNames,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -536,6 +548,7 @@ export async function loadSandboxedPlugins(
 
 	return {
 		extensions,
+		disabledByPolicy: initialized.disabledByPolicy ?? [],
 		failures: initialized.failures,
 		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {

@@ -234,6 +234,26 @@ interface InitializeResult {
 	plugins: PluginDescriptor[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
+	/** Plugins the session policy turned off once their own name was known. */
+	disabledByPolicy: Array<{ pluginPath: string; name: string }>;
+}
+
+/**
+ * The session plugin policy, shaped like `toolPolicies` (`"*"` default plus
+ * per-plugin overrides). Mirrors `isPluginEnabledByPolicy` in the registry.
+ */
+type PluginPolicy = Record<string, { enabled?: boolean } | undefined>;
+
+function isEnabledByPolicy(
+	policy: PluginPolicy | undefined,
+	names: ReadonlyArray<string>,
+): boolean {
+	if (!policy) return true;
+	for (const name of names) {
+		const enabled = policy[name]?.enabled;
+		if (typeof enabled === "boolean") return enabled;
+	}
+	return policy["*"]?.enabled ?? true;
 }
 
 interface PluginState {
@@ -256,6 +276,10 @@ type LoadedPluginResult =
 	  }
 	| {
 			type: "skipped";
+	  }
+	| {
+			type: "policy_disabled";
+			name: string;
 	  }
 	| {
 			type: "failure";
@@ -626,6 +650,9 @@ async function loadPluginDescriptor(args: {
 	setupTimeoutMs?: number;
 	loggerEnabled?: boolean;
 	telemetryEnabled?: boolean;
+	policy?: PluginPolicy;
+	/** Names the policy may use besides the plugin's own (its file name). */
+	policyNames?: string[];
 }): Promise<LoadedPluginResult> {
 	let plugin: PluginModule | undefined;
 	const disposers: PluginState["disposers"] = [];
@@ -637,6 +664,16 @@ async function loadPluginDescriptor(args: {
 		plugin.manifest = normalizePluginManifest(plugin.manifest);
 		if (!matchesPluginManifestTargeting(plugin.manifest, args.targeting)) {
 			return { type: "skipped" };
+		}
+		// The plugin's own name is only known after import; decide before
+		// setup() runs so a plugin the session turned off has no side effects.
+		if (
+			!isEnabledByPolicy(args.policy, [
+				plugin.name,
+				...(args.policyNames ?? []),
+			])
+		) {
+			return { type: "policy_disabled", name: plugin.name };
 		}
 
 		const contributions: PluginDescriptor["contributions"] = {
@@ -823,6 +860,8 @@ async function initialize(args: {
 	loggerEnabled?: boolean;
 	telemetryEnabled?: boolean;
 	setupTimeoutMs?: number;
+	policy?: PluginPolicy;
+	policyNames?: Record<string, string[]>;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -858,6 +897,7 @@ async function initialize(args: {
 	const descriptors: PluginDescriptor[] = [];
 	const failures: PluginInitializationFailure[] = [];
 	const warnings: PluginInitializationWarning[] = [];
+	const disabledByPolicy: InitializeResult["disabledByPolicy"] = [];
 	const exportName = args.exportName || "plugin";
 	const pluginIndexByName = new Map<string, number>();
 	const targeting: PluginTargeting = {
@@ -882,14 +922,23 @@ async function initialize(args: {
 				targeting,
 				setupCtxBase,
 				setupTimeoutMs: args.setupTimeoutMs,
+				policy: args.policy,
+				policyNames: args.policyNames?.[pluginPath],
 				loggerEnabled: args.loggerEnabled,
 				telemetryEnabled: args.telemetryEnabled,
 			});
 		}),
 	);
 
-	for (const result of loadResults) {
+	for (const [index, result] of loadResults.entries()) {
 		if (result.type === "skipped") {
+			continue;
+		}
+		if (result.type === "policy_disabled") {
+			disabledByPolicy.push({
+				pluginPath: args.pluginPaths?.[index] ?? "",
+				name: result.name,
+			});
 			continue;
 		}
 		if (result.type === "failure") {
@@ -925,7 +974,7 @@ async function initialize(args: {
 		descriptors.push(descriptor);
 	}
 
-	return { plugins: descriptors, failures, warnings };
+	return { plugins: descriptors, failures, warnings, disabledByPolicy };
 }
 
 async function invokeHook(args: {

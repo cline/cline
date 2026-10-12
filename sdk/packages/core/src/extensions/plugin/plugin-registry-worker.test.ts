@@ -523,4 +523,47 @@ export default {
 		expect(next.extensions).toHaveLength(1);
 		await next.release();
 	}, 60_000);
+
+	it("applies a policy that names the plugin by its exported name", async () => {
+		// The file name (kept.mjs) differs from the plugin's own name.
+		const path = await write("kept.mjs", toolPlugin("kept-plugin"));
+		const session = await load({
+			sessionId: "s1",
+			pluginPaths: [path],
+			policy: { "*": { enabled: false }, "kept-plugin": { enabled: true } },
+		});
+		expect(session.extensions.map((extension) => extension.name)).toEqual([
+			"kept-plugin",
+		]);
+	}, 30_000);
+
+	it("does not run setup for a plugin the policy turns off by exported name", async () => {
+		const marker = join(root, "setup-ran.txt");
+		const path = await write(
+			"off.mjs",
+			`import { writeFileSync } from "node:fs";
+export default {
+	name: "off-plugin",
+	manifest: { capabilities: ["tools"] },
+	setup() { writeFileSync(${JSON.stringify(marker)}, "ran"); },
+};`,
+		);
+		const policy = { "off-plugin": { enabled: false } };
+		const first = await load({ sessionId: "s1", pluginPaths: [path], policy });
+		expect(first.extensions).toHaveLength(0);
+		expect(first.issues).toContainEqual(
+			expect.objectContaining({
+				name: "off-plugin",
+				state: "disabled",
+				reason: "session_policy",
+			}),
+		);
+		await expect(readFile(marker, "utf8")).rejects.toThrow();
+		// Once the name is known, later sessions skip the worker entirely.
+		const second = await load({ sessionId: "s2", pluginPaths: [path], policy });
+		expect(second.issues[0]).toMatchObject({
+			name: "off-plugin",
+			reason: "session_policy",
+		});
+	}, 30_000);
 });

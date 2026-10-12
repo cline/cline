@@ -97,6 +97,12 @@ interface PluginEntry {
 	 * the new code in a worker too.
 	 */
 	isolated?: { exportName?: string };
+	/**
+	 * Worker mode: the plugin's own (exported) name has been seen for its
+	 * current code. Until then `name` is derived from the path, so the host
+	 * cannot apply a policy that names the plugin and leaves it to the worker.
+	 */
+	nameResolved?: boolean;
 	loading?: Promise<void>;
 	updatedAt: number;
 }
@@ -682,8 +688,9 @@ export class PluginRegistry {
 			const entry = this.ensureEntry(resolve(rawPath));
 			entry.isolated = { exportName: input.exportName };
 			this.refreshIsolatedEntry(entry);
-			const enabledByPolicy = this.isEnabledForSession(entry, input);
-			if (!enabledByPolicy) {
+			// Skip the worker only when the plugin's own name is known; else the
+			// worker applies the policy after import, before setup.
+			if (entry.nameResolved && !this.isEnabledForSession(entry, input)) {
 				issues.push(this.policyIssue(entry));
 				continue;
 			}
@@ -731,6 +738,10 @@ export class PluginRegistry {
 				}
 				failures.push(this.toInitializationFailure(entry));
 				issues.push(this.toIssue(entry, "error"));
+				continue;
+			}
+			if ("policyDisabled" in result) {
+				issues.push(this.policyIssue(entry));
 				continue;
 			}
 			if (!result.instance) continue; // Manifest targeting excluded it.
@@ -799,6 +810,8 @@ export class PluginRegistry {
 		entry.blocked = false;
 		entry.consecutiveFailures = 0;
 		entry.extension = undefined;
+		// New code may export a different name.
+		entry.nameResolved = false;
 		this.setState(entry, "loading", true);
 	}
 
@@ -809,6 +822,7 @@ export class PluginRegistry {
 		sessionId: string | undefined,
 	): Promise<
 		| { entry: PluginEntry; instance?: PluginInstance }
+		| { entry: PluginEntry; policyDisabled: true }
 		| {
 				entry: PluginEntry;
 				error: unknown;
@@ -840,6 +854,12 @@ export class PluginRegistry {
 				onSetupStarted: () => {
 					setupStarted = true;
 				},
+				policy: input.policy,
+				policyNames: {
+					[entry.pluginPath]: [
+						derivePluginName(entry.pluginPath, entry.attributionRoot),
+					],
+				},
 				// A worker that dies on its own (stray rejection, process.exit)
 				// is this plugin's fault: the worker runs nothing else.
 				onUnexpectedExit: (error) => {
@@ -870,6 +890,15 @@ export class PluginRegistry {
 				importId,
 			};
 		}
+		const disabled = loaded.disabledByPolicy[0];
+		if (disabled) {
+			await loaded.shutdown().catch(() => {});
+			if (importId === entry.importId) {
+				entry.name = disabled.name;
+				entry.nameResolved = true;
+			}
+			return { entry, policyDisabled: true };
+		}
 		const failure = loaded.failures[0];
 		const extension = loaded.extensions?.[0];
 		if (failure || !extension) {
@@ -889,6 +918,7 @@ export class PluginRegistry {
 		instance.shutdown = loaded.shutdown;
 		if (importId === entry.importId) {
 			entry.name = extension.name;
+			entry.nameResolved = true;
 			instance.scope.pluginName = extension.name;
 			entry.extension = extension;
 			if (
@@ -928,7 +958,9 @@ export class PluginRegistry {
 			});
 			return;
 		}
-		await result.instance?.shutdown?.().catch(() => {});
+		if ("instance" in result) {
+			await result.instance?.shutdown?.().catch(() => {});
+		}
 	}
 
 	private staleIssue(
