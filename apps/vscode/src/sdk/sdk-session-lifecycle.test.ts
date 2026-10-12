@@ -87,10 +87,19 @@ describe("SdkSessionLifecycle", () => {
 		await waiting
 		expect(waited).toBe(true)
 
-		const failing = lifecycle.trackSessionStart(async () => {
-			throw new Error("start failed")
-		})
+		// A waiter already in place when a start fails is released, not rejected:
+		// a mode toggle waiting on a failed new-task start must still go ahead.
+		let failStart!: (error: Error) => void
+		const failing = lifecycle.trackSessionStart(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					failStart = reject
+				}),
+		)
+		const waitingOnFailure = lifecycle.waitForSessionStarts()
+		failStart(new Error("start failed"))
 		await expect(failing).rejects.toThrow("start failed")
+		await expect(waitingOnFailure).resolves.toBeUndefined()
 		await expect(lifecycle.waitForSessionStarts()).resolves.toBeUndefined()
 	})
 
