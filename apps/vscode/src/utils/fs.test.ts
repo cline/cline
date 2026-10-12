@@ -1,5 +1,5 @@
-import { after, describe, it } from "mocha"
 import * as fs from "fs/promises"
+import { after, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
@@ -90,6 +90,40 @@ describe("Filesystem Utilities", () => {
 	})
 
 	describe("readDirectory", () => {
+		it("should include symlinked files while preserving exclusions and ignoring invalid targets", async function () {
+			if (process.platform === "win32") {
+				this.skip()
+			}
+
+			const testDir = path.join(tmpDir, ".clinerules")
+			const nestedDir = path.join(testDir, "nested")
+			const workflowsDir = path.join(testDir, "workflows")
+			const externalDir = path.join(tmpDir, "external")
+			await fs.mkdir(nestedDir, { recursive: true })
+			await fs.mkdir(workflowsDir)
+			await fs.mkdir(externalDir)
+			const sourcePath = path.join(externalDir, "source.md")
+			await fs.writeFile(sourcePath, "Linked rule content.")
+			const regularPath = path.join(testDir, "regular.md")
+			await fs.writeFile(regularPath, "Regular rule content.")
+			const linkedPath = path.join(testDir, "linked.md")
+			const nestedPath = path.join(nestedDir, "linked.md")
+			const workflowPath = path.join(workflowsDir, "linked.md")
+			await fs.symlink(path.join("..", "external", "source.md"), linkedPath, "file")
+			await fs.symlink(sourcePath, nestedPath, "file")
+			await fs.symlink(sourcePath, workflowPath, "file")
+			await fs.symlink(sourcePath, path.join(testDir, ".DS_Store"), "file")
+			await fs.symlink(path.join(externalDir, "missing.md"), path.join(testDir, "broken.md"), "file")
+			await fs.symlink(externalDir, path.join(testDir, "directory.md"), "dir")
+			const circularPath = path.join(testDir, "circular.md")
+			await fs.symlink(circularPath, circularPath, "file")
+
+			const files = await readDirectory(testDir)
+			files.sort().should.deepEqual([regularPath, linkedPath, nestedPath, workflowPath].sort())
+			const filteredFiles = await readDirectory(testDir, [[".clinerules", "workflows"]])
+			filteredFiles.sort().should.deepEqual([regularPath, linkedPath, nestedPath].sort())
+		})
+
 		it("should list files in a directory", async () => {
 			// Create test directory with files
 			const testDir = path.join(tmpDir, "read-test")

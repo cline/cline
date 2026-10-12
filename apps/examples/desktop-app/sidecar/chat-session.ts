@@ -1651,7 +1651,13 @@ async function handleSendOnce(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	const persistedSession = await manager.get(sessionId);
+	const persistedSession = await manager.get(sessionId).catch((error) => {
+		if (binding.kind !== "local" || !isHubLossError(error)) throw error;
+		// Keep the handoff guard while allowing the existing send recovery below.
+		const manifest = readSessionManifest(sessionId);
+		if (!manifest) throw error;
+		return manifest;
+	});
 	const handoff = readCloudHandoffMetadata(
 		persistedSession?.metadata ?? readSessionMetadata(sessionId),
 	);

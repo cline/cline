@@ -37,6 +37,7 @@ import {
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import * as sessionPaths from "./paths";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -1491,6 +1492,7 @@ describe("first-send connection updates", () => {
 		} as unknown as SidecarContext;
 		return {
 			ctx,
+			get,
 			readMessages,
 			readSessionCompactionState,
 			send,
@@ -2154,24 +2156,90 @@ describe("first-send connection updates", () => {
 				name: "HubTransportError",
 			});
 
-		it("rebuilds a session the restarted hub lost and ends the turn interrupted", async () => {
-			const { ctx, send, sessionId, start, updateSessionConnection } =
+		it.each([
+			"pending",
+			"complete",
+			"missing manifest",
+			"other error",
+			"ssh",
+		])("does not bypass the send guard for %s during a lookup failure", async (scenario) => {
+			const { ctx, get, send, sessionId, start } = createContext();
+			const error =
+				scenario === "other error"
+					? new Error("access denied")
+					: transportLost();
+			get.mockRejectedValue(error);
+			if (scenario === "ssh")
+				getSessionRuntimeBinding(ctx, sessionId).kind = "ssh";
+			const manifest = vi
+				.spyOn(sessionPaths, "readSessionManifest")
+				.mockReturnValue(
+					scenario === "missing manifest"
+						? null
+						: {
+								metadata: {
+									handoff: {
+										status: scenario,
+										toCloudSessionId: "cloud-target",
+										handedOffAt: "2026-08-18T00:00:00.000Z",
+									},
+								},
+							},
+				);
+			try {
+				const result = handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "hello",
+					config: { environmentId: "local" },
+				});
+				if (scenario === "pending" || scenario === "complete") {
+					await expect(result).rejects.toThrow(
+						scenario === "pending"
+							? "Cloud handoff is still pending"
+							: "This session continued in Cline Cloud",
+					);
+				} else await expect(result).rejects.toBe(error);
+				expect(send).not.toHaveBeenCalled();
+				expect(start).not.toHaveBeenCalled();
+			} finally {
+				manifest.mockRestore();
+			}
+		});
+
+		it.each([
+			"send",
+			"pre-send lookup",
+		])("rebuilds a session the restarted hub lost during %s and ends the turn interrupted", async (stage) => {
+			const { ctx, get, send, sessionId, start, updateSessionConnection } =
 				createContext();
+			const manifest = vi
+				.spyOn(sessionPaths, "readSessionManifest")
+				.mockReturnValue({ metadata: {} });
+			if (stage === "pre-send lookup")
+				get.mockRejectedValueOnce(transportLost());
 			send.mockRejectedValueOnce(missing(sessionId));
 			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
 
-			const response = (await handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId,
-				prompt: "hello",
-			})) as { result?: { finishReason?: string; hubInterrupted?: boolean } };
+			try {
+				const response = (await handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId,
+					prompt: "hello",
+					config: { environmentId: "local" },
+				})) as { result?: { finishReason?: string; hubInterrupted?: boolean } };
 
-			expect(start).toHaveBeenCalledTimes(1);
-			expect(start.mock.calls[0]?.[0]).toMatchObject({ config: { sessionId } });
-			expect(response.result).toMatchObject({
-				finishReason: "aborted",
-				hubInterrupted: true,
-			});
+				expect(start).toHaveBeenCalledTimes(1);
+				expect(start.mock.calls[0]?.[0]).toMatchObject({
+					config: { sessionId },
+				});
+				expect(response.result).toMatchObject({
+					finishReason: "aborted",
+					hubInterrupted: true,
+				});
+			} finally {
+				manifest.mockRestore();
+			}
 		});
 
 		it("leaves a session the hub still holds alone and reports the failure", async () => {
