@@ -208,6 +208,16 @@ describe("cli e2e", () => {
 		);
 	});
 
+	it("reads a prompt piped through socket stdin", () => {
+		// spawnSync's `input` gives the child a socket on stdin (not a FIFO),
+		// which is what node/bun hosts hand the CLI.
+		const result = runCli([], {
+			env: createIsolatedEnv(),
+			stdin: "/team",
+		});
+		expect(asText(result.stdout)).toContain("Usage: /team <task description>");
+	});
+
 	it("rejects zen mode without a prompt using a prompt-specific error", () => {
 		const result = runCli(["--zen"], {
 			env: createIsolatedEnv(),
