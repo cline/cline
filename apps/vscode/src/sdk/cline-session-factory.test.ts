@@ -6,7 +6,6 @@ import * as LlmsModels from "@cline/llms"
 import { ApiFormat } from "@shared/proto/cline/models"
 import { Logger } from "@shared/services/Logger"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { mockFetchForTesting } from "@/shared/net"
 import * as netModule from "@/shared/net"
 import {
 	buildResumeSessionInput,
@@ -285,14 +284,16 @@ describe("normalizeSdkBaseUrl", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolveProviderFetch", () => {
-	it("gives local model servers the idle-timeout-free fetch so long prompt processing is not killed by UND_ERR_BODY_TIMEOUT", () => {
-		expect(resolveProviderFetch("lmstudio")).toBe(netModule.fetchWithoutIdleTimeouts)
-		expect(resolveProviderFetch("ollama")).toBe(netModule.fetchWithoutIdleTimeouts)
+	it("gives providers that may point at a local model server the idle-timeout-free fetch", () => {
+		for (const providerId of ["lmstudio", "ollama", "openai-compatible", "litellm"]) {
+			expect(resolveProviderFetch(providerId)).toBe(netModule.fetchWithoutIdleTimeouts)
+		}
 	})
 
-	it("keeps the proxy/CA-aware fetch for everything else", () => {
-		expect(resolveProviderFetch("anthropic")).toBe(netModule.fetch)
-		expect(resolveProviderFetch("openai-compatible")).toBe(netModule.fetch)
+	it("keeps the proxy-aware fetch for everything else", () => {
+		for (const providerId of ["anthropic", "cline", "openrouter", "bedrock"]) {
+			expect(resolveProviderFetch(providerId)).toBe(netModule.fetch)
+		}
 	})
 })
 
@@ -739,48 +740,24 @@ describe("buildSessionConfig", () => {
 	// Regression test for cline/cline#13464: undici's default 5-minute
 	// idle-body timeout (UND_ERR_BODY_TIMEOUT) killed LM Studio requests
 	// mid-stream even while the local server was actively generating tokens.
-	it("wraps LM Studio's fetch to ignore undici's idle-body timeout", async () => {
+	it("gives LM Studio the fetch that ignores undici's idle timeouts", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "lmstudio",
 			actModeApiModelId: "qwen3-coder-30b",
 		} as any)
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-		const providerFetch = (config.providerConfig as { fetch?: typeof fetch }).fetch
-		expect(providerFetch).toBeDefined()
-
-		let capturedInit: (RequestInit & { dispatcher?: unknown }) | undefined
-		await mockFetchForTesting(
-			(async (_input, init) => {
-				capturedInit = init
-				return new Response("ok")
-			}) as typeof fetch,
-			() => providerFetch?.("http://localhost:1234/v1/chat/completions", { method: "POST" }),
-		)
-
-		expect(capturedInit).toMatchObject({ dispatcher: expect.anything() })
+		expect((config.providerConfig as { fetch?: typeof fetch }).fetch).toBe(netModule.fetchWithoutIdleTimeouts)
 	})
 
-	it("does not override the idle-body timeout for other providers", async () => {
+	it("keeps the idle timeouts for hosted providers", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "moonshot",
 			actModeApiModelId: "kimi-k3",
 		} as any)
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-		const providerFetch = (config.providerConfig as { fetch?: typeof fetch }).fetch
-		expect(providerFetch).toBeDefined()
-
-		let capturedInit: (RequestInit & { dispatcher?: unknown }) | undefined
-		await mockFetchForTesting(
-			(async (_input, init) => {
-				capturedInit = init
-				return new Response("ok")
-			}) as typeof fetch,
-			() => providerFetch?.("https://api.moonshot.ai/v1/chat/completions", { method: "POST" }),
-		)
-
-		expect(capturedInit?.dispatcher).toBeUndefined()
+		expect((config.providerConfig as { fetch?: typeof fetch }).fetch).toBe(netModule.fetch)
 	})
 
 	it("inherits the base provider's legacy apiLine for coding variants", async () => {

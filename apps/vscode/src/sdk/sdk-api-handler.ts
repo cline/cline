@@ -130,8 +130,6 @@ export function buildSdkProviderConfig(
 
 	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
 	const sdkProviderId = toSdkProviderId(providerId)
-
-	const sdkProviderId = toSdkProviderId(providerId)
 	const headers = resolveRequestHeaders(sdkProviderId, options?.client)
 
 	const base: ProviderConfig = {
@@ -141,9 +139,8 @@ export function buildSdkProviderConfig(
 		baseUrl,
 		...(headers ? { headers } : {}),
 		...(vertexProviderConfig ?? {}),
-		// Use the proxy-aware fetch so gateway providers respect corporate proxy
-		// configuration (see .clinerules/network.md). Local model servers get a
-		// variant with undici's idle timeouts disabled (cline/cline#13464).
+		// Proxy-aware fetch (see .clinerules/network.md); providers that may point
+		// at a local model server get the variant without undici's idle timeouts.
 		fetch: resolveProviderFetch(sdkProviderId),
 		// Bedrock needs its region + structured AWS auth options forwarded to the
 		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.

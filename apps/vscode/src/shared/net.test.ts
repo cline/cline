@@ -1,73 +1,49 @@
-import { Dispatcher, getGlobalDispatcher, setGlobalDispatcher } from "undici"
-import { describe, expect, it } from "vitest"
-import { withUnlimitedBodyTimeout } from "./net"
+import http from "node:http"
+import type { AddressInfo } from "node:net"
+import { Agent, fetch as undiciFetch } from "undici"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { fetchWithoutIdleTimeouts } from "./net"
 
-class RecordingDispatcher extends Dispatcher {
-	calls: Dispatcher.DispatchOptions[] = []
+// A server that answers headers immediately and then stays silent before
+// sending the body, like a local model server processing a large prompt.
+// undici's idle timers tick at 1s resolution, so the silence has to clear a
+// full tick for the control timeout to fire.
+const BODY_DELAY_MS = 2_000
+const CONTROL_BODY_TIMEOUT_MS = 500
 
-	override dispatch(options: Dispatcher.DispatchOptions, _handler: Dispatcher.DispatchHandler): boolean {
-		this.calls.push(options)
-		return true
-	}
+describe("fetchWithoutIdleTimeouts", () => {
+	let server: http.Server
+	let url: string
 
-	override async close() {}
-	override async destroy() {}
-}
-
-type InitWithDispatcher = RequestInit & { dispatcher?: Dispatcher }
-
-describe("withUnlimitedBodyTimeout", () => {
-	it("disables bodyTimeout without touching headersTimeout, and still dispatches through the active dispatcher", async () => {
-		const recordingDispatcher = new RecordingDispatcher()
-		const originalDispatcher = getGlobalDispatcher()
-		setGlobalDispatcher(recordingDispatcher)
-
-		try {
-			const wrapped = withUnlimitedBodyTimeout((async (_input, init) => {
-				// Simulate what undici's real fetch does internally: hand the
-				// request off to whatever dispatcher was passed in `init`.
-				;(init as InitWithDispatcher | undefined)?.dispatcher?.dispatch(
-					{ path: "/v1/chat/completions", method: "POST", headersTimeout: 300_000 },
-					{} as Dispatcher.DispatchHandler,
-				)
-				return new Response("ok")
-			}) as typeof fetch)
-
-			await wrapped("http://localhost:1234/v1/chat/completions")
-
-			expect(recordingDispatcher.calls).toHaveLength(1)
-			// The only thing this wrapper is allowed to change.
-			expect(recordingDispatcher.calls[0]).toMatchObject({ bodyTimeout: 0 })
-			// headersTimeout (a different failure mode: the server never
-			// responds at all) must pass through untouched.
-			expect(recordingDispatcher.calls[0].headersTimeout).toBe(300_000)
-		} finally {
-			setGlobalDispatcher(originalDispatcher)
-		}
+	beforeAll(async () => {
+		server = http.createServer((_req, res) => {
+			res.writeHead(200, { "content-type": "text/plain" })
+			res.flushHeaders()
+			setTimeout(() => res.end("first token"), BODY_DELAY_MS)
+		})
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+		url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/chat/completions`
 	})
 
-	it("does not swap out the active dispatcher, so proxy configuration (EnvHttpProxyAgent) is preserved", async () => {
-		const recordingDispatcher = new RecordingDispatcher()
-		const originalDispatcher = getGlobalDispatcher()
-		setGlobalDispatcher(recordingDispatcher)
+	afterAll(async () => {
+		await new Promise<void>((resolve) => server.close(() => resolve()))
+	})
 
-		try {
-			const wrapped = withUnlimitedBodyTimeout((async (_input, init) => {
-				;(init as InitWithDispatcher | undefined)?.dispatcher?.dispatch(
-					{ path: "/v1/chat/completions", method: "POST" },
-					{} as Dispatcher.DispatchHandler,
-				)
-				return new Response("ok")
-			}) as typeof fetch)
+	it("waits through a silent body where undici's idle timeout would abort", async () => {
+		// Control: the same request through a dispatcher with a short idle
+		// timeout dies, proving the server really is silent long enough.
+		const impatient = new Agent({ bodyTimeout: CONTROL_BODY_TIMEOUT_MS })
+		await expect(undiciFetch(url, { dispatcher: impatient }).then((r) => r.text())).rejects.toThrow()
+		await impatient.close()
 
-			await wrapped("http://localhost:1234/v1/chat/completions")
+		const response = await fetchWithoutIdleTimeouts(url)
+		expect(await response.text()).toBe("first token")
+	})
 
-			// If this wrapper replaced the dispatcher with a fresh plain Agent
-			// instead of composing on top of the active one, our
-			// RecordingDispatcher would never see the call.
-			expect(recordingDispatcher.calls).toHaveLength(1)
-		} finally {
-			setGlobalDispatcher(originalDispatcher)
-		}
+	it("still honours the caller's AbortSignal while the body is silent", async () => {
+		const controller = new AbortController()
+		const response = await fetchWithoutIdleTimeouts(url, { signal: controller.signal })
+		setTimeout(() => controller.abort(), 20)
+		await expect(response.text()).rejects.toThrow()
 	})
 })

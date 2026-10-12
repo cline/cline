@@ -733,16 +733,15 @@ export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: s
 }
 
 /**
- * Pick the fetch implementation for a provider's inference requests.
- *
- * Local model servers get `fetchWithoutIdleTimeouts`: they can legitimately
- * spend many minutes processing a large prompt without writing a body byte,
- * which trips undici's default 300s idle timeouts and kills the request with
- * `UND_ERR_BODY_TIMEOUT` while the server is still generating
- * (cline/cline#13464). Everything else keeps the proxy/CA-aware fetch.
+ * Providers whose base URL commonly points at a local model server. Those
+ * can spend longer than undici's 300s idle timeouts producing the first
+ * token, so they get `fetchWithoutIdleTimeouts`. Everything else keeps the
+ * proxy-aware fetch and its dead-connection cap.
  */
+const LOCAL_SERVER_PROVIDERS = new Set(["lmstudio", "ollama", "openai-compatible", "litellm"])
+
 export function resolveProviderFetch(sdkProviderId: string): typeof globalThis.fetch {
-	return sdkProviderId === "lmstudio" || sdkProviderId === "ollama" ? fetchWithoutIdleTimeouts : fetch
+	return LOCAL_SERVER_PROVIDERS.has(sdkProviderId) ? fetchWithoutIdleTimeouts : fetch
 }
 
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {

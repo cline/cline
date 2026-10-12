@@ -97,7 +97,7 @@
  * ```
  */
 
-import { EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
@@ -131,28 +131,25 @@ export const fetch: typeof globalThis.fetch = (() => {
 		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
 })()
 
-let noIdleTimeoutDispatcher: EnvHttpProxyAgent | undefined
+let idleTimeoutFreeDispatcher: EnvHttpProxyAgent | undefined
 
 /**
- * Fetch for local model servers (LM Studio, Ollama) with undici's idle
- * timeouts disabled.
+ * Fetch for providers that may point at a local model server, with undici's
+ * idle timeouts disabled.
  *
- * Node's fetch applies undici's default `headersTimeout`/`bodyTimeout` of
- * 300s, each measuring time since the last byte received. A local server
- * legitimately goes silent for longer than that while it processes a large
- * prompt (headers arrive immediately, then no body bytes until the first
- * token), so long requests die mid-task with
- * `terminated: BodyTimeoutError (UND_ERR_BODY_TIMEOUT)` even though the
- * server is still working (see cline/cline#13464). Disabling the idle
- * timeouts is safe here: cancellation stays with each request's AbortSignal,
- * and users can always cancel from the UI.
+ * undici aborts a response after `headersTimeout` / `bodyTimeout` (300s
+ * each) of silence on the wire. A local model processing a large prompt
+ * sends its headers at once and then nothing until the first token, often
+ * for longer than that, so the request dies with `UND_ERR_BODY_TIMEOUT`
+ * while the server is still generating (cline/cline#13371, #13464).
+ * Cancellation stays with the request's AbortSignal, i.e. the stop button.
  *
- * This must call undici's own fetch rather than global fetch: in the VS Code
- * extension host, `http.fetchAdditionalSupport` (default on) patches global
- * fetch with a wrapper that replaces any caller-supplied dispatcher with its
- * own default-timeout Agent, so a per-request dispatcher would be silently
- * dropped. `EnvHttpProxyAgent` keeps `http_proxy`/`https_proxy`/`no_proxy`
- * support, matching the standalone (JetBrains/CLI) proxy behavior above.
+ * This goes through undici's own fetch rather than global fetch: the VS Code
+ * extension host wraps global fetch and swaps any caller-supplied dispatcher
+ * for its own default-timeout Agent, so the override would be dropped. The
+ * trade-off is that these requests honour `http_proxy` / `https_proxy` /
+ * `no_proxy` rather than VS Code's `http.proxy` setting. On the standalone
+ * build this is the same proxy agent as the global one above.
  */
 export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
 	input: string | URL | Request,
@@ -161,49 +158,15 @@ export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
 	if (mockFetch) {
 		return mockFetch(input, init)
 	}
-	noIdleTimeoutDispatcher ??= new EnvHttpProxyAgent({ headersTimeout: 0, bodyTimeout: 0 })
+	idleTimeoutFreeDispatcher ??= new EnvHttpProxyAgent({ headersTimeout: 0, bodyTimeout: 0 })
 	return undiciFetch(
 		input as Parameters<typeof undiciFetch>[0],
 		{
 			...init,
-			dispatcher: noIdleTimeoutDispatcher,
+			dispatcher: idleTimeoutFreeDispatcher,
 		} as Parameters<typeof undiciFetch>[1],
 	) as unknown as Promise<Response>
 }) as typeof globalThis.fetch
-
-/**
- * Wraps a fetch so its requests ignore undici's default 5-minute idle-body
- * timeout (UND_ERR_BODY_TIMEOUT), without disturbing anything else about how
- * the request is dispatched. Locally-hosted OpenAI-compatible servers (e.g.
- * LM Studio) can go silent for arbitrarily long stretches mid-stream —
- * loading a model into VRAM, chewing through a long prompt, decoding slowly
- * on consumer hardware — with zero bytes on the wire the whole time. Without
- * this, undici kills the response after 5 minutes of silence even while the
- * local server is actively generating and the socket is healthy
- * (cline/cline#13464). There's no universally-correct replacement number,
- * since local inference speed is entirely a function of the user's own
- * hardware, so this disables bodyTimeout outright.
- *
- * Two things this deliberately does NOT touch:
- * - headersTimeout: that guards a server that accepts the connection but
- *   never starts responding at all — a different, still-relevant failure
- *   mode that's out of scope here. A genuinely dead connection still errors
- *   via that timeout (or at the OS/TCP layer), and the user can always
- *   cancel the task from the UI.
- * - the dispatcher itself: instead of substituting a brand-new plain Agent
- *   (which would silently drop the EnvHttpProxyAgent configured above for
- *   JetBrains/CLI), this composes an interceptor onto whatever dispatcher is
- *   currently active, so proxy/TLS/connection settings are preserved and
- *   only the per-request bodyTimeout is overridden.
- */
-export function withUnlimitedBodyTimeout(baseFetch: typeof globalThis.fetch): typeof globalThis.fetch {
-	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-		const dispatcher = getGlobalDispatcher().compose(
-			(dispatch) => (options, handler) => dispatch({ ...options, bodyTimeout: 0 }, handler),
-		)
-		return baseFetch(input, { ...init, dispatcher } as RequestInit)
-	}) as typeof globalThis.fetch
-}
 
 /**
  * Mocks `fetch` for testing and calls `callback`. Then restores `fetch`. If the
