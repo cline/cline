@@ -359,7 +359,16 @@ if (port) {
 	console.debug = discard;
 	console.dir = discard;
 	console.table = discard;
-	process.stdout.write = (() => true) as typeof process.stdout.write;
+	// write(chunk, cb) and write(chunk, encoding, cb): still complete the
+	// callback, asynchronously as a real stream does, so a plugin awaiting
+	// its write does not hang.
+	process.stdout.write = ((_chunk: unknown, ...rest: unknown[]) => {
+		const callback = rest.find((arg) => typeof arg === "function") as
+			| ((error?: Error | null) => void)
+			| undefined;
+		if (callback) process.nextTick(callback);
+		return true;
+	}) as typeof process.stdout.write;
 }
 
 function isDataCloneError(error: unknown): boolean {

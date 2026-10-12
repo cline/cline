@@ -677,7 +677,7 @@ describe.each([
 					"      name: 'sandbox_process_id',",
 					"      description: 'return the sandbox process id',",
 					"      inputSchema: { type: 'object', properties: {}, required: [] },",
-					"      execute: async () => ({ pid: `${process.pid}:${threadId}` }),",
+					"      execute: async () => ({ pid: process.pid + ':' + threadId }),",
 					"    });",
 					"  },",
 					"};",
@@ -1235,6 +1235,23 @@ describe("plugin-sandbox (worker only)", () => {
 			await sandboxed.shutdown();
 		}
 	}, 20_000);
+
+	it("discards plugin stdout but completes write callbacks", async () => {
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_stdout",
+			[
+				"console.log('discarded');",
+				"await new Promise((resolve) => process.stdout.write('a', resolve));",
+				"await new Promise((resolve) => process.stdout.write('b', 'utf8', resolve));",
+				"return process.stdout.write('c');",
+			].join(" "),
+		);
+		try {
+			await expect(tool.execute({}, context)).resolves.toBe(true);
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
 
 	it("drops functions from results like the JSON IPC does", async () => {
 		const { sandboxed, tool } = await loadToolPlugin(
