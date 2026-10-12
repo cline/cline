@@ -44,6 +44,8 @@ export type ChatCommandContext = {
 	getState: () => Promise<ChatCommandState> | ChatCommandState;
 	setState: (next: ChatCommandState) => Promise<void> | void;
 	reply: (text: string) => Promise<void> | void;
+	/** Mark the message that issued the command, on a surface that has reactions. */
+	react?: (emoji: string) => Promise<void>;
 	submitPrompt?: (prompt: string) => Promise<void> | void;
 	reset?: () => Promise<void> | void;
 	abort?: () => Promise<void> | void;
@@ -481,6 +483,12 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					);
 					return;
 				}
+				// Reactions rather than another message: the conversation already carries the
+				// card's own anchor, and "I have this" does not deserve a line of its own.
+				// Telegram only keeps one reaction per message from a bot, so these read as a
+				// single mark changing: seen, working, filed.
+				await context.react?.("👀");
+				await context.react?.("✍");
 				const result = await createKanbanTask({
 					description,
 					projectPath,
@@ -493,7 +501,17 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					// person works says nothing; the origin does.
 					source: context.transport,
 				});
-				await context.reply(result.message);
+				if (!result.ok) {
+					await context.reply(result.message);
+					return;
+				}
+				await context.react?.("👍");
+				// A started card announces itself: its own message appears and then keeps
+				// itself current. A card parked in the backlog has nothing coming, so the id
+				// still has to be said here or it is lost.
+				if (!start) {
+					await context.reply(result.message);
+				}
 			},
 		})
 		.register("command", {

@@ -523,3 +523,65 @@ describe("where a card says it came from", () => {
 		});
 	});
 });
+
+describe("/task marks the message instead of adding another", () => {
+	function context(reply: (text: string) => Promise<void>) {
+		return {
+			enabled: true,
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/code/app",
+				workspaceRoot: "/code/app",
+			}),
+			setState: async () => undefined,
+			reply,
+		};
+	}
+
+	// The complaint that prompted this: "several messages arrive in sequence and they are not
+	// very informative". A started card posts its own message and keeps it current, so the
+	// command answering in words as well is one line of noise on top of it.
+	it("reacts and stays silent when the card will announce itself", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		const react = vi.fn<(emoji: string) => Promise<void>>(
+			async () => undefined,
+		);
+		vi.mocked(createKanbanTask).mockClear();
+
+		await maybeHandleChatCommand("/task --start fix the thing", {
+			...context(reply),
+			react,
+		});
+
+		expect(react.mock.calls.map(([emoji]) => emoji)).toEqual(["👀", "✍", "👍"]);
+		expect(reply).not.toHaveBeenCalled();
+	});
+
+	// A card parked in the backlog has nothing coming to announce it, so its id still has to
+	// be said or it is lost.
+	it("still says the card id when nothing will announce it", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		const react = vi.fn<(emoji: string) => Promise<void>>(
+			async () => undefined,
+		);
+		vi.mocked(createKanbanTask).mockClear();
+
+		await maybeHandleChatCommand("/task fix the thing", {
+			...context(reply),
+			react,
+		});
+
+		expect(reply).toHaveBeenCalledWith(expect.stringContaining("card"));
+	});
+
+	// A surface without reactions must not lose the confirmation along with them.
+	it("answers in words when the surface has no reactions", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		vi.mocked(createKanbanTask).mockClear();
+
+		await maybeHandleChatCommand("/task --start fix the thing", context(reply));
+
+		expect(reply).not.toHaveBeenCalled();
+	});
+});

@@ -337,6 +337,13 @@ type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 	requestStop: (reason: string) => void;
 	bindingsPath: string;
 	hookCommand?: string;
+	/**
+	 * Put a reaction on the message that started this turn, when the surface has them.
+	 *
+	 * A reaction says "I have this" without adding a message to a conversation that already
+	 * has too many. Supplied by the adapter because only it holds the incoming message.
+	 */
+	react?: (emoji: string) => Promise<void>;
 	systemRules: string;
 	errorLabel: string;
 	getSessionMetadata: (
@@ -713,6 +720,16 @@ export async function handleConnectorUserTurn<
 			reply: async (message) => {
 				await postConnectorText(input.thread, input.transport, message);
 			},
+			react: input.react
+				? async (emoji) => {
+						try {
+							await input.react?.(emoji);
+						} catch {
+							// A surface that refuses a reaction -- an emoji outside the list a
+							// platform allows, a message too old -- must not fail the command.
+						}
+					}
+				: undefined,
 			submitPrompt: (prompt) => {
 				const trimmed = prompt.trim();
 				if (trimmed) {
