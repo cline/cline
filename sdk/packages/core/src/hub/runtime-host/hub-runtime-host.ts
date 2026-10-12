@@ -2007,6 +2007,7 @@ export class HubRuntimeHost implements RuntimeHost {
 						sessionId,
 						id: prompt.id,
 						prompt: prompt.prompt,
+						displayPrompt: prompt.displayPrompt,
 						delivery: prompt.delivery,
 						attachmentCount: prompt.attachmentCount,
 						userImages: prompt.userImages,
