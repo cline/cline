@@ -1,4 +1,7 @@
-import { createTelegramAdapter } from "@chat-adapter/telegram";
+import {
+	createTelegramAdapter,
+	type TelegramRawMessage,
+} from "@chat-adapter/telegram";
 import type { ChatStartSessionRequest } from "@cline/core";
 import {
 	createUserInstructionConfigService,
@@ -51,6 +54,11 @@ import {
 	rememberCardMessage,
 } from "../kanban-card-reply";
 import {
+	type MessageAttachmentLike,
+	pruneOldImageDirs,
+	saveMessageImages,
+} from "../message-images";
+import {
 	type PendingConnectorApproval,
 	truncateConnectorText,
 } from "../runtime-turn";
@@ -98,6 +106,9 @@ import {
 	getConnectorSystemRules,
 } from "./prompts";
 import { postTelegramFormattedReply } from "./telegram-format";
+
+/** Pictures a command never used are removed after this long. */
+const TASK_IMAGES_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const TELEGRAM_SYSTEM_RULES = getConnectorSystemRules("Telegram");
 
@@ -327,7 +338,18 @@ function createTelegramSlashCommandHandler(input: {
 	handleTurn: (
 		thread: Thread<TelegramThreadState>,
 		text: string,
+		incomingMessageId?: string,
+		attachments?: readonly MessageAttachmentLike[],
 	) => Promise<void>;
+	/**
+	 * The adapter's own reading of the raw message. A photo captioned `/task …` arrives here, not
+	 * as an ordinary message, so this is the only place its picture can be picked up.
+	 */
+	parseMessage?: (
+		raw: unknown,
+	) =>
+		| { id: string; attachments?: readonly MessageAttachmentLike[] }
+		| undefined;
 }): (event: TelegramSlashCommandEvent) => Promise<void> {
 	return async (event) => {
 		const raw = asRecord(event.raw);
@@ -349,7 +371,12 @@ function createTelegramSlashCommandHandler(input: {
 			rawMessage: event.raw,
 			errorLabel: "Telegram",
 		});
-		await input.handleTurn(thread, commandText);
+		const parsed = input.parseMessage?.(event.raw);
+		if (!parsed) {
+			await input.handleTurn(thread, commandText);
+			return;
+		}
+		await input.handleTurn(thread, commandText, parsed.id, parsed.attachments);
 	};
 }
 
@@ -774,6 +801,10 @@ class TelegramConnector extends ConnectorBase<
 		context.setPersistenceInstanceId(options.botUsername);
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
+		// Pictures a command saved and has not handed on yet: `/task --brainstorm` keeps them for
+		// the agent. Anything a week old was never used.
+		const taskImagesPath = this.resolveConnectorPath("task-images");
+		void pruneOldImageDirs(taskImagesPath, TASK_IMAGES_MAX_AGE_MS);
 		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
@@ -1230,6 +1261,8 @@ class TelegramConnector extends ConnectorBase<
 			text: string,
 			/** Id of the message that started the turn, so a command can mark it as taken. */
 			incomingMessageId?: string,
+			/** What the message carried besides its text: a photo captioned `/task …`. */
+			attachments?: readonly MessageAttachmentLike[],
 		) => {
 			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
@@ -1257,6 +1290,14 @@ class TelegramConnector extends ConnectorBase<
 									);
 								}
 							: undefined,
+						images:
+							attachments && attachments.length > 0
+								? () =>
+										saveMessageImages({
+											attachments,
+											rootDir: taskImagesPath,
+										})
+								: undefined,
 						botUserName: options.botUsername,
 						requestStop,
 						bindingsPath,
@@ -1560,7 +1601,7 @@ class TelegramConnector extends ConnectorBase<
 			if (await maybeAnswerCard(thread, message)) {
 				return;
 			}
-			await handleTurn(thread, message.text, message.id);
+			await handleTurn(thread, message.text, message.id, message.attachments);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -1587,7 +1628,7 @@ class TelegramConnector extends ConnectorBase<
 			if (await maybeAnswerCard(thread, message)) {
 				return;
 			}
-			await handleTurn(thread, message.text, message.id);
+			await handleTurn(thread, message.text, message.id, message.attachments);
 		});
 
 		bot.onSlashCommand(
@@ -1596,6 +1637,14 @@ class TelegramConnector extends ConnectorBase<
 				bindingsPath,
 				baseStartRequest: startRequest,
 				handleTurn,
+				parseMessage: (raw) => {
+					try {
+						return telegram.parseMessage(raw as TelegramRawMessage);
+					} catch {
+						// A payload the adapter cannot read still runs as the command it says.
+						return undefined;
+					}
+				},
 			}),
 		);
 

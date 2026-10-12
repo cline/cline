@@ -126,7 +126,7 @@ function readStringField(error: unknown, field: string): string {
  * stderr empty, and Node's own message for the failure is only the command line that failed --
  * which is what a person on a phone was shown before this read it.
  */
-function readKanbanReason(error: unknown): string {
+export function readKanbanReason(error: unknown): string {
 	const stdout = readStringField(error, "stdout");
 	if (!stdout) {
 		return "";

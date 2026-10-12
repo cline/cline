@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { basename } from "node:path";
 import { promisify } from "node:util";
+import { readKanbanReason } from "../connectors/kanban-card-reply";
+import type { IncomingImages } from "../connectors/message-images";
 
 const execFileAsync = promisify(execFile);
 
@@ -105,6 +107,8 @@ export interface KanbanTaskRequest {
 	source?: string;
 	/** Agent the card runs with; left out, Kanban uses the board's configured agent. */
 	agentId?: string;
+	/** Pictures to attach, as files Kanban can read. */
+	images?: string[];
 }
 
 export interface KanbanTaskResult {
@@ -159,6 +163,7 @@ export function buildKanbanCreateArgs(request: KanbanTaskRequest): string[] {
 		...(request.priority ? ["--priority", request.priority] : []),
 		...(request.source ? ["--source", request.source] : []),
 		...(request.agentId ? ["--agent-id", request.agentId] : []),
+		...(request.images ?? []).flatMap((path) => ["--image", path]),
 	];
 }
 
@@ -198,8 +203,11 @@ function describeFailure(error: unknown): string {
 		error && typeof error === "object" && "stderr" in error
 			? String(error.stderr).trim()
 			: "";
+	// The CLI's reason comes first: it is on stdout, and Node's own message is only the command line.
 	const detail =
-		stderr || (error instanceof Error ? error.message : String(error));
+		readKanbanReason(error) ||
+		stderr ||
+		(error instanceof Error ? error.message : String(error));
 	const firstLine =
 		detail
 			.split("\n")
@@ -296,6 +304,8 @@ export function buildBrainstormPrompt(input: {
 	category?: string;
 	priority?: string;
 	agentId?: string;
+	/** Pictures sent with the demand, saved for this agent to attach to the card it files. */
+	images?: string[];
 }): string {
 	return [
 		`A demand came in for the Kanban board of ${input.projectPath}, written as:`,
@@ -319,7 +329,8 @@ export function buildBrainstormPrompt(input: {
 			(input.tags ? ` --tags ${input.tags}` : "") +
 			(input.category ? ` --category ${input.category}` : "") +
 			(input.priority ? ` --priority ${input.priority}` : "") +
-			(input.agentId ? ` --agent-id ${input.agentId}` : ""),
+			(input.agentId ? ` --agent-id ${input.agentId}` : "") +
+			(input.images ?? []).map((path) => ` --image ${path}`).join(""),
 		...(input.start
 			? [
 					"",
@@ -330,4 +341,30 @@ export function buildBrainstormPrompt(input: {
 		"",
 		"Finally, tell the person the card id. If they decide against it, say so and file nothing.",
 	].join("\n");
+}
+
+function countImages(count: number): string {
+	return count === 1 ? "1 imagem" : `${count} imagens`;
+}
+
+/** The reply's note on the pictures, so the person can tell whether the card saw them. */
+export function describeAttachedImages(
+	saved: IncomingImages | undefined,
+): string {
+	if (!saved) {
+		return "";
+	}
+	const attached =
+		saved.paths.length > 0 ? `, ${countImages(saved.paths.length)}` : "";
+	const lost =
+		saved.failed === 0
+			? ""
+			: saved.failed === 1
+				? " — a imagem não pôde ser baixada"
+				: ` — ${saved.failed} imagens não puderam ser baixadas`;
+	const refused =
+		saved.refused === 0
+			? ""
+			: ` — ${countImages(saved.refused)} ${saved.refused === 1 ? "recusada" : "recusadas"} (aceito png, jpg, gif ou webp até 5 MB)`;
+	return `${attached}${lost}${refused}`;
 }

@@ -1,9 +1,11 @@
-import { stat } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { IncomingImages } from "../connectors/message-images";
 import { resolveWorkspaceRoot } from "./helpers";
 import {
 	buildBrainstormPrompt,
 	createKanbanTask,
+	describeAttachedImages,
 	parseTaskCommand,
 } from "./kanban-task";
 
@@ -46,6 +48,11 @@ export type ChatCommandContext = {
 	reply: (text: string) => Promise<void> | void;
 	/** Mark the message that issued the command, on a surface that has reactions. */
 	react?: (emoji: string) => Promise<void>;
+	/**
+	 * The pictures the message carried, saved to disk. Lazy, so only a command that wants them
+	 * downloads them; undefined when the message had none.
+	 */
+	images?: () => Promise<IncomingImages | undefined>;
 	submitPrompt?: (prompt: string) => Promise<void> | void;
 	reset?: () => Promise<void> | void;
 	abort?: () => Promise<void> | void;
@@ -463,6 +470,9 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 				// belongs to the project, and its ready-for-review notification routes back by
 				// this same path.
 				const projectPath = state.workspaceRoot || state.cwd;
+				// The picture the demand came with, when it came with one: saved to disk only now
+				// that a command wants it.
+				const images = await context.images?.();
 				if (brainstorm) {
 					if (!context.submitPrompt) {
 						await context.reply(
@@ -479,6 +489,8 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 							category,
 							priority,
 							agentId,
+							// Kept on disk: the agent has not filed the card yet.
+							images: images?.paths,
 						}),
 					);
 					return;
@@ -489,28 +501,44 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 				// single mark changing: seen, working, filed.
 				await context.react?.("👀");
 				await context.react?.("✍");
-				const result = await createKanbanTask({
-					description,
-					projectPath,
-					start,
-					tags,
-					category,
-					priority,
-					agentId,
-					// Where it came from, so the board can show it. An avatar on a board one
-					// person works says nothing; the origin does.
-					source: context.transport,
-				});
+				let result: Awaited<ReturnType<typeof createKanbanTask>>;
+				try {
+					result = await createKanbanTask({
+						description,
+						projectPath,
+						start,
+						tags,
+						category,
+						priority,
+						agentId,
+						// Where it came from, so the board can show it. An avatar on a board one
+						// person works says nothing; the origin does.
+						source: context.transport,
+						images: images?.paths,
+					});
+				} finally {
+					// The card holds the bytes once it exists, and a refused one has no use for them.
+					if (images) {
+						await rm(images.dir, { recursive: true, force: true }).catch(
+							() => undefined,
+						);
+					}
+				}
 				if (!result.ok) {
 					await context.reply(result.message);
 					return;
 				}
 				await context.react?.("👍");
+				const note = describeAttachedImages(images);
+				const message = note
+					? result.message.replace(/\)$/, `${note})`)
+					: result.message;
 				// A started card announces itself: its own message appears and then keeps
 				// itself current. A card parked in the backlog has nothing coming, so the id
-				// still has to be said here or it is lost.
-				if (!start) {
-					await context.reply(result.message);
+				// still has to be said here or it is lost -- and so does a picture that never
+				// made it, started or not.
+				if (!start || (images?.failed ?? 0) > 0 || (images?.refused ?? 0) > 0) {
+					await context.reply(message);
 				}
 			},
 		})

@@ -5,6 +5,7 @@ import {
 	buildKanbanCreateArgs,
 	createKanbanTask,
 	deriveTaskTitle,
+	describeAttachedImages,
 	parseTaskCommand,
 	readCreatedTaskId,
 } from "./kanban-task";
@@ -394,5 +395,84 @@ describe("/task --agent", () => {
 		const parsed = parseTaskCommand(["fix", "the", "--agent", "flag"]);
 		expect(parsed.agentId).toBeUndefined();
 		expect(parsed.description).toBe("fix the --agent flag");
+	});
+});
+
+describe("pictures sent with /task", () => {
+	it("passes each picture to Kanban", () => {
+		const args = buildKanbanCreateArgs({
+			description: "desativar a mensagem de ativação",
+			projectPath: "/code/kanban",
+			images: [
+				"/data/task-images/u/image-1.jpg",
+				"/data/task-images/u/image-2.png",
+			],
+		});
+		expect(args.filter((arg) => arg === "--image")).toHaveLength(2);
+		expect(args).toContain("/data/task-images/u/image-1.jpg");
+	});
+
+	it("asks the brainstorming agent to attach them", () => {
+		const prompt = buildBrainstormPrompt({
+			description: "x",
+			projectPath: "/code/kanban",
+			start: false,
+			images: ["/data/task-images/u/image-1.jpg"],
+		});
+		expect(prompt).toContain("--image /data/task-images/u/image-1.jpg");
+	});
+
+	it("says what became of them", () => {
+		expect(describeAttachedImages(undefined)).toBe("");
+		expect(
+			describeAttachedImages({ dir: "d", paths: ["a"], failed: 0, refused: 0 }),
+		).toBe(", 1 imagem");
+		expect(
+			describeAttachedImages({
+				dir: "d",
+				paths: ["a", "b"],
+				failed: 0,
+				refused: 0,
+			}),
+		).toBe(", 2 imagens");
+		expect(
+			describeAttachedImages({ dir: "d", paths: [], failed: 1, refused: 0 }),
+		).toBe(" — a imagem não pôde ser baixada");
+		expect(
+			describeAttachedImages({ dir: "d", paths: ["a"], failed: 2, refused: 0 }),
+		).toBe(", 1 imagem — 2 imagens não puderam ser baixadas");
+		expect(
+			describeAttachedImages({ dir: "d", paths: [], failed: 0, refused: 1 }),
+		).toBe(" — 1 imagem recusada (aceito png, jpg, gif ou webp até 5 MB)");
+	});
+});
+
+describe("a /task Kanban refuses", () => {
+	// Kanban reports a refusal as JSON on stdout with stderr empty, and Node's message is only the
+	// command line -- the person read "Command failed: kanban task create --prompt <their demand>".
+	it("says the reason Kanban printed", async () => {
+		const result = await createKanbanTask(
+			{ description: "x", projectPath: "/code/kanban" },
+			{
+				run: async () => {
+					throw Object.assign(
+						new Error("Command failed: kanban task create --prompt x"),
+						{
+							stderr: "",
+							stdout: JSON.stringify({
+								ok: false,
+								error:
+									"Task command failed at http://127.0.0.1:3484: Cannot attach a.heic: only png, jpg, gif and webp images are accepted.",
+							}),
+						},
+					);
+				},
+			},
+		);
+		expect(result).toEqual({
+			ok: false,
+			message:
+				"Kanban refused the task: Cannot attach a.heic: only png, jpg, gif and webp images are accepted.",
+		});
 	});
 });

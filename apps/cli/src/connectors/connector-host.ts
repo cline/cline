@@ -20,6 +20,7 @@ import {
 	normalizeCommandName,
 } from "../utils/chat-commands";
 import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
+import type { IncomingImages } from "./message-images";
 import {
 	createConnectorRuntimeTurnStream,
 	formatConnectorApprovalPrompt,
@@ -344,6 +345,11 @@ type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 	 * has too many. Supplied by the adapter because only it holds the incoming message.
 	 */
 	react?: (emoji: string) => Promise<void>;
+	/**
+	 * The pictures the message that started this turn carried, for a command that files them.
+	 * Supplied by the adapter because only it holds the incoming message.
+	 */
+	images?: () => Promise<IncomingImages | undefined>;
 	systemRules: string;
 	errorLabel: string;
 	getSessionMetadata: (
@@ -730,6 +736,7 @@ export async function handleConnectorUserTurn<
 						}
 					}
 				: undefined,
+			images: input.images,
 			submitPrompt: (prompt) => {
 				const trimmed = prompt.trim();
 				if (trimmed) {

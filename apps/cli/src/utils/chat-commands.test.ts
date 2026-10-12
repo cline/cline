@@ -1,3 +1,7 @@
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 import {
 	createChatCommandHost,
@@ -583,5 +587,91 @@ describe("/task marks the message instead of adding another", () => {
 		await maybeHandleChatCommand("/task --start fix the thing", context(reply));
 
 		expect(reply).not.toHaveBeenCalled();
+	});
+});
+
+describe("/task with a picture", () => {
+	// The defect: a screenshot captioned "/task desativar a mensagem de ativação" filed a card
+	// from the caption alone, and the picture -- the clearest part of the demand -- was lost.
+	function picture(failed = 0) {
+		const dir = mkdtempSync(join(tmpdir(), "task-images-"));
+		const path = join(dir, "image-1.jpg");
+		writeFileSync(path, Buffer.from([1]));
+		return {
+			dir,
+			path,
+			saved: { dir, paths: failed ? [] : [path], failed, refused: 0 },
+		};
+	}
+
+	function context(input: {
+		reply: (text: string) => Promise<void>;
+		images: () => Promise<{
+			dir: string;
+			paths: string[];
+			failed: number;
+			refused: number;
+		}>;
+		submitPrompt?: (prompt: string) => void;
+	}) {
+		return {
+			enabled: true,
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/code/kanban",
+				workspaceRoot: "/code/kanban",
+			}),
+			setState: async () => undefined,
+			reply: input.reply,
+			images: input.images,
+			submitPrompt: input.submitPrompt,
+		};
+	}
+
+	it("files the pictures with the card, says so, then removes them", async () => {
+		vi.mocked(createKanbanTask).mockClear();
+		const { dir, path, saved } = picture();
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		await maybeHandleChatCommand(
+			"/task desativar a mensagem de ativação",
+			context({ reply, images: async () => saved }),
+		);
+		expect(vi.mocked(createKanbanTask).mock.calls[0]?.[0].images).toEqual([
+			path,
+		]);
+		expect(reply).toHaveBeenCalledWith(
+			"Added to the partyshare backlog: Congelar a margem (card 65f2d, 1 imagem)",
+		);
+		expect(existsSync(dir)).toBe(false);
+	});
+
+	it("keeps the pictures for --brainstorm, for the agent to attach", async () => {
+		const { dir, path, saved } = picture();
+		const submitPrompt = vi.fn<(prompt: string) => void>();
+		await maybeHandleChatCommand(
+			"/task --brainstorm desativar a mensagem",
+			context({
+				reply: async () => undefined,
+				images: async () => saved,
+				submitPrompt,
+			}),
+		);
+		expect(submitPrompt.mock.calls[0]?.[0]).toContain(`--image ${path}`);
+		expect(existsSync(dir)).toBe(true);
+	});
+
+	it("still files the card when the picture could not be downloaded", async () => {
+		vi.mocked(createKanbanTask).mockClear();
+		const { saved } = picture(1);
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		await maybeHandleChatCommand(
+			"/task desativar a mensagem",
+			context({ reply, images: async () => saved }),
+		);
+		expect(createKanbanTask).toHaveBeenCalledTimes(1);
+		expect(reply).toHaveBeenCalledWith(
+			"Added to the partyshare backlog: Congelar a margem (card 65f2d — a imagem não pôde ser baixada)",
+		);
 	});
 });
