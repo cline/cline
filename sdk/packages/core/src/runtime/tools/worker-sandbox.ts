@@ -38,6 +38,12 @@ export interface WorkerSandboxOptions {
 	idleTimeoutMs?: number;
 	name?: string;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * Called when a worker ends on its own (a crash, an uncaught error,
+	 * `process.exit()`), not when this sandbox terminates it for a timeout,
+	 * idle reclaim, or shutdown.
+	 */
+	onUnexpectedExit?: (error: Error) => void;
 }
 
 type QueuedCall = { id: string; message: SandboxCallMessage };
@@ -221,12 +227,19 @@ export class WorkerSandbox {
 			const detail = [workerError?.message, stderrBuffer.trim()]
 				.filter(Boolean)
 				.join(": ");
-			this.failPendingForWorker(
-				worker,
-				new Error(
-					`${this.label} exited (code=${String(code)})${detail ? `: ${detail}` : ""}`,
-				),
+			const error = new Error(
+				`${this.label} exited (code=${String(code)})${detail ? `: ${detail}` : ""}`,
 			);
+			if (workerError?.stack) error.stack = workerError.stack;
+			const intended = this.shutdowns.has(worker);
+			this.failPendingForWorker(worker, error);
+			if (!intended) {
+				try {
+					this.options.onUnexpectedExit?.(error);
+				} catch {
+					// Reporting must never turn into a host failure.
+				}
+			}
 		});
 		this.armIdleTimer(worker);
 	}

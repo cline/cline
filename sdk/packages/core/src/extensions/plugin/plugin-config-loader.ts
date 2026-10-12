@@ -21,7 +21,10 @@ import {
 	type PluginHookErrorMode,
 	type PluginRegistry,
 } from "./plugin-registry";
-import { loadSandboxedPlugins } from "./plugin-sandbox";
+import {
+	isPluginSandboxBootstrapAvailable,
+	loadSandboxedPlugins,
+} from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export { getPluginDisplayName };
@@ -284,20 +287,29 @@ export type PluginExecutionMode = "sandbox" | "worker" | "in_process";
 export const CLINE_PLUGIN_MODE_ENV = "CLINE_PLUGIN_MODE";
 
 /**
- * Plugins load in the host process by default. Two isolated modes are
- * opt-in, each giving a session its own copy of its plugins:
- * - `worker` (`CLINE_PLUGIN_MODE=worker`): a worker thread in the host
- *   runtime. Needs no `node`/`bun` on PATH.
- * - `sandbox` (`CLINE_PLUGIN_MODE=sandbox`): a `node`/`bun` subprocess.
+ * Where plugins run (`CLINE_PLUGIN_MODE`, or `mode`):
+ * - `worker` (default): each plugin runs in its own worker thread per
+ *   session, inside the host runtime. A plugin crash, `process.exit()`, or
+ *   hung loop ends only its worker, and no `node`/`bun` is needed on PATH.
+ * - `in_process`: plugins are imported into the host process.
+ * - `sandbox`: the previous per-session `node`/`bun` subprocess.
+ *
+ * Builds that do not ship the sandbox bootstrap (a host bundle without it)
+ * cannot start workers and fall back to `in_process`.
  */
 export function resolvePluginExecutionMode(
 	mode?: PluginExecutionMode,
 ): PluginExecutionMode {
-	if (mode) return mode;
 	const configured = process.env[CLINE_PLUGIN_MODE_ENV]?.trim();
-	return configured === "sandbox" || configured === "worker"
-		? configured
-		: "in_process";
+	const requested: PluginExecutionMode =
+		mode ??
+		(configured === "sandbox" || configured === "in_process"
+			? configured
+			: "worker");
+	if (requested === "worker" && !isPluginSandboxBootstrapAvailable()) {
+		return "in_process";
+	}
+	return requested;
 }
 
 export interface ResolveAndLoadAgentPluginsOptions
@@ -346,7 +358,7 @@ export async function resolveAndLoadAgentPlugins(
 	} & PluginLoadDiagnostics
 > {
 	const mode = resolvePluginExecutionMode(options.mode);
-	if (mode === "in_process") {
+	if (mode === "in_process" || mode === "worker") {
 		const resolved = resolveAgentPluginPathsWithDiagnostics(options);
 		if (
 			resolved.paths.length === 0 &&
@@ -363,6 +375,7 @@ export async function resolveAndLoadAgentPlugins(
 		}
 		const registry = options.registry ?? getProcessPluginRegistry();
 		const loaded = await registry.loadForSession({
+			isolation: mode,
 			sessionId: options.session?.sessionId,
 			pluginPaths: resolved.paths,
 			disabledPluginPaths: resolved.disabledPaths,
@@ -398,8 +411,8 @@ export async function resolveAndLoadAgentPlugins(
 		};
 	}
 
-	// The isolated modes do not apply the per-session `policy`; they are
-	// opt-in escape hatches and load every discovered plugin.
+	// The subprocess sandbox does not apply the per-session `policy`; it is
+	// an opt-in escape hatch and loads every discovered plugin.
 	const paths = resolveAgentPluginPaths(options);
 	if (paths.length === 0) {
 		return {
@@ -412,7 +425,7 @@ export async function resolveAndLoadAgentPlugins(
 	}
 	const sandboxed = await loadSandboxedPlugins({
 		pluginPaths: paths,
-		transport: mode === "worker" ? "worker" : "subprocess",
+		transport: "subprocess",
 		exportName: options.exportName,
 		importTimeoutMs: options.importTimeoutMs,
 		hookTimeoutMs: options.hookTimeoutMs,

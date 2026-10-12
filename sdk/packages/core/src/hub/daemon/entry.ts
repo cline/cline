@@ -438,9 +438,11 @@ async function main(): Promise<void> {
 }
 
 async function preloadDaemonPlugins(cwd: string): Promise<void> {
-	// In the isolated modes plugins must never load in the Hub's own module
-	// graph; each session starts its own sandbox or worker instead.
-	if (resolvePluginExecutionMode() !== "in_process") {
+	// In sandbox mode plugins must never run inside the Hub process; each
+	// session starts its own sandbox instead. Worker mode preloads in
+	// throwaway workers, so the Hub still never imports plugin code.
+	const mode = resolvePluginExecutionMode();
+	if (mode === "sandbox") {
 		return;
 	}
 	try {
@@ -449,6 +451,7 @@ async function preloadDaemonPlugins(cwd: string): Promise<void> {
 			cwd,
 		});
 		const statuses = await getProcessPluginRegistry().preload({
+			isolation: mode,
 			pluginPaths: resolved.paths,
 			disabledPluginPaths: resolved.disabledPaths,
 			discoveryFailures: resolved.discoveryFailures,

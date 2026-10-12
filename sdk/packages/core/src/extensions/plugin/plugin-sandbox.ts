@@ -21,6 +21,12 @@ import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
+/**
+ * Absolute path to a compiled `plugin-sandbox-bootstrap.js`, for hosts that
+ * ship it somewhere this module cannot find on its own (an app bundle's
+ * resources directory).
+ */
+export const CLINE_PLUGIN_BOOTSTRAP_PATH_ENV = "CLINE_PLUGIN_BOOTSTRAP_PATH";
 export const DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export type SandboxedPluginSetupContext = Pick<
@@ -58,6 +64,8 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	 */
 	idleTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/** Worker transport only: the worker ended on its own (crash, exit). */
+	onUnexpectedExit?: (error: Error) => void;
 	/**
 	 * The session's working directory. Forwarded to the sandbox subprocess so
 	 * that `process.cwd()` returns the correct path inside the sandbox even
@@ -241,16 +249,25 @@ export function selectBootstrapCandidate(options: {
  * (unbundled, where only the `.ts` source exists), we load the TypeScript
  * bootstrap through jiti from an inline script.
  */
-function resolveBootstrap(): { file: string } | { script: string } {
+function resolveBootstrap():
+	| { file: string }
+	| { script: string; sourcePath: string } {
 	const dir = dirname(fileURLToPath(import.meta.url));
 	const requireFromHere = createRequire(import.meta.url);
 	// In dev, the bootstrap sits next to this file in src/extensions/.
 	// In production, the main bundle is at dist/ and the bootstrap is emitted
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
+	const configured = process.env[CLINE_PLUGIN_BOOTSTRAP_PATH_ENV]?.trim();
+	if (configured && existsSync(configured)) {
+		return { file: configured };
+	}
 	const selected = selectBootstrapCandidate({
 		siblingCandidates: [
 			join(dir, "plugin-sandbox-bootstrap.js"),
+			// Hosts whose package.json is not `"type": "module"` (the VS Code
+			// extension) ship it as .mjs so Node loads it as ESM.
+			join(dir, "plugin-sandbox-bootstrap.mjs"),
 			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
 		],
@@ -271,6 +288,7 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		// Fall back to bare specifier and let runtime resolution handle it.
 	}
 	return {
+		sourcePath: tsPath,
 		script: [
 			`const createJiti = require(${JSON.stringify(jitiSpecifier)});`,
 			`const jiti = createJiti(${JSON.stringify(tsPath)}, { cache: false, requireCache: false, esmResolve: true, interopDefault: false });`,
@@ -282,7 +300,26 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	};
 }
 
-const BOOTSTRAP = resolveBootstrap();
+let resolvedBootstrap: ReturnType<typeof resolveBootstrap> | undefined;
+
+/**
+ * Resolved on first use, not at import, so a host can set
+ * `CLINE_PLUGIN_BOOTSTRAP_PATH` after loading this module.
+ */
+function getBootstrap(): ReturnType<typeof resolveBootstrap> {
+	resolvedBootstrap ??= resolveBootstrap();
+	return resolvedBootstrap;
+}
+
+/**
+ * Whether this build can start the sandbox bootstrap: the compiled file ships
+ * beside it, or its TypeScript source exists (running from source). Bundles
+ * that ship neither cannot isolate plugins.
+ */
+export function isPluginSandboxBootstrapAvailable(): boolean {
+	const bootstrap = getBootstrap();
+	return "file" in bootstrap || existsSync(bootstrap.sourcePath);
+}
 
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
@@ -331,10 +368,11 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
+	const resolved = getBootstrap();
 	const bootstrap =
-		"file" in BOOTSTRAP
-			? { bootstrapFile: BOOTSTRAP.file }
-			: { bootstrapScript: BOOTSTRAP.script };
+		"file" in resolved
+			? { bootstrapFile: resolved.file }
+			: { bootstrapScript: resolved.script };
 	// One sandbox per call: each session gets its own process or worker.
 	const sandbox: SandboxChannel =
 		options.transport === "worker"
@@ -343,6 +381,7 @@ export async function loadSandboxedPlugins(
 					...bootstrap,
 					idleTimeoutMs,
 					onEvent: options.onEvent,
+					onUnexpectedExit: options.onUnexpectedExit,
 				})
 			: new SubprocessSandbox({
 					name: "plugin-sandbox",
@@ -611,7 +650,7 @@ function registerTools(
 								input: sandboxInput,
 								context: sandboxContext,
 							},
-							{ timeoutMs },
+							{ timeoutMs: td.timeoutMs ?? timeoutMs },
 						);
 					} catch (error) {
 						if (!isUnknownPluginIdError(error)) {
@@ -626,7 +665,7 @@ function registerTools(
 								input: sandboxInput,
 								context: sandboxContext,
 							},
-							{ timeoutMs },
+							{ timeoutMs: td.timeoutMs ?? timeoutMs },
 						);
 					}
 				};

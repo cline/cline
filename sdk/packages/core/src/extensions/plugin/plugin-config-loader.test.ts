@@ -491,13 +491,15 @@ describe("plugin-config-loader", () => {
 		}
 	});
 
-	it("loads plugins in-process by default and keeps the sandbox opt-in", () => {
+	it("runs plugins in workers by default and keeps the other modes opt-in", () => {
 		delete process.env.CLINE_PLUGIN_MODE;
-		expect(resolvePluginExecutionMode()).toBe("in_process");
+		expect(resolvePluginExecutionMode()).toBe("worker");
 		expect(resolvePluginExecutionMode("sandbox")).toBe("sandbox");
 		process.env.CLINE_PLUGIN_MODE = "sandbox";
 		expect(resolvePluginExecutionMode()).toBe("sandbox");
-		process.env.CLINE_PLUGIN_MODE = "worker";
+		process.env.CLINE_PLUGIN_MODE = "in_process";
+		expect(resolvePluginExecutionMode()).toBe("in_process");
+		process.env.CLINE_PLUGIN_MODE = "unknown";
 		expect(resolvePluginExecutionMode()).toBe("worker");
 		expect(resolvePluginExecutionMode("in_process")).toBe("in_process");
 	});

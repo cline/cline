@@ -255,6 +255,7 @@ export type {
 export {
 	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
 	AGENT_PLUGINS_V1_MCP_SCHEMA,
+	CLINE_PLUGIN_BOOTSTRAP_PATH_ENV,
 	discoverPluginModulePaths,
 	formatSessionPluginIssue,
 	getPluginDisplayName,

@@ -605,7 +605,7 @@ Design implications:
 `packages/core/src/extensions` is split by concern:
 
 - `extensions/config`: config loaders, parsers, watchers, and watcher projections such as runtime slash-command expansion
-- `extensions/plugin`: runtime plugin discovery, loading, the in-process plugin registry, and the opt-in sandbox
+- `extensions/plugin`: runtime plugin discovery, loading, the plugin registry, the worker/subprocess sandbox transports, and their shared bootstrap
 - `extensions/context`: core-owned context/message pipeline concerns such as compaction
 
 Design implications:
@@ -615,22 +615,43 @@ Design implications:
 
 #### Plugin execution
 
-Plugins load in the host process through one `PluginRegistry` per process
-(`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). In the
-Hub daemon that registry is Hub-owned: the daemon discovers and imports global
-and workspace plugins at startup, so status is known before any session
-exists. Each session then gets its own copy of every plugin module: the first
-session claims the copy imported at startup, and later sessions re-evaluate the
-module (reusing jiti's transform cache, so this costs roughly the module's
-evaluation time, not a babel transform). Plugins written for the per-session
-sandbox keep state at module level, often one plugin object per import that
-refuses a second `setup()`; one shared copy would break them.
-The session bootstrap, plugin tool listing (`listPluginToolsWithDiagnostics`),
-plugin MCP settings sync, and plugin slash commands all load through the same
-registry. There is no `node` or `bun` child process, so plugins work in the
-compiled CLI, the Hub it starts, and VS Code/Electron without a runtime on
-`PATH`, and plugins can use the host runtime's globals (`Bun` under the
-Bun-built Hub).
+Every plugin a session uses goes through one `PluginRegistry` per process
+(`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). The
+registry owns status, failure counting, timeouts, the session policy, and
+reload; the execution mode (`CLINE_PLUGIN_MODE`, `resolvePluginExecutionMode`)
+only decides where a session's copy of a plugin runs:
+
+- `worker` (default): each plugin runs in its own worker thread per session
+  (`WorkerSandbox`), so the host never imports plugin code. The copy the
+  registry wraps is a proxy whose calls go to the worker over the sandbox RPC
+  protocol (`plugin-sandbox.ts` / `plugin-sandbox-bootstrap.ts`). One worker
+  per plugin means a worker that dies on its own (uncaught error, unhandled
+  rejection, `process.exit()`) is attributed to that plugin with no stack
+  inspection: the registry records an `uncaught` failure and turns the plugin
+  off, and the host and other plugins keep running. A call that times out
+  terminates its worker, which stops synchronous loops; the next call starts a
+  fresh worker. Released copies end their worker, which stops everything the
+  plugin started.
+- `in_process`: the registry imports each copy into the host with jiti. The
+  first session claims the copy imported at startup, and later sessions
+  re-evaluate the module (reusing jiti's transform cache).
+- `sandbox`: the previous per-session `node`/`bun` subprocess. It bypasses the
+  registry (no status, policy, or reload) and is kept as an escape hatch.
+
+Plugins written for the per-session sandbox keep state at module level, often
+one plugin object per import that refuses a second `setup()`, so every mode
+gives each session its own copy. The session bootstrap, plugin tool listing
+(`listPluginToolsWithDiagnostics`), plugin MCP settings sync, and plugin slash
+commands all load through the registry, so they see the same mode. Neither
+`worker` nor `in_process` starts a child process, so plugins work in the
+compiled CLI, the Hub it starts, the desktop app, and VS Code/Electron without
+a runtime on `PATH`, and plugins can use the host runtime's globals (`Bun`
+under the Bun-built Hub, including inside a Bun worker).
+
+In the Hub daemon the registry is Hub-owned: the daemon checks global and
+workspace plugins at startup (in throwaway workers in `worker` mode, by
+importing them in `in_process` mode) so status is known before any session
+exists.
 
 Each session gets its own guarded view of the plugins it enabled:
 
@@ -717,41 +738,42 @@ Status is surfaced, never only logged:
   cache is keyed on each plugin's registry status, so a plugin a running
   session turned off is never answered from an earlier clean inspection.
 
-The daemon's `uncaughtException` / `unhandledRejection` handlers first ask the
-registry to attribute the error: when its stack points into a known plugin root
-(the package directory for package plugins, the file itself for drop-in files),
-that plugin is marked `failed` and the Hub keeps running. Other errors still go
-to `shutdownFatal`.
+In `in_process` mode the daemon's `uncaughtException` / `unhandledRejection`
+handlers first ask the registry to attribute the error: when its stack points
+into a known plugin root (the package directory for package plugins, the file
+itself for drop-in files), that plugin is marked `failed` and the Hub keeps
+running. Other errors still go to `shutdownFatal`, which is the accepted risk of
+that mode: `process.exit()` from a plugin, or a rejection raised by runtime
+internals with no plugin frame (an un-caught `fetch()`), ends the Hub. Plugins
+also share the process (globals, `process.env`, native resources), and a
+plugin stuck in a synchronous loop freezes the Hub until it returns. Worker
+mode exists to remove these risks.
 
-Accepted risks of in-process execution: plugins share the process (globals,
-`process.env`, native resources) even though module state is per session, and
-a plugin stuck in a synchronous loop freezes the Hub. Timeouts cannot interrupt
-synchronous code; a call that overran its limit is logged once it returns.
+#### Worker and subprocess transports
 
-#### Opt-in sandbox and worker modes
+Both transports share one RPC protocol and one bootstrap
+(`plugin-sandbox-bootstrap.ts`), bundled self-contained into
+`dist/extensions/plugin-sandbox-bootstrap.js` (the core build fails if it
+imports anything but Node builtins, because hosts ship it without
+`node_modules`):
 
-Two isolated modes share one RPC protocol and one bootstrap
-(`plugin-sandbox-bootstrap.ts`); only the transport differs:
+- `WorkerSandbox` (worker mode): structured clone over the worker's message
+  port. A worker must not `chdir` (Bun would change the host's cwd), so the
+  bootstrap overrides `process.cwd()` inside the worker. The bootstrap posts
+  `ready` once it listens, and the host queues calls (as clones) until then,
+  because Bun drops messages that arrive earlier. Plugin stdout is discarded
+  inside the worker, since Bun workers write straight to the host's stdout.
+  Workers share the host's memory limit, env snapshot, and native addons:
+  crash isolation, not a security boundary.
+- `SubprocessSandbox` (sandbox mode): JSON IPC to a `node`/`bun` child with
+  stdout ignored.
 
-- `CLINE_PLUGIN_MODE=sandbox` (`mode: "sandbox"`): a `node`/`bun` subprocess
-  (`SubprocessSandbox`, JSON IPC). It needs that runtime on `PATH` when the
-  host is not itself `node` or `bun`.
-- `CLINE_PLUGIN_MODE=worker` (`mode: "worker"`): a worker thread in the host
-  runtime (`WorkerSandbox`, structured clone over the message port). It needs
-  no runtime executable, so it works from the compiled CLI and hub.
-  `terminate()` stops a worker even inside a synchronous loop, and an uncaught
-  error or `process.exit()` ends only the worker. Workers share the host's
-  memory limit, env snapshot, and native addons, so this is crash isolation,
-  not a security boundary. A worker must not `chdir` (Bun would change the
-  host's cwd), so the bootstrap overrides `process.cwd()` inside the worker
-  instead. The bootstrap posts `ready` once it listens; the host holds calls
-  until then because Bun drops messages that arrive earlier.
-
-In either mode no plugin code runs in the host's module graph: the Hub daemon
-skips its startup preload, and plugin tool listing and MCP settings sync
-inspect plugins through a sandbox too. The session `plugins` policy is not
-applied; these modes load every discovered plugin. Each session gets its own
-subprocess or worker.
+Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
+or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
+(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop sidecar
+sets it to the copy shipped as a Tauri resource). A host that ships none
+cannot start workers, and `resolvePluginExecutionMode` falls back to
+`in_process`.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -765,8 +787,8 @@ deadlines cannot terminate a child while the parent is dispatching new work.
 
 Design implications:
 
-- sandbox process count scales with recently active sessions, not every session
-  observed since hub startup
+- worker and subprocess counts scale with recently active sessions (workers:
+  sessions × plugins), not every session observed since hub startup
 - eviction never interrupts an in-flight plugin call
 - sandboxed plugin state is ephemeral across idle eviction; durable plugin
   state belongs in persistent storage
