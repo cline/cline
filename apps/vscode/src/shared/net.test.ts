@@ -11,11 +11,21 @@ import { fetchWithoutIdleTimeouts } from "./net"
 const BODY_DELAY_MS = 2_000
 const CONTROL_BODY_TIMEOUT_MS = 500
 
+// The dispatcher under test reads the proxy environment when it is first
+// built, so a machine-level http_proxy would route these requests away from
+// the local server.
+const PROXY_ENV_VARS = ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "no_proxy", "NO_PROXY"]
+
 describe("fetchWithoutIdleTimeouts", () => {
 	let server: http.Server
 	let url: string
+	const savedProxyEnv: Record<string, string | undefined> = {}
 
 	beforeAll(async () => {
+		for (const name of PROXY_ENV_VARS) {
+			savedProxyEnv[name] = process.env[name]
+			delete process.env[name]
+		}
 		server = http.createServer((_req, res) => {
 			res.writeHead(200, { "content-type": "text/plain" })
 			res.flushHeaders()
@@ -27,6 +37,13 @@ describe("fetchWithoutIdleTimeouts", () => {
 
 	afterAll(async () => {
 		await new Promise<void>((resolve) => server.close(() => resolve()))
+		for (const name of PROXY_ENV_VARS) {
+			if (savedProxyEnv[name] === undefined) {
+				delete process.env[name]
+			} else {
+				process.env[name] = savedProxyEnv[name]
+			}
+		}
 	})
 
 	it("waits through a silent body where undici's idle timeout would abort", async () => {
