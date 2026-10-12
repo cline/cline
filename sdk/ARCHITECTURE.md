@@ -978,6 +978,13 @@ whether the terminal failure returned or threw, without error/transcript text.
 Desktop reconciliation retains the full live failed turn until a saved terminal
 error reaches its user-run count and is not a previously displayed error ID.
 
+### Host connector transport
+
+`LocalRuntimeHost` and `createLocalHubScheduleRuntimeHandlers` accept an optional
+`connectorsRequest` callback for discovery and execution during startup and resume.
+It supplies host authentication without reading local connector credentials or
+state. Without it, the local behavior described below is unchanged.
+
 ### Composio beta access
 
 Composio management in the desktop sidecar and tool registration/execution in
