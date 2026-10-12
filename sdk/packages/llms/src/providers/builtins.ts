@@ -871,6 +871,16 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
+		id: "rodiumai",
+		name: "RodiumAi",
+		description:
+			"OpenAI-compatible gateway for Africa with Mobile Money top-ups",
+		family: "openai-compatible",
+		defaultModelId: "openai/gpt-4o",
+		apiKeyEnv: ["RODIUMAI_API_KEY"],
+		defaults: { baseUrl: "https://api.rodiumai.io/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
