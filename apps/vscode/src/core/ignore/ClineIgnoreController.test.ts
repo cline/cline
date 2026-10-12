@@ -290,4 +290,102 @@ describe("ClineIgnoreController", () => {
 			controller.validateAccess("file.log").should.be.true()
 		})
 	})
+
+	describe("Sandboxed Execution & Containment", () => {
+		let emptyDir: string
+		let sandboxController: ClineIgnoreController
+
+		beforeEach(async () => {
+			emptyDir = path.join(os.tmpdir(), `sandbox-test-empty-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+			await fs.mkdir(emptyDir)
+			sandboxController = new ClineIgnoreController(emptyDir, { sandboxMode: true })
+			await sandboxController.initialize()
+		})
+
+		after(async () => {
+			await fs.rm(emptyDir, { recursive: true, force: true })
+		})
+
+		it("should block access to sensitive files in sandbox mode even without .clineignore", async () => {
+			sandboxController.validateAccess(".env").should.be.false()
+			sandboxController.validateAccess(".env.production").should.be.false()
+			sandboxController.validateAccess(".env.local").should.be.false()
+			sandboxController.validateAccess("~/.ssh/id_rsa").should.be.false()
+			sandboxController.validateAccess("~/.aws/credentials").should.be.false()
+			sandboxController.validateAccess("id_ed25519").should.be.false()
+			sandboxController.validateAccess("private.pem").should.be.false()
+			sandboxController.validateAccess("server.key").should.be.false()
+
+			// Safe files must remain accessible
+			sandboxController.validateAccess(".env.example").should.be.true()
+			sandboxController.validateAccess(".env.sample").should.be.true()
+			sandboxController.validateAccess("src/index.ts").should.be.true()
+			sandboxController.validateAccess("README.md").should.be.true()
+		})
+
+		it("should enforce strict filesystem containment blocking out-of-tree files", async () => {
+			sandboxController.setSandboxMode(true, true)
+			sandboxController.validateAccess("../external.txt").should.be.false()
+			sandboxController.validateAccess("/var/log/syslog").should.be.false()
+			sandboxController.validateAccess("src/app.ts").should.be.true()
+		})
+
+		it("should block reading commands attempting to access sensitive files via validateCommand", async () => {
+			const blockedEnv = sandboxController.validateCommand("cat .env")
+			;(blockedEnv !== undefined).should.be.true()
+
+			const blockedSsh = sandboxController.validateCommand("head -n 20 ~/.ssh/id_rsa")
+			;(blockedSsh !== undefined).should.be.true()
+
+			const blockedAws = sandboxController.validateCommand("grep AWS_SECRET ~/.aws/credentials")
+			;(blockedAws !== undefined).should.be.true()
+
+			// Safe development commands should be allowed
+			const allowedNpm = sandboxController.validateCommand("npm test")
+			;(allowedNpm === undefined).should.be.true()
+
+			const allowedGit = sandboxController.validateCommand("git status")
+			;(allowedGit === undefined).should.be.true()
+
+			const allowedCat = sandboxController.validateCommand("cat src/index.ts")
+			;(allowedCat === undefined).should.be.true()
+		})
+
+		it("should block destructive commands attempting to delete root, home, or out-of-tree files", async () => {
+			const blockedRoot = sandboxController.validateCommand("rm -rf /")
+			;(blockedRoot !== undefined).should.be.true()
+
+			const blockedHome = sandboxController.validateCommand("rm -rf ~")
+			;(blockedHome !== undefined).should.be.true()
+
+			const blockedParent = sandboxController.validateCommand("rm -rf ../outside")
+			;(blockedParent !== undefined).should.be.true()
+
+			const blockedEnvDelete = sandboxController.validateCommand("rm -f .env")
+			;(blockedEnvDelete !== undefined).should.be.true()
+
+			// Safe in-tree removal should be allowed
+			const allowedRm = sandboxController.validateCommand("rm -rf dist/")
+			;(allowedRm === undefined).should.be.true()
+		})
+
+		it("should block compound commands and subshells with sensitive file access", async () => {
+			const blockedAnd = sandboxController.validateCommand("git status && cat .env")
+			;(blockedAnd !== undefined).should.be.true()
+
+			const blockedPipe = sandboxController.validateCommand("echo 'deploy' | cat ~/.ssh/id_ed25519")
+			;(blockedPipe !== undefined).should.be.true()
+
+			const blockedSubshell = sandboxController.validateCommand('python3 -c "print(open(\'.env\').read())"')
+			;(blockedSubshell !== undefined).should.be.true()
+
+			const blockedSemicolon = sandboxController.validateCommand("echo ok; rm -rf /")
+			;(blockedSemicolon !== undefined).should.be.true()
+
+			// Safe compound command
+			const allowedCompound = sandboxController.validateCommand("ls -la && npm run build")
+			;(allowedCompound === undefined).should.be.true()
+		})
+	})
 })
+

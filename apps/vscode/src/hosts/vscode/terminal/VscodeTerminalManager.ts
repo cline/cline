@@ -10,6 +10,13 @@ import {
 import { Logger } from "@/shared/services/Logger"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
+import {
+	type TerminalSandboxOptions,
+	wrapSandboxedCommand,
+} from "./TerminalSandboxWrapper"
+import type { ClineIgnoreController } from "@/core/ignore/ClineIgnoreController"
+
+export type { TerminalSandboxOptions }
 
 const CWD_COMMAND_TIMEOUT_MS = 5000
 const CWD_STATE_TIMEOUT_MS = 1000
@@ -80,6 +87,8 @@ export class VscodeTerminalManager {
 	private shellIntegrationTimeout = 4000
 	private terminalReuseEnabled = true
 	private defaultTerminalProfile = "default"
+	private sandboxOptions: TerminalSandboxOptions = { enabled: false }
+	private clineIgnoreController?: ClineIgnoreController
 
 	/**
 	 * Resolve a terminal's stored shellPath to an effective path.
@@ -206,7 +215,21 @@ export class VscodeTerminalManager {
 		// Cast to VSCode-specific TerminalInfo for internal use
 		// Using unknown as intermediate cast due to structural differences between ITerminal and vscode.Terminal
 		const vscodeTerminalInfo = terminalInfo as unknown as TerminalInfo
-		Logger.log(`[TerminalManager] Running command on terminal ${vscodeTerminalInfo.id}: "${command}"`)
+
+		let effectiveCommand = command
+		if (this.sandboxOptions.enabled) {
+			if (this.clineIgnoreController) {
+				const blocked = this.clineIgnoreController.validateCommand(command)
+				if (blocked) {
+					Logger.warn(`[TerminalManager] Sandboxed command rejected: "${blocked}" is restricted`)
+					throw new Error(`[Sandbox] Command blocked: attempted to access or modify protected path "${blocked}"`)
+				}
+			}
+			const currentCwd = vscodeTerminalInfo.terminal.shellIntegration?.cwd?.fsPath || process.cwd()
+			effectiveCommand = wrapSandboxedCommand(command, currentCwd, this.sandboxOptions)
+		}
+
+		Logger.log(`[TerminalManager] Running command on terminal ${vscodeTerminalInfo.id}: "${effectiveCommand}"`)
 		Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} busy state before: ${vscodeTerminalInfo.busy}`)
 
 		try {
@@ -216,7 +239,7 @@ export class VscodeTerminalManager {
 			throw error
 		}
 		vscodeTerminalInfo.busy = true
-		vscodeTerminalInfo.lastCommand = command
+		vscodeTerminalInfo.lastCommand = effectiveCommand
 		const process = new VscodeTerminalProcess()
 		this.processes.set(vscodeTerminalInfo.id, process)
 
@@ -256,7 +279,7 @@ export class VscodeTerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (vscodeTerminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			this.runTerminalProcess(process, vscodeTerminalInfo.terminal, command)
+			this.runTerminalProcess(process, vscodeTerminalInfo.terminal, effectiveCommand)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			Logger.log(
@@ -280,7 +303,7 @@ export class VscodeTerminalManager {
 					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
-						this.runTerminalProcess(existingProcess, vscodeTerminalInfo.terminal, command)
+						this.runTerminalProcess(existingProcess, vscodeTerminalInfo.terminal, effectiveCommand)
 					}
 				})
 		}
@@ -491,6 +514,22 @@ export class VscodeTerminalManager {
 		// and existing terminals with a different effective shell are simply
 		// skipped during reuse matching.
 		this.defaultTerminalProfile = profileId
+	}
+
+	setSandboxedExecution(enabled: boolean, options?: Partial<TerminalSandboxOptions>): void {
+		this.sandboxOptions = {
+			...this.sandboxOptions,
+			...options,
+			enabled,
+		}
+	}
+
+	getSandboxedExecution(): TerminalSandboxOptions {
+		return { ...this.sandboxOptions }
+	}
+
+	setClineIgnoreController(controller: ClineIgnoreController): void {
+		this.clineIgnoreController = controller
 	}
 
 	private evictTerminal(terminalInfo: TerminalInfo): void {
