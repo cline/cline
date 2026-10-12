@@ -148,6 +148,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
 		}
 
+		if (request.cloudSessionsEnabled !== undefined) {
+			controller.stateManager.setGlobalState("cloudSessionsEnabled", request.cloudSessionsEnabled)
+		}
+
 		// Update subagents setting
 		if (request.subagentsEnabled !== undefined) {
 			const wasEnabled = controller.stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false

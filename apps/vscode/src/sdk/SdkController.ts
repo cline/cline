@@ -46,7 +46,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
-import { isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
+import { isCloudSessionsFeatureAvailable, isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
@@ -2659,6 +2659,7 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
+				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask: this.cloud.getCurrentTaskInfo(),
