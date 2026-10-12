@@ -120,7 +120,29 @@ export function resolveSubprocessRuntimeExecutable(
 		}
 	}
 
+	if (isBunStandaloneExecutable(execPath)) {
+		return execPath;
+	}
+
 	return "node";
+}
+
+/**
+ * A `bun build --compile` binary (the CLI, the hub it starts, the desktop
+ * sidecar) embeds the Bun runtime and runs as plain `bun` when started with
+ * `BUN_BE_BUN=1`, so it can host the sandbox without node or bun on PATH.
+ */
+function isBunStandaloneExecutable(execPath: string): boolean {
+	return (
+		typeof process.versions.bun === "string" &&
+		execPath === process.execPath &&
+		!isRuntimeExecutable(execPath)
+	);
+}
+
+function subprocessEnv(command: string): NodeJS.ProcessEnv {
+	const env = withResolvedClineBuildEnv(process.env);
+	return isBunStandaloneExecutable(command) ? { ...env, BUN_BE_BUN: "1" } : env;
 }
 
 export function buildSubprocessSandboxCommand(
@@ -262,16 +284,14 @@ export class SubprocessSandbox {
 			name: this.options.name,
 			runtimeExecutable: this.options.runtimeExecutable,
 		});
-		const child = spawn(
-			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
-			command.slice(1),
-			{
-				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
-				// Prevent a console window from flashing on Windows.
-				windowsHide: true,
-			},
-		);
+		const executable =
+			command[0] ?? resolveSubprocessRuntimeExecutable(this.options);
+		const child = spawn(executable, command.slice(1), {
+			stdio: ["ignore", "ignore", "pipe", "ipc"],
+			env: subprocessEnv(executable),
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
+		});
 		this.process = child;
 		let stderrBuffer = "";
 		const appendStderr = (chunk: string) => {

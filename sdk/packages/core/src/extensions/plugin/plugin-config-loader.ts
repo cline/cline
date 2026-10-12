@@ -291,9 +291,9 @@ export function resolvePluginExecutionMode(
 	mode?: PluginExecutionMode,
 ): PluginExecutionMode {
 	if (mode) return mode;
-	return process.env[CLINE_PLUGIN_MODE_ENV]?.trim() === "sandbox"
-		? "sandbox"
-		: "in_process";
+	return process.env[CLINE_PLUGIN_MODE_ENV]?.trim() === "in_process"
+		? "in_process"
+		: "sandbox";
 }
 
 export interface ResolveAndLoadAgentPluginsOptions
