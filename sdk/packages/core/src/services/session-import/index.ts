@@ -1,8 +1,16 @@
 export {
+	type AgyAdapterOptions,
+	AgyImportAdapter,
+} from "./agy-desktop";
+export {
 	type ClaudeCodeAdapterOptions,
 	ClaudeCodeImportAdapter,
 } from "./claude-code";
 export { type CodexAdapterOptions, CodexImportAdapter } from "./codex";
+export {
+	type KilocodeAdapterOptions,
+	KilocodeImportAdapter,
+} from "./kilocode";
 export {
 	type OpencodeAdapterOptions,
 	OpencodeImportAdapter,

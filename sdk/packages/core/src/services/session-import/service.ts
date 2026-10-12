@@ -3,8 +3,10 @@ import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import type { UnifiedSessionPersistenceService } from "../../session/services/persistence-service";
 import { SessionSource } from "../../types/common";
 import { ensureChatWorkspace } from "../workspace/chat-workspace";
+import { AgyImportAdapter } from "./agy-desktop";
 import { ClaudeCodeImportAdapter } from "./claude-code";
 import { CodexImportAdapter } from "./codex";
+import { KilocodeImportAdapter } from "./kilocode";
 import { OpencodeImportAdapter } from "./opencode";
 import { sanitizeImportedMessages } from "./sanitize";
 import type {
@@ -73,6 +75,8 @@ export class SessionImportService {
 			new ClaudeCodeImportAdapter(),
 			new CodexImportAdapter(),
 			new OpencodeImportAdapter(),
+			new KilocodeImportAdapter(),
+			new AgyImportAdapter(),
 		];
 	}
 
