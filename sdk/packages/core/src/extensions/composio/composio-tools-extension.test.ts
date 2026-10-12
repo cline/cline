@@ -35,6 +35,7 @@ const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
 	accountId: "account-a" as string | undefined,
 	baseUrl: "https://api.cline.bot",
+	forbidLocal: false,
 }));
 
 vi.mock("../../runtime/orchestration/runtime-oauth-token-manager", () => ({
@@ -51,6 +52,8 @@ vi.mock("../../services/providers/local-provider-service", () => ({
 vi.mock("../../services/storage/provider-settings-manager", () => ({
 	ProviderSettingsManager: class {
 		getProviderSettings() {
+			if (auth.forbidLocal)
+				throw new Error("Unexpected local connector credentials");
 			return { baseUrl: auth.baseUrl, auth: { accountId: auth.accountId } };
 		}
 	},
@@ -91,8 +94,10 @@ function writeState(state: unknown): void {
 	writeFileSync(path, JSON.stringify(state, null, "\t"));
 }
 
-async function setupTools(): Promise<RegisteredTool[]> {
-	const extension = await createComposioToolsExtension();
+async function setupTools(
+	options?: Parameters<typeof createComposioToolsExtension>[0],
+): Promise<RegisteredTool[]> {
+	const extension = await createComposioToolsExtension(options);
 	const tools: RegisteredTool[] = [];
 	if (!extension) {
 		return tools;
@@ -113,6 +118,7 @@ beforeEach(() => {
 	auth.token = "cline_token_123";
 	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
+	auth.forbidLocal = false;
 	meta.session = undefined;
 });
 
@@ -416,7 +422,10 @@ describe("createComposioToolsExtension", () => {
 		expect(tools[1]?.inputSchema.properties).toHaveProperty("session_id");
 	});
 
-	it("searches, connects, waits, and executes in one session without saved connections", async () => {
+	it.each([
+		false,
+		true,
+	])("runs the in-chat connector flow (host transport: %s)", async (hostTransport) => {
 		const actual = await vi.importActual<
 			typeof import("./composio-meta-tools")
 		>("./composio-meta-tools");
@@ -477,7 +486,26 @@ describe("createComposioToolsExtension", () => {
 			return Response.json({ successful: true, data: step.data });
 		});
 		vi.stubGlobal("fetch", fetchMock);
-		const tools = await setupTools();
+		if (hostTransport) {
+			beta.enabled = false;
+			writeState({
+				toolkits: {
+					gmail: {
+						connectedAccountId: "local",
+						tools: [{ slug: "LOCAL_ONLY_TOOL" }],
+					},
+				},
+			});
+			auth.forbidLocal = true;
+		}
+		const tools = await setupTools(
+			hostTransport
+				? {
+						request: (path, init) => fetch(`https://host.example${path}`, init),
+					}
+				: undefined,
+		);
+		if (hostTransport) auth.accountId = "account-b";
 		expect(tools.map((tool) => tool.name)).toEqual(
 			steps.map((step) => step.slug.toLowerCase()),
 		);
@@ -504,19 +532,22 @@ describe("createComposioToolsExtension", () => {
 			"completed",
 		);
 		expect(fetchMock).toHaveBeenCalledTimes(5);
+		const origin = hostTransport
+			? "https://host.example"
+			: "https://api.cline.bot";
 		expect(fetchMock.mock.calls[0][0]).toBe(
-			"https://api.cline.bot/api/v1/connectors/meta-tools/sessions",
+			`${origin}/api/v1/connectors/meta-tools/sessions`,
 		);
 		for (const [, init] of fetchMock.mock.calls) {
 			expect(init?.method).toBe("POST");
-			expect((init?.headers as Record<string, string>).authorization).toBe(
-				"Bearer cline_token_123",
+			expect(new Headers(init?.headers).get("authorization")).toBe(
+				hostTransport ? null : "Bearer cline_token_123",
 			);
 		}
 		for (const [index, step] of steps.entries()) {
 			const [url, init] = fetchMock.mock.calls[index + 1];
 			expect(url).toBe(
-				`https://api.cline.bot/api/v1/connectors/meta-tools/${step.slug}/execute`,
+				`${origin}/api/v1/connectors/meta-tools/${step.slug}/execute`,
 			);
 			expect(JSON.parse(init?.body as string)).toEqual({
 				sessionId: "trs_flow",
@@ -548,7 +579,7 @@ describe("createComposioToolsExtension", () => {
 		expect(url).toBe(
 			"https://api.cline.bot/api/v1/connectors/meta-tools/COMPOSIO_MANAGE_CONNECTIONS/execute",
 		);
-		expect((init.headers as Record<string, string>).authorization).toBe(
+		expect(new Headers(init.headers).get("authorization")).toBe(
 			"Bearer cline_token_123",
 		);
 		expect(JSON.parse(init.body as string)).toEqual({

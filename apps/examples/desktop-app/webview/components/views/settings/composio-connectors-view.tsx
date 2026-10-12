@@ -39,8 +39,8 @@ import type {
 	ComposioIntegrationSummary,
 	ComposioToolkitSlug,
 } from "@/lib/composio-types";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
+import { openExternalUrl } from "@/lib/desktop-client";
+import { runProviderOAuthLogin } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 import { cn } from "@/lib/utils";
@@ -762,13 +762,7 @@ function ConnectorsUnavailable({
 		setSigningIn(true);
 		setError(null);
 		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				// The browser round-trip routinely outlives the default command
-				// deadline; the sidecar bounds the flow by device-code expiry.
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
+			await runProviderOAuthLogin("cline");
 			invalidateProviderCatalogCache();
 			await Promise.all([refreshAccount(), onRefresh()]);
 		} catch (err) {

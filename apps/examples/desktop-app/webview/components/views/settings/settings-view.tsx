@@ -33,7 +33,7 @@ import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
-	OAUTH_LOGIN_TIMEOUT_MS,
+	runProviderOAuthLogin,
 } from "@/lib/provider-connection";
 import {
 	invalidateProviderCatalogCache,
@@ -442,16 +442,7 @@ export function SettingsView({
 	const runOAuthProviderLogin = async (id: string) => {
 		setOauthSigningProviderId(id);
 		try {
-			const result = await desktopClient.invoke<{
-				provider: string;
-				accessToken: string;
-			}>(
-				"run_provider_oauth_login",
-				{ provider: id },
-				// The browser round-trip routinely outlives the default command
-				// deadline; the sidecar bounds the flow by device-code expiry.
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
+			const result = await runProviderOAuthLogin(id);
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
 					provider.id === id
