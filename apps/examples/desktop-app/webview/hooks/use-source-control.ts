@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
 export type SourceControlStatus = "M" | "A" | "D" | "R" | "?" | "U";
 
@@ -53,7 +54,9 @@ export type SourceControlAction =
 	| { type: "push" }
 	| { type: "pull" };
 
-const POLL_INTERVAL_MS = 10_000;
+// Over SSH every poll is a remote git invocation, so it runs less often.
+const LOCAL_POLL_INTERVAL_MS = 5_000;
+const REMOTE_POLL_INTERVAL_MS = 15_000;
 
 /** Paths `git restore --staged` needs to fully undo staging these files. */
 export function unstagePaths(files: SourceControlFile[]): string[] {
@@ -117,13 +120,18 @@ export function useSourceControl({
 		const refreshIfVisible = () => {
 			if (document.visibilityState === "visible") void refresh();
 		};
-		const interval = window.setInterval(refreshIfVisible, POLL_INTERVAL_MS);
+		const interval = window.setInterval(
+			refreshIfVisible,
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+				? LOCAL_POLL_INTERVAL_MS
+				: REMOTE_POLL_INTERVAL_MS,
+		);
 		window.addEventListener("focus", refreshIfVisible);
 		return () => {
 			window.clearInterval(interval);
 			window.removeEventListener("focus", refreshIfVisible);
 		};
-	}, [enabled, refresh]);
+	}, [enabled, refresh, environmentId]);
 
 	const runAction = useCallback(
 		async (action: SourceControlAction): Promise<boolean> => {

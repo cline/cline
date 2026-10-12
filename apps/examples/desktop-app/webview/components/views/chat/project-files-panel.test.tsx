@@ -487,17 +487,25 @@ describe("ProjectFilesPanel files view", () => {
 		expect(container.textContent).toContain("README.md");
 	});
 
-	it("re-reads open files on refresh", async () => {
-		await render();
-		await showFiles();
-		await click(button(/^README\.md/));
-		const reads = () =>
-			invokeMock.mock.calls.filter(
-				([command]) => command === "read_project_file",
-			).length;
-		expect(reads()).toBe(1);
-		await click(byLabel("Refresh", container));
-		expect(reads()).toBe(2);
+	it("polls: open files re-read and expanded folders re-list", async () => {
+		vi.useFakeTimers();
+		try {
+			await render();
+			await showFiles();
+			await click(button(/^README\.md/));
+			const count = (name: string) =>
+				invokeMock.mock.calls.filter(([command]) => command === name).length;
+			const reads = count("read_project_file");
+			const listings = count("list_project_entries");
+			expect(container.querySelector('[aria-label="Refresh"]')).toBeNull();
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5_000);
+			});
+			expect(count("read_project_file")).toBe(reads + 1);
+			expect(count("list_project_entries")).toBeGreaterThan(listings);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("ignores a read that was in flight when its tab was closed", async () => {
@@ -544,7 +552,7 @@ describe("ProjectFilesPanel files view", () => {
 			expect(reads()).toBe(1);
 			// A poll lands while the read is still pending.
 			await act(async () => {
-				await vi.advanceTimersByTimeAsync(10_000);
+				await vi.advanceTimersByTimeAsync(5_000);
 			});
 			expect(reads()).toBe(1);
 			await act(async () => {

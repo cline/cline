@@ -9,7 +9,6 @@ import {
 	Loader2,
 	Minus,
 	Plus,
-	RefreshCw,
 	Undo2,
 	X,
 } from "lucide-react";
@@ -39,6 +38,7 @@ import type { SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import {
 	clampWorkspacePanelWidth,
+	hasStoredWorkspacePanelWidth,
 	readWorkspacePanelWidth,
 	writeWorkspacePanelWidth,
 } from "@/lib/workspace-panel";
@@ -46,7 +46,6 @@ import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
 import { FileIcon, FolderIcon } from "./file-icons";
 import { CodeDiff, CodeFile } from "./highlighted-code";
 import {
-	BranchIndicator,
 	type DiffScope,
 	SOURCE_CONTROL_STATUS_CLASS,
 	SourceControlColumn,
@@ -315,18 +314,39 @@ export function ProjectFilesPanel({
 		});
 		for (const path of open) void loadDirectory(path);
 	}, [loadDirectory]);
-	// The new repository snapshot marks cached contents stale, so files
-	// edited outside the app re-read without blanking the viewer first.
-	const refresh = useCallback(() => {
-		reloadDirectories();
-		void sourceControl.refresh();
-	}, [reloadDirectories, sourceControl.refresh]);
-
+	// There is no refresh button: git state polls while the panel is open
+	// (see useSourceControl), and each snapshot re-lists the expanded folders
+	// while the tree is showing, so files created or removed outside the app
+	// appear on their own.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the snapshot object is the trigger
 	useEffect(() => {
-		const handleResize = () =>
-			setWidth((current) => clampWorkspacePanelWidth(current));
-		window.addEventListener("resize", handleResize);
-		return () => window.removeEventListener("resize", handleResize);
+		if (view === "files" && sourceControl.state) reloadDirectories();
+	}, [sourceControl.state]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-list when the tree is shown again
+	useEffect(() => {
+		if (view === "files") reloadDirectories();
+	}, [view]);
+
+	// Until the user drags it, the panel tracks half the main content area as
+	// the window resizes or the app sidebar collapses.
+	useEffect(() => {
+		const follow = () =>
+			setWidth((current) =>
+				hasStoredWorkspacePanelWidth()
+					? clampWorkspacePanelWidth(current)
+					: readWorkspacePanelWidth(),
+			);
+		window.addEventListener("resize", follow);
+		const main = document.querySelector('[data-slot="sidebar-inset"]');
+		const observer =
+			main && typeof ResizeObserver !== "undefined"
+				? new ResizeObserver(follow)
+				: null;
+		if (main) observer?.observe(main);
+		return () => {
+			window.removeEventListener("resize", follow);
+			observer?.disconnect();
+		};
 	}, []);
 
 	useEffect(() => {
@@ -606,10 +626,6 @@ export function ProjectFilesPanel({
 				// Discards and commits change what is on disk and in the index.
 				setFiles(markStale);
 				setGitDiffs(markStale);
-				// Pulls and discards can add or remove files in the tree.
-				if (action.type === "pull" || action.type === "discard") {
-					reloadDirectories();
-				}
 				return true;
 			} catch (error) {
 				toast({
@@ -625,7 +641,7 @@ export function ProjectFilesPanel({
 				return false;
 			}
 		},
-		[reloadDirectories, sourceControl.runAction],
+		[sourceControl.runAction],
 	);
 	const confirmDiscard = useCallback(async () => {
 		const files = pendingDiscard;
@@ -831,7 +847,7 @@ export function ProjectFilesPanel({
 				className="flex shrink-0 flex-col border-r border-border bg-sidebar/40"
 				style={{ width: COLUMN_WIDTH }}
 			>
-				<div className="flex shrink-0 flex-col gap-1 border-b border-border/70 px-2 pb-1.5 pt-2">
+				<div className="shrink-0 border-b border-border/70 p-2">
 					<div
 						aria-label="Panel view"
 						className="grid h-7 grid-cols-2 items-center rounded-md bg-secondary p-0.5 text-[11px]"
@@ -854,26 +870,6 @@ export function ProjectFilesPanel({
 								{item.label}
 							</button>
 						))}
-					</div>
-					<div className="flex h-6 min-w-0 items-center gap-1 pl-1">
-						<span className="min-w-0 flex-1">
-							<BranchIndicator state={sourceControl.state} />
-						</span>
-						<Button
-							aria-label="Refresh"
-							className="size-6 shrink-0 text-muted-foreground"
-							onClick={refresh}
-							size="icon-sm"
-							type="button"
-							variant="ghost"
-						>
-							<RefreshCw
-								className={cn(
-									"size-3",
-									sourceControl.loading && "animate-spin",
-								)}
-							/>
-						</Button>
 					</div>
 				</div>
 				{view === "source-control" ? (

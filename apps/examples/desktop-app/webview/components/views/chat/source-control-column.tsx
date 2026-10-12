@@ -160,6 +160,11 @@ export function SourceControlColumn({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" id="source-control-column">
 			<div className="flex flex-col gap-2 border-b border-border p-2">
+				{state?.root ? (
+					<div className="flex h-5 min-w-0 items-center px-1">
+						<BranchIndicator state={state} />
+					</div>
+				) : null}
 				<Textarea
 					aria-label="Commit message"
 					className="min-h-16 resize-none bg-background text-xs"
