@@ -49,7 +49,11 @@ const RAW_ACTIONS = [
 	"brief_pause",
 	"wait",
 	"zoom",
+	"mark",
 ] as const;
+
+// Text-answering mark actions: valid alone, never as a sequence step.
+const STANDALONE_ACTIONS = ["list_marks", "flipbook", "clear_marks"] as const;
 
 // qbt accepts unsigned pixels but passes them to signed 32-bit desktop APIs.
 const Pixel = z.number().int().nonnegative().max(2_147_483_647);
@@ -97,6 +101,15 @@ const ACTION_FIELDS = {
 	expect_unchanged: Region.describe(
 		"(x, y, width, height) click guard: a region that must look unchanged since the last screenshot you saw. The backend compares it before clicking; if it changed, the click is aborted and you get a fresh screenshot instead. Use it for clicks on targets that might move or disappear.",
 	).optional(),
+	label: z
+		.string()
+		.trim()
+		.min(1)
+		.max(200)
+		.describe(
+			"Required short caption for mark, drawn on that frame in a flipbook.",
+		)
+		.optional(),
 };
 
 const SEQUENCE_STEP_SCHEMA = z
@@ -106,10 +119,29 @@ const SEQUENCE_STEP_SCHEMA = z
 	})
 	.strict();
 
+const MarkSelector = z
+	.union([
+		z.array(z.number().int().positive()).min(1),
+		z.string().trim().min(1),
+	])
+	.describe(
+		'Optional selection of pending marks for flipbook and clear_marks: mark numbers from list_marks as an array (e.g. [1, 3]) or a string such as "2-5", "3-" (3 to the last), "-3" (first to 3), or "1,4-6". Omit for all pending marks.',
+	);
+
 const COMPUTER_TOOL_INPUT_BASE = SEQUENCE_STEP_SCHEMA.extend({
 	action: z
-		.enum([...RAW_ACTIONS, "run_sequence"])
+		.enum([...RAW_ACTIONS, ...STANDALONE_ACTIONS, "run_sequence"])
 		.describe("The action to perform."),
+	name: z
+		.string()
+		.trim()
+		.min(1)
+		.max(100)
+		.describe(
+			"Required name for flipbook; it becomes the file name (letters, digits, and hyphens are kept).",
+		)
+		.optional(),
+	marks: MarkSelector.optional(),
 	actions: z
 		.array(SEQUENCE_STEP_SCHEMA)
 		.min(1)
@@ -141,6 +173,8 @@ const REQUIRED_ACTION_FIELDS: Partial<
 	wait: ["duration"],
 	scroll: ["coordinate", "scroll_direction", "scroll_amount"],
 	zoom: ["region"],
+	mark: ["label"],
+	flipbook: ["name"],
 	run_sequence: ["actions"],
 };
 
@@ -186,6 +220,24 @@ const COMPUTER_TOOL_INPUT = COMPUTER_TOOL_INPUT_BASE.superRefine(
 				message: "actions is only valid for run_sequence",
 			});
 		}
+		if (input.action !== "flipbook" && input.name !== undefined) {
+			context.addIssue({
+				code: "custom",
+				path: ["name"],
+				message: "name is only valid for flipbook",
+			});
+		}
+		if (
+			input.action !== "flipbook" &&
+			input.action !== "clear_marks" &&
+			input.marks !== undefined
+		) {
+			context.addIssue({
+				code: "custom",
+				path: ["marks"],
+				message: "marks is only valid for flipbook and clear_marks",
+			});
+		}
 		// Validate the whole sequence before enrolling or executing even its first step.
 		for (const [index, step] of (input.actions ?? []).entries()) {
 			validateRequiredFields(step, context, ["actions", index]);
@@ -223,6 +275,9 @@ function toComputerUseRequest(
 		region: input.region as ComputerUseRequest["region"],
 		expectUnchanged:
 			input.expect_unchanged as ComputerUseRequest["expectUnchanged"],
+		label: input.label,
+		name: input.name,
+		marks: input.marks,
 		...(input.actions ? { actions: input.actions.map(toSequenceItem) } : {}),
 	};
 }
@@ -242,6 +297,7 @@ function toSequenceItem(
 		region: input.region as ComputerUseSequenceItem["region"],
 		expectUnchanged:
 			input.expect_unchanged as ComputerUseSequenceItem["expectUnchanged"],
+		label: input.label,
 	};
 }
 
@@ -291,6 +347,11 @@ export async function createComputerUseTool(
 				`targets that might move or disappear, pass expect_unchanged: [x, y, width, height] ` +
 				`covering the target; the backend aborts the click and returns a fresh screenshot ` +
 				`if that region changed since the screenshot you last saw. ` +
+				`To keep a moment worth showing someone later, add a mark step with a short label ` +
+				`after it; mark saves the screenshot you just saw and returns its path. ` +
+				`list_marks shows what you have. flipbook with a name turns marked screenshots ` +
+				`(all, or a marks selection) into a captioned animated WebP and returns its path ` +
+				`plus the path of each frame. clear_marks discards marks you no longer want. ` +
 				`Each call has a 120-second estimated work budget: waits and held keys, ` +
 				`90 ms per Unicode character typed, 300 ms per brief_pause, and 250 ms per step. ` +
 				`Split oversized waits, text, or sequences across calls.`,

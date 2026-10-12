@@ -151,6 +151,89 @@ describe("createComputerUseTool", () => {
 		expect(output[1]).toMatchObject({ type: "image" });
 	});
 
+	it("maps mark, list_marks, flipbook, and clear_marks onto the wire format", async () => {
+		const seen: Array<Record<string, unknown>> = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request);
+			return {
+				id: request.id as number,
+				ok: true,
+				text: `${request.action} done`,
+			};
+		});
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const tool = await createComputerUseTool({ client, port: started.port });
+		expect(tool.description).toContain("mark step with a short label");
+
+		await tool.execute({ action: "mark", label: " Editor open " }, ctx);
+		await tool.execute(
+			{
+				action: "run_sequence",
+				actions: [
+					{ action: "brief_pause" },
+					{ action: "mark", label: "After pause" },
+				],
+			},
+			ctx,
+		);
+		await tool.execute({ action: "list_marks" }, ctx);
+		const flipbook = await tool.execute(
+			{ action: "flipbook", name: "Grapefruit run", marks: "2-" },
+			ctx,
+		);
+		await tool.execute({ action: "clear_marks", marks: [1, 3] }, ctx);
+
+		expect(seen.map((request) => request.action)).toEqual([
+			"mark",
+			"run_sequence",
+			"list_marks",
+			"flipbook",
+			"clear_marks",
+		]);
+		expect(seen[0]).toMatchObject({ label: "Editor open" });
+		expect(seen[1]).toMatchObject({
+			actions: [
+				{ action: "brief_pause" },
+				{ action: "mark", label: "After pause" },
+			],
+		});
+		expect(seen[3]).toMatchObject({ name: "Grapefruit run", marks: "2-" });
+		expect(seen[3]).not.toHaveProperty("label");
+		expect(seen[4]).toMatchObject({ marks: [1, 3] });
+		expect(flipbook).toBe("flipbook done");
+
+		// Only mark may be a sequence step; the others answer with text the
+		// caller would never see.
+		for (const action of ["list_marks", "flipbook", "clear_marks"]) {
+			await expect(
+				tool.execute(
+					{ action: "run_sequence", actions: [{ action, name: "x" }] },
+					ctx,
+				),
+			).rejects.toThrow();
+		}
+		await expect(tool.execute({ action: "mark" }, ctx)).rejects.toThrow(
+			"label is required for mark",
+		);
+		await expect(
+			tool.execute({ action: "mark", label: "   " }, ctx),
+		).rejects.toThrow();
+		await expect(tool.execute({ action: "flipbook" }, ctx)).rejects.toThrow(
+			"name is required for flipbook",
+		);
+		await expect(
+			tool.execute({ action: "screenshot", name: "x" }, ctx),
+		).rejects.toThrow("name is only valid for flipbook");
+		await expect(
+			tool.execute({ action: "list_marks", marks: "1-2" }, ctx),
+		).rejects.toThrow("marks is only valid for flipbook and clear_marks");
+		await expect(
+			tool.execute({ action: "clear_marks", marks: [0] }, ctx),
+		).rejects.toThrow();
+		expect(seen).toHaveLength(5);
+	});
+
 	it("maps expect_unchanged onto the wire format", async () => {
 		const seenGuard: Array<Record<string, unknown>> = [];
 		const guardBackend = await startFakeBackend((request) => {
@@ -265,8 +348,15 @@ describe("createComputerUseTool", () => {
 		};
 		expect(properties.action.enum).toEqual([
 			...((steps.properties.action.enum ?? []) as string[]),
+			"list_marks",
+			"flipbook",
+			"clear_marks",
 			"run_sequence",
 		]);
+		expect(steps.properties.action.enum).toContain("mark");
+		expect(steps.properties).toHaveProperty("label");
+		expect(steps.properties).not.toHaveProperty("name");
+		expect(steps.properties).not.toHaveProperty("marks");
 		for (const action of [
 			"get_display_info",
 			"publish_event",
