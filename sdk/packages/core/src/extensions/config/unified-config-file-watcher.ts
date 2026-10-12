@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { type FSWatcher, watch } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface UnifiedConfigFileContext<TType extends string = string> {
@@ -475,14 +475,25 @@ export class UnifiedConfigFileWatcher<
 	): Promise<UnifiedConfigFileCandidate[]> {
 		try {
 			const entries = await readdir(directoryPath, { withFileTypes: true });
-			return entries
-				.filter((entry) => entry.isFile())
-				.map((entry) => ({
+			const candidates: UnifiedConfigFileCandidate[] = [];
+			for (const entry of entries) {
+				const filePath = join(directoryPath, entry.name);
+				const isFile =
+					entry.isFile() ||
+					(entry.isSymbolicLink() &&
+						(await stat(filePath)
+							.then((target) => target.isFile())
+							.catch(() => false)));
+				if (!isFile) {
+					continue;
+				}
+				candidates.push({
 					directoryPath,
 					fileName: entry.name,
-					filePath: join(directoryPath, entry.name),
-				}))
-				.sort((a, b) => a.fileName.localeCompare(b.fileName));
+					filePath,
+				});
+			}
+			return candidates.sort((a, b) => a.fileName.localeCompare(b.fileName));
 		} catch (error) {
 			if (
 				isMissingDirectoryError(error) ||
