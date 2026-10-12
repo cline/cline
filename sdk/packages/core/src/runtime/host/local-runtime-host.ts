@@ -244,7 +244,6 @@ export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
-	/** User-authenticated transport for connector discovery and execution. */
 	connectorsRequest?: ConnectorsRequest;
 	createAgent?: (config: AgentConfig) => SessionRuntime;
 	capabilities?: RuntimeCapabilities;
