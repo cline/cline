@@ -66,3 +66,22 @@ export function buildQuestionCard(input: QuestionCardInput) {
 		}),
 	);
 }
+
+/**
+ * The question, rewritten for after it has been answered.
+ *
+ * A question whose buttons stay live is a question that can be answered twice. Reported from
+ * use: "I can click several times because the button stays active and there is no indication
+ * it was answered." Posting this text as a plain edit is what removes the keyboard -- an edit
+ * carrying no card clears the markup -- so the rewrite and the deactivation are the same act.
+ *
+ * The chosen option is kept in the message rather than only in a reply, because the reply can
+ * scroll away from the question while the question itself stays on screen.
+ */
+export function buildAnsweredQuestionText(
+	questionText: string,
+	chosenOption: string,
+): string {
+	const trimmed = questionText.trimEnd();
+	return `${trimmed}\n\n✅ ${chosenOption}`;
+}

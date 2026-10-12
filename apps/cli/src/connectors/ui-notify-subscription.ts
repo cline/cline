@@ -61,6 +61,12 @@ export interface NotifyDeliveryOptions {
 	supersedesPrevious: boolean;
 	/** The thing is waiting on the person now, so choices can be offered for it. */
 	awaitingAnswer: boolean;
+	/** Column the card sits in, for an adapter that keeps one message per card current. */
+	column?: string;
+	/** The headline on its own, for an adapter that lays the message out itself. */
+	title?: string;
+	/** The body on its own, for the same reason. */
+	body?: string;
 }
 
 export interface UiNotifySubscription {
@@ -72,9 +78,12 @@ export interface UiNotifySubscription {
 function readNotification(payload: unknown):
 	| {
 			text: string;
+			title: string;
+			body: string;
 			source?: UiNotifySource;
 			supersedesPrevious: boolean;
 			awaitingAnswer: boolean;
+			column?: string;
 	  }
 	| undefined {
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -93,9 +102,12 @@ function readNotification(payload: unknown):
 			: undefined;
 	return {
 		text: [title, body].filter(Boolean).join("\n\n"),
+		title,
+		body,
 		source,
 		supersedesPrevious: record.supersedesPrevious === true,
 		awaitingAnswer: record.awaitingAnswer === true,
+		column: typeof record.column === "string" ? record.column : undefined,
 	};
 }
 
@@ -142,6 +154,9 @@ export async function startUiNotifyDelivery<
 								workspacePath: notification.source?.workspacePath,
 								supersedesPrevious: notification.supersedesPrevious,
 								awaitingAnswer: notification.awaitingAnswer,
+								column: notification.column,
+								title: notification.title,
+								body: notification.body,
 							})
 							.catch((error) => {
 								input.onError?.(error);

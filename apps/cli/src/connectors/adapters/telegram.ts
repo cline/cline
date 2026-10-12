@@ -19,8 +19,14 @@ import {
 } from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
+import { buildCardAnchorText } from "../card-anchor";
 import { parseNotifiedOptions, resolveCardAnswer } from "../card-answer";
-import { buildQuestionCard, parseCardActionId } from "../card-question-message";
+import {
+	buildAnsweredQuestionText,
+	buildQuestionCard,
+	parseCardActionId,
+} from "../card-question-message";
+import { postCardMessage } from "../card-thread";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
 import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
@@ -915,6 +921,13 @@ class TelegramConnector extends ConnectorBase<
 		// Lives only as long as the connector: after a restart the first update posts a new
 		// message, which is the honest outcome -- the old one is no longer ours to touch.
 		const notifyMessages = new Map<string, SentMessage>();
+		// Questions awaiting a tap, by the id of the message carrying them. In memory only: a
+		// question that outlives the process keeps its text in the bindings file, and the worst
+		// case is a button that cannot be struck through, not an answer that is lost.
+		const questionMessages = new Map<
+			string,
+			{ message: SentMessage; text: string }
+		>();
 		/**
 		 * Remembers, on disk, which card each delivered notification belongs to, so a reply *to*
 		 * that message can be carried back into the card's session. Telegram's own affordance is
@@ -976,9 +989,21 @@ class TelegramConnector extends ConnectorBase<
 					const previous = messageKey
 						? notifyMessages.get(messageKey)
 						: undefined;
+					// One message per card, edited for its whole life: the dot carries the
+					// column, the line below carries what it is doing. Five unrelated messages
+					// in a row was the thing nobody could read.
+					const anchorText =
+						options.itemId && options.title
+							? buildCardAnchorText({
+									title: options.title,
+									taskId: options.itemId,
+									column: options.column,
+									detail: options.body,
+								})
+							: text;
 					if (options.supersedesPrevious && previous) {
 						try {
-							const edited = await previous.edit({ raw: text });
+							const edited = await previous.edit({ raw: anchorText });
 							notifyMessages.set(messageKey as string, edited);
 							if (options.itemId && options.workspacePath) {
 								// An edit keeps the message id, but re-registering costs nothing
@@ -1018,11 +1043,25 @@ class TelegramConnector extends ConnectorBase<
 								options: notifiedOptions,
 							})
 						: undefined;
-					const sent = await (card
-						? thread.post({ card, fallbackText: text })
-						: thread.post({ raw: text }));
+					// Anything that is not the running commentary hangs off the anchor as a
+					// reply, so the question, its answer and the review notice stay attached to
+					// the card they belong to instead of scrolling away as loose messages.
+					const sent = await postCardMessage({
+						thread,
+						anchor: options.supersedesPrevious ? undefined : previous,
+						// `buildQuestionCard` returns null when there is nothing to choose
+						// between, and the payload takes a card or none at all.
+						card: card ?? undefined,
+						text: options.supersedesPrevious ? anchorText : text,
+					});
 					if (messageKey && shouldTrackForSuperseding(options)) {
 						notifyMessages.set(messageKey, sent);
+					}
+					// Kept so the question can be rewritten once it is answered: editing it is
+					// what clears the keyboard, and a live button on an answered question can
+					// be tapped again with nowhere for the tap to go.
+					if (card && notifiedOptions.length > 0) {
+						questionMessages.set(sent.id, { message: sent, text });
 					}
 					if (options.itemId && options.workspacePath) {
 						rememberCardFor(threadKey, {
@@ -1075,6 +1114,8 @@ class TelegramConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<TelegramThreadState>,
 			text: string,
+			/** Id of the message that started the turn, so a command can mark it as taken. */
+			incomingMessageId?: string,
 		) => {
 			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
@@ -1093,6 +1134,15 @@ class TelegramConnector extends ConnectorBase<
 						clientId,
 						logger: loggerAdapter,
 						transport: "telegram",
+						react: incomingMessageId
+							? async (emoji) => {
+									await telegram.addReaction(
+										thread.id,
+										incomingMessageId,
+										emoji,
+									);
+								}
+							: undefined,
 						botUserName: options.botUsername,
 						requestStop,
 						bindingsPath,
@@ -1283,7 +1333,30 @@ class TelegramConnector extends ConnectorBase<
 				return;
 			}
 			const result = await answerKanbanCard(card, String(action.optionIndex));
-			await thread.post({ raw: result.message });
+			const chosen = card.options?.[action.optionIndex - 1];
+			if (result.ok && chosen) {
+				// The question stops being a question: struck through with what was picked, and
+				// edited -- which is what removes the keyboard. Reported from use: "I can click
+				// several times because the button stays active and there is no indication it
+				// was answered."
+				const asked = questionMessages.get(event.messageId);
+				if (asked) {
+					try {
+						await asked.message.edit({
+							raw: buildAnsweredQuestionText(asked.text, chosen),
+						});
+						questionMessages.delete(event.messageId);
+					} catch {
+						// An edit can be refused on a message too old to touch. The reply below
+						// still records the answer.
+					}
+				}
+				// And the choice is posted under the question, so the thread reads as a
+				// conversation rather than as a message that silently changed.
+				await thread.reply(event.messageId, { raw: `✅ ${chosen}` });
+			} else {
+				await thread.post({ raw: result.message });
+			}
 			loggerAdapter.core.log(
 				result.ok
 					? "Telegram card button delivered"
@@ -1321,7 +1394,7 @@ class TelegramConnector extends ConnectorBase<
 			if (await maybeAnswerCard(thread, message)) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(thread, message.text, message.id);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -1348,7 +1421,7 @@ class TelegramConnector extends ConnectorBase<
 			if (await maybeAnswerCard(thread, message)) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(thread, message.text, message.id);
 		});
 
 		bot.onSlashCommand(

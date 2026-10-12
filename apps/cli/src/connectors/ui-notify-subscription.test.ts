@@ -163,7 +163,7 @@ describe("what the subscription hands the adapter", () => {
 		});
 		await subscription.flush();
 
-		expect(calls[0]?.[2]).toEqual({
+		expect(calls[0]?.[2]).toMatchObject({
 			itemId: "461e5",
 			workspacePath: "/code/app",
 			supersedesPrevious: true,
@@ -192,7 +192,7 @@ describe("what the subscription hands the adapter", () => {
 		});
 		await subscription.flush();
 
-		expect(calls[0]).toEqual({
+		expect(calls[0]).toMatchObject({
 			itemId: "461e5",
 			workspacePath: "/code/app",
 			supersedesPrevious: false,
@@ -223,7 +223,7 @@ describe("what an adapter needs to answer back", () => {
 		});
 		await subscription.flush();
 
-		expect(seen[0]).toEqual({
+		expect(seen[0]).toMatchObject({
 			itemId: "49084",
 			workspacePath: "/code/app",
 			supersedesPrevious: false,

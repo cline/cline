@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	buildAnsweredQuestionText,
 	buildCardActionId,
 	buildQuestionCard,
 	parseCardActionId,
@@ -69,5 +70,29 @@ describe("buildQuestionCard", () => {
 				options: [],
 			}),
 		).toBeUndefined();
+	});
+});
+
+describe("buildAnsweredQuestionText", () => {
+	it("marks the chosen option under the question", () => {
+		expect(
+			buildAnsweredQuestionText(
+				"Gravar?\n\n1) Gravar 2) Descartar",
+				"Descartar",
+			),
+		).toBe("Gravar?\n\n1) Gravar 2) Descartar\n\n✅ Descartar");
+	});
+
+	// The question keeps its text: someone reading the thread later needs to see what was
+	// asked, not only what was picked.
+	it("keeps the question itself", () => {
+		const answered = buildAnsweredQuestionText("Gravar PROVA.txt?", "Gravar");
+		expect(answered).toContain("Gravar PROVA.txt?");
+	});
+
+	it("does not leave a blank gap when the question ends in whitespace", () => {
+		expect(buildAnsweredQuestionText("Gravar?\n\n", "Gravar")).toBe(
+			"Gravar?\n\n✅ Gravar",
+		);
 	});
 });
