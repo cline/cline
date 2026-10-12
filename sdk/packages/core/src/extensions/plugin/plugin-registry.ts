@@ -820,6 +820,10 @@ export class PluginRegistry {
 		const instance = newInstance(undefined, entry.name, importId);
 		instance.scope.sessionId = sessionId;
 		let ready = false;
+		// Set once the import finished and setup() began, so a failure after
+		// that (setup threw, timed out, or crashed the worker) costs only this
+		// session's copy, as in-process, instead of turning the plugin off.
+		let setupStarted = false;
 		const setup = input.setupContext;
 		const startedAt = Date.now();
 		let loaded: Awaited<ReturnType<typeof loadSandboxedPlugins>>;
@@ -829,9 +833,13 @@ export class PluginRegistry {
 				pluginPaths: [entry.pluginPath],
 				exportName: input.exportName,
 				importTimeoutMs: timeouts.import,
+				setupTimeoutMs: timeouts.setup,
 				hookTimeoutMs: timeouts.hook,
 				contributionTimeoutMs: timeouts.call,
 				onEvent: input.emitEvent,
+				onSetupStarted: () => {
+					setupStarted = true;
+				},
 				// A worker that dies on its own (stray rejection, process.exit)
 				// is this plugin's fault: the worker runs nothing else.
 				onUnexpectedExit: (error) => {
@@ -853,9 +861,14 @@ export class PluginRegistry {
 				telemetryAvailable: Boolean(setup?.telemetry),
 			});
 		} catch (error) {
-			// The worker failed before reporting back (timed out, crashed, or
-			// exited during import or setup).
-			return { entry, error, phase: "import", importId };
+			// The worker failed before reporting back: it timed out, crashed, or
+			// exited during import or setup.
+			return {
+				entry,
+				error,
+				phase: setupStarted ? "setup" : "import",
+				importId,
+			};
 		}
 		const failure = loaded.failures[0];
 		const extension = loaded.extensions?.[0];

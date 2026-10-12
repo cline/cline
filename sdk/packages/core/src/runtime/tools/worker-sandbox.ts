@@ -44,6 +44,14 @@ export interface WorkerSandboxOptions {
 	 * idle reclaim, or shutdown.
 	 */
 	onUnexpectedExit?: (error: Error) => void;
+	/**
+	 * A bootstrap method run before a graceful stop (idle reclaim or
+	 * `shutdown()`), so code in the worker can clean up what terminating it
+	 * would not, such as child processes it spawned. Not run when a call
+	 * times out: the worker may be stuck.
+	 */
+	disposeMethod?: string;
+	disposeTimeoutMs?: number;
 }
 
 type QueuedCall = { id: string; message: SandboxCallMessage };
@@ -96,6 +104,12 @@ export class WorkerSandbox {
 	 * made.
 	 */
 	private readonly outboxes = new WeakMap<Worker, QueuedCall[]>();
+	/**
+	 * Set while an idle worker runs its dispose method and stops. Calls made
+	 * meanwhile wait and start a fresh worker, so none reaches a plugin that
+	 * already cleaned up.
+	 */
+	private draining: Promise<void> | undefined;
 
 	constructor(options: WorkerSandboxOptions) {
 		this.options = options;
@@ -158,8 +172,8 @@ export class WorkerSandbox {
 			) {
 				return;
 			}
-			this.shutdownWorker(worker).catch(() => {
-				// Best-effort idle cleanup.
+			this.draining = this.stopGracefully(worker).finally(() => {
+				this.draining = undefined;
 			});
 		}, this.idleTimeoutMs);
 		timer.unref();
@@ -260,13 +274,40 @@ export class WorkerSandbox {
 		args: unknown,
 		options: SandboxCallOptions = {},
 	): Promise<TResult> {
+		if (this.draining) await this.draining;
 		this.start();
 		const worker = this.worker;
 		if (!worker || !this.isAvailable(worker)) {
 			throw new Error(`${this.label} is not available`);
 		}
-		this.clearIdleTimer();
+		return await this.send<TResult>(worker, method, args, options);
+	}
 
+	/** Runs the dispose method (best effort), then terminates the worker. */
+	private async stopGracefully(worker: Worker): Promise<void> {
+		const method = this.options.disposeMethod;
+		if (method && this.isAvailable(worker)) {
+			await this.send(
+				worker,
+				method,
+				{},
+				{
+					timeoutMs: this.options.disposeTimeoutMs,
+				},
+			).catch(() => {
+				// Cleanup is best effort; the worker is stopped either way.
+			});
+		}
+		await this.shutdownWorker(worker);
+	}
+
+	private async send<TResult>(
+		worker: Worker,
+		method: string,
+		args: unknown,
+		options: SandboxCallOptions,
+	): Promise<TResult> {
+		this.clearIdleTimer();
 		const id = `req_${++this.requestCounter}`;
 		return await new Promise<TResult>((resolve, reject) => {
 			const pending: PendingRequest = {
@@ -315,10 +356,11 @@ export class WorkerSandbox {
 
 	async shutdown(): Promise<void> {
 		this.clearIdleTimer();
+		if (this.draining) await this.draining;
 		const worker = this.worker;
 		const inFlight = [...this.shutdowns.values()];
 		if (worker) {
-			inFlight.push(this.shutdownWorker(worker));
+			inFlight.push(this.stopGracefully(worker));
 		}
 		if (inFlight.length === 0) {
 			this.failPending(new Error(`${this.label} shutdown`));

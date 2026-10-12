@@ -10,6 +10,7 @@ import type {
 	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
+	AgentToolContext,
 	Message,
 	PluginSetupContext,
 	WorkspaceInfo,
@@ -67,6 +68,14 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	/** Worker transport only: the worker ended on its own (crash, exit). */
 	onUnexpectedExit?: (error: Error) => void;
 	/**
+	 * Limit for each plugin's `setup()`, timed inside the sandbox and
+	 * separately from the import. When set, the initialize call may take
+	 * `importTimeoutMs + setupTimeoutMs`.
+	 */
+	setupTimeoutMs?: number;
+	/** A plugin finished importing and its `setup()` is starting. */
+	onSetupStarted?: (pluginPath: string) => void;
+	/**
 	 * The session's working directory. Forwarded to the sandbox subprocess so
 	 * that `process.cwd()` returns the correct path inside the sandbox even
 	 * when `--cwd` was passed without calling `process.chdir()` on the host.
@@ -107,7 +116,19 @@ type SandboxedContributionDescriptor = {
 	timeoutMs?: number;
 	retryable?: boolean;
 	metadata?: Record<string, unknown>;
+	/** Tools: the rest of the tool definition (lifecycle, executionMode, ...). */
+	definition?: Record<string, unknown>;
 };
+
+/**
+ * Internal sandbox events, never forwarded to the session. Keep in sync with
+ * plugin-sandbox-bootstrap.ts.
+ */
+const TOOL_UPDATE_EVENT = "__cline_tool_update";
+const SETUP_STARTED_EVENT = "__cline_setup_started";
+
+/** Progress callbacks of tool calls in flight, by call id. */
+type ToolUpdateRoutes = Map<string, (update: unknown) => void>;
 
 type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
 	id: string;
@@ -373,6 +394,30 @@ export async function loadSandboxedPlugins(
 		"file" in resolved
 			? { bootstrapFile: resolved.file }
 			: { bootstrapScript: resolved.script };
+	const importTimeoutMs = withTimeoutFallback(
+		options.importTimeoutMs,
+		4000,
+		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+	);
+	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
+	const setupTimeoutMs =
+		options.setupTimeoutMs === undefined
+			? undefined
+			: withTimeoutFallback(options.setupTimeoutMs, 4000);
+	const initTimeoutMs = importTimeoutMs + (setupTimeoutMs ?? 0);
+	const toolUpdates: ToolUpdateRoutes = new Map();
+	const onEvent = (event: { name: string; payload?: unknown }) => {
+		const payload = event.payload as Record<string, unknown> | undefined;
+		if (event.name === TOOL_UPDATE_EVENT) {
+			toolUpdates.get(String(payload?.callId))?.(payload?.update);
+			return;
+		}
+		if (event.name === SETUP_STARTED_EVENT) {
+			options.onSetupStarted?.(String(payload?.pluginPath));
+			return;
+		}
+		options.onEvent?.(event);
+	};
 	// One sandbox per call: each session gets its own process or worker.
 	const sandbox: SandboxChannel =
 		options.transport === "worker"
@@ -380,21 +425,18 @@ export async function loadSandboxedPlugins(
 					name: "plugin-worker",
 					...bootstrap,
 					idleTimeoutMs,
-					onEvent: options.onEvent,
+					onEvent,
 					onUnexpectedExit: options.onUnexpectedExit,
+					// Runs ctx.onDispose cleanup before an idle reclaim or shutdown.
+					disposeMethod: "dispose",
+					disposeTimeoutMs: hookTimeoutMs,
 				})
 			: new SubprocessSandbox({
 					name: "plugin-sandbox",
 					...bootstrap,
 					idleTimeoutMs,
-					onEvent: options.onEvent,
+					onEvent,
 				});
-	const importTimeoutMs = withTimeoutFallback(
-		options.importTimeoutMs,
-		4000,
-		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
-	);
-	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
 		60_000,
@@ -411,6 +453,7 @@ export async function loadSandboxedPlugins(
 		workspaceInfo: options.workspaceInfo,
 		loggerEnabled: Boolean(options.logger),
 		telemetryEnabled: options.telemetryAvailable === true,
+		setupTimeoutMs,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -418,7 +461,7 @@ export async function loadSandboxedPlugins(
 	let reinitPromise: Promise<void> | undefined;
 	const reinitialize = (): Promise<void> => {
 		reinitPromise ??= sandbox
-			.call<void>("initialize", initArgs, { timeoutMs: importTimeoutMs })
+			.call<void>("initialize", initArgs, { timeoutMs: initTimeoutMs })
 			.finally(() => {
 				reinitPromise = undefined;
 			});
@@ -430,7 +473,7 @@ export async function loadSandboxedPlugins(
 		initialized = await sandbox.call<SandboxedInitializeResult>(
 			"initialize",
 			initArgs,
-			{ timeoutMs: importTimeoutMs },
+			{ timeoutMs: initTimeoutMs },
 		);
 	} catch (error) {
 		await sandbox.shutdown().catch(() => {
@@ -453,6 +496,7 @@ export async function loadSandboxedPlugins(
 						descriptor,
 						contributionTimeoutMs,
 						reinitialize,
+						toolUpdates,
 					);
 					registerCommands(
 						api,
@@ -614,15 +658,21 @@ async function callWithSerializableFallback<T>(
 	}
 }
 
+let toolCallCounter = 0;
+
 function registerTools(
 	api: AgentExtensionApi,
 	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
+	toolUpdates: ToolUpdateRoutes,
 ): void {
 	for (const td of descriptor.contributions?.tools ?? []) {
 		const tool: AgentTool = {
+			// The full definition (lifecycle, executionMode, resultPolicy, ...)
+			// so the runtime treats the tool as the plugin declared it.
+			...(td.definition ?? {}),
 			name: td.name,
 			description: td.description ?? "",
 			inputSchema: (td.inputSchema ?? {
@@ -631,7 +681,33 @@ function registerTools(
 			}) as AgentTool["inputSchema"],
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
-			execute: async (input: unknown, context: unknown) => {
+			execute: async (input: unknown, context: AgentToolContext) => {
+				// The live parts of the context cannot cross the boundary. The
+				// sandbox rebuilds them: an abort signal driven by `abortToolCall`,
+				// progress updates routed back by call id, and session events
+				// (which already reach the session through the sandbox's events).
+				const {
+					signal,
+					emitUpdate,
+					emitEvent: _emitEvent,
+					...plainContext
+				} = context ?? ({} as AgentToolContext);
+				const callId = `${descriptor.pluginId}:${++toolCallCounter}`;
+				if (emitUpdate) toolUpdates.set(callId, emitUpdate);
+				const onAbort = () => {
+					sandbox
+						.call("abortToolCall", {
+							callId,
+							reason:
+								signal?.reason instanceof Error
+									? signal.reason.message
+									: undefined,
+						})
+						.catch(() => {
+							// The call may already have finished.
+						});
+				};
+				signal?.addEventListener("abort", onAbort, { once: true });
 				// The fallback must cover the whole IPC payload: `input` can be
 				// rewritten by beforeTool hooks or programmatic callers, so it is
 				// just as capable of smuggling a non-serializable value as the
@@ -641,39 +717,38 @@ function registerTools(
 						input: unknown;
 						context: unknown;
 					};
+					const callArgs = () => ({
+						pluginId: descriptor.pluginId,
+						contributionId: td.id,
+						input: sandboxInput,
+						context: sandboxContext,
+						callId,
+						aborted: signal?.aborted === true,
+					});
 					try {
-						return await sandbox.call(
-							"executeTool",
-							{
-								pluginId: descriptor.pluginId,
-								contributionId: td.id,
-								input: sandboxInput,
-								context: sandboxContext,
-							},
-							{ timeoutMs: td.timeoutMs ?? timeoutMs },
-						);
+						return await sandbox.call("executeTool", callArgs(), {
+							timeoutMs: td.timeoutMs ?? timeoutMs,
+						});
 					} catch (error) {
 						if (!isUnknownPluginIdError(error)) {
 							throw error;
 						}
 						await reinitialize();
-						return await sandbox.call(
-							"executeTool",
-							{
-								pluginId: descriptor.pluginId,
-								contributionId: td.id,
-								input: sandboxInput,
-								context: sandboxContext,
-							},
-							{ timeoutMs: td.timeoutMs ?? timeoutMs },
-						);
+						return await sandbox.call("executeTool", callArgs(), {
+							timeoutMs: td.timeoutMs ?? timeoutMs,
+						});
 					}
 				};
-				return await callWithSerializableFallback(
-					invoke,
-					{ input, context },
-					(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
-				);
+				try {
+					return await callWithSerializableFallback(
+						invoke,
+						{ input, context: plainContext },
+						(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
+					);
+				} finally {
+					signal?.removeEventListener("abort", onAbort);
+					toolUpdates.delete(callId);
+				}
 			},
 		};
 		api.registerTool(tool);

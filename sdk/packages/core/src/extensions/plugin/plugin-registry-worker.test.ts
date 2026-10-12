@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -262,9 +262,10 @@ describe("PluginRegistry (worker isolation)", () => {
 		const session = await load({ sessionId: "s1", pluginPaths: [path] });
 		expect(session.extensions).toHaveLength(0);
 		expect(registry.get("exiter")[0]?.state).toBe("failed");
-		expect(registry.get("exiter")[0]?.lastError?.message).toMatch(
-			/exited \(code=1\)/,
-		);
+		expect(registry.get("exiter")[0]?.lastError).toMatchObject({
+			phase: "setup",
+			message: expect.stringMatching(/exited \(code=1\)/),
+		});
 	}, 30_000);
 
 	it("stops a hung tool at its timeout without failing the host", async () => {
@@ -333,4 +334,193 @@ describe("PluginRegistry (worker isolation)", () => {
 			{ name: "pre-good", state: "ready", sessionIds: [] },
 		]);
 	}, 30_000);
+
+	it("gives setup the session cwd, events, and onDispose cleanup", async () => {
+		const marker = join(root, "disposed.txt");
+		const path = await write(
+			"ctx.mjs",
+			`import { writeFileSync } from "node:fs";
+export default {
+	name: "ctx",
+	manifest: { capabilities: ["tools"] },
+	setup(api, ctx) {
+		ctx.emitEvent("setup_ctx", { cwd: ctx.cwd });
+		ctx.onDispose(() => writeFileSync(${JSON.stringify(marker)}, "done"));
+		api.registerTool({
+			name: "ctx_tool",
+			description: "test tool",
+			inputSchema: { type: "object" },
+			execute: async () => ctx.cwd,
+		});
+	},
+};`,
+		);
+		const events: Array<{ name: string; payload?: unknown }> = [];
+		const session = await load({
+			sessionId: "s1",
+			pluginPaths: [path],
+			cwd: root,
+			emitEvent: (event) => events.push(event),
+		});
+		const [tool] = await toolsOf(session.extensions[0]);
+		await expect(tool?.execute({}, toolContext)).resolves.toBe(root);
+		expect(events).toContainEqual({
+			name: "setup_ctx",
+			payload: { cwd: root },
+		});
+		await session.release();
+		await expect(readFile(marker, "utf8")).resolves.toBe("done");
+	}, 30_000);
+
+	it("bridges abort, progress updates, and events in the tool context", async () => {
+		const path = await write(
+			"live.mjs",
+			toolPlugin(
+				"live",
+				`context.emitUpdate({ step: 1 });
+		context.emitEvent("tool_event", { from: "tool" });
+		if (!input.wait) return "done";
+		return await new Promise((resolve) => {
+			context.signal.addEventListener("abort", () => resolve("aborted"));
+		});`,
+			).replace(
+				"execute: async (input) =>",
+				"execute: async (input, context) =>",
+			),
+		);
+		const events: Array<{ name: string; payload?: unknown }> = [];
+		const session = await load({
+			sessionId: "s1",
+			pluginPaths: [path],
+			emitEvent: (event) => events.push(event),
+		});
+		const [tool] = await toolsOf(session.extensions[0]);
+		const updates: unknown[] = [];
+		const controller = new AbortController();
+		const running = tool?.execute(
+			{ wait: true },
+			{
+				...toolContext,
+				signal: controller.signal,
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+		await expect.poll(() => updates.length).toBe(1);
+		controller.abort();
+		await expect(running).resolves.toBe("aborted");
+		expect(updates).toEqual([{ step: 1 }]);
+		expect(events).toContainEqual({
+			name: "tool_event",
+			payload: { from: "tool" },
+		});
+	}, 30_000);
+
+	it("keeps the tool definition fields the plugin declared", async () => {
+		const path = await write(
+			"definition.mjs",
+			`export default {
+	name: "definition",
+	manifest: { capabilities: ["tools"] },
+	setup(api) {
+		api.registerTool({
+			name: "finish",
+			description: "ends the run",
+			inputSchema: { type: "object" },
+			lifecycle: { completesRun: true },
+			executionMode: "sequential",
+			resultPolicy: "cache-oversized",
+			maxRetries: 2,
+			execute: async () => "ok",
+		});
+	},
+};`,
+		);
+		const session = await load({ sessionId: "s1", pluginPaths: [path] });
+		const [tool] = await toolsOf(session.extensions[0]);
+		expect(tool).toMatchObject({
+			name: "finish",
+			lifecycle: { completesRun: true },
+			executionMode: "sequential",
+			resultPolicy: "cache-oversized",
+			maxRetries: 2,
+		});
+	}, 30_000);
+
+	it("fails only the session whose setup is too slow", async () => {
+		const path = await write(
+			"slow.mjs",
+			`export default {
+	name: "slow",
+	manifest: { capabilities: ["tools"] },
+	async setup() {
+		if (process.env.SLOW_SETUP === "1") await new Promise((r) => setTimeout(r, 5000));
+	},
+};`,
+		);
+		const slowRegistry = new PluginRegistry({
+			setupTimeoutMs: 300,
+			importTimeoutMs: 15_000,
+		});
+		process.env.SLOW_SETUP = "1";
+		let slow: PluginSessionLoadResult | undefined;
+		try {
+			slow = await slowRegistry.loadForSession({
+				sessionId: "s1",
+				pluginPaths: [path],
+				isolation: "worker",
+			});
+		} finally {
+			delete process.env.SLOW_SETUP;
+		}
+		expect(slow.extensions).toHaveLength(0);
+		expect(slowRegistry.get("slow")[0]?.lastError).toMatchObject({
+			phase: "setup",
+			message: expect.stringMatching(/timed out/),
+		});
+		const next = await slowRegistry.loadForSession({
+			sessionId: "s2",
+			pluginPaths: [path],
+			isolation: "worker",
+		});
+		expect(next.extensions.map((extension) => extension.name)).toEqual([
+			"slow",
+		]);
+		await Promise.all([slow.release(), next.release()]);
+	}, 30_000);
+
+	it("treats a setup that hangs the worker as a setup failure", async () => {
+		const path = await write(
+			"hang.mjs",
+			`export default {
+	name: "hang",
+	manifest: { capabilities: ["tools"] },
+	setup() { if (process.env.HANG_SETUP === "1") { for (;;) {} } },
+};`,
+		);
+		// A synchronous loop blocks the in-worker setup timer, so the host's
+		// import + setup deadline is what stops it.
+		const hangRegistry = new PluginRegistry({
+			setupTimeoutMs: 300,
+			importTimeoutMs: 3_000,
+		});
+		process.env.HANG_SETUP = "1";
+		try {
+			const hung = await hangRegistry.loadForSession({
+				sessionId: "s1",
+				pluginPaths: [path],
+				isolation: "worker",
+			});
+			expect(hung.extensions).toHaveLength(0);
+		} finally {
+			delete process.env.HANG_SETUP;
+		}
+		expect(hangRegistry.get("hang")[0]?.lastError?.phase).toBe("setup");
+		const next = await hangRegistry.loadForSession({
+			sessionId: "s2",
+			pluginPaths: [path],
+			isolation: "worker",
+		});
+		expect(next.extensions).toHaveLength(1);
+		await next.release();
+	}, 60_000);
 });

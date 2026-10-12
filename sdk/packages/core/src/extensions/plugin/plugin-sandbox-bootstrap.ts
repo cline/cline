@@ -37,6 +37,8 @@ interface PluginTool {
 	timeoutMs?: number;
 	retryable?: boolean;
 	execute: (input: unknown, context: unknown) => Promise<unknown>;
+	/** Other definition fields (lifecycle, executionMode, ...) pass through. */
+	[field: string]: unknown;
 }
 
 interface PluginCommand {
@@ -98,6 +100,9 @@ interface PluginSetupCtx {
 	client?: unknown;
 	user?: unknown;
 	workspaceInfo?: unknown;
+	cwd?: string;
+	emitEvent?: (name: string, payload?: unknown) => void;
+	onDispose?: (cleanup: () => void | Promise<void>) => void;
 	automation?: {
 		ingestEvent(event: AutomationEventEnvelope): void | Promise<void>;
 	};
@@ -164,6 +169,8 @@ interface ContributionDescriptor {
 	inputSchema?: unknown;
 	timeoutMs?: number;
 	retryable?: boolean;
+	/** Tools: the rest of the tool definition, without functions. */
+	definition?: Record<string, unknown>;
 	value?: string;
 	defaultValue?: boolean | string | number;
 	metadata?: Record<string, unknown>;
@@ -231,6 +238,8 @@ interface InitializeResult {
 
 interface PluginState {
 	plugin: PluginModule;
+	/** Cleanup registered through `ctx.onDispose`, run by `dispose`. */
+	disposers: Array<() => void | Promise<void>>;
 	handlers: {
 		tools: Map<string, PluginTool["execute"]>;
 		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
@@ -407,6 +416,42 @@ function emitEvent(name: string, payload?: unknown): void {
 	postToHost({ type: "event", name, payload });
 }
 
+/**
+ * Internal events (never forwarded to the session): progress updates for a
+ * tool call, and the end of a plugin's import so the host can tell an import
+ * failure from a setup failure. Keep in sync with plugin-sandbox.ts.
+ */
+const TOOL_UPDATE_EVENT = "__cline_tool_update";
+const SETUP_STARTED_EVENT = "__cline_setup_started";
+
+/** A tool's definition fields as plain data (functions dropped). */
+function toolDefinitionData(tool: PluginTool): Record<string, unknown> {
+	const definition: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(tool)) {
+		if (key === "execute" || typeof value === "function") continue;
+		definition[key] = value;
+	}
+	return JSON.parse(JSON.stringify(definition)) as Record<string, unknown>;
+}
+
+function withTimeout<T>(
+	fn: () => T | Promise<T>,
+	timeoutMs: number | undefined,
+	label: string,
+): Promise<T> {
+	if (!timeoutMs || timeoutMs <= 0) return Promise.resolve().then(fn);
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(
+			() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+			timeoutMs,
+		);
+		Promise.resolve()
+			.then(fn)
+			.then(resolve, reject)
+			.finally(() => clearTimeout(timer));
+	});
+}
+
 // Expose event emitter to plugins.
 (globalThis as Record<string, unknown>).__clinePluginHost = { emitEvent };
 
@@ -576,12 +621,14 @@ async function loadPluginDescriptor(args: {
 	targeting: PluginTargeting;
 	setupCtxBase: Pick<
 		PluginSetupCtx,
-		"session" | "client" | "user" | "workspaceInfo"
+		"session" | "client" | "user" | "workspaceInfo" | "cwd"
 	>;
+	setupTimeoutMs?: number;
 	loggerEnabled?: boolean;
 	telemetryEnabled?: boolean;
 }): Promise<LoadedPluginResult> {
 	let plugin: PluginModule | undefined;
+	const disposers: PluginState["disposers"] = [];
 	try {
 		const moduleExports = await importPluginModule(args.pluginPath);
 		plugin = (moduleExports.default ??
@@ -621,6 +668,7 @@ async function loadPluginDescriptor(args: {
 					inputSchema: tool.inputSchema,
 					timeoutMs: tool.timeoutMs,
 					retryable: tool.retryable,
+					definition: toolDefinitionData(tool),
 				});
 			},
 			registerCommand: (command) => {
@@ -678,9 +726,16 @@ async function loadPluginDescriptor(args: {
 		};
 
 		if (typeof plugin.setup === "function") {
+			// Tell the host the import finished, so a setup that hangs or
+			// crashes the sandbox is reported as setup, not import.
+			emitEvent(SETUP_STARTED_EVENT, { pluginPath: args.pluginPath });
 			try {
 				const setupCtx = {
 					...args.setupCtxBase,
+					emitEvent,
+					onDispose: (cleanup: () => void | Promise<void>) => {
+						if (typeof cleanup === "function") disposers.push(cleanup);
+					},
 					// Only offered when the host actually has a telemetry service:
 					// the feature-detection contract (`ctx.telemetry?.capture`) must
 					// mean "someone is listening", matching in-process behavior.
@@ -701,7 +756,12 @@ async function loadPluginDescriptor(args: {
 						: {}),
 				};
 				assertValidPluginSetupCtx(setupCtx);
-				await plugin.setup(api, setupCtx);
+				const setup = plugin.setup.bind(plugin);
+				await withTimeout(
+					() => setup(api, setupCtx),
+					args.setupTimeoutMs,
+					`Plugin "${plugin.name}" setup`,
+				);
 			} catch (error) {
 				return {
 					type: "failure",
@@ -718,7 +778,7 @@ async function loadPluginDescriptor(args: {
 
 		return {
 			type: "loaded",
-			state: { plugin, handlers },
+			state: { plugin, handlers, disposers },
 			descriptor: {
 				pluginId: args.pluginId,
 				pluginPath: args.pluginPath,
@@ -762,6 +822,7 @@ async function initialize(args: {
 	workspaceInfo?: unknown;
 	loggerEnabled?: boolean;
 	telemetryEnabled?: boolean;
+	setupTimeoutMs?: number;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -808,6 +869,7 @@ async function initialize(args: {
 		client: args.client,
 		user: args.user,
 		workspaceInfo: args.workspaceInfo,
+		cwd: args.cwd,
 	};
 
 	const loadResults = await Promise.all(
@@ -819,6 +881,7 @@ async function initialize(args: {
 				exportName,
 				targeting,
 				setupCtxBase,
+				setupTimeoutMs: args.setupTimeoutMs,
 				loggerEnabled: args.loggerEnabled,
 				telemetryEnabled: args.telemetryEnabled,
 			});
@@ -880,18 +943,68 @@ async function invokeHook(args: {
 	);
 }
 
+/** Abort controllers for tool calls in flight, by host call id. */
+const toolCallControllers = new Map<string, AbortController>();
+
 async function executeTool(args: {
 	pluginId: string;
 	contributionId: string;
 	input: unknown;
 	context: unknown;
+	callId?: string;
+	aborted?: boolean;
 }): Promise<unknown> {
 	const state = getPlugin(args.pluginId);
 	const handler = state.handlers.tools.get(args.contributionId);
 	if (typeof handler !== "function") {
 		throw new Error("Unknown sandbox tool contribution");
 	}
-	return await handler(args.input, args.context);
+	// Rebuild the live parts of the tool context the host could not send:
+	// an abort signal the host drives through `abortToolCall`, progress
+	// updates, and session events.
+	const callId = args.callId;
+	const controller = new AbortController();
+	if (args.aborted) controller.abort();
+	if (callId) toolCallControllers.set(callId, controller);
+	const context = {
+		...sanitizeObject(args.context),
+		signal: controller.signal,
+		emitEvent,
+		emitUpdate: (update: unknown) => {
+			if (callId) emitEvent(TOOL_UPDATE_EVENT, { callId, update });
+		},
+	};
+	try {
+		return await handler(args.input, context);
+	} finally {
+		if (callId) toolCallControllers.delete(callId);
+	}
+}
+
+async function abortToolCall(args: {
+	callId: string;
+	reason?: string;
+}): Promise<void> {
+	toolCallControllers
+		.get(args.callId)
+		?.abort(args.reason ? new Error(args.reason) : undefined);
+}
+
+/** Runs every plugin's `ctx.onDispose` cleanup, newest first. */
+async function dispose(): Promise<void> {
+	for (const state of pluginState.values()) {
+		for (const cleanup of state.disposers.splice(0).reverse()) {
+			try {
+				await cleanup();
+			} catch (error) {
+				emitEvent("plugin_log", {
+					level: "error",
+					pluginName: state.plugin.name,
+					message: `onDispose cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+				});
+			}
+		}
+	}
 }
 
 async function executeCommand(args: {
@@ -940,6 +1053,8 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	initialize,
 	invokeHook,
 	executeTool,
+	abortToolCall,
+	dispose,
 	executeCommand,
 	buildMessages,
 	resolveRuleContent,

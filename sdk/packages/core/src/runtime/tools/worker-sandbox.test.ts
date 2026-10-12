@@ -67,4 +67,30 @@ describe("WorkerSandbox", () => {
 		// The timeout terminated that worker; a new call starts a fresh one.
 		await expect(sandbox.call("echo", { n: 3 })).resolves.toEqual({ n: 3 });
 	});
+
+	it("runs the dispose method before an idle stop, and later calls get a fresh worker", async () => {
+		const sandbox = new WorkerSandbox({
+			bootstrapScript: [
+				"const { parentPort, threadId } = require('node:worker_threads');",
+				"parentPort.on('message', (m) => {",
+				"  if (!m || m.type !== 'call') return;",
+				"  if (m.method === 'dispose') parentPort.postMessage({ type: 'event', name: 'disposed', payload: threadId });",
+				"  parentPort.postMessage({ type: 'response', id: m.id, ok: true, result: threadId });",
+				"});",
+				"parentPort.postMessage({ type: 'ready' });",
+			].join("\n"),
+			idleTimeoutMs: 100,
+			disposeMethod: "dispose",
+			disposeTimeoutMs: 1_000,
+			onEvent: (event) => disposed.push(event.payload as number),
+		});
+		const disposed: number[] = [];
+		sandboxes.push(sandbox);
+		const first = await sandbox.call<number>("echo", {});
+		await expect.poll(() => disposed).toEqual([first]);
+		const second = await sandbox.call<number>("echo", {});
+		expect(second).not.toBe(first);
+		await sandbox.shutdown();
+		expect(disposed).toEqual([first, second]);
+	});
 });
