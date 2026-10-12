@@ -944,8 +944,7 @@ function ConnectorCard({
 	onOpenDetails: () => void;
 }) {
 	const status = summary?.status ?? "not_connected";
-	const toolCount =
-		status === "connected" ? summary?.toolNames?.length : entry.toolsCount;
+	const toolCount = entry.toolsCount;
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
 		<div
@@ -1138,10 +1137,6 @@ function ConnectorDetailDialog({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const status = summary?.status ?? "not_connected";
-	const toolNames = summary?.toolNames ?? [];
-	// A connected connector reports what new sessions actually get, even zero;
-	// the catalog total only describes connectors that aren't installed.
-	const isConnected = status === "connected";
 	return (
 		<Dialog onOpenChange={onOpenChange} open={entry !== null}>
 			{/* Fixed dimensions so every connector opens the same-sized window;
@@ -1195,34 +1190,10 @@ function ConnectorDetailDialog({
 										</dd>
 									</>
 								) : null}
-								{isConnected || typeof entry.toolsCount === "number" ? (
+								{typeof entry.toolsCount === "number" ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
-										<dd className="text-foreground">
-											{isConnected ? (
-												<>
-													{toolNames.length}{" "}
-													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-														available in new sessions
-													</span>
-												</>
-											) : (
-												entry.toolsCount
-											)}
-										</dd>
-										{isConnected && toolNames.length > 0 ? (
-											<dd className="col-span-2 mb-3 mt-1">
-												<ul className="flex flex-wrap gap-1.5">
-													{toolNames.map((name) => (
-														<li key={name}>
-															<Badge className="font-normal" variant="outline">
-																{name}
-															</Badge>
-														</li>
-													))}
-												</ul>
-											</dd>
-										) : null}
+										<dd className="text-foreground">{entry.toolsCount}</dd>
 									</>
 								) : null}
 							</dl>

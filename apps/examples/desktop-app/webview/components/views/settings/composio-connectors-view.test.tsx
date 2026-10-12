@@ -64,7 +64,6 @@ beforeEach(() => {
 			description: "Email",
 			recommended: true,
 			status: "connected",
-			toolNames: ["GMAIL_SEND_EMAIL"],
 		},
 	];
 	container = document.createElement("div");
@@ -117,7 +116,7 @@ describe("Customize connector catalog", () => {
 		expect(mocks.connect).toHaveBeenCalledWith("github");
 		await act(async () => button("View")?.click());
 		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-			"GMAIL_SEND_EMAIL",
+			"Gmail",
 		);
 		await act(async () => button("Uninstall")?.click());
 		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");
@@ -158,80 +157,31 @@ describe("Customize connector catalog", () => {
 });
 
 describe("installed connectors", () => {
-	it("shows all 47 installed tools without inventing an unknown catalog total", async () => {
-		const toolNames = Array.from(
-			{ length: 47 },
-			(_, i) => `Calendar tool ${i}`,
-		);
-		mocks.integrations = [
-			{
-				toolkit: "googlecalendar",
-				name: "Google Calendar",
-				description: "Events",
-				recommended: true,
-				status: "connected",
-				toolNames,
-			},
-		];
-		await act(async () =>
-			root.render(<ComposioConnectorsView variant="installed" />),
-		);
-		// The card itself opens the detail dialog.
-		await act(async () =>
-			(
-				container.querySelector(
-					'[aria-label="Open Google Calendar details"]',
-				) as HTMLElement
-			).click(),
-		);
-		const dialog = document.querySelector('[role="dialog"]');
-		expect(dialog?.textContent).toContain("47 available in new sessions");
-		expect(dialog?.textContent).not.toContain("47/47");
-		expect(
-			[...(dialog?.querySelectorAll("li") ?? [])].map(
-				(item) => item.textContent,
-			),
-		).toEqual(toolNames);
-	});
-
-	it("shows the installed tool count, not the stale catalog total", async () => {
+	it("shows the catalog tool count for connected connectors", async () => {
 		mocks.catalog.mockResolvedValue({
 			configured: true,
-			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
-		});
-		await render();
-		await act(async () => button("View")?.click());
-		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-			"1 available in new sessions",
-		);
-		expect(
-			document.querySelector('[role="dialog"]')?.textContent,
-		).not.toContain("/47");
-		expect(
-			document.querySelector('[role="dialog"]')?.textContent,
-		).not.toContain("Slug");
-	});
-
-	it("shows zero installed tools instead of the catalog total when none were retrieved", async () => {
-		mocks.integrations = [
-			{
-				toolkit: "gmail",
-				name: "Gmail",
-				description: "Email",
-				recommended: true,
-				status: "connected",
-				toolNames: [],
-			},
-		];
-		mocks.catalog.mockResolvedValue({
-			configured: true,
-			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
+			toolkits: [
+				{ slug: "gmail", name: "Gmail", description: "Email", toolsCount: 47 },
+			],
 		});
 		await render();
 		await act(async () => button("View")?.click());
 		const text = document.querySelector('[role="dialog"]')?.textContent;
-		expect(text).toContain("0 available in new sessions");
-		expect(text).not.toContain("47");
+		expect(text).toContain("Tools47");
+		expect(text).not.toContain("available in new sessions");
+	});
+
+	it("omits an unknown tool count for a connected connector", async () => {
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [{ slug: "gmail", name: "Gmail", description: "Email" }],
+		});
+		await render();
+		await act(async () => button("View")?.click());
+		const text = document.querySelector('[role="dialog"]')?.textContent;
+		expect(text).toContain("Gmail");
+		expect(text).not.toContain("Tools");
+		expect(text).not.toContain("available in new sessions");
 	});
 
 	it("shows the empty state when no connectors are installed", async () => {

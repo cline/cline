@@ -26,7 +26,12 @@ describe("createComposioMetaToolSession", () => {
 						success: true,
 						data: {
 							sessionId: "trs_1",
-							tools: [...sessionTools, { name: "no slug" }],
+							tools: [
+								...sessionTools,
+								{ slug: "COMPOSIO_SEARCH_TOOLS" },
+								{ name: "no slug" },
+								{ slug: "GMAIL_SEND_EMAIL" },
+							],
 						},
 					}),
 				),
