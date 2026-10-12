@@ -409,6 +409,28 @@ export function ProjectFilesPanel({
 		},
 		[openTab, toAbsolute],
 	);
+	// Opening the panel lands on the first change (in list order) instead of
+	// an empty viewer. Once per open, and only while nothing is open yet, so
+	// it never replaces something the user picked.
+	const autoOpenedRef = useRef(false);
+	useEffect(() => {
+		const state = sourceControl.state;
+		if (autoOpenedRef.current || !state || view !== "source-control") return;
+		if (tabs.length > 0) {
+			autoOpenedRef.current = true;
+			return;
+		}
+		const first: [SourceControlFile, DiffScope] | undefined = state.staged[0]
+			? [state.staged[0], "staged"]
+			: state.unstaged[0]
+				? [state.unstaged[0], "worktree"]
+				: state.untracked[0]
+					? [state.untracked[0], "worktree"]
+					: undefined;
+		if (!first) return;
+		autoOpenedRef.current = true;
+		openChange(...first);
+	}, [openChange, sourceControl.state, tabs.length, view]);
 	const openCommitFile = useCallback(
 		(commit: SourceControlCommit, file: CommitFile) => {
 			const path = toAbsolute(file.path);

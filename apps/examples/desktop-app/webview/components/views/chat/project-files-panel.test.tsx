@@ -274,6 +274,24 @@ describe("ProjectFilesPanel source control view", () => {
 		expect((byLabel("Commit message") as HTMLTextAreaElement).value).toBe("");
 	});
 
+	it("opens the first change when the panel opens, once", async () => {
+		await render();
+		// Staged changes come first in the list, so the staged app.ts opens.
+		expect(invokeMock).toHaveBeenCalledWith(
+			"get_git_file_diff",
+			expect.objectContaining({ path: "src/app.ts", staged: true }),
+		);
+		expect(
+			container.querySelector('[aria-label="Close app.ts"]'),
+		).not.toBeNull();
+		expect(container.textContent).not.toContain("Select a change to review it");
+		// Closing it leaves the viewer empty; later snapshots do not reopen it.
+		await click(byLabel("Close app.ts", container));
+		await click(byLabel("Unstage all", container));
+		expect(container.querySelector('[aria-label="Close app.ts"]')).toBeNull();
+		expect(container.textContent).toContain("Select a change to review it");
+	});
+
 	it("expands a commit and opens one of its files as a commit diff", async () => {
 		await render();
 		await click(button(/Latest work/));
@@ -402,7 +420,9 @@ describe("ProjectFilesPanel source control view", () => {
 		await click(byLabel("Close README.md", container));
 		await click(button(/^README\.md/));
 		const diffReads = invokeMock.mock.calls.filter(
-			([command]) => command === "get_git_file_diff",
+			([command, args]) =>
+				command === "get_git_file_diff" &&
+				(args as { path?: string }).path === "README.md",
 		);
 		expect(diffReads).toHaveLength(2);
 		expect(
@@ -451,7 +471,11 @@ describe("ProjectFilesPanel files view", () => {
 		await render();
 		await showFiles();
 		expect(container.textContent).toContain("README.md");
-		expect(container.textContent).not.toContain("app.ts");
+		// Folders load lazily: nothing under src is listed until it expands.
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"list_project_entries",
+			expect.objectContaining({ path: "/repo/src" }),
+		);
 		await click(button(/^src/));
 		expect(invokeMock).toHaveBeenCalledWith(
 			"list_project_entries",

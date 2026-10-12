@@ -5,7 +5,7 @@ const FALLBACK_WIDTH = 680;
 const MIN_WIDTH = 360;
 const MIN_CONVERSATION_WIDTH = 420;
 /** Share of the main content area the panel takes until the user drags it. */
-const DEFAULT_SHARE = 0.66;
+const DEFAULT_SHARE = 0.6;
 
 /** Width of the area beside the app sidebar that the panel shares with chat. */
 export function mainContentWidth(): number {
@@ -39,7 +39,7 @@ export function hasStoredWorkspacePanelWidth(): boolean {
 }
 
 /**
- * The user's dragged width, otherwise 66% of the main content area. Shared by
+ * The user's dragged width, otherwise 60% of the main content area. Shared by
  * the panel and the placeholder shown while its code loads, so the layout
  * reserves the final width from the first frame.
  */
