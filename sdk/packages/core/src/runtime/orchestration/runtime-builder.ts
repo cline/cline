@@ -38,6 +38,7 @@ import {
 	type ToolRoutingRule,
 } from "../../extensions/tools";
 import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
+import { createKeepChangesInProjectExtension } from "../../extensions/tools/keep-changes-in-project-extension";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
@@ -556,9 +557,18 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						telemetry: telemetry ?? config.telemetry,
 					})
 				: undefined;
+		// Reads the setting on every call, so toggling it applies without a
+		// runtime rebuild.
+		const keepChangesInProject = normalized.enableTools
+			? createKeepChangesInProjectExtension({
+					cwd: config.cwd,
+					workspaceRoot: config.workspaceRoot,
+				})
+			: undefined;
 		const injectedExtensions = [
 			userInstructionPlugin,
 			planModeCommandGuard,
+			keepChangesInProject,
 		].filter((extension) => extension !== undefined);
 		const runtimeExtensions =
 			injectedExtensions.length > 0

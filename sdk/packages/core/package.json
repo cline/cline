@@ -85,14 +85,19 @@
 		"zod": "^4.3.6"
 	},
 	"peerDependencies": {
+		"@microsoft/mxc-sdk": "^1.0.0",
 		"posthog-node": "^5.8.0"
 	},
 	"peerDependenciesMeta": {
+		"@microsoft/mxc-sdk": {
+			"optional": true
+		},
 		"posthog-node": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@microsoft/mxc-sdk": "^1.0.0",
 		"@types/ws": "^8.18.1",
 		"posthog-node": "^5.8.0"
 	},

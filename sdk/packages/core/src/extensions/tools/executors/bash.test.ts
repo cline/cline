@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { setKeepChangesInProjectGlobally } from "../../../services/global-settings";
 import {
 	CommandExitError,
 	CommandSpawnError,
@@ -1280,3 +1281,49 @@ describe("CommandSpawnError", () => {
 		expect((error as CommandSpawnError).missing).toBe("cwd");
 	});
 });
+
+const linuxSandboxToolsInstalled =
+	process.platform === "linux" &&
+	["bwrap", "slirp4netns", "iptables"].every(
+		(tool) => spawnSync("which", [tool]).status === 0,
+	);
+
+describe.skipIf(!linuxSandboxToolsInstalled)(
+	"createShellExecutor with keep changes inside this project",
+	() => {
+		it("writes inside the project but not outside it", async () => {
+			const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			const root = await mkdtemp(join(tmpdir(), "cline-sandbox-"));
+			const project = join(root, "project");
+			const outsideDir = join(root, "outside");
+			await mkdir(project);
+			await mkdir(outsideDir);
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "settings.json");
+			setKeepChangesInProjectGlobally(true);
+			const shell = createShellExecutor({ timeoutMs: 20_000 });
+			try {
+				await expect(
+					shell("echo inside > file.txt && cat file.txt", project, ctx),
+				).resolves.toContain("inside");
+
+				// The test root sits in the writable temp folder, so protect a
+				// path under the read-only home directory instead.
+				const outsideFile = join(
+					process.env.HOME ?? "/root",
+					`.cline-sandbox-test-${process.pid}`,
+				);
+				const error = await shell(`touch ${outsideFile}`, project, ctx).catch(
+					(caught: unknown) => caught,
+				);
+				expect(error).toBeInstanceOf(CommandExitError);
+				expect((error as CommandExitError).output).toContain(
+					'"Keep changes inside this project"',
+				);
+				expect(existsSync(outsideFile)).toBe(false);
+			} finally {
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = previousSettingsPath;
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+	},
+);
