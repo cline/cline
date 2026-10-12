@@ -2407,6 +2407,10 @@ export class Controller {
 		return this.cloud.resolveStatuses(sessionIds)
 	}
 
+	invalidateTaskHistoryCache(): void {
+		this.taskHistory.invalidateCache()
+	}
+
 	async exportTaskWithId(id: string): Promise<void> {
 		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {
