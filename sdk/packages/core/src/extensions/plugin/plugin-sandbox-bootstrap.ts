@@ -348,6 +348,20 @@ function toErrorPayload(error: unknown): { message: string; stack?: string } {
  */
 const port = isMainThread ? undefined : parentPort;
 
+if (port) {
+	// Plugin stdout must never reach the host's stdout, which may carry
+	// `--json` output or a JSON-RPC stream. The subprocess sandbox discards
+	// it (stdio "ignore"), and Node workers pipe it to the host, but Bun
+	// workers write straight to the host's stdout. Discard it here too.
+	const discard = () => {};
+	console.log = discard;
+	console.info = discard;
+	console.debug = discard;
+	console.dir = discard;
+	console.table = discard;
+	process.stdout.write = (() => true) as typeof process.stdout.write;
+}
+
 function isDataCloneError(error: unknown): boolean {
 	return (
 		error instanceof Error &&
