@@ -15,16 +15,18 @@ import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline
 import { resolveLocalClineAuthToken } from "../../services/providers/local-provider-service";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import {
+	type ConnectorsRequest,
 	createComposioMetaToolSession,
 	executeComposioMetaTool,
 } from "./composio-meta-tools";
 
 /**
- * Registers Composio's search/connect/execute meta tools in local sessions.
+ * Registers Composio's search/connect/execute meta tools in host sessions.
  * App schemas are discovered through search results and executed through
  * multi-execute; saved desktop connection state never supplies model tools.
- * Every execution rechecks account identity and beta access, and the Cline
- * API proxy owns credentials and scopes the tool-router session to the caller.
+ * Local executions recheck account identity and beta access. Hosts supplying
+ * a request callback own authentication without accessing local credentials.
+ * The Cline API proxy scopes the tool-router session to the caller.
  */
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
 
@@ -115,22 +117,52 @@ async function authorizeExecution(
 	return { auth };
 }
 
+function authenticatedRequest(auth: {
+	baseUrl: string;
+	token: string;
+}): ConnectorsRequest {
+	return (path, init) => {
+		const headers = new Headers(init.headers);
+		headers.set("authorization", `Bearer ${auth.token}`);
+		return fetch(`${auth.baseUrl}${path}`, { ...init, headers });
+	};
+}
+
 /** Builds the meta-tool extension independently of saved connections. */
 export async function createComposioToolsExtension(options?: {
+	request?: ConnectorsRequest;
 	logger?: BasicLogger;
 }): Promise<AgentExtension | undefined> {
-	const accountId = getAccountId();
-	if (!accountId) return undefined;
-	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
-		return undefined;
+	const hostRequest = options?.request;
+	const accountId = hostRequest ? undefined : getAccountId();
+	let request: ConnectorsRequest;
+	let resolveExecutionRequest: () => Promise<
+		| { request: ConnectorsRequest }
+		| { error: { successful: false; error: string } }
+	>;
+	if (hostRequest) {
+		request = hostRequest;
+		resolveExecutionRequest = async () => ({ request: hostRequest });
+	} else {
+		if (!accountId) return undefined;
+		if (
+			!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))
+		) {
+			return undefined;
+		}
+		if (getAccountId() !== accountId) return undefined;
+		const auth = await resolveConnectorsAuth(accountId);
+		if (!auth) return undefined;
+		request = authenticatedRequest(auth);
+		resolveExecutionRequest = async () => {
+			const authorized = await authorizeExecution(accountId);
+			if ("error" in authorized) return authorized;
+			return { request: authenticatedRequest(authorized.auth) };
+		};
 	}
-	if (getAccountId() !== accountId) return undefined;
-	const auth = await resolveConnectorsAuth(accountId);
-	const metaSession = auth
-		? await createComposioMetaToolSession(auth, {
-				log: (message) => options?.logger?.log?.(message),
-			})
-		: undefined;
+	const metaSession = await createComposioMetaToolSession(request, {
+		log: (message) => options?.logger?.log?.(message),
+	});
 	if (!metaSession?.tools.length) {
 		return undefined;
 	}
@@ -151,10 +183,10 @@ export async function createComposioToolsExtension(options?: {
 				// Multi-execute runs app tools with side effects; never auto-retry.
 				retryable: false,
 				execute: async (input: unknown) => {
-					const authorized = await authorizeExecution(accountId);
+					const authorized = await resolveExecutionRequest();
 					if ("error" in authorized) return authorized.error;
 					return executeComposioMetaTool(
-						authorized.auth,
+						authorized.request,
 						metaSession.sessionId,
 						tool.slug,
 						input,
@@ -172,7 +204,7 @@ export async function createComposioToolsExtension(options?: {
 		name: "composio-tools",
 		manifest: { capabilities: ["tools"] },
 		setup(api) {
-			if (getAccountId() !== accountId) return;
+			if (!hostRequest && getAccountId() !== accountId) return;
 			for (const tool of tools) api.registerTool(tool);
 			options?.logger?.log?.(
 				`composio-tools: registered ${tools.length} meta tool(s) for this session`,

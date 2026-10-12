@@ -22,6 +22,7 @@ import {
 	type AgentPluginPackageDiagnostic,
 	loadAgentPluginPackages,
 } from "../extensions/agent-plugin";
+import type { ConnectorsRequest } from "../extensions/composio/composio-meta-tools";
 import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	resolveAndLoadAgentPlugins,
@@ -285,6 +286,7 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	 * AI gateway providers can use a custom HTTP implementation.
 	 */
 	defaultFetch?: typeof fetch;
+	connectorsRequest?: ConnectorsRequest;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
@@ -330,6 +332,7 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultCapabilities,
 		defaultToolPolicies,
 		defaultFetch,
+		connectorsRequest,
 		onPluginEvent,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
@@ -504,6 +507,7 @@ export async function prepareLocalRuntimeBootstrap(
 	// independently of persisted desktop connections. Compiled hosts cannot
 	// spawn the drop-in plugin sandbox.
 	const composioToolsExtension = await createComposioToolsExtension({
+		request: connectorsRequest,
 		logger: localConfig?.logger,
 	});
 	const builtInExtensionList = [
