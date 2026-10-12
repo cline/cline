@@ -197,9 +197,10 @@ export const EditFileInputSchema = z
 			.string()
 			.min(1)
 			.describe("The absolute path for the action to be performed on"),
-		// MiniMax selects null for replacement edits when it is advertised in the
-		// schema; Kimi/GLM still send null for unused fields. Advertise only string,
-		// but normalize null to omission at runtime for create/insert operations.
+		// Advertise old_text as a plain string: when the schema allows null, some
+		// models send null instead of the real text for replacement edits. Other
+		// models send null for optionals they aren't using, so null is still
+		// accepted at runtime and treated as omitted.
 		old_text: z
 			.preprocess(
 				(value) => (value === null ? undefined : value),
