@@ -60,6 +60,7 @@ describe("providerSettingsRegistry", () => {
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
 			["chutes", "Chutes", "https://chutes.ai/app/api"],
+			["coralbricks", "CoralBricks", "https://www.coralbricks.ai/docs/cline"],
 			["doubao", "Doubao", "https://console.volcengine.com/home"],
 			["fireworks", "Fireworks", "https://app.fireworks.ai/settings/users/api-keys"],
 			["groq", "Groq", "https://console.groq.com/keys"],
