@@ -314,6 +314,124 @@ export async function getSourceControlState(
 	};
 }
 
+export type CommitFile = {
+	path: string;
+	/** Previous path when the commit renamed the file. */
+	originalPath?: string;
+	status: SourceControlStatus;
+	additions: number | null;
+	deletions: number | null;
+};
+
+export type CommitDetails = {
+	environmentId: string;
+	sha: string;
+	files: CommitFile[];
+};
+
+// Git's empty tree: what a root commit is compared against.
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+/** Rejects anything that is not a plain object name, so it cannot act as an option. */
+export function assertCommitSha(sha: string): void {
+	if (!/^[0-9a-f]{4,64}$/i.test(sha)) throw new Error("Invalid commit");
+}
+
+async function commitBase(git: GitRunner, sha: string): Promise<string> {
+	return git(["rev-parse", "--verify", "--quiet", `${sha}^`]).then(
+		(parent) => parent.trim() || EMPTY_TREE,
+		() => EMPTY_TREE,
+	);
+}
+
+/** Parses `git diff --name-status -z -M`. */
+export function parseNameStatus(
+	output: string,
+): Array<{ path: string; originalPath?: string; status: SourceControlStatus }> {
+	const files: Array<{
+		path: string;
+		originalPath?: string;
+		status: SourceControlStatus;
+	}> = [];
+	const records = output.split("\0");
+	for (let index = 0; index < records.length; index++) {
+		const code = records[index];
+		if (!code) continue;
+		const letter = code[0] ?? "M";
+		if (letter === "R" || letter === "C") {
+			const from = records[++index] ?? "";
+			const to = records[++index] ?? "";
+			if (!to) continue;
+			files.push(
+				letter === "R"
+					? { path: to, originalPath: from, status: "R" }
+					: { path: to, status: "A" },
+			);
+			continue;
+		}
+		const path = records[++index];
+		if (path) files.push({ path, status: statusFromCode(letter) });
+	}
+	return files;
+}
+
+/** Files a commit changed, compared with its first parent. */
+export async function getCommitDetails(
+	git: GitRunner,
+	environmentId: string,
+	sha: string,
+): Promise<CommitDetails> {
+	assertCommitSha(sha);
+	const base = await commitBase(git, sha);
+	const [nameStatus, numstat] = await Promise.all([
+		git(["diff", "--name-status", "-z", "-M", base, sha]),
+		git(["diff", "--numstat", "-z", "-M", base, sha]).then(
+			parseNumstat,
+			() => new Map(),
+		),
+	]);
+	return {
+		environmentId,
+		sha,
+		files: parseNameStatus(nameStatus).map((file) => ({
+			...file,
+			additions: numstat.get(file.path)?.additions ?? null,
+			deletions: numstat.get(file.path)?.deletions ?? null,
+		})),
+	};
+}
+
+/** Contents of a path before and after a commit. */
+export async function getCommitFileDiff(
+	git: GitRunner,
+	environmentId: string,
+	sha: string,
+	path: string,
+	originalPath?: string,
+): Promise<GitFileDiff> {
+	assertCommitSha(sha);
+	const base = await commitBase(git, sha);
+	const show = (rev: string, at: string) =>
+		git(["show", `${rev}:${at}`]).then(
+			(text) => text,
+			() => undefined,
+		);
+	const [oldText, newText] = await Promise.all([
+		base === EMPTY_TREE
+			? Promise.resolve(undefined)
+			: show(base, originalPath ?? path),
+		show(sha, path),
+	]);
+	return {
+		environmentId,
+		path,
+		oldText,
+		newText: newText ?? "",
+		binary: [oldText, newText].some((text) => text?.includes("\0")),
+		truncated: false,
+	};
+}
+
 /**
  * Old/new contents for a root-relative path. `staged` compares HEAD to the
  * index; otherwise the index (or HEAD for untracked paths, which have no

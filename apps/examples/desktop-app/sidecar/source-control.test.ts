@@ -11,11 +11,15 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	assertCommitSha,
 	countLines,
 	type GitRunner,
+	getCommitDetails,
+	getCommitFileDiff,
 	getGitFileDiff,
 	getSourceControlState,
 	parseLog,
+	parseNameStatus,
 	parseNumstat,
 	parseSourceControlAction,
 	parseStatus,
@@ -113,6 +117,35 @@ describe("parseLog", () => {
 		expect(parseLog(output, new Set(), false).some((c) => c.pushed)).toBe(
 			false,
 		);
+	});
+});
+
+describe("parseNameStatus", () => {
+	it("reads plain, renamed, and copied entries", () => {
+		const output = [
+			"M",
+			"a.ts",
+			"R087",
+			"old.ts",
+			"new.ts",
+			"C100",
+			"src.ts",
+			"copy.ts",
+			"D",
+			"gone.ts",
+			"",
+		].join("\0");
+		expect(parseNameStatus(output)).toEqual([
+			{ path: "a.ts", status: "M" },
+			{ path: "new.ts", originalPath: "old.ts", status: "R" },
+			{ path: "copy.ts", status: "A" },
+			{ path: "gone.ts", status: "D" },
+		]);
+	});
+
+	it("rejects commit names that could act as options", () => {
+		expect(() => assertCommitSha("--output=/tmp/x")).toThrow(/Invalid/);
+		expect(() => assertCommitSha("abc1234")).not.toThrow();
 	});
 });
 
@@ -390,6 +423,32 @@ describe("against a real repository", () => {
 			rmSync(remote, { recursive: true, force: true });
 			rmSync(other, { recursive: true, force: true });
 		}
+	});
+
+	it("lists a commit's files and diffs them against its parent", async () => {
+		await git(["add", "-A"]);
+		await git(["commit", "-q", "-m", "second"]);
+		const head = (await git(["rev-parse", "HEAD"])).trim();
+		const details = await getCommitDetails(git, "local", head);
+		expect(details.files).toEqual([
+			{ path: "a.ts", status: "M", additions: 2, deletions: 1 },
+			{ path: "b.ts", status: "M", additions: 1, deletions: 0 },
+			{ path: "new.txt", status: "A", additions: 2, deletions: 0 },
+		]);
+		const diff = await getCommitFileDiff(git, "local", head, "a.ts");
+		expect(diff.oldText).toBe("one\ntwo\n");
+		expect(diff.newText).toBe("one\nchanged\nthree\n");
+
+		// The root commit compares against the empty tree.
+		const root = (await git(["rev-list", "--max-parents=0", "HEAD"])).trim();
+		const initial = await getCommitDetails(git, "local", root);
+		expect(initial.files.map((file) => [file.path, file.status])).toEqual([
+			["a.ts", "A"],
+			["b.ts", "A"],
+		]);
+		const added = await getCommitFileDiff(git, "local", root, "a.ts");
+		expect(added.oldText).toBeUndefined();
+		expect(added.newText).toBe("one\ntwo\n");
 	});
 
 	it("stages, unstages, discards, and commits", async () => {

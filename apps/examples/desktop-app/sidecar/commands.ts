@@ -195,6 +195,8 @@ import {
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import {
+	getCommitDetails,
+	getCommitFileDiff,
 	getGitFileDiff,
 	getSourceControlState,
 	parseSourceControlAction,
@@ -3551,6 +3553,7 @@ export async function handleCommand(
 	if (
 		command === "get_source_control_state" ||
 		command === "get_git_file_diff" ||
+		command === "get_commit_details" ||
 		command === "run_source_control_action"
 	) {
 		if (!options?.connection?.data?.canApproveTools) {
@@ -3582,6 +3585,10 @@ export async function handleCommand(
 			});
 		}
 		if (!root) throw new Error("Not a git repository");
+		const commit = typeof args?.commit === "string" ? args.commit.trim() : "";
+		if (command === "get_commit_details") {
+			return await getCommitDetails(git, binding.environmentId, commit);
+		}
 		if (command === "get_git_file_diff") {
 			// Git's filename as-is: leading or trailing spaces are part of it.
 			const path = String(args?.path ?? "");
@@ -3590,6 +3597,15 @@ export async function handleCommand(
 				typeof args?.originalPath === "string" && args.originalPath
 					? args.originalPath
 					: undefined;
+			if (commit) {
+				return await getCommitFileDiff(
+					git,
+					binding.environmentId,
+					commit,
+					path,
+					originalPath,
+				);
+			}
 			return await getGitFileDiff(
 				git,
 				async (relative) => {
