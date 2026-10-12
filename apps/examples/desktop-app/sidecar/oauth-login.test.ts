@@ -17,7 +17,9 @@ function makeManager(): ProviderSettingsManager {
 }
 
 function makeDependencies(overrides: {
-	login: () => Promise<Credentials>;
+	login: (
+		...args: Parameters<OAuthLoginDependencies["login"]>
+	) => Promise<Credentials>;
 	save?: ReturnType<typeof vi.fn>;
 }) {
 	const save =
@@ -31,7 +33,7 @@ function makeDependencies(overrides: {
 			login: overrides.login as never,
 			save: save as never,
 			markEnabled: vi.fn() as never,
-		} as OAuthLoginDependencies,
+		},
 		save,
 	};
 }
@@ -58,23 +60,13 @@ describe("runCancellableProviderOAuthLogin", () => {
 		let signal: AbortSignal | undefined;
 		let resolveLogin: (credentials: Credentials) => void = () => undefined;
 		const { dependencies, save } = makeDependencies({
-			login: () =>
-				new Promise<Credentials>((resolve) => {
+			login: (_provider, _existing, _openUrl, _onUserCode, abortSignal) => {
+				signal = abortSignal;
+				return new Promise<Credentials>((resolve) => {
 					resolveLogin = resolve;
-				}),
+				});
+			},
 		});
-
-		const login = dependencies.login;
-		dependencies.login = (
-			provider,
-			existing,
-			openUrl,
-			onUserCode,
-			abortSignal,
-		) => {
-			signal = abortSignal;
-			return login(provider, existing, openUrl, onUserCode, abortSignal);
-		};
 
 		const pending = runCancellableProviderOAuthLogin(
 			makeManager(),

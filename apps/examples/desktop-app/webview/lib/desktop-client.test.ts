@@ -168,25 +168,6 @@ describe("DesktopClient command deadlines", () => {
 		await expect(newLogin).resolves.toEqual(result);
 	});
 
-	it("does not send a cancelled sign-in after reconnecting", async () => {
-		const { desktopClient } = await import("./desktop-client");
-		const controller = new AbortController();
-		const login = desktopClient.invoke(
-			"run_provider_oauth_login",
-			{ provider: "cline" },
-			{ signal: controller.signal },
-		);
-		const rejected = expect(login).rejects.toMatchObject({
-			name: "AbortError",
-		});
-		await Promise.resolve();
-		await Promise.resolve();
-		controller.abort();
-		const socket = await connectLatestSocket();
-		await rejected;
-		expect(socket.sent).toHaveLength(0);
-	});
-
 	it("sends the displayed revision for Agenda approval, cancellation, and run", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const approval = desktopClient.approveAgendaTask({

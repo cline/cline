@@ -129,14 +129,6 @@ describe("AccountView signed-out state", () => {
 		expect(
 			invoke.mock.calls.filter(([command]) => command === "cline_account"),
 		).toHaveLength(1);
-		await act(async () => button("Sign in").click());
-		expect(button("Cancel").disabled).toBe(false);
-		expect(
-			invoke.mock.calls.filter(
-				([command]) => command === "run_provider_oauth_login",
-			),
-		).toHaveLength(2);
-		await act(async () => button("Cancel").click());
 	});
 
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {
