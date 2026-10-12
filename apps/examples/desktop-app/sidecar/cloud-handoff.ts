@@ -18,7 +18,12 @@ import {
 import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
-import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
+import {
+	type AgentMode,
+	createMediaBudgetState,
+	getClineEnvironmentConfig,
+	validateAndReserveImageMedia,
+} from "@cline/shared";
 import {
 	readCloudHandoffFollowUp,
 	saveCloudHandoffFollowUp,
@@ -205,18 +210,21 @@ async function assertCloudHandoffAvailable(
 	if (isCloudAgentsEnabled()) {
 		return;
 	}
-	// These gates block NEW handoffs only. A handoff that is already pending
-	// must stay recoverable after a flag or the opt-in flips off: the source
-	// session's normal actions are blocked by the pending guard, so gating
-	// recovery here would deadlock the session until the gate returns.
+	// Disabling Cloud blocks new handoffs, not recovery of an existing creation.
 	if (sourceSessionId) {
 		const manager = getSessionRuntimeBinding(ctx).sessionManager;
 		const persisted = await manager.get(sourceSessionId).catch(() => undefined);
+		const localMetadata = readSessionMetadata(sourceSessionId);
 		const pending =
-			readCloudHandoffMetadata(
-				(persisted?.metadata ?? undefined) as JsonRecord | undefined,
-			) ?? readCloudHandoffMetadata(readSessionMetadata(sourceSessionId));
-		if (pending?.status === "pending") return;
+			readCloudHandoffMetadata(persisted?.metadata) ??
+			readCloudHandoffMetadata(localMetadata);
+		if (
+			pending?.status === "pending" ||
+			(!pending &&
+				(persisted?.metadata?.cloudHandoffIntent ??
+					localMetadata?.cloudHandoffIntent))
+		)
+			return;
 	}
 	throw new Error("Enable Cloud sessions in Settings before using /cloud.");
 }
@@ -447,6 +455,18 @@ async function handleHandoffOnce(
 	const handoffAttemptId = request.handoffAttemptId?.trim();
 	if (!nextCommand && request.attachments?.userImages?.length) {
 		throw new Error("Add a command to send the attached images after handoff.");
+	}
+	const images = request.attachments?.userImages ?? [];
+	if (images.length > 5) throw new Error("Attach up to 5 images.");
+	const imageBudget = createMediaBudgetState();
+	for (const image of images) {
+		const validation = validateAndReserveImageMedia(
+			undefined,
+			image,
+			{},
+			imageBudget,
+		);
+		if (!validation.ok) throw new Error(validation.message);
 	}
 	const expectedFingerprint = readRequestedHandoffFingerprint(request);
 	const prepared = await prepareCloudHandoff(ctx, request, {

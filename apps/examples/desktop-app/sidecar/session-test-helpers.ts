@@ -20,10 +20,11 @@ export function localRuntimeContext(
 					workspaceRoot,
 					sessionManager: {
 						get: vi.fn(async () => undefined),
+						hasSessionSubscription: () => false,
 						...sessionManager,
 					},
 					hubClient: {
-						command: vi.fn(async () => undefined),
+						command: vi.fn(async () => ({ version: "v1", ok: true })),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
