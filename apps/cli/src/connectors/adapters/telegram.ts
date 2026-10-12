@@ -24,9 +24,10 @@ import { parseNotifiedOptions, resolveCardAnswer } from "../card-answer";
 import {
 	buildAnsweredQuestionText,
 	buildQuestionCard,
+	formatQuestionBody,
 	parseCardActionId,
 } from "../card-question-message";
-import { postCardMessage } from "../card-thread";
+import { buildCardReference } from "../card-thread";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
 import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
@@ -1036,9 +1037,24 @@ class TelegramConnector extends ConnectorBase<
 					const notifiedOptions = options.awaitingAnswer
 						? parseNotifiedOptions(text)
 						: [];
+					// Anything that is not the running commentary names the card it belongs
+					// to, so a conversation running several cards at once can be read. The
+					// reference goes in before the card is built: a rendered card is what the
+					// surface shows, and a line added only to the fallback is never seen.
+					// The options are parsed from the text before it is cleaned: they are what
+					// becomes the buttons, and with buttons on screen the written list is the
+					// same choices twice.
+					const questionText = formatQuestionBody(text, {
+						hasChoices: notifiedOptions.length > 0,
+					});
+					const bodyText = options.supersedesPrevious
+						? anchorText
+						: previous && options.itemId
+							? buildCardReference(options.itemId, questionText)
+							: questionText;
 					const card = options.itemId
 						? buildQuestionCard({
-								text,
+								text: bodyText,
 								taskId: options.itemId,
 								options: notifiedOptions,
 							})
@@ -1046,14 +1062,9 @@ class TelegramConnector extends ConnectorBase<
 					// Anything that is not the running commentary hangs off the anchor as a
 					// reply, so the question, its answer and the review notice stay attached to
 					// the card they belong to instead of scrolling away as loose messages.
-					const sent = await postCardMessage({
-						thread,
-						anchor: options.supersedesPrevious ? undefined : previous,
-						// `buildQuestionCard` returns null when there is nothing to choose
-						// between, and the payload takes a card or none at all.
-						card: card ?? undefined,
-						text: options.supersedesPrevious ? anchorText : text,
-					});
+					const sent = await (card
+						? thread.post({ card, fallbackText: bodyText })
+						: thread.post({ raw: bodyText }));
 					if (messageKey && shouldTrackForSuperseding(options)) {
 						notifyMessages.set(messageKey, sent);
 					}
@@ -1061,7 +1072,7 @@ class TelegramConnector extends ConnectorBase<
 					// what clears the keyboard, and a live button on an answered question can
 					// be tapped again with nowhere for the tap to go.
 					if (card && notifiedOptions.length > 0) {
-						questionMessages.set(sent.id, { message: sent, text });
+						questionMessages.set(sent.id, { message: sent, text: bodyText });
 					}
 					if (options.itemId && options.workspacePath) {
 						rememberCardFor(threadKey, {
@@ -1351,9 +1362,12 @@ class TelegramConnector extends ConnectorBase<
 						// still records the answer.
 					}
 				}
-				// And the choice is posted under the question, so the thread reads as a
-				// conversation rather than as a message that silently changed.
-				await thread.reply(event.messageId, { raw: `✅ ${chosen}` });
+				// And the choice is posted as its own line, naming the card: the adapter has
+				// no reply, so the tie has to be in the text. Without it an answer that only
+				// edited the question would leave no trace in the conversation's flow.
+				await thread.post({
+					raw: buildCardReference(card.taskId, `✅ ${chosen}`),
+				});
 			} else {
 				await thread.post({ raw: result.message });
 			}

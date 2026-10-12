@@ -85,3 +85,31 @@ export function buildAnsweredQuestionText(
 	const trimmed = questionText.trimEnd();
 	return `${trimmed}\n\n✅ ${chosenOption}`;
 }
+
+/**
+ * The question as it should read once it is a card with buttons.
+ *
+ * Two things are redundant the moment the choices are rendered as taps. The tool's name --
+ * "AskUserQuestion: Gravar?" tells the person which internal tool asked, which is not a thing
+ * they can act on; a question mark says the same in one character. And the numbered options,
+ * which exist so a question can be answered by typing a number: with buttons on screen they
+ * are the same list written twice, and the second copy is the one nobody needs.
+ *
+ * Both are kept when there are no choices to tap. The numbers are then the only way to answer,
+ * and removing them would leave a question that cannot be replied to.
+ */
+export function formatQuestionBody(
+	text: string,
+	options: { hasChoices: boolean },
+): string {
+	let body = text.replace(
+		/(^|\n)(?:Using\s+)?AskUserQuestion:\s*/g,
+		(_match, lead: string) => `${lead}❓ `,
+	);
+	if (options.hasChoices) {
+		// The numbered list the summary appends, and only at the end of a line: a question
+		// whose own text contains "1)" keeps it.
+		body = body.replace(/\s+—\s+1\)\s.*?(?=\n|$)/g, "");
+	}
+	return body.trimEnd();
+}

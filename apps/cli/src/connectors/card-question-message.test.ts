@@ -4,6 +4,7 @@ import {
 	buildAnsweredQuestionText,
 	buildCardActionId,
 	buildQuestionCard,
+	formatQuestionBody,
 	parseCardActionId,
 } from "./card-question-message";
 
@@ -94,5 +95,43 @@ describe("buildAnsweredQuestionText", () => {
 		expect(buildAnsweredQuestionText("Gravar?\n\n", "Gravar")).toBe(
 			"Gravar?\n\n✅ Gravar",
 		);
+	});
+});
+
+describe("formatQuestionBody", () => {
+	// With buttons on screen the numbered list is the same choices written twice, and the
+	// tool's name is not something the person can act on.
+	it("replaces the tool name with a question mark and drops the numbers", () => {
+		expect(
+			formatQuestionBody(
+				"[alta] sonda — kanban\n\nUsing AskUserQuestion: Gravar? — 1) Gravar  2) Descartar",
+				{ hasChoices: true },
+			),
+		).toBe("[alta] sonda — kanban\n\n❓ Gravar?");
+	});
+
+	// Without buttons the numbers are the only way to answer; removing them would leave a
+	// question that cannot be replied to.
+	it("keeps the numbers when there is nothing to tap", () => {
+		expect(
+			formatQuestionBody("AskUserQuestion: Gravar? — 1) Gravar  2) Descartar", {
+				hasChoices: false,
+			}),
+		).toBe("❓ Gravar? — 1) Gravar  2) Descartar");
+	});
+
+	// A question that happens to contain an enumeration of its own is not an options list.
+	it("leaves an enumeration inside the question alone", () => {
+		expect(
+			formatQuestionBody("AskUserQuestion: Qual item 1) ou 2) seguimos?", {
+				hasChoices: true,
+			}),
+		).toBe("❓ Qual item 1) ou 2) seguimos?");
+	});
+
+	it("leaves a message that is not a question untouched", () => {
+		expect(
+			formatQuestionBody("Ready for review\n\nkanban", { hasChoices: false }),
+		).toBe("Ready for review\n\nkanban");
 	});
 });
