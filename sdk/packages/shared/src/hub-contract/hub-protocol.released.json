@@ -1,0 +1,7993 @@
+{
+	"protocolVersion": "v1",
+	"envelopes": {
+		"command": {
+			"type": "object",
+			"properties": {
+				"version": {
+					"type": "string"
+				},
+				"command": {
+					"type": "string"
+				},
+				"requestId": {
+					"type": "string"
+				},
+				"clientId": {
+					"type": "string"
+				},
+				"sessionId": {
+					"type": "string"
+				},
+				"timeoutMs": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"payload": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {}
+				}
+			},
+			"required": [
+				"version",
+				"command"
+			],
+			"additionalProperties": {}
+		},
+		"event": {
+			"type": "object",
+			"properties": {
+				"version": {
+					"type": "string"
+				},
+				"event": {
+					"type": "string"
+				},
+				"eventId": {
+					"type": "string"
+				},
+				"sequence": {
+					"type": "number"
+				},
+				"sessionId": {
+					"type": "string"
+				},
+				"clientId": {
+					"type": "string"
+				},
+				"sourceHubId": {
+					"type": "string"
+				},
+				"timestamp": {
+					"type": "number"
+				},
+				"payload": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {}
+				}
+			},
+			"required": [
+				"version",
+				"event"
+			],
+			"additionalProperties": {}
+		},
+		"reply": {
+			"type": "object",
+			"properties": {
+				"version": {
+					"type": "string"
+				},
+				"requestId": {
+					"type": "string"
+				},
+				"ok": {
+					"type": "boolean"
+				},
+				"payload": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string"
+					},
+					"additionalProperties": {}
+				},
+				"error": {
+					"type": "object",
+					"properties": {
+						"code": {
+							"type": "string"
+						},
+						"message": {
+							"type": "string"
+						},
+						"details": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"required": [
+						"code",
+						"message"
+					],
+					"additionalProperties": {}
+				}
+			},
+			"required": [
+				"version",
+				"ok"
+			],
+			"additionalProperties": {}
+		}
+	},
+	"commands": {
+		"approval.request": {
+			"description": "Reserved: request a tool approval (approvals are raised by the Hub as approval.requested events).",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"approval.respond": {
+			"description": "Resolve a pending tool approval as approved or denied.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"approvalId": {
+						"type": "string"
+					},
+					"approved": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"reason": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"payload": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"reason": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"responderClientId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"approvalId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"approvalId": {
+						"type": "string"
+					},
+					"approved": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"capability.progress": {
+			"description": "Report progress for a pending capability request owned by the sending client.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"payload": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"ignored": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"capability.request": {
+			"description": "Ask a target client to execute a capability for a session and reply with its result.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"capabilityName": {
+						"type": "string"
+					},
+					"targetClientId": {
+						"type": "string"
+					},
+					"payload": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"capabilityName",
+					"targetClientId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"capability.respond": {
+			"description": "Resolve a pending capability request owned by the sending client.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"ok": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"payload": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"error": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"ok": {
+						"type": "boolean"
+					},
+					"ignored": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"catalog.list": {
+			"description": "List catalog entries (reserved; not handled by the Hub).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"client.list": {
+			"description": "List clients registered with the Hub.",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"clients": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"client.register": {
+			"description": "Register the connection's client (identity, capabilities, workspace) with the Hub.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"clientId": {
+						"type": "string"
+					},
+					"clientType": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"actorKind": {
+						"type": "string"
+					},
+					"transport": {
+						"type": "string"
+					},
+					"capabilities": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"description": {
+									"type": "string"
+								},
+								"scopes": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								},
+								"payloadSchema": {
+									"type": "object",
+									"propertyNames": {
+										"type": "string"
+									},
+									"additionalProperties": {}
+								}
+							},
+							"additionalProperties": {}
+						}
+					},
+					"metadata": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"workspaceContext": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"workspaceRoot": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"cwd": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"protocolVersion": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"clientId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"client.unregister": {
+			"description": "Unregister the client named by envelope.clientId.",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"client.update": {
+			"description": "Update the registered client's metadata and/or capabilities (client from envelope.clientId).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"metadata": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"capabilities": {
+						"anyOf": [
+							{
+								"type": "array",
+								"items": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"cline.account.get_current": {
+			"description": "Get the current Cline account (reserved; not handled by the Hub).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"connector.channels": {
+			"description": "List available, active, and configured connector channels.",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"available": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"active": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"configured": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"connector.configure": {
+			"description": "Save a connector channel's field values and security settings.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"channel": {
+						"type": "string",
+						"minLength": 1
+					},
+					"values": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"security": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"enabled": {
+										"type": "boolean"
+									},
+									"values": {
+										"anyOf": [
+											{
+												"type": "object",
+												"propertyNames": {
+													"type": "string"
+												},
+												"additionalProperties": {}
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"channel"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"available": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"active": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"configured": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"connector.delete_config": {
+			"description": "Delete a connector channel's saved configuration.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"channel": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": [
+					"channel"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"available": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"active": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"configured": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"connector.start": {
+			"description": "Start (or restart) a Hub-supervised connector instance.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"channel": {
+						"type": "string",
+						"minLength": 1
+					},
+					"instanceId": {
+						"type": "string",
+						"minLength": 1
+					},
+					"args": {
+						"anyOf": [
+							{
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"restart": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"channel",
+					"instanceId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"started": {
+						"type": "boolean"
+					},
+					"record": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"connector.stop": {
+			"description": "Stop a Hub-supervised connector instance.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"channel": {
+						"type": "string",
+						"minLength": 1
+					},
+					"instanceId": {
+						"type": "string",
+						"minLength": 1
+					},
+					"disableAutostart": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"channel",
+					"instanceId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"stopped": {
+						"type": "boolean"
+					},
+					"channel": {
+						"type": "string"
+					},
+					"instanceId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"connector.supervised": {
+			"description": "List connector instances supervised by the Hub.",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"supervised": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"cron.event.get": {
+			"description": "Get one ingested automation event (no Hub handler yet).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"eventId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"cron.event.ingest": {
+			"description": "Ingest a normalized automation event (no Hub handler yet).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"eventId": {
+						"type": "string"
+					},
+					"eventType": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string"
+					},
+					"subject": {
+						"type": "string"
+					},
+					"occurredAt": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"payload": {},
+					"attributes": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"dedupeKey": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"cron.event.list": {
+			"description": "List ingested automation events (no Hub handler yet).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"limit": {
+						"type": "number"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"hub.drain": {
+			"description": "Enter (default) or leave drain mode, refusing new mutating work while runs finish.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"draining": {
+						"anyOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"reason": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"hubId": {
+						"type": "string"
+					},
+					"draining": {
+						"type": "boolean"
+					},
+					"activeRpcTurns": {
+						"type": "number"
+					},
+					"pendingRuns": {
+						"type": "number"
+					},
+					"eventLog": {
+						"type": "object",
+						"properties": {
+							"lastSequence": {
+								"type": "number"
+							}
+						},
+						"additionalProperties": {}
+					},
+					"idle": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"hub.status": {
+			"description": "Report the Hub's drain state and activity.",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"hubId": {
+						"type": "string"
+					},
+					"draining": {
+						"type": "boolean"
+					},
+					"activeRpcTurns": {
+						"type": "number"
+					},
+					"pendingRuns": {
+						"type": "number"
+					},
+					"eventLog": {
+						"type": "object",
+						"properties": {
+							"lastSequence": {
+								"type": "number"
+							}
+						},
+						"additionalProperties": {}
+					},
+					"idle": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"mention_files.search": {
+			"description": "Search files for @-mentions (reserved; not handled by the Hub).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"peer.attach_session": {
+			"description": "Reserved: attach to a peer hub's session (not implemented).",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"peer.detach_session": {
+			"description": "Reserved: detach from a peer hub's session (not implemented).",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"peer.list_sessions": {
+			"description": "Reserved: list a peer hub's sessions (not implemented).",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"peer.proxy_command": {
+			"description": "Reserved: proxy a command to a peer hub (not implemented).",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"peer.register": {
+			"description": "Reserved: register a peer hub (not implemented).",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			}
+		},
+		"prompt_commands.execute": {
+			"description": "Execute a prompt command (reserved; not handled by the Hub).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"prompt_commands.list": {
+			"description": "List prompt (slash) commands (reserved; not handled by the Hub).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"run.abort": {
+			"description": "Abort the session's active run and cancel its pending approvals and capability requests.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"reason": {}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"applied": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"run.enqueue": {
+			"description": "Durably queue a turn for a session and ack immediately with its run id.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"prompt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"input": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"mode": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"attachments": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"delivery": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutMs": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeout_ms": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutSeconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeout_seconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"runId": {
+						"type": "string"
+					},
+					"acceptedAt": {
+						"type": "number"
+					},
+					"queuePosition": {
+						"type": "number"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"run.list": {
+			"description": "List durable run queue records, optionally for one session.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"limit": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"runs": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"run.proceed_while_running": {
+			"description": "Detach running foreground commands so the agent can continue the turn.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"toolCallId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"detachedCount": {
+						"type": "number"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"run.start": {
+			"description": "Run one agent turn in a session and reply when the turn settles.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"prompt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"input": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"mode": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"attachments": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"delivery": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutMs": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeout_ms": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutSeconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeout_seconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"result": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.active": {
+			"description": "List currently running schedule executions.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"executions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"executions"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.create": {
+			"description": "Create a recurring or one-off schedule in the client workspace.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"cronPattern": {
+						"type": "string"
+					},
+					"timezone": {
+						"type": "string"
+					},
+					"prompt": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"cwd": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"modelSelection": {
+						"type": "object",
+						"properties": {
+							"providerId": {
+								"type": "string"
+							},
+							"modelId": {
+								"type": "string"
+							}
+						},
+						"additionalProperties": {}
+					},
+					"provider": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"act",
+							"plan",
+							"yolo"
+						]
+					},
+					"systemPrompt": {
+						"type": "string"
+					},
+					"maxIterations": {
+						"type": "number"
+					},
+					"timeoutSeconds": {
+						"type": "number"
+					},
+					"maxParallel": {
+						"type": "number"
+					},
+					"createdBy": {
+						"type": "string"
+					},
+					"tags": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"runtimeOptions": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"metadata": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"name",
+					"cronPattern"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"schedule"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.delete": {
+			"description": "Delete a schedule.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"deleted": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"deleted"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.disable": {
+			"description": "Pause (disable) a schedule.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.enable": {
+			"description": "Resume (enable) a schedule.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.get": {
+			"description": "Get one schedule by id.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"schedule"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.list": {
+			"description": "List schedules in the client workspace (or all workspaces).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"limit": {
+						"type": "number"
+					},
+					"tags": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"schedules": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"schedules"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.list_executions": {
+			"description": "List schedule executions, optionally for one schedule.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"limit": {
+						"type": "number"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"executions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"executions"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.stats": {
+			"description": "Get execution statistics for one schedule.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"stats": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.trigger": {
+			"description": "Run a schedule now, optionally without waiting for completion.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"wait": {
+						"type": "boolean"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"execution": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.upcoming": {
+			"description": "List upcoming scheduled runs.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"limit": {
+						"type": "number"
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"runs": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"runs"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.update": {
+			"description": "Update fields of an existing schedule.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"timezone": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"prompt": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"cwd": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"modelSelection": {
+						"type": "object",
+						"properties": {
+							"providerId": {
+								"type": "string"
+							},
+							"modelId": {
+								"type": "string"
+							}
+						},
+						"additionalProperties": {}
+					},
+					"provider": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"act",
+							"plan",
+							"yolo"
+						]
+					},
+					"systemPrompt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxIterations": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutSeconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxParallel": {
+						"type": "number"
+					},
+					"createdBy": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"tags": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"runtimeOptions": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"metadata": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"allWorkspaces": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"cronPattern": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"scheduleId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.attach": {
+			"description": "Join an existing session as a participant.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"role": {
+						"type": "string"
+					},
+					"metadata": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.compaction.get": {
+			"description": "Read a session's compaction state (owner client only).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"state": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.compaction.update": {
+			"description": "Replace a session's compaction state (owner client only).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"state": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"state"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"updated": {
+						"type": "boolean"
+					},
+					"session": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.create": {
+			"description": "Start a new runtime session owned by the calling client.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"workspaceRoot": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"cwd": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"sessionConfig": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"providerId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"modelId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"apiKey": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"cwd": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"workspaceRoot": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"systemPrompt": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"mode": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"metadata": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"runtimeOptions": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"mode": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"systemPrompt": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"maxIterations": {
+										"anyOf": [
+											{
+												"type": "number"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"timeoutSeconds": {
+										"anyOf": [
+											{
+												"type": "number"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"enableTools": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"enableSpawn": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"enableTeams": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"autoApproveTools": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"checkpointEnabled": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"clientContext": {},
+									"userContext": {},
+									"clientContributions": {},
+									"configExtensions": {},
+									"toolExecutors": {}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"modelSelection": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"provider": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"model": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"apiKey": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"toolPolicies": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"initialCompactionState": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"initialMessages": {
+						"anyOf": [
+							{
+								"type": "array",
+								"items": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.delete": {
+			"description": "Delete a session and its derived state.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"deleteCheckpointRefs": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"deleted": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.detach": {
+			"description": "Leave a session and cancel the client's pending capability requests.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.fork": {
+			"description": "Fork a session (reserved; the Hub has no handler yet).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.get": {
+			"description": "Read a session record, optionally with its core snapshot.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"includeSnapshot": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.hook": {
+			"description": "Dispatch a hook event payload into the session runtime.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"payload": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"payload"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"applied": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.list": {
+			"description": "List recent sessions known to the Hub.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"limit": {
+						"type": "number"
+					},
+					"rootOnly": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.messages": {
+			"description": "Read a session's persisted message transcript.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"messages": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.pending_prompts": {
+			"description": "List a session's queued pending prompts.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"prompts": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.remove_pending_prompt": {
+			"description": "Remove a queued prompt.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"promptId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"prompts": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"prompt": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"updated": {
+						"type": "boolean"
+					},
+					"removed": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.restore": {
+			"description": "Restore a session checkpoint, optionally starting a new session from it.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"checkpointRunCount": {
+						"type": "number"
+					},
+					"restore": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"messages": {
+										"type": "boolean"
+									},
+									"workspace": {
+										"type": "boolean"
+									},
+									"omitCheckpointMessageFromSession": {
+										"type": "boolean"
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"workspaceRoot": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"cwd": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"sessionConfig": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"sessionId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"providerId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"modelId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"apiKey": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"cwd": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"workspaceRoot": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"systemPrompt": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"mode": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"metadata": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"runtimeOptions": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"mode": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"systemPrompt": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"maxIterations": {
+										"anyOf": [
+											{
+												"type": "number"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"timeoutSeconds": {
+										"anyOf": [
+											{
+												"type": "number"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"enableTools": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"enableSpawn": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"enableTeams": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"autoApproveTools": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"checkpointEnabled": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"clientContext": {},
+									"userContext": {},
+									"clientContributions": {},
+									"configExtensions": {},
+									"toolExecutors": {}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"modelSelection": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"provider": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"model": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"apiKey": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"toolPolicies": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"initialCompactionState": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"checkpointRunCount"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"messages": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"checkpoint": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.search": {
+			"description": "Full-text search over session transcripts.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string"
+					},
+					"limit": {
+						"type": "number"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"query"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"hits": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"sessionId": {
+									"type": "string"
+								},
+								"documentId": {
+									"type": "string"
+								},
+								"ordinal": {
+									"type": "number"
+								},
+								"role": {
+									"type": "string"
+								},
+								"startedAt": {
+									"type": "string"
+								},
+								"workspaceRoot": {
+									"type": "string"
+								},
+								"title": {
+									"type": "string"
+								},
+								"snippet": {
+									"type": "string"
+								},
+								"score": {
+									"type": "number"
+								}
+							},
+							"required": [
+								"sessionId",
+								"documentId",
+								"ordinal",
+								"role",
+								"startedAt",
+								"workspaceRoot",
+								"title",
+								"snippet",
+								"score"
+							],
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"hits"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.send_input": {
+			"description": "Send user input to a session, running a turn (alias of run.start).",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"prompt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"input": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"mode": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"attachments": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"delivery": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutMs": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeout_ms": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutSeconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeout_seconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"result": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.steer_first_pending_prompt": {
+			"description": "Promote the first queued prompt to steer delivery.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"prompts": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"prompt": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"updated": {
+						"type": "boolean"
+					},
+					"removed": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.update": {
+			"description": "Merge client metadata into a session record.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"metadata": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"updated": {
+						"type": "boolean"
+					},
+					"session": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.update_connection": {
+			"description": "Change a live session's provider, model, or reasoning settings.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"updates": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"providerId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"modelId": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"apiKey": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"baseUrl": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"headers": {
+										"anyOf": [
+											{
+												"type": "object",
+												"propertyNames": {
+													"type": "string"
+												},
+												"additionalProperties": {}
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"providerConfig": {
+										"anyOf": [
+											{
+												"type": "object",
+												"propertyNames": {
+													"type": "string"
+												},
+												"additionalProperties": {}
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"thinking": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"reasoningEffort": {
+										"anyOf": [
+											{
+												"type": "string"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"thinkingBudgetTokens": {
+										"anyOf": [
+											{
+												"type": "number"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"updated": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.update_pending_prompt": {
+			"description": "Edit a queued prompt's text or delivery mode.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"promptId": {
+						"type": "string"
+					},
+					"prompt": {
+						"type": "string"
+					},
+					"delivery": {
+						"type": "string",
+						"enum": [
+							"queue",
+							"steer"
+						]
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"prompts": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					},
+					"prompt": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"updated": {
+						"type": "boolean"
+					},
+					"removed": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"settings.get": {
+			"description": "Get a settings value (not implemented yet).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"settings.list": {
+			"description": "List skills, workflows, rules, plugins, tools, and MCP settings for a workspace.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"cwd": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"agentPluginPaths": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"includePluginTools": {
+						"type": "boolean"
+					},
+					"availabilityContext": {}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"settings.patch": {
+			"description": "Patch settings values (not implemented yet).",
+			"input": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"settings.toggle": {
+			"description": "Enable or disable a skill, workflow, rule, plugin, tool, or MCP server.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"cwd": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"agentPluginPaths": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"includePluginTools": {
+						"type": "boolean"
+					},
+					"availabilityContext": {},
+					"type": {
+						"type": "string",
+						"enum": [
+							"skills",
+							"workflows",
+							"rules",
+							"plugins",
+							"tools",
+							"mcp"
+						]
+					},
+					"id": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"type"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"changedTypes": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"task.approve": {
+			"description": "Approve an agenda task at an expected revision.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"taskId": {
+						"type": "string"
+					},
+					"expectedRevision": {
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"taskId",
+					"expectedRevision"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.automation.get": {
+			"description": "Get the agenda automation policy for the client workspace.",
+			"input": {
+				"type": "object",
+				"properties": {},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"policy": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"policy"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.automation.set": {
+			"description": "Set the agenda automation policy for the client workspace.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"policy": {
+						"type": "object",
+						"properties": {
+							"scopeKey": {
+								"type": "string"
+							},
+							"mode": {
+								"type": "string",
+								"enum": [
+									"manual",
+									"auto_start",
+									"unattended"
+								]
+							},
+							"applyToAgentCreated": {
+								"type": "boolean"
+							},
+							"maxConcurrentRuns": {
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							"maxChainDepth": {
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							"maxStartsPerHour": {
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							"enabledBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"enabledAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"mode",
+							"maxConcurrentRuns",
+							"maxChainDepth",
+							"maxStartsPerHour"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"policy"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"policy": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"policy"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.cancel": {
+			"description": "Cancel an agenda task at an expected revision.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"taskId": {
+						"type": "string"
+					},
+					"expectedRevision": {
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"taskId",
+					"expectedRevision"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.create": {
+			"description": "Create a user-authored agenda task in the client workspace.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"taskId": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string",
+						"enum": [
+							"suggestion",
+							"follow-up",
+							"todo",
+							"handoff",
+							"idea",
+							"reminder"
+						]
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"cwd": {
+						"type": "string"
+					},
+					"resourcePaths": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"priority": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 5
+					},
+					"assignee": {
+						"type": "string"
+					},
+					"modelSelection": {
+						"type": "object",
+						"properties": {
+							"providerId": {
+								"type": "string"
+							},
+							"modelId": {
+								"type": "string"
+							}
+						},
+						"additionalProperties": {}
+					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"act",
+							"plan",
+							"yolo"
+						]
+					},
+					"systemPrompt": {
+						"type": "string"
+					},
+					"maxIterations": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutSeconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"availableAt": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"automationEligible": {
+						"type": "boolean"
+					},
+					"requiresApproval": {
+						"type": "boolean"
+					},
+					"originSessionId": {
+						"type": "string"
+					},
+					"originTaskId": {
+						"type": "string"
+					},
+					"specPath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"type",
+					"title",
+					"instructions",
+					"expiresAt"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.get": {
+			"description": "Get one agenda task by id.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"taskId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"taskId"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"task.list": {
+			"description": "List workspace and global agenda tasks.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"statuses": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"types": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"scope": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"type": "string"
+					},
+					"priorities": {
+						"type": "array",
+						"items": {
+							"type": "number"
+						}
+					},
+					"automationEligible": {
+						"type": "boolean"
+					},
+					"availableBefore": {
+						"type": "string"
+					},
+					"includeArchived": {
+						"type": "boolean"
+					},
+					"limit": {
+						"type": "number"
+					}
+				},
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"tasks": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"propertyNames": {
+								"type": "string"
+							},
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"tasks"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.run": {
+			"description": "Start a run of an approved agenda task.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"taskId": {
+						"type": "string"
+					},
+					"expectedRevision": {
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"taskId",
+					"expectedRevision"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.update": {
+			"description": "Edit an agenda task at an expected revision.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"taskId": {
+						"type": "string"
+					},
+					"expectedRevision": {
+						"type": "number"
+					},
+					"type": {
+						"type": "string",
+						"enum": [
+							"suggestion",
+							"follow-up",
+							"todo",
+							"handoff",
+							"idea",
+							"reminder"
+						]
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					},
+					"workspaceRoot": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"cwd": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"resourcePaths": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"priority": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 5
+					},
+					"assignee": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"modelSelection": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"providerId": {
+										"type": "string"
+									},
+									"modelId": {
+										"type": "string"
+									}
+								},
+								"additionalProperties": {}
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"mode": {
+						"anyOf": [
+							{
+								"type": "string",
+								"enum": [
+									"act",
+									"plan",
+									"yolo"
+								]
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"systemPrompt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxIterations": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timeoutSeconds": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"availableAt": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"automationEligible": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"taskId",
+					"expectedRevision"
+				],
+				"additionalProperties": {}
+			},
+			"output": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"ui.notify": {
+			"description": "Broadcast a ui.notify event (payload forwarded verbatim) to subscribers.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"body": {
+						"type": "string"
+					},
+					"severity": {
+						"type": "string"
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"clientId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"ui.show_window": {
+			"description": "Broadcast a ui.show_window event (payload forwarded verbatim) to subscribers.",
+			"input": {
+				"type": "object",
+				"properties": {
+					"windowId": {
+						"type": "string"
+					},
+					"focus": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		}
+	},
+	"events": {
+		"agent.done": {
+			"description": "The agent loop reported it finished.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"iterations": {
+						"type": "number"
+					},
+					"usage": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"reason",
+					"text",
+					"iterations"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"approval.requested": {
+			"description": "A tool call is waiting for client approval.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"approvalId": {
+						"type": "string"
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"agentId": {
+						"type": "string"
+					},
+					"conversationId": {
+						"type": "string"
+					},
+					"iteration": {
+						"type": "number"
+					},
+					"toolCallId": {
+						"type": "string"
+					},
+					"toolName": {
+						"type": "string"
+					},
+					"inputJson": {
+						"type": "string"
+					},
+					"policy": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"agendaTaskId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"approvalId",
+					"sessionId",
+					"agentId",
+					"conversationId",
+					"iteration",
+					"toolCallId",
+					"toolName",
+					"inputJson"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"approval.resolved": {
+			"description": "A pending tool approval was answered or cancelled.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"approvalId": {
+						"type": "string"
+					},
+					"approved": {
+						"type": "boolean"
+					},
+					"reason": {
+						"type": "string"
+					},
+					"cancelled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"approvalId",
+					"approved"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"artifact.created": {
+			"description": "An artifact was created (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"assistant.delta": {
+			"description": "A non-empty chunk of assistant text.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"text": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"text"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"assistant.finished": {
+			"description": "Assistant text content ended.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"text": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"assistant.media": {
+			"description": "Generated media returned by the model.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"media": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"media"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"capability.requested": {
+			"description": "The Hub asks a specific client to run a capability.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"targetClientId": {
+						"type": "string"
+					},
+					"capabilityName": {
+						"type": "string"
+					},
+					"payload": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"requestId",
+					"targetClientId",
+					"capabilityName",
+					"payload"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"capability.resolved": {
+			"description": "A capability request was answered or cancelled.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"capabilityName": {
+						"type": "string"
+					},
+					"targetClientId": {
+						"type": "string"
+					},
+					"respondedByClientId": {
+						"type": "string"
+					},
+					"ok": {
+						"type": "boolean"
+					},
+					"cancelled": {
+						"type": "boolean"
+					},
+					"payload": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"error": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"requestId",
+					"capabilityName",
+					"targetClientId",
+					"ok"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"diff.created": {
+			"description": "A diff was created (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"hub.client.disconnected": {
+			"description": "A client unregistered from the Hub.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"clientId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"clientId"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"hub.client.registered": {
+			"description": "A client registered with the Hub.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"clientId": {
+						"type": "string"
+					},
+					"clientType": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"connectedAt": {
+						"type": "number"
+					}
+				},
+				"required": [
+					"clientId",
+					"clientType",
+					"connectedAt"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"hub.client.updated": {
+			"description": "A client's registration changed (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"hub.drain_changed": {
+			"description": "The Hub entered or left drain mode.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"draining": {
+						"type": "boolean"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"draining"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"iteration.finished": {
+			"description": "An agent loop iteration finished.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"iteration": {
+						"type": "number"
+					},
+					"hadToolCalls": {
+						"type": "boolean"
+					},
+					"toolCallCount": {
+						"type": "number"
+					}
+				},
+				"required": [
+					"iteration",
+					"hadToolCalls",
+					"toolCallCount"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"iteration.started": {
+			"description": "An agent loop iteration started.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"iteration": {
+						"type": "number"
+					}
+				},
+				"required": [
+					"iteration"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"peer.registered": {
+			"description": "A peer Hub registered (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"peer.session_attached": {
+			"description": "A peer attached to a session (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"peer.session_detached": {
+			"description": "A peer detached from a session (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"reasoning.delta": {
+			"description": "A chunk of model reasoning, possibly redacted.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"text": {
+						"type": "string"
+					},
+					"redacted": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"text",
+					"redacted"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"reasoning.finished": {
+			"description": "Reasoning content ended.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"reasoning": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"run.aborted": {
+			"description": "A run ended because it was aborted.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"error": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"result": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"reason"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"run.completed": {
+			"description": "A run ended normally.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"error": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"result": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"reason"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"run.enqueued": {
+			"description": "A run was accepted into the durable run queue.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"runId": {
+						"type": "string"
+					},
+					"acceptedAt": {
+						"type": "number"
+					},
+					"queuePosition": {
+						"type": "number"
+					},
+					"clientId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"runId",
+					"acceptedAt",
+					"queuePosition"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"run.failed": {
+			"description": "A run ended with an error.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"reason": {
+						"type": "string"
+					},
+					"error": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"result": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"reason"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"run.heartbeat": {
+			"description": "Periodic liveness signal for a long-running turn.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"elapsedMs": {
+						"type": "number"
+					},
+					"timeoutMs": {
+						"type": "number"
+					}
+				},
+				"required": [
+					"elapsedMs"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"run.interrupted": {
+			"description": "A queued run was interrupted by a Hub restart.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"runId": {
+						"type": "string"
+					},
+					"error": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"reason": {
+						"type": "string",
+						"const": "hub_restart"
+					}
+				},
+				"required": [
+					"runId",
+					"reason"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"run.started": {
+			"description": "A run.start / session.send_input turn began.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"clientId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.created": {
+			"description": "A schedule was created.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"properties": {
+							"scheduleId": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"cronPattern": {
+								"type": "string"
+							},
+							"timezone": {
+								"type": "string"
+							},
+							"prompt": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"enabled": {
+								"type": "boolean"
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"maxParallel": {
+								"type": "number"
+							},
+							"createdAt": {
+								"type": "number"
+							},
+							"updatedAt": {
+								"type": "number"
+							},
+							"nextRunAt": {
+								"type": "number"
+							},
+							"lastRunAt": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "string"
+							},
+							"tags": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"runtimeOptions": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"metadata": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": [
+							"scheduleId",
+							"name",
+							"cronPattern",
+							"prompt",
+							"workspaceRoot",
+							"enabled",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"schedule"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.deleted": {
+			"description": "A schedule was deleted.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"deleted": {
+						"type": "boolean"
+					},
+					"scheduleId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"deleted"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.execution_completed": {
+			"description": "A scheduled run finished successfully.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"executionId": {
+						"type": "string"
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"triggeredAt": {
+						"type": "number"
+					},
+					"startedAt": {
+						"type": "number"
+					},
+					"endedAt": {
+						"type": "number"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"pending",
+							"running",
+							"success",
+							"completed",
+							"failed",
+							"timeout",
+							"aborted"
+						]
+					},
+					"errorMessage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"scheduleId",
+					"executionId",
+					"triggeredAt",
+					"status"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.execution_failed": {
+			"description": "A scheduled run failed or was cancelled.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"scheduleId": {
+						"type": "string"
+					},
+					"executionId": {
+						"type": "string"
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"triggeredAt": {
+						"type": "number"
+					},
+					"startedAt": {
+						"type": "number"
+					},
+					"endedAt": {
+						"type": "number"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"pending",
+							"running",
+							"success",
+							"completed",
+							"failed",
+							"timeout",
+							"aborted"
+						]
+					},
+					"errorMessage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"scheduleId",
+					"executionId",
+					"triggeredAt",
+					"status"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"schedule.triggered": {
+			"description": "A schedule was triggered manually.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"execution": {
+						"type": "object",
+						"properties": {
+							"executionId": {
+								"type": "string"
+							},
+							"scheduleId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"triggeredAt": {
+								"type": "number"
+							},
+							"startedAt": {
+								"type": "number"
+							},
+							"endedAt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string",
+								"enum": [
+									"pending",
+									"running",
+									"success",
+									"completed",
+									"failed",
+									"timeout",
+									"aborted"
+								]
+							},
+							"exitCode": {
+								"type": "number"
+							},
+							"errorMessage": {
+								"type": "string"
+							},
+							"iterations": {
+								"type": "number"
+							},
+							"tokensUsed": {
+								"type": "number"
+							},
+							"costUsd": {
+								"type": "number"
+							}
+						},
+						"required": [
+							"executionId",
+							"scheduleId",
+							"triggeredAt",
+							"status"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"schedule.updated": {
+			"description": "A schedule was updated, enabled, or disabled.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"schedule": {
+						"type": "object",
+						"properties": {
+							"scheduleId": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"cronPattern": {
+								"type": "string"
+							},
+							"timezone": {
+								"type": "string"
+							},
+							"prompt": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"enabled": {
+								"type": "boolean"
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"maxParallel": {
+								"type": "number"
+							},
+							"createdAt": {
+								"type": "number"
+							},
+							"updatedAt": {
+								"type": "number"
+							},
+							"nextRunAt": {
+								"type": "number"
+							},
+							"lastRunAt": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "string"
+							},
+							"tags": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"runtimeOptions": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"metadata": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": [
+							"scheduleId",
+							"name",
+							"cronPattern",
+							"prompt",
+							"workspaceRoot",
+							"enabled",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.attached": {
+			"description": "A client attached to a session as a participant.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"properties": {
+							"sessionId": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "number"
+							},
+							"updatedAt": {
+								"type": "number"
+							},
+							"createdByClientId": {
+								"type": "string"
+							},
+							"assignedSpokeId": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string",
+								"enum": [
+									"idle",
+									"running",
+									"pending",
+									"completed",
+									"aborted",
+									"failed"
+								]
+							},
+							"participants": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"propertyNames": {
+										"type": "string"
+									},
+									"additionalProperties": {}
+								}
+							},
+							"activeRunId": {
+								"type": "string"
+							},
+							"runtimeOptions": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"metadata": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"runtimeSession": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"usage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"aggregateUsage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": [
+							"sessionId",
+							"workspaceRoot",
+							"createdAt",
+							"updatedAt",
+							"createdByClientId",
+							"status",
+							"participants"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"session"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.created": {
+			"description": "A session was created or restored from a checkpoint.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"properties": {
+							"sessionId": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "number"
+							},
+							"updatedAt": {
+								"type": "number"
+							},
+							"createdByClientId": {
+								"type": "string"
+							},
+							"assignedSpokeId": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string",
+								"enum": [
+									"idle",
+									"running",
+									"pending",
+									"completed",
+									"aborted",
+									"failed"
+								]
+							},
+							"participants": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"propertyNames": {
+										"type": "string"
+									},
+									"additionalProperties": {}
+								}
+							},
+							"activeRunId": {
+								"type": "string"
+							},
+							"runtimeOptions": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"metadata": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"runtimeSession": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"usage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"aggregateUsage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": [
+							"sessionId",
+							"workspaceRoot",
+							"createdAt",
+							"updatedAt",
+							"createdByClientId",
+							"status",
+							"participants"
+						],
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"session"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.detached": {
+			"description": "A client detached from a session.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"clientId": {
+						"type": "string"
+					},
+					"session": {
+						"type": "object",
+						"properties": {
+							"sessionId": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "number"
+							},
+							"updatedAt": {
+								"type": "number"
+							},
+							"createdByClientId": {
+								"type": "string"
+							},
+							"assignedSpokeId": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string",
+								"enum": [
+									"idle",
+									"running",
+									"pending",
+									"completed",
+									"aborted",
+									"failed"
+								]
+							},
+							"participants": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"propertyNames": {
+										"type": "string"
+									},
+									"additionalProperties": {}
+								}
+							},
+							"activeRunId": {
+								"type": "string"
+							},
+							"runtimeOptions": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"metadata": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"runtimeSession": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"usage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"aggregateUsage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": [
+							"sessionId",
+							"workspaceRoot",
+							"createdAt",
+							"updatedAt",
+							"createdByClientId",
+							"status",
+							"participants"
+						],
+						"additionalProperties": {}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"clientId"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.forked": {
+			"description": "A session was forked (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"session.notice": {
+			"description": "An agent notice (recovery, stop, or status).",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					},
+					"noticeType": {
+						"type": "string",
+						"enum": [
+							"recovery",
+							"stop",
+							"status"
+						]
+					},
+					"displayRole": {
+						"type": "string",
+						"enum": [
+							"system",
+							"status"
+						]
+					},
+					"reason": {
+						"type": "string"
+					},
+					"metadata": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"agent": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"lead",
+									"subagent",
+									"teammate"
+								]
+							},
+							"agentId": {
+								"type": "string"
+							},
+							"conversationId": {
+								"type": "string"
+							},
+							"parentAgentId": {
+								"anyOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"teamAgentId": {
+								"type": "string"
+							},
+							"teamRole": {
+								"type": "string",
+								"enum": [
+									"lead",
+									"teammate"
+								]
+							}
+						},
+						"required": [
+							"kind"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"sessionId",
+					"message",
+					"noticeType",
+					"agent"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.pending_prompt_submitted": {
+			"description": "A queued prompt left the queue and started a turn.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"prompt": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"prompt": {
+								"type": "string"
+							},
+							"delivery": {
+								"type": "string",
+								"enum": [
+									"queue",
+									"steer"
+								]
+							},
+							"attachmentCount": {
+								"type": "number"
+							},
+							"userImages": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"userFiles": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						},
+						"required": [
+							"id",
+							"prompt",
+							"delivery",
+							"attachmentCount"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"sessionId",
+					"prompt"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.pending_prompts": {
+			"description": "Full snapshot of a session's pending prompt queue.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"prompts": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"prompt": {
+									"type": "string"
+								},
+								"delivery": {
+									"type": "string",
+									"enum": [
+										"queue",
+										"steer"
+									]
+								},
+								"attachmentCount": {
+									"type": "number"
+								},
+								"userImages": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								},
+								"userFiles": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								}
+							},
+							"required": [
+								"id",
+								"prompt",
+								"delivery",
+								"attachmentCount"
+							],
+							"additionalProperties": {}
+						}
+					}
+				},
+				"required": [
+					"sessionId",
+					"prompts"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"session.updated": {
+			"description": "A session's record or snapshot changed.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"session": {
+						"type": "object",
+						"properties": {
+							"sessionId": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "number"
+							},
+							"updatedAt": {
+								"type": "number"
+							},
+							"createdByClientId": {
+								"type": "string"
+							},
+							"assignedSpokeId": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string",
+								"enum": [
+									"idle",
+									"running",
+									"pending",
+									"completed",
+									"aborted",
+									"failed"
+								]
+							},
+							"participants": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"propertyNames": {
+										"type": "string"
+									},
+									"additionalProperties": {}
+								}
+							},
+							"activeRunId": {
+								"type": "string"
+							},
+							"runtimeOptions": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"metadata": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"runtimeSession": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"usage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"aggregateUsage": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							}
+						},
+						"required": [
+							"sessionId",
+							"workspaceRoot",
+							"createdAt",
+							"updatedAt",
+							"createdByClientId",
+							"status",
+							"participants"
+						],
+						"additionalProperties": {}
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"settings.changed": {
+			"description": "Settings were toggled via settings.toggle.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"types": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"snapshot": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"types",
+					"snapshot"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"spoke.failed": {
+			"description": "A spoke failed (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"spoke.started": {
+			"description": "A spoke started (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"spoke.stopped": {
+			"description": "A spoke stopped (not currently emitted).",
+			"payload": {
+				"type": "object",
+				"propertyNames": {
+					"type": "string"
+				},
+				"additionalProperties": {}
+			}
+		},
+		"task.automation.updated": {
+			"description": "The agenda automation policy changed.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"policy": {
+						"type": "object",
+						"properties": {
+							"scopeKey": {
+								"type": "string"
+							},
+							"mode": {
+								"type": "string"
+							},
+							"applyToAgentCreated": {
+								"type": "boolean"
+							},
+							"maxConcurrentRuns": {
+								"type": "number"
+							},
+							"maxChainDepth": {
+								"type": "number"
+							},
+							"maxStartsPerHour": {
+								"type": "number"
+							},
+							"enabledBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"enabledAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"scopeKey",
+							"mode",
+							"applyToAgentCreated",
+							"maxConcurrentRuns",
+							"maxChainDepth",
+							"maxStartsPerHour",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"policy"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.created": {
+			"description": "An agenda task was created.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"properties": {
+							"taskId": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"instructions": {
+								"type": "string"
+							},
+							"scope": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"resourcePaths": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"priority": {
+								"type": "number"
+							},
+							"assignee": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"availableAt": {
+								"type": "string"
+							},
+							"expiresAt": {
+								"type": "string"
+							},
+							"automationEligible": {
+								"type": "boolean"
+							},
+							"revision": {
+								"type": "number"
+							},
+							"approvedRevision": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"updatedBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"originSessionId": {
+								"type": "string"
+							},
+							"originTaskId": {
+								"type": "string"
+							},
+							"currentRunId": {
+								"type": "string"
+							},
+							"lastRunId": {
+								"type": "string"
+							},
+							"lastSessionId": {
+								"type": "string"
+							},
+							"specPath": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"archivedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"taskId",
+							"type",
+							"status",
+							"title",
+							"instructions",
+							"scope",
+							"resourcePaths",
+							"priority",
+							"availableAt",
+							"expiresAt",
+							"automationEligible",
+							"revision",
+							"createdBy",
+							"updatedBy",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"properties": {
+							"runId": {
+								"type": "string"
+							},
+							"taskId": {
+								"type": "string"
+							},
+							"taskRevision": {
+								"type": "number"
+							},
+							"attempt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string"
+							},
+							"claimToken": {
+								"type": "string"
+							},
+							"claimUntilAt": {
+								"type": "string"
+							},
+							"requestedByClientId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"claimedAt": {
+								"type": "string"
+							},
+							"startedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"resultSummary": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"runId",
+							"taskId",
+							"taskRevision",
+							"attempt",
+							"status",
+							"claimedAt",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.deleted": {
+			"description": "An agenda task was archived.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"properties": {
+							"taskId": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"instructions": {
+								"type": "string"
+							},
+							"scope": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"resourcePaths": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"priority": {
+								"type": "number"
+							},
+							"assignee": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"availableAt": {
+								"type": "string"
+							},
+							"expiresAt": {
+								"type": "string"
+							},
+							"automationEligible": {
+								"type": "boolean"
+							},
+							"revision": {
+								"type": "number"
+							},
+							"approvedRevision": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"updatedBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"originSessionId": {
+								"type": "string"
+							},
+							"originTaskId": {
+								"type": "string"
+							},
+							"currentRunId": {
+								"type": "string"
+							},
+							"lastRunId": {
+								"type": "string"
+							},
+							"lastSessionId": {
+								"type": "string"
+							},
+							"specPath": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"archivedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"taskId",
+							"type",
+							"status",
+							"title",
+							"instructions",
+							"scope",
+							"resourcePaths",
+							"priority",
+							"availableAt",
+							"expiresAt",
+							"automationEligible",
+							"revision",
+							"createdBy",
+							"updatedBy",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"properties": {
+							"runId": {
+								"type": "string"
+							},
+							"taskId": {
+								"type": "string"
+							},
+							"taskRevision": {
+								"type": "number"
+							},
+							"attempt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string"
+							},
+							"claimToken": {
+								"type": "string"
+							},
+							"claimUntilAt": {
+								"type": "string"
+							},
+							"requestedByClientId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"claimedAt": {
+								"type": "string"
+							},
+							"startedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"resultSummary": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"runId",
+							"taskId",
+							"taskRevision",
+							"attempt",
+							"status",
+							"claimedAt",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.run.completed": {
+			"description": "An agenda task run completed.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"properties": {
+							"taskId": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"instructions": {
+								"type": "string"
+							},
+							"scope": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"resourcePaths": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"priority": {
+								"type": "number"
+							},
+							"assignee": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"availableAt": {
+								"type": "string"
+							},
+							"expiresAt": {
+								"type": "string"
+							},
+							"automationEligible": {
+								"type": "boolean"
+							},
+							"revision": {
+								"type": "number"
+							},
+							"approvedRevision": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"updatedBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"originSessionId": {
+								"type": "string"
+							},
+							"originTaskId": {
+								"type": "string"
+							},
+							"currentRunId": {
+								"type": "string"
+							},
+							"lastRunId": {
+								"type": "string"
+							},
+							"lastSessionId": {
+								"type": "string"
+							},
+							"specPath": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"archivedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"taskId",
+							"type",
+							"status",
+							"title",
+							"instructions",
+							"scope",
+							"resourcePaths",
+							"priority",
+							"availableAt",
+							"expiresAt",
+							"automationEligible",
+							"revision",
+							"createdBy",
+							"updatedBy",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"properties": {
+							"runId": {
+								"type": "string"
+							},
+							"taskId": {
+								"type": "string"
+							},
+							"taskRevision": {
+								"type": "number"
+							},
+							"attempt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string"
+							},
+							"claimToken": {
+								"type": "string"
+							},
+							"claimUntilAt": {
+								"type": "string"
+							},
+							"requestedByClientId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"claimedAt": {
+								"type": "string"
+							},
+							"startedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"resultSummary": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"runId",
+							"taskId",
+							"taskRevision",
+							"attempt",
+							"status",
+							"claimedAt",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task",
+					"run"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.run.failed": {
+			"description": "An agenda task run failed.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"properties": {
+							"taskId": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"instructions": {
+								"type": "string"
+							},
+							"scope": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"resourcePaths": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"priority": {
+								"type": "number"
+							},
+							"assignee": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"availableAt": {
+								"type": "string"
+							},
+							"expiresAt": {
+								"type": "string"
+							},
+							"automationEligible": {
+								"type": "boolean"
+							},
+							"revision": {
+								"type": "number"
+							},
+							"approvedRevision": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"updatedBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"originSessionId": {
+								"type": "string"
+							},
+							"originTaskId": {
+								"type": "string"
+							},
+							"currentRunId": {
+								"type": "string"
+							},
+							"lastRunId": {
+								"type": "string"
+							},
+							"lastSessionId": {
+								"type": "string"
+							},
+							"specPath": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"archivedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"taskId",
+							"type",
+							"status",
+							"title",
+							"instructions",
+							"scope",
+							"resourcePaths",
+							"priority",
+							"availableAt",
+							"expiresAt",
+							"automationEligible",
+							"revision",
+							"createdBy",
+							"updatedBy",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"properties": {
+							"runId": {
+								"type": "string"
+							},
+							"taskId": {
+								"type": "string"
+							},
+							"taskRevision": {
+								"type": "number"
+							},
+							"attempt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string"
+							},
+							"claimToken": {
+								"type": "string"
+							},
+							"claimUntilAt": {
+								"type": "string"
+							},
+							"requestedByClientId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"claimedAt": {
+								"type": "string"
+							},
+							"startedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"resultSummary": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"runId",
+							"taskId",
+							"taskRevision",
+							"attempt",
+							"status",
+							"claimedAt",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task",
+					"run"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.run.started": {
+			"description": "An agenda task run started.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"properties": {
+							"taskId": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"instructions": {
+								"type": "string"
+							},
+							"scope": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"resourcePaths": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"priority": {
+								"type": "number"
+							},
+							"assignee": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"availableAt": {
+								"type": "string"
+							},
+							"expiresAt": {
+								"type": "string"
+							},
+							"automationEligible": {
+								"type": "boolean"
+							},
+							"revision": {
+								"type": "number"
+							},
+							"approvedRevision": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"updatedBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"originSessionId": {
+								"type": "string"
+							},
+							"originTaskId": {
+								"type": "string"
+							},
+							"currentRunId": {
+								"type": "string"
+							},
+							"lastRunId": {
+								"type": "string"
+							},
+							"lastSessionId": {
+								"type": "string"
+							},
+							"specPath": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"archivedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"taskId",
+							"type",
+							"status",
+							"title",
+							"instructions",
+							"scope",
+							"resourcePaths",
+							"priority",
+							"availableAt",
+							"expiresAt",
+							"automationEligible",
+							"revision",
+							"createdBy",
+							"updatedBy",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"properties": {
+							"runId": {
+								"type": "string"
+							},
+							"taskId": {
+								"type": "string"
+							},
+							"taskRevision": {
+								"type": "number"
+							},
+							"attempt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string"
+							},
+							"claimToken": {
+								"type": "string"
+							},
+							"claimUntilAt": {
+								"type": "string"
+							},
+							"requestedByClientId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"claimedAt": {
+								"type": "string"
+							},
+							"startedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"resultSummary": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"runId",
+							"taskId",
+							"taskRevision",
+							"attempt",
+							"status",
+							"claimedAt",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task",
+					"run"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"task.updated": {
+			"description": "An agenda task changed.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"task": {
+						"type": "object",
+						"properties": {
+							"taskId": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"status": {
+								"type": "string"
+							},
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"instructions": {
+								"type": "string"
+							},
+							"scope": {
+								"type": "string"
+							},
+							"workspaceRoot": {
+								"type": "string"
+							},
+							"cwd": {
+								"type": "string"
+							},
+							"resourcePaths": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"priority": {
+								"type": "number"
+							},
+							"assignee": {
+								"type": "string"
+							},
+							"modelSelection": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"mode": {
+								"type": "string"
+							},
+							"systemPrompt": {
+								"type": "string"
+							},
+							"maxIterations": {
+								"type": "number"
+							},
+							"timeoutSeconds": {
+								"type": "number"
+							},
+							"availableAt": {
+								"type": "string"
+							},
+							"expiresAt": {
+								"type": "string"
+							},
+							"automationEligible": {
+								"type": "boolean"
+							},
+							"revision": {
+								"type": "number"
+							},
+							"approvedRevision": {
+								"type": "number"
+							},
+							"createdBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"updatedBy": {
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {}
+							},
+							"originSessionId": {
+								"type": "string"
+							},
+							"originTaskId": {
+								"type": "string"
+							},
+							"currentRunId": {
+								"type": "string"
+							},
+							"lastRunId": {
+								"type": "string"
+							},
+							"lastSessionId": {
+								"type": "string"
+							},
+							"specPath": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"archivedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"taskId",
+							"type",
+							"status",
+							"title",
+							"instructions",
+							"scope",
+							"resourcePaths",
+							"priority",
+							"availableAt",
+							"expiresAt",
+							"automationEligible",
+							"revision",
+							"createdBy",
+							"updatedBy",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					},
+					"run": {
+						"type": "object",
+						"properties": {
+							"runId": {
+								"type": "string"
+							},
+							"taskId": {
+								"type": "string"
+							},
+							"taskRevision": {
+								"type": "number"
+							},
+							"attempt": {
+								"type": "number"
+							},
+							"status": {
+								"type": "string"
+							},
+							"claimToken": {
+								"type": "string"
+							},
+							"claimUntilAt": {
+								"type": "string"
+							},
+							"requestedByClientId": {
+								"type": "string"
+							},
+							"sessionId": {
+								"type": "string"
+							},
+							"claimedAt": {
+								"type": "string"
+							},
+							"startedAt": {
+								"type": "string"
+							},
+							"completedAt": {
+								"type": "string"
+							},
+							"resultSummary": {
+								"type": "string"
+							},
+							"error": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string"
+							},
+							"updatedAt": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"runId",
+							"taskId",
+							"taskRevision",
+							"attempt",
+							"status",
+							"claimedAt",
+							"createdAt",
+							"updatedAt"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"task"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"team.progress": {
+			"description": "Team progress projection for a multi-agent session.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"type": {
+						"type": "string",
+						"const": "team_progress_projection"
+					},
+					"version": {
+						"type": "number",
+						"const": 1
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"summary": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"lastEvent": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"type",
+					"version",
+					"sessionId",
+					"summary",
+					"lastEvent"
+				],
+				"additionalProperties": {}
+			}
+		},
+		"tool.finished": {
+			"description": "A tool call finished.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"toolCallId": {
+						"type": "string"
+					},
+					"toolName": {
+						"type": "string"
+					},
+					"output": {},
+					"error": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"tool.started": {
+			"description": "A tool call started.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"toolCallId": {
+						"type": "string"
+					},
+					"toolName": {
+						"type": "string"
+					},
+					"input": {}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"tool.updated": {
+			"description": "A tool call reported progress.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"toolCallId": {
+						"type": "string"
+					},
+					"toolName": {
+						"type": "string"
+					},
+					"update": {}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"ui.notify": {
+			"description": "A user-facing notification for UI clients.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"body": {
+						"type": "string"
+					},
+					"severity": {
+						"type": "string",
+						"enum": [
+							"info",
+							"warning",
+							"error"
+						]
+					},
+					"sessionId": {
+						"type": "string"
+					},
+					"clientId": {
+						"type": "string"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"ui.show_window": {
+			"description": "Ask UI clients to show a window.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"windowId": {
+						"type": "string"
+					},
+					"focus": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": {}
+			}
+		},
+		"usage.updated": {
+			"description": "Token and cost usage for a model turn plus running totals.",
+			"payload": {
+				"type": "object",
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"delta": {
+						"type": "object",
+						"properties": {
+							"inputTokens": {
+								"type": "number"
+							},
+							"outputTokens": {
+								"type": "number"
+							},
+							"cacheReadTokens": {
+								"type": "number"
+							},
+							"cacheWriteTokens": {
+								"type": "number"
+							},
+							"totalCost": {
+								"type": "number"
+							}
+						},
+						"required": [
+							"inputTokens",
+							"outputTokens",
+							"cacheReadTokens",
+							"cacheWriteTokens",
+							"totalCost"
+						],
+						"additionalProperties": {}
+					},
+					"totals": {
+						"type": "object",
+						"properties": {
+							"inputTokens": {
+								"type": "number"
+							},
+							"outputTokens": {
+								"type": "number"
+							},
+							"cacheReadTokens": {
+								"type": "number"
+							},
+							"cacheWriteTokens": {
+								"type": "number"
+							},
+							"totalCost": {
+								"type": "number"
+							}
+						},
+						"required": [
+							"inputTokens",
+							"outputTokens",
+							"cacheReadTokens",
+							"cacheWriteTokens",
+							"totalCost"
+						],
+						"additionalProperties": {}
+					},
+					"usage": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"aggregateUsage": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {}
+					},
+					"agent": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"lead",
+									"subagent",
+									"teammate"
+								]
+							},
+							"agentId": {
+								"type": "string"
+							},
+							"conversationId": {
+								"type": "string"
+							},
+							"parentAgentId": {
+								"anyOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"teamAgentId": {
+								"type": "string"
+							},
+							"teamRole": {
+								"type": "string",
+								"enum": [
+									"lead",
+									"teammate"
+								]
+							}
+						},
+						"required": [
+							"kind"
+						],
+						"additionalProperties": {}
+					}
+				},
+				"required": [
+					"sessionId",
+					"delta",
+					"totals",
+					"agent"
+				],
+				"additionalProperties": {}
+			}
+		}
+	}
+}

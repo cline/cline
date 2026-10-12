@@ -321,13 +321,17 @@ describe("hub settings commands", () => {
 				},
 			});
 
+			// The Hub contract rejects the payload before dispatch.
 			expect(reply).toMatchObject({
 				ok: false,
 				error: {
-					code: "settings_toggle_failed",
+					code: "invalid_payload",
+					details: { command: "settings.toggle" },
 				},
 			});
-			expect(reply.error?.message).toContain("settings.toggle payload 'type'");
+			expect(reply.error?.message).toMatch(
+				/^Invalid settings\.toggle payload: type: /,
+			);
 			expect(settingsService.toggle).not.toHaveBeenCalled();
 		} finally {
 			await transport.stop();
@@ -355,10 +359,12 @@ describe("hub settings commands", () => {
 				},
 			});
 
+			// The Hub contract rejects the payload before dispatch.
 			expect(reply).toMatchObject({
 				ok: false,
 				error: {
-					code: "settings_list_failed",
+					code: "invalid_payload",
+					details: { command: "settings.list" },
 				},
 			});
 			expect(reply.error?.message).toContain("workspaceRoot");

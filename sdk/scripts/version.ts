@@ -115,6 +115,13 @@ if (!values.dry) {
 		["bun", "-F", "@cline/llms", "generate:models"],
 		root,
 	);
+	// Record the Hub wire contract this release ships; it is the baseline
+	// that later breaking-change checks compare against. Refuses breaking
+	// changes that keep the protocol version.
+	await runCommandOrThrow(
+		["bun", "sdk/packages/shared/scripts/hub-protocol-baseline.ts", "--write"],
+		root,
+	);
 	await runCommandOrThrow(["bun", "format", "--write"], root);
 	await runCommandOrThrow(["bun", "run", "build"], root);
 }

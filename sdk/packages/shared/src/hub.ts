@@ -1,4 +1,8 @@
 import type { AgentMessage } from "./agent";
+import type {
+	HubContractCommandName,
+	HubContractEventName,
+} from "./hub-contract";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
@@ -13,6 +17,13 @@ import type {
 
 export type HubProtocolVersion = "v1";
 
+/**
+ * Clients accept a Hub from another installation (such as the Cline CLI on an
+ * SSH host) by core release plus this protocol range, so bump it for any
+ * breaking wire change: a removed or renamed command, event, or field; a
+ * field that becomes required; or changed semantics. Additive changes keep
+ * the version. hub-contract/hub-protocol.test.ts detects breaking changes.
+ */
 export const CURRENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 export const MIN_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
@@ -519,89 +530,8 @@ export type HubCommandInput<TCommand extends HubTypedCommandName> =
 export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
-export type HubCommandName =
-	| "client.register"
-	| "client.update"
-	| "client.unregister"
-	| "client.list"
-	| "cline.account.get_current"
-	| "prompt_commands.list"
-	| "prompt_commands.execute"
-	| "mention_files.search"
-	| "catalog.list"
-	| "session.list"
-	| "session.search"
-	| "session.create"
-	| "session.attach"
-	| "session.detach"
-	| "session.get"
-	| "session.messages"
-	| "session.restore"
-	| "session.delete"
-	| "session.update"
-	| "session.update_connection"
-	| "session.compaction.get"
-	| "session.compaction.update"
-	| "session.pending_prompts"
-	| "session.steer_first_pending_prompt"
-	| "session.update_pending_prompt"
-	| "session.remove_pending_prompt"
-	| "session.fork"
-	| "session.hook"
-	| "run.start"
-	| "session.send_input"
-	| "run.enqueue"
-	| "run.list"
-	| "run.abort"
-	| "run.proceed_while_running"
-	| "hub.drain"
-	| "hub.status"
-	| "approval.request"
-	| "approval.respond"
-	| "capability.request"
-	| "capability.progress"
-	| "capability.respond"
-	| "peer.register"
-	| "peer.list_sessions"
-	| "peer.attach_session"
-	| "peer.detach_session"
-	| "peer.proxy_command"
-	| "schedule.create"
-	| "schedule.list"
-	| "schedule.get"
-	| "schedule.update"
-	| "schedule.delete"
-	| "schedule.enable"
-	| "schedule.disable"
-	| "schedule.trigger"
-	| "schedule.list_executions"
-	| "schedule.stats"
-	| "schedule.active"
-	| "schedule.upcoming"
-	| "task.create"
-	| "task.list"
-	| "task.get"
-	| "task.update"
-	| "task.approve"
-	| "task.cancel"
-	| "task.run"
-	| "task.automation.get"
-	| "task.automation.set"
-	| "settings.list"
-	| "settings.get"
-	| "settings.patch"
-	| "settings.toggle"
-	| "connector.channels"
-	| "connector.configure"
-	| "connector.delete_config"
-	| "connector.start"
-	| "connector.stop"
-	| "connector.supervised"
-	| "cron.event.ingest"
-	| "cron.event.list"
-	| "cron.event.get"
-	| "ui.notify"
-	| "ui.show_window";
+/** Wire names of Hub commands; declared by the contract in ./hub-contract. */
+export type HubCommandName = HubContractCommandName;
 
 export const HUB_DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 export const HUB_COMMAND_SLOW_LOG_MS = 5_000;
@@ -649,67 +579,8 @@ export interface HubReplyEnvelope {
 	};
 }
 
-export type HubEventName =
-	| "hub.client.registered"
-	| "hub.client.disconnected"
-	| "session.created"
-	| "session.updated"
-	| "session.attached"
-	| "session.detached"
-	| "session.forked"
-	| "session.pending_prompts"
-	| "session.pending_prompt_submitted"
-	| "run.started"
-	| "run.heartbeat"
-	| "run.aborted"
-	| "run.completed"
-	| "run.failed"
-	| "run.enqueued"
-	| "run.interrupted"
-	| "hub.drain_changed"
-	| "iteration.started"
-	| "iteration.finished"
-	| "assistant.delta"
-	| "assistant.media"
-	| "assistant.finished"
-	| "session.notice"
-	| "reasoning.delta"
-	| "reasoning.finished"
-	| "agent.done"
-	| "usage.updated"
-	| "tool.started"
-	| "tool.updated"
-	| "tool.finished"
-	| "approval.requested"
-	| "approval.resolved"
-	| "capability.requested"
-	| "capability.resolved"
-	| "team.progress"
-	| "artifact.created"
-	| "diff.created"
-	| "spoke.started"
-	| "spoke.failed"
-	| "spoke.stopped"
-	| "peer.registered"
-	| "peer.session_attached"
-	| "peer.session_detached"
-	| "schedule.created"
-	| "schedule.updated"
-	| "schedule.deleted"
-	| "schedule.triggered"
-	| "schedule.execution_completed"
-	| "schedule.execution_failed"
-	| "task.created"
-	| "task.updated"
-	| "task.deleted"
-	| "task.run.started"
-	| "task.run.completed"
-	| "task.run.failed"
-	| "task.automation.updated"
-	| "settings.changed"
-	| "ui.notify"
-	| "ui.show_window"
-	| "hub.client.updated";
+/** Wire names of Hub events; declared by the contract in ./hub-contract. */
+export type HubEventName = HubContractEventName;
 
 export interface HubEventEnvelope {
 	version: HubProtocolVersion;
