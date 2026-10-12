@@ -2258,13 +2258,20 @@ async function handleReset(
 		cancelHubReconnect(sessionId);
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
+		// Leaving a thread must not stop its session: a run in progress keeps
+		// going in the Hub and the user can come back to it. Such a session
+		// stays tracked here too, since the tray count, the checkpoint-restore
+		// guard and queued-attachment cleanup all read this map; the `done`
+		// event settles it to idle when the run ends. Only an idle session's
+		// sidecar-side state is dropped.
 		if (
 			session?.busy ||
 			session?.status === "starting" ||
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
+			session.abandoned = true;
+			return { sessionId, ok: true };
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);

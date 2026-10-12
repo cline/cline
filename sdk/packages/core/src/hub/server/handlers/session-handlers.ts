@@ -33,6 +33,7 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
+import { cancelPendingApprovals } from "./approval-handlers";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	asPlainRecord,
@@ -929,6 +930,48 @@ export async function handleSessionDetach(
 		),
 	);
 	return okReply(envelope);
+}
+
+/**
+ * Release a resident session's runtime. Unlike `session.detach`, which only
+ * drops the caller as a viewer, this stops the session in the runtime host:
+ * an in-flight run is aborted and drained, the agent, tools, and plugin
+ * sandbox shut down, and the session leaves memory. The persisted transcript
+ * is untouched, so a later `session.create` with the same id resumes it from
+ * disk. Pending approvals and capability requests for the session are
+ * cancelled the same way `run.abort` does. A session that is not resident is
+ * a no-op success.
+ */
+export async function handleSessionStop(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_stop",
+			"session.stop requires a session id",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const reason = `Session was stopped by client ${clientId}.`;
+	cancelPendingApprovals(
+		ctx,
+		(approval) => approval.sessionId === sessionId,
+		reason,
+	);
+	try {
+		await ctx.sessionHost.stopSession(sessionId);
+	} finally {
+		cancelPendingCapabilityRequests(
+			ctx,
+			(request) => request.sessionId === sessionId,
+			reason,
+		);
+		ctx.sessionState.delete(sessionId);
+	}
+	return okReply(envelope, { stopped: true });
 }
 
 export async function handleSessionGet(

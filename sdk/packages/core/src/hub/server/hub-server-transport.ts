@@ -101,9 +101,10 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
+	handleSessionStop,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -829,6 +830,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionAttach(this.ctx, envelope);
 			case "session.detach":
 				return await handleSessionDetach(this.ctx, envelope);
+			case "session.stop":
+				return await handleSessionStop(this.ctx, envelope);
 			case "session.get":
 				return await handleSessionGet(this.ctx, envelope);
 			case "session.messages":

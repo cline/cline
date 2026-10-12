@@ -1396,6 +1396,76 @@ describe("first-send connection updates", () => {
 		}
 	});
 
+	it("keeps a running session tracked, with its queued attachments, when its thread is reset", async () => {
+		const { ctx, sessionId, stop } = createContext();
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		const testSessionDataDir = join(
+			tmpdir(),
+			`cline-desktop-attachments-reset-running-${Date.now()}`,
+		);
+
+		try {
+			process.env.CLINE_SESSION_DATA_DIR = testSessionDataDir;
+			const [queuedFile] = materializeUserFiles(sessionId, [
+				{ name: "queued.txt", content: "q" },
+			]) as string[];
+			const session = ctx.liveSessions.get(sessionId);
+			if (!session) throw new Error("missing session");
+			session.busy = true;
+			session.status = "running";
+			session.queuedAttachmentFiles = new Map([["pending_1", [queuedFile]]]);
+
+			await handleChatSessionCommand(ctx, {
+				action: "reset",
+				sessionId,
+			});
+
+			// The Hub keeps running the session, so the sidecar keeps tracking it:
+			// the tray count and restore guard still see it, and the files its
+			// queued prompts refer to are still there when the Hub reaches them.
+			expect(stop).not.toHaveBeenCalled();
+			expect(ctx.liveSessions.get(sessionId)?.status).toBe("running");
+			expect(existsSync(queuedFile)).toBe(true);
+
+			// Waiting on a tool approval is still mid-turn: the entry stays.
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "pending" },
+			} as never);
+			expect(ctx.liveSessions.has(sessionId)).toBe(true);
+			expect(existsSync(queuedFile)).toBe(true);
+
+			// While a prompt is still queued the run is not over: settling to
+			// idle keeps the entry (the Hub is about to start the next turn).
+			session.promptsInQueue = [
+				{ id: "pending_1", prompt: "next", steer: false },
+			];
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			} as never);
+			expect(ctx.liveSessions.has(sessionId)).toBe(true);
+			expect(existsSync(queuedFile)).toBe(true);
+
+			// Once the run settles with nothing queued, the abandoned entry and
+			// its leftover attachment files are released like an idle reset.
+			session.promptsInQueue = [];
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			} as never);
+			expect(ctx.liveSessions.has(sessionId)).toBe(false);
+			expect(existsSync(queuedFile)).toBe(false);
+		} finally {
+			if (previousSessionDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			}
+			rmSync(testSessionDataDir, { recursive: true, force: true });
+		}
+	});
+
 	it("preserves tracked attachments across re-attach", async () => {
 		const { ctx, sessionId } = createContext();
 		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;

@@ -14,6 +14,16 @@ const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
 const restartLocalHubIfIdleAfterStartupTimeoutMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../client", () => ({
+	HubCommandError: class extends Error {
+		constructor(
+			readonly command: string,
+			readonly code: string | undefined,
+			message: string,
+		) {
+			super(message);
+			this.name = "HubCommandError";
+		}
+	},
 	NodeHubClient: class {
 		private readonly url: string;
 
@@ -935,10 +945,61 @@ describe("HubRuntimeHost", () => {
 		expect(host.hasSessionSubscription("sess-1")).toBe(false);
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(commandMock).toHaveBeenLastCalledWith(
+			"session.stop",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
+	});
+
+	it("falls back to detaching when an older hub does not know session.stop", async () => {
+		subscribeMock.mockReturnValue(vi.fn());
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const { HubCommandError } = await import("../client");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		commandMock.mockImplementation(async (command: string) => {
+			if (command === "session.stop") {
+				throw new HubCommandError(
+					"session.stop",
+					"unsupported_command",
+					"Unsupported hub schedule command: session.stop",
+				);
+			}
+			return { ok: true, payload: {} };
+		});
+		await host.stopSession("sess-1");
+
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.stop",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
+		expect(commandMock).toHaveBeenLastCalledWith(
 			"session.detach",
 			{ sessionId: "sess-1" },
 			"sess-1",
 		);
+
+		// Any other failure is the caller's to see.
+		commandMock.mockRejectedValue(new Error("hub exploded"));
+		await expect(host.stopSession("sess-1")).rejects.toThrow("hub exploded");
 	});
 
 	it("maps hub completion events back to agent and lifecycle events without duplicating done", async () => {
