@@ -69,7 +69,7 @@ export function CloudOnboardingCard({
 
 	return (
 		<div className="overflow-hidden rounded-xl border border-border bg-card/80 shadow-sm backdrop-blur-sm">
-			<div className="flex flex-col gap-6 p-6 max-[720px]:p-5">
+			<div className="flex flex-col gap-4 p-4">
 				<div className="flex items-start justify-between gap-6 max-[720px]:flex-col">
 					<div className="min-w-0">
 						<p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-primary">
