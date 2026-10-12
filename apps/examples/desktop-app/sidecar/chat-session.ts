@@ -1185,11 +1185,23 @@ async function handleAttach(
 		session.metadata && typeof session.metadata === "object"
 			? (session.metadata as JsonRecord)
 			: undefined;
-	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
-	// Include run events received during attach; Core's running status can
-	// describe an idle resident process rather than an active turn.
+	const reply = await binding.hubClient.command(
+		"session.attach",
+		{ sessionId },
+		sessionId,
+	);
+	const attachedSession = reply.payload?.session as
+		| { status?: string }
+		| undefined;
+	// Only observed live state can override Core's resident-process snapshot.
 	const existing = ctx.liveSessions.get(sessionId);
-	const attachedStatus = existing?.status ?? session.status;
+	const liveStatus =
+		existing &&
+		(existing.attachedViaHub || manager.hasSessionSubscription(sessionId))
+			? existing
+			: undefined;
+	const attachedStatus =
+		liveStatus?.status ?? attachedSession?.status ?? session.status;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
@@ -1215,7 +1227,9 @@ async function handleAttach(
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
 			status: attachedStatus,
-			busy: existing?.busy,
+			busy:
+				liveStatus?.busy ??
+				(attachedStatus === "running" || attachedStatus === "pending"),
 			lastHubStatusSequence: existing?.lastHubStatusSequence,
 			prompt:
 				session.prompt ||

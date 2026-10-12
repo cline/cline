@@ -1097,6 +1097,7 @@ describe("cloud handoff transaction", () => {
 			restarted.getPersistedMetadata(),
 		);
 		visible = true;
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		recovered.create.mockImplementation(createWithFreshApi);
 		await handleChatSessionCommand(recovered.ctx, request);
 		expect(posts).toBe(1);
@@ -1641,6 +1642,37 @@ describe("cloud handoff transaction", () => {
 			).toMatchObject({ status: "pending", toCloudSessionId: "ses-cloud" });
 		}
 		expect(fixture.cloudSend).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		[[3_932_160], true],
+		[[3_932_161], false],
+		[[3_145_728, 3_145_728], true],
+		[[3_145_728, 3_145_729], false],
+		[[1, 1, 1, 1, 1], true],
+		[[1, 1, 1, 1, 1, 1], false],
+	] as const)("validates serialized handoff images before side effects: %j bytes", async (sizes, valid) => {
+		const f = createHandoffFixture();
+		const userImages = sizes.map(
+			(size) =>
+				`data:image/png;base64,${Buffer.alloc(size).toString("base64")}`,
+		);
+		f.cloudSend.mockRejectedValueOnce(new Error("not dispatched"));
+		const result = handleChatSessionCommand(f.ctx, {
+			...f.request,
+			nextCommand: "inspect",
+			attachments: { userImages },
+		});
+		if (valid) {
+			await expect(result).resolves.toMatchObject({ warningKind: "unqueued" });
+			const saved = readCloudHandoffFollowUp("ses-cloud");
+			expect(saved?.userImages).toEqual(userImages);
+		} else {
+			await expect(result).rejects.toThrow();
+			expect(f.create).not.toHaveBeenCalled();
+			expect(f.metadataUpdates).toEqual([]);
+			expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
+		}
 	});
 
 	it("persists the initial command and images before completion and retains them until acknowledgement", async () => {

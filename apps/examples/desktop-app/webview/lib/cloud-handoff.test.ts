@@ -78,6 +78,16 @@ describe("cloud handoff helpers", () => {
 	});
 
 	it("reads pending handoff metadata into restart recovery", () => {
+		const cloudHandoffIntent = {
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "test-model",
+			},
+		};
+		expect(readPendingHandoffRecovery({ cloudHandoffIntent })).toEqual({});
+		expect(readPendingHandoffRecovery({})).toBeNull();
 		expect(
 			readPendingHandoffRecovery({
 				handoff: {
@@ -97,6 +107,7 @@ describe("cloud handoff helpers", () => {
 					toCloudSessionId: "cloud-complete",
 					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-complete",
 				},
+				cloudHandoffIntent,
 			}),
 		).toBeNull();
 	});

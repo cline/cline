@@ -1813,10 +1813,59 @@ describe("first-send connection updates", () => {
 		});
 	});
 
-	it("preserves run.started while attach is pending and blocks handoff", async () => {
+	it.each([
+		"before",
+		"during",
+	])("reattaches a stopped local session when another client starts a run %s attach", async (when) => {
 		enableCloudHandoffGates();
-		const { ctx, sessionId } = createContext({ attachedViaHub: true });
+		const { ctx, sessionId } = createContext();
 		localSessionManager(ctx).hasSessionSubscription = () => false;
+		await handleChatSessionCommand(ctx, { action: "stop", sessionId });
+		if (when === "before")
+			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 1 });
+		const running = { sessionId, status: "running" };
+		localSessionManager(ctx).get = vi.fn(async () =>
+			when === "before" ? running : { sessionId, status: "stopped" },
+		);
+		vi.mocked(
+			getSessionRuntimeBinding(ctx).hubClient.command,
+		).mockImplementationOnce(async () => {
+			if (when === "during")
+				handleHubLiveEvent(ctx, {
+					event: "run.started",
+					sessionId,
+					sequence: 1,
+				});
+			handleHubLiveEvent(ctx, {
+				event: "session.attached",
+				sessionId,
+				sequence: 2,
+				payload: { session: running },
+			});
+			return { version: "v1", ok: true, payload: { session: running } };
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ status: "running" });
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "running",
+			busy: true,
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
+		).rejects.toThrow("Stop the current run");
+	});
+
+	it.each([
+		"observer",
+		"core",
+	])("preserves run events from %s while attach is pending and blocks handoff", async (subscription) => {
+		enableCloudHandoffGates();
+		const { ctx, sessionId } = createContext({
+			attachedViaHub: subscription === "observer",
+		});
+		localSessionManager(ctx).hasSessionSubscription = () =>
+			subscription === "core";
 		const binding = ctx.runtimeBindings.get("local");
 		if (!binding) throw new Error("missing binding");
 		const attaching = Promise.withResolvers<void>();
@@ -1831,7 +1880,14 @@ describe("first-send connection updates", () => {
 			sessionId,
 		});
 		await attaching.promise;
-		handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
+		if (subscription === "observer") {
+			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
+		} else {
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "running" },
+			});
+		}
 		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
 			status: "running",
 			busy: true,

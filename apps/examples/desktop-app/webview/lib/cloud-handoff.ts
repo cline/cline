@@ -90,10 +90,11 @@ export function readHandoffReceipt(
 
 export function readPendingHandoffRecovery(
 	metadata?: SessionMetadata,
-): HandoffReceipt | null {
+): Partial<HandoffReceipt> | null {
 	const raw = metadata?.handoff;
 	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-		return null;
+		// Creation can be unresolved before a target URL exists.
+		return metadata?.cloudHandoffIntent ? {} : null;
 	}
 	const handoff = raw as Record<string, unknown>;
 	if (handoff.status !== "pending") {
