@@ -3,6 +3,7 @@ import type { HubUINotifyPayload } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	type NotifyDeliveryOptions,
 	startUiNotifyDelivery,
 	type UiNotifyClient,
 } from "./ui-notify-subscription";
@@ -118,6 +119,75 @@ describe("startUiNotifyDelivery", () => {
 });
 
 describe("UiNotifyClient", () => {
+	// Kanban offers the step still missing to close a finished card. Only actions this connector
+	// can route become buttons; anything else would be a button to nowhere.
+	it("passes closing actions through, and drops ones it cannot route", async () => {
+		const fake = fakeClient();
+		const deliver = vi.fn<
+			(
+				threadKey: string,
+				text: string,
+				options: NotifyDeliveryOptions,
+			) => Promise<void>
+		>(async () => undefined);
+		const subscription = await startUiNotifyDelivery({
+			createClient: () => fake.client,
+			readBindings: () => ({ t1: { state: { cwd: "/repo" } } }),
+			deliver,
+		});
+
+		fake.emit({
+			title: "Ready for review",
+			body: "Ajuste os links — work-os",
+			source: { workspacePath: "/repo", itemId: "52609" },
+			actions: [
+				{ id: "integrate", label: "Integrar na main" },
+				{ id: "rm -rf", label: "x" },
+				{ id: "push", label: "  " },
+				{
+					id: "done",
+					label: "Concluir",
+					confirm: "1 commit não integrado será descartado.",
+				},
+			],
+		});
+		await subscription.flush();
+
+		expect(deliver.mock.calls[0]?.[2].actions).toEqual([
+			{ id: "integrate", label: "Integrar na main" },
+			{
+				id: "done",
+				label: "Concluir",
+				confirm: "1 commit não integrado será descartado.",
+			},
+		]);
+	});
+
+	it("carries no actions when none were offered", async () => {
+		const fake = fakeClient();
+		const deliver = vi.fn<
+			(
+				threadKey: string,
+				text: string,
+				options: NotifyDeliveryOptions,
+			) => Promise<void>
+		>(async () => undefined);
+		const subscription = await startUiNotifyDelivery({
+			createClient: () => fake.client,
+			readBindings: () => ({ t1: { state: { cwd: "/repo" } } }),
+			deliver,
+		});
+
+		fake.emit({
+			title: "Ready for review",
+			body: "x",
+			source: { workspacePath: "/repo" },
+		});
+		await subscription.flush();
+
+		expect(deliver.mock.calls[0]?.[2].actions).toBeUndefined();
+	});
+
 	it("is satisfied by the real HubUIClient", () => {
 		// The first version of this module declared a `subscribe` method that HubUIClient does
 		// not have, and a cast hid it: every unit test passed against a fake with the invented

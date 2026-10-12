@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import type { HubUINotifyAction } from "@cline/shared";
+
 const execFileAsync = promisify(execFile);
 
 /**
@@ -24,6 +26,16 @@ export interface TrackedCardMessage {
 	 * can be turned into the number the card's prompt actually accepts.
 	 */
 	options?: string[];
+	/**
+	 * The closing actions this notification offered, kept so a tap can still be resolved -- and
+	 * a Concluir that would discard work still confirmed -- after a connector restart.
+	 */
+	actions?: HubUINotifyAction[];
+	/**
+	 * What the message said when it was posted, so it can be rewritten -- an outcome added, a
+	 * confirmation asked -- after a restart has lost the copy kept in memory.
+	 */
+	text?: string;
 }
 
 export interface RememberedCardMessage extends TrackedCardMessage {
@@ -103,20 +115,44 @@ export function buildKanbanInputArgs(
 	];
 }
 
-function describeFailure(error: unknown): string {
-	const code =
-		error && typeof error === "object" && "code" in error
-			? String(error.code)
+function readStringField(error: unknown, field: string): string {
+	return error && typeof error === "object" && field in error
+		? String((error as Record<string, unknown>)[field] ?? "").trim()
+		: "";
+}
+
+/**
+ * The reason a `kanban task` command printed. It goes to stdout as `{ ok: false, error }` with
+ * stderr empty, and Node's own message for the failure is only the command line that failed --
+ * which is what a person on a phone was shown before this read it.
+ */
+function readKanbanReason(error: unknown): string {
+	const stdout = readStringField(error, "stdout");
+	if (!stdout) {
+		return "";
+	}
+	try {
+		const parsed = JSON.parse(stdout) as { error?: unknown };
+		return typeof parsed.error === "string"
+			? parsed.error.replace(/^Task command failed at \S+:\s*/, "").trim()
 			: "";
-	if (code === "ENOENT") {
+	} catch {
+		return "";
+	}
+}
+
+/** `refused` names what Kanban turned down, as the person would say it: "the answer", "the push". */
+export function describeKanbanFailure(
+	error: unknown,
+	refused = "the answer",
+): string {
+	if (readStringField(error, "code") === "ENOENT") {
 		return "Kanban is not installed here, so I cannot pass this to the card.";
 	}
-	const stderr =
-		error && typeof error === "object" && "stderr" in error
-			? String(error.stderr).trim()
-			: "";
 	const detail =
-		stderr || (error instanceof Error ? error.message : String(error));
+		readKanbanReason(error) ||
+		readStringField(error, "stderr") ||
+		(error instanceof Error ? error.message : String(error));
 	if (/no running session/i.test(detail)) {
 		// The common case by far: the card finished, or was stopped, between asking and being
 		// answered. Saying so beats a stack trace.
@@ -131,8 +167,16 @@ function describeFailure(error: unknown): string {
 			.find((line) => line.trim().length > 0)
 			?.trim() ?? "";
 	return firstLine
-		? `Kanban refused the answer: ${firstLine}`
-		: "Kanban refused the answer.";
+		? `Kanban refused ${refused}: ${firstLine}`
+		: `Kanban refused ${refused}.`;
+}
+
+/** Runs the real `kanban` binary, the one every card command from the conversation goes through. */
+export async function runKanban(args: string[]): Promise<{ stdout: string }> {
+	const { stdout } = await execFileAsync("kanban", args, {
+		maxBuffer: 1024 * 1024,
+	});
+	return { stdout: String(stdout) };
 }
 
 export async function answerKanbanCard(
@@ -144,18 +188,11 @@ export async function answerKanbanCard(
 	if (!trimmed) {
 		return { ok: false, message: "Nothing to pass on: the reply was empty." };
 	}
-	const run =
-		deps.run ??
-		(async (args: string[]) => {
-			const { stdout } = await execFileAsync("kanban", args, {
-				maxBuffer: 1024 * 1024,
-			});
-			return { stdout: String(stdout) };
-		});
+	const run = deps.run ?? runKanban;
 	try {
 		await run(buildKanbanInputArgs(card, trimmed));
 	} catch (error) {
-		return { ok: false, message: describeFailure(error) };
+		return { ok: false, message: describeKanbanFailure(error) };
 	}
 	return { ok: true, message: `Passed to card ${card.taskId}.` };
 }

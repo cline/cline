@@ -1007,6 +1007,17 @@ export interface HubUINotifySource {
 	itemId?: string;
 }
 
+/**
+ * Something the person can do about the item from where they read the notification. The
+ * subscriber renders it however its surface allows (Telegram: a button) and routes the choice
+ * back to the publisher's own tooling. `confirm`, when present, is asked before acting.
+ */
+export interface HubUINotifyAction {
+	id: "integrate" | "push" | "done";
+	label: string;
+	confirm?: string;
+}
+
 export interface HubUINotifyPayload {
 	title: string;
 	body: string;
@@ -1033,6 +1044,12 @@ export interface HubUINotifyPayload {
 	 * nowhere, and looks to the person like being asked twice.
 	 */
 	awaitingAnswer?: boolean;
+	/** Column the item sits in, for a subscriber that keeps one message per item current. */
+	column?: string;
+	/** Update what is already shown, or do nothing. Never start a new conversation. */
+	updateOnly?: boolean;
+	/** What can be done about the item, offered only when it is not waiting on an answer. */
+	actions?: HubUINotifyAction[];
 }
 
 export interface HubUIShowWindowPayload {

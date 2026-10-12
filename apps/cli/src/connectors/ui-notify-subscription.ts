@@ -1,5 +1,5 @@
 import { HubUIClient } from "@cline/core";
-import type { HubUINotifyPayload } from "@cline/shared";
+import type { HubUINotifyAction, HubUINotifyPayload } from "@cline/shared";
 
 import type { ConnectorThreadState } from "./thread-bindings";
 import {
@@ -69,12 +69,41 @@ export interface NotifyDeliveryOptions {
 	title?: string;
 	/** The body on its own, for the same reason. */
 	body?: string;
+	/** What can be done to close the item from here, when it is not waiting on an answer. */
+	actions?: HubUINotifyAction[];
 }
 
 export interface UiNotifySubscription {
 	/** Resolves once every delivery triggered so far has settled. For tests and shutdown. */
 	flush(): Promise<void>;
 	stop(): Promise<void>;
+}
+
+const NOTIFY_ACTION_IDS = new Set<string>(["integrate", "push", "done"]);
+
+function isNotifyActionId(value: unknown): value is HubUINotifyAction["id"] {
+	return typeof value === "string" && NOTIFY_ACTION_IDS.has(value);
+}
+
+/** Only actions this connector knows how to route: anything else would be a button to nowhere. */
+function readActions(value: unknown): HubUINotifyAction[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const actions = value.flatMap((entry): HubUINotifyAction[] => {
+		if (!entry || typeof entry !== "object") {
+			return [];
+		}
+		const { id, label, confirm } = entry as Record<string, unknown>;
+		if (!isNotifyActionId(id) || typeof label !== "string" || !label.trim()) {
+			return [];
+		}
+		const question = typeof confirm === "string" ? confirm.trim() : "";
+		return [
+			{ id, label: label.trim(), ...(question ? { confirm: question } : {}) },
+		];
+	});
+	return actions.length > 0 ? actions : undefined;
 }
 
 function readNotification(payload: unknown):
@@ -87,6 +116,7 @@ function readNotification(payload: unknown):
 			awaitingAnswer: boolean;
 			column?: string;
 			updateOnly: boolean;
+			actions?: HubUINotifyAction[];
 	  }
 	| undefined {
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -112,6 +142,7 @@ function readNotification(payload: unknown):
 		awaitingAnswer: record.awaitingAnswer === true,
 		column: typeof record.column === "string" ? record.column : undefined,
 		updateOnly: record.updateOnly === true,
+		actions: readActions(record.actions),
 	};
 }
 
@@ -162,6 +193,7 @@ export async function startUiNotifyDelivery<
 								updateOnly: notification.updateOnly,
 								title: notification.title,
 								body: notification.body,
+								actions: notification.actions,
 							})
 							.catch((error) => {
 								input.onError?.(error);

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildAnsweredQuestionText,
 	buildCardActionId,
+	buildQuestionButtons,
 	buildQuestionCard,
 	formatQuestionBody,
 	parseCardActionId,
@@ -37,8 +38,7 @@ describe("buildQuestionCard", () => {
 	it("makes one button per choice, each carrying its own answer", () => {
 		const card = buildQuestionCard({
 			text: "Qual fruta você prefere?",
-			taskId: "198f5",
-			options: ["Manga", "Caju"],
+			buttons: buildQuestionButtons("198f5", ["Manga", "Caju"]),
 		}) as unknown as {
 			type: string;
 			children: Array<{ type: string; children: unknown[] }>;
@@ -55,8 +55,7 @@ describe("buildQuestionCard", () => {
 	it("keeps the notification text above the buttons", () => {
 		const card = buildQuestionCard({
 			text: "Qual fruta?",
-			taskId: "198f5",
-			options: ["Manga"],
+			buttons: buildQuestionButtons("198f5", ["Manga"]),
 		}) as unknown as { children: Array<{ type: string; children: unknown[] }> };
 		const section = card.children.find((child) => child.type === "section");
 		expect(JSON.stringify(section)).toContain("Qual fruta?");
@@ -67,8 +66,7 @@ describe("buildQuestionCard", () => {
 		expect(
 			buildQuestionCard({
 				text: "Ready for review",
-				taskId: "198f5",
-				options: [],
+				buttons: [],
 			}),
 		).toBeUndefined();
 	});

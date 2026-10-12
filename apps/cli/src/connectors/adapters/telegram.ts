@@ -6,6 +6,7 @@ import {
 } from "@cline/core";
 import type {
 	ConnectTelegramOptions,
+	HubUINotifyAction,
 	TelegramConnectorState,
 } from "@cline/shared";
 import { Chat, ConsoleLogger, type SentMessage, type Thread } from "chat";
@@ -22,9 +23,17 @@ import { ConnectorBase } from "../base";
 import { buildCardAnchorText } from "../card-anchor";
 import { parseNotifiedOptions, resolveCardAnswer } from "../card-answer";
 import {
+	buildClosingButtons,
+	handleClosingTap,
+	parseClosingActionId,
+	readClosingConfirm,
+	runClosingAction,
+} from "../card-closing-actions";
+import {
 	buildAnsweredQuestionText,
-	buildCardActionId,
+	buildQuestionButtons,
 	buildQuestionCard,
+	type CardButton,
 	formatQuestionBody,
 	parseCardActionId,
 } from "../card-question-message";
@@ -930,12 +939,17 @@ class TelegramConnector extends ConnectorBase<
 		// Lives only as long as the connector: after a restart the first update posts a new
 		// message, which is the honest outcome -- the old one is no longer ours to touch.
 		const notifyMessages = new Map<string, SentMessage>();
+		// Closing taps still running, by message id: a second tap on a slow push is dropped.
+		const closingInFlight = new Set<string>();
 		// Questions awaiting a tap, by the id of the message carrying them. In memory only: a
 		// question that outlives the process keeps its text in the bindings file, and the worst
 		// case is a button that cannot be struck through, not an answer that is lost.
 		const questionMessages = new Map<
 			string,
-			{ text: string; edit: (next: string) => Promise<boolean> }
+			{
+				text: string;
+				edit: (next: string, buttons?: CardButton[]) => Promise<boolean>;
+			}
 		>();
 		/**
 		 * Remembers, on disk, which card each delivered notification belongs to, so a reply *to*
@@ -953,6 +967,8 @@ class TelegramConnector extends ConnectorBase<
 				taskId: string;
 				projectPath: string;
 				options?: string[];
+				actions?: HubUINotifyAction[];
+				text?: string;
 			},
 		): void => {
 			const bindings = readBindings<TelegramThreadState>(bindingsPath);
@@ -1052,6 +1068,17 @@ class TelegramConnector extends ConnectorBase<
 					const notifiedOptions = options.awaitingAnswer
 						? parseNotifiedOptions(text)
 						: [];
+					// A finished card is offered what is still missing to close it instead; a card
+					// that is asking gets only its question's choices, never both sets at once.
+					const closingActions =
+						!options.awaitingAnswer && options.itemId
+							? (options.actions ?? [])
+							: [];
+					const buttons: CardButton[] = options.itemId
+						? notifiedOptions.length > 0
+							? buildQuestionButtons(options.itemId, notifiedOptions)
+							: buildClosingButtons(options.itemId, closingActions)
+						: [];
 					// Anything that is not the running commentary names the card it belongs
 					// to, so a conversation running several cards at once can be read. The
 					// reference goes in before the card is built: a rendered card is what the
@@ -1082,19 +1109,19 @@ class TelegramConnector extends ConnectorBase<
 								messageThreadId: resolveTelegramTopicId(threadKey),
 								replyToMessageId: anchorRef.messageId,
 								text: bodyText,
-								options: notifiedOptions,
-								buildActionId: (index) => buildCardActionId(taskId, index),
+								buttons,
 							},
 						});
 						if (replied) {
-							if (notifiedOptions.length > 0) {
+							if (buttons.length > 0) {
 								questionMessages.set(replied.messageId, {
 									text: bodyText,
-									edit: (next) =>
+									edit: (next, nextButtons) =>
 										editTelegramCardMessage({
 											botToken,
 											messageRef: replied.messageId,
 											text: next,
+											buttons: nextButtons,
 										}),
 								});
 							}
@@ -1104,6 +1131,8 @@ class TelegramConnector extends ConnectorBase<
 									taskId,
 									projectPath: options.workspacePath,
 									options: notifiedOptions,
+									actions: closingActions,
+									text: bodyText,
 								});
 							}
 							loggerAdapter.core.log("Telegram notification delivered", {
@@ -1115,30 +1144,33 @@ class TelegramConnector extends ConnectorBase<
 						// Telegram refused it; fall through and post through the library rather
 						// than drop the message.
 					}
-					const card = options.itemId
-						? buildQuestionCard({
-								text: bodyText,
-								taskId: options.itemId,
-								options: notifiedOptions,
-							})
-						: undefined;
+					const card = buildQuestionCard({ text: bodyText, buttons });
 					// Anything that is not the running commentary hangs off the anchor as a
 					// reply, so the question, its answer and the review notice stay attached to
 					// the card they belong to instead of scrolling away as loose messages.
 					const sent = await (card
 						? thread.post({ card, fallbackText: bodyText })
-						: thread.post({ raw: bodyText }));
+						: // Markdown, as the agent wrote it: the adapter renders it for Telegram.
+							thread.post({ markdown: bodyText }));
 					if (messageKey && shouldTrackForSuperseding(options)) {
 						notifyMessages.set(messageKey, sent);
 					}
 					// Kept so the question can be rewritten once it is answered: editing it is
 					// what clears the keyboard, and a live button on an answered question can
 					// be tapped again with nowhere for the tap to go.
-					if (card && notifiedOptions.length > 0) {
+					if (card) {
 						questionMessages.set(sent.id, {
 							text: bodyText,
-							edit: async (next) => {
-								await sent.edit({ raw: next });
+							edit: async (next, nextButtons) => {
+								const nextCard =
+									nextButtons && nextButtons.length > 0
+										? buildQuestionCard({ text: next, buttons: nextButtons })
+										: undefined;
+								await sent.edit(
+									nextCard
+										? { card: nextCard, fallbackText: next }
+										: { markdown: next },
+								);
 								return true;
 							},
 						});
@@ -1149,6 +1181,8 @@ class TelegramConnector extends ConnectorBase<
 							taskId: options.itemId,
 							projectPath: options.workspacePath,
 							options: notifiedOptions,
+							actions: closingActions,
+							text: bodyText,
 						});
 					}
 					loggerAdapter.core.log("Telegram notification delivered", {
@@ -1392,6 +1426,61 @@ class TelegramConnector extends ConnectorBase<
 		// which card and which choice, and the message it belongs to is remembered on disk, so
 		// a restart between question and tap does not lose it.
 		bot.onAction(async (event) => {
+			// Closing a finished card: a tap runs a Kanban command instead of typing an answer
+			// into the card's session.
+			const closing = parseClosingActionId(event.actionId);
+			if (closing) {
+				const thread = event.thread as Thread<TelegramThreadState> | null;
+				if (!thread) {
+					return;
+				}
+				const threadKey = resolveThreadBindingKey(thread);
+				const card = findRememberedCard(
+					readBindings<TelegramThreadState>(bindingsPath)[threadKey]
+						?.cardMessages,
+					event.messageId,
+				);
+				await handleClosingTap({
+					card,
+					tap: closing,
+					messageId: event.messageId,
+					inFlight: closingInFlight,
+					effects: {
+						// Through the Bot API rather than the copy kept in memory, so a tap after a
+						// restart can still rewrite its message.
+						edit: (text, buttons) =>
+							editTelegramCardMessage({
+								botToken,
+								messageRef: event.messageId,
+								text,
+								buttons,
+							}),
+						post: async (text) => {
+							await thread.post({ raw: text });
+						},
+						run: async (action) => {
+							const result = card
+								? await runClosingAction(card, action)
+								: { ok: false, message: "" };
+							loggerAdapter.core.log(
+								result.ok
+									? "Telegram closing action ran"
+									: "Telegram closing action refused",
+								{
+									...(result.ok ? {} : { severity: "warn" as const }),
+									transport: "telegram",
+									taskId: closing.taskId,
+									action,
+								},
+							);
+							return result;
+						},
+						readConfirm: () =>
+							card ? readClosingConfirm(card) : Promise.resolve({ ok: false }),
+					},
+				});
+				return;
+			}
 			const action = parseCardActionId(event.actionId);
 			if (!action) {
 				return;

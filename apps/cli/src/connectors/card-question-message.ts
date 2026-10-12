@@ -35,11 +35,27 @@ export function parseCardActionId(
 	return { taskId, optionIndex };
 }
 
+/** A button as every card message carries it: what it says, and what a tap is routed by. */
+export interface CardButton {
+	label: string;
+	actionId: string;
+}
+
+/** A question's choices as buttons, each answering with its own number. */
+export function buildQuestionButtons(
+	taskId: string,
+	options: readonly string[],
+): CardButton[] {
+	return options.map((label, index) => ({
+		label,
+		actionId: buildCardActionId(taskId, index + 1),
+	}));
+}
+
 export interface QuestionCardInput {
 	/** The notification text, shown above the buttons and kept as the fallback. */
 	text: string;
-	taskId: string;
-	options: readonly string[];
+	buttons: readonly CardButton[];
 }
 
 /**
@@ -47,7 +63,7 @@ export interface QuestionCardInput {
  * announcement, and wrapping it in an empty card would only make it harder to read.
  */
 export function buildQuestionCard(input: QuestionCardInput) {
-	if (input.options.length === 0) {
+	if (input.buttons.length === 0) {
 		return undefined;
 	}
 	return toCardElement(
@@ -55,10 +71,10 @@ export function buildQuestionCard(input: QuestionCardInput) {
 			children: [
 				jsx(Section, { children: jsx(CardText, { children: input.text }) }),
 				jsxs(Actions, {
-					children: input.options.map((label, index) =>
+					children: input.buttons.map((button) =>
 						jsx(Button, {
-							id: buildCardActionId(input.taskId, index + 1),
-							children: label,
+							id: button.actionId,
+							children: button.label,
 						}),
 					),
 				}),

@@ -16,6 +16,64 @@
  * encodings live here, named, instead of being spelled out at the call site.
  */
 
+import { TelegramFormatConverter } from "@chat-adapter/telegram";
+
+import type { CardButton } from "./card-question-message";
+
+const markdown = new TelegramFormatConverter();
+
+/**
+ * A card's text as Telegram shows it. The agent's conclusion is markdown; sent as plain text its
+ * **bold** and `code` arrived as literal asterisks and backticks. `plain` is the fallback for
+ * markup Telegram cannot parse, such as a conclusion clipped in the middle of `**`.
+ */
+function renderText(
+	text: string,
+	plain: boolean,
+): { text: string; parse_mode?: "MarkdownV2" } {
+	return plain
+		? { text }
+		: { text: markdown.fromMarkdown(text), parse_mode: "MarkdownV2" };
+}
+
+interface TelegramResponse {
+	ok?: boolean;
+	description?: string;
+	result?: { message_id?: number };
+}
+
+/**
+ * Calls the Bot API with the text rendered as markdown, and once more as plain text when Telegram
+ * refuses the markup -- losing the notice over a stray asterisk would be worse than showing it.
+ */
+async function callWithMarkdownFallback(input: {
+	botToken: string;
+	method: "sendMessage" | "editMessageText";
+	buildBody: (plain: boolean) => Record<string, unknown>;
+	fetchImpl?: typeof fetch;
+}): Promise<TelegramResponse> {
+	const call = input.fetchImpl ?? fetch;
+	const send = async (plain: boolean): Promise<TelegramResponse> => {
+		const response = await call(
+			`https://api.telegram.org/bot${input.botToken}/${input.method}`,
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(input.buildBody(plain)),
+			},
+		);
+		return (await response.json()) as TelegramResponse;
+	};
+	const rendered = await send(false);
+	if (
+		!rendered.ok &&
+		/can't parse entities/i.test(rendered.description ?? "")
+	) {
+		return await send(true);
+	}
+	return rendered;
+}
+
 export interface TelegramMessageRef {
 	chatId: string;
 	messageId: string;
@@ -57,10 +115,16 @@ export interface CardReplyRequest {
 	/** The card's anchor, which this message replies to. */
 	replyToMessageId: string;
 	text: string;
-	/** Button labels, in the order the question numbered them. Empty means no keyboard. */
-	options: readonly string[];
-	/** Builds the callback data for option `index` (1-based), as the connector's own scheme. */
-	buildActionId: (index: number) => string;
+	/** The buttons, in order, each carrying its own callback data. Empty means no keyboard. */
+	buttons: readonly CardButton[];
+}
+
+function buildInlineKeyboard(
+	buttons: readonly CardButton[],
+): Array<Array<{ text: string; callback_data: string }>> {
+	return buttons.map((button) => [
+		{ text: button.label, callback_data: button.actionId },
+	]);
 }
 
 /**
@@ -72,16 +136,15 @@ export interface CardReplyRequest {
  */
 export function buildCardReplyBody(
 	request: CardReplyRequest,
+	options: { plain?: boolean } = {},
 ): Record<string, unknown> {
-	const keyboard = request.options.map((label, index) => [
-		{ text: label, callback_data: request.buildActionId(index + 1) },
-	]);
+	const keyboard = buildInlineKeyboard(request.buttons);
 	return {
 		chat_id: request.chatId,
 		...(request.messageThreadId
 			? { message_thread_id: Number(request.messageThreadId) }
 			: {}),
-		text: request.text,
+		...renderText(request.text, options.plain === true),
 		reply_parameters: {
 			message_id: Number(request.replyToMessageId),
 			allow_sending_without_reply: true,
@@ -106,20 +169,13 @@ export async function postTelegramCardReply(input: {
 	request: CardReplyRequest;
 	fetchImpl?: typeof fetch;
 }): Promise<PostCardReplyResult | undefined> {
-	const call = input.fetchImpl ?? fetch;
 	try {
-		const response = await call(
-			`https://api.telegram.org/bot${input.botToken}/sendMessage`,
-			{
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify(buildCardReplyBody(input.request)),
-			},
-		);
-		const payload = (await response.json()) as {
-			ok?: boolean;
-			result?: { message_id?: number };
-		};
+		const payload = await callWithMarkdownFallback({
+			botToken: input.botToken,
+			method: "sendMessage",
+			buildBody: (plain) => buildCardReplyBody(input.request, { plain }),
+			fetchImpl: input.fetchImpl,
+		});
 		if (!payload.ok || typeof payload.result?.message_id !== "number") {
 			return undefined;
 		}
@@ -150,33 +206,39 @@ export function resolveTelegramTopicId(threadKey: string): string | undefined {
  * Rewrites a message posted here, which is what removes its keyboard.
  *
  * `editMessageText` with no `reply_markup` clears the buttons, so an answered question stops
- * being answerable in the same call that marks what was chosen.
+ * being answerable in the same call that marks what was chosen. Given `buttons`, the message is
+ * rewritten with those instead -- a Concluir that would discard work asks on the same message.
  */
 export async function editTelegramCardMessage(input: {
 	botToken: string;
 	messageRef: string;
 	text: string;
+	/** A new keyboard to show instead; without it the edit clears the buttons. */
+	buttons?: readonly CardButton[];
 	fetchImpl?: typeof fetch;
 }): Promise<boolean> {
 	const ref = splitTelegramMessageId(input.messageRef);
 	if (!ref) {
 		return false;
 	}
-	const call = input.fetchImpl ?? fetch;
 	try {
-		const response = await call(
-			`https://api.telegram.org/bot${input.botToken}/editMessageText`,
-			{
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					chat_id: ref.chatId,
-					message_id: Number(ref.messageId),
-					text: input.text,
-				}),
-			},
-		);
-		const payload = (await response.json()) as { ok?: boolean };
+		const payload = await callWithMarkdownFallback({
+			botToken: input.botToken,
+			method: "editMessageText",
+			buildBody: (plain) => ({
+				chat_id: ref.chatId,
+				message_id: Number(ref.messageId),
+				...renderText(input.text, plain),
+				...(input.buttons && input.buttons.length > 0
+					? {
+							reply_markup: {
+								inline_keyboard: buildInlineKeyboard(input.buttons),
+							},
+						}
+					: {}),
+			}),
+			fetchImpl: input.fetchImpl,
+		});
 		return payload.ok === true;
 	} catch {
 		return false;

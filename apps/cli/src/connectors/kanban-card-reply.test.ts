@@ -88,6 +88,49 @@ describe("answerKanbanCard", () => {
 		);
 	});
 
+	// What the real CLI does: the reason goes to stdout as JSON and stderr stays empty, so
+	// reading stderr alone gave the person "Command failed: kanban task input --task-id ...".
+	it("reads the reason Kanban printed, not the command line that failed", async () => {
+		const result = await answerKanbanCard(card, "sim", {
+			run: async () => {
+				throw Object.assign(
+					new Error(
+						"Command failed: kanban task input --task-id 49084 --text sim --project-path /code/kanban",
+					),
+					{
+						stderr: "",
+						stdout: `${JSON.stringify({
+							ok: false,
+							error:
+								'Task command failed at http://127.0.0.1:3484: Task "49084" has no running session in workspace /code/kanban.',
+						})}\n`,
+					},
+				);
+			},
+		});
+		expect(result.message).toBe(
+			"That card is no longer running, so there is nobody to answer.",
+		);
+	});
+
+	it("names what was refused, without the runtime's address", async () => {
+		const result = await answerKanbanCard(card, "sim", {
+			run: async () => {
+				throw Object.assign(new Error("Command failed: kanban task push"), {
+					stderr: "",
+					stdout: JSON.stringify({
+						ok: false,
+						error:
+							"Task command failed at http://127.0.0.1:3484: The repository is on other, not main.",
+					}),
+				});
+			},
+		});
+		expect(result.message).toBe(
+			"Kanban refused the answer: The repository is on other, not main.",
+		);
+	});
+
 	it("explains a board that is not running", async () => {
 		const result = await answerKanbanCard(card, "sim", {
 			run: async () => {
