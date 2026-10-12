@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	CHARS_PER_TOKEN,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 } from "./tokens";
@@ -73,6 +74,26 @@ describe("estimateRequestInputTokens", () => {
 		});
 
 		expect(eightSmallPlusOneHuge).toBeLessThan(oneSmallImage * 20);
+	});
+
+	it("charges a flat ESTIMATED_TOKENS_PER_IMAGE per image, independent of payload length", () => {
+		const estimate = (data: string) =>
+			estimateRequestInputTokens({
+				messages: [
+					{
+						role: "user",
+						content: [{ type: "image", data, mediaType: "image/png" }],
+					},
+				],
+			});
+		const withoutImage = estimateRequestInputTokens({
+			messages: [{ role: "user", content: [] }],
+		});
+
+		expect(estimate("A".repeat(500_000))).toBe(estimate("A"));
+		const perImage = estimate("A") - withoutImage;
+		expect(perImage).toBeGreaterThanOrEqual(ESTIMATED_TOKENS_PER_IMAGE);
+		expect(perImage).toBeLessThan(ESTIMATED_TOKENS_PER_IMAGE + 50);
 	});
 
 	it("does not bill an AgentImagePart's base64 payload at CHARS_PER_TOKEN", () => {

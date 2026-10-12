@@ -154,6 +154,21 @@ describe("createTokenEstimator", () => {
 		expect(estimateMessageTokens(message)).toBeLessThan(
 			naiveCharBasedEstimate / 10,
 		);
+		// Payload length must not move the estimate at all. Fresh objects, since
+		// the estimator caches by message reference.
+		expect(
+			estimateMessageTokens({
+				role: "user",
+				content: [{ type: "image", data: "A", mediaType: "image/png" }],
+			}),
+		).toBe(
+			estimateMessageTokens({
+				role: "user",
+				content: [
+					{ type: "image", data: "A".repeat(500_000), mediaType: "image/png" },
+				],
+			}),
+		);
 	});
 
 	it("does not add a duplicate per-image bonus after JSON.stringify falls back", () => {
