@@ -326,7 +326,7 @@ describe("hub daemon entry", () => {
 		}
 	});
 
-	it("ignores abort-family unhandled rejections instead of shutting down", async () => {
+	it("logs unhandled rejections instead of shutting down", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = ["node", "entry.js", "--cwd", cwd];
@@ -338,7 +338,9 @@ describe("hub daemon entry", () => {
 			handlers.set(event, handler);
 			return process;
 		}) as never);
-		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const stderr = vi
+			.spyOn(process.stderr, "write")
+			.mockImplementation(() => true);
 		const exitSpy = vi
 			.spyOn(process, "exit")
 			.mockImplementation(() => undefined as never);
@@ -362,8 +364,19 @@ describe("hub daemon entry", () => {
 		onUnhandledRejection?.(nodeAbort);
 		expect(exitSpy).not.toHaveBeenCalled();
 
-		// Anything else is still fatal.
+		// A rejection that cannot be attributed to a plugin (a plugin's
+		// fire-and-forget fetch rejects from runtime internals with no plugin
+		// frame) is logged, and the daemon keeps serving its sessions.
 		onUnhandledRejection?.(new Error("boom"));
+		expect(exitSpy).not.toHaveBeenCalled();
+		expect(
+			stderr.mock.calls.some(([line]) =>
+				String(line).includes("not attributed to a plugin; continuing"),
+			),
+		).toBe(true);
+
+		// Exceptions stay fatal.
+		handlers.get("uncaughtException")?.(new Error("hub bug"));
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});

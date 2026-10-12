@@ -349,6 +349,31 @@ export function installPluginHostShim(): void {
 	};
 }
 
+let processExitGuardInstalled = false;
+
+/**
+ * Plugins share the host process, so `process.exit()` from plugin code would
+ * end every session on it (the whole Hub). Refuse the call while plugin code
+ * is running and let the throw be recorded as that plugin's failure. Async
+ * context follows the timers and promises a plugin starts, so this also
+ * covers exits from its callbacks. Host code outside a plugin scope exits as
+ * before.
+ */
+function installProcessExitGuard(): void {
+	if (processExitGuardInstalled) return;
+	processExitGuardInstalled = true;
+	const originalExit = process.exit;
+	process.exit = ((code?: number | string | null) => {
+		const scope = pluginCallScope.getStore();
+		if (scope) {
+			throw new Error(
+				`Plugin "${scope.pluginName}" called process.exit(${code ?? ""}); refused because plugins share the host process`,
+			);
+		}
+		return originalExit.call(process, code);
+	}) as typeof process.exit;
+}
+
 function newInstance(
 	extension: AgentExtension | undefined,
 	pluginName: string,
@@ -381,6 +406,7 @@ export class PluginRegistry {
 	private readonly failureThreshold: number;
 
 	constructor(options: PluginRegistryOptions = {}) {
+		installProcessExitGuard();
 		this.logger = options.logger;
 		this.defaults = {
 			import:

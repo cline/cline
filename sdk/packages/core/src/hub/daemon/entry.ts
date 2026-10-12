@@ -285,7 +285,19 @@ async function main(): Promise<void> {
 		if (attributeUncaughtErrorToPlugin("unhandledRejection", reason)) {
 			return;
 		}
-		shutdownFatal("unhandledRejection", reason);
+		// Plugins run in this process, and a rejection they leave behind often
+		// carries no plugin frame (a fire-and-forget fetch rejects from runtime
+		// internals), so it cannot be attributed. Ending the daemon here would
+		// drop every session for one plugin's loose promise; log and keep
+		// serving. Exceptions stay fatal: unlike a rejection, they can leave the
+		// synchronous work that threw half done.
+		const message =
+			reason instanceof Error
+				? (reason.stack ?? reason.message)
+				: String(reason);
+		process.stderr.write(
+			`[hub-daemon] unhandledRejection (not attributed to a plugin; continuing): ${message}\n`,
+		);
 	});
 
 	// A hub being retired can keep the port bound for a couple of seconds

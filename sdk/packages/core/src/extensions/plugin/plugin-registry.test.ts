@@ -821,6 +821,34 @@ export default { name: "stray", manifest: { capabilities: ["tools"] } };
 		expect(globals.__disposedSession).toBe("s1");
 	});
 
+	it("refuses process.exit() from plugin code and records it as that plugin's failure", async () => {
+		const good = await write("good.js", toolPlugin("good"));
+		const exits = await write(
+			"exits-process.js",
+			`export default {
+	name: "exits-process",
+	manifest: { capabilities: ["tools"] },
+	setup() { process.exit(1); },
+};
+`,
+		);
+
+		const loaded = await registry.loadForSession({
+			sessionId: "s1",
+			pluginPaths: [exits, good],
+		});
+		const [exitsExtension, goodExtension] = loaded.extensions;
+		expect((await setUp(exitsExtension)).tools).toEqual([]);
+		expect((await setUp(goodExtension)).tools).toHaveLength(1);
+		expect(registry.get("exits-process")[0]).toMatchObject({
+			state: "failed",
+			lastError: {
+				phase: "setup",
+				message: expect.stringContaining("called process.exit(1)"),
+			},
+		});
+	});
+
 	it("treats a registration the host rejects as a setup failure", async () => {
 		const path = await write(
 			"bad-registration.js",
