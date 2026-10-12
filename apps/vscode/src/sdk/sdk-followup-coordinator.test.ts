@@ -50,10 +50,13 @@ describe("SdkFollowupCoordinator", () => {
 	it.each([
 		{ prompt: "Use this screenshot", images: ["data:image/png;base64,abc"], files: undefined },
 		{ prompt: "Use this file", images: undefined, files: ["/workspace/spec.txt"] },
+		{ prompt: "Use @/spec.txt", images: ["data:image/png;base64,abc"], files: ["/workspace/spec.txt"] },
 		{ prompt: undefined, images: ["data:image/png;base64,abc"], files: ["/workspace/spec.txt"] },
 	])("steers question attachments before resolving the answer: $prompt", async ({ prompt, images, files }) => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
+		const resolvedPrompt = prompt ? `${prompt}\n<file_content path="spec.txt">Implementation details</file_content>` : ""
+		options.resolveContextMentions.mockResolvedValue(resolvedPrompt)
 		const interactions = new SdkInteractionCoordinator({
 			messages: options.messages,
 			getSessionId: () => activeSession.sessionId,
@@ -76,7 +79,8 @@ describe("SdkFollowupCoordinator", () => {
 		await vi.waitFor(() => expect(activeSession.sdkHost.send).toHaveBeenCalledOnce())
 		expect(activeSession.sdkHost.send).toHaveBeenCalledWith({
 			sessionId: activeSession.sessionId,
-			prompt: prompt ? `resolved: ${prompt}` : "",
+			prompt: resolvedPrompt,
+			...(prompt !== undefined ? { displayPrompt: prompt } : {}),
 			userImages: images,
 			userFiles: files,
 			delivery: "steer",
@@ -96,7 +100,8 @@ describe("SdkFollowupCoordinator", () => {
 					delivery: "steer",
 					attachmentCount: (images?.length ?? 0) + (files?.length ?? 0),
 					sessionId: activeSession.sessionId,
-					prompt: prompt ?? "",
+					prompt: resolvedPrompt,
+					displayPrompt: prompt ?? "",
 					userImages: images,
 					userFiles: files,
 				},

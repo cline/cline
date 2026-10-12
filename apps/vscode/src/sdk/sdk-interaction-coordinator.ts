@@ -53,6 +53,7 @@ export interface SdkInteractionCoordinatorOptions {
 
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
+	private claimedAskResponse: { resolve: (answer: string) => void } | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
@@ -243,14 +244,25 @@ export class SdkInteractionCoordinator {
 		files?: string[],
 		deliverAttachments?: (isCurrent: () => boolean) => Promise<void>,
 	): Promise<boolean> {
-		if (!this.pendingAskResolve) {
+		if (!this.pendingAskResolve || this.claimedAskResponse?.resolve === this.pendingAskResolve) {
 			return false
 		}
 
 		const resolve = this.pendingAskResolve
+		// Claim before asynchronous delivery; later submissions use normal follow-up routing.
+		const response = { resolve }
+		this.claimedAskResponse = response
 		const hasAttachments = !!(images?.length || files?.length)
 		if (hasAttachments && deliverAttachments) {
-			await deliverAttachments(() => this.pendingAskResolve === resolve)
+			try {
+				await deliverAttachments(() => this.pendingAskResolve === resolve && this.claimedAskResponse === response)
+			} catch (error) {
+				// Release only this response's claim so the still-pending question can be retried.
+				if (this.claimedAskResponse === response) {
+					this.claimedAskResponse = undefined
+				}
+				throw error
+			}
 			// Cancellation may have settled this question while input was prepared.
 			// Never resolve a replacement question with the old response.
 			if (this.pendingAskResolve !== resolve) {
@@ -258,6 +270,7 @@ export class SdkInteractionCoordinator {
 			}
 		}
 		this.pendingAskResolve = undefined
+		this.claimedAskResponse = undefined
 		const responseText = prompt ?? ""
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
@@ -288,6 +301,7 @@ export class SdkInteractionCoordinator {
 	clearPending(reason: string): void {
 		const resolveAsk = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		this.claimedAskResponse = undefined
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
 		// before session teardown so the run can unwind instead of remaining suspended;
 		// use an empty answer so the lifecycle reason is not presented as user input.

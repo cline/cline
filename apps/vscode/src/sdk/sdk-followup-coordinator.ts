@@ -93,6 +93,7 @@ export class SdkFollowupCoordinator {
 				await activeSession.sdkHost.send({
 					sessionId: activeSession.sessionId,
 					prompt: resolvedPrompt,
+					...(prompt !== undefined ? { displayPrompt: prompt } : {}),
 					userImages: images,
 					userFiles: files,
 					delivery: "steer",
