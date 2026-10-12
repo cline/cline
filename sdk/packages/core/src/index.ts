@@ -947,7 +947,7 @@ export async function loadOpenTelemetryAdapter() {
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
 export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
-export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
+export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,

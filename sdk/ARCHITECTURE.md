@@ -999,18 +999,22 @@ Disconnect/cancel cleanup remains available after access is removed. The Cline
 API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
-envelope. The toolkit catalog contains `items` and `nextToken`; connections and
-tool pages additionally carry `total`. The sidecar fetches every catalog,
-connection, and tool page, including empty pages with continuation tokens, and
-rejects failed, malformed, or cyclic pagination before caching or reconciliation.
-Disabled accounts (`is_disabled`) are excluded. It persists every tool's
-`input_parameters` and pinned version for the core extension. A status refresh
-re-fetches schemas for active connections, including existing nonempty caches;
-ordinary status polling reads local state. New sessions pick up the refreshed
-schemas, while running sessions retain their tool set. The connector dialog
-shows the loaded count and includes a catalog total only when it is known.
-Tool execution sends arguments and the optional version to
-`/tools/{slug}/execute` and retains the provider response body.
+envelope. The sidecar fetches every catalog and connection page, including empty
+pages with continuation tokens, and rejects failed, malformed, or cyclic
+pagination before caching or reconciliation. Disabled accounts (`is_disabled`)
+are excluded. Connection state stores IDs, timestamps, and display metadata;
+connection and status-refresh flows never fetch or persist app tool schemas.
+The connector dialog uses the catalog tool count when known.
+
+At local session bootstrap, core creates a server-owned tool-router session and
+registers only `COMPOSIO_SEARCH_TOOLS`, `COMPOSIO_MANAGE_CONNECTIONS`,
+`COMPOSIO_WAIT_FOR_CONNECTIONS`, and `COMPOSIO_MULTI_EXECUTE_TOOL`. The model
+searches for relevant app tools, receives their schemas in search results, and
+executes them through multi-execute without registering app tools in subsequent
+model requests. The flow works without saved connections and can connect apps
+within the same session. Missing or failed meta-session creation leaves connector
+tools unavailable; saved app schemas never provide a fallback. Execution uses
+`/meta-tools/{slug}/execute` with the session ID and arguments.
 
 Customize > Connectors displays the usage-ranked catalog, with search across
 all loaded apps and installation/connection management in its detail dialog.
@@ -1023,8 +1027,9 @@ Connector metadata and cancellation tombstones live in
 `settings/composio/<sha256-account-id>.json`. Each account has separate
 availability/catalog caches and pending operations. Async management requests
 retain their initiating account and refuse to send with another account's token.
-The core extension loads only the signed-in account's schemas and checks that
-identity again before registration and execution in an existing session.
+The core extension does not read this state file. It scopes meta-session creation
+to the signed-in account and checks identity again before registration and
+execution in an existing session.
 
 `RuntimeOAuthTokenManager` serializes credential reads, refreshes, and saves
 using a SQLite exclusive transaction keyed by provider settings path and storage

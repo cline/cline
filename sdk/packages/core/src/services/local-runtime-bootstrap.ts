@@ -503,10 +503,9 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	// Composio connector tools register in-process from persisted connection
-	// state rather than through a drop-in plugin: compiled hosts (the packaged
-	// desktop app) cannot spawn the plugin sandbox, and every host with the
-	// state file should serve the same tools.
+	// Composio registers only search/connect/execute meta tools in-process,
+	// independently of persisted desktop connections. Compiled hosts cannot
+	// spawn the drop-in plugin sandbox.
 	const composioToolsExtension = await createComposioToolsExtension({
 		request: connectorsRequest,
 		logger: localConfig?.logger,
