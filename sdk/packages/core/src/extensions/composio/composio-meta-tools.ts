@@ -55,11 +55,9 @@ export async function createComposioMetaToolSession(
 	request: ConnectorsRequest,
 	options?: { log?: (message: string) => void },
 ): Promise<ComposioMetaToolSession | undefined> {
-	let response: Response;
-	let body: unknown;
 	let timeout: ReturnType<typeof setTimeout> | undefined;
 	try {
-		const result = await Promise.race([
+		const { response, body } = await Promise.race([
 			request(`${CONNECTORS_API_PATH}/meta-tools/sessions`, {
 				method: "POST",
 				signal: AbortSignal.timeout(META_TOOL_SESSION_TIMEOUT_MS),
@@ -76,25 +74,14 @@ export async function createComposioMetaToolSession(
 				);
 			}),
 		]);
-		response = result.response;
-		body = result.body;
-	} catch (error) {
-		options?.log?.(
-			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
-		return undefined;
-	} finally {
-		clearTimeout(timeout);
-	}
-	if (!response.ok) {
-		if (response.status !== 404) {
-			options?.log?.(
-				`composio-tools: meta-tool session returned HTTP ${response.status}`,
-			);
+		if (!response.ok) {
+			if (response.status !== 404) {
+				options?.log?.(
+					`composio-tools: meta-tool session returned HTTP ${response.status}`,
+				);
+			}
+			return undefined;
 		}
-		return undefined;
-	}
-	try {
 		const parsed = body as {
 			data?: { sessionId?: unknown; tools?: unknown };
 		};
@@ -116,8 +103,13 @@ export async function createComposioMetaToolSession(
 			return undefined;
 		}
 		return { sessionId, tools: metaTools };
-	} catch {
+	} catch (error) {
+		options?.log?.(
+			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 		return undefined;
+	} finally {
+		clearTimeout(timeout);
 	}
 }
 
