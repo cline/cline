@@ -262,6 +262,33 @@ describe("loadClineAccountSnapshot", () => {
 			expect.any(Object),
 		);
 	});
+
+	it("links to the web app's privacy settings in the configured environment", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		const { getClineEnvironmentConfig } = await import("@cline/shared");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "harrison@cline.bot",
+			displayName: "Harrison",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		const appOrigin = new URL(getClineEnvironmentConfig().appBaseUrl).origin;
+		expect(snapshot.privacySettingsUrl).toBe(
+			`${appOrigin}/dashboard/account?tab=privacy&client=cli`,
+		);
+	});
 });
 
 describe("loadIndividualSubscriptionPlans", () => {
