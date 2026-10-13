@@ -33,6 +33,7 @@ function AuthStateProbe() {
 	return (
 		<>
 			<div data-testid="user-state">{clineUser?.uid ?? "signed-out"}</div>
+			<div data-testid="privacy-path-state">{clineUser?.dataPrivacyPath ?? "none"}</div>
 			<div data-testid="organizations-state">
 				{organizations?.map((organization) => organization.organizationId).join(",") ?? "none"}
 			</div>
@@ -80,5 +81,27 @@ describe("ClineAuthProvider", () => {
 
 		expect(screen.getByTestId("user-state")).toHaveTextContent("signed-out")
 		expect(screen.getByTestId("organizations-state")).toHaveTextContent("none")
+	})
+
+	it("picks up a privacy path that appears for the same signed-in user", () => {
+		grpcMocks.getUserOrganizations.mockResolvedValue({ organizations: [] })
+
+		render(
+			<ClineAuthProvider>
+				<AuthStateProbe />
+			</ClineAuthProvider>,
+		)
+
+		act(() => {
+			grpcMocks.authStatusCallbacks?.onResponse({ user: { uid: "user-1" } })
+		})
+		expect(screen.getByTestId("privacy-path-state")).toHaveTextContent("none")
+
+		act(() => {
+			grpcMocks.authStatusCallbacks?.onResponse({
+				user: { uid: "user-1", dataPrivacyPath: "/dashboard/account?tab=privacy" },
+			})
+		})
+		expect(screen.getByTestId("privacy-path-state")).toHaveTextContent("/dashboard/account?tab=privacy")
 	})
 })
