@@ -782,9 +782,11 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
 ### Desktop Feature Factory
 
 Factory cards reuse Agenda tasks, revision approvals, task files, and SQLite run
-records. `task.factory.design` links a plan-mode design session to the card.
-After a Hub restart, reopening design preserves the transcript in a new session
-with the canonical read-only tool policy.
+records. `task.factory.design` runs the existing plan-mode session harness with
+attached documents and Q&A. Its structured brief and checks become a new task
+revision requiring approval. Concurrent edits take precedence over a stale
+design result. After a Hub restart, reopening design preserves the transcript
+in a new session with the canonical read-only tool policy.
 `task.factory.start` explicitly queues approved revisions for sequential local
 execution. Factory tasks do not enter the Agenda automation pump. Queued starts
 are kept in memory; restarting the Hub requires starting the queue again.
@@ -802,6 +804,21 @@ runs auto-approve tools; reviewer and designer sessions enable only read-only
 tools and questions. A worktree isolates changes, not process permissions. Cloud execution is rejected explicitly
 until a cloud executor is available. Draft PR publication is a separate opt-in
 and defaults off; otherwise the result stays on the task-owned local branch.
+
+Opt-in PR follow-up uses the manager's maintenance timer and the same read-only
+reviewer, builder, checks, and repair budget. Run records persist handled feedback
+and pending repair/publication so publication retries do not repeat a verified
+repair or reply. Paused repairs resume within the same repair round; failed
+attempts consume the remaining budget. Publication uses append-only pushes. Pausing stops active follow-up;
+closed or merged PRs leave the watch queue. Feedback from repository owners,
+members, collaborators, review bots, and CI can trigger triage. Outside-contributor
+requests require confirmation in a new maintainer comment. Decisions that need a
+human pause follow-up until the user clarifies in a new comment and resumes.
+The desktop surfaces pending questions
+and blocked or ready work through Needs you, and renders the recorded candidate's
+committed diff with the existing diff viewer. Issue imports use existing GitHub
+CLI auth or Linear connector environment credentials; task creation deduplicates
+immutable issue IDs within a workspace.
 
 ## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
 

@@ -30,7 +30,7 @@ function key(value: string): string {
 	return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
-async function command(input: {
+export async function runFactoryCommand(input: {
 	cwd: string;
 	file: string;
 	args: string[];
@@ -116,7 +116,7 @@ async function git(input: {
 	signal?: AbortSignal;
 	maxBytes?: number;
 }): Promise<string> {
-	const result = await command({ ...input, file: "git" });
+	const result = await runFactoryCommand({ ...input, file: "git" });
 	if (result.exitCode !== 0 || result.timedOut)
 		throw new Error(`Git ${input.args[0]} failed: ${result.output}`);
 	if (result.truncated)
@@ -126,7 +126,7 @@ async function git(input: {
 	return result.output.trim();
 }
 
-async function assertOwnedWorkspace(
+export async function assertOwnedWorkspace(
 	workspace: FactoryWorkspace,
 	signal?: AbortSignal,
 ): Promise<void> {
@@ -195,7 +195,7 @@ export async function prepareFactoryWorkspace(input: {
 	} catch (error) {
 		if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
 			throw error;
-		const branch = await command({
+		const branch = await runFactoryCommand({
 			cwd: sourceRoot,
 			file: "git",
 			args: [
@@ -418,7 +418,7 @@ export async function verifyFactoryChecks(input: {
 				artifactVersion(path.resolve(input.workspace.path, file)),
 			),
 		);
-		const run = await command({
+		const run = await runFactoryCommand({
 			cwd: input.workspace.path,
 			file: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
 			args:
@@ -469,7 +469,7 @@ export async function publishFactoryPullRequest(input: {
 	await assertFactoryCandidate(input);
 	const cwd = input.workspace.path;
 	const existing = async () => {
-		const result = await command({
+		const result = await runFactoryCommand({
 			cwd,
 			file: "gh",
 			args: [
@@ -510,7 +510,7 @@ export async function publishFactoryPullRequest(input: {
 	try {
 		const bodyFile = path.join(temp, "body.txt");
 		await writeFile(bodyFile, input.body);
-		await command({
+		await runFactoryCommand({
 			cwd,
 			file: "gh",
 			args: [

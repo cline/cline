@@ -40,6 +40,11 @@ export interface AgendaTaskManagerApi {
 		requestedByClientId?: string,
 	): Promise<{ sessionId: string }>;
 	getTaskRuns?(taskId: string): AgendaTaskRunRecord[];
+	setFactoryWatch?(
+		taskId: string,
+		enabled: boolean,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord>;
 	startFactoryQueue?(
 		entries: Array<{ taskId: string; expectedRevision: number }>,
 		actor: AgendaTaskActor,

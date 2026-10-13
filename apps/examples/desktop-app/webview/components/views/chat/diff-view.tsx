@@ -24,6 +24,7 @@ type DiffViewProps = {
 	fileDiffs: SessionFileDiff[];
 	cwd?: string;
 	onClose: () => void;
+	title?: string;
 };
 
 type EditorOption = {
@@ -36,6 +37,7 @@ export function DiffView({
 	fileDiffs,
 	cwd,
 	onClose,
+	title = "Uncommitted changes",
 }: DiffViewProps) {
 	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 	const [editors, setEditors] = useState<EditorOption[]>([]);
@@ -58,7 +60,7 @@ export function DiffView({
 
 	return (
 		<AgentChangesPanel
-			title="Uncommitted changes"
+			title={title}
 			fileCount={fileDiffs.length}
 			onClose={onClose}
 			renderScroll={(content) => (

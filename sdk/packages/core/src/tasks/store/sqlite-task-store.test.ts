@@ -55,6 +55,42 @@ describe("SqliteAgendaTaskStore", () => {
 		};
 	}
 
+	it("finds an imported issue by exact workspace and identity beyond list limits", () => {
+		const source = {
+			provider: "github" as const,
+			id: "I_source",
+			url: "https://github.com/example/repo/issues/1",
+		};
+		const factory = factoryTaskConfigSchema.parse({ sourceIssue: source });
+		store.createTask({
+			...createInput("global"),
+			scope: "global",
+			workspaceRoot: undefined,
+			resourcePaths: [],
+			factory,
+		});
+		store.createTask({ ...createInput("target", 5), factory });
+		for (let i = 0; i < 1001; i++)
+			store.createTask(createInput(`unrelated_${i}`, 0));
+		expect(
+			store.findTaskBySourceIssue({
+				scope: "workspace",
+				workspaceRoot: WORKSPACE_ROOT,
+				source,
+			})?.taskId,
+		).toBe("target");
+		expect(
+			store.findTaskBySourceIssue({
+				scope: "workspace",
+				workspaceRoot: OTHER_WORKSPACE_ROOT,
+				source,
+			}),
+		).toBeUndefined();
+		expect(
+			store.findTaskBySourceIssue({ scope: "global", source })?.taskId,
+		).toBe("global");
+	});
+
 	it("creates, reads, updates, and deletes a task", () => {
 		const created = store.createTask(createInput("task_crud", 2));
 		expect(created).toMatchObject({

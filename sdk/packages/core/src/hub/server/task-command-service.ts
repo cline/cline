@@ -25,6 +25,7 @@ const TASK_COMMANDS = new Set<HubCommandName>([
 	"task.factory.start",
 	"task.factory.stop",
 	"task.factory.design",
+	"task.factory.watch",
 	"task.automation.get",
 	"task.automation.set",
 ]);
@@ -180,6 +181,19 @@ export class HubAgendaTaskCommandService {
 							envelope.clientId,
 						),
 					);
+				}
+				case "task.factory.watch": {
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.setFactoryWatch)
+						throw new Error("PR follow-up is unavailable");
+					const enabled = z.boolean().parse(payload.enabled);
+					return okReply(envelope, {
+						task: await this.tasks.setFactoryWatch(
+							taskIdOf(payload),
+							enabled,
+							requiredRevision(payload),
+						),
+					});
 				}
 				case "task.factory.start": {
 					const entries = z

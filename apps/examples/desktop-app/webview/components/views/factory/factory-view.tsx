@@ -1,6 +1,6 @@
 "use client";
 
-import type { AgendaTaskRecord } from "@cline/shared";
+import type { AgendaTaskRecord, FactoryTaskConfig } from "@cline/shared";
 import {
 	CheckCircle2,
 	Columns3,
@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { useFactoryAttention } from "@/hooks/use-factory-attention";
 import { desktopClient } from "@/lib/desktop-client";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { DEFAULT_FACTORY, FeatureDetail } from "./factory-detail";
@@ -64,6 +65,13 @@ export function FactoryView({
 		limit: 200,
 	});
 	const tasks = agenda.tasks.filter((task) => task.factory);
+	const attention = useFactoryAttention();
+	const [needsYouOnly, setNeedsYouOnly] = useState(false);
+	const needsYou = (task: AgendaTaskRecord) =>
+		attention.items.some(
+			(item) => item.taskId === task.taskId && item.needsAttention,
+		);
+	const attentionCount = tasks.filter(needsYou).length;
 	const [selectedId, setSelectedId] = useState<string | null>(() =>
 		typeof window === "undefined"
 			? null
@@ -163,13 +171,22 @@ export function FactoryView({
 				<span>{running} running</span>
 				<span>·</span>
 				<span>Draft PRs require opt-in</span>
+				<Button
+					variant={needsYouOnly ? "secondary" : "ghost"}
+					size="sm"
+					className="ml-auto"
+					aria-pressed={needsYouOnly}
+					onClick={() => setNeedsYouOnly((current) => !current)}
+				>
+					Needs you ({attentionCount})
+				</Button>
 			</div>
-			{error || agenda.error ? (
+			{error || agenda.error || attention.error ? (
 				<p
 					role="alert"
 					className="mx-6 mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
 				>
-					{error || agenda.error}
+					{error || agenda.error || attention.error}
 				</p>
 			) : null}
 			{message ? (
@@ -186,7 +203,9 @@ export function FactoryView({
 				<div className="grid min-h-80 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
 					{COLUMNS.map((column) => {
 						const items = tasks.filter(
-							(task) => factoryColumn(task) === column,
+							(task) =>
+								factoryColumn(task) === column &&
+								(!needsYouOnly || needsYou(task)),
 						);
 						return (
 							<section
@@ -215,8 +234,7 @@ export function FactoryView({
 														.filter(Boolean)
 														.pop() || "Repository"}
 												</span>
-												{task.status === "pending_approval" ||
-												task.status === "failed" ? (
+												{needsYou(task) ? (
 													<span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600 dark:text-amber-400">
 														Needs you
 													</span>
@@ -270,7 +288,16 @@ export function FactoryView({
 					</DialogHeader>
 					<NewFeature
 						workspacePaths={workspacePaths}
-						onCreate={async ({ title, request, workspaceRoot }) => {
+						onExisting={(taskId) => {
+							setCreating(false);
+							selectTask(taskId);
+						}}
+						onCreate={async ({
+							title,
+							request,
+							workspaceRoot,
+							sourceIssue,
+						}) => {
 							const model = getInitialChatConfig(
 								LOCAL_WORKSPACE_ENVIRONMENT_ID,
 								{ executionTarget: "local" },
@@ -284,7 +311,7 @@ export function FactoryView({
 								allWorkspaces: true,
 								workspaceRoot,
 								cwd: workspaceRoot,
-								factory: DEFAULT_FACTORY,
+								factory: { ...DEFAULT_FACTORY, sourceIssue },
 								modelSelection: {
 									providerId: model.provider,
 									modelId: model.model,
@@ -311,6 +338,11 @@ export function FactoryView({
 							task={selected}
 							onRefresh={agenda.refresh}
 							onOpenSession={onOpenSession}
+							questions={
+								attention.items.find((item) => item.taskId === selected.taskId)
+									?.questions ?? []
+							}
+							onAnswer={attention.answer}
 						/>
 					) : (
 						<DialogTitle>Feature</DialogTitle>
@@ -324,12 +356,15 @@ export function FactoryView({
 function NewFeature({
 	workspacePaths,
 	onCreate,
+	onExisting,
 }: {
 	workspacePaths: string[];
+	onExisting: (taskId: string) => void;
 	onCreate: (input: {
 		title: string;
 		request: string;
 		workspaceRoot: string;
+		sourceIssue?: FactoryTaskConfig["sourceIssue"];
 	}) => Promise<void>;
 }) {
 	const [title, setTitle] = useState("");
@@ -337,6 +372,9 @@ function NewFeature({
 	const [workspaceRoot, setWorkspaceRoot] = useState(workspacePaths[0] || "");
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [issueUrl, setIssueUrl] = useState("");
+	const [sourceIssue, setSourceIssue] =
+		useState<FactoryTaskConfig["sourceIssue"]>();
 	return (
 		<form
 			className="space-y-5"
@@ -348,6 +386,7 @@ function NewFeature({
 					title: title.trim(),
 					request: request.trim(),
 					workspaceRoot: workspaceRoot.trim(),
+					sourceIssue,
 				})
 					.catch((cause: unknown) =>
 						setError(
@@ -359,6 +398,71 @@ function NewFeature({
 					.finally(() => setBusy(false));
 			}}
 		>
+			<div className="space-y-2 rounded-lg border p-3">
+				<label className={labelClass} htmlFor="feature-issue">
+					Start from a GitHub or Linear issue
+				</label>
+				<div className="flex gap-2">
+					<Input
+						id="feature-issue"
+						type="url"
+						placeholder="Paste issue URL"
+						value={issueUrl}
+						disabled={busy}
+						onChange={(event) => {
+							setIssueUrl(event.target.value);
+							setSourceIssue(undefined);
+						}}
+					/>
+					<Button
+						type="button"
+						variant="outline"
+						disabled={busy || !issueUrl.trim() || !workspaceRoot.trim()}
+						onClick={() => {
+							setBusy(true);
+							setError(null);
+							void desktopClient
+								.invoke<{
+									title: string;
+									description: string;
+									source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
+									existingTaskId?: string;
+								}>("factory_import_issue", {
+									url: issueUrl.trim(),
+									cwd: workspaceRoot.trim(),
+								})
+								.then((issue) => {
+									if (issue.existingTaskId) {
+										onExisting(issue.existingTaskId);
+										return;
+									}
+									setTitle(issue.title);
+									setRequest(issue.description);
+									setSourceIssue(issue.source);
+								})
+								.catch((cause: unknown) =>
+									setError(
+										cause instanceof Error
+											? cause.message
+											: "Unable to import issue.",
+									),
+								)
+								.finally(() => setBusy(false));
+						}}
+					>
+						Import
+					</Button>
+				</div>
+				<p className="text-xs text-muted-foreground">
+					Choose the repository below, then import with your existing
+					connection. You can edit the request before creating it.
+				</p>
+				{sourceIssue ? (
+					<output className="block text-xs text-emerald-600">
+						Issue imported. Its source link will stay with the feature.
+					</output>
+				) : null}
+			</div>
 			<label className={labelClass} htmlFor="feature-name">
 				Feature name
 				<Input

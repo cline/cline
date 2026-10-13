@@ -11,6 +11,7 @@ import type {
 	AgendaTaskStatus,
 	AgendaTaskUpdateInput,
 	FactoryRunState,
+	FactoryTaskConfig,
 	GatewayModelSelection,
 } from "@cline/shared";
 import { factoryRunStateSchema, factoryTaskConfigSchema } from "@cline/shared";
@@ -332,6 +333,25 @@ export class SqliteAgendaTaskStore {
 		const row = this.db
 			.prepare("SELECT * FROM agenda_tasks WHERE task_id = ?")
 			.get(taskId);
+		return row ? taskRowToRecord(row) : undefined;
+	}
+
+	public findTaskBySourceIssue(input: {
+		scope: AgendaTaskRecord["scope"];
+		workspaceRoot?: string;
+		source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
+	}): AgendaTaskRecord | undefined {
+		const row = this.db
+			.prepare(`SELECT * FROM agenda_tasks
+			WHERE scope = ? AND workspace_root IS ?
+			AND json_extract(factory_json, '$.sourceIssue.provider') = ?
+			AND json_extract(factory_json, '$.sourceIssue.id') = ? LIMIT 1`)
+			.get(
+				input.scope,
+				input.workspaceRoot ?? null,
+				input.source.provider,
+				input.source.id,
+			);
 		return row ? taskRowToRecord(row) : undefined;
 	}
 

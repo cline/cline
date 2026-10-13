@@ -132,6 +132,7 @@ import {
 } from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
 import { readFactoryArtifact } from "./factory-artifacts";
+import { handleFactoryCommand } from "./factory-commands";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
@@ -1402,6 +1403,7 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.factory.start",
 	"task.factory.stop",
 	"task.factory.design",
+	"task.factory.watch",
 	"task.automation.get",
 	"task.automation.set",
 ]);
@@ -1410,6 +1412,7 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.factory.start",
 	"task.factory.stop",
 	"task.factory.design",
+	"task.factory.watch",
 	"task.create",
 	"task.approve",
 	"task.cancel",
@@ -3552,6 +3555,18 @@ export async function handleCommand(
 		command === "delete_routine_schedule"
 	) {
 		return await handleRoutineScheduleCommand(ctx, command, args);
+	}
+
+	if (
+		command === "factory_import_issue" ||
+		command === "factory_attention" ||
+		command === "factory_get_diff"
+	) {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Feature access requires a trusted desktop connection.");
+		return handleFactoryCommand(ctx, command, args, (taskCommand, taskArgs) =>
+			handleAgendaTaskCommand(ctx, taskCommand, taskArgs),
+		);
 	}
 
 	if (command === "factory_read_artifact") {

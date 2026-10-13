@@ -126,7 +126,18 @@ describe("Hub agenda task vertical slice", () => {
 									summary: "Reviewed behavior and maintainability.",
 									findings: [],
 								})
-							: "Implemented",
+							: capturedStart.sessionMetadata.factoryRole === "designer"
+								? JSON.stringify({
+										instructions: "Acceptance: feature.txt contains after.",
+										checks: [
+											{
+												name: "Feature route",
+												kind: "api",
+												command: `node -e "if(require('fs').readFileSync('feature.txt','utf8').trim()!=='after')process.exit(1)"`,
+											},
+										],
+									})
+								: "Implemented",
 					usage: { inputTokens: 1, outputTokens: 1 },
 					iterations: 1,
 					finishReason: "completed" as const,
@@ -542,96 +553,20 @@ describe("Hub agenda task vertical slice", () => {
 					(input) => input.sessionMetadata?.factoryRole === "designer",
 				),
 			).toHaveLength(1);
-			const factoryApproved = await transport.handleCommand({
-				version: "v1",
-				command: "task.approve",
-				clientId: "desktop",
-				payload: {
-					taskId: featureTask.taskId,
-					expectedRevision: featureTask.revision,
-				},
-			});
-			expect(factoryApproved.ok).toBe(true);
-			const factoryRun = await transport.handleCommand({
-				version: "v1",
-				command: "task.run",
-				clientId: "desktop",
-				payload: {
-					taskId: featureTask.taskId,
-					expectedRevision: featureTask.revision,
-				},
-			});
-			expect(factoryRun.ok).toBe(true);
-			await vi.waitFor(
-				async () => {
-					const current = await transport.handleCommand({
-						version: "v1",
-						command: "task.get",
-						clientId: "desktop",
-						payload: { taskId: featureTask.taskId },
-					});
-					expect(current.payload?.task).toMatchObject({
-						status: "completed",
-						originSessionId: design.payload?.sessionId,
-					});
-					expect(current.payload?.runs).toEqual([
-						expect.objectContaining({
-							factory: expect.objectContaining({
-								phase: "ready",
-								checks: [expect.objectContaining({ status: "passed" })],
-							}),
-						}),
-					]);
-				},
-				{ timeout: 15000 },
-			);
-			const featureStarts = capturedStarts.filter(
-				(input) => input.sessionMetadata?.factoryTaskId === featureTask.taskId,
-			);
-			expect(
-				featureStarts.map((input) => input.sessionMetadata?.factoryRole),
-			).toEqual(["designer", "builder", "reviewer"]);
-			for (const input of featureStarts) {
-				expect(input.sessionMetadata).toMatchObject({
-					agendaTaskId: featureTask.taskId,
-					factoryTaskId: featureTask.taskId,
+			await vi.waitFor(async () => {
+				const current = await transport.handleCommand({
+					version: "v1",
+					command: "task.get",
+					clientId: "desktop",
+					payload: { taskId: featureTask.taskId },
 				});
-				expect(input.config).toMatchObject({
-					enableSpawnAgent: false,
-					enableAgentTeams: false,
-				});
-			}
-			const [designer, builder, reviewer] = featureStarts;
-			expect(designer?.config).toMatchObject({
-				mode: "plan",
-				workspaceRoot: canonicalChatWorkspace,
+				const task = z
+					.object({ revision: z.number(), status: z.string() })
+					.parse(current.payload?.task);
+				expect(task.revision).toBe(2);
+				expect(task.status).toBe("pending_approval");
+				featureTask.revision = task.revision;
 			});
-			expect(designer?.toolPolicies).toMatchObject({
-				"*": { enabled: false, autoApprove: false },
-				read_files: { enabled: true, autoApprove: true },
-			});
-			expect(builder?.config.cwd).not.toBe(canonicalChatWorkspace);
-			expect(builder?.toolPolicies).toMatchObject({
-				"*": { enabled: true, autoApprove: true },
-			});
-			expect(reviewer?.config.cwd).toBe(builder?.config.cwd);
-			expect(reviewer?.toolPolicies).toMatchObject({
-				"*": { enabled: false },
-				read_files: { enabled: true },
-				search_codebase: { enabled: true },
-			});
-			for (const tool of [
-				"run_commands",
-				"apply_patch",
-				"editor",
-				"custom_write_tool",
-			]) {
-				expect(
-					reviewer?.toolPolicies?.[tool]?.enabled ??
-						reviewer?.toolPolicies?.["*"]?.enabled,
-				).toBe(false);
-			}
-			expect(capturedStarts[0]?.sessionMetadata?.factoryTaskId).toBeUndefined();
 			const priorDesignerId = z.string().parse(design.payload?.sessionId);
 			const transcript = [
 				{ role: "user" as const, content: "Keep the accepted feature scope." },
@@ -673,6 +608,110 @@ describe("Hub agenda task vertical slice", () => {
 			expect(resumedTask.payload?.task).toMatchObject({
 				originSessionId: resumed.payload?.sessionId,
 			});
+			await vi.waitFor(async () => {
+				const current = await transport.handleCommand({
+					version: "v1",
+					command: "task.get",
+					clientId: "desktop",
+					payload: { taskId: featureTask.taskId },
+				});
+				const task = z
+					.object({ revision: z.number(), status: z.string() })
+					.parse(current.payload?.task);
+				expect(task.revision).toBe(3);
+				expect(task.status).toBe("pending_approval");
+				featureTask.revision = task.revision;
+			});
+			const factoryApproved = await transport.handleCommand({
+				version: "v1",
+				command: "task.approve",
+				clientId: "desktop",
+				payload: {
+					taskId: featureTask.taskId,
+					expectedRevision: featureTask.revision,
+				},
+			});
+			expect(factoryApproved.ok).toBe(true);
+			const factoryRun = await transport.handleCommand({
+				version: "v1",
+				command: "task.run",
+				clientId: "desktop",
+				payload: {
+					taskId: featureTask.taskId,
+					expectedRevision: featureTask.revision,
+				},
+			});
+			expect(factoryRun.ok).toBe(true);
+			await vi.waitFor(
+				async () => {
+					const current = await transport.handleCommand({
+						version: "v1",
+						command: "task.get",
+						clientId: "desktop",
+						payload: { taskId: featureTask.taskId },
+					});
+					expect(current.payload?.task).toMatchObject({
+						status: "completed",
+						originSessionId: resumed.payload?.sessionId,
+					});
+					expect(current.payload?.runs).toEqual([
+						expect.objectContaining({
+							factory: expect.objectContaining({
+								phase: "ready",
+								checks: [expect.objectContaining({ status: "passed" })],
+							}),
+						}),
+					]);
+				},
+				{ timeout: 15000 },
+			);
+			const featureStarts = capturedStarts.filter(
+				(input) => input.sessionMetadata?.factoryTaskId === featureTask.taskId,
+			);
+			expect(
+				featureStarts.map((input) => input.sessionMetadata?.factoryRole),
+			).toEqual(["designer", "designer", "builder", "reviewer"]);
+			for (const input of featureStarts) {
+				expect(input.sessionMetadata).toMatchObject({
+					agendaTaskId: featureTask.taskId,
+					factoryTaskId: featureTask.taskId,
+				});
+				expect(input.config).toMatchObject({
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				});
+			}
+			const [designer, , builder, reviewer] = featureStarts;
+			expect(designer?.config).toMatchObject({
+				mode: "plan",
+				workspaceRoot: canonicalChatWorkspace,
+			});
+			expect(designer?.toolPolicies).toMatchObject({
+				"*": { enabled: false, autoApprove: false },
+				read_files: { enabled: true, autoApprove: true },
+			});
+			expect(builder?.config.cwd).not.toBe(canonicalChatWorkspace);
+			expect(builder?.toolPolicies).toMatchObject({
+				"*": { enabled: true, autoApprove: true },
+			});
+			expect(reviewer?.config.cwd).toBe(builder?.config.cwd);
+			expect(reviewer?.toolPolicies).toMatchObject({
+				"*": { enabled: false },
+				read_files: { enabled: true },
+				search_codebase: { enabled: true },
+			});
+			for (const tool of [
+				"run_commands",
+				"apply_patch",
+				"editor",
+				"custom_write_tool",
+			]) {
+				expect(
+					reviewer?.toolPolicies?.[tool]?.enabled ??
+						reviewer?.toolPolicies?.["*"]?.enabled,
+				).toBe(false);
+			}
+			expect(capturedStarts[0]?.sessionMetadata?.factoryTaskId).toBeUndefined();
 		} finally {
 			await transport.stop();
 		}

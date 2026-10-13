@@ -11,7 +11,7 @@ type RunCommand = (
 	args: string[],
 	cwd: string,
 ) => Promise<string>;
-const runCommand: RunCommand = async (file, args, cwd) => {
+export const runCommand: RunCommand = async (file, args, cwd) => {
 	const { stdout } = await execFileAsync(file, args, {
 		cwd,
 		encoding: "utf8",

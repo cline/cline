@@ -37,6 +37,7 @@ export type HubCapabilityName =
 	| "task.factory.start"
 	| "task.factory.stop"
 	| "task.factory.design"
+	| "task.factory.watch"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.get"
@@ -70,6 +71,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.start",
 	"task.factory.stop",
 	"task.factory.design",
+	"task.factory.watch",
 	"task.automation.get",
 	"task.automation.set",
 	"settings.get",
@@ -512,6 +514,7 @@ export interface HubCommandInputMap {
 	};
 	"task.factory.stop": { allWorkspaces?: boolean };
 	"task.factory.design": HubTaskIdInput;
+	"task.factory.watch": HubTaskRevisionInput & { enabled: boolean };
 	"task.automation.get": Record<string, never>;
 	"task.automation.set": HubTaskAutomationSetInput;
 }
@@ -529,6 +532,7 @@ export interface HubCommandOutputMap {
 	"task.factory.start": { queued: number };
 	"task.factory.stop": { stopped: boolean };
 	"task.factory.design": { sessionId: string };
+	"task.factory.watch": { task: AgendaTaskRecord };
 	"task.automation.get": { policy: AgendaAutomationPolicy };
 	"task.automation.set": { policy: AgendaAutomationPolicy };
 }
@@ -608,6 +612,7 @@ export type HubCommandName =
 	| "task.factory.start"
 	| "task.factory.stop"
 	| "task.factory.design"
+	| "task.factory.watch"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.list"

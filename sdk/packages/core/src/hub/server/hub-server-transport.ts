@@ -371,7 +371,7 @@ export class HubServerTransport implements NativeHubTransport {
 							...task,
 							mode: "plan",
 							systemPrompt:
-								"Help refine this feature request through a concise adversarial design interview. Ask the most important unresolved questions, recommend defaults, and agree on scope, exclusions, acceptance criteria, affected clients and concrete verification commands. Reuse existing code and challenge unnecessary complexity. Do not implement or publish changes. The user must explicitly save the agreed brief and checks in the feature task before execution.",
+								"Read the repository and reference documents, then refine the feature through a concise adversarial design interview. Use ask_question for unresolved decisions and recommend defaults. Agree on scope, exclusions, acceptance criteria, affected clients and concrete verification commands. Reuse existing code and challenge unnecessary complexity. Do not implement or publish changes. Return the structured brief requested by the caller for the user's approval.",
 						},
 						undefined,
 						requestedByClientId,
@@ -379,6 +379,8 @@ export class HubServerTransport implements NativeHubTransport {
 						"designer",
 					);
 				},
+				runDesignSession: (sessionId, task, requestedByClientId) =>
+					this.runAgendaTaskSession(sessionId, task, { requestedByClientId }),
 				startSession: (task, run, requestedByClientId, runtimeOptions) =>
 					this.startAgendaTaskSession(
 						task,
@@ -624,7 +626,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private async runAgendaTaskSession(
 		sessionId: string,
 		task: AgendaTaskRecord,
-		run: AgendaTaskRunRecord,
+		run: Pick<AgendaTaskRunRecord, "requestedByClientId">,
 	): Promise<AgendaTaskRuntimeResult> {
 		const resources = task.resourcePaths.length
 			? `\n\nRelevant resources (paths are relative to workspace root ${task.workspaceRoot}):\n${task.resourcePaths
@@ -637,7 +639,7 @@ export class HubServerTransport implements NativeHubTransport {
 		const assignment = task.assignee
 			? `\nAssigned agent: ${task.assignee}. If a configured agent or subagent with this name is available, delegate the work to it and oversee completion; otherwise execute it directly and mention the fallback in the summary.`
 			: "";
-		const prompt = `Execute this approved agenda task.\n\nTitle: ${task.title}\nType: ${task.type}\nPriority: P${task.priority}${assignment}\n\n${task.instructions}${resources}`;
+		const prompt = `${task.factory && task.mode === "plan" ? "Design this feature. Implementation has not been approved." : "Execute this approved agenda task."}\n\nTitle: ${task.title}\nType: ${task.type}\nPriority: P${task.priority}${assignment}\n\n${task.instructions}${resources}`;
 		const reply = await handleSessionInput(this.ctx, {
 			version: "v1",
 			command: "run.start",

@@ -13,6 +13,23 @@ export const factoryTaskConfigSchema = z.object({
 	maxRepairRounds: z.number().int().min(0).max(10).default(2),
 	checks: z.array(factoryCheckSchema).max(20).default([]),
 	publishPullRequest: z.boolean().default(false),
+	watchPullRequest: z.boolean().optional(),
+	documents: z
+		.array(
+			z.object({
+				name: z.string().trim().min(1).max(200),
+				content: z.string().max(100_000),
+			}),
+		)
+		.max(10)
+		.optional(),
+	sourceIssue: z
+		.object({
+			provider: z.enum(["github", "linear"]),
+			id: z.string().min(1).max(500),
+			url: z.string().url(),
+		})
+		.optional(),
 });
 
 export type FactoryTaskConfig = z.infer<typeof factoryTaskConfigSchema>;
@@ -61,6 +78,7 @@ export const factoryRunStateSchema = z.object({
 		"publishing",
 		"ready",
 		"blocked",
+		"watching",
 	]),
 	repairRound: z.number().int().nonnegative(),
 	workspace: factoryWorkspaceSchema,
@@ -71,6 +89,20 @@ export const factoryRunStateSchema = z.object({
 	checks: z.array(factoryCheckResultSchema),
 	review: factoryReviewSchema.optional(),
 	pullRequestUrl: z.string().optional(),
+	pullRequestWatch: z
+		.object({
+			headCommit: z.string(),
+			paused: z.boolean().optional(),
+			handledFeedbackIds: z.array(z.string()),
+			pending: z
+				.object({
+					feedbackIds: z.array(z.string()),
+					instructions: z.string(),
+					phase: z.enum(["repair", "publish", "blocked"]),
+				})
+				.optional(),
+		})
+		.optional(),
 	error: z.string().optional(),
 });
 export type FactoryRunState = z.infer<typeof factoryRunStateSchema>;
