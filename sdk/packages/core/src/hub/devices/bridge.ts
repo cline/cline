@@ -346,8 +346,8 @@ export class DeviceBridge {
 		context?: DeviceContext,
 	) {
 		text = text.trim();
-		const cloud = /^cloud\s+session(?=$|[\s:,.!?])/i.test(text);
-		if (cloud) text = text.replace(/^cloud\s+session[\s:,.!?]*/i, "").trim();
+		const cloud = text.toLowerCase().startsWith("cloud session");
+		if (cloud) text = text.replace(/^cloud sessions?[\s:,.!?]*/i, "").trim();
 		if (!text) throw new Error('Use "cloud session" followed by your task');
 		const session =
 			cloud || forceNew

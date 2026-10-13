@@ -311,7 +311,7 @@ describe("DeviceBridge", () => {
 		expect(await next((m) => m.t === "prompt" && m.id === "3")).toMatchObject({
 			target: "new",
 		});
-		send({ t: "prompt", id: "4", text: "cloud session: build it" });
+		send({ t: "prompt", id: "4", text: "cloud sessions: build it" });
 		expect(await next((m) => m.t === "prompt" && m.id === "4")).toMatchObject({
 			target: "cloud",
 			session: "ses-cloud",
@@ -518,10 +518,17 @@ describe("DeviceBridge", () => {
 		expect(hub.calls).toEqual(["start:write the changelog@/code/app"]);
 	});
 
-	it("routes a cloud session prefix to a new cloud task even while local work runs", async () => {
-		const { hub, pair, next, send, ws } = await setup(
-			"Cloud session: fix the build",
-		);
+	it.each([
+		{ speech: "Cloud session: fix the build", prompt: "fix the build" },
+		{
+			speech: "Cloud sessions, uh, update the built-in model list.",
+			prompt: "uh, update the built-in model list.",
+		},
+	])("routes '$speech' to cloud even while local work runs", async ({
+		speech,
+		prompt,
+	}) => {
+		const { hub, pair, next, send, ws } = await setup(speech);
 		await pair();
 		hub.emit("session.created", "s1", {
 			session: { workspaceRoot: "/code/app" },
@@ -532,12 +539,43 @@ describe("DeviceBridge", () => {
 		send({ t: "voice_end" });
 		expect(
 			await next((m) => m.t === "voice" && m.status === "transcribed"),
-		).toMatchObject({ target: "cloud", text: "fix the build" });
+		).toMatchObject({ target: "cloud", text: prompt });
 		send({ t: "voice_confirm" });
 		expect(
 			await next((m) => m.t === "voice" && m.status === "submitted"),
 		).toMatchObject({ target: "cloud", session: "ses-cloud" });
-		expect(hub.calls).toEqual(["cloud:fix the build@/code/app"]);
+		expect(hub.calls).toEqual([`cloud:${prompt}@/code/app`]);
+	});
+
+	it.each([
+		{ text: "CLOUD SESSION: Update Models", task: "Update Models" },
+		{
+			text: "cloud sessionization: update models",
+			task: "ization: update models",
+		},
+		{ text: "cloud sessionship: update models", task: "hip: update models" },
+	])("routes any '$text' prefix to cloud", async ({ text, task }) => {
+		const { hub, pair, send, next } = await setup();
+		await pair();
+		hub.emit("session.created", "s1", {
+			session: { workspaceRoot: "/code/app" },
+		});
+		send({ t: "prompt", id: "1", text });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			target: "cloud",
+		});
+		expect(hub.calls).toEqual([`cloud:${task}@/code/app`]);
+	});
+
+	it("keeps a cloud-session mention elsewhere as a regular task", async () => {
+		const text = "Discuss cloud sessions";
+		const { hub, pair, send, next } = await setup();
+		await pair();
+		send({ t: "prompt", id: "1", text });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			target: "new",
+		});
+		expect(hub.calls).toEqual([`start:${text}`]);
 	});
 
 	it("does not replace a new recording when cloud provisioning finishes", async () => {
