@@ -2243,6 +2243,94 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("delivers a multimodal question response after its tool result in the same run", async () => {
+		let pending: AgentMessage | undefined;
+		let resolveAnswer!: (answer: string) => void;
+		const questionStarted = Promise.withResolvers<void>();
+		const response: AgentMessage = {
+			id: "question-response",
+			role: "user",
+			createdAt: Date.now(),
+			content: [
+				{ type: "text", text: "Use this design" },
+				{ type: "image", image: "abc", mediaType: "image/png" },
+				{ type: "file", path: "spec.txt", content: "Use the existing API." },
+			],
+			metadata: { source: "question" },
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "question",
+					toolName: "ask_question",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(request.messages.at(-2)).toMatchObject({
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "question",
+							output: "Use this design",
+						},
+					],
+				});
+				expect(request.messages.at(-1)).toMatchObject({
+					...response,
+					metadata: { source: "question", userRunSpan: 0 },
+				});
+				return [
+					{ type: "text-delta", text: "Design received" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "ask_question",
+					description: "Ask the user",
+					inputSchema: { type: "object" },
+					execute: async () => {
+						const answer = new Promise<string>((resolve) => {
+							resolveAnswer = resolve;
+						});
+						questionStarted.resolve();
+						return answer;
+					},
+				},
+			],
+			consumePendingUserMessage: async () => {
+				const message = pending;
+				pending = undefined;
+				return message;
+			},
+		});
+		const run = runtime.run("Start");
+		await questionStarted.promise;
+		pending = response;
+		runtime.notifyPendingUserMessage();
+		resolveAnswer("Use this design");
+		const result = await run;
+		expect(result.status).toBe("completed");
+		expect(model.requests).toHaveLength(2);
+		expect(
+			result.messages.filter((message) => message.id === response.id),
+		).toHaveLength(1);
+		expect(result.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"tool",
+			"user",
+			"assistant",
+		]);
+	});
+
 	it("injects a pending user message after tool results and before the next model request", async () => {
 		const consumePendingUserMessage = vi
 			.fn()

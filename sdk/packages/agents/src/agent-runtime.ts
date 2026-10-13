@@ -2294,13 +2294,20 @@ export class AgentRuntime {
 		if (!consumePendingUserMessage) {
 			return undefined;
 		}
-		const pending = (await consumePendingUserMessage())?.trim();
-		if (!pending) {
+		const pending = await consumePendingUserMessage();
+		if (!pending || (typeof pending === "string" && !pending.trim())) {
 			return undefined;
 		}
-		const message = createMessage("user", [{ type: "text", text: pending }], {
-			userRunSpan: 0,
-		});
+		const message =
+			typeof pending === "string"
+				? createMessage("user", [{ type: "text", text: pending.trim() }], {
+						userRunSpan: 0,
+					})
+				: {
+						...cloneMessages([pending])[0],
+						role: "user" as const,
+						metadata: { ...pending.metadata, userRunSpan: 0 },
+					};
 		this.state.messages.push(message);
 		await this.emit({
 			type: "message-added",

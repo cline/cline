@@ -261,6 +261,7 @@ export interface StartSessionResult {
 export interface SendSessionInput {
 	sessionId: string;
 	prompt: string;
+	displayPrompt?: string;
 	mode?: AgentMode;
 	userImages?: string[];
 	userFiles?: string[];

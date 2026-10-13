@@ -16,6 +16,7 @@ export type PendingPromptDelivery = "queue" | "steer";
 export interface PendingPromptEntry {
 	id: string;
 	prompt: string;
+	displayPrompt?: string;
 	mode?: AgentMode;
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
@@ -40,6 +41,7 @@ export interface PendingPromptsControllerDeps {
 
 export interface PendingPromptEnqueueInput {
 	prompt: string;
+	displayPrompt?: string;
 	mode?: AgentMode;
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
@@ -138,7 +140,8 @@ export class PendingPromptService {
 		state: PendingPromptQueueState,
 		input: PendingPromptEnqueueInput,
 	): SessionPendingPrompt[] {
-		const { prompt, mode, delivery, userImages, userFiles } = input;
+		const { prompt, displayPrompt, mode, delivery, userImages, userFiles } =
+			input;
 		const existingIndex = state.pendingPrompts.findIndex(
 			(queued) => queued.prompt === prompt,
 		);
@@ -147,6 +150,7 @@ export class PendingPromptService {
 			const next: PendingPromptEntry = {
 				...existing,
 				prompt,
+				displayPrompt: displayPrompt ?? existing.displayPrompt,
 				mode: mode ?? existing.mode,
 				userImages: userImages ?? existing.userImages,
 				userFiles: userFiles ?? existing.userFiles,
@@ -160,6 +164,7 @@ export class PendingPromptService {
 			const newEntry: PendingPromptEntry = {
 				id: `pending_${Date.now()}_${nanoid(5)}`,
 				prompt,
+				displayPrompt,
 				mode,
 				delivery,
 				userImages,
@@ -257,6 +262,7 @@ export class PendingPromptsController {
 		sessionId: string,
 		entry: {
 			prompt: string;
+			displayPrompt?: string;
 			mode?: AgentMode;
 			delivery: "queue" | "steer";
 			userImages?: string[];
@@ -382,6 +388,7 @@ export class PendingPromptsController {
 				sessionId: session.sessionId,
 				id: prompt.id,
 				prompt: prompt.prompt,
+				displayPrompt: prompt.displayPrompt,
 				delivery: prompt.delivery,
 				attachmentCount: prompt.attachmentCount,
 				userImages: prompt.userImages,
@@ -404,6 +411,7 @@ function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
 	return {
 		id: entry.id,
 		prompt: entry.prompt,
+		displayPrompt: entry.displayPrompt,
 		delivery: entry.delivery,
 		attachmentCount:
 			(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
