@@ -14,14 +14,16 @@ const mocks = vi.hoisted(() => {
 		version: 1,
 		providers: {},
 	}
-	const saveProviderSettings = vi.fn((settings: Record<string, unknown>, _options?: { setLastUsed?: boolean }) => {
-		const provider = settings.provider
-		if (typeof provider !== "string") {
-			throw new Error("provider is required")
-		}
-		providerSettingsById[provider] = { ...settings }
-		return { version: 1, providers: {} }
-	})
+	const saveProviderSettings = vi.fn(
+		(settings: Record<string, unknown>, _options?: { setLastUsed?: boolean; tokenSource?: string }) => {
+			const provider = settings.provider
+			if (typeof provider !== "string") {
+				throw new Error("provider is required")
+			}
+			providerSettingsById[provider] = { ...settings }
+			return { version: 1, providers: {} }
+		},
+	)
 
 	return {
 		reset(): void {
@@ -91,6 +93,7 @@ vi.mock("../provider-migration", () => ({
 }))
 
 vi.mock("@cline/core", () => ({
+	isPrivateModelCatalogProvider: (providerId: string) => ["baseten", "hicap", "litellm", "poolside"].includes(providerId),
 	syncStoredProviderRegistration: vi.fn(),
 	readModelsFileSync: vi.fn(() => mocks.getModelsFile()),
 	resolveModelsRegistryPath: vi.fn(() => "/tmp/models.json"),
@@ -183,6 +186,98 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).baseUrl).toBeUndefined()
 	})
 
+	// Pasted API keys can carry invisible clipboard artifacts (surrounding
+	// whitespace, newlines, zero-width characters). The masked key field hides
+	// them from the user and the provider rejects the key with a 401 that
+	// looks identical to a genuinely wrong key, so the write boundary must
+	// strip them before the value reaches either backing store.
+	it("sanitizes pasted API keys before writing to both stores", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("mistral")
+
+		store.write(providerId, { apiKey: " \u200b\ufeffmistral-key\u200d \n" })
+
+		expect(mocks.getApiConfiguration().mistralApiKey).toBe("mistral-key")
+		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral", apiKey: "mistral-key" })
+		expect(store.read(providerId).apiKey).toBe("mistral-key")
+	})
+
+	it("treats a whitespace-only API key as a clear", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ mistral: { provider: "mistral", apiKey: "existing-key" } })
+		mocks.setApiConfiguration({ mistralApiKey: "existing-key" })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("mistral")
+
+		store.write(providerId, { apiKey: " \n " })
+
+		expect(mocks.getApiConfiguration().mistralApiKey).toBeUndefined()
+		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral" })
+		expect(store.read(providerId).apiKey).toBeUndefined()
+	})
+
+	// Credential edits in the settings UI must leave the migration label behind.
+	// The SDK manager inherits the previous entry's tokenSource when the caller
+	// passes none, so a migrated Bedrock entry stayed "migration" after every
+	// later GUI save even once the user had re-entered the AWS profile by hand.
+	it("marks the entry as manual when a GUI patch touches credentials", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, { aws: { profile: "my-profile" } })
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({ aws: { profile: "my-profile" } })
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
+	it("marks the entry as manual when a GUI patch edits custom headers", async () => {
+		// OpenAI-compatible endpoints often carry the credential in a header
+		// rather than apiKey, so a header edit is a credential edit.
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			"openai-compatible": { provider: "openai-compatible", baseUrl: "https://llm.example.com/v1" },
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, { headers: { Authorization: "Bearer manual-token" } })
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			headers: { Authorization: "Bearer manual-token" },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
+	it("keeps the inherited tokenSource when an AWS patch only changes non-credential settings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile", profile: "work" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, {
+			aws: { useCrossRegionInference: true, usePromptCache: false, endpoint: "https://vpce.example" },
+		})
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({
+			aws: { authentication: "profile", profile: "work", useCrossRegionInference: true },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
+	})
+
+	it("keeps the inherited tokenSource when a GUI patch has no credential fields", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, { contextWindow: 200_000 })
+
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
+	})
+
 	// Changing the regional API line in the settings UI goes through
 	// store.write. It must land in providers.json (the CLI and desktop app
 	// bake the regional base URL from its stored apiLine) AND mirror to the
@@ -219,6 +314,143 @@ describe("createProviderConfigStore", () => {
 			apiFormat: "openai-responses",
 			capabilities: ["prompt-cache"],
 		})
+	})
+
+	it("persists host catalog metadata for a dynamic LiteLLM model without turning it into an override", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		const liveModelInfo: ModelInfo = {
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+			supportsReasoning: true,
+		}
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toEqual(liveModelInfo)
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			providerId,
+			modelId,
+			overrides: undefined,
+			modelInfoSource: "state",
+			baseModelInfo: liveModelInfo,
+			modelInfo: liveModelInfo,
+		})
+		expect(mocks.getModelsFile().providers.litellm?.models?.[modelId]).toBeUndefined()
+	})
+
+	it.each([
+		["litellm", "actModeLiteLlmModelInfo"],
+		["baseten", "actModeBasetenModelInfo"],
+		["hicap", "actModeHicapModelInfo"],
+	] as const)("keeps a persisted %s private-catalog snapshot authoritative after reload", async (provider, modelInfoKey) => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId(provider)
+		const modelId = "shared-private-model"
+		const staticModelInfo: ModelInfo = {
+			name: "SDK fallback model",
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			maxTokens: 16_384,
+			supportsPromptCache: true,
+		}
+		const liveModelInfo: ModelInfo = {
+			name: "Private endpoint deployment",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+		mocks.setGeneratedModels(provider, { [modelId]: staticModelInfo })
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration()[modelInfoKey]).toEqual(liveModelInfo)
+
+		// A window reload clears the in-process catalog and selection envelope;
+		// the durable provider snapshot must still beat the same-id static entry.
+		vi.resetModules()
+		const { createProviderConfigStore: createReloadedStore } = await import("./store")
+		expect(createReloadedStore().readSelection(providerId, "act")).toMatchObject({
+			modelInfoSource: "state",
+			baseModelInfo: liveModelInfo,
+			modelInfo: liveModelInfo,
+		})
+	})
+
+	it("lets a public catalog update supersede an older persisted snapshot after reload", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+		const modelId = "shared-public-model"
+		const refreshedModelInfo: ModelInfo = {
+			name: "Refreshed public catalog model",
+			contextWindow: 256_000,
+			maxTokens: 32_000,
+			supportsPromptCache: true,
+		}
+		const selectedModelInfo: ModelInfo = {
+			name: "Catalog model at selection time",
+			contextWindow: 128_000,
+			maxTokens: 16_000,
+			supportsPromptCache: false,
+		}
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, selectedModelInfo)
+		mocks.setGeneratedModels("openrouter", { [modelId]: refreshedModelInfo })
+
+		vi.resetModules()
+		const { createProviderConfigStore: createReloadedStore } = await import("./store")
+		expect(createReloadedStore().readSelection(providerId, "act")).toMatchObject({
+			modelInfoSource: "catalog",
+			baseModelInfo: refreshedModelInfo,
+			modelInfo: refreshedModelInfo,
+		})
+	})
+
+	it("keeps a LiteLLM max-input override ahead of cached catalog metadata without baking it into the base", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		const liveModelInfo: ModelInfo = {
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+
+		store.commitSelection(providerId, "act", { providerId, modelId, overrides: { maxInputTokens: 300_000 } }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toEqual(liveModelInfo)
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			baseModelInfo: liveModelInfo,
+			overrides: { maxInputTokens: 300_000 },
+			modelInfo: { maxInputTokens: 300_000 },
+		})
+	})
+
+	it("does not fabricate maxInputTokens or a metadata snapshot when a dynamic model has no catalog metadata", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "custom/no-metadata"
+
+		store.commitSelection(providerId, "act", { providerId, modelId })
+
+		expect(mocks.getApiConfiguration()).toMatchObject({ actModeLiteLlmModelId: modelId })
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toBeUndefined()
+		const resolved = store.readSelection(providerId, "act")
+		expect(resolved?.modelInfoSource).toBe("fallback")
+		expect(resolved?.modelInfo.maxInputTokens).toBeUndefined()
+		expect(mocks.getModelsFile().providers.litellm?.models?.[modelId]).toBeUndefined()
 	})
 
 	it("round-trips generic provider selections using the in-process modelInfo envelope", async () => {
@@ -352,7 +584,11 @@ describe("createProviderConfigStore", () => {
 			name: "Legacy Custom",
 			maxTokens: 4_096,
 			contextWindow: 64_000,
-			capabilities: ["prompt-cache"],
+			// "tools" must always ride along: legacy ModelInfo carries no
+			// tool-calling boolean, and a persisted capability list without
+			// "tools" reads as authoritative "cannot call tools" to the SDK
+			// runtime (#13463).
+			capabilities: ["tools", "prompt-cache"],
 			supportsVision: false,
 			supportsReasoning: true,
 			inputPrice: 1,

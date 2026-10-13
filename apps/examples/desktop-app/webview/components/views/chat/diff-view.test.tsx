@@ -18,6 +18,11 @@ vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: invokeMock },
 }));
 
+// @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
+// does not implement; without this the suite exits nonzero on an unhandled
+// error even with every test passing.
+CSSStyleSheet.prototype.replaceSync ??= function replaceSync() {} as never;
+
 let container: HTMLDivElement;
 let root: Root;
 let writeText: ReturnType<typeof vi.fn>;
@@ -100,12 +105,45 @@ const FILE_DIFF: SessionFileDiff = {
 	hunks: [],
 };
 
+const MODIFIED_FILE_DIFF: SessionFileDiff = {
+	path: "src/app.ts",
+	additions: 1,
+	deletions: 1,
+	hunks: [
+		{
+			oldStart: 4,
+			newStart: 4,
+			old: "const total = 1;",
+			new: "const total = 2;",
+		},
+	],
+};
+
+const CREATED_FILE_DIFF: SessionFileDiff = {
+	path: "src/created.ts",
+	additions: 2,
+	deletions: 0,
+	hunks: [
+		{
+			oldStart: 1,
+			newStart: 1,
+			old: "",
+			new: "export const a = 1;\nexport const b = 2;",
+		},
+	],
+};
+
+function diffContainers(): HTMLElement[] {
+	return Array.from(container.querySelectorAll<HTMLElement>("diffs-container"));
+}
+
 describe("DiffView file actions", () => {
 	it("copies the cwd-resolved absolute file path", async () => {
 		await act(async () => {
 			root.render(
 				<DiffView
 					cwd="/Users/renee/cline"
+					environmentId="local"
 					fileDiffs={[FILE_DIFF]}
 					onClose={vi.fn()}
 				/>,
@@ -122,6 +160,7 @@ describe("DiffView file actions", () => {
 			root.render(
 				<DiffView
 					cwd="/Users/renee/cline"
+					environmentId="local"
 					fileDiffs={[FILE_DIFF]}
 					onClose={vi.fn()}
 				/>,
@@ -139,6 +178,7 @@ describe("DiffView file actions", () => {
 		await click(vscodeItem as Element);
 
 		expect(invokeMock).toHaveBeenCalledWith("open_file_in_editor", {
+			environmentId: "local",
 			path: "docs/a.mdx",
 			cwd: "/Users/renee/cline",
 			editor: "vscode",
@@ -154,7 +194,13 @@ describe("DiffView file actions", () => {
 		});
 
 		await act(async () => {
-			root.render(<DiffView fileDiffs={[FILE_DIFF]} onClose={vi.fn()} />);
+			root.render(
+				<DiffView
+					environmentId="local"
+					fileDiffs={[FILE_DIFF]}
+					onClose={vi.fn()}
+				/>,
+			);
 		});
 
 		await pointerDown(buttonWithLabel("Open docs/a.mdx in editor"));
@@ -165,6 +211,7 @@ describe("DiffView file actions", () => {
 		await click(menuItems()[0] as Element);
 
 		expect(invokeMock).toHaveBeenCalledWith("open_file_in_editor", {
+			environmentId: "local",
 			path: "docs/a.mdx",
 			editor: "default",
 		});
@@ -172,11 +219,87 @@ describe("DiffView file actions", () => {
 
 	it("copies the path as-is when no cwd is available", async () => {
 		await act(async () => {
-			root.render(<DiffView fileDiffs={[FILE_DIFF]} onClose={vi.fn()} />);
+			root.render(
+				<DiffView
+					environmentId="local"
+					fileDiffs={[FILE_DIFF]}
+					onClose={vi.fn()}
+				/>,
+			);
 		});
 
 		await click(buttonWithLabel("Copy file path for docs/a.mdx"));
 
 		expect(writeText).toHaveBeenCalledWith("docs/a.mdx");
+	});
+});
+
+describe("DiffView hunk rendering", () => {
+	it("renders each hunk through the shared @pierre/diffs renderer", async () => {
+		await act(async () => {
+			root.render(
+				<DiffView
+					fileDiffs={[MODIFIED_FILE_DIFF, CREATED_FILE_DIFF]}
+					onClose={vi.fn()}
+				/>,
+			);
+		});
+
+		expect(diffContainers()).toHaveLength(2);
+	});
+
+	it("shows the empty-hunks placeholder instead of a diff renderer", async () => {
+		await act(async () => {
+			root.render(<DiffView fileDiffs={[FILE_DIFF]} onClose={vi.fn()} />);
+		});
+
+		expect(diffContainers()).toHaveLength(0);
+		expect(container.textContent).toContain("No hunk details available.");
+	});
+
+	it("removes the diff body when a file is collapsed and restores it on expand", async () => {
+		await act(async () => {
+			root.render(
+				<DiffView fileDiffs={[MODIFIED_FILE_DIFF]} onClose={vi.fn()} />,
+			);
+		});
+
+		expect(diffContainers()).toHaveLength(1);
+
+		const toggle = container.querySelector<HTMLButtonElement>(
+			"button:not([aria-label])",
+		);
+		expect(toggle?.textContent).toContain("src/app.ts");
+		await click(toggle as Element);
+		expect(diffContainers()).toHaveLength(0);
+
+		// A temporarily missing file retains its disclosure state in the host.
+		await act(async () =>
+			root.render(<DiffView fileDiffs={[]} onClose={vi.fn()} />),
+		);
+		await act(async () =>
+			root.render(
+				<DiffView fileDiffs={[MODIFIED_FILE_DIFF]} onClose={vi.fn()} />,
+			),
+		);
+		expect(diffContainers()).toHaveLength(0);
+		expect(
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
+		).not.toBeNull();
+		await click(
+			container.querySelector(".cline-ui-agent-changes__toggle") as Element,
+		);
+		expect(diffContainers()).toHaveLength(1);
+	});
+
+	it("keeps the per-file add/del counts in the header", async () => {
+		await act(async () => {
+			root.render(
+				<DiffView fileDiffs={[MODIFIED_FILE_DIFF]} onClose={vi.fn()} />,
+			);
+		});
+
+		expect(container.textContent).toContain("+1");
+		expect(container.textContent).toContain("-1");
 	});
 });

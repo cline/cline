@@ -15,6 +15,8 @@ body:
         - VSCode Extension
         - JetBrains Plugin
         - CLI
+        - Desktop App
+        - Cloud Platform
       default: 0
     validations:
       required: true
@@ -62,13 +64,15 @@ body:
   - type: textarea
     id: ide-diagnostics
     attributes:
-      label: IDE / CLI Diagnostics
+      label: Diagnostics
       description: |
-        Paste the "About" diagnostics for your Cline surface. This captures the IDE build, runtime, and host details we need.
+        Paste the diagnostics for your Cline surface. This captures the build, runtime, and host details we need.
         - VSCode Extension: open `Help → About` (Windows/Linux) or `Code → About Visual Studio Code` (macOS), then copy the info.
         - JetBrains Plugin: open `Help → About` (Windows/Linux) or `<IDE name> → About` (macOS), then click `Copy` to grab build, runtime, OS, memory, and cores.
         - CLI: there is no About dialog. Run `cline --version` and paste the output.
-      placeholder: Paste the copied About info or `cline --version` output here.
+        - Desktop App: paste the app version from the Settings view.
+        - Cloud Platform: paste your browser name and version, plus the page URL where the issue occurred.
+      placeholder: Paste the copied About info, `cline --version` output, or browser/app details here.
     validations:
       required: false
   - type: textarea

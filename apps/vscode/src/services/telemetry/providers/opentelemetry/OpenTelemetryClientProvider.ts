@@ -1,8 +1,10 @@
-import { metrics } from "@opentelemetry/api"
+import { markOtlpTraceRelayProvider, OTLP_TRACE_RELAY_MARKER } from "@cline/shared"
+import { metrics, trace } from "@opentelemetry/api"
 import { logs } from "@opentelemetry/api-logs"
 import { Resource } from "@opentelemetry/resources"
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
+import { BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
@@ -12,16 +14,20 @@ import {
 	createConsoleMetricReader,
 	createOTLPLogExporter,
 	createOTLPMetricReader,
+	createOTLPTraceExporter,
 } from "./OpenTelemetryExporterFactory"
 
 /**
  * OpenTelemetry client provider.
- * Manages meter and logger providers for telemetry collection.
+ * Owns meter, logger and tracer providers for telemetry collection.
  */
 export class OpenTelemetryClientProvider {
 	readonly meterProvider: MeterProvider | null = null
 	readonly loggerProvider: LoggerProvider | null = null
+	readonly tracerProvider: NodeTracerProvider | null = null
 	private readonly config: OpenTelemetryClientValidConfig | null
+	private disposal?: Promise<void>
+	private rejectedTracerShutdown?: Promise<void>
 
 	/**
 	 * Check if debug diagnostics are enabled.
@@ -69,6 +75,11 @@ export class OpenTelemetryClientProvider {
 		// Initialize logs if configured
 		if (this.config.logsExporter) {
 			this.loggerProvider = this.createLoggerProvider(resource)
+		}
+
+		// Initialize traces if configured
+		if (this.config.tracesExporter) {
+			this.tracerProvider = this.createTracerProvider(resource)
 		}
 
 		Logger.log("[OTEL DEBUG] OpenTelemetry initialization complete")
@@ -192,8 +203,94 @@ export class OpenTelemetryClientProvider {
 		return loggerProvider
 	}
 
-	public async dispose(): Promise<void> {
+	private createTracerProvider(resource: Resource): NodeTracerProvider | null {
+		const exporters = this.config!.tracesExporter!.split(",").map((type) => type.trim())
+		const processors: BatchSpanProcessor[] = []
+
+		Logger.log(`[OTEL] Creating TracerProvider with exporters: ${exporters.join(", ")}`)
+
+		for (const exporterType of exporters) {
+			try {
+				switch (exporterType) {
+					case "otlp": {
+						const protocol = this.config!.otlpProtocol || "grpc"
+						const endpoint = this.config!.otlpEndpoint
+						const insecure = this.config!.otlpInsecure || false
+						const headers = this.config!.otlpHeaders
+
+						if (endpoint) {
+							const exporter = createOTLPTraceExporter(protocol, endpoint, insecure, headers)
+							if (exporter) {
+								processors.push(new BatchSpanProcessor(exporter))
+								Logger.log(`[OTEL] OTLP trace exporter created (${protocol})`)
+							}
+						} else {
+							Logger.warn("[OTEL] OTLP traces exporter requires an endpoint")
+						}
+						break
+					}
+					default:
+						Logger.warn(`[OTEL] Unknown traces exporter type: ${exporterType}`)
+				}
+			} catch (error) {
+				Logger.error(`[OTEL] Failed to create traces exporter '${exporterType}':`, error)
+			}
+		}
+
+		if (processors.length === 0) {
+			Logger.warn("[OTEL] No trace exporters were successfully created")
+			return null
+		}
+
+		const tracerProvider = new NodeTracerProvider({ resource })
+		for (const processor of processors) {
+			tracerProvider.addSpanProcessor(processor)
+		}
+
+		// Every processor here wraps an OTLP exporter, so this provider IS the
+		// collector relay — downstream trace decisions key off this marker.
+		markOtlpTraceRelayProvider(tracerProvider)
+
+		// register() sets the global tracer provider plus the async context
+		// manager spans need for parent/child relationships.
+		tracerProvider.register()
+		if (!this.isGlobalTracerProvider(tracerProvider)) {
+			// OTel registration is first-wins. Never retain an orphaned exporter
+			// or displace a build/runtime/third-party provider with remote config.
+			Logger.warn("[OTEL] Global tracer already owned; discarding unregistered trace exporter")
+			this.rejectedTracerShutdown = tracerProvider.shutdown().catch((error) => {
+				Logger.error("Error shutting down unregistered tracer:", error)
+			})
+			return null
+		}
+		Logger.log(`[OTEL] TracerProvider initialized with ${processors.length} exporter(s)`)
+
+		return tracerProvider
+	}
+
+	private isGlobalTracerProvider(provider: NodeTracerProvider): boolean {
+		const globalProvider = trace.getTracerProvider() as { getDelegate?: () => unknown }
+		return globalProvider === provider || globalProvider.getDelegate?.() === provider
+	}
+
+	public dispose(): Promise<void> {
+		return (this.disposal ??= this.shutdown())
+	}
+
+	private async shutdown(): Promise<void> {
+		if (this.tracerProvider) {
+			// Stop new relay decisions and release only our own global slot before
+			// flushing. shutdown() alone leaves a dead delegate that rejects the
+			// next registration. Cached tracers stop exporting after shutdown.
+			delete (this.tracerProvider as unknown as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER]
+			if (this.isGlobalTracerProvider(this.tracerProvider)) {
+				trace.disable()
+			}
+		}
 		const promises: Promise<void>[] = []
+		if (this.rejectedTracerShutdown) {
+			promises.push(this.rejectedTracerShutdown)
+		}
 
 		if (this.meterProvider) {
 			promises.push(
@@ -207,6 +304,14 @@ export class OpenTelemetryClientProvider {
 			promises.push(
 				this.loggerProvider.shutdown().catch((error) => {
 					Logger.error("Error shutting down LoggerProvider:", error)
+				}),
+			)
+		}
+
+		if (this.tracerProvider) {
+			promises.push(
+				this.tracerProvider.shutdown().catch((error) => {
+					Logger.error("Error shutting down TracerProvider:", error)
 				}),
 			)
 		}

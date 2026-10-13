@@ -1,4 +1,6 @@
 import type {
+	AgentExtension,
+	AgentTool,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
@@ -10,11 +12,13 @@ import type {
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
+import type { SessionHistorySearchService } from "../../../session/search";
 import {
 	type CoreSessionSnapshot,
 	createCoreSessionSnapshot,
@@ -27,6 +31,12 @@ import {
 export type PendingApproval = {
 	sessionId: string;
 	resolve: (result: { approved: boolean; reason?: string }) => void;
+	/**
+	 * The `approval.requested` event as originally published. Pending
+	 * approvals survive client disconnects, so a (re)subscribing client is
+	 * re-issued this event instead of being left with a silently parked turn.
+	 */
+	requestedEvent?: HubEventEnvelope;
 };
 
 export type PendingCapabilityRequest = {
@@ -46,6 +56,7 @@ export type PendingCapabilityRequest = {
  * The transport class owns the maps; handlers get a stable read/write surface.
  */
 export interface HubTransportContext {
+	readonly sessionSearch: SessionHistorySearchService;
 	readonly clients: Map<string, HubClientRecord>;
 	readonly sessionState: Map<string, HubSessionState>;
 	readonly pendingApprovals: Map<string, PendingApproval>;
@@ -62,12 +73,24 @@ export interface HubTransportContext {
 	 */
 	readonly activeRpcTurnCountBySession: Map<string, number>;
 	readonly telemetry?: ITelemetryService;
+	/** Hub-owned tools injected into every local session runtime. */
+	readonly sessionTools?: readonly AgentTool[];
+	/** Hub-owned extensions injected into every local session runtime. */
+	readonly sessionExtensions?: readonly AgentExtension[];
 	readonly sessionHost: RuntimeHost &
 		Partial<
-			PendingPromptsRuntimeService &
+			CommandExecutionRuntimeService &
+				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService
 		>;
+	/**
+	 * While draining, new mutating work (session.create, run.*) is refused
+	 * with the retryable `hub_draining` error so the Hub can be replaced at a
+	 * boundary an operator chose instead of being ambushed mid-turn.
+	 * Optional: absent contexts (test fixtures) are never draining.
+	 */
+	isDraining?(): boolean;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],
@@ -164,6 +187,15 @@ export async function readHubSessionRecord(
 	);
 }
 
+/**
+ * Builds the snapshot that rides on hub events and command replies. It is a
+ * state notification — status, usage, model, workspace, checkpoint — and
+ * deliberately does NOT read the transcript: `snapshot.messages` here would
+ * put the entire conversation on every status flip, for every subscriber,
+ * and into the durable event log (observed in the wild as a 25GB hub process
+ * feeding a slow reader). Anything that needs messages fetches them with the
+ * `session.messages` command.
+ */
 export async function readCoreSessionSnapshot(
 	ctx: HubTransportContext,
 	sessionId: string,
@@ -172,15 +204,9 @@ export async function readCoreSessionSnapshot(
 	if (!session) {
 		return undefined;
 	}
-	const [messages, usageSummary] = await Promise.all([
-		typeof ctx.sessionHost.readSessionMessages === "function"
-			? ctx.sessionHost.readSessionMessages(sessionId)
-			: [],
-		ctx.sessionHost.getAccumulatedUsage?.(sessionId),
-	]);
+	const usageSummary = await ctx.sessionHost.getAccumulatedUsage?.(sessionId);
 	return createCoreSessionSnapshot({
 		session,
-		messages,
 		usage: usageSummary?.usage,
 		aggregateUsage: usageSummary?.aggregateUsage,
 	});

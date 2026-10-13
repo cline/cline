@@ -38,6 +38,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 		textAreaRef,
 		handleFocusChange,
 		lastMessage,
+		pendingResponse,
 	} = chatState
 
 	const { isAtBottom, scrollToBottomAuto } = scrollBehavior
@@ -45,8 +46,12 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	const legacyTaskRunning =
 		turnState === undefined &&
 		(lastMessage?.partial === true || (lastMessage?.type === "say" && lastMessage.say === "api_req_started"))
-	const allowQueuedSubmit = turnState?.phase === "streaming" || turnState?.phase === "awaiting_approval" || legacyTaskRunning
-	const submitDisabled = sendingDisabled && !allowQueuedSubmit
+	const allowSubmitWhileDisabled =
+		turnState?.phase === "streaming" ||
+		turnState?.phase === "awaiting_approval" ||
+		(messageHandlers.errorRecoveryAvailable && pendingResponse === undefined && !messageHandlers.recoveryActionInFlight) ||
+		legacyTaskRunning
+	const submitDisabled = sendingDisabled && !allowSubmitWhileDisabled
 
 	return (
 		<>

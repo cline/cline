@@ -1,0 +1,10 @@
+{
+	"organizationId": "org-contract",
+	"value": "{\"version\":\"contract-v1\",\"globalRules\":[{\"alwaysEnabled\":true,\"name\":\"Contract Rule\",\"contents\":\"Always follow the contract rule.\"}],\"globalWorkflows\":[{\"alwaysEnabled\":false,\"name\":\"Contract Workflow\",\"contents\":\"Run the contract workflow.\"}],\"globalSkills\":[{\"alwaysEnabled\":false,\"name\":\"Contract Skill\",\"contents\":\"---\\nname: Contract Skill\\n---\\nUse the contract skill.\"}],\"allowedMCPServers\":[{\"id\":\"https://github.com/example/contract-mcp\"}],\"openTelemetryEnabled\":true}",
+	"organizations": [
+		{
+			"organizationId": "org-contract",
+			"name": "Contract Organization"
+		}
+	]
+}

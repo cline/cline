@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFetchHandler } from "./server";
+import {
+	MAX_RECORDED_AUDIO_BASE64_BYTES,
+	MAX_RECORDED_AUDIO_BYTES,
+} from "../webview/lib/voice-input-limits";
+import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
+
+const TEST_APPROVAL_TOKEN = "test-approval-token";
 
 function createTestServer() {
 	return {
@@ -10,7 +16,11 @@ function createTestServer() {
 }
 
 function createHandler(onShutdown = vi.fn()) {
-	return createFetchHandler({} as SidecarContext, onShutdown);
+	return createFetchHandler(
+		{} as SidecarContext,
+		onShutdown,
+		TEST_APPROVAL_TOKEN,
+	);
 }
 
 function createTelemetryHandler(capture = vi.fn()) {
@@ -19,6 +29,17 @@ function createTelemetryHandler(capture = vi.fn()) {
 		capture,
 	};
 }
+
+describe("sidecar WebSocket payload limit", () => {
+	it("accepts every recording allowed by the voice input size limit", () => {
+		const handler = createWebSocketHandler({} as SidecarContext);
+
+		expect(MAX_RECORDED_AUDIO_BYTES).toBe(25 * 1024 * 1024);
+		expect(handler.maxPayloadLength).toBeGreaterThan(
+			MAX_RECORDED_AUDIO_BASE64_BYTES,
+		);
+	});
+});
 
 describe("sidecar HTTP origin checks", () => {
 	it("rejects cross-origin shutdown preflight requests", async () => {
@@ -70,6 +91,37 @@ describe("sidecar HTTP origin checks", () => {
 		expect(server.upgrade).not.toHaveBeenCalled();
 	});
 
+	it("does not grant approval authority to originless local clients", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request(
+				`http://127.0.0.1:3126/transport?approval_token=${TEST_APPROVAL_TOKEN}`,
+			),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
+	});
+
+	it("grants approval authority to the trusted desktop webview", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request(
+				`http://127.0.0.1:3126/transport?approval_token=${TEST_APPROVAL_TOKEN}`,
+				{
+					headers: { origin: "tauri://localhost" },
+				},
+			),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: true },
+		});
+	});
+
 	it("allows desktop webview origins in preflight responses", async () => {
 		const server = createTestServer();
 		const response = await createHandler()(
@@ -87,6 +139,20 @@ describe("sidecar HTTP origin checks", () => {
 		expect(response?.headers.get("access-control-allow-origin")).toBe(
 			"tauri://localhost",
 		);
+	});
+
+	it("does not grant approval authority to a spoofed trusted origin", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request("http://127.0.0.1:3126/transport", {
+				headers: { origin: "tauri://localhost" },
+			}),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
 	});
 });
 

@@ -378,7 +378,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
-				{showNavbar && <Navbar />}
+				{showNavbar && <Navbar startNewTask={messageHandlers.startNewTask} />}
 				{task ? (
 					<TaskSection
 						apiMetrics={apiMetrics}

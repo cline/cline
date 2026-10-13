@@ -4,7 +4,7 @@ import {
 	type SessionRecord,
 	SessionSource,
 } from "@cline/core";
-import type { Message } from "@cline/llms";
+import type { MessageWithMetadata } from "@cline/llms";
 import type { WebviewConfig, WebviewReasonLevel } from "../webview-protocol";
 import { rejectPendingApprovalsForSession } from "./approvals";
 import { providerSettingsManager, workspaceRoot } from "./deps";
@@ -89,7 +89,7 @@ function buildSessionStartInput(
 		teamName?: string;
 		source?: SessionSource;
 		sessionMetadata?: Record<string, unknown>;
-		initialMessages?: Message[];
+		initialMessages?: MessageWithMetadata[];
 	},
 ): ClineCoreStartInput {
 	const mode = options?.mode === "plan" ? "plan" : "act";
@@ -137,7 +137,7 @@ function buildStartInputFromSession(
 	session: SessionRecord,
 	options?: {
 		sessionMetadata?: Record<string, unknown>;
-		initialMessages?: Message[];
+		initialMessages?: MessageWithMetadata[];
 	},
 ) {
 	const metadata =
@@ -348,7 +348,7 @@ export async function forkPeerSession(
 	try {
 		const rawMessages = (await ctx.cline.readMessages(
 			forkedFromSessionId,
-		)) as Message[];
+		)) as MessageWithMetadata[];
 		if (rawMessages.length === 0) {
 			ctx.send(peer, {
 				type: "fork_error",

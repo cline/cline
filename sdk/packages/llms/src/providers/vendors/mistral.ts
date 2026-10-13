@@ -22,10 +22,12 @@ export async function createMistralProviderModule(
 		// image-data parts loses the bytes when serialised. Wrap with
 		// `splitToolImagesMiddleware` to rewrite the typed prompt before the
 		// converter runs. See `middleware/split-tool-images.ts`.
-		model: (modelId) =>
-			wrapLanguageModel({
-				model: provider(modelId) as LanguageModelV4,
-				middleware: splitToolImagesMiddleware,
-			}),
+		operations: {
+			language: (modelId) =>
+				wrapLanguageModel({
+					model: provider(modelId) as LanguageModelV4,
+					middleware: splitToolImagesMiddleware,
+				}),
+		},
 	};
 }

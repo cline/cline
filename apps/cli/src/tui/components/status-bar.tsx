@@ -7,6 +7,10 @@ import {
 import { useTheme } from "../hooks/use-theme";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 
+// U+23F5 is missing from most Linux monospace fonts, so fall back to U+25B6 there.
+const AUTO_APPROVE_GLYPH =
+	process.platform === "linux" ? "\u25b6\u25b6" : "\u23f5\u23f5";
+
 export function createContextBar(
 	used: number,
 	total?: number,
@@ -266,7 +270,7 @@ export function StatusBar(props: StatusBarProps) {
 			{autoApproveAll ? (
 				<text fg={defaultFg}>
 					<span fg={successColor}>
-						{"\u23f5\u23f5"} Auto-approve all enabled
+						{AUTO_APPROVE_GLYPH} Auto-approve all enabled
 					</span>
 					<span fg="gray"> (Shift+Tab)</span>
 				</text>

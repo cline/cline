@@ -102,7 +102,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -155,11 +155,21 @@ export {
 } from "./llms/ai-sdk-format";
 export * from "./llms/gateway";
 export {
+	type Base64MediaValidationFailure,
+	type Base64MediaValidationResult,
+	type Base64MediaValidationSuccess,
 	createMediaBudgetState,
 	DEFAULT_MAX_IMAGE_BASE64_BYTES,
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	type GeneratedMedia,
+	type GeneratedMediaModality,
+	GeneratedMediaModalitySchema,
+	GeneratedMediaSchema,
+	type GeneratedMediaSource,
+	GeneratedMediaSourceSchema,
+	generatedMediaModalityFromMediaType,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
@@ -172,12 +182,14 @@ export {
 	imageFileMaxDecodedBytesForBase64Limit,
 	isBase64Char,
 	isCanonicalBase64,
+	isGeneratedMedia,
 	type MediaBudgetOptions,
 	type MediaBudgetState,
 	type ResolvedMediaBudget,
 	reserveImageMediaBytes,
 	resolveMediaBudget,
 	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
 	validateImageMedia,
 } from "./llms/media";
@@ -185,6 +197,7 @@ export type {
 	ContentBlock,
 	FileContent,
 	ImageContent,
+	MediaContent,
 	Message,
 	MessageRole,
 	MessageWithMetadata,
@@ -198,20 +211,39 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
+	isChatCompatibleModel,
+	isTranscriptionModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
 	ModelInfoSchema,
 	type ModelMetadata,
 	ModelMetadataSchema,
+	type ModelModalities,
+	ModelModalitiesSchema,
+	type ModelModality,
+	ModelModalitySchema,
+	type ModelOperation,
+	type ModelOperationMode,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ModelPricing,
 	ModelPricingSchema,
 	type ModelStatus,
 	ModelStatusSchema,
+	modelHasCapability,
+	modelProducesImages,
+	modelSupportsImageInput,
+	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
+	usesImageGenerationOperation,
 } from "./llms/model-info";
 export { mergeModelOptions } from "./llms/model-options";
+export * from "./llms/model-tools";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
@@ -231,6 +263,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,
@@ -241,7 +275,12 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	TOOL_REJECTION_SUFFIX,
+	ToolCallRecordSchema,
+	USER_REJECTED_TOOL_REASON,
+} from "./llms/tools";
+export type { StreamingAudioTranscriptionSession } from "./llms/transcription";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
@@ -257,8 +296,10 @@ export {
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export { toPosixSeparators } from "./parse/path";
 export {
 	getDefaultShell,
+	getPowerShellEdition,
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
@@ -292,18 +333,29 @@ export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
 	formatModeSwitchNotice,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 	parseUserInputMode,
+	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+	SESSION_SEARCH_TITLE_MAX_LENGTH,
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
+	resolveProviderLocalCli,
+} from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
+	clearMaterializedRemoteConfigRuntime,
 	clearRemoteConfigSessionBlobUpload,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	prepareRemoteConfigRuntime,
@@ -315,6 +367,7 @@ export type {
 	PreparedRemoteConfigRuntime,
 	PrepareRemoteConfigRuntimeOptions,
 	RemoteConfigBundle,
+	RemoteConfigManagedInstructionFile,
 } from "./remote-config/bundle";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
@@ -398,12 +451,15 @@ export type {
 	ProviderConfigFieldType,
 	ProviderListItem,
 	ProviderModel,
+	ProviderModelFeatured,
+	ProviderModelFeaturedTier,
 	ProviderModelsResponse,
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
+	VoiceInputSelection,
 } from "./rpc/runtime";
 export {
 	ProviderCapabilitySchema,
@@ -439,6 +495,12 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
+export { isBunEmbeddedModulePath } from "./runtime/bun-embedded-path";
+export type { ClineClientIdentity } from "./runtime/cline-client-identity";
+export {
+	getClineClientIdentity,
+	setClineClientIdentity,
+} from "./runtime/cline-client-identity";
 export type {
 	ClineEnvironment,
 	ClineEnvironmentConfig,
@@ -470,10 +532,19 @@ export {
 	setConnectorCliLaunchSpec,
 	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
+export {
+	ensureLoopbackProxyBypass,
+	LOOPBACK_NO_PROXY_HOSTS,
+} from "./runtime/loopback-proxy-bypass";
+export {
+	disableCurrentDirectoryExecutableSearch,
+	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,
+} from "./runtime/windows-exe-path";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
 	CaptureTaskLifecycleEventInput,
+	CoreSpawnReason,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	SdkTelemetryErrorComponent,
@@ -488,14 +559,19 @@ export type {
 export {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	CORE_SPAWN_REASONS,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,
+	isOtlpTraceRelayProvider,
+	markOtlpTraceRelayProvider,
 	normalizeSdkError,
+	OTLP_TRACE_RELAY_MARKER,
 	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -542,6 +618,7 @@ export {
 	CLINE_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
+export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";

@@ -67,7 +67,6 @@ export interface SdkModeCoordinatorOptions {
 }
 
 export class SdkModeCoordinator {
-	private rebuildInFlight: Promise<void> | undefined
 	/**
 	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
 	 * next outbound message by SdkSessionLifecycle.fireAndForgetSend. Shares the
@@ -109,23 +108,6 @@ export class SdkModeCoordinator {
 		}
 		this.modeSwitchNoticeSessionId = sessionId
 		this.modeSwitchNoticeTracker.record(from, to)
-	}
-
-	/**
-	 * Resolves once no mode rebuild is in flight. While a rebuild runs, the
-	 * active session is torn down and replaced (and only marked running after
-	 * the continuation send), so concurrent message paths must wait on this
-	 * instead of treating the gap as "no session" and resuming a parallel
-	 * session that the rebuild would then kill.
-	 */
-	async waitForPendingRebuild(): Promise<void> {
-		while (this.rebuildInFlight) {
-			const current = this.rebuildInFlight
-			await current
-			if (this.rebuildInFlight === current) {
-				this.rebuildInFlight = undefined
-			}
-		}
 	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
@@ -192,15 +174,7 @@ export class SdkModeCoordinator {
 			userFiles?: string[]
 		} = {},
 	): Promise<boolean> {
-		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
-		// Expose the full rebuild (teardown, replacement, continuation send) to
-		// waitForPendingRebuild. Errors are handled inside; the barrier only
-		// tracks completion.
-		this.rebuildInFlight = operation.then(
-			() => undefined,
-			() => undefined,
-		)
-		return operation
+		return this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
 	}
 
 	private async performRebuildSessionForMode(

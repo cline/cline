@@ -228,6 +228,28 @@ describe("createEditorExecutor", () => {
 		});
 	});
 
+	// The CRLF branch is exercised for real by Windows CI, where os.EOL is
+	// "\r\n" (github.com/cline/cline/issues/13504).
+	it("creates new files with the platform-native line ending", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
+		const filePath = path.join(dir, "fresh.txt");
+
+		try {
+			const editor = createEditorExecutor();
+			await editor(
+				{ path: filePath, new_text: "one\ntwo\nthree" },
+				dir,
+				context,
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				["one", "two", "three"].join(os.EOL),
+			);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("replaces text in a pure-LF file without introducing CRLF", async () => {
 		await withTempFile("a\nb\nc", async (filePath, dir) => {
 			const editor = createEditorExecutor();

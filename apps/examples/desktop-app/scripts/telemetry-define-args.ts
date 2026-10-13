@@ -15,6 +15,9 @@ const OPTIONAL_SECRET_ENV_VARS = [
 	"ERROR_SERVICE_API_KEY",
 ] as const;
 
+/** Optional build-time overrides for packaged dogfood builds. */
+const OPTIONAL_FEATURE_ENV_VARS = ["CLINE_CODE_CLOUD_AGENTS"] as const;
+
 /**
  * Every env var `getTelemetryBuildTimeConfig` reads
  * (sdk/packages/shared/src/services/telemetry-config.ts). Always inlined,
@@ -42,7 +45,10 @@ export function telemetryDefineArgs(
 	const define = (name: string, value: string) => {
 		args.push("--define", `process.env.${name}=${JSON.stringify(value)}`);
 	};
-	for (const name of OPTIONAL_SECRET_ENV_VARS) {
+	for (const name of [
+		...OPTIONAL_SECRET_ENV_VARS,
+		...OPTIONAL_FEATURE_ENV_VARS,
+	]) {
 		const value = env[name];
 		if (value) {
 			define(name, value);

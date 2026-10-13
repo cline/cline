@@ -2,6 +2,7 @@ const tsConfigPaths = require("tsconfig-paths")
 const fs = require("fs")
 const path = require("path")
 const Module = require("module")
+const mochaExportNames = Object.keys(require("mocha"))
 
 const baseUrl = path.resolve(__dirname)
 
@@ -29,6 +30,39 @@ tsConfigPaths.register({
 // The module is ES6 only, but the integration tests are compiled to commonJS.
 const originalRequire = Module.prototype.require
 Module.prototype.require = function (id) {
+	// Serve `mocha` imports from the runner's own interface. The runner
+	// (@vscode/test-cli) constructs its Mocha instance from its own copy of
+	// the package; a test file that `require("mocha")`s a second copy gets an
+	// un-setup module whose `currentContext` is never set, and crashes with
+	// "Cannot read properties of undefined (reading 'describe')" at import.
+	// The runner's bdd UI installs describe/it/hooks on globalThis before each
+	// test file is required, so delegating to the globals gives every test the
+	// live runner interface regardless of how "mocha" resolves.
+	if (id === "mocha") {
+		const mochaInterface = {
+			after: globalThis.after,
+			afterEach: globalThis.afterEach,
+			before: globalThis.before,
+			beforeEach: globalThis.beforeEach,
+			describe: globalThis.describe,
+			it: globalThis.it,
+		}
+		// Diagnose unsupported package exports without trapping interop or
+		// tooling probes such as __esModule, then, toJSON or symbols. Enumerable
+		// getters preserve the diagnostic through compiled namespace imports.
+		for (const name of mochaExportNames) {
+			if (!Object.hasOwn(mochaInterface, name)) {
+				Object.defineProperty(mochaInterface, name, {
+					enumerable: true,
+					get() {
+						throw new Error(`Mocha export "${name}" is not provided by test-setup.js mocha shim`)
+					},
+				})
+			}
+		}
+		return mochaInterface
+	}
+
 	// Intercept requires for @google/genai
 	if (id === "@google/genai") {
 		// Return the mock instead
@@ -203,8 +237,13 @@ Module.prototype.require = function (id) {
 	}
 
 	if (id === "@cline/shared") {
+		// Mirrors USER_REJECTED_TOOL_REASON / TOOL_REJECTION_SUFFIX in
+		// sdk/packages/shared/src/llms/tools.ts (the ESM-only real package
+		// cannot be required from this CommonJS test host).
 		return {
 			buildClineSystemPrompt: () => "",
+			USER_REJECTED_TOOL_REASON: "This tool call was rejected by the user and not executed.",
+			TOOL_REJECTION_SUFFIX: "NOT a tool or system failure. Clarify with user before proceeding.",
 			createTool: (tool) => tool,
 			formatDisplayUserInput: (input) => (typeof input === "string" ? input : JSON.stringify(input)),
 		}

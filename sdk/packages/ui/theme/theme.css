@@ -4,6 +4,7 @@
 	/* Register non-default typography companions for standard text utilities. */
 	--text-xs--letter-spacing: var(--text-xs--letter-spacing);
 	--text-sm--letter-spacing: var(--text-sm--letter-spacing);
+	--text-md--letter-spacing: var(--text-md--letter-spacing);
 	--text-base--letter-spacing: var(--text-base--letter-spacing);
 	--text-lg--letter-spacing: var(--text-lg--letter-spacing);
 	--text-xl--letter-spacing: var(--text-xl--letter-spacing);

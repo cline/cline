@@ -24,6 +24,7 @@ const AUTOMATIC_DELAY_MS = 30000
 
 function RefreshButton() {
 	const [isLoading, setIsLoading] = useState(false)
+	const [error, setError] = useState<string>()
 	const [retryIn, setRetryIn] = useState<number | null>(null)
 	const intervalRef = useRef<NodeJS.Timeout>()
 
@@ -37,28 +38,40 @@ function RefreshButton() {
 
 	const onRefresh = () => {
 		setIsLoading(true)
-		StateServiceClient.refreshRemoteConfig(EmptyRequest.create()).finally(() => {
-			setIsLoading(false)
-			setRetryIn(AUTOMATIC_DELAY_MS / 1000)
+		setError(undefined)
+		StateServiceClient.refreshRemoteConfig(EmptyRequest.create())
+			.catch((refreshError) => {
+				setError(refreshError instanceof Error ? refreshError.message : "Failed to refresh managed configuration")
+			})
+			.finally(() => {
+				setIsLoading(false)
+				setRetryIn(AUTOMATIC_DELAY_MS / 1000)
 
-			intervalRef.current = setInterval(() => {
-				setRetryIn((old) => {
-					if (old && old > 0) return old - 1
+				intervalRef.current = setInterval(() => {
+					setRetryIn((old) => {
+						if (old && old > 0) return old - 1
 
-					intervalRef.current && clearInterval(intervalRef.current)
-					return null
-				})
-			}, 1000)
-		})
+						intervalRef.current && clearInterval(intervalRef.current)
+						return null
+					})
+				}, 1000)
+			})
 	}
 
 	return (
-		<VSCodeButton
-			className={`w-full rounded-xs ${isLoading ? "animate-pulse" : ""}`}
-			disabled={isLoading || (retryIn !== null && retryIn > 0)}
-			onClick={() => onRefresh()}>
-			Refresh {retryIn && retryIn > 0 && <>(Retry in: {retryIn} seconds)</>}
-		</VSCodeButton>
+		<div>
+			<VSCodeButton
+				className={`w-full rounded-xs ${isLoading ? "animate-pulse" : ""}`}
+				disabled={isLoading || (retryIn !== null && retryIn > 0)}
+				onClick={() => onRefresh()}>
+				Refresh {retryIn && retryIn > 0 && <>(Retry in: {retryIn} seconds)</>}
+			</VSCodeButton>
+			{error && (
+				<div className="text-xs text-vscode-errorForeground mt-2" role="alert">
+					Could not refresh managed configuration: {error}
+				</div>
+			)}
+		</div>
 	)
 }
 
@@ -269,10 +282,10 @@ function PromptUploadingSection() {
 }
 
 export function RemoteConfigSection({ renderSectionHeader }: RemoteConfigSectionProps) {
-	const { remoteConfigSettings, optOutOfRemoteConfig } = useExtensionState()
+	const { remoteConfigSettings, optOutOfRemoteConfig, remoteConfigAvailable } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
 
-	if (optOutOfRemoteConfig) {
+	if (optOutOfRemoteConfig && remoteConfigAvailable) {
 		return (
 			<BaseRemoteConfigSection renderSectionHeader={renderSectionHeader}>
 				<div className="flex flex-col justify-center gap-4">

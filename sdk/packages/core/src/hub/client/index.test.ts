@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import corePackage from "../../../package.json";
 import {
 	HubTransportError,
 	isHubReconnectableTransportError,
@@ -15,6 +16,8 @@ class MockWebSocket {
 	static readonly CLOSING = 2;
 	static readonly CLOSED = 3;
 	static instances: MockWebSocket[] = [];
+	static commandPayloads = new Map<string, unknown>();
+	static failNextOpen = false;
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -23,6 +26,11 @@ class MockWebSocket {
 	constructor(public readonly url: string) {
 		MockWebSocket.instances.push(this);
 		queueMicrotask(() => {
+			if (MockWebSocket.failNextOpen) {
+				MockWebSocket.failNextOpen = false;
+				this.emit("error", new Error("connection refused"));
+				return;
+			}
 			this.readyState = MockWebSocket.OPEN;
 			this.emit("open");
 		});
@@ -30,26 +38,29 @@ class MockWebSocket {
 
 	static reset(): void {
 		MockWebSocket.instances = [];
+		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.failNextOpen = false;
 	}
 
 	send(data: string): void {
 		const frame = JSON.parse(data) as {
 			kind?: string;
-			envelope?: { requestId?: string };
+			envelope?: { requestId?: string; command?: string };
 		};
 		this.sentFrames.push(frame);
 		if (frame.kind === "command" && frame.envelope?.requestId) {
+			const command = frame.envelope.command ?? "client.register";
 			queueMicrotask(() => {
 				this.emit("message", {
 					data: JSON.stringify({
 						kind: "reply",
 						envelope: {
 							version: "v1",
-							command: "client.register",
+							command,
 							requestId: frame.envelope?.requestId,
 							ok: true,
 							clientId: "hub",
-							payload: {},
+							payload: MockWebSocket.commandPayloads.get(command) ?? {},
 						},
 					}),
 				});
@@ -151,6 +162,38 @@ describe("NodeHubClient", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it.each([
+			undefined,
+			"1.2.3",
+		])("registers version %s and process ID", async (clientVersion) => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({
+				url: "ws://127.0.0.1:25463/hub",
+				clientVersion,
+				metadata: { connector: "telegram", version: "invalid", pid: -1 },
+			});
+			try {
+				await client.connect();
+				expect(MockWebSocket.instances[0].sentFrames).toContainEqual(
+					expect.objectContaining({
+						kind: "command",
+						envelope: expect.objectContaining({
+							command: "client.register",
+							payload: expect.objectContaining({
+								metadata: {
+									connector: "telegram",
+									version: clientVersion ?? corePackage.version,
+									pid: process.pid,
+								},
+							}),
+						}),
+					}),
+				);
+			} finally {
+				await client.dispose();
+			}
+		});
+
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 
@@ -216,6 +259,86 @@ describe("NodeHubClient", () => {
 				await client.dispose();
 			} finally {
 				vi.useRealTimers();
+			}
+		});
+
+		it("retries an initial connection failure with an active subscription", async () => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			MockWebSocket.failNextOpen = true;
+
+			try {
+				const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+				client.subscribe(() => {}, { sessionId: "session-1" });
+				await expect(client.connect()).rejects.toMatchObject({
+					code: "hub_connect_failed",
+				});
+
+				await vi.advanceTimersByTimeAsync(251);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				expect(MockWebSocket.instances).toHaveLength(2);
+				expect(client.isConnected()).toBe(true);
+				await client.dispose();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("checks cancellation after reconnect without allocating or sending a command", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			try {
+				await client.connect();
+				MockWebSocket.instances[0].emit("close", { code: 1006, reason: "" });
+				let cancelled = false;
+				const onDispatch = vi.fn();
+				const beforeDispatch = vi.fn(() => {
+					if (cancelled) throw new Error("cancelled");
+				});
+				const command = client.command(
+					"session.send_input",
+					{ prompt: "old" },
+					"task",
+					{
+						beforeDispatch,
+						onDispatch,
+					},
+				);
+				expect(beforeDispatch).not.toHaveBeenCalled();
+				cancelled = true;
+				await expect(command).rejects.toThrow("cancelled");
+				expect(onDispatch).not.toHaveBeenCalled();
+				expect(MockWebSocket.instances[1].sentFrames).not.toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							command: "session.send_input",
+						}),
+					}),
+				);
+				expect(
+					(client as unknown as { pendingReplies: Map<string, unknown> })
+						.pendingReplies.size,
+				).toBe(0);
+				cancelled = false;
+				await expect(
+					client.command("session.send_input", { prompt: "new" }, "task", {
+						beforeDispatch,
+						onDispatch,
+					}),
+				).resolves.toMatchObject({ ok: true });
+				expect(onDispatch).toHaveBeenCalledOnce();
+				expect(MockWebSocket.instances[1].sentFrames).toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							requestId: onDispatch.mock.calls[0][0],
+							command: "session.send_input",
+						}),
+					}),
+				);
+			} finally {
+				await client.dispose();
 			}
 		});
 
@@ -591,10 +714,14 @@ describe("NodeHubClient", () => {
 				cwd: "/tmp/project",
 			});
 
-			await expect(client.command("client.list")).resolves.toMatchObject({
+			const beforeDispatch = vi.fn();
+			await expect(
+				client.command("client.list", undefined, undefined, { beforeDispatch }),
+			).resolves.toMatchObject({
 				ok: true,
 				payload: { clients: [] },
 			});
+			expect(beforeDispatch).toHaveBeenCalledTimes(2);
 			expect(client.getUrl()).toBe(recoveredUrl);
 			await client.dispose();
 		} finally {
@@ -774,13 +901,74 @@ describe("resolveCompatibleLocalHubUrl", () => {
 	// path and fail locally whenever a stray hub daemon is listening on
 	// the default port (passes in CI only because no daemon is running).
 	beforeEach(() => {
+		MockWebSocket.reset();
 		vi.resetModules();
 	});
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 		delete process.env.CLINE_HUB_BUILD_ID;
 		vi.resetModules();
+	});
+
+	async function resolveShieldedHub(sessions: unknown[]) {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.list", { sessions });
+		const discoveryPath = "/tmp/hub-discovery.json";
+		const oldRecord = {
+			hubId: "old-hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+			pid: 12345,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async (path: string) =>
+					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
+				),
+				probeHubServer: vi.fn(async () => oldRecord),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+		return { oldRecord, resolved: await resolveCompatibleLocalHubUrl() };
+	}
+
+	it("uses a shielded Hub while a participant is attached", async () => {
+		const { oldRecord, resolved } = await resolveShieldedHub([
+			{ status: "idle", participants: [{ clientId: "old-cli" }] },
+		]);
+
+		expect(resolved).toBe(oldRecord.url);
+	});
+
+	it("replaces a participant-less running Hub", async () => {
+		const { resolved } = await resolveShieldedHub([
+			{ status: "running", participants: [] },
+		]);
+
+		expect(resolved).toBeUndefined();
 	});
 
 	it("does not clear discovery on transient probe failure", async () => {
@@ -874,6 +1062,62 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
+	it("attaches to a managed hub from a newer build instead of retiring it", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000,
+					authToken: "newer-token",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000,
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
 	it("keeps explicit endpoints protocol-compatible across build identities", async () => {
 		const readHubDiscoveryMock = vi.fn(async () => {
 			throw new Error("explicit endpoint must not consult managed discovery");
@@ -910,7 +1154,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("returns undefined and keeps discovery when build metadata is missing", async () => {
+	it("attaches and keeps discovery when build metadata is missing", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -954,7 +1198,13 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		// A Hub carrying no build metadata cannot be ordered against this
+		// build, so it is attached over the compatible wire protocol rather
+		// than retired. Retiring an unorderable peer is what let two installs
+		// shut each other's daemon down in a loop.
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
@@ -1138,11 +1388,18 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		});
 
 		const { ensureCompatibleLocalHubUrl } = await import(".");
+		const onStartupError = vi.fn();
 
 		await expect(
-			ensureCompatibleLocalHubUrl({ workspaceRoot: "/tmp/project" }),
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				onStartupError,
+			}),
 		).resolves.toBeUndefined();
 		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(onStartupError).toHaveBeenCalledWith(
+			new Error("could not retire stale hub"),
+		);
 	});
 
 	it("resolves managed shared discovery in development builds", async () => {
@@ -1260,5 +1517,89 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			}),
 		).resolves.toBeUndefined();
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("hasActiveHubSessions", () => {
+	const payload = (sessions: unknown[]) => ({ sessions });
+
+	it("is idle for an empty or malformed list", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(hasActiveHubSessions(payload([]))).toBe(false);
+		expect(hasActiveHubSessions(undefined)).toBe(false);
+		expect(hasActiveHubSessions(payload([null, "junk"]))).toBe(false);
+	});
+
+	it("is busy while anyone is attached, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "idle", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "running", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+	});
+
+	// The session a crashed or killed client leaves behind: a non-terminal
+	// status, nobody attached. Participants are live socket subscriptions, so
+	// a dead client cannot appear here - which is exactly why status must not
+	// be consulted: it stays "running" forever and would pin an outdated hub
+	// as busy until the machine reboots.
+	it("is idle for sessions nobody is attached to, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{ status: "running", participants: [] },
+					{ status: "pending", participants: [] },
+					{ status: "idle", participants: [] },
+					{ status: "completed", participants: [] },
+					{ status: "running" },
+				]),
+			),
+		).toBe(false);
+	});
+});
+
+describe("requestHubDrain", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("posts /drain with the reason and no off param by default", async () => {
+		const fetchMock = vi.fn(async (_input: unknown, _init?: unknown) => ({
+			ok: true,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+		const { requestHubDrain } = await import(".");
+
+		await expect(
+			requestHubDrain("ws://127.0.0.1:25463/hub", "token", "upgrade"),
+		).resolves.toBe(true);
+		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(requested.pathname).toBe("/drain");
+		expect(requested.searchParams.get("reason")).toBe("upgrade");
+		expect(requested.searchParams.get("off")).toBeNull();
+	});
+
+	it("sets the off param so a drain can be lifted", async () => {
+		const fetchMock = vi.fn(async (_input: unknown, _init?: unknown) => ({
+			ok: true,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+		const { requestHubDrain } = await import(".");
+
+		await expect(
+			requestHubDrain("ws://127.0.0.1:25463/hub", "token", "upgrade aborted", {
+				off: true,
+			}),
+		).resolves.toBe(true);
+		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(requested.pathname).toBe("/drain");
+		expect(requested.searchParams.get("off")).toBe("1");
 	});
 });

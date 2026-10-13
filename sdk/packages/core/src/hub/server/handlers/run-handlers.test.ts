@@ -9,6 +9,7 @@ function createContext(
 ): HubTransportContext & { events: HubEventEnvelope[] } {
 	const events: HubEventEnvelope[] = [];
 	return {
+		sessionSearch: { removeSession: vi.fn() } as never,
 		clients: new Map(),
 		sessionState: new Map(),
 		pendingApprovals: new Map(),
@@ -22,7 +23,9 @@ function createContext(
 			abort: vi.fn().mockResolvedValue(undefined),
 			stopSession: vi.fn(),
 			dispose: vi.fn(),
-			getSession: vi.fn(),
+			getSession: vi.fn().mockImplementation(async (sessionId: string) => ({
+				sessionId,
+			})),
 			listSessions: vi.fn(),
 			...overrides,
 		} as RuntimeHost,
@@ -39,6 +42,108 @@ describe("run handlers", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.restoreAllMocks();
+	});
+
+	it("correlates run start with the accepted command", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ runTurn });
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-input",
+				clientId: "client-1",
+				sessionId: "session-1",
+				payload: { prompt: "go" },
+			}),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(runTurn).toHaveBeenCalledOnce();
+		expect(ctx.events).toContainEqual(
+			expect.objectContaining({
+				event: "run.started",
+				payload: {
+					clientId: "client-1",
+					requestId: "req-input",
+				},
+				sessionId: "session-1",
+			}),
+		);
+	});
+
+	it("accepts image-only input and rejects blank attachments", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ runTurn });
+		const image = "data:image/png;base64,aGVsbG8=";
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-image-only",
+				sessionId: "session-1",
+				payload: {
+					prompt: "",
+					attachments: {
+						userImages: ["", "  ", image],
+						userFiles: ["", "\t"],
+					},
+				},
+			}),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "",
+				userImages: [image],
+				userFiles: [],
+			}),
+		);
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-blank-attachments",
+				sessionId: "session-1",
+				payload: {
+					prompt: "",
+					attachments: { userImages: [" "], userFiles: ["\t"] },
+				},
+			}),
+		).resolves.toMatchObject({
+			error: { code: "invalid_session_input" },
+			ok: false,
+		});
+		expect(runTurn).toHaveBeenCalledOnce();
+	});
+
+	it("does not publish run start for an unknown session", async () => {
+		const runTurn = vi.fn();
+		const ctx = createContext({
+			getSession: vi.fn().mockResolvedValue(undefined),
+			runTurn,
+		});
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-missing",
+				clientId: "client-1",
+				sessionId: "missing-session",
+				payload: { prompt: "go" },
+			}),
+		).resolves.toMatchObject({
+			error: { code: "session_not_found" },
+			ok: false,
+		});
+
+		expect(runTurn).not.toHaveBeenCalled();
+		expect(ctx.events).not.toContainEqual(
+			expect.objectContaining({ event: "run.started" }),
+		);
 	});
 
 	it("aborts through the runtime host when a run timeout is configured", async () => {

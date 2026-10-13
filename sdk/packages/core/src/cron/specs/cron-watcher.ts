@@ -1,5 +1,5 @@
 import type { FSWatcher } from "node:fs";
-import { existsSync, mkdirSync, watch } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, watch } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { CronReconciler } from "./cron-reconciler";
 
@@ -42,13 +42,20 @@ export class CronWatcher {
 		const dir = this.reconciler.getCronDir();
 		try {
 			mkdirSync(dir, { recursive: true });
-			this.watcher = watch(dir, { recursive: true }, (_eventType, filename) => {
-				if (!filename) return;
-				const rel = String(filename).replace(/\\/g, "/");
-				if (!rel.endsWith(".md")) return;
-				if (rel.startsWith("reports/")) return;
-				this.scheduleReconcile(rel);
-			});
+			// Windows short paths (e.g. RUNNER~1) can trigger a fatal libuv
+			// prefix assertion when watch events arrive with long-form filenames.
+			const watchRoot = realpathSync.native(dir);
+			this.watcher = watch(
+				watchRoot,
+				{ recursive: true },
+				(_eventType, filename) => {
+					if (!filename) return;
+					const rel = String(filename).replace(/\\/g, "/");
+					if (!rel.endsWith(".md")) return;
+					if (rel.startsWith("reports/")) return;
+					this.scheduleReconcile(rel);
+				},
+			);
 			this.watcher.on("error", this.onError);
 		} catch (err) {
 			this.onError(err);

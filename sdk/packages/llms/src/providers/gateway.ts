@@ -18,12 +18,25 @@ import {
 } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
+import { providerManifestSupportsModelOperation } from "./model-operations";
+import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
 import { isPositiveFiniteNumber } from "./utils";
 
 export type * from "@cline/shared";
 
 export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
+/**
+ * When a model advertises an output budget and the caller sets no explicit
+ * max-tokens, the synthesized default is raised to this fraction of the
+ * model's budget when that exceeds DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS — so a
+ * large-budget model's reasoning turn has room to finish before hitting the
+ * limit. It never lowers the default: a model whose budget is smaller than
+ * the flat default still gets the flat default here, and the separate
+ * model-output-budget cap already prevents requesting more than a small
+ * model can actually emit.
+ */
+export const DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION = 0.3;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
 
 function mergeRequestMetadata(
@@ -155,6 +168,7 @@ class GatewayModelAdapter implements AgentModel {
 			systemPrompt: request.systemPrompt,
 			messages: request.messages,
 			tools: this.defaults?.tools ?? request.tools,
+			modelTools: this.defaults?.modelTools ?? request.modelTools,
 			temperature:
 				(request.options?.temperature as number | undefined) ??
 				this.defaults?.temperature,
@@ -199,10 +213,28 @@ export function resolveGatewayRequestMaxTokens(input: {
 			? Math.floor(input.reasoningBudgetTokens) +
 				(input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS)
 			: 0;
-		const defaultMaxOutputTokens = Math.max(
-			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
-			reasoningFloor,
-		);
+		// Synthesized default cap: an explicit caller default wins. Otherwise,
+		// the flat default (DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS) is a floor, not a
+		// ceiling: a fraction of the model's advertised output budget (see
+		// DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION) only ever raises it, for models
+		// whose budget is large enough that the fraction exceeds the flat
+		// default. A model whose budget is smaller than the flat default still
+		// gets the flat default here — the model cap pushed below is what clamps
+		// it back down to what that model can actually emit. A reasoning budget
+		// still lifts the result too.
+		const baseDefault =
+			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
+		const catalogDefault =
+			input.defaultMaxOutputTokens === undefined &&
+			isPositiveFiniteNumber(input.model.maxOutputTokens)
+				? Math.max(
+						baseDefault,
+						Math.floor(
+							input.model.maxOutputTokens * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
+						),
+					)
+				: baseDefault;
+		const defaultMaxOutputTokens = Math.max(catalogDefault, reasoningFloor);
 		if (
 			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
 			isPositiveFiniteNumber(input.model.contextWindow)
@@ -305,6 +337,32 @@ export class DefaultGateway implements Gateway {
 			providerId: request.providerId,
 			modelId: request.modelId || undefined,
 		});
+		if (
+			!providerManifestSupportsModelOperation(resolved.provider, resolved.model)
+		) {
+			throw new Error(
+				`Provider "${resolved.provider.id}" does not support model "${resolved.model.id}" operation "${resolved.model.operation ?? "language"}" with its declared modalities.`,
+			);
+		}
+		const unsupportedModelTools = [
+			...new Set(
+				(request.modelTools ?? [])
+					.filter(
+						(tool) =>
+							!providerManifestSupportsModelTool(
+								resolved.provider,
+								resolved.model.id,
+								tool.name,
+							),
+					)
+					.map((tool) => tool.name),
+			),
+		];
+		if (unsupportedModelTools.length > 0) {
+			throw new Error(
+				`Provider "${resolved.provider.id}" model "${resolved.model.id}" does not support model tool(s): ${unsupportedModelTools.join(", ")}.`,
+			);
+		}
 		const providerRecord = await this.registry.createProvider(
 			request.providerId,
 		);

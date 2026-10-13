@@ -9,11 +9,9 @@ import {
 } from "@shared/api"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { ClineRulesToggles } from "@shared/cline-rules"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
-import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -83,12 +81,15 @@ const GLOBAL_STATE_FIELDS = {
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
 	mcpDisplayMode: { default: DEFAULT_MCP_DISPLAY_MODE as McpDisplayMode },
-	workspaceRoots: { default: undefined as WorkspaceRoot[] | undefined },
-	primaryRootIndex: { default: 0 as number },
 	multiRootEnabled: { default: true as boolean },
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
+	// Organization id of the last successful managed remote-config publish.
+	// Persistent evidence that this install is managed: the session gate uses it
+	// to fail closed when the user's identity cannot be resolved (API unreachable)
+	// instead of starting an unpoliced session. Cleared on explicit no-config.
+	lastManagedOrganizationId: { default: undefined as string | undefined },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	remoteSkillsToggles: { default: {} as ClineRulesToggles },
@@ -277,7 +278,6 @@ const USER_SETTINGS_FIELDS = {
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
-	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	showFeatureTips: { default: false as boolean },
@@ -286,6 +286,7 @@ const USER_SETTINGS_FIELDS = {
 	openTelemetryEnabled: { default: true as boolean },
 	openTelemetryMetricsExporter: { default: undefined as string | undefined },
 	openTelemetryLogsExporter: { default: undefined as string | undefined },
+	openTelemetryTracesExporter: { default: undefined as string | undefined },
 	openTelemetryOtlpProtocol: { default: "http/json" as string | undefined },
 	openTelemetryOtlpEndpoint: { default: "http://localhost:4318" as string | undefined },
 	openTelemetryOtlpMetricsProtocol: { default: undefined as string | undefined },

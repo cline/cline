@@ -7,15 +7,15 @@
  *  - Starts the mock Cline API server (from the e2e test fixtures).
  *  - Downloads a stable build of VS Code (via @vscode/test-electron).
  *  - Creates a temporary VS Code user profile directory.
- *  - Installs and links the Cline extension (from dist/e2e.vsix and the dev path).
+ *  - Loads the Cline extension from apps/vscode as an extension under development.
  *  - Opens a test workspace and automatically reveals the Cline sidebar.
  *  - Records **all gRPC calls** during the session for later inspection.
  *  - Keeps VS Code running for manual interactive testing until the window is closed or Ctrl+C is pressed.
  *  - Cleans up all resources (mock server, temp profile, Electron process) on exit.
  *
  * Usage:
- *   1. (Optional) Build and install the e2e extension:
- *        bun run test:e2e:build
+ *   1. (Optional) Build the extension:
+ *        bun run build:production
  *
  *   2. From the repo root, start the interactive session:
  *        bun run test:e2e:ui
@@ -60,7 +60,6 @@ async function main() {
 			"--skip-welcome",
 			"--skip-release-notes",
 			`--user-data-dir=${userDataDir}`,
-			`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 			`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 			path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"),
 		],

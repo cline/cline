@@ -27,13 +27,20 @@ function getCommands(): HubScheduleCommandService {
 async function clientCommand(
 	hubCommand: string,
 	payload?: Record<string, unknown>,
+	workspaceRoot = process.cwd(),
 ): Promise<Record<string, unknown>> {
-	const reply = await getCommands().handleCommand({
-		version: "v1",
-		clientId: "cline-hub-schedules",
-		command: hubCommand as never,
-		payload,
-	});
+	const reply = await getCommands().handleCommand(
+		{
+			version: "v1",
+			clientId: "cline-hub-schedules",
+			command: hubCommand as never,
+			payload,
+		},
+		{
+			clientId: "cline-hub-schedules",
+			workspaceContext: { workspaceRoot, cwd: workspaceRoot },
+		},
+	);
 	if (!reply.ok) {
 		throw new Error(
 			reply.error?.message ?? `hub command failed: ${hubCommand}`,
@@ -70,14 +77,17 @@ function asTrimmedStringArray(value: unknown): string[] | undefined {
 export async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
+	workspaceRoot = process.cwd(),
 ): Promise<unknown> {
+	const commandHub = (hubCommand: string, payload?: Record<string, unknown>) =>
+		clientCommand(hubCommand, payload, workspaceRoot);
 	if (command === "list_routine_schedules") {
 		const [schedules, activeExecutions, upcomingRuns] = await Promise.all([
-			clientCommand("schedule.list", {
+			commandHub("schedule.list", {
 				limit: toPositiveInt(args?.limit) ?? 200,
 			}),
-			clientCommand("schedule.active"),
-			clientCommand("schedule.upcoming", { limit: 30 }),
+			commandHub("schedule.active"),
+			commandHub("schedule.upcoming", { limit: 30 }),
 		]);
 		const scheduleRows = Array.isArray(schedules.schedules)
 			? schedules.schedules
@@ -88,7 +98,7 @@ export async function handleRoutineScheduleCommand(
 					(schedule as Record<string, unknown>).scheduleId,
 				);
 				if (!scheduleId) return undefined;
-				const reply = await clientCommand("schedule.list_executions", {
+				const reply = await commandHub("schedule.list_executions", {
 					scheduleId,
 					limit: 1,
 				});
@@ -115,7 +125,7 @@ export async function handleRoutineScheduleCommand(
 				"createSchedule requires name, timing, prompt, and workspace_root",
 			);
 		}
-		const created = await clientCommand("schedule.create", {
+		const created = await commandHub("schedule.create", {
 			name,
 			...timing,
 			prompt,
@@ -149,7 +159,7 @@ export async function handleRoutineScheduleCommand(
 				"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
 			);
 		}
-		const reply = await clientCommand("schedule.update", {
+		const reply = await commandHub("schedule.update", {
 			scheduleId,
 			name,
 			...timing,
@@ -180,25 +190,25 @@ export async function handleRoutineScheduleCommand(
 		return { schedule: reply.schedule ?? null };
 	}
 	if (command === "pause_routine_schedule") {
-		const reply = await clientCommand("schedule.disable", { scheduleId });
+		const reply = await commandHub("schedule.disable", { scheduleId });
 		return { schedule: reply.schedule ?? null };
 	}
 	if (command === "resume_routine_schedule") {
-		const reply = await clientCommand("schedule.enable", { scheduleId });
+		const reply = await commandHub("schedule.enable", { scheduleId });
 		return { schedule: reply.schedule ?? null };
 	}
 	if (command === "trigger_routine_schedule") {
-		const existing = await clientCommand("schedule.get", { scheduleId });
+		const existing = await commandHub("schedule.get", { scheduleId });
 		if (!existing.schedule)
 			throw new Error(`schedule not found: ${scheduleId}`);
-		const reply = await clientCommand("schedule.trigger", {
+		const reply = await commandHub("schedule.trigger", {
 			scheduleId,
 			wait: false,
 		});
 		return { execution: reply.execution ?? null };
 	}
 	if (command === "delete_routine_schedule") {
-		const reply = await clientCommand("schedule.delete", { scheduleId });
+		const reply = await commandHub("schedule.delete", { scheduleId });
 		return { deleted: reply.deleted === true };
 	}
 	throw new Error(`unsupported routine schedule command: ${command}`);

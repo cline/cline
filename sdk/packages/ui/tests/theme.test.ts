@@ -211,6 +211,22 @@ describe("@cline/ui theme contract", () => {
 			expect(root).toContain(`--${token}:`);
 			expect(dark).toContain(`--${token}:`);
 		}
+		for (const [token, value] of [
+			["normal", 480],
+			["medium", 560],
+			["semibold", 640],
+			["bold", 640],
+		] as const) {
+			expect(root).toContain(`--font-weight-${token}: ${value};`);
+		}
+		for (const [token, value] of [
+			["normal", 400],
+			["medium", 500],
+			["semibold", 600],
+			["bold", 600],
+		] as const) {
+			expect(dark).toContain(`--font-weight-${token}: ${value};`);
+		}
 		for (const token of [
 			"--font-sans:",
 			"--font-mono:",
@@ -282,6 +298,7 @@ describe("@cline/ui theme contract", () => {
 		for (const size of [
 			"xs",
 			"sm",
+			"md",
 			"base",
 			"lg",
 			"xl",
@@ -311,6 +328,7 @@ describe("@cline/ui theme contract", () => {
 			"--font-weight-cline-ui-medium: var(--font-weight-medium);",
 		);
 		expect(componentTheme).toContain("--text-cline-ui-xs: var(--text-xs);");
+		expect(componentTheme).toContain("--text-cline-ui-md: var(--text-md);");
 		expect(componentTheme).toContain("--radius-cline-ui-lg: var(--radius-lg);");
 		expect(componentTheme).not.toMatch(
 			/--color-cline-ui-(?:neutral|accent|error|success|warning|info)-(?:a)?\d+:/,
@@ -377,6 +395,26 @@ describe("@cline/ui theme contract", () => {
 		expect(sessionStatus).toContain("var(--error-text)");
 		expect(componentCss).not.toContain("var(--destructive)");
 		expect(componentCss).not.toContain("var(--chart-2)");
+	});
+
+	it("preserves the switch accent blend and semantic interaction colors", () => {
+		const css = readComponent("switch.css");
+		const states = block(css, "@media (forced-colors: none)");
+		const track = ".cline-ui-switch__track";
+		const input = ".cline-ui-switch__input";
+
+		expect(block(states, `${input}:checked + ${track}`)).toContain(
+			"background: color-mix(in srgb, var(--primary) 80%, var(--accent-8) 20%);",
+		);
+		expect(
+			block(states, `${input}:enabled:checked:hover + ${track}`),
+		).toContain("background: var(--primary-emphasis);");
+		expect(
+			block(states, `${input}:enabled:checked:active + ${track}`),
+		).toContain("background: var(--primary);");
+		expect(block(states, `${input}:focus-visible + ${track}`)).toContain(
+			"var(--ring)",
+		);
 	});
 
 	it("exports every documented CSS entry point", () => {

@@ -1,19 +1,42 @@
 import {
 	clearHubDiscovery,
 	ensureDetachedHubServer,
+	localHubHasNoActiveSessions,
+	NodeHubClient,
 	probeHubServer,
 	readHubDiscovery,
+	requestHubDrain,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
-import { Command } from "commander";
+import {
+	formatUptime,
+	type PluginStatusRecord,
+	resolveClineBuildEnv,
+} from "@cline/shared";
+import { Command, InvalidArgumentError } from "commander";
 import { version as cliVersion } from "../../package.json";
+import { createDashboardCommand } from "./dashboard-command";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
+}
+
+interface HubOptions {
+	cwd: string;
+	host?: string;
+	port?: number;
+	pathname?: string;
+}
+
+function addHubOptions(command: Command, defaultCwd?: string): Command {
+	return command
+		.option("--cwd <path>", "Workspace root", defaultCwd)
+		.option("--host <host>", "Hub host")
+		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
+		.option("--pathname <path>", "Hub websocket path");
 }
 
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
@@ -54,6 +77,16 @@ function resolveCliHubOwnerContext() {
 		: resolveSharedHubOwnerContext();
 }
 
+function parseWaitSeconds(value: string): number {
+	const parsed = Number.parseInt(value, 10);
+	if (Number.isNaN(parsed) || parsed < 0) {
+		throw new InvalidArgumentError(
+			"--wait requires a non-negative number of seconds.",
+		);
+	}
+	return parsed;
+}
+
 export function createHubCommand(
 	io: HubCommandIo,
 	setExitCode: (code: number) => void,
@@ -76,22 +109,20 @@ export function createHubCommand(
 	const hub = new Command("hub")
 		.description("Manage the local hub daemon")
 		.exitOverride()
+		// Subcommands may use the same flag names for different services.
+		.enablePositionalOptions()
 		.hook("postAction", () => {
 			setExitCode(actionExitCode);
-		})
-		.option("--cwd <path>", "Workspace root", process.cwd())
-		.option("--host <host>", "Hub host")
-		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
-		.option("--pathname <path>", "Hub websocket path");
+		});
+	addHubOptions(hub, process.cwd());
+	const resolveOptions = (options: Partial<HubOptions>): HubOptions => ({
+		...hub.opts<HubOptions>(),
+		...options,
+	});
 
 	hub.command("ensure").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
+		action(async (options: Partial<HubOptions>) => {
+			const opts = resolveOptions(options);
 			const { url } = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
@@ -102,13 +133,8 @@ export function createHubCommand(
 	);
 
 	hub.command("start").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
+		action(async (options: Partial<HubOptions>) => {
+			const opts = resolveOptions(options);
 			const { url } = await ensureDetachedHubServer(opts.cwd, {
 				host: opts.host,
 				port: opts.port,
@@ -142,11 +168,178 @@ export function createHubCommand(
 		}),
 	);
 
+	hub
+		.command("plugins")
+		.description("Show the status and last error of each plugin the hub loaded")
+		.option(
+			"--reload <plugin>",
+			"Re-import one plugin (name or path) without restarting the hub",
+		)
+		.action(
+			action(async (cmdOptions: { reload?: string }) => {
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (!discovery?.url) {
+					io.writeErr("No hub is running.");
+					fail();
+					return;
+				}
+				const client = new NodeHubClient({
+					url: discovery.url,
+					...(discovery.authToken ? { authToken: discovery.authToken } : {}),
+					clientType: "cli-hub-plugins",
+					displayName: "hub plugins",
+				});
+				try {
+					await client.connect();
+					const reply = cmdOptions.reload
+						? await client.command("plugins.reload", {
+								plugin: cmdOptions.reload,
+							})
+						: await client.command("plugins.status");
+					if (!reply.ok) {
+						io.writeErr(
+							reply.error?.message ?? "The hub rejected the plugins request.",
+						);
+						fail();
+						return;
+					}
+					const plugins = (reply.payload?.plugins ??
+						[]) as PluginStatusRecord[];
+					io.writeln(JSON.stringify({ plugins }));
+				} finally {
+					try {
+						client.close();
+					} catch {
+						// One-shot connection; a failed close changes nothing.
+					}
+				}
+			}),
+		);
+
 	hub.command("stop").action(
-		action(async () => {
-			const opts = hub.opts<{ cwd: string }>();
+		action(async (options: Partial<HubOptions>) => {
+			const opts = resolveOptions(options);
 			const stopped = await stopHubServer(opts.cwd);
 			io.writeln(JSON.stringify({ stopped }));
+		}),
+	);
+
+	hub
+		.command("drain")
+		.description("Refuse new mutating work while accepted runs finish")
+		.option("--reason <text>", "Why the hub is draining")
+		.option("--off", "Lift the drain and accept new mutating work again")
+		.action(
+			action(async (cmdOptions: { reason?: string; off?: boolean }) => {
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (!discovery?.url) {
+					io.writeErr("No hub is running.");
+					fail();
+					return;
+				}
+				const draining = cmdOptions.off !== true;
+				const ok = await requestHubDrain(
+					discovery.url,
+					discovery.authToken,
+					cmdOptions.reason ??
+						(draining ? "cline hub drain" : "cline hub drain --off"),
+					{ off: !draining },
+				);
+				if (!ok) {
+					io.writeErr(
+						draining
+							? "Hub drain request failed."
+							: "Hub un-drain request failed.",
+					);
+					fail();
+					return;
+				}
+				io.writeln(JSON.stringify({ draining, url: discovery.url }));
+			}),
+		);
+
+	hub
+		.command("upgrade")
+		.description(
+			"Drain the hub and restart it; does not wait for --zen or scheduled tasks",
+		)
+		.option(
+			"--wait <seconds>",
+			"How long to wait for the hub to go idle",
+			parseWaitSeconds,
+			120,
+		)
+		.action(
+			action(async (cmdOptions: Partial<HubOptions> & { wait: number }) => {
+				const opts = resolveOptions(cmdOptions);
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (discovery?.url) {
+					const drained = await requestHubDrain(
+						discovery.url,
+						discovery.authToken,
+						"cline hub upgrade",
+					).catch(() => false);
+					// An aborted upgrade must hand the hub back: leaving it
+					// draining refuses all new mutating work until a restart.
+					const undrain = async (): Promise<void> => {
+						if (!drained) {
+							return;
+						}
+						await requestHubDrain(
+							discovery.url,
+							discovery.authToken,
+							"cline hub upgrade aborted",
+							{ off: true },
+						).catch(() => false);
+					};
+					try {
+						const deadline = Date.now() + cmdOptions.wait * 1_000;
+						let idle = false;
+						// Check at least once so --wait 0 still observes an idle hub.
+						for (;;) {
+							idle = await localHubHasNoActiveSessions(
+								discovery.url,
+								discovery.authToken,
+							).catch(() => true);
+							if (idle || Date.now() >= deadline) {
+								break;
+							}
+							await new Promise((resolve) => setTimeout(resolve, 1_000));
+						}
+						if (!idle) {
+							await undrain();
+							io.writeErr(
+								"Hub is still serving sessions after the wait window; not replacing it. Re-run with a longer --wait, or finish the sessions first.",
+							);
+							fail();
+							return;
+						}
+						await stopHubServer(opts.cwd);
+					} catch (error) {
+						await undrain();
+						throw error;
+					}
+				}
+				const { url } = await ensureDetachedHubServer(opts.cwd, {
+					host: opts.host,
+					port: opts.port,
+					pathname: opts.pathname,
+				});
+				io.writeln(JSON.stringify({ upgraded: true, url }));
+			}),
+		);
+
+	// Keep daemon options accepted before or after existing subcommands.
+	for (const command of hub.commands) {
+		addHubOptions(command);
+	}
+
+	hub.addCommand(
+		createDashboardCommand(io, (code) => {
+			actionExitCode = code;
 		}),
 	);
 

@@ -45,7 +45,7 @@ export function useDynamicProviderSelection(
 	apiConfiguration: ApiConfiguration | undefined,
 	mode: Mode,
 ): DynamicProviderSelection {
-	const hideUsageCost = useProviderUsageCostDisplay(providerId) === "hide"
+	const hideUsageCost = useProviderUsageCostDisplay(providerId) !== "show"
 	return useMemo(() => {
 		const fields = readFields(apiConfiguration, mode)
 		const fallbackInfo = FALLBACK_INFO_BY_PROVIDER[providerId] ?? openAiModelInfoSafeDefaults

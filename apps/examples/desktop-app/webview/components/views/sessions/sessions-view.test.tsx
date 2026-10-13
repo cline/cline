@@ -10,6 +10,8 @@ import {
 } from "@/components/views/sessions/sessions-view";
 import type { SessionThread } from "@/hooks/use-session-history";
 import type { SessionHistoryItem } from "@/lib/session-history";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -25,10 +27,12 @@ const thread: SessionThread = {
 	inputTokens: 13_837_938,
 	outputTokens: 132_579,
 	status: "completed",
+	isScheduled: false,
 };
 
 const session: SessionHistoryItem = {
 	sessionId: thread.id,
+	environmentId: "local",
 	status: "completed",
 	provider: thread.provider,
 	model: thread.model,
@@ -42,19 +46,23 @@ function renderView({
 	openThread = vi.fn(),
 	loadAllSessions = vi.fn(async () => true),
 	loadOlderSessions = vi.fn(),
+	requestUsage = vi.fn(),
 	mayHaveMoreSessions = false,
 	threads = [thread],
+	hasLoadedHistory = true,
 }: {
 	openThread?: ReturnType<typeof vi.fn>;
 	loadAllSessions?: ReturnType<typeof vi.fn>;
 	loadOlderSessions?: ReturnType<typeof vi.fn>;
+	requestUsage?: ReturnType<typeof vi.fn>;
 	mayHaveMoreSessions?: boolean;
 	threads?: SessionThread[];
+	hasLoadedHistory?: boolean;
 } = {}) {
 	const history = {
 		deleteThread: vi.fn(),
 		forkThread: vi.fn(),
-		isLoadingHistory: false,
+		hasLoadedHistory,
 		isLoadingMore: false,
 		loadAllSessions,
 		loadOlderSessions,
@@ -62,6 +70,7 @@ function renderView({
 		openThread,
 		pendingAction: null,
 		renameThread: vi.fn(),
+		requestUsage,
 		setThreadPinned: vi.fn(),
 		sessionById: new Map(
 			threads.map((item) => [item.id, { ...session, sessionId: item.id }]),
@@ -73,6 +82,7 @@ function renderView({
 		loadAllSessions,
 		loadOlderSessions,
 		openThread,
+		requestUsage,
 		render: () =>
 			act(async () => {
 				root.render(
@@ -149,19 +159,34 @@ describe("SessionsView table", () => {
 		expect(row?.parentElement?.className).not.toContain("min-h-14");
 	});
 
-	it("marks favorited sessions with a star", async () => {
+	it("marks pinned sessions with a pin icon", async () => {
 		const plain = renderView();
 		await plain.render();
-		expect(container.querySelector('[aria-label="Favorited"]')).toBeNull();
+		expect(container.querySelector('[aria-label="Pinned"]')).toBeNull();
 
 		await act(async () => root.unmount());
 		root = createRoot(container);
 
-		const favorited = renderView({
+		const pinned = renderView({
 			threads: [{ ...thread, pinned: true }],
 		});
-		await favorited.render();
-		expect(container.querySelector('[aria-label="Favorited"]')).not.toBeNull();
+		await pinned.render();
+		expect(container.querySelector('[aria-label="Pinned"]')).not.toBeNull();
+	});
+
+	it("marks cloud sessions and shows their repository", async () => {
+		const cloudThread: SessionThread = {
+			...thread,
+			origin: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+		};
+		const view = renderView({ threads: [cloudThread] });
+		await view.render();
+
+		expect(
+			container.querySelector('[aria-label="Cloud session"]'),
+		).not.toBeNull();
+		expect(container.textContent).toContain("https://github.com/cline/cline");
 	});
 
 	it("opens a session on click but not while text is selected", async () => {
@@ -186,6 +211,21 @@ describe("SessionsView table", () => {
 			row?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 		});
 		expect(view.openThread).toHaveBeenCalledWith(thread.id);
+	});
+
+	it("keeps loading until the first response and only then shows the empty state", async () => {
+		const loading = renderView({ threads: [], hasLoadedHistory: false });
+		await loading.render();
+		expect(container.textContent).toContain("Loading session history...");
+		expect(container.textContent).not.toContain("No sessions yet.");
+
+		await act(async () => root.unmount());
+		root = createRoot(container);
+
+		const empty = renderView({ threads: [], hasLoadedHistory: true });
+		await empty.render();
+		expect(container.textContent).toContain("No sessions yet.");
+		expect(container.textContent).not.toContain("Loading session history...");
 	});
 
 	it("loads complete history before treating search results as exhaustive", async () => {
@@ -251,6 +291,46 @@ describe("SessionsView table", () => {
 
 		expect(view.loadAllSessions).toHaveBeenCalledOnce();
 	});
+
+	it("warns that deleting a task-worktree session also removes its worktree", async () => {
+		registerTaskWorktreeRoot("/home/host/cline-dir/worktrees");
+		try {
+			const view = renderView({
+				threads: [
+					{
+						...thread,
+						workspacePath: "/home/host/cline-dir/worktrees/ab12c/ai-data-suite",
+					},
+				],
+			});
+			await view.render();
+
+			const actions = container.querySelector<HTMLButtonElement>(
+				`button[aria-label="Session actions for ${thread.title}"]`,
+			);
+			await act(async () => {
+				actions?.dispatchEvent(
+					new MouseEvent("pointerdown", {
+						bubbles: true,
+						cancelable: true,
+						button: 0,
+					}),
+				);
+			});
+			const deleteItem = Array.from(
+				document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+			).find((item) => item.textContent === "Delete");
+			expect(deleteItem).not.toBeUndefined();
+			await act(async () => {
+				deleteItem?.click();
+			});
+
+			expect(document.body.textContent).toContain("Delete session?");
+			expect(document.body.textContent).toContain(TASK_WORKTREE_DELETE_WARNING);
+		} finally {
+			registerTaskWorktreeRoot("");
+		}
+	});
 });
 
 describe("SessionsView pagination", () => {
@@ -288,6 +368,33 @@ describe("SessionsView pagination", () => {
 		await clickNext();
 		expect(rowTitles()[0]).toBe("Session 10");
 		expect(container.textContent).toContain("11-20 of 25");
+	});
+
+	it("asks the history hook for usage of the rows on the visible page", async () => {
+		const view = renderView({ threads: manyThreads });
+		await view.render();
+
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(0, 10).map((item) => item.id),
+		);
+
+		await clickNext();
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(10, 20).map((item) => item.id),
+		);
+	});
+
+	it("releases its usage request when it unmounts", async () => {
+		const view = renderView({ threads: manyThreads });
+		await view.render();
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(0, 10).map((item) => item.id),
+		);
+
+		await act(async () => {
+			root.render(<div />);
+		});
+		expect(view.requestUsage).toHaveBeenLastCalledWith([]);
 	});
 
 	it("only asks the backend for older sessions at the last page", async () => {
