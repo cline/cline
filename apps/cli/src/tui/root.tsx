@@ -704,11 +704,11 @@ function App(props: TuiProps) {
 	} = session;
 	const deferredHydrationGuardRef = useRef({
 		hasSubmitted: session.hasSubmitted,
-		entryCount: session.entries.length,
+		entries: session.entries,
 	});
 	deferredHydrationGuardRef.current = {
 		hasSubmitted: session.hasSubmitted,
-		entryCount: session.entries.length,
+		entries: session.entries,
 	};
 
 	useEffect(() => {
@@ -724,10 +724,16 @@ function App(props: TuiProps) {
 					return;
 				}
 				const currentSession = deferredHydrationGuardRef.current;
-				if (currentSession.hasSubmitted || currentSession.entryCount > 0) {
+				if (currentSession.hasSubmitted) {
 					return;
 				}
-				replaceSessionEntries(hydrateSessionMessages(messages));
+				// The runtime can post status notices while the session starts (a
+				// plugin that failed to load, say). Keep them after the restored
+				// transcript rather than letting them stand in for it.
+				replaceSessionEntries([
+					...hydrateSessionMessages(messages),
+					...currentSession.entries,
+				]);
 				if (typeof result.currentContextSize === "number") {
 					setSessionLastTotalTokens(result.currentContextSize);
 				}
