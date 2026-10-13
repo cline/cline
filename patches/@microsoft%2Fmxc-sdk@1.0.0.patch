@@ -1,0 +1,53 @@
+diff --git a/dist/bindings/native-stdio.js b/dist/bindings/native-stdio.js
+index e880ec3d61b74e77936911e04353ae400eb2ebb6..e63f4c3cfd14dc1a3f58347205e3c46be87ef03e 100644
+--- a/dist/bindings/native-stdio.js
++++ b/dist/bindings/native-stdio.js
+@@ -1,3 +1,4 @@
++import { Readable } from 'node:stream';
+ // Copyright (c) Microsoft Corporation.
+ // Licensed under the MIT License.
+ import * as fs from 'node:fs';
+@@ -40,6 +41,25 @@ function unixFd(handle) {
+     }
+     return fd;
+ }
++// Bun's net.Socket cannot read an inherited pipe fd and fs.createReadStream
++// rejects the non-blocking fd with EAGAIN, so read it through Bun.file and
++// close the fd once the stream is done.
++function bunReadable(fd) {
++    const stream = Readable.fromWeb(Bun.file(fd).stream());
++    let closed = false;
++    stream.once('close', () => {
++        if (closed)
++            return;
++        closed = true;
++        try {
++            fs.closeSync(fd);
++        }
++        catch {
++            // Already closed.
++        }
++    });
++    return stream;
++}
+ const nodeStreamDependencies = {
+     createReadStream: (path, options) => fs.createReadStream(path, options),
+     createWriteStream: (path, options) => fs.createWriteStream(path, options),
+@@ -53,6 +73,8 @@ export function createNodeStreamFactory(platform, dependencies = nodeStreamDepen
+             if (platform === 'win32') {
+                 return dependencies.createReadStream('', windowsHandleOptions(handle));
+             }
++            if (process.versions.bun)
++                return bunReadable(unixFd(handle));
+             return dependencies.createSocket({
+                 fd: unixFd(handle),
+                 readable: true,
+@@ -63,6 +85,8 @@ export function createNodeStreamFactory(platform, dependencies = nodeStreamDepen
+             if (platform === 'win32') {
+                 return dependencies.createWriteStream('', windowsHandleOptions(handle));
+             }
++            if (process.versions.bun)
++                return dependencies.createWriteStream('', { fd: unixFd(handle), autoClose: true });
+             return dependencies.createSocket({
+                 fd: unixFd(handle),
+                 readable: false,

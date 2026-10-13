@@ -5,12 +5,14 @@
  * Microsoft's MXC sandbox (https://github.com/microsoft/mxc): they can read
  * anything but only write inside the project, temp folders, and package
  * manager caches. MXC is an optional dependency loaded at runtime; packaged
- * hosts ship it next to their executable or point CLINE_MXC_SDK_DIR at it.
+ * hosts ship it next to their executable or point CLINE_MXC_SDK_DIR at it
+ * (see scripts/stage-mxc-runtime.ts).
  */
 
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough, type Readable, type Writable } from "node:stream";
@@ -62,16 +64,36 @@ const HOME_CACHE_DIRS = [
 ];
 const LOCAL_APP_DATA_CACHE_DIRS = ["npm-cache", "pip", "Yarn", "pnpm-cache"];
 
+function cliPlatformPackageDir(): string | undefined {
+	// The npm wrapper hard-links the platform binary into its own bin/, so
+	// resolve the platform package that ships the runtime from the wrapper.
+	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	if (!wrapperPath) {
+		return undefined;
+	}
+	const platform = process.platform === "win32" ? "windows" : process.platform;
+	try {
+		return dirname(
+			createRequire(wrapperPath).resolve(
+				`@cline/cli-${platform}-${process.arch}/package.json`,
+			),
+		);
+	} catch {
+		return undefined;
+	}
+}
+
 function mxcEntrypointCandidates(): string[] {
+	const packagedRoots = [
+		// Packaged CLI layout: <package>/bin/cline next to <package>/mxc.
+		dirname(dirname(process.execPath)),
+		cliPlatformPackageDir(),
+	];
 	const dirs = [
 		process.env[MXC_SDK_DIR_ENV]?.trim(),
-		// Packaged CLI layout: <package>/bin/cline next to <package>/mxc.
-		join(
-			dirname(dirname(process.execPath)),
-			"mxc",
-			"node_modules",
-			"@microsoft",
-			"mxc-sdk",
+		...packagedRoots.map(
+			(root) =>
+				root && join(root, "mxc", "node_modules", "@microsoft", "mxc-sdk"),
 		),
 	];
 	return dirs

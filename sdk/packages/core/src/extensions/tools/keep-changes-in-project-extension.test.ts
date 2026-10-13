@@ -3,6 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
 	AgentBeforeToolContext,
+	AgentBeforeToolResult,
 	AgentRuntimeStateSnapshot,
 	AgentTool,
 } from "@cline/shared";
@@ -33,7 +34,7 @@ describe("createKeepChangesInProjectExtension", () => {
 	const beforeTool = (toolName: string, input: unknown) =>
 		createKeepChangesInProjectExtension({ cwd: project }).hooks?.beforeTool?.(
 			makeContext(toolName, input),
-		);
+		) as AgentBeforeToolResult | undefined;
 
 	beforeEach(async () => {
 		settingsDir = await mkdtemp(join(tmpdir(), "keep-changes-"));
