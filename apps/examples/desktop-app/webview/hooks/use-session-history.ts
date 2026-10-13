@@ -1874,6 +1874,14 @@ export function useSessionHistory({
 		});
 	}, [scheduledSessionLinks, threads]);
 
+	const visibleThreads = useMemo(
+		() =>
+			threadsWithScheduled.filter(
+				(thread) => !sessionById.get(thread.id)?.metadata?.factoryTaskId,
+			),
+		[threadsWithScheduled, sessionById],
+	);
+
 	return {
 		getSessionByThreadId,
 		hasLoadedHistory,
@@ -1892,7 +1900,7 @@ export function useSessionHistory({
 		forkThread,
 		sessionById,
 		sessions,
-		threads: threadsWithScheduled,
+		threads: visibleThreads,
 		unreadSessionIds,
 	};
 }

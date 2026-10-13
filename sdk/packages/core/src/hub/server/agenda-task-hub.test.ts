@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -7,6 +8,7 @@ import type {
 	ToolApprovalResult,
 } from "@cline/shared";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { z } from "zod";
 
 vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
@@ -31,7 +33,7 @@ import {
 import { HubServerTransport } from "./hub-server-transport";
 
 describe("Hub agenda task vertical slice", () => {
-	it("creates an approved user task, starts it, and completes it", async () => {
+	it("runs ordinary tasks and propagates isolated feature session policies through the Hub", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-hub-agenda-"));
 		const chatWorkspace = join(root, "chat-workspace");
 		mkdirSync(chatWorkspace);
@@ -53,6 +55,7 @@ describe("Hub agenda task vertical slice", () => {
 		});
 		const sessions = new Map<string, Record<string, unknown>>();
 		let capturedStart: StartSessionInput | undefined;
+		const capturedStarts: StartSessionInput[] = [];
 		let requestToolApproval:
 			| ((
 					request: ToolApprovalRequest,
@@ -61,6 +64,7 @@ describe("Hub agenda task vertical slice", () => {
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
 				capturedStart = input;
+				capturedStarts.push(input);
 				requestToolApproval = input.capabilities?.requestToolApproval;
 				const sessionId = input.config.sessionId ?? "task-session";
 				const workspaceRoot =
@@ -106,6 +110,28 @@ describe("Hub agenda task vertical slice", () => {
 			},
 		);
 		const runTurn = vi.fn(async () => {
+			if (capturedStart?.sessionMetadata?.factoryTaskId) {
+				if (capturedStart.sessionMetadata.factoryRole === "builder") {
+					writeFileSync(
+						join(capturedStart.config.cwd ?? "", "feature.txt"),
+						"after\n",
+					);
+				}
+				return {
+					text:
+						capturedStart.sessionMetadata.factoryRole === "reviewer"
+							? JSON.stringify({
+									verdict: "pass",
+									summary: "Reviewed behavior and maintainability.",
+									findings: [],
+								})
+							: "Implemented",
+					usage: { inputTokens: 1, outputTokens: 1 },
+					iterations: 1,
+					finishReason: "completed" as const,
+					toolCalls: [],
+				};
+			}
 			if (!requestToolApproval) {
 				throw new Error("task session did not receive an approval bridge");
 			}
@@ -436,6 +462,170 @@ describe("Hub agenda task vertical slice", () => {
 				status: "approved",
 			});
 			expect(startSession).toHaveBeenCalledTimes(1);
+
+			execFileSync("git", ["init", "-b", "main", canonicalChatWorkspace]);
+			execFileSync("git", [
+				"-C",
+				canonicalChatWorkspace,
+				"config",
+				"user.name",
+				"Test",
+			]);
+			execFileSync("git", [
+				"-C",
+				canonicalChatWorkspace,
+				"config",
+				"user.email",
+				"test@example.invalid",
+			]);
+			writeFileSync(join(canonicalChatWorkspace, "feature.txt"), "before\n");
+			execFileSync("git", ["-C", canonicalChatWorkspace, "add", "feature.txt"]);
+			execFileSync("git", [
+				"-C",
+				canonicalChatWorkspace,
+				"commit",
+				"-m",
+				"Initial",
+			]);
+			const feature = await transport.handleCommand({
+				version: "v1",
+				command: "task.create",
+				clientId: "desktop",
+				payload: {
+					type: "follow-up",
+					title: "Update feature behavior",
+					instructions: "Acceptance: feature.txt contains after.",
+					expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+					factory: {
+						checks: [
+							{
+								name: "Feature route",
+								kind: "api",
+								command: `node -e "if(require('fs').readFileSync('feature.txt','utf8').trim()!=='after')process.exit(1)"`,
+							},
+						],
+					},
+				},
+			});
+			expect(feature.ok).toBe(true);
+			const featureTask = z
+				.object({ taskId: z.string(), revision: z.number() })
+				.parse(feature.payload?.task);
+			expect(feature.payload?.task).toMatchObject({
+				status: "pending_approval",
+			});
+			const design = await transport.handleCommand({
+				version: "v1",
+				command: "task.factory.design",
+				clientId: "desktop",
+				payload: { taskId: featureTask.taskId },
+			});
+			expect(design.ok).toBe(true);
+			const reopenDesign = () =>
+				transport.handleCommand({
+					version: "v1",
+					command: "task.factory.design",
+					clientId: "desktop",
+					payload: { taskId: featureTask.taskId },
+				});
+			expect((await reopenDesign()).payload?.sessionId).toBe(
+				design.payload?.sessionId,
+			);
+			expect(
+				capturedStarts.filter(
+					(input) => input.sessionMetadata?.factoryRole === "designer",
+				),
+			).toHaveLength(1);
+			const factoryApproved = await transport.handleCommand({
+				version: "v1",
+				command: "task.approve",
+				clientId: "desktop",
+				payload: {
+					taskId: featureTask.taskId,
+					expectedRevision: featureTask.revision,
+				},
+			});
+			expect(factoryApproved.ok).toBe(true);
+			const factoryRun = await transport.handleCommand({
+				version: "v1",
+				command: "task.run",
+				clientId: "desktop",
+				payload: {
+					taskId: featureTask.taskId,
+					expectedRevision: featureTask.revision,
+				},
+			});
+			expect(factoryRun.ok).toBe(true);
+			await vi.waitFor(
+				async () => {
+					const current = await transport.handleCommand({
+						version: "v1",
+						command: "task.get",
+						clientId: "desktop",
+						payload: { taskId: featureTask.taskId },
+					});
+					expect(current.payload?.task).toMatchObject({
+						status: "completed",
+						originSessionId: design.payload?.sessionId,
+					});
+					expect(current.payload?.runs).toEqual([
+						expect.objectContaining({
+							factory: expect.objectContaining({
+								phase: "ready",
+								checks: [expect.objectContaining({ status: "passed" })],
+							}),
+						}),
+					]);
+				},
+				{ timeout: 15000 },
+			);
+			const featureStarts = capturedStarts.filter(
+				(input) => input.sessionMetadata?.factoryTaskId === featureTask.taskId,
+			);
+			expect(
+				featureStarts.map((input) => input.sessionMetadata?.factoryRole),
+			).toEqual(["designer", "builder", "reviewer"]);
+			for (const input of featureStarts) {
+				expect(input.sessionMetadata).toMatchObject({
+					agendaTaskId: featureTask.taskId,
+					factoryTaskId: featureTask.taskId,
+				});
+				expect(input.config).toMatchObject({
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				});
+			}
+			const [designer, builder, reviewer] = featureStarts;
+			expect(designer?.config).toMatchObject({
+				mode: "plan",
+				workspaceRoot: canonicalChatWorkspace,
+			});
+			expect(designer?.toolPolicies).toMatchObject({
+				"*": { enabled: false, autoApprove: false },
+				read_files: { enabled: true, autoApprove: true },
+			});
+			expect(builder?.config.cwd).not.toBe(canonicalChatWorkspace);
+			expect(builder?.toolPolicies).toMatchObject({
+				"*": { enabled: true, autoApprove: true },
+			});
+			expect(reviewer?.config.cwd).toBe(builder?.config.cwd);
+			expect(reviewer?.toolPolicies).toMatchObject({
+				"*": { enabled: false },
+				read_files: { enabled: true },
+				search_codebase: { enabled: true },
+			});
+			for (const tool of [
+				"run_commands",
+				"apply_patch",
+				"editor",
+				"custom_write_tool",
+			]) {
+				expect(
+					reviewer?.toolPolicies?.[tool]?.enabled ??
+						reviewer?.toolPolicies?.["*"]?.enabled,
+				).toBe(false);
+			}
+			expect(capturedStarts[0]?.sessionMetadata?.factoryTaskId).toBeUndefined();
 		} finally {
 			await transport.stop();
 		}

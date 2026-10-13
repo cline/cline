@@ -187,7 +187,7 @@ export function useAgendaAutomation(enabled = true): UseAgendaAutomationResult {
  * the current projection and reconnects cannot leave stale Agenda state.
  */
 export function useAgendaTasks(
-	filters: AgendaTaskListInput = {},
+	filters: AgendaTaskListInput & { allWorkspaces?: boolean } = {},
 	enabled = true,
 ): UseAgendaTasksResult {
 	const filtersKey = JSON.stringify(filters);

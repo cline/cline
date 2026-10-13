@@ -5,9 +5,10 @@ import type {
 	AgendaTaskPriority,
 	AgendaTaskScope,
 	AgendaTaskType,
+	FactoryTaskConfig,
 	GatewayModelSelection,
 } from "@cline/shared";
-import { stripUtf8Bom } from "@cline/shared";
+import { factoryTaskConfigSchema, stripUtf8Bom } from "@cline/shared";
 import YAML from "yaml";
 import { normalizeAgendaTaskLocation } from "../task-location";
 
@@ -38,6 +39,7 @@ const RESERVED_FIELDS = new Set([
 ]);
 
 const ALLOWED_FIELDS = new Set([
+	"factory",
 	"taskId",
 	"type",
 	"priority",
@@ -57,6 +59,7 @@ const ALLOWED_FIELDS = new Set([
 ]);
 
 export interface AgendaTaskSpec {
+	factory?: FactoryTaskConfig;
 	taskId?: string;
 	type: AgendaTaskType;
 	title: string;
@@ -102,6 +105,7 @@ export type AgendaTaskSpecParseResult =
 	  };
 
 export interface AgendaTaskSpecWriteInput {
+	factory?: FactoryTaskConfig;
 	taskId: string;
 	type: AgendaTaskType;
 	title: string;
@@ -387,6 +391,9 @@ export function parseAgendaTaskSpec(
 		return invalid(input, contentHash, timeoutSeconds.message);
 	}
 
+	const factory = factoryTaskConfigSchema.optional().safeParse(data.factory);
+	if (!factory.success)
+		return invalid(input, contentHash, factory.error.message);
 	const rawMode = data.mode;
 	if (
 		rawMode !== undefined &&
@@ -408,6 +415,7 @@ export function parseAgendaTaskSpec(
 		specPath: input.specPath,
 		contentHash,
 		spec: {
+			factory: factory.data,
 			taskId: asNonEmptyString(data.taskId),
 			type,
 			title,
@@ -438,6 +446,7 @@ export function serializeAgendaTaskSpec(
 	input: AgendaTaskSpecWriteInput,
 ): string {
 	const frontmatter = {
+		...(input.factory ? { factory: input.factory } : {}),
 		taskId: input.taskId,
 		type: input.type,
 		priority: input.priority ?? 3,
@@ -473,6 +482,7 @@ export function agendaTaskSpecToCreateInput(
 	).toISOString();
 	return {
 		taskId: spec.taskId,
+		factory: spec.factory,
 		type: spec.type,
 		title: spec.title,
 		description: spec.description,

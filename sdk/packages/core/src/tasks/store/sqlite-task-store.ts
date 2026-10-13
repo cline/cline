@@ -10,8 +10,10 @@ import type {
 	AgendaTaskRunStatus,
 	AgendaTaskStatus,
 	AgendaTaskUpdateInput,
+	FactoryRunState,
 	GatewayModelSelection,
 } from "@cline/shared";
+import { factoryRunStateSchema, factoryTaskConfigSchema } from "@cline/shared";
 import {
 	asOptionalString,
 	asString,
@@ -39,6 +41,7 @@ export class AgendaTaskRevisionConflictError extends Error {
 }
 
 export interface AgendaTaskStatePatch {
+	originSessionId?: string;
 	status?: AgendaTaskStatus;
 	approvedRevision?: number | null;
 	currentRunId?: string | null;
@@ -63,6 +66,7 @@ export interface CreateAgendaTaskRunInput {
 }
 
 export interface UpdateAgendaTaskRunInput {
+	factory?: FactoryRunState;
 	status?: AgendaTaskRunStatus;
 	claimToken?: string | null;
 	claimUntilAt?: string | null;
@@ -100,6 +104,10 @@ function toInteger(value: unknown): number | undefined {
 
 function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	return {
+		factory:
+			row.factory_json == null
+				? undefined
+				: factoryTaskConfigSchema.parse(parseJson<unknown>(row.factory_json)),
 		taskId: asString(row.task_id),
 		type: asString(row.type) as AgendaTaskRecord["type"],
 		status: asString(row.status) as AgendaTaskStatus,
@@ -143,6 +151,10 @@ function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 
 function runRowToRecord(row: Record<string, unknown>): AgendaTaskRunRecord {
 	return {
+		factory:
+			row.factory_json == null
+				? undefined
+				: factoryRunStateSchema.parse(parseJson<unknown>(row.factory_json)),
 		runId: asString(row.run_id),
 		taskId: asString(row.task_id),
 		taskRevision: toInteger(row.task_revision) ?? 1,
@@ -272,10 +284,10 @@ export class SqliteAgendaTaskStore {
 					model_selection_json, mode, system_prompt, max_iterations,
 					timeout_seconds, available_at, expires_at, automation_eligible,
 					revision, approved_revision, created_by_json, updated_by_json, origin_session_id,
-					origin_task_id, spec_path, created_at, updated_at
+					origin_task_id, spec_path, created_at, updated_at, factory_json
 				) VALUES (
 					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?
+					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?
 				)`,
 			)
 			.run(
@@ -307,6 +319,9 @@ export class SqliteAgendaTaskStore {
 				optionalText(input.specPath) ?? null,
 				now,
 				now,
+				input.factory
+					? JSON.stringify(factoryTaskConfigSchema.parse(input.factory))
+					: null,
 			);
 		const record = this.getTask(taskId);
 		if (!record) throw new Error(`failed to create task ${taskId}`);
@@ -459,7 +474,7 @@ export class SqliteAgendaTaskStore {
 					priority = ?, assignee = ?, model_selection_json = ?, mode = ?,
 					system_prompt = ?, max_iterations = ?, timeout_seconds = ?,
 					available_at = ?, expires_at = ?, automation_eligible = ?, revision = ?,
-					approved_revision = NULL, error = NULL, updated_by_json = ?, updated_at = ?
+					approved_revision = NULL, error = NULL, updated_by_json = ?, updated_at = ?, factory_json = ?
 				WHERE task_id = ? AND revision = ?`,
 			)
 			.run(
@@ -507,6 +522,13 @@ export class SqliteAgendaTaskStore {
 				revision,
 				JSON.stringify(input.updatedBy),
 				now,
+				input.factory === null
+					? null
+					: (JSON.stringify(
+							input.factory === undefined
+								? current.factory
+								: factoryTaskConfigSchema.parse(input.factory),
+						) ?? null),
 				input.taskId,
 				current.revision,
 			);
@@ -543,7 +565,7 @@ export class SqliteAgendaTaskStore {
 				`UPDATE agenda_tasks SET
 					status = ?, approved_revision = ?, current_run_id = ?, last_run_id = ?,
 					last_session_id = ?, spec_path = ?, error = ?, completed_at = ?,
-					archived_at = ?, updated_by_json = ?, updated_at = ?
+					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?
 				WHERE task_id = ? AND revision = ?`,
 			)
 			.run(
@@ -570,6 +592,7 @@ export class SqliteAgendaTaskStore {
 					: (patch.archivedAt ?? current.archivedAt ?? null),
 				JSON.stringify(patch.updatedBy ?? current.updatedBy),
 				now,
+				patch.originSessionId ?? current.originSessionId ?? null,
 				taskId,
 				current.revision,
 			);
@@ -646,7 +669,7 @@ export class SqliteAgendaTaskStore {
 				`UPDATE agenda_task_runs SET
 					status = ?, claim_token = ?, claim_until_at = ?,
 					requested_by_client_id = ?, session_id = ?, started_at = ?,
-					completed_at = ?, result_summary = ?, error = ?, updated_at = ?
+					completed_at = ?, result_summary = ?, error = ?, updated_at = ?, factory_json = ?
 				WHERE run_id = ?`,
 			)
 			.run(
@@ -674,6 +697,7 @@ export class SqliteAgendaTaskStore {
 					: (input.resultSummary ?? current.resultSummary ?? null),
 				input.error === null ? null : (input.error ?? current.error ?? null),
 				now,
+				JSON.stringify(input.factory ?? current.factory) ?? null,
 				runId,
 			);
 		return this.getRun(runId);

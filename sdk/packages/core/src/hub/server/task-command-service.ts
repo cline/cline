@@ -8,6 +8,8 @@ import type {
 	HubCommandName,
 	HubReplyEnvelope,
 } from "@cline/shared";
+import { factoryTaskConfigSchema } from "@cline/shared";
+import { z } from "zod";
 import type { AgendaTaskManagerApi } from "../../tasks/agenda-task-api";
 import type { HubConnectionAuthority } from "./command-transport";
 import { errorReply, okReply } from "./handlers/context";
@@ -20,6 +22,9 @@ const TASK_COMMANDS = new Set<HubCommandName>([
 	"task.approve",
 	"task.cancel",
 	"task.run",
+	"task.factory.start",
+	"task.factory.stop",
+	"task.factory.design",
 	"task.automation.get",
 	"task.automation.set",
 ]);
@@ -64,21 +69,43 @@ export class HubAgendaTaskCommandService {
 			clientId: envelope.clientId?.trim() || undefined,
 		};
 		try {
-			const workspaceRoot = this.resolveWorkspace(authority);
+			const authorizedWorkspace = this.resolveWorkspace(authority);
+			const allWorkspaces = payload.allWorkspaces === true;
+			if (allWorkspaces && authority?.crossWorkspace !== true)
+				throw new Error(
+					"Cross-workspace task access requires an authenticated local client",
+				);
+			const workspaceRoot = allWorkspaces ? undefined : authorizedWorkspace;
 			switch (envelope.command) {
 				case "task.create": {
+					const targetWorkspace =
+						allWorkspaces && typeof payload.workspaceRoot === "string"
+							? resolve(payload.workspaceRoot)
+							: authorizedWorkspace;
 					const task = await this.tasks.createTask({
 						...(payload as unknown as AgendaTaskCreateInput),
 						scope: "workspace",
-						workspaceRoot,
-						cwd: workspaceRoot,
-						requiresApproval: false,
+						workspaceRoot: targetWorkspace,
+						cwd: targetWorkspace,
+						requiresApproval: payload.factory !== undefined,
+						factory:
+							payload.factory === undefined
+								? undefined
+								: factoryTaskConfigSchema.parse(payload.factory),
 						createdBy: actor,
 					});
 					return okReply(envelope, { task });
 				}
 				case "task.list": {
 					const listInput = payload as unknown as AgendaTaskListInput;
+					if (allWorkspaces)
+						return okReply(envelope, {
+							tasks: await this.tasks.listTasks({
+								...listInput,
+								scope: undefined,
+								workspaceRoot: undefined,
+							}),
+						});
 					const [workspaceTasks, globalTasks] = await Promise.all([
 						this.tasks.listTasks({
 							...listInput,
@@ -99,6 +126,7 @@ export class HubAgendaTaskCommandService {
 					const task = await this.requireScopedTask(payload, workspaceRoot);
 					return okReply(envelope, {
 						task,
+						runs: this.tasks.getTaskRuns?.(task.taskId) ?? [],
 					});
 				}
 				case "task.update": {
@@ -141,9 +169,43 @@ export class HubAgendaTaskCommandService {
 					);
 					return okReply(envelope, result);
 				}
+				case "task.factory.design": {
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.startFactoryDesign)
+						throw new Error("Feature design is unavailable");
+					return okReply(
+						envelope,
+						await this.tasks.startFactoryDesign(
+							taskIdOf(payload),
+							envelope.clientId,
+						),
+					);
+				}
+				case "task.factory.start": {
+					const entries = z
+						.array(
+							z.object({
+								taskId: z.string().min(1),
+								expectedRevision: z.number().int().positive(),
+							}),
+						)
+						.min(1)
+						.max(100)
+						.parse(payload.tasks);
+					for (const entry of entries)
+						await this.requireScopedTask(entry, workspaceRoot);
+					if (!this.tasks.startFactoryQueue)
+						throw new Error("Feature queue is unavailable");
+					await this.tasks.startFactoryQueue(entries, actor, envelope.clientId);
+					return okReply(envelope, { queued: entries.length });
+				}
+				case "task.factory.stop":
+					this.tasks.stopFactoryQueue?.(workspaceRoot);
+					return okReply(envelope, { stopped: true });
+
 				case "task.automation.get":
 					return okReply(envelope, {
-						policy: await this.tasks.getAutomationPolicy(workspaceRoot),
+						policy: await this.tasks.getAutomationPolicy(authorizedWorkspace),
 					});
 				case "task.automation.set": {
 					const rawPolicy =
@@ -157,7 +219,7 @@ export class HubAgendaTaskCommandService {
 					}
 					return okReply(envelope, {
 						policy: await this.tasks.setAutomationPolicy(
-							{ ...rawPolicy, scopeKey: workspaceRoot },
+							{ ...rawPolicy, scopeKey: authorizedWorkspace },
 							actor,
 						),
 					});
@@ -188,12 +250,13 @@ export class HubAgendaTaskCommandService {
 
 	private async requireScopedTask(
 		payload: Record<string, unknown>,
-		workspaceRoot: string,
+		workspaceRoot: string | undefined,
 	) {
 		const task = await this.tasks.getTask(taskIdOf(payload));
 		if (
 			!task ||
-			(task.scope === "workspace" &&
+			(workspaceRoot !== undefined &&
+				task.scope === "workspace" &&
 				(!task.workspaceRoot || resolve(task.workspaceRoot) !== workspaceRoot))
 		) {
 			throw new Error("task does not exist in this workspace");

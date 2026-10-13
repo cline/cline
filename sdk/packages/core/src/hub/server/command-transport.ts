@@ -12,7 +12,7 @@ export interface HubConnectionAuthority {
 	/**
 	 * Token-authenticated connections may already bind any workspace at
 	 * registration time, so they are also allowed to explicitly request
-	 * cross-workspace schedule access (`allWorkspaces` command payloads).
+	 * cross-workspace schedule and task access (`allWorkspaces` payloads).
 	 */
 	crossWorkspace?: boolean;
 }

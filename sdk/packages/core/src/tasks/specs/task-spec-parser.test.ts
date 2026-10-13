@@ -7,9 +7,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { factoryTaskConfigSchema } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgendaTaskSpecFileStore } from "./task-spec-file-store";
-import { parseAgendaTaskSpec } from "./task-spec-parser";
+import {
+	parseAgendaTaskSpec,
+	serializeAgendaTaskSpec,
+} from "./task-spec-parser";
 
 const roots: string[] = [];
 const WORKSPACE_ROOT = resolve("/workspace");
@@ -21,6 +25,42 @@ afterEach(() => {
 });
 
 describe("parseAgendaTaskSpec", () => {
+	it("round trips approved factory checks and rejects invalid repair limits", () => {
+		const factory = factoryTaskConfigSchema.parse({
+			checks: [
+				{
+					name: "Desktop",
+					command: "bun run test:e2e",
+					kind: "ui",
+					artifacts: ["test-results/screen.png"],
+				},
+			],
+		});
+		const input = {
+			taskId: "feature",
+			type: "todo" as const,
+			title: "Feature",
+			instructions: "Acceptance criteria",
+			expiresAt: "2035-01-02T00:00:00.000Z",
+			factory,
+		};
+		const parse = (raw: string) =>
+			parseAgendaTaskSpec({
+				specPath: "/workspace/.cline/tasks/feature.task.md",
+				scope: "workspace",
+				workspaceRoot: WORKSPACE_ROOT,
+				raw,
+			});
+		const result = parse(serializeAgendaTaskSpec(input));
+		expect(result.ok && result.spec.factory).toEqual(factory);
+		const invalid = parse(
+			serializeAgendaTaskSpec({
+				...input,
+				factory: { ...factory, maxRepairRounds: -1 },
+			}),
+		);
+		expect(invalid.ok).toBe(false);
+	});
 	it("parses canonical frontmatter and derives workspace scope", () => {
 		const result = parseAgendaTaskSpec({
 			specPath: join(WORKSPACE_ROOT, ".cline", "tasks", "check-pr.task.md"),

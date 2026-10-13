@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { AgendaTaskActor, AgendaTaskCreateInput } from "@cline/shared";
+import { factoryTaskConfigSchema } from "@cline/shared";
+import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	AgendaTaskRevisionConflictError,
@@ -101,6 +103,70 @@ describe("SqliteAgendaTaskStore", () => {
 		).toThrow(AgendaTaskRevisionConflictError);
 		expect(store.deleteTask(created.taskId)).toBe(true);
 		expect(store.getTask(created.taskId)).toBeUndefined();
+	});
+
+	it("migrates existing tasks and preserves factory intent and evidence across reopen", () => {
+		const oldTask = store.createTask(createInput("existing"));
+		store.close();
+		const dbPath = join(directory, "tasks.db");
+		const oldDb = loadSqliteDb(dbPath);
+		oldDb.exec("ALTER TABLE agenda_tasks DROP COLUMN factory_json");
+		oldDb.exec("ALTER TABLE agenda_task_runs DROP COLUMN factory_json");
+		oldDb.close?.();
+		store = new SqliteAgendaTaskStore({ dbPath });
+		expect(store.getTask(oldTask.taskId)).toEqual(oldTask);
+		const factory = factoryTaskConfigSchema.parse({
+			checks: [{ name: "API", command: "bun test", kind: "api" }],
+		});
+		const task = store.createTask({
+			...createInput("feature"),
+			factory,
+			requiresApproval: false,
+		});
+		const run = store.createRun({
+			taskId: task.taskId,
+			taskRevision: task.revision,
+		});
+		store.updateRun(run.runId, {
+			factory: {
+				phase: "verifying",
+				repairRound: 1,
+				workspace: {
+					path: "/workspace/feature",
+					branch: "feat/feature",
+					baseBranch: "main",
+					baseCommit: "base",
+				},
+				sessions: [{ sessionId: "builder", role: "builder" }],
+				candidateCommit: "candidate",
+				checks: [],
+			},
+		});
+		store.updateTaskState(task.taskId, { originSessionId: "design" });
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath });
+		expect(store.getTask(task.taskId)).toMatchObject({
+			factory,
+			originSessionId: "design",
+			approvedRevision: 1,
+		});
+		expect(store.getRun(run.runId)?.factory).toMatchObject({
+			phase: "verifying",
+			repairRound: 1,
+			candidateCommit: "candidate",
+		});
+		const edited = store.updateTask({
+			taskId: task.taskId,
+			expectedRevision: 1,
+			factory: { ...factory, maxRepairRounds: 0 },
+			updatedBy: USER,
+		});
+		expect(edited).toMatchObject({
+			status: "pending_approval",
+			revision: 2,
+			factory: { maxRepairRounds: 0 },
+		});
+		expect(edited?.approvedRevision).toBeUndefined();
 	});
 
 	it("auto-approves user-authored tasks but keeps agent suggestions pending", () => {

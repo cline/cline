@@ -779,6 +779,28 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
   linked-session navigation, and the automation toggle; it does not maintain a
   second task store.
 
+### Desktop Feature Factory
+
+Factory cards reuse Agenda tasks, revision approvals, task files, and SQLite run
+records. `task.factory.design` links a plan-mode design session to the card;
+`task.factory.start` explicitly queues approved revisions for sequential local
+execution. Factory tasks do not enter the Agenda automation pump. Queued starts
+are kept in memory; restarting the Hub requires starting the queue again.
+
+Each task owns a Git worktree. The workflow freezes a candidate commit, executes
+the approved checks, and starts a fresh reviewer with read-only tools. Failed
+checks or review findings return to the builder together, up to the configured
+repair limit (two by default). Completion requires passing checks, a passing
+review, and an unchanged candidate. UI checks also require fresh image or video
+artifacts. Run records retain stage, sessions, check output, and evidence paths
+for the Desktop review panel.
+
+Brief approval is required by default and edits revoke it. Approved builder
+runs auto-approve tools; reviewer and designer sessions enable only read-only
+tools and questions. A worktree isolates changes, not process permissions. Cloud execution is rejected explicitly
+until a cloud executor is available. Draft PR publication is a separate opt-in
+and defaults off; otherwise the result stays on the task-owned local branch.
+
 ## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
 
 `@cline/core` ships a file-based automation subsystem under

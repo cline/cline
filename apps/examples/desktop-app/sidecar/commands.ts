@@ -131,6 +131,7 @@ import {
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
+import { readFactoryArtifact } from "./factory-artifacts";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
@@ -1398,11 +1399,17 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.approve",
 	"task.cancel",
 	"task.run",
+	"task.factory.start",
+	"task.factory.stop",
+	"task.factory.design",
 	"task.automation.get",
 	"task.automation.set",
 ]);
 
 const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.factory.start",
+	"task.factory.stop",
+	"task.factory.design",
 	"task.create",
 	"task.approve",
 	"task.cancel",
@@ -3545,6 +3552,21 @@ export async function handleCommand(
 		command === "delete_routine_schedule"
 	) {
 		return await handleRoutineScheduleCommand(ctx, command, args);
+	}
+
+	if (command === "factory_read_artifact") {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Evidence access requires a trusted desktop connection.");
+		const taskId = asTrimmedString(args?.taskId);
+		const runId = asTrimmedString(args?.runId);
+		const path = asTrimmedString(args?.path);
+		if (!taskId || !runId || !path)
+			throw new Error("Feature, run, and evidence path are required.");
+		const reply = await handleAgendaTaskCommand(ctx, "task.get", {
+			taskId,
+			allWorkspaces: true,
+		});
+		return readFactoryArtifact(reply, runId, path);
 	}
 
 	// ── Agenda task queue ─────────────────────────────────────────────

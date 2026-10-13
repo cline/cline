@@ -166,6 +166,14 @@ const viewLoading = () => (
 	</div>
 );
 
+const FactoryView = dynamic(
+	() =>
+		import("@/components/views/factory/factory-view").then(
+			(module) => module.FactoryView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
 const SettingsView = dynamic(
 	() =>
 		import("@/components/views/settings/settings-view").then(
@@ -803,7 +811,11 @@ export default function Home() {
 		sessionHistoryRef.current = sessionHistory.sessions;
 	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string, environmentId?: string): Promise<void> => {
+		async (
+			sessionId: string,
+			environmentId?: string,
+			initialPromptDraft?: string,
+		): Promise<void> => {
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
@@ -811,7 +823,7 @@ export default function Home() {
 						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession);
+				handleOpenSession(cachedSession, initialPromptDraft);
 				return;
 			}
 			try {
@@ -833,7 +845,7 @@ export default function Home() {
 						`The session belongs to environment ${session.environmentId}, not ${environmentId}.`,
 					);
 				}
-				handleOpenSession(session);
+				handleOpenSession(session, initialPromptDraft);
 			} catch (error) {
 				toast({
 					title: "Unable to open run",
@@ -949,7 +961,18 @@ export default function Home() {
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{view === "sessions" ? (
+								{view === "factory" ? (
+									<FactoryView
+										onOpenSession={(sessionId, prompt) =>
+											handleOpenSessionById(
+												sessionId,
+												LOCAL_WORKSPACE_ENVIRONMENT_ID,
+												prompt,
+											)
+										}
+										workspacePaths={historyWorkspacePaths}
+									/>
+								) : view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
 										history={sessionHistory}

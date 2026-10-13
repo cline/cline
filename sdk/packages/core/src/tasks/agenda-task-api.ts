@@ -35,6 +35,18 @@ export interface AgendaTaskManagerApi {
 		expectedRevision: number,
 		requestedByClientId?: string,
 	): Promise<{ task: AgendaTaskRecord; run?: AgendaTaskRunRecord }>;
+	startFactoryDesign?(
+		taskId: string,
+		requestedByClientId?: string,
+	): Promise<{ sessionId: string }>;
+	getTaskRuns?(taskId: string): AgendaTaskRunRecord[];
+	startFactoryQueue?(
+		entries: Array<{ taskId: string; expectedRevision: number }>,
+		actor: AgendaTaskActor,
+		requestedByClientId?: string,
+	): Promise<void>;
+	stopFactoryQueue?(workspaceRoot?: string): void;
+
 	getAutomationPolicy(scopeKey?: string): Promise<AgendaAutomationPolicy>;
 	setAutomationPolicy(
 		policy: Omit<AgendaAutomationPolicy, "updatedAt">,

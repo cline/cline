@@ -86,6 +86,60 @@ function envelope(
 }
 
 describe("HubAgendaTaskCommandService", () => {
+	it("honors selected repositories only for authenticated cross-workspace clients", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const payload = {
+			allWorkspaces: true,
+			workspaceRoot: "/selected",
+			factory: {},
+		};
+		const denied = await service.handleCommand(
+			envelope("task.create", payload),
+			AUTHORITY,
+		);
+		expect(denied.ok).toBe(false);
+		expect(manager.createTask).not.toHaveBeenCalled();
+		const authority = { ...AUTHORITY, crossWorkspace: true };
+		expect(
+			(await service.handleCommand(envelope("task.create", payload), authority))
+				.ok,
+		).toBe(true);
+		expect(manager.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workspaceRoot: resolve("/selected"),
+				cwd: resolve("/selected"),
+				requiresApproval: true,
+			}),
+		);
+		vi.mocked(manager.getTask).mockResolvedValue(
+			task({ workspaceRoot: "/selected" }),
+		);
+		expect(
+			(
+				await service.handleCommand(
+					envelope("task.get", { taskId: "task_1", allWorkspaces: true }),
+					authority,
+				)
+			).ok,
+		).toBe(true);
+		expect(
+			(
+				await service.handleCommand(
+					envelope("task.get", { taskId: "task_1", allWorkspaces: true }),
+					AUTHORITY,
+				)
+			).ok,
+		).toBe(false);
+		await service.handleCommand(
+			envelope("task.list", { allWorkspaces: true }),
+			authority,
+		);
+		expect(manager.listTasks).toHaveBeenCalledWith(
+			expect.objectContaining({ scope: undefined, workspaceRoot: undefined }),
+		);
+	});
+
 	it("uses the authenticated Hub client as the create actor", async () => {
 		const manager = managerMock();
 		const service = new HubAgendaTaskCommandService(manager);

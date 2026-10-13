@@ -14,6 +14,7 @@ import {
 	CircleUserRound,
 	Clock3,
 	Cloud,
+	Columns3,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -98,6 +99,7 @@ import {
 	isBetaVersion,
 	productNameForVersion,
 } from "@/lib/app-channel";
+import type { DesktopAppView } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -120,7 +122,7 @@ import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type Thread = SessionThread;
-type AppView = "chat" | "sessions" | "settings";
+type AppView = DesktopAppView;
 
 const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
@@ -935,6 +937,21 @@ export function AgentSidebar({
 						>
 							<Plus className="size-4 shrink-0" />
 							<span className="truncate">Session</span>
+						</Button>
+						<Button
+							aria-current={view === "factory" ? "page" : undefined}
+							aria-label="Factory"
+							className={cn(
+								view === "factory" &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={() => setView("factory")}
+							title="Feature factory"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Columns3 className="size-4 shrink-0" />
+							<span className="truncate">Factory</span>
 						</Button>
 						<Button
 							aria-label="Schedule"

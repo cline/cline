@@ -94,4 +94,10 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 	for (const statement of TASK_SCHEMA_STATEMENTS) {
 		db.exec(statement);
 	}
+	for (const table of ["agenda_tasks", "agenda_task_runs"]) {
+		const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+		if (!columns.some((column) => column.name === "factory_json")) {
+			db.exec(`ALTER TABLE ${table} ADD COLUMN factory_json TEXT`);
+		}
+	}
 }

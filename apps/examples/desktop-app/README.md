@@ -22,6 +22,28 @@ From `apps/examples/desktop-app/`:
 
 Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
 
+## Feature Factory preview
+
+Open **Factory** in the sidebar and create a feature for a local Git repository.
+Use **Interview with agent** to refine the request, then save the agreed brief
+and verification commands on the card. UI checks require fresh screenshot or
+recording paths; keep generated evidence in a Git-ignored directory. Backend
+checks should exercise the affected routes or APIs.
+
+Approve the feature and select **Start queue**. Approval authorizes the builder's
+tools and verification commands. The factory runs one feature at a time in its
+own worktree, executes the checks, and starts a fresh read-only code review.
+It allows two repair rounds by default; each card can change that limit. Open a
+transcript from the card if the agent asks a question. **Stop queue** prevents
+new starts; **Cancel execution** stops the active feature.
+
+The Review column shows the candidate commit, check output, captured media, and
+review findings. Publishing defaults off, so tested changes remain on the local
+feature branch. Enabling draft PR publication on a card also requires an
+authenticated GitHub CLI and an `origin` remote. Cloud execution is not connected
+in this preview. Restarting the Hub interrupts active work and clears the queue;
+review the retained evidence before explicitly starting another attempt.
+
 ## Pull Requests
 
 The composer shows the current branch's GitHub pull request, merge status,

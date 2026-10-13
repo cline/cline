@@ -1,3 +1,4 @@
+import type { FactoryRunState, FactoryTaskConfig } from "./factory";
 import type { GatewayModelSelection } from "./llms/gateway";
 
 /** Semantic labels used to group work on a user's agenda. */
@@ -41,6 +42,7 @@ export type AgendaTaskRunStatus =
 	| "interrupted";
 
 export interface AgendaTaskRecord {
+	factory?: FactoryTaskConfig;
 	taskId: string;
 	type: AgendaTaskType;
 	status: AgendaTaskStatus;
@@ -82,6 +84,7 @@ export interface AgendaTaskRecord {
 }
 
 export interface AgendaTaskRunRecord {
+	factory?: FactoryRunState;
 	runId: string;
 	taskId: string;
 	taskRevision: number;
@@ -101,6 +104,7 @@ export interface AgendaTaskRunRecord {
 }
 
 export interface AgendaTaskCreateInput {
+	factory?: FactoryTaskConfig;
 	taskId?: string;
 	type: AgendaTaskType;
 	title: string;
@@ -131,6 +135,7 @@ export interface AgendaTaskCreateInput {
 
 /** Editable task fields. Lifecycle transitions are owned by the task manager. */
 export interface AgendaTaskUpdateInput {
+	factory?: FactoryTaskConfig | null;
 	taskId: string;
 	expectedRevision: number;
 	type?: AgendaTaskType;

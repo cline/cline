@@ -120,6 +120,7 @@ export type DesktopInvokeOptions = {
 
 export type AgendaTaskIdInput = {
 	taskId: string;
+	allWorkspaces?: boolean;
 };
 
 export type AgendaTaskRevisionInput = AgendaTaskIdInput & {
@@ -763,7 +764,7 @@ class DesktopClient {
 	}
 
 	async listAgendaTasks(
-		input: AgendaTaskListInput = {},
+		input: AgendaTaskListInput & { allWorkspaces?: boolean } = {},
 	): Promise<AgendaTaskRecord[]> {
 		const response = await this.invoke<{ tasks: AgendaTaskRecord[] }>(
 			"task.list",
@@ -780,6 +781,32 @@ class DesktopClient {
 			},
 		);
 		return response.task;
+	}
+
+	async getFactoryTask(
+		taskId: string,
+	): Promise<{ task?: AgendaTaskRecord; runs: AgendaTaskRunRecord[] }> {
+		return this.invoke("task.get", { taskId, allWorkspaces: true });
+	}
+
+	async startFactoryQueue(
+		tasks: AgendaTaskRecord[],
+	): Promise<{ queued: number }> {
+		return this.invoke("task.factory.start", {
+			allWorkspaces: true,
+			tasks: tasks.map(({ taskId, revision }) => ({
+				taskId,
+				expectedRevision: revision,
+			})),
+		});
+	}
+
+	async stopFactoryQueue(): Promise<{ stopped: boolean }> {
+		return this.invoke("task.factory.stop", { allWorkspaces: true });
+	}
+
+	async designFactoryTask(taskId: string): Promise<{ sessionId: string }> {
+		return this.invoke("task.factory.design", { taskId, allWorkspaces: true });
 	}
 
 	async updateAgendaTask(input: HubTaskUpdateInput): Promise<AgendaTaskRecord> {

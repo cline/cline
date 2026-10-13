@@ -101,9 +101,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -338,12 +338,32 @@ export class HubServerTransport implements NativeHubTransport {
 								capability.name === HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 						),
 					),
+				startDesignSession: async (task, requestedByClientId) => {
+					if (
+						task.originSessionId &&
+						(await this.sessionHost.getSession(task.originSessionId))
+					)
+						return { sessionId: task.originSessionId };
+					return this.startAgendaTaskSession(
+						{
+							...task,
+							mode: "plan",
+							systemPrompt:
+								"Help refine this feature request through a concise adversarial design interview. Ask the most important unresolved questions, recommend defaults, and agree on scope, exclusions, acceptance criteria, affected clients and concrete verification commands. Reuse existing code and challenge unnecessary complexity. Do not implement or publish changes. The user must explicitly save the agreed brief and checks in the feature task before execution.",
+						},
+						undefined,
+						requestedByClientId,
+						false,
+						"designer",
+					);
+				},
 				startSession: (task, run, requestedByClientId, runtimeOptions) =>
 					this.startAgendaTaskSession(
 						task,
 						run,
 						requestedByClientId,
 						runtimeOptions?.unattended === true,
+						runtimeOptions?.factoryRole,
 					),
 				runSession: (sessionId, task, run) =>
 					this.runAgendaTaskSession(sessionId, task, run),
@@ -474,16 +494,19 @@ export class HubServerTransport implements NativeHubTransport {
 
 	private async startAgendaTaskSession(
 		task: AgendaTaskRecord,
-		run: AgendaTaskRunRecord,
+		run: AgendaTaskRunRecord | undefined,
 		requestedByClientId?: string,
 		unattended = false,
+		factoryRole?: "builder" | "reviewer" | "designer",
 	): Promise<{ sessionId: string }> {
 		const originSession = task.originSessionId
 			? await this.sessionHost.getSession(task.originSessionId)
 			: undefined;
 		const inheritedAutoApproveTools =
 			originSession?.metadata?.autoApproveTools === true;
-		const autoApproveTools = unattended || inheritedAutoApproveTools;
+		const autoApproveTools = task.factory
+			? factoryRole !== "designer"
+			: unattended || inheritedAutoApproveTools;
 		const providerId = task.modelSelection?.providerId?.trim() || "cline";
 		const modelId =
 			task.modelSelection?.modelId?.trim() ||
@@ -492,7 +515,9 @@ export class HubServerTransport implements NativeHubTransport {
 			{
 				title: task.title,
 				agendaTaskId: task.taskId,
-				agendaTaskRunId: run.runId,
+				agendaTaskRunId: run?.runId,
+				factoryTaskId: task.factory ? task.taskId : undefined,
+				factoryRole,
 				agendaTaskAssignee: task.assignee,
 				interactive: !unattended,
 				source: SessionSource.CORE,
@@ -517,19 +542,30 @@ export class HubServerTransport implements NativeHubTransport {
 						mode: task.mode ?? "act",
 						maxIterations: task.maxIterations,
 						enableTools: true,
-						enableSpawnAgent: true,
-						enableAgentTeams: true,
+						enableSpawnAgent: !task.factory,
+						enableAgentTeams: !task.factory,
 					},
 					metadata,
 					runtimeOptions: {
 						mode: task.mode ?? "act",
 						maxIterations: task.maxIterations,
 						enableTools: true,
-						enableSpawn: true,
-						enableTeams: true,
+						enableSpawn: !task.factory,
+						enableTeams: !task.factory,
 					},
 					toolPolicies: {
-						"*": { autoApprove: autoApproveTools, enabled: true },
+						"*": {
+							autoApprove: autoApproveTools,
+							enabled: factoryRole !== "reviewer" && factoryRole !== "designer",
+						},
+						...(factoryRole === "reviewer" || factoryRole === "designer"
+							? {
+									read_files: { enabled: true, autoApprove: true },
+									search_codebase: { enabled: true, autoApprove: true },
+									ask_question: { enabled: true },
+									submit_and_exit: { enabled: true, autoApprove: true },
+								}
+							: {}),
 					},
 				},
 			},

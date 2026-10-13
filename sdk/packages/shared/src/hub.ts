@@ -34,6 +34,9 @@ export type HubCapabilityName =
 	| "task.approve"
 	| "task.cancel"
 	| "task.run"
+	| "task.factory.start"
+	| "task.factory.stop"
+	| "task.factory.design"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.get"
@@ -64,6 +67,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.approve",
 	"task.cancel",
 	"task.run",
+	"task.factory.start",
+	"task.factory.stop",
+	"task.factory.design",
 	"task.automation.get",
 	"task.automation.set",
 	"settings.get",
@@ -445,11 +451,16 @@ export interface HubScheduleUpdateInput {
 }
 
 export interface HubTaskIdInput {
+	allWorkspaces?: boolean;
 	taskId: string;
 }
 
-export type HubTaskCreateInput = Omit<AgendaTaskCreateInput, "createdBy">;
-export type HubTaskUpdateInput = Omit<AgendaTaskUpdateInput, "updatedBy">;
+export type HubTaskCreateInput = Omit<AgendaTaskCreateInput, "createdBy"> & {
+	allWorkspaces?: boolean;
+};
+export type HubTaskUpdateInput = Omit<AgendaTaskUpdateInput, "updatedBy"> & {
+	allWorkspaces?: boolean;
+};
 
 export interface HubTaskRevisionInput extends HubTaskIdInput {
 	expectedRevision: number;
@@ -489,12 +500,18 @@ export interface HubSessionSearchHit {
 export interface HubCommandInputMap {
 	"session.search": HubSessionSearchInput;
 	"task.create": HubTaskCreateInput;
-	"task.list": AgendaTaskListInput;
+	"task.list": AgendaTaskListInput & { allWorkspaces?: boolean };
 	"task.get": HubTaskIdInput;
 	"task.update": HubTaskUpdateInput;
 	"task.approve": HubTaskRevisionInput;
 	"task.cancel": HubTaskCancelInput;
 	"task.run": HubTaskRevisionInput;
+	"task.factory.start": {
+		tasks: HubTaskRevisionInput[];
+		allWorkspaces?: boolean;
+	};
+	"task.factory.stop": { allWorkspaces?: boolean };
+	"task.factory.design": HubTaskIdInput;
 	"task.automation.get": Record<string, never>;
 	"task.automation.set": HubTaskAutomationSetInput;
 }
@@ -504,11 +521,14 @@ export interface HubCommandOutputMap {
 	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": { task: AgendaTaskRecord };
 	"task.list": { tasks: AgendaTaskRecord[] };
-	"task.get": { task?: AgendaTaskRecord };
+	"task.get": { task?: AgendaTaskRecord; runs?: AgendaTaskRunRecord[] };
 	"task.update": { task: AgendaTaskRecord };
 	"task.approve": { task: AgendaTaskRecord };
 	"task.cancel": { task: AgendaTaskRecord };
 	"task.run": { task: AgendaTaskRecord; run?: AgendaTaskRunRecord };
+	"task.factory.start": { queued: number };
+	"task.factory.stop": { stopped: boolean };
+	"task.factory.design": { sessionId: string };
 	"task.automation.get": { policy: AgendaAutomationPolicy };
 	"task.automation.set": { policy: AgendaAutomationPolicy };
 }
@@ -585,6 +605,9 @@ export type HubCommandName =
 	| "task.approve"
 	| "task.cancel"
 	| "task.run"
+	| "task.factory.start"
+	| "task.factory.stop"
+	| "task.factory.design"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.list"

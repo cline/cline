@@ -1,6 +1,6 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, realpathSync, statSync, watch } from "node:fs";
-import { relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type {
 	AgendaAutomationPolicy,
 	AgendaTaskActor,
@@ -10,9 +10,17 @@ import type {
 	AgendaTaskRunRecord,
 	AgendaTaskUpdateInput,
 	BasicLogger,
+	FactoryRunState,
 } from "@cline/shared";
-import { createSessionId, noopBasicLogger } from "@cline/shared";
+import {
+	createSessionId,
+	factoryTaskConfigSchema,
+	noopBasicLogger,
+} from "@cline/shared";
+import { resolveTasksDbPath } from "@cline/shared/storage";
 import type { AgendaTaskManagerApi } from "./agenda-task-api";
+import { prepareFactoryWorkspace } from "./factory-local";
+import { runFactoryWorkflow } from "./factory-workflow";
 import { AgendaTaskSpecFileStore } from "./specs/task-spec-file-store";
 import {
 	type AgendaTaskSpec,
@@ -59,11 +67,18 @@ export interface AgendaTaskRuntimeResult {
 
 export interface AgendaTaskRuntime {
 	isInteractiveClientAvailable?(): boolean;
+	startDesignSession?(
+		task: AgendaTaskRecord,
+		requestedByClientId?: string,
+	): Promise<{ sessionId: string }>;
 	startSession(
 		task: AgendaTaskRecord,
 		run: AgendaTaskRunRecord,
 		requestedByClientId?: string,
-		options?: { unattended: boolean },
+		options?: {
+			unattended: boolean;
+			factoryRole?: "builder" | "reviewer" | "designer";
+		},
 	): Promise<{ sessionId: string }>;
 	runSession(
 		sessionId: string,
@@ -77,6 +92,7 @@ export interface AgendaTaskManagerOptions {
 	runtime: AgendaTaskRuntime;
 	store?: SqliteAgendaTaskStore;
 	dbPath?: string;
+	factoryStorageDir?: string;
 	globalSpecsDir?: string;
 	watcherDebounceMs?: number;
 	watchFiles?: boolean;
@@ -155,6 +171,7 @@ function specSignature(
 		availableAt: spec.availableAt ?? current.availableAt,
 		expiresAt: spec.expiresAt,
 		automationEligible: spec.automationEligible,
+		factory: spec.factory,
 	});
 }
 
@@ -178,6 +195,7 @@ function taskSignature(task: AgendaTaskRecord): string {
 		availableAt: task.availableAt,
 		expiresAt: task.expiresAt,
 		automationEligible: task.automationEligible,
+		factory: task.factory,
 	});
 }
 
@@ -206,6 +224,7 @@ function specUpdate(
 		availableAt: spec.availableAt ?? current.availableAt,
 		expiresAt: spec.expiresAt,
 		automationEligible: spec.automationEligible,
+		factory: spec.factory ?? null,
 		updatedBy: FILE_RECONCILER_ACTOR,
 	};
 }
@@ -255,6 +274,8 @@ function mergedEditableTask(
 		availableAt: input.availableAt ?? current.availableAt,
 		expiresAt: input.expiresAt ?? current.expiresAt,
 		automationEligible: input.automationEligible ?? current.automationEligible,
+		factory:
+			input.factory === null ? undefined : (input.factory ?? current.factory),
 	};
 }
 
@@ -275,6 +296,22 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		string,
 		{ runId: string; sessionId?: string }
 	>();
+	private readonly factoryControllers = new Map<
+		string,
+		{ controller: AbortController; sessions: Set<string> }
+	>();
+	private readonly factoryStorageDir: string;
+	private readonly designSessions = new Map<
+		string,
+		Promise<{ sessionId: string }>
+	>();
+	private factoryQueue: Array<{
+		taskId: string;
+		expectedRevision: number;
+		actor: AgendaTaskActor;
+		requestedByClientId?: string;
+	}> = [];
+	private factoryPumping = false;
 	private readonly backgroundRuns = new Set<Promise<void>>();
 	private maintenanceTimer?: ReturnType<typeof setInterval>;
 	private readonly queuedAutomationScopes = new Set<string>();
@@ -286,6 +323,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 
 	constructor(options: AgendaTaskManagerOptions) {
 		this.runtime = options.runtime;
+		this.factoryStorageDir =
+			options.factoryStorageDir ??
+			join(dirname(options.dbPath ?? resolveTasksDbPath()), "factory");
 		this.ownsStore = !options.store;
 		this.store =
 			options.store ?? new SqliteAgendaTaskStore({ dbPath: options.dbPath });
@@ -327,6 +367,15 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	async dispose(): Promise<void> {
 		if (this.disposed) return;
 		this.disposed = true;
+		this.factoryQueue = [];
+		for (const active of this.factoryControllers.values()) {
+			active.controller.abort(new Error("Hub stopped"));
+			await Promise.allSettled(
+				[...active.sessions].map((id) =>
+					this.runtime.abortSession(id, "Hub stopped"),
+				),
+			);
+		}
 		if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
 		for (const scope of this.scopes.values()) {
 			if (scope.timer) clearTimeout(scope.timer);
@@ -362,7 +411,15 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.assertUsable();
 		assertFutureExpiry(input.expiresAt);
 		const location = normalizeAgendaTaskLocation(input);
-		const normalizedInput: AgendaTaskCreateInput = { ...input, ...location };
+		const factory = input.factory
+			? factoryTaskConfigSchema.parse(input.factory)
+			: undefined;
+		const normalizedInput: AgendaTaskCreateInput = {
+			...input,
+			...location,
+			factory,
+			...(factory ? { requiresApproval: true, automationEligible: false } : {}),
+		};
 		const taskId =
 			optionalTrimmed(normalizedInput.taskId) ?? createSessionId("task_");
 		await this.reconcileScope(
@@ -485,6 +542,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				`task ${current.taskId} cannot be edited from ${current.status}; create a new task instead`,
 			);
 		}
+		if (input.factory)
+			input = {
+				...input,
+				factory: factoryTaskConfigSchema.parse(input.factory),
+			};
 		const desired = mergedEditableTask(current, input);
 		assertFutureExpiry(desired.expiresAt);
 		const location = normalizeAgendaTaskLocation(desired);
@@ -595,6 +657,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.assertUsable();
 		const current = await this.refreshAndVerifyTaskIntent(taskId);
 		this.assertRevision(current, expectedRevision);
+		this.assertFactoryReady(current);
 		if (this.isExpired(current)) {
 			this.expireTask(current);
 			throw new Error(`task ${taskId} has expired`);
@@ -652,6 +715,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				error: reason?.trim() || undefined,
 			});
 		}
+		const factoryActive = this.factoryControllers.get(taskId);
+		factoryActive?.controller.abort(new Error(cancellationReason));
+		if (factoryActive)
+			await Promise.allSettled(
+				[...factoryActive.sessions].map((id) =>
+					this.runtime.abortSession(id, cancellationReason),
+				),
+			);
 		this.activeRuns.delete(taskId);
 		const task = this.store.updateTaskState(
 			taskId,
@@ -689,6 +760,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.assertUsable();
 		const current = await this.refreshAndVerifyTaskIntent(taskId);
 		this.assertRevision(current, expectedRevision);
+		this.assertFactoryReady(current);
 		if (this.isExpired(current)) {
 			this.expireTask(current);
 			throw new Error(`task ${taskId} has expired`);
@@ -705,6 +777,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		if (this.activeRuns.has(taskId) || current.currentRunId) {
 			throw new Error(`task ${taskId} already has an active run`);
 		}
+		if (current.factory && this.factoryControllers.size > 0)
+			throw new Error("A feature workflow is already running");
 		let run = this.store.createRun({
 			taskId,
 			taskRevision: current.revision,
@@ -725,12 +799,44 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.activeRuns.set(taskId, { runId: run.runId });
 		this.publish("task.updated", task, run);
 		try {
+			if (task.factory) {
+				const active = {
+					controller: new AbortController(),
+					sessions: new Set<string>(),
+				};
+				this.factoryControllers.set(taskId, active);
+				const workspace = await prepareFactoryWorkspace({
+					sourceRoot: task.workspaceRoot ?? "",
+					taskId,
+					storageDir: this.factoryStorageDir,
+					signal: active.controller.signal,
+				});
+				active.controller.signal.throwIfAborted();
+				run =
+					this.store.updateRun(run.runId, {
+						factory: {
+							phase: "implementing",
+							repairRound: 0,
+							workspace,
+							sessions: [],
+							checks: [],
+						},
+					}) ?? run;
+			}
 			const started = await this.runtime.startSession(
-				task,
+				run.factory
+					? {
+							...task,
+							cwd: run.factory.workspace.path,
+							workspaceRoot: run.factory.workspace.path,
+						}
+					: task,
 				run,
 				requestedByClientId,
 				{
+					factoryRole: task.factory ? "builder" : undefined,
 					unattended:
+						!task.factory &&
 						actor.kind === "automation_policy" &&
 						this.store.getAutomationPolicy(
 							task.scope === "workspace" && task.workspaceRoot
@@ -739,12 +845,22 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 						).mode === "unattended",
 				},
 			);
+			this.factoryControllers.get(taskId)?.sessions.add(started.sessionId);
+			if (run.factory)
+				run =
+					this.store.updateRun(run.runId, {
+						factory: {
+							...run.factory,
+							sessions: [{ sessionId: started.sessionId, role: "builder" }],
+						},
+					}) ?? run;
 			const latestRun = this.store.getRun(run.runId);
 			const latestTask = this.store.getTask(taskId);
 			if (
 				!latestRun ||
 				TERMINAL_RUN_STATUSES.has(latestRun.status) ||
 				latestTask?.status !== current.status ||
+				latestTask.revision !== run.taskRevision ||
 				latestTask.currentRunId !== run.runId
 			) {
 				if (latestRun && !TERMINAL_RUN_STATUSES.has(latestRun.status)) {
@@ -802,6 +918,144 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		}
 	}
 
+	async startFactoryDesign(
+		taskId: string,
+		requestedByClientId?: string,
+	): Promise<{ sessionId: string }> {
+		this.assertUsable();
+		const task = this.requireTask(taskId);
+		if (!task.factory)
+			throw new Error("Only feature tasks have a design interview");
+		if (!this.runtime.startDesignSession)
+			throw new Error("Feature design is unavailable");
+		const existing = this.designSessions.get(taskId);
+		if (existing) return existing;
+		const creating = this.runtime
+			.startDesignSession(task, requestedByClientId)
+			.then((session) => {
+				const updated = this.store.updateTaskState(taskId, {
+					originSessionId: session.sessionId,
+				});
+				if (updated) this.publish("task.updated", updated);
+				return session;
+			});
+		this.designSessions.set(taskId, creating);
+		try {
+			return await creating;
+		} finally {
+			this.designSessions.delete(taskId);
+		}
+	}
+
+	getTaskRuns(taskId: string): AgendaTaskRunRecord[] {
+		this.assertUsable();
+		return this.store.listRuns({ taskId, limit: 100 });
+	}
+
+	async startFactoryQueue(
+		entries: Array<{ taskId: string; expectedRevision: number }>,
+		actor: AgendaTaskActor,
+		requestedByClientId?: string,
+	): Promise<void> {
+		this.assertUsable();
+		for (const entry of entries) {
+			const task = await this.refreshAndVerifyTaskIntent(entry.taskId);
+			this.assertRevision(task, entry.expectedRevision);
+			if (!task.factory)
+				throw new Error("Only feature tasks can enter the factory queue");
+			this.assertFactoryReady(task);
+			if (
+				task.factory.approval === "automatic" &&
+				task.status === "pending_approval"
+			)
+				await this.approveTask(task.taskId, actor, task.revision);
+			else if (
+				task.approvedRevision !== task.revision ||
+				!["approved", "failed"].includes(task.status)
+			)
+				throw new Error(`Approve ${task.title} before starting the queue`);
+		}
+		for (const entry of entries) {
+			if (!this.factoryQueue.some((queued) => queued.taskId === entry.taskId))
+				this.factoryQueue.push({ ...entry, actor, requestedByClientId });
+		}
+		void this.pumpFactoryQueue();
+	}
+
+	stopFactoryQueue(workspaceRoot?: string): void {
+		this.factoryQueue = this.factoryQueue.filter(
+			(entry) =>
+				workspaceRoot !== undefined &&
+				this.store.getTask(entry.taskId)?.workspaceRoot !== workspaceRoot,
+		);
+	}
+
+	private async pumpFactoryQueue(): Promise<void> {
+		if (
+			this.disposed ||
+			this.factoryPumping ||
+			this.factoryControllers.size > 0
+		)
+			return;
+		this.factoryPumping = true;
+		try {
+			while (
+				!this.disposed &&
+				this.factoryQueue.length &&
+				this.factoryControllers.size === 0
+			) {
+				const next = this.factoryQueue.shift();
+				if (!next) break;
+				try {
+					await this.runTask(
+						next.taskId,
+						next.actor,
+						next.expectedRevision,
+						next.requestedByClientId,
+					);
+				} catch (error) {
+					this.logError("feature queue start failed", error, {
+						taskId: next.taskId,
+					});
+				}
+			}
+		} finally {
+			this.factoryPumping = false;
+		}
+	}
+
+	private assertFactoryReady(task: AgendaTaskRecord): void {
+		if (!task.factory) return;
+		if (task.factory.execution !== "local")
+			throw new Error(
+				"Cloud factory execution is not available yet; choose local execution explicitly",
+			);
+		if (!task.workspaceRoot)
+			throw new Error("Feature tasks require a project workspace");
+		if (!task.instructions.trim() || task.factory.checks.length === 0)
+			throw new Error(
+				"Approve a feature brief and at least one verification check before running",
+			);
+	}
+
+	private updateFactoryRun(
+		taskId: string,
+		runId: string,
+		factory: FactoryRunState,
+	): void {
+		const task = this.store.getTask(taskId);
+		const current = this.store.getRun(runId);
+		if (
+			!task ||
+			task.currentRunId !== runId ||
+			!current ||
+			TERMINAL_RUN_STATUSES.has(current.status)
+		)
+			throw new Error("Feature run is no longer active");
+		const run = this.store.updateRun(runId, { factory });
+		this.publish("task.updated", task, run);
+	}
+
 	async getAutomationPolicy(
 		scopeKey = "global",
 	): Promise<AgendaAutomationPolicy> {
@@ -837,7 +1091,22 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		sessionId: string,
 	): Promise<void> {
 		try {
-			const result = await this.runtime.runSession(sessionId, task, run);
+			const factoryActive = this.factoryControllers.get(task.taskId);
+			const result =
+				run.factory && factoryActive
+					? await runFactoryWorkflow({
+							task,
+							run,
+							builderSessionId: sessionId,
+							state: run.factory,
+							runtime: this.runtime,
+							storageDir: this.factoryStorageDir,
+							signal: factoryActive.controller.signal,
+							save: (state) =>
+								this.updateFactoryRun(task.taskId, run.runId, state),
+							sessionStarted: (id) => factoryActive.sessions.add(id),
+						})
+					: await this.runtime.runSession(sessionId, task, run);
 			const latestRun = this.store.getRun(run.runId);
 			if (!latestRun || TERMINAL_RUN_STATUSES.has(latestRun.status)) return;
 			if (result.status === "completed") {
@@ -876,6 +1145,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			await this.finishRunFailure(task, run, error);
 		} finally {
 			this.activeRuns.delete(task.taskId);
+			this.factoryControllers.delete(task.taskId);
+			void this.pumpFactoryQueue();
 			const latest = this.store.getTask(task.taskId);
 			const reconciliation =
 				latest?.scope === "workspace" && latest.workspaceRoot
@@ -895,6 +1166,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		run: AgendaTaskRunRecord,
 		error: unknown,
 	): Promise<void> {
+		this.factoryControllers.delete(task.taskId);
 		const latestRun = this.store.getRun(run.runId);
 		if (!latestRun || TERMINAL_RUN_STATUSES.has(latestRun.status)) return;
 		const message = error instanceof Error ? error.message : String(error);
@@ -1291,6 +1563,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					limit: 1000,
 				});
 				for (const candidate of candidates) {
+					if (candidate.factory) continue;
 					if (capacity <= 0) break;
 					if (policyGeneration !== this.automationPolicyGeneration) return;
 					try {

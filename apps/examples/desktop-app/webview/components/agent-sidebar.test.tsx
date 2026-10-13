@@ -1200,7 +1200,7 @@ describe("AgentSidebar session organization", () => {
 		expect(onNavigateForward).toHaveBeenCalledOnce();
 	});
 
-	it("stacks New, Schedule, and Customize as full-width rows below the logo", async () => {
+	it("stacks Session, Factory, Schedule, and Customize below the logo", async () => {
 		const onHome = vi.fn();
 		const onSettingsSectionChange = vi.fn();
 		await act(async () => {
@@ -1234,6 +1234,7 @@ describe("AgentSidebar session organization", () => {
 		];
 		expect(rows.map((row) => row.textContent)).toEqual([
 			"Session",
+			"Factory",
 			"Schedule",
 			"Customize",
 		]);
