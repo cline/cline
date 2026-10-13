@@ -5,6 +5,7 @@
  * and are used for both validation and JSON Schema generation.
  */
 
+import { nullableOptional } from "@cline/shared";
 import { z } from "zod";
 
 export const INPUT_ARG_CHAR_LIMIT = 6000;
@@ -20,24 +21,12 @@ export const ReadFileLineRangeSchema = z
 	.object({
 		// Models sometimes emit line numbers as strings; coerce so a `"3"` does not
 		// reject the whole tool call. The advertised JSON Schema is unaffected.
-		start_line: z.coerce
-			.number()
-			.int()
-			.positive()
-			.nullable()
-			.optional()
-			.describe(
-				"Optional one-based starting line number to read from; use null or omit for the start of the file",
-			),
-		end_line: z.coerce
-			.number()
-			.int()
-			.positive()
-			.nullable()
-			.optional()
-			.describe(
-				"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
-			),
+		start_line: nullableOptional(z.coerce.number().int().positive()).describe(
+			"Optional one-based starting line number to read from; use null or omit for the start of the file",
+		),
+		end_line: nullableOptional(z.coerce.number().int().positive()).describe(
+			"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
+		),
 	})
 	.describe("Optional inclusive one-based file line range");
 
@@ -201,28 +190,18 @@ export const EditFileInputSchema = z
 		// models send null instead of the real text for replacement edits. Other
 		// models send null for optionals they aren't using, so null is still
 		// accepted at runtime and treated as omitted.
-		old_text: z
-			.preprocess(
-				(value) => (value === null ? undefined : value),
-				z.string().optional(),
-			)
-			.describe(
-				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,
-			),
+		old_text: nullableOptional(z.string()).describe(
+			`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,
+		),
 		new_text: z
 			.string()
 			.describe(
 				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.`,
 			),
 		// See start_line above: coerced so a stringified line number still applies.
-		insert_line: z.coerce
-			.number()
-			.int()
-			.nullable()
-			.optional()
-			.describe(
-				"Optional positive one-based boundary line. When provided, the tool inserts new_text before that line instead of performing a replacement edit; use line_count + 1 to append at EOF.",
-			),
+		insert_line: nullableOptional(z.coerce.number().int()).describe(
+			"Optional positive one-based boundary line. When provided, the tool inserts new_text before that line instead of performing a replacement edit; use line_count + 1 to append at EOF.",
+		),
 	})
 	.describe(
 		"Edit a text file by replacing old_text with new_text, create the file with new_text if it does not exist, or insert new_text at insert_line when insert_line is provided. Prefer using this tool for file edits over shell commands. IMPORTANT: large edits can time out, so use small chunks and multiple calls when possible.",
@@ -253,11 +232,9 @@ export const ApplyPatchInputUnionSchema = z.union([
  */
 export const SkillsInputSchema = z.object({
 	skill: z.string().min(1).describe("Name of the skill to execute."),
-	args: z
-		.string()
-		.nullable()
-		.optional()
-		.describe("Arguments for the skill; use null when omitted"),
+	args: nullableOptional(z.string()).describe(
+		"Arguments for the skill; use null when omitted",
+	),
 });
 
 /**
