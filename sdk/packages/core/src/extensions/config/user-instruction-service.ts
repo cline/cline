@@ -1,5 +1,5 @@
 import type { AgentExtension, AgentTool } from "@cline/shared";
-import { formatRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { loadRulesForSystemPromptFromRecords } from "../../runtime/safety/rules";
 import { createSkillsTool, type SkillsExecutorWithMetadata } from "../tools";
 import {
 	type AvailableRuntimeCommand,
@@ -223,10 +223,8 @@ export function combineUserInstructionConfigServices(
 						id: "cline-combined-user-instructions:rules",
 						source: "combined-user-instructions",
 						content: () =>
-							formatRulesForSystemPrompt(
-								listRecords<RuleConfig>("rule")
-									.map((record) => record.item)
-									.filter((rule) => rule.disabled !== true),
+							loadRulesForSystemPromptFromRecords(
+								listRecords<RuleConfig>("rule"),
 							),
 					});
 				}

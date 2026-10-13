@@ -159,14 +159,15 @@ Linux x64 and arm64 CLI copies are bundled by `bun run build:runtime`; 32-bit
 Raspberry Pi operating systems are not supported. A macOS desktop reaches
 macOS SSH hosts with its own signed universal Cline CLI; Windows and Linux
 desktops need a locally built darwin CLI passed through
-`CLINE_REMOTE_HELPER_BINARY`. The remote CLI includes its own runtime and is
-UPX-compressed at build time (install `upx` locally to match the packaged
-size). It is copied once per matching desktop build and cached, with no
-`apt`, `npm`, root access, global CLI install, or public Hub port.
-Disconnecting runs `cline hub stop` for the desktop-owned remote Hub but leaves
-the CLI cached for a faster reconnect. The remote Hub imports the remote
-login-shell `PATH` (`--login-shell-path`), so user-installed Git, GitHub CLI,
-and MCP executables remain visible.
+`CLINE_REMOTE_HELPER_BINARY`. The remote CLI includes its own runtime (about
+115 MB per copy) and must not be UPX-compressed; Bun reads its embedded code
+back from the executable at runtime, so a packed binary crashes with
+`SyntaxError: Invalid character: '\0'`. It is copied once per matching desktop
+build and cached, with no `apt`, `npm`, root access, global CLI install, or
+public Hub port. Disconnecting runs `cline hub stop` for the desktop-owned
+remote Hub but leaves the CLI cached for a faster reconnect. The remote Hub
+imports the remote login-shell `PATH` (`--login-shell-path`), so
+user-installed Git, GitHub CLI, and MCP executables remain visible.
 
 Each service instance uses its own discovery record, so an existing Cline CLI/Hub on the
 same account is neither replaced nor stopped. Both Hub processes can coexist

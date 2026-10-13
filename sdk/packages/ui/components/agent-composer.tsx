@@ -239,10 +239,7 @@ export const AgentComposerSettingsGroup = forwardRef<
 		<div
 			{...props}
 			ref={ref}
-			className={clsx(
-				"flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap",
-				className,
-			)}
+			className={clsx("flex min-w-0 flex-auto items-center gap-2", className)}
 		/>
 	);
 });

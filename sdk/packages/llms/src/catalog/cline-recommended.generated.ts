@@ -44,15 +44,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
-				id: "cline-free/deepseek-v4.1-flash",
-				name: "Deepseek-v4.1-Flash",
-				description: "Fast and efficient with 1M context window ",
-				tags: [],
-			},
-			{
-				id: "stealth/space-bunny-alpha",
-				name: "space-bunny-alpha",
-				description: "Blazing-fast inference with 1M context",
+				id: "cline-free/solar-mini4",
+				name: "Solar Mini 4",
+				description: "Compact 35-billion parameter mixture-of-experts",
 				tags: [],
 			},
 			{
@@ -133,15 +127,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
-				tags: [],
-			},
-			{
 				id: "cline-pass/minimax-m3",
 				name: "cline-pass/minimax-m3",
 				description: "Frontier coding and agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.7-plus",
+				name: "cline-pass/qwen3.7-plus",
+				description: "Fast multimodal agent model with vision and video input",
 				tags: [],
 			},
 			{

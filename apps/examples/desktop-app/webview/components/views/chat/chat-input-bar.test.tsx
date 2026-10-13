@@ -1537,9 +1537,14 @@ describe("ChatInputBar", () => {
 		const providerTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label^="Provider:"]',
 		);
-		expect(providerTrigger?.parentElement?.parentElement?.className).toContain(
-			"max-[560px]:hidden",
+		expect(
+			providerTrigger?.parentElement?.parentElement?.parentElement?.className,
+		).toContain("max-[560px]:hidden");
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
 		);
+		expect(modelTrigger?.className).toContain("max-w-full");
+		expect(modelTrigger?.className).not.toMatch(/max-w-\d/);
 		expect(compactModelTrigger?.className).toContain("max-[560px]:inline-flex");
 		expect(compactModelTrigger?.querySelector(".lucide-cpu")).not.toBeNull();
 		const workspaceTrigger =
@@ -1554,7 +1559,7 @@ describe("ChatInputBar", () => {
 			'[aria-label="Thinking level"]',
 		);
 		const leftControls = attachTrigger?.parentElement;
-		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
+		expect(leftControls?.className).not.toContain("flex-wrap");
 		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);

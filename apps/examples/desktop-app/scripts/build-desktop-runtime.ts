@@ -99,26 +99,11 @@ const bundleDesktopBackend = async (): Promise<void> => {
 };
 
 // Each compiled CLI embeds a full Bun runtime (~100 MB), and both Linux copies
-// ship inside every desktop bundle. UPX packs the ELF in place to about a
-// quarter of its size and it self-extracts in memory on launch, so the
-// installer, the SSH upload, and the remote run all see one ordinary
-// executable. `strip` is not an option here; it discards Bun's appended
-// module payload. Requires upx on PATH; the publish workflow installs it on
-// every runner.
-const compressRemoteCli = async (outfile: string): Promise<void> => {
-	if (!Bun.which("upx")) {
-		if (process.env.CI) {
-			throw new Error(
-				`upx is required to compress ${outfile} but was not found on PATH`,
-			);
-		}
-		console.warn(
-			`upx not found on PATH; leaving ${outfile} uncompressed (only the packaged size is affected)`,
-		);
-		return;
-	}
-	await $`upx --best --lzma -q ${outfile}`;
-};
+// ship inside every desktop bundle. They must not be UPX-packed: the Bun 1.4
+// runtime reads its embedded module payload back from its own executable at
+// runtime, and on a packed binary those reads return NUL padding, so every
+// `hub ensure` fails with "SyntaxError: Invalid character: '\0'" (#14815).
+// `strip` is not an option either; it discards Bun's appended module payload.
 
 // Linux x64 and arm64 cover common SSH hosts. macOS copies are deliberately
 // not bundled: they would be Mach-O files under Contents/Resources, which
@@ -136,11 +121,10 @@ const buildRemoteClis = async (): Promise<void> => {
 		"x86_64-unknown-linux-gnu",
 		"aarch64-unknown-linux-gnu",
 	]) {
-		const outfile = await compileDesktopCli(
+		await compileDesktopCli(
 			targetTriple,
 			`${REMOTE_CLI_DIR}/cline-${targetTriple}`,
 		);
-		await compressRemoteCli(outfile);
 	}
 };
 

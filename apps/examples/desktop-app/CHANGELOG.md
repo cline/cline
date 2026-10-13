@@ -1,5 +1,26 @@
 # Cline Desktop Changelog
 
+## 0.0.45
+
+- SSH remotes start again. Since 0.0.38, connecting to an SSH environment failed with `SyntaxError: Invalid character`
+- On SSH environments, the git branch label no longer opens two new SSH logins every 5 seconds. It checks every 30 seconds now, and switching branches from the picker still updates it right away
+- Long model names in the composer show in full when the row has room, and only truncate when it runs out
+- Turning reasoning off no longer fails with a 400 error on GPT-6 Astra, GPT-6.1 Sol, Claude Fable 5 or Claude Opus 5.5
+- The background service no longer crashes about 3 seconds after an MCP server or hook quits before reading all of its input
+- Settings migrated from the VS Code extension no longer add an empty SAP AI Core provider
+- Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
+
+## 0.0.44
+
+- Mermaid diagrams in chat now render inline as interactive diagrams, with copy, download, fullscreen, and pan/zoom. Links inside a diagram go through the same confirmation dialog as other links, showing the real destination before anything opens
+- If the Cline Hub connection drops mid-chat, the app now reconnects your session automatically for up to a minute instead of failing right away. Queued messages are sent once the session is back. If it can't reconnect, the turn ends with a notice so you can resend
+- Local and self-hosted providers that don't need an API key (LM Studio, Ollama, vLLM, LiteLLM, and custom OpenAI-compatible endpoints) can start sessions again. They failed every turn with "Missing API key"
+- MCP servers launched with `npx` or `uvx` on Windows now load. They often took longer than the 3-second startup limit and were silently dropped. The default is now 10 seconds
+- Claude through a custom Anthropic base URL (Azure AI Foundry, corporate gateways) no longer fails with a 400 error
+- Kimi K3 and other models that only accept certain reasoning levels no longer reject requests. The app picks the closest level the model supports
+- If a model's response ends without a recognized finish reason, the agent asks it to continue once instead of treating the response as complete
+- Refreshed the model catalog. The Cline free list adds Solar Mini 4 and drops DeepSeek V4.1 Flash and space-bunny-alpha. Default models change for AKI.IO, Blue Claw, CoralBricks, CrossModel, DevPass, LLM Gateway, Mistral, NanoGPT, Requesty, Neon, Subconscious, and The Grid AI
+
 ## 0.0.43
 
 - Existing users get a one-time **What's new** dialog introducing Connectors, with connector logos, a clickable example prompt, and an **Open Connectors** button. You can replay it from **Settings → About → Show what's new**

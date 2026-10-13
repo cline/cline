@@ -4,6 +4,7 @@ import {
 	cancelProviderOAuthLogin,
 	cancelProviderOAuthLoginsForOwner,
 	OAuthLoginCancelledError,
+	type OAuthLoginDependencies,
 	runCancellableProviderOAuthLogin,
 } from "./oauth-login";
 
@@ -16,7 +17,9 @@ function makeManager(): ProviderSettingsManager {
 }
 
 function makeDependencies(overrides: {
-	login: () => Promise<Credentials>;
+	login: (
+		...args: Parameters<OAuthLoginDependencies["login"]>
+	) => Promise<Credentials>;
 	save?: ReturnType<typeof vi.fn>;
 }) {
 	const save =
@@ -53,13 +56,16 @@ describe("runCancellableProviderOAuthLogin", () => {
 		expect(result).toEqual({ provider: "cline", accessToken: "saved-token" });
 	});
 
-	it("rejects promptly on cancel and never persists a late completion", async () => {
+	it("aborts the login on cancel and never persists a late completion", async () => {
+		let signal: AbortSignal | undefined;
 		let resolveLogin: (credentials: Credentials) => void = () => undefined;
 		const { dependencies, save } = makeDependencies({
-			login: () =>
-				new Promise<Credentials>((resolve) => {
+			login: (_provider, _existing, _openUrl, _onUserCode, abortSignal) => {
+				signal = abortSignal;
+				return new Promise<Credentials>((resolve) => {
 					resolveLogin = resolve;
-				}),
+				});
+			},
 		});
 
 		const pending = runCancellableProviderOAuthLogin(
@@ -72,6 +78,7 @@ describe("runCancellableProviderOAuthLogin", () => {
 		// Cancellation must reject the pending login right away, without
 		// waiting for the browser round-trip to finish.
 		expect(cancelProviderOAuthLogin("cline")).toBe(true);
+		expect(signal?.aborted).toBe(true);
 		await expect(pending).rejects.toBeInstanceOf(OAuthLoginCancelledError);
 
 		// The user completes the abandoned browser flow afterwards: the

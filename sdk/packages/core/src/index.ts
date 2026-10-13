@@ -523,6 +523,7 @@ export {
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
+	loadRulesForSystemPromptFromRecords,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
 export {
@@ -636,6 +637,7 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpHeaders,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./services/mcp-install";
@@ -944,7 +946,8 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
+export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
+export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,

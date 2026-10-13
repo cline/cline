@@ -316,11 +316,6 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
-      # build-desktop-runtime.ts UPX-packs the Linux Cline CLI binaries it
-      # bundles for SSH remotes; without upx on PATH the CI build fails.
-      - name: Install UPX
-        run: brew install upx
-
       - name: Write App Store Connect API key
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
@@ -662,12 +657,6 @@ jobs:
           done
           echo "BUN_INSTALL_CACHE_DIR=${CACHE_DIR}" >> "$GITHUB_ENV"
 
-      # build-desktop-runtime.ts UPX-packs the Linux SSH remote CLIs it bundles
-      # into the installer; without upx on PATH the CI build fails. UPX packs
-      # Linux ELF files from a Windows host.
-      - name: Install UPX
-        run: choco install upx --no-progress -y
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
         with:
@@ -988,16 +977,15 @@ jobs:
           bun-version: "1.4.2"
 
       # Tauri's Linux build deps (WebKitGTK, GTK, the appindicator used by the
-      # tray icon, librsvg for icons, xdo for the window helpers) plus upx:
-      # build-desktop-runtime.ts UPX-packs the Linux SSH remote CLIs and fails
-      # the CI build without it. rpm packages are written by the bundler's own
-      # Rust rpm implementation, so rpmbuild is not needed.
+      # tray icon, librsvg for icons, xdo for the window helpers). rpm packages
+      # are written by the bundler's own Rust rpm implementation, so rpmbuild
+      # is not needed.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev libxdo-dev libssl-dev build-essential upx-ucl
+            librsvg2-dev libxdo-dev libssl-dev build-essential
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
@@ -1120,6 +1108,32 @@ jobs:
           CLINE_TEST_DESKTOP_CLI_BIN: src-tauri/bin/cline-cli-${{ matrix.target }}
           CLINE_TEST_DESKTOP_BACKEND_BUNDLE: src-tauri/bin/desktop-backend/index.js
         run: bun test scripts/desktop-startup.test.ts
+
+      # Run the Linux Cline CLI this job bundles for SSH remotes (same arch as
+      # the runner) through the exact `hub ensure` / `hub stop` the desktop
+      # sends over SSH. Desktop 0.0.38 through 0.0.44 shipped remote binaries
+      # that printed --help fine but crashed on every ensure, because UPX
+      # packing broke the Bun 1.4 runtime's lazy reads of its own payload
+      # (#14815, #14781); nothing exercised that path before release. Isolated
+      # CLINE_DIR and discovery record, as in the runtime test above. Only the
+      # exit status is checked; the ensure output carries the Hub auth token.
+      - name: Smoke-test the bundled SSH remote CLI
+        working-directory: apps/examples/desktop-app
+        env:
+          REMOTE_CLI: src-tauri/bin/remote-helpers/cline-${{ matrix.target }}
+        run: |
+          export CLINE_DIR="$(mktemp -d)"
+          export CLINE_DATA_DIR="$CLINE_DIR/data"
+          export CLINE_NO_AUTO_UPDATE=1
+          DISCOVERY="$CLINE_DIR/remote-hub.json"
+          trap 'timeout 30 "$REMOTE_CLI" hub stop --discovery-path "$DISCOVERY" >/dev/null 2>&1 || true' EXIT
+          if ! timeout 60 "$REMOTE_CLI" hub ensure --json --allow-port-fallback --no-connectors --cwd "$CLINE_DIR" --host 127.0.0.1 --port 0 --pathname /hub --discovery-path "$DISCOVERY" >/dev/null; then
+            echo "Bundled remote CLI failed hub ensure; SSH remotes would not"
+            echo "start from this build. Check scripts/build-desktop-runtime.ts."
+            exit 1
+          fi
+          timeout 30 "$REMOTE_CLI" hub stop --discovery-path "$DISCOVERY"
+          echo "Remote CLI started and stopped an isolated Hub."
 
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app

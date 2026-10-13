@@ -258,6 +258,47 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).toContain('unknown command "nonesuch"');
 	});
 
+	it("prints hub help when no subcommand is provided", () => {
+		const result = runCli(["hub"], {
+			env: createIsolatedEnv({ CLINE_RUN_AS_HUB_DAEMON: undefined }),
+		});
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).toContain("Usage: hub [options] [command]");
+		expect(asText(result.stdout)).toContain("status");
+		expect(asText(result.stdout)).toContain("dashboard");
+		expect(asText(result.stderr)).toBe("");
+	});
+
+	it("prints hub dashboard help without starting a server", () => {
+		const result = runCli(["hub", "dashboard", "--help"], {
+			env: createIsolatedEnv({ CLINE_RUN_AS_HUB_DAEMON: undefined }),
+		});
+		expect(result.status).toBe(0);
+		const output = asText(result.stdout);
+		expect(output).toContain("Usage: hub dashboard [options]");
+		for (const option of [
+			"--config",
+			"--cwd",
+			"--data-dir",
+			"--host",
+			"--port",
+			"--public-url",
+			"--room-secret",
+			"--no-open",
+		]) {
+			expect(output).toContain(option);
+		}
+		expect(output).not.toContain("listening at");
+		expect(asText(result.stderr)).toBe("");
+	});
+
+	it("does not advertise dashboard as a top-level command", () => {
+		const result = runCli(["--help"], { env: createIsolatedEnv() });
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).toContain("hub");
+		expect(asText(result.stdout)).not.toContain("dashboard");
+	});
+
 	it("returns an error for interactive auth when no TTY is available", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));
