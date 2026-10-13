@@ -61,7 +61,7 @@ function fixture(
 	let state: CloudRuntimeState = {
 		target,
 		session: snapshot,
-		eligibility: { available: true, enabled: true, checking: false },
+		eligibility: { enabled: true, checking: false },
 		pendingCreations: [],
 		creating: false,
 		stopping: false,

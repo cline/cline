@@ -46,7 +46,6 @@ function makeRuntime(): InteractiveChatCommandRuntime {
 		getActiveSessionId: vi.fn(() => "session-1"),
 		resetForNewSession: vi.fn(async () => {}),
 		restartEmpty: vi.fn(async () => {}),
-		restartWithCurrentMessages: vi.fn(async () => {}),
 	};
 }
 
@@ -64,6 +63,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 		});
 
@@ -92,6 +92,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 		});
 
@@ -128,6 +129,7 @@ describe("runInteractiveChatCommand", () => {
 				autoApproveAllRef: { current: false },
 				setInteractiveAutoApprove,
 				sessionRuntime: runtime,
+				refreshPolicies: async () => {},
 				stop: () => {},
 			}),
 		).rejects.toThrow("handoff locked");
@@ -150,6 +152,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 		});
 
@@ -173,6 +176,7 @@ describe("runInteractiveChatCommand", () => {
 		const setInteractiveAutoApprove = vi.fn((enabled: boolean) => {
 			autoApproveAllRef.current = enabled;
 		});
+		const refreshPolicies = vi.fn(async () => {});
 
 		const result = await runInteractiveChatCommand({
 			prompt: "/yolo on",
@@ -183,6 +187,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef,
 			setInteractiveAutoApprove,
 			sessionRuntime: runtime,
+			refreshPolicies,
 			stop: () => {},
 		});
 
@@ -196,16 +201,16 @@ describe("runInteractiveChatCommand", () => {
 		});
 		expect(state.autoApproveTools).toBe(true);
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
-		expect(runtime.restartWithCurrentMessages).toHaveBeenCalledOnce();
+		expect(refreshPolicies).toHaveBeenCalledOnce();
 	});
 
 	it("keeps chat state mutations reserved until the runtime refresh finishes", async () => {
 		const config = makeConfig();
 		const runtime = makeRuntime();
 		let reserved = false;
-		let finishRestart!: () => void;
-		const restart = new Promise<void>((resolve) => {
-			finishRestart = resolve;
+		let finishRefresh!: () => void;
+		const refresh = new Promise<void>((resolve) => {
+			finishRefresh = resolve;
 		});
 		runtime.withLocalMutation = async (mutate) => {
 			reserved = true;
@@ -215,23 +220,24 @@ describe("runInteractiveChatCommand", () => {
 				reserved = false;
 			}
 		};
-		runtime.restartWithCurrentMessages = vi.fn(() => restart);
+		const refreshPolicies = vi.fn(() => refresh);
+		const state = makeState(config);
 		const changing = runInteractiveChatCommand({
 			prompt: "/tools off",
 			enabled: true,
 			config,
 			host: chatCommandHost,
-			chatCommandState: makeState(config),
+			chatCommandState: state,
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: vi.fn(),
 			sessionRuntime: runtime,
+			refreshPolicies,
 			stop: () => {},
 		});
-		await vi.waitFor(() =>
-			expect(runtime.restartWithCurrentMessages).toHaveBeenCalled(),
-		);
+		await vi.waitFor(() => expect(refreshPolicies).toHaveBeenCalledOnce());
 		expect(reserved).toBe(true);
-		finishRestart();
+		expect(state.enableTools).toBe(false);
+		finishRefresh();
 		await changing;
 		expect(reserved).toBe(false);
 	});
@@ -257,6 +263,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 			onCommandOutput,
 		});

@@ -13,7 +13,6 @@ type FlagService = Pick<
 	"poll" | "getBooleanFlagEnabled" | "getCacheSnapshot" | "dispose"
 >;
 export type CloudEligibilityState = {
-	available: boolean;
 	enabled: boolean;
 	checking: boolean;
 	scopeKey?: string;
@@ -48,7 +47,6 @@ export class CloudEligibility {
 	private timer?: ReturnType<typeof setInterval>;
 	private leaseTimer?: ReturnType<typeof setTimeout>;
 	private state: CloudEligibilityState = {
-		available: false,
 		enabled: false,
 		checking: false,
 	};
@@ -77,7 +75,6 @@ export class CloudEligibility {
 		this.pending = undefined;
 		this.positiveUntil = 0;
 		this.publish({
-			available: false,
 			enabled: false,
 			checking: Boolean(scope),
 			scopeKey: scope ? cloudScopeKey(scope) : undefined,
@@ -119,7 +116,6 @@ export class CloudEligibility {
 						if (epoch === this.epoch)
 							this.publish({
 								...this.state,
-								available: false,
 								enabled: false,
 								checking: false,
 							});
@@ -130,7 +126,6 @@ export class CloudEligibility {
 			}
 			this.publish({
 				...this.state,
-				available,
 				enabled: available,
 				checking: false,
 			});
@@ -146,7 +141,7 @@ export class CloudEligibility {
 			(this.options.now ?? Date.now)() >= this.positiveUntil &&
 			this.state.enabled
 		)
-			this.publish({ ...this.state, available: false, enabled: false });
+			this.publish({ ...this.state, enabled: false });
 		if (!this.state.enabled)
 			throw new Error("Cloud agents are unavailable for this account.");
 	}

@@ -615,7 +615,6 @@ export async function runInteractive(
 				organizationId,
 				clineApiBaseUrl: options?.clineApiBaseUrl,
 			});
-			await cloud.refreshIdentity();
 		},
 		loadConfigData: configDataLoader.loadConfigData,
 		onToggleConfigItem,
@@ -656,6 +655,7 @@ export async function runInteractive(
 					chatCommandState,
 					autoApproveAllRef,
 					setInteractiveAutoApprove,
+					refreshPolicies: refreshInteractiveSessionPolicies,
 					sessionRuntime,
 					stop: () => tuiApp?.destroy(),
 					onCommandOutput,
@@ -676,6 +676,7 @@ export async function runInteractive(
 						chatCommandState,
 						autoApproveAllRef,
 						setInteractiveAutoApprove,
+						refreshPolicies: refreshInteractiveSessionPolicies,
 						sessionRuntime,
 						stop: () => tuiApp?.destroy(),
 						onCommandOutput,
@@ -883,7 +884,7 @@ export async function runInteractive(
 		},
 		onAccountChange: async () => {
 			cloud.invalidateIdentity();
-			await cloud.refreshIdentity();
+			await cloud.refreshIdentity().catch(() => {});
 			await sessionRuntime.ensureReady();
 			await loadClineAccountSnapshot({
 				config,

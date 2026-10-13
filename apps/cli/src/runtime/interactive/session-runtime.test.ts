@@ -197,6 +197,7 @@ async function makeRuntime(
 	manager: ReturnType<typeof makeManager>,
 	options: {
 		config?: Config;
+		chatCommandState?: ChatCommandState;
 		resumeSessionId?: string;
 		resolveToolPolicy?: (toolName: string) => Config["toolPolicies"][string];
 	} = {},
@@ -208,7 +209,8 @@ async function makeRuntime(
 		config,
 		providerSettingsManager: createProviderSettingsManager(),
 		resumeSessionId: options.resumeSessionId,
-		chatCommandState: createChatCommandState(config),
+		chatCommandState:
+			options.chatCommandState ?? createChatCommandState(config),
 		requestToolApproval: async (
 			_request: ToolApprovalRequest,
 		): Promise<ToolApprovalResult> => ({ approved: true }),
@@ -983,13 +985,16 @@ describe("createInteractiveSessionRuntime", () => {
 		manager.readLiveMessages.mockResolvedValue([
 			{ role: "user", content: "local history" },
 		]);
-		const runtime = await makeRuntime(manager);
+		const chatCommandState = createChatCommandState();
+		const runtime = await makeRuntime(manager, { chatCommandState });
 		await runtime.ensureReady();
+		chatCommandState.cwd = "/tmp/another-project/nested";
 		const source = runtime.getHandoffSource()!;
 		const snapshot = await source.read();
 		expect(snapshot).toMatchObject({
 			sessionId: "session-1",
 			modelId: "claude-test",
+			cwd: "/tmp/another-project/nested",
 			busy: false,
 			queued: false,
 			config: { autoApproveTools: true },

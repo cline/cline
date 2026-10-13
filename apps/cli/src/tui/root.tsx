@@ -228,7 +228,7 @@ function App(props: TuiProps) {
 	);
 
 	const openCloud = useCallback(async () => {
-		if (!props.cloud || !props.cloud.getSnapshot().eligibility.available) {
+		if (!props.cloud || !props.cloud.getSnapshot().eligibility.enabled) {
 			showToast("Cloud agents are unavailable for this account", "info");
 			return;
 		}
@@ -259,7 +259,7 @@ function App(props: TuiProps) {
 	useEffect(() => {
 		if (pendingCloudOpen.current && !session.isRunning) {
 			pendingCloudOpen.current = false;
-			if (props.cloud?.getSnapshot().eligibility.available) setAppView("cloud");
+			if (props.cloud?.getSnapshot().eligibility.enabled) setAppView("cloud");
 		}
 	}, [session.isRunning, props.cloud]);
 

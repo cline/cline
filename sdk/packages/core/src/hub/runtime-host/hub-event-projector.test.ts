@@ -248,9 +248,6 @@ describe("createHubEventProjector", () => {
 			const { projector, events } = setup();
 			projector.announceToolCall({ sessionId: "sess-1", toolCallId: "tool-1" });
 			projector.handle(envelope("tool.finished", { toolCallId: "tool-1" }));
-			expect(
-				projector.getSessionState("sess-1")?.announcedToolCallIds.has("tool-1"),
-			).toBe(false);
 			projector.handle(envelope("tool.started", { toolCallId: "tool-1" }));
 			expect(
 				agentEvents(events).filter((event) => event.type === "content_start"),
@@ -711,10 +708,6 @@ describe("createHubEventProjector", () => {
 			projector.handle(envelope("agent.done", {}, { sessionId: "sess-2" }));
 
 			projector.reset("sess-1");
-			expect(projector.getSessionState("sess-1")).toBe(undefined);
-			expect(projector.getSessionState("sess-2")).toMatchObject({
-				doneEmittedForCurrentRun: true,
-			});
 
 			// sess-1 baseline was replaced: a fresh terminal event and a fresh
 			// tool.started both project again; sess-2 keeps deduping.
@@ -746,7 +739,6 @@ describe("createHubEventProjector", () => {
 			const { projector, events, onEvent } = setup();
 			projector.handle(envelope("agent.done", {}));
 			projector.dispose();
-			expect(projector.getSessionState("sess-1")).toBe(undefined);
 			expect(projector.handle(envelope("assistant.delta", { text: "x" }))).toBe(
 				true,
 			);

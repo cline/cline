@@ -1037,7 +1037,7 @@ export function createInteractiveSessionRuntime(input: {
 				if (!row) throw new Error("The local conversation no longer exists.");
 				return {
 					sessionId,
-					cwd: input.config.cwd,
+					cwd: input.chatCommandState.cwd,
 					modelId: input.config.modelId,
 					mode: input.config.mode,
 					config: {

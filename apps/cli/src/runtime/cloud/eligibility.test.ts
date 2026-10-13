@@ -102,7 +102,7 @@ describe("CloudEligibility", () => {
 		service.poll.mockResolvedValue();
 		service.getBooleanFlagEnabled.mockReturnValue(false);
 		await gate.refresh();
-		expect(gate.getSnapshot().available).toBe(false);
+		expect(gate.getSnapshot().enabled).toBe(false);
 	});
 	it("a cached positive never renews its original five minute lease", async () => {
 		vi.useFakeTimers();

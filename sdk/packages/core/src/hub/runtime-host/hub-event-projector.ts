@@ -44,7 +44,7 @@ export interface HubEventProjectionSessionState {
 	announcedToolCallIds: Set<string>;
 }
 
-export function createHubEventProjectionSessionState(): HubEventProjectionSessionState {
+function createHubEventProjectionSessionState(): HubEventProjectionSessionState {
 	return {
 		doneEmittedForCurrentRun: false,
 		announcedToolCallIds: new Set(),
@@ -78,10 +78,6 @@ export interface HubEventProjector {
 		toolName?: string;
 		toolInput?: unknown;
 	}): void;
-	/** Read-only view of a session's projection state (mainly for tests). */
-	getSessionState(
-		sessionId: string,
-	): Readonly<HubEventProjectionSessionState> | undefined;
 	/**
 	 * Drop projection state for one session, or for every session when no id
 	 * is given. Call this when an authoritative snapshot replaces the stream
@@ -152,9 +148,7 @@ function usageMetric(
 	return finiteNumber(record?.[key]) ?? 0;
 }
 
-export function usageEventFromPayload(
-	payload: Record<string, unknown> | undefined,
-): {
+function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 	event: Extract<AgentEvent, { type: "usage" }>;
 	teamAgentId?: string;
 	teamRole?: "lead" | "teammate";
@@ -205,7 +199,7 @@ export function usageEventFromPayload(
 	};
 }
 
-export function doneEventFromPayload(
+function doneEventFromPayload(
 	payload: Record<string, unknown> | undefined,
 ): AgentEvent {
 	const result =
@@ -282,7 +276,7 @@ function doneEventIfNeeded(
  * Pure mapping step: project one non-host-owned envelope for `sessionId`
  * into `CoreSessionEvent`s, mutating `state` for dedup bookkeeping.
  */
-export function projectHubEnvelope(
+function projectHubEnvelope(
 	event: HubEventEnvelope,
 	sessionId: string,
 	state: HubEventProjectionSessionState,
@@ -740,9 +734,6 @@ export function createHubEventProjector(
 				stateFor(sessionId).announcedToolCallIds.add(input.toolCallId);
 			}
 			onEvent(toolCallContentStart({ ...input, sessionId }));
-		},
-		getSessionState(sessionId) {
-			return sessions.get(sessionId.trim());
 		},
 		reset(sessionId) {
 			if (sessionId === undefined) {

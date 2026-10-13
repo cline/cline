@@ -41,6 +41,11 @@ async function fixture(
 	paginatedBranches: boolean | "hold-first" = false,
 	handoff?: "clean" | "dirty",
 	modelMode: "exact" | "unsupported" = "exact",
+	localTurn?: {
+		responses: unknown[];
+		closed: boolean[];
+		releaseFirst: () => void;
+	},
 ) {
 	const requests: Array<{
 		method: string;
@@ -49,6 +54,11 @@ async function fixture(
 		body?: unknown;
 	}> = [];
 	let created = false;
+	let localTurnCount = 0;
+	let releaseFirstTurn: (() => void) | undefined;
+	const firstTurnHeld = new Promise<void>((resolve) => {
+		releaseFirstTurn = resolve;
+	});
 	const server = createServer(async (request, response) => {
 		const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
 		const chunks = [];
@@ -62,6 +72,69 @@ async function fixture(
 			authorization: request.headers.authorization,
 			body,
 		});
+		if (
+			localTurn &&
+			request.method === "POST" &&
+			pathname.endsWith("/messages")
+		) {
+			localTurn.responses.push(body);
+			const responseIndex = localTurn.responses.length - 1;
+			response.on("close", () => {
+				localTurn.closed[responseIndex] = true;
+			});
+			response.writeHead(200, { "Content-Type": "text/event-stream" });
+			const events = (text: string) => [
+				{
+					type: "message_start",
+					message: {
+						id: `msg-${localTurnCount}`,
+						type: "message",
+						role: "assistant",
+						model: "claude-sonnet-4-6",
+						content: [],
+						stop_reason: null,
+						stop_sequence: null,
+						usage: { input_tokens: 10, output_tokens: 0 },
+					},
+				},
+				{
+					type: "content_block_start",
+					index: 0,
+					content_block: { type: "text", text: "" },
+				},
+				{
+					type: "content_block_delta",
+					index: 0,
+					delta: { type: "text_delta", text },
+				},
+			];
+			const writeEvents = (items: unknown[]) => {
+				for (const event of items) {
+					const type = (event as { type: string }).type;
+					response.write(`event: ${type}\ndata: ${JSON.stringify(event)}\n\n`);
+				}
+			};
+			localTurnCount += 1;
+			writeEvents(
+				events(
+					localTurnCount === 1
+						? "First turn is still running."
+						: "Second turn used updated tools.",
+				),
+			);
+			if (localTurnCount === 1) await firstTurnHeld;
+			writeEvents([
+				{ type: "content_block_stop", index: 0 },
+				{
+					type: "message_delta",
+					delta: { stop_reason: "end_turn", stop_sequence: null },
+					usage: { output_tokens: 1 },
+				},
+				{ type: "message_stop" },
+			]);
+			response.end();
+			return;
+		}
 		response.setHeader("Content-Type", "application/json");
 		if (pathname === "/flags/" || pathname === "/decide/") {
 			response.end(
@@ -241,7 +314,7 @@ async function fixture(
 		JSON.stringify({
 			version: 1,
 			providers: {
-				...(handoff
+				...(handoff || localTurn
 					? {
 							anthropic: {
 								updatedAt: "2026-09-15T00:00:00Z",
@@ -370,6 +443,7 @@ async function fixture(
 		rows: 30,
 		waitForDataTimeout: 30_000,
 	});
+	if (localTurn) localTurn.releaseFirst = () => releaseFirstTurn?.();
 	terminals.push(terminal);
 	return { terminal, requests, hub, headSha };
 }
@@ -859,6 +933,65 @@ describe("cloud CLI terminal integration (local fixture only)", () => {
 				.filter((request) => request.pathname.startsWith("/api/"))
 				.every((request) => request.method === "GET"),
 		).toBe(true);
+	});
+
+	it("defers a tools policy change until the active local turn finishes", async () => {
+		const localTurn = {
+			responses: [] as unknown[],
+			closed: [] as boolean[],
+			releaseFirst: () => {},
+		};
+		const { terminal } = await fixture(
+			true,
+			true,
+			undefined,
+			false,
+			false,
+			false,
+			undefined,
+			"exact",
+			localTurn,
+		);
+		await terminal.waitForText("What can I do for you?", { timeout: 30_000 });
+		await terminal.type("First request");
+		await terminal.press("enter");
+		await terminal.waitForText("First turn is still running.", {
+			timeout: 15_000,
+		});
+		try {
+			await terminal.type("/tools off");
+			await terminal.press("enter");
+			await terminal.waitForText("tools=off");
+			expect(localTurn.responses).toHaveLength(1);
+			expect(localTurn.closed[0]).not.toBe(true);
+		} finally {
+			localTurn.releaseFirst();
+		}
+		await vi.waitFor(() => expect(localTurn.closed[0]).toBe(true), {
+			timeout: 15_000,
+		});
+		await terminal.type("Second request");
+		await terminal.press("enter");
+		await terminal.waitForText("Second turn used updated tools.", {
+			timeout: 15_000,
+		});
+		expect(localTurn.responses).toHaveLength(2);
+		expect(
+			JSON.stringify(
+				(localTurn.responses[1] as { messages: unknown[] }).messages,
+			),
+		).toContain("First turn is still running.");
+		expect(
+			(localTurn.responses[0] as { tools?: unknown[] }).tools?.length,
+		).toBeGreaterThan(0);
+		expect(
+			((localTurn.responses[1] as { tools?: unknown[] }).tools ?? []).length,
+		).toBeLessThan(
+			((localTurn.responses[0] as { tools?: unknown[] }).tools ?? []).length,
+		);
+		await terminal.type("/quit");
+		await terminal.press("enter");
+		expect(await terminal.waitForExit(10_000)).toBe(true);
 	});
 
 	it.each([

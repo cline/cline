@@ -21,7 +21,6 @@ export type InteractiveChatCommandRuntime = Pick<
 	| "forkCurrentSession"
 	| "getActiveSessionId"
 	| "resetForNewSession"
-	| "restartWithCurrentMessages"
 	| "restartEmpty"
 	| "withLocalMutation"
 >;
@@ -46,6 +45,7 @@ export async function runInteractiveChatCommand(input: {
 	chatCommandState: ChatCommandState;
 	autoApproveAllRef: AutoApproveRef;
 	setInteractiveAutoApprove: (enabled: boolean) => void;
+	refreshPolicies: () => Promise<void>;
 	sessionRuntime: InteractiveChatCommandRuntime;
 	stop: () => void;
 	onCommandOutput?: (text: string) => void;
@@ -84,7 +84,7 @@ export async function runInteractiveChatCommand(input: {
 				input.chatCommandState.cwd = next.cwd;
 				input.chatCommandState.workspaceRoot = next.workspaceRoot;
 				input.setInteractiveAutoApprove(next.autoApproveTools);
-				await input.sessionRuntime.restartWithCurrentMessages();
+				await input.refreshPolicies();
 			});
 		},
 		reply: async (text) => {
