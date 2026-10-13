@@ -307,6 +307,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		useAutoCondense: true,
 		compactionStrategy: "basic",
 		webSearchEnabled: false,
+		keepChangesInProject: false,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
 		favoritedModelIds: [],

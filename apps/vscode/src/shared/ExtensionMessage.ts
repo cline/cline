@@ -121,6 +121,7 @@ export interface ExtensionState {
 	useAutoCondense?: boolean
 	compactionStrategy?: string
 	webSearchEnabled?: boolean
+	keepChangesInProject?: boolean
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	favoritedModelIds: string[]

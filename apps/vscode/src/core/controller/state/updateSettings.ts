@@ -1,4 +1,4 @@
-import { setCompactionStrategyGlobally, setModelToolEnabledGlobally } from "@cline/core"
+import { setCompactionStrategyGlobally, setKeepChangesInProjectGlobally, setModelToolEnabledGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -175,6 +175,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update web search setting (stored in the SDK global settings file; applied when the next session is built)
 		if (request.webSearchEnabled !== undefined) {
 			setModelToolEnabledGlobally("web_search", !!request.webSearchEnabled)
+		}
+
+		// Stored in the SDK global settings file; read on every command and edit.
+		if (request.keepChangesInProject !== undefined) {
+			setKeepChangesInProjectGlobally(request.keepChangesInProject)
 		}
 
 		if (request.compactionStrategy !== undefined) {
