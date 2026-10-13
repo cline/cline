@@ -345,20 +345,18 @@ function hasActiveWorkspaceTurn(session: LiveSession): boolean {
 	);
 }
 
-function assertWorkspaceNotRestoring(
+function isWorkspaceRestoring(
 	ctx: SidecarContext,
 	workspace: string | undefined,
-): void {
-	if (
+): boolean {
+	return Boolean(
 		workspace &&
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(workspace, locked) ||
-				workspaceIsWithin(locked, workspace),
-		)
-	) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
+			[...ctx.restoringWorkspacePaths].some(
+				(locked) =>
+					workspaceIsWithin(workspace, locked) ||
+					workspaceIsWithin(locked, workspace),
+			),
+	);
 }
 
 async function withWorkspaceRestoreLock<T>(
@@ -367,12 +365,7 @@ async function withWorkspaceRestoreLock<T>(
 	work: () => Promise<T>,
 ): Promise<T> {
 	const key = resolve(workspacePath);
-	if (
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(key, locked) || workspaceIsWithin(locked, key),
-		)
-	) {
+	if (isWorkspaceRestoring(ctx, key)) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	for (const session of ctx.liveSessions.values()) {
@@ -1084,8 +1077,10 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const workspace = workspacePathKey(request.config) ?? ctx.localWorkspaceRoot;
-	assertWorkspaceNotRestoring(ctx, workspace);
+	const workspace = workspacePathKey(request.config);
+	if (isWorkspaceRestoring(ctx, workspace)) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
@@ -1142,7 +1137,9 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	assertWorkspaceNotRestoring(ctx, workspace);
+	if (isWorkspaceRestoring(ctx, workspace)) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
@@ -1683,7 +1680,13 @@ async function handleSend(
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
-	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
+	if (isWorkspaceRestoring(ctx, lockedWorkspaceKey)) {
+		return {
+			sessionId,
+			ok: true,
+			result: { finishReason: "error", text: WORKSPACE_RESTORE_SEND_ERROR },
+		};
+	}
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -1747,7 +1750,13 @@ async function handleSend(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
-	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
+	if (isWorkspaceRestoring(ctx, lockedWorkspaceKey)) {
+		return {
+			sessionId,
+			ok: true,
+			result: { finishReason: "error", text: WORKSPACE_RESTORE_SEND_ERROR },
+		};
+	}
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

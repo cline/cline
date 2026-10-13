@@ -370,7 +370,10 @@ describe("hasProviderChanged", () => {
 });
 
 describe("pathless session starts", () => {
-	it("omits workspace paths and returns the SDK-resolved chat workspace", async () => {
+	it.each([
+		false,
+		true,
+	])("uses the SDK-resolved chat workspace (launch workspace restoring: %s)", async (restoring) => {
 		const start = vi.fn(
 			async (input: {
 				config: Record<string, unknown>;
@@ -411,7 +414,7 @@ describe("pathless session starts", () => {
 		);
 		const ctx = {
 			liveSessions: new Map(),
-			restoringWorkspacePaths: new Set(),
+			restoringWorkspacePaths: new Set(restoring ? ["/workspace"] : []),
 			...localRuntimeContext({ start }),
 			telemetryUser: {
 				distinctId: "account-1",
@@ -446,6 +449,21 @@ describe("pathless session starts", () => {
 		expect(ctx.liveSessions.get("session-pathless")?.config).toMatchObject({
 			cwd: "/home/host/.cline/data/workspaces/chat",
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
+		});
+		ctx.restoringWorkspacePaths.add(result.workspaceRoot);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: result.sessionId,
+				prompt: "Start the task",
+			}),
+		).resolves.toEqual({
+			sessionId: result.sessionId,
+			ok: true,
+			result: {
+				finishReason: "error",
+				text: "Cannot send a prompt while the session workspace is being restored",
+			},
 		});
 	});
 });
@@ -713,9 +731,14 @@ describe("session forks", () => {
 					sessionId: siblingSessionId,
 					prompt: "race",
 				}),
-			).rejects.toThrow(
-				"Cannot send a prompt while the session workspace is being restored",
-			);
+			).resolves.toEqual({
+				sessionId: siblingSessionId,
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "Cannot send a prompt while the session workspace is being restored",
+				},
+			});
 			expect(send).not.toHaveBeenCalled();
 			for (const cwd of ["/workspace", "/workspace/project/child"]) {
 				await expect(
@@ -1135,9 +1158,14 @@ describe("session forks", () => {
 				sessionId,
 				prompt: "race",
 			}),
-		).rejects.toThrow(
-			"Cannot send a prompt while the session workspace is being restored",
-		);
+		).resolves.toEqual({
+			sessionId,
+			ok: true,
+			result: {
+				finishReason: "error",
+				text: "Cannot send a prompt while the session workspace is being restored",
+			},
+		});
 		expect(send).not.toHaveBeenCalled();
 	});
 });
@@ -1253,9 +1281,14 @@ describe("first-send connection updates", () => {
 			ctx.restoringWorkspacePaths.add(locked);
 			prepared.resolve();
 			if (locked === "/workspace/project") {
-				await expect(result).rejects.toThrow(
-					"Cannot send a prompt while the session workspace is being restored",
-				);
+				await expect(result).resolves.toEqual({
+					sessionId,
+					ok: true,
+					result: {
+						finishReason: "error",
+						text: "Cannot send a prompt while the session workspace is being restored",
+					},
+				});
 				expect(send).not.toHaveBeenCalled();
 			} else {
 				await result;
