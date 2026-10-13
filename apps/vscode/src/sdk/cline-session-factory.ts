@@ -605,9 +605,8 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 	}
 
 	const sdkProviderId = toSdkProviderId(providerId)
-	// OpenAI Compatible has no meaningful default endpoint: the user supplies
-	// the full URL and legacy passed it to the client verbatim. Inheriting the
-	// OpenAI default `/v1` would turn `https://example.com` into `https://example.com/v1`.
+	// OpenAI Compatible endpoints are user-supplied, so use the URL as entered
+	// rather than inheriting the OpenAI default `/v1` path.
 	if (sdkProviderId === "openai-compatible") {
 		return trimmed
 	}
