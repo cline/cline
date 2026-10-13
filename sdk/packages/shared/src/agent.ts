@@ -199,6 +199,10 @@ export interface AgentToolContext {
 	metadata?: Record<string, unknown>;
 	snapshot?: AgentRuntimeStateSnapshot;
 	emitUpdate?: (update: unknown) => void;
+	/** Session working directory. Set by the host for plugin tools. */
+	cwd?: string;
+	/** Sends a plugin event to the calling session. Set by the host for plugin tools. */
+	emitEvent?: (name: string, payload?: unknown) => void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
