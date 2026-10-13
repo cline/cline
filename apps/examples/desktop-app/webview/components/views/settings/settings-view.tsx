@@ -1,4 +1,3 @@
-import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import { Switch } from "@cline/ui";
 import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -87,8 +86,6 @@ export {
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "./sections";
-
-const CLINE_APP_URL = "https://app.cline.bot";
 
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
@@ -695,12 +692,7 @@ function GeneralSettingsContent({
 	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
-	const { user } = useAccount();
-	const privacySettingsUrl = getClinePrivacySettingsUrl(
-		user?.dataPrivacyPath,
-		CLINE_APP_URL,
-		"desktop",
-	);
+	const { privacySettingsUrl } = useAccount();
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);

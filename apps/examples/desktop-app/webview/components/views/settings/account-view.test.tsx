@@ -5,10 +5,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountView } from "./account-view";
 
-const { invoke, openExternalUrl } = vi.hoisted(() => ({
+const { invoke, openExternalUrl, useAccount } = vi.hoisted(() => ({
 	invoke: vi.fn(),
 	openExternalUrl: vi.fn(),
+	useAccount: vi.fn(),
 }));
+vi.mock("@/contexts/account-context", () => ({ useAccount }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	openExternalUrl,
@@ -21,6 +23,10 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	invoke.mockReset();
 	openExternalUrl.mockReset();
+	useAccount.mockReturnValue({
+		privacySettingsUrl: undefined,
+		refreshAccount: vi.fn(),
+	});
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -237,7 +243,8 @@ describe("AccountView signed-out state", () => {
 });
 
 describe("AccountView privacy settings", () => {
-	async function renderSignedInAs(dataPrivacyPath?: string) {
+	async function renderSignedInWithPrivacyLink(privacySettingsUrl?: string) {
+		useAccount.mockReturnValue({ privacySettingsUrl, refreshAccount: vi.fn() });
 		invoke.mockImplementation(
 			async (_command: string, args?: Record<string, unknown>) => {
 				switch (args?.operation) {
@@ -249,7 +256,6 @@ describe("AccountView privacy settings", () => {
 							createdAt: "2024-01-01T00:00:00Z",
 							updatedAt: "2024-01-01T00:00:00Z",
 							organizations: [],
-							dataPrivacyPath,
 						};
 					case "fetchBalance":
 						return { balance: 5_000_000 };
@@ -273,8 +279,8 @@ describe("AccountView privacy settings", () => {
 			'button[title="Privacy settings"]',
 		);
 
-	it("hides the action when the API does not advertise privacy settings", async () => {
-		await renderSignedInAs(undefined);
+	it("hides the action when there is no privacy settings link", async () => {
+		await renderSignedInWithPrivacyLink(undefined);
 
 		expect(
 			container.querySelector('button[title="Open dashboard"]'),
@@ -282,13 +288,15 @@ describe("AccountView privacy settings", () => {
 		expect(privacySettingsButton()).toBeNull();
 	});
 
-	it("opens the Cline app's privacy settings as the desktop client", async () => {
-		await renderSignedInAs("/dashboard/account?tab=privacy");
+	it("opens the privacy settings link from the account context", async () => {
+		await renderSignedInWithPrivacyLink(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
 
 		await act(async () => privacySettingsButton()?.click());
 
 		expect(openExternalUrl).toHaveBeenCalledWith(
-			"https://app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
 		);
 	});
 });

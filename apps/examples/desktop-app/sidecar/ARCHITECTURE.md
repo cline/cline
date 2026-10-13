@@ -212,6 +212,7 @@ Supported commands:
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
 | `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
 | `get_desktop_settings` | `readDesktopSettings()` |
+| `get_cline_app_base_url` | `getClineEnvironmentConfig().appBaseUrl`, so web app links follow `CLINE_ENVIRONMENT` |
 | `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
 | `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |

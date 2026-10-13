@@ -29,12 +29,15 @@ function makeUser(overrides: Partial<ClineAccountUser> = {}): ClineAccountUser {
 }
 
 function Probe() {
-	const { user, activeOrganization } = useAccount();
+	const { user, activeOrganization, privacySettingsUrl } = useAccount();
 	return (
 		<div>
 			<span data-testid="account-name">{user?.displayName ?? "none"}</span>
 			<span data-testid="account-org">
 				{activeOrganization?.name ?? "none"}
+			</span>
+			<span data-testid="privacy-settings-url">
+				{privacySettingsUrl ?? "none"}
 			</span>
 		</div>
 	);
@@ -122,6 +125,50 @@ describe("account context", () => {
 				window.localStorage.getItem(ACCOUNT_IDENTITY_STORAGE_KEY),
 			)?.email,
 		).toBe("beatrix@cline.bot");
+	});
+
+	it("links to privacy settings on the sidecar's Cline app", async () => {
+		invoke.mockImplementation(async (command: string) =>
+			command === "get_cline_app_base_url"
+				? "https://staging-app.cline.bot"
+				: makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
+		);
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("privacy-settings-url")).toBe(
+				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			);
+		});
+	});
+
+	it("shows no privacy link when the sidecar cannot report its Cline app", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "get_cline_app_base_url") {
+				throw new Error("Unknown command: get_cline_app_base_url");
+			}
+			return makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" });
+		});
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("account-name")).toBe("Beatrix");
+		});
+		expect(probeText("privacy-settings-url")).toBe("none");
 	});
 
 	it("treats the typed not-authenticated result as signed out", async () => {

@@ -9,7 +9,6 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 } from "@cline/core";
-import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import {
 	AlertCircle,
 	Building,
@@ -35,7 +34,6 @@ import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 
-const CLINE_APP_URL = "https://app.cline.bot";
 const DASHBOARD_URL = "https://app.cline.bot/dashboard";
 const USAGE_DASHBOARD_URL = "https://app.cline.bot/dashboard/usage";
 const USER_CREDITS_URL =
@@ -167,7 +165,7 @@ export function AccountView() {
 	const [activeTab, setActiveTab] = useState<"overview" | "usage" | "billing">(
 		"overview",
 	);
-	const { refreshAccount } = useAccount();
+	const { privacySettingsUrl, refreshAccount } = useAccount();
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
@@ -440,11 +438,6 @@ export function AccountView() {
 		}).format(value / 1_000_000);
 	};
 
-	const privacySettingsUrl = getClinePrivacySettingsUrl(
-		user?.dataPrivacyPath,
-		CLINE_APP_URL,
-		"desktop",
-	);
 	const displayedBalance = activeOrganization
 		? (organizationBalance?.balance ?? balance?.balance ?? null)
 		: (balance?.balance ?? null);

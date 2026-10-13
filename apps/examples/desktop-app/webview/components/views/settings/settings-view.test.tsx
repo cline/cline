@@ -46,7 +46,7 @@ beforeEach(() => {
 	delete document.documentElement.dataset.clineFontSize;
 	invoke.mockReset();
 	openExternalUrl.mockReset();
-	useAccount.mockReturnValue({ user: null });
+	useAccount.mockReturnValue({ privacySettingsUrl: undefined });
 	invoke.mockResolvedValue({
 		telemetryOptOut: false,
 		autoUpdateEnabled: true,
@@ -170,10 +170,10 @@ describe("SettingsView cloud sessions rollout", () => {
 });
 
 describe("SettingsView privacy settings link", () => {
-	async function renderGeneralSettingsSignedInAs(dataPrivacyPath?: string) {
-		useAccount.mockReturnValue({
-			user: { email: "harrison@cline.bot", dataPrivacyPath },
-		});
+	async function renderGeneralSettingsWithPrivacyLink(
+		privacySettingsUrl?: string,
+	) {
+		useAccount.mockReturnValue({ privacySettingsUrl });
 		await act(async () => {
 			root.render(
 				<SettingsView
@@ -190,21 +190,23 @@ describe("SettingsView privacy settings link", () => {
 			(button) => button.textContent === "privacy settings",
 		);
 
-	it("hides the sentence when the API does not advertise privacy settings", async () => {
-		await renderGeneralSettingsSignedInAs(undefined);
+	it("hides the sentence when there is no privacy settings link", async () => {
+		await renderGeneralSettingsWithPrivacyLink(undefined);
 
 		expect(container.textContent).toContain("Telemetry");
 		expect(container.textContent).not.toContain("Cline Bench");
 		expect(privacySettingsLink()).toBeUndefined();
 	});
 
-	it("opens the Cline app's privacy settings as the desktop client", async () => {
-		await renderGeneralSettingsSignedInAs("/dashboard/account?tab=privacy");
+	it("opens the privacy settings link from the account context", async () => {
+		await renderGeneralSettingsWithPrivacyLink(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
 
 		await act(async () => privacySettingsLink()?.click());
 
 		expect(openExternalUrl).toHaveBeenCalledWith(
-			"https://app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
 		);
 	});
 });

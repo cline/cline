@@ -1,6 +1,7 @@
 "use client";
 
 import type { ClineAccountOrganization, ClineAccountUser } from "@cline/core";
+import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import {
 	createContext,
 	useCallback,
@@ -26,6 +27,7 @@ type AccountContextValue = {
 	accountReady: boolean;
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
+	privacySettingsUrl: string | undefined;
 	refreshAccount: () => Promise<void>;
 };
 
@@ -34,6 +36,7 @@ const AccountContext = createContext<AccountContextValue>({
 	accountReady: false,
 	organizations: [],
 	activeOrganization: null,
+	privacySettingsUrl: undefined,
 	refreshAccount: async () => undefined,
 });
 
@@ -100,6 +103,7 @@ export function isSignedOutAccountError(error: unknown): boolean {
 export function AccountProvider({ children }: { children: React.ReactNode }) {
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
 	const [accountReady, setAccountReady] = useState(false);
+	const [clineAppBaseUrl, setClineAppBaseUrl] = useState<string>();
 
 	const refreshAccount = useCallback(async () => {
 		try {
@@ -138,6 +142,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		void refreshAccount();
 	}, [refreshAccount]);
 
+	useEffect(() => {
+		desktopClient
+			.invoke<string>("get_cline_app_base_url")
+			.then(setClineAppBaseUrl, () => undefined);
+	}, []);
+
 	const value = useMemo<AccountContextValue>(() => {
 		const organizations = user?.organizations ?? [];
 		return {
@@ -146,9 +156,16 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 			organizations,
 			activeOrganization:
 				organizations.find((organization) => organization.active) ?? null,
+			privacySettingsUrl: clineAppBaseUrl
+				? getClinePrivacySettingsUrl(
+						user?.dataPrivacyPath,
+						clineAppBaseUrl,
+						"desktop",
+					)
+				: undefined,
 			refreshAccount,
 		};
-	}, [accountReady, refreshAccount, user]);
+	}, [accountReady, clineAppBaseUrl, refreshAccount, user]);
 
 	return (
 		<AccountContext.Provider value={value}>{children}</AccountContext.Provider>
