@@ -16,6 +16,16 @@ The dashboard registers two clients with the hub: a `cline-hub-server` (via `Cli
 
 ## Run
 
+With the Cline CLI installed:
+
+```bash
+cline hub dashboard
+```
+
+The command opens the dashboard in your default browser and stays running until you press Ctrl+C. Use `cline hub dashboard --no-open` to print the URL without opening a browser. Run `cline hub dashboard --help` for options, including `--host`, `--port`, `--public-url`, and `--room-secret`.
+
+From a source checkout:
+
 ```bash
 cd apps/cline-hub
 bun run start

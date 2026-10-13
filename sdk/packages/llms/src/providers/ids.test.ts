@@ -36,7 +36,7 @@ describe("provider-ids", () => {
 		}
 	});
 
-	it("registers v0 as a built-in provider with generated catalog models", async () => {
+	it("registers v0 as a built-in provider", async () => {
 		await expect(getProvider("v0")).resolves.toMatchObject({
 			id: "v0",
 			baseUrl: "https://api.v0.dev/v1",
@@ -44,12 +44,9 @@ describe("provider-ids", () => {
 			client: "openai-compatible",
 		});
 
+		// models.dev no longer lists v0, so only the built-in default remains.
 		const models = await getModelsForProvider("v0");
-		expect(Object.keys(models).sort()).toEqual([
-			"v0-1.0-md",
-			"v0-1.5-lg",
-			"v0-1.5-md",
-		]);
+		expect(Object.keys(models)).toEqual(["v0-1.5-md"]);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "v0",

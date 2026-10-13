@@ -17,7 +17,7 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: ["NEW"],
 			},
 			{
-				id: "spacexai/grok-4.7",
+				id: "x-ai/grok-4.7",
 				name: "grok-4.7",
 				description: "",
 				tags: ["NEW"],
@@ -25,6 +25,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			{
 				id: "openai/gpt-6-astra",
 				name: "gpt-6-astra",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
+				id: "openai/gpt-6.1-sol",
+				name: "gpt-6.1-sol",
 				description: "",
 				tags: ["NEW"],
 			},
@@ -38,15 +44,10 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
-				id: "stealth/pixel-canary",
-				name: "Pixel Canary",
-				description: "Anonymous large model with strong coding capabilities",
-				tags: [],
-			},
-			{
-				id: "stealth/space-bunny-alpha",
-				name: "space-bunny-alpha",
-				description: "Blazing-fast inference with 1M context",
+				id: "cline-free/step-5-preview",
+				name: "Step 5 Preview",
+				description:
+					"StepFun's flagship model for agentic work, built on a sparse Mixture-of-Experts",
 				tags: [],
 			},
 			{
@@ -57,20 +58,26 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-free/deepseek-v4.1-flash",
-				name: "Deepseek-v4.1-Flash",
-				description: "Fast and efficient with 1M context window ",
-				tags: [],
-			},
-			{
 				id: "cline-free/muse-spark-1.3-contributor",
 				name: "Muse Spark 1.3 Contributor",
 				description:
 					"Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows.",
 				tags: [],
 			},
+			{
+				id: "cline-free/solar-mini4",
+				name: "Solar Mini 4",
+				description: "Compact 35-billion parameter mixture-of-experts",
+				tags: [],
+			},
 		],
 		clinePass: [
+			{
+				id: "cline-pass/deepseek-v4.1-flash",
+				name: "cline-pass/deepseek-v4.1-flash",
+				description: "Smarter and more efficient, with 1M context window",
+				tags: [],
+			},
 			{
 				id: "cline-pass/mimo-v2.6-flash",
 				name: "cline-pass/mimo-v2.6-flash",
@@ -102,12 +109,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/deepseek-v4.1-flash",
-				name: "cline-pass/deepseek-v4.1-flash",
-				description: "Smarter and more efficient, with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/muse-spark-1.3-contributor",
 				name: "cline-pass/muse-spark-1.3-contributor",
 				description: "",
@@ -127,9 +128,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{
@@ -139,9 +140,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
+				id: "cline-pass/qwen3.7-plus",
+				name: "cline-pass/qwen3.7-plus",
+				description: "Fast multimodal agent model with vision and video input",
 				tags: [],
 			},
 			{

@@ -25,6 +25,7 @@ import {
 	initializeSessionManager,
 } from "./context";
 import { createDesktopObservability } from "./observability";
+import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
@@ -232,6 +233,8 @@ async function runEntrypoint(): Promise<void> {
 	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 
 	disableCurrentDirectoryExecutableSearch();
+	// Before the Hub daemon (this binary, re-executed) loads any plugin.
+	configurePluginBootstrap();
 	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
 	// Claim the Hub daemon sentinel here, not in the shared remote helper: its

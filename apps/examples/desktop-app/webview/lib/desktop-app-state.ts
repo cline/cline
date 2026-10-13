@@ -173,10 +173,17 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		}
 		case "open-session": {
-			const threadId = `session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const existingIdx = state.threads.findIndex(
-				(thread) => thread.id === threadId,
+				(thread) =>
+					thread.environmentId === action.environmentId &&
+					(thread.sessionId === action.session.sessionId ||
+						thread.historySession?.sessionId === action.session.sessionId),
 			);
+			// A session started in this window already has a thread_* identity.
+			// Keep it when opening history so its pane and draft aren't replaced.
+			const threadId =
+				state.threads[existingIdx]?.id ??
+				`session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const threads =
 				existingIdx >= 0
 					? state.threads.map((thread, index) =>

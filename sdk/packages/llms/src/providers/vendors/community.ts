@@ -1,17 +1,57 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { EventEmitter } from "node:events";
 import { accessSync, existsSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
-// Keep this import static so the VS Code extension bundle includes the SAP
-// provider. Hiding it behind a computed dynamic import leaves the published
-// extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
-// runtime, but VSIX packaging uses the bundled extension output.
-import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
 type SapModel = Record<PropertyKey, unknown>;
+type ProcessListener = (...args: unknown[]) => void;
+
+const sapImportScope = new AsyncLocalStorage<Set<ProcessListener>>();
+
+// Loading the SAP provider loads @sap-cloud-sdk/util, which builds a winston
+// logger with `exceptionHandlers`. winston then installs a process-wide
+// "uncaughtException" listener that calls process.exit(1) three seconds after
+// ANY uncaught exception in the host -- including ones the host's own handler
+// caught and chose to survive. The SDK's disableExceptionLogger() cannot undo
+// it: @jerome-benoit/sap-ai-provider bundles a second, private copy of util.
+//
+// So remove exactly the listeners registered while evaluating the SAP modules,
+// attributed by async context: a host listener registered concurrently comes
+// from another context and is never touched. Only the import is wrapped --
+// construction and requests register nothing. Where async context does not
+// reach module evaluation (Bun), nothing is attributed and the handlers stay;
+// the Bun-run CLI and hub daemon treat uncaught exceptions as fatal anyway.
+//
+// The specifier is a literal so bundlers still include the package (a
+// computed one left the VSIX loading it from node_modules at runtime).
+async function importSapAiProvider(): Promise<
+	typeof import("@jerome-benoit/sap-ai-provider")
+> {
+	const emitter = process as unknown as EventEmitter;
+	const owned = new Set<ProcessListener>();
+	const record = (event: string | symbol, listener: ProcessListener) => {
+		if (event === "uncaughtException" && sapImportScope.getStore() === owned) {
+			owned.add(listener);
+		}
+	};
+	emitter.on("newListener", record);
+	try {
+		return await sapImportScope.run(
+			owned,
+			() => import("@jerome-benoit/sap-ai-provider"),
+		);
+	} finally {
+		emitter.removeListener("newListener", record);
+		for (const listener of owned) {
+			emitter.removeListener("uncaughtException", listener);
+		}
+	}
+}
 const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
 	"doGenerate",
 	"doStream",
@@ -372,6 +412,7 @@ export async function createSapAiCoreProviderModule(
 	const serviceKey = buildSapServiceKey(config, options);
 
 	const deploymentId = readStringOption(options, "deploymentId");
+	const { createSAPAIProvider } = await importSapAiProvider();
 	const provider = createSAPAIProvider({
 		name: config.providerId,
 		...(deploymentId
