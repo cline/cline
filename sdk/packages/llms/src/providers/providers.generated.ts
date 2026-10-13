@@ -1423,6 +1423,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
+		id: "lowrouter",
+		name: "LowRouter",
+		description: "LowRouter model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "lowrouter",
+		defaultModelId: "auto/mistralai/mistral-large-4",
+		apiKeyEnv: ["LOWROUTER_API_KEY"],
+		docsUrl: "https://lowrouter.ai/docs/models/available",
+		defaults: {
+			baseUrl: "https://api.lowrouter.ai/v1",
+		},
+	},
+	{
 		id: "lucidquery",
 		name: "LucidQuery",
 		description: "LucidQuery model provider from models.dev",

@@ -110,6 +110,7 @@ export const GENERATED_PROVIDER_IDS = [
 	"llmtr",
 	"lmstudio",
 	"longcat",
+	"lowrouter",
 	"lucidquery",
 	"lynkr",
 	"meganova",

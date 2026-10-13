@@ -101845,6 +101845,211 @@ export const GENERATED_PROVIDER_MODELS: {
       "family": "longcat"
     }
   },
+  "lowrouter": {
+    "auto/mistralai/mistral-large-4": {
+      "id": "auto/mistralai/mistral-large-4",
+      "name": "Mistral Large 4",
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.7112,
+        "output": 2.1859,
+        "cacheRead": 0.0732,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-10-06",
+      "family": "mistral-large"
+    },
+    "auto/mistralai/mistral-medium-3.5": {
+      "id": "auto/mistralai/mistral-medium-3.5",
+      "name": "Mistral Medium 3.5",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5688,
+        "output": 7.8442,
+        "cacheRead": 0.1569,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-29",
+      "family": "mistral-medium"
+    },
+    "auto/mistralai/mistral-small-2603": {
+      "id": "auto/mistralai/mistral-small-2603",
+      "name": "Mistral Small 4",
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 256000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1569,
+        "output": 0.6275,
+        "cacheRead": 0.0157,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-16",
+      "family": "mistral-small"
+    },
+    "auto/mistralai/ministral-14b-2512": {
+      "id": "auto/mistralai/ministral-14b-2512",
+      "name": "Ministral 3 14B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.2092,
+        "output": 0.2092,
+        "cacheRead": 0.0209,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-02",
+      "family": "ministral"
+    },
+    "auto/mistralai/ministral-3b-2512": {
+      "id": "auto/mistralai/ministral-3b-2512",
+      "name": "Ministral 3 3B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.1046,
+        "output": 0.1046,
+        "cacheRead": 0.0105,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-02",
+      "family": "ministral"
+    },
+    "auto/mistralai/ministral-8b-2512": {
+      "id": "auto/mistralai/ministral-8b-2512",
+      "name": "Ministral 3 8B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.1569,
+        "output": 0.1569,
+        "cacheRead": 0.0157,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-02",
+      "family": "ministral"
+    },
+    "auto/mistralai/mistral-large-2512": {
+      "id": "auto/mistralai/mistral-large-2512",
+      "name": "Mistral Large 3",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.5229,
+        "output": 1.5688,
+        "cacheRead": 0.0523,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-02",
+      "family": "mistral-large"
+    },
+    "auto/mistralai/codestral-2508": {
+      "id": "auto/mistralai/codestral-2508",
+      "name": "Codestral 25.08",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.3138,
+        "output": 0.9413,
+        "cacheRead": 0.0314,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-07-30",
+      "family": "codestral"
+    }
+  },
   "lucidquery": {
     "lucidquery-agi-01-frontier": {
       "id": "lucidquery-agi-01-frontier",
