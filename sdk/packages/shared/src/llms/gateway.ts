@@ -199,6 +199,7 @@ export interface GatewayProviderSettings {
 	apiKey?: string;
 	apiKeyResolver?: () => string | undefined | Promise<string | undefined>;
 	apiKeyEnv?: readonly string[];
+	authMetadata?: Record<string, unknown>;
 	baseUrl?: string;
 	headers?: Record<string, string>;
 	timeoutMs?: number;

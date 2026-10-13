@@ -4,6 +4,7 @@ export interface ConnectionUpdate {
 	providerId?: string;
 	modelId?: string;
 	apiKey?: string;
+	authMetadata?: Record<string, unknown>;
 	baseUrl?: string;
 	headers?: Record<string, string>;
 	providerConfig?: CoreSessionConfig["providerConfig"];

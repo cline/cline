@@ -571,6 +571,8 @@ export class SessionRuntime {
 		if (updates.providerId !== undefined) next.providerId = updates.providerId;
 		if (updates.modelId !== undefined) next.modelId = updates.modelId;
 		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
+		if (updates.authMetadata !== undefined)
+			next.authMetadata = updates.authMetadata;
 		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
 		if (updates.headers !== undefined) next.headers = updates.headers;
 		if (updates.providerConfig !== undefined)

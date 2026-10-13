@@ -718,6 +718,7 @@ export interface AgentConfig {
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	authMetadata?: Record<string, unknown>;
 	/**
 	 * Called when a run fails with an auth-like provider error (e.g. an OAuth
 	 * access token that expired mid-run). Hosts refresh credentials and push

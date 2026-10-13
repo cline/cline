@@ -44,6 +44,7 @@ export class OAuthReauthRequiredError extends Error {
 export type RuntimeOAuthResolution = {
 	apiKey: string;
 	accountId?: string;
+	authMetadata?: Record<string, unknown>;
 	refreshed: boolean;
 };
 
@@ -198,6 +199,7 @@ export class RuntimeOAuthTokenManager {
 		return {
 			apiKey: handler.getApiKey(nextSettings) ?? nextCredentials.access,
 			accountId: nextCredentials.accountId,
+			authMetadata: nextSettings.auth?.metadata,
 			refreshed: wasRefreshed,
 		};
 	}
