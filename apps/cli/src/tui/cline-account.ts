@@ -16,7 +16,7 @@ import {
 	saveLocalProviderOAuthCredentials,
 	type UserCurrentPlan,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import { getClineEnvironmentConfig, resolveClineAppUrl } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
@@ -35,10 +35,20 @@ export interface ClineAccountSnapshot {
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	displayedBalance: number;
+	privacySettingsUrl?: string;
 }
 
 export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
+}
+
+export function getClinePrivacySettingsUrl(
+	user: Pick<ClineAccountUser, "dataPrivacyPath">,
+	appBaseUrl: string = getClineEnvironmentConfig().appBaseUrl,
+): string | undefined {
+	const url = resolveClineAppUrl(user.dataPrivacyPath, appBaseUrl);
+	url?.searchParams.set("client", "cli");
+	return url?.href;
 }
 
 // FIXME: These message checks are temporary until structured error types are
@@ -197,6 +207,7 @@ export async function loadClineAccountSnapshot(input: {
 		organizations,
 		activeOrganization,
 		displayedBalance,
+		privacySettingsUrl: getClinePrivacySettingsUrl(user),
 	};
 }
 

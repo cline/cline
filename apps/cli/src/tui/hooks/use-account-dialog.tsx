@@ -62,6 +62,15 @@ export function useAccountDialog(opts: {
 			refocusTextarea();
 			return;
 		}
+		if (
+			typeof action === "object" &&
+			action !== null &&
+			action.kind === "open-url"
+		) {
+			await open(action.url, { wait: false }).catch(() => {});
+			refocusTextarea();
+			return;
+		}
 		if (action === "login") {
 			const saved = await dialog.choice<OAuthLoginResult>({
 				style: { maxHeight: termHeight - 2 },
