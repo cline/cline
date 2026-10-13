@@ -1,11 +1,11 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { Activity, createContext, type ReactNode, useContext } from "react";
 
-// Portals escape hidden/inert ancestors. Suspend their content and modal
-// effects while the owning app is unavailable, preserving the app's state.
 export const OverlayVisibility = createContext(true);
 
-export function useOverlayVisibility() {
-	return useContext(OverlayVisibility);
+/** Keep overlay state and DOM while suspending visibility and modal effects. */
+export function OverlayActivity({ children }: { children: ReactNode }) {
+	const visible = useContext(OverlayVisibility);
+	return <Activity mode={visible ? "visible" : "hidden"}>{children}</Activity>;
 }

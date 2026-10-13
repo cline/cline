@@ -5,7 +5,7 @@ import { XIcon } from "lucide-react";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { useOverlayVisibility } from "./overlay-visibility";
+import { OverlayActivity } from "./overlay-visibility";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
 	return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -26,9 +26,11 @@ function SheetClose({
 function SheetPortal({
 	...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-	const visible = useOverlayVisibility();
-	if (!visible) return null;
-	return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />;
+	return (
+		<OverlayActivity>
+			<SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
+		</OverlayActivity>
+	);
 }
 
 function SheetOverlay({

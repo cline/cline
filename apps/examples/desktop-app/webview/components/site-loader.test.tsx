@@ -14,6 +14,7 @@ import {
 	DialogContent,
 	DialogDescription,
 	DialogTitle,
+	DialogTrigger,
 } from "./ui/dialog";
 import {
 	DropdownMenu,
@@ -24,6 +25,7 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "./ui/sheet";
 import { LoadingScreen } from "./views/loading/LoadingScreen";
 import { SiteLoader } from "./views/loading/SiteLoader";
+import { AddProviderContent } from "./views/settings/add-provider";
 
 const container = document.createElement("div");
 document.body.append(container);
@@ -55,7 +57,11 @@ it("releases an open modal menu's pointer lock during recovery", async () => {
 	expect(document.body.style.pointerEvents).toBe("none");
 	state.transport = "unavailable";
 	await act(async () => render());
-	expect(document.querySelector('[role="menu"]')).toBeNull();
+	expect(
+		document
+			.querySelector('[role="menu"]')
+			?.closest('[style*="display: none"]'),
+	).not.toBeNull();
 	expect(document.body.style.pointerEvents).not.toBe("none");
 	await act(async () => container.querySelector("main button")?.click());
 	expect(state.retry).toHaveBeenCalledOnce();
@@ -67,6 +73,121 @@ const readiness = (): ReturnType<typeof useDesktopReadiness> => ({
 	retry: vi.fn(async () => {}),
 	retryError: null,
 	retrying: false,
+});
+
+it("preserves Add Provider edits and nested model input through repeated recovery", async () => {
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: "ready", attempt: 1 };
+	const save = vi.fn(async () => {});
+	const render = () =>
+		root.render(
+			<SiteLoader readiness={state}>
+				<Dialog defaultOpen>
+					<DialogTrigger>Configure provider</DialogTrigger>
+					<DialogContent>
+						<DialogTitle>Add Provider</DialogTitle>
+						<DialogDescription>Configure a provider</DialogDescription>
+						<AddProviderContent
+							variant="dialog"
+							onBack={vi.fn()}
+							onSave={save}
+							existingProviderIds={[]}
+						/>
+					</DialogContent>
+				</Dialog>
+			</SiteLoader>,
+		);
+	await act(async () => render());
+	const input = (placeholder: string) => {
+		const element = document.querySelector<HTMLInputElement>(
+			`input[placeholder="${placeholder}"]`,
+		);
+		if (!element) throw new Error(`Missing input ${placeholder}`);
+		return element;
+	};
+	const edit = async (element: HTMLInputElement, value: string) => {
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set?.call(element, value);
+			element.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+	};
+	const fields = [
+		["my-provider", "custom-provider"],
+		["My Provider", "My custom provider"],
+		["https://api.example.com/v1", "https://custom.example/v1"],
+		["sk-...", "test-api-key"],
+	] as const;
+	for (const [placeholder, value] of fields)
+		await edit(input(placeholder), value);
+	const modelInput = input("Type model ID and press Enter");
+	await edit(modelInput, "custom-model");
+	await act(async () =>
+		modelInput.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+		),
+	);
+	expect(
+		document.querySelector('button[aria-label="Remove custom-model"]'),
+	).not.toBeNull();
+	await edit(modelInput, "unfinished-model");
+	const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+	for (let cycle = 0; cycle < 2; cycle++) {
+		state.transport = "unavailable";
+		await act(async () => render());
+		expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+		expect(dialog?.style.display).toBe("none");
+		expect(document.body.style.pointerEvents).not.toBe("none");
+		const retry = container.querySelector<HTMLButtonElement>("main button");
+		expect(retry?.closest('[aria-hidden="true"], [inert]')).toBeNull();
+		await act(async () => {
+			retry?.focus();
+			retry?.click();
+		});
+		expect(document.activeElement).toBe(retry);
+		state.transport = "connected";
+		await act(async () => render());
+		expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+		expect(dialog?.style.display).not.toBe("none");
+		expect(document.body.style.pointerEvents).toBe("none");
+		for (const [placeholder, value] of fields)
+			expect(input(placeholder).value).toBe(value);
+		expect(
+			document.querySelector('button[aria-label="Remove custom-model"]'),
+		).not.toBeNull();
+		expect(modelInput.value).toBe("unfinished-model");
+	}
+	expect(state.retry).toHaveBeenCalledTimes(2);
+	const submit = Array.from(dialog?.querySelectorAll("button") ?? []).find(
+		(button) => button.textContent === "Add Provider",
+	);
+	expect(submit?.disabled).toBe(false);
+	await act(async () => submit?.click());
+	expect(save).toHaveBeenCalledWith(
+		expect.objectContaining({
+			providerId: "custom-provider",
+			name: "My custom provider",
+			baseUrl: "https://custom.example/v1",
+			apiKey: "test-api-key",
+			models: ["custom-model"],
+		}),
+	);
+	// Explicitly closing still ends the editing session; only recovery suspends it.
+	await act(async () =>
+		dialog
+			?.querySelector<HTMLButtonElement>('[data-slot="dialog-close"]')
+			?.click(),
+	);
+	expect(document.querySelector('[role="dialog"]')).toBeNull();
+	await act(async () =>
+		container
+			.querySelector<HTMLButtonElement>('[data-slot="dialog-trigger"]')
+			?.click(),
+	);
+	for (const [placeholder] of fields) expect(input(placeholder).value).toBe("");
 });
 it("renders initial desktop loading immediately", () => {
 	act(() => root.render(<LoadingScreen readiness={readiness()} />));
@@ -249,8 +370,10 @@ it.each([
 	state.hub = { state: "starting", attempt: 0 };
 	await act(async () => render());
 	expect(
-		document.querySelector('[role="dialog"], [role="alertdialog"]'),
-	).toBeNull();
+		document
+			.querySelector('[role="dialog"], [role="alertdialog"]')
+			?.closest('[style*="display: none"]'),
+	).not.toBeNull();
 	expect(document.body.style.pointerEvents).not.toBe("none");
 	const retry = container.querySelector("button");
 	expect(retry?.closest('[aria-hidden="true"], [inert]')).toBeNull();
