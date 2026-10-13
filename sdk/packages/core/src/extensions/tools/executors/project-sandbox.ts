@@ -193,6 +193,9 @@ export function spawnInProjectSandbox(
 ): ChildProcess {
 	const handle = new SandboxedProcess();
 	void loadMxc()
+		.catch(() => {
+			throw new Error("the sandbox isn't included in this build of Cline");
+		})
 		.then((mxc) =>
 			mxc.spawn({
 				command: [config.executable, ...config.args].map(quoteArg).join(" "),

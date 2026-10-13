@@ -114,7 +114,7 @@ export async function stageMxcRuntime(options: {
 	return stagedMxc;
 }
 
-if (import.meta.main) {
+async function main(): Promise<void> {
 	const [destination, target] = process.argv.slice(2);
 	if (!destination) {
 		console.error(
@@ -135,4 +135,11 @@ if (import.meta.main) {
 	if (staged) {
 		console.log(`Staged MXC runtime at ${staged}`);
 	}
+}
+
+if (import.meta.main) {
+	main().catch((error: unknown) => {
+		console.error(error);
+		process.exitCode = 1;
+	});
 }
