@@ -1,11 +1,11 @@
 /// <reference types="@types/bun" />
 /**
- * Stages the MXC sandbox runtime ("Keep changes inside this project") for one
- * platform into <destination>/node_modules so a packaged host can ship it next
- * to its executable. Compiled and bundled hosts cannot inline MXC because its
- * FFI layer (koffi) loads native files from its package directory.
+ * Stages the MXC sandbox runtime ("Keep changes inside this project") into
+ * <destination>/node_modules so a packaged host can ship it next to its
+ * executable. Compiled and bundled hosts cannot inline MXC because its FFI
+ * layer (koffi) loads native files from its package directory.
  *
- * Usage: bun scripts/stage-mxc-runtime.ts <destination> [platform] [arch]
+ * Usage: bun scripts/stage-mxc-runtime.ts <destination> [<platform>-<arch> | all]
  */
 
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -48,32 +48,45 @@ async function koffiPlatformPackageDir(
 	}
 }
 
+export const ALL_MXC_TARGETS = [
+	{ platform: "linux", arch: "x64" },
+	{ platform: "linux", arch: "arm64" },
+	{ platform: "darwin", arch: "arm64" },
+	{ platform: "win32", arch: "x64" },
+	{ platform: "win32", arch: "arm64" },
+];
+
 /**
- * Returns the staged @microsoft/mxc-sdk directory, or undefined when MXC
- * ships no native library for the target.
+ * Stages one runtime that serves every given target (MXC keeps each OS's
+ * library under bin/<arch>/). Targets MXC ships no native library for are
+ * skipped. Returns the staged @microsoft/mxc-sdk directory, or undefined
+ * when no target is supported.
  */
 export async function stageMxcRuntime(options: {
 	destination: string;
-	platform?: string;
-	arch?: string;
+	targets?: Array<{ platform: string; arch: string }>;
 }): Promise<string | undefined> {
-	const platform = options.platform ?? process.platform;
-	const arch = options.arch ?? process.arch;
 	const mxcDir = packageDir(import.meta.url, "@microsoft/mxc-sdk");
-	const library = join(mxcDir, "bin", arch, MXC_FFI_LIBRARY[platform] ?? "");
-	if (!MXC_FFI_LIBRARY[platform] || !existsSync(library)) {
+	const targets = (
+		options.targets ?? [{ platform: process.platform, arch: process.arch }]
+	).filter(({ platform, arch }) => {
+		const library = MXC_FFI_LIBRARY[platform];
+		if (library && existsSync(join(mxcDir, "bin", arch, library))) {
+			return true;
+		}
 		console.warn(
 			`MXC has no native runtime for ${platform}-${arch}; skipping.`,
 		);
+		return false;
+	});
+	rmSync(options.destination, { recursive: true, force: true });
+	if (targets.length === 0) {
 		return undefined;
 	}
 	const mxcPackageJson = join(mxcDir, "package.json");
 	const koffiDir = packageDir(mxcPackageJson, "koffi");
 	const modules = join(resolve(options.destination), "node_modules");
-	rmSync(options.destination, { recursive: true, force: true });
-
 	const stagedMxc = join(modules, "@microsoft", "mxc-sdk");
-	mkdirSync(join(stagedMxc, "bin", arch), { recursive: true });
 	for (const entry of ["package.json", "LICENSE.md", "dist"]) {
 		cpSync(join(mxcDir, entry), join(stagedMxc, entry), {
 			recursive: true,
@@ -81,28 +94,44 @@ export async function stageMxcRuntime(options: {
 			filter: (source) => !source.endsWith(".map"),
 		});
 	}
-	cpSync(library, join(stagedMxc, "bin", arch, MXC_FFI_LIBRARY[platform]));
 
 	const copyPackage = (source: string, name: string) =>
 		cpSync(source, join(modules, name), { recursive: true, dereference: true });
 	copyPackage(packageDir(mxcPackageJson, "semver"), "semver");
 	copyPackage(koffiDir, "koffi");
-	copyPackage(
-		await koffiPlatformPackageDir(koffiDir, platform, arch),
-		`@koromix/koffi-${platform}-${arch}`,
-	);
+	for (const { platform, arch } of targets) {
+		const library = MXC_FFI_LIBRARY[platform];
+		mkdirSync(join(stagedMxc, "bin", arch), { recursive: true });
+		cpSync(
+			join(mxcDir, "bin", arch, library),
+			join(stagedMxc, "bin", arch, library),
+		);
+		copyPackage(
+			await koffiPlatformPackageDir(koffiDir, platform, arch),
+			`@koromix/koffi-${platform}-${arch}`,
+		);
+	}
 	return stagedMxc;
 }
 
 if (import.meta.main) {
-	const [destination, platform, arch] = process.argv.slice(2);
+	const [destination, target] = process.argv.slice(2);
 	if (!destination) {
 		console.error(
-			"Usage: bun scripts/stage-mxc-runtime.ts <destination> [platform] [arch]",
+			"Usage: bun scripts/stage-mxc-runtime.ts <destination> [<platform>-<arch> | all]",
 		);
 		process.exit(1);
 	}
-	const staged = await stageMxcRuntime({ destination, platform, arch });
+	const [platform, arch] = target?.split("-") ?? [];
+	const staged = await stageMxcRuntime({
+		destination,
+		targets:
+			target === "all"
+				? ALL_MXC_TARGETS
+				: platform && arch
+					? [{ platform, arch }]
+					: undefined,
+	});
 	if (staged) {
 		console.log(`Staged MXC runtime at ${staged}`);
 	}

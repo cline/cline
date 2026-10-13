@@ -326,8 +326,7 @@ for (const item of targets) {
 	// <platform package>/mxc.
 	await stageMxcRuntime({
 		destination: join(cliDir, `dist/${dirName}/mxc`),
-		platform: item.os,
-		arch: item.arch,
+		targets: [{ platform: item.os, arch: item.arch }],
 	});
 
 	if (existsSync(hubWebviewDist)) {
