@@ -14,10 +14,12 @@
 //      tasks next to local ones.
 
 import type { ITelemetryService, SessionAccumulatedUsage, SessionHistoryRecord, StartSessionInput } from "@cline/core"
+import { CloudCreationUnconfirmedError } from "@cline/core/cloud"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
 import {
 	ACTIVE_CLOUD_STATUSES,
+	CLOUD_CREATION_UNCONFIRMED_ERROR_CODE,
 	CLOUD_PROVISIONING_ID_PREFIX,
 	CLOUD_SESSION_MODE,
 	CLOUD_WORKSPACE_ROOT,
@@ -43,6 +45,7 @@ import {
 	type CloudSessionsService,
 	isCloudSessionExpired,
 } from "@/services/cloud/CloudSessionsService"
+import { ClineError } from "@/services/error/ClineError"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import { Logger } from "@/shared/services/Logger"
 import { PendingStartJournal, type PendingStartRecord } from "./cloud-pending-starts"
@@ -104,6 +107,7 @@ function describeExpiredCloudSession(
 const USAGE_REFRESH_TIMEOUT_MS = 2_000
 const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
+const RECOMMENDED_MODELS_RETRY_MS = 30_000
 
 function provisioningPhaseText(phase: CloudProvisioningPhase, sandboxLabel: string): string | undefined {
 	switch (phase) {
@@ -242,6 +246,7 @@ export class SdkCloudSessionCoordinator {
 	private renewPendingStartView: (() => boolean) | undefined
 	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
 	private recommendedModelsWarmup: Promise<unknown> | undefined
+	private recommendedModelsRetryAt = 0
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
@@ -412,7 +417,8 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	getCurrentTaskInfo(): CurrentCloudTaskInfo | undefined {
-		const taskId = this.options.getTask()?.taskId
+		const task = this.options.getTask()
+		const taskId = task?.taskId
 		if (!taskId || !isCloudSessionId(taskId)) {
 			return undefined
 		}
@@ -423,7 +429,8 @@ export class SdkCloudSessionCoordinator {
 			branch: entry?.record.repoContext.branch,
 			// While the start is pending there is no session to send to yet; the
 			// composer disables submit on this status instead of queueing.
-			status: this.pendingStart ? "provisioning" : entry ? this.statusOf(entry) : "unknown",
+			status:
+				this.pendingStart && task === this.pendingStartTask ? "provisioning" : entry ? this.statusOf(entry) : "unknown",
 		}
 	}
 
@@ -683,7 +690,7 @@ export class SdkCloudSessionCoordinator {
 		this.cancelAbandonedStartsRecheck()
 		const previousTransition = this.scopeTransition
 		const transition = (async () => {
-			await previousTransition
+			await previousTransition?.catch(() => undefined)
 			this.listFetchedAt = 0
 			this.listPromise = undefined
 			if (this.pollTimer) {
@@ -915,11 +922,10 @@ export class SdkCloudSessionCoordinator {
 	 * built-in fallback to the live recommendation before the user submits.
 	 * State is re-posted only when the list lands, because that post reads
 	 * the model again and would otherwise start the next fetch. A fetch that
-	 * leaves the cache empty just releases the handle, so the next state post
-	 * the user causes retries instead of pinning the fallback until restart.
+	 * leaves the cache empty waits briefly before another state post can retry.
 	 */
 	private warmRecommendedModels(): void {
-		if (this.recommendedModelsWarmup || getCachedClineRecommendedModels()) {
+		if (this.recommendedModelsWarmup || getCachedClineRecommendedModels() || Date.now() < this.recommendedModelsRetryAt) {
 			return
 		}
 		const warmup = refreshClineRecommendedModels()
@@ -931,6 +937,8 @@ export class SdkCloudSessionCoordinator {
 			.catch(() => undefined)
 			.finally(() => {
 				if (this.recommendedModelsWarmup === warmup) {
+					if (!getCachedClineRecommendedModels())
+						this.recommendedModelsRetryAt = Date.now() + RECOMMENDED_MODELS_RETRY_MS
 					this.recommendedModelsWarmup = undefined
 				}
 			})
@@ -1164,21 +1172,30 @@ export class SdkCloudSessionCoordinator {
 		} catch (error) {
 			if (isStale()) return sessionId
 			Logger.error("[CloudSessions] Failed to start cloud task:", error)
-			const detail = error instanceof Error ? error.message : String(error)
-			this.options.messages.appendAndEmit(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "error",
-						text: `Failed to start the cloud session: ${detail}`,
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId: sessionId ?? provisionalId, status: "error" } },
-			)
-			this.options.onStartFailed(task, input)
-			this.options.setTurnPhase("error")
+			const unconfirmed = error instanceof CloudCreationUnconfirmedError
+			const text = unconfirmed
+				? `Cloud session creation could not be confirmed. Check History or the cloud dashboard (${this.options.cloudSessions.appBaseUrl}/agents) before starting another task; the first session may already exist.`
+				: `Failed to start the cloud session: ${error instanceof Error ? error.message : String(error)}`
+			const failedAt = Math.max(Date.now(), startedAt + 2)
+			const messages: ClineMessage[] = [{ ts: failedAt, type: "say", say: "error", text, partial: false }]
+			if (unconfirmed) {
+				messages.push({
+					ts: failedAt + 1,
+					type: "ask",
+					ask: "api_req_failed",
+					text: new ClineError({ message: text, code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE }).serialize(),
+					partial: false,
+				})
+			}
+			this.options.messages.appendAndEmit(messages, {
+				type: "status",
+				payload: { sessionId: sessionId ?? provisionalId, status: "error" },
+			})
+			if (unconfirmed) this.options.setTurnPhase("error", failedAt + 1)
+			else {
+				this.options.onStartFailed(task, input)
+				this.options.setTurnPhase("error")
+			}
 			await this.options.postStateToWebview().catch(() => {})
 			return undefined
 		} finally {

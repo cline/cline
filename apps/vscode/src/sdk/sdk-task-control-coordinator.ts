@@ -69,7 +69,7 @@ export class SdkTaskControlCoordinator {
 
 	async cancelClineTaskOnSignOut(isClineManagedProvider: boolean): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
-		if (!isClineManagedProvider || !activeSession?.isRunning) {
+		if (!isClineManagedProvider || !activeSession?.isRunning || "isCloud" in activeSession.sdkHost) {
 			return
 		}
 

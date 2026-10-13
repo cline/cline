@@ -1,39 +1,22 @@
-// The extension's view of the Cline Cloud control plane: GitHub App
-// integration, repository/branch lookup, and the outer `ses-…` sandbox
-// records. The protocol (endpoints, create recovery, readiness polling,
-// resume, archived history) is the SDK's shared `CloudSessionApi`, the same
-// client the desktop app uses; this wrapper adds the VS Code host's account
-// scope and endpoints, and errors whose messages can be shown to the user.
-// The agent conversation inside a sandbox is reached separately over the Hub
-// WebSocket proxy (see CloudSessionHost).
-
 import {
+	CloudCreationUnconfirmedError,
+	type CloudErrorCode,
 	type CloudProvisioningPhase,
-	type CloudRepositoryListResult,
 	type CloudRepositoryOption,
 	CloudSessionApi,
-	type CloudSessionRecord,
-	CloudSessionError as SdkCloudSessionError,
+	CloudSessionError as CoreCloudSessionError,
+	type CloudSessionRecord as CoreCloudSessionRecord,
 } from "@cline/core/cloud"
 import { ClineEnv } from "@/config"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
 const REQUEST_TIMEOUT_MS = 15_000
+const CREATE_TIMEOUT_MS = 610_000
 
-export type { CloudProvisioningPhase, CloudSessionRecord }
-export type CloudRepository = CloudRepositoryOption
-export type GitHubConnectionResult = CloudRepositoryListResult
+export type CloudSessionErrorCode = CloudErrorCode
+export type { CloudProvisioningPhase }
 
-export type CloudSessionErrorCode =
-	| "authentication_required"
-	| "github_not_connected"
-	| "session_not_found"
-	| "session_expired"
-	| "session_failed"
-	| "request_failed"
-
-/** A control-plane failure whose message is fit to show the user. */
 export class CloudSessionError extends Error {
 	constructor(
 		readonly code: CloudSessionErrorCode,
@@ -46,19 +29,21 @@ export class CloudSessionError extends Error {
 	}
 }
 
-/** The SDK error's `message` is a machine-readable envelope; surface its detail instead. */
-function toCloudSessionError(error: unknown): unknown {
-	return error instanceof SdkCloudSessionError
-		? new CloudSessionError(error.code, error.detail, error.connectUrl, error.status)
-		: error
+export type CloudSessionRecord = Omit<CoreCloudSessionRecord, "sandboxUrl"> & { sandboxUrl?: string }
+
+export type CloudRepository = CloudRepositoryOption
+
+export interface GitHubConnectionResult {
+	connected: boolean
+	connectUrl: string
+	repositories: CloudRepository[]
 }
 
-async function translated<T>(request: Promise<T>): Promise<T> {
-	try {
-		return await request
-	} catch (error) {
-		throw toCloudSessionError(error)
-	}
+export interface CreateCloudSessionInput {
+	modelId: string
+	repoUrl: string
+	branch?: string
+	organizationId?: string
 }
 
 function trimTrailingSlash(value: string): string {
@@ -73,13 +58,6 @@ export function isCloudSessionExpired(record: Pick<CloudSessionRecord, "expiredA
 	return Number.isFinite(expiredAt) && expiredAt <= Date.now()
 }
 
-export interface CreateCloudSessionInput {
-	modelId: string
-	repoUrl: string
-	branch?: string
-	organizationId?: string
-}
-
 export interface CloudSessionsServiceOptions {
 	getAuthToken: () => Promise<string | null | undefined>
 	getActiveOrganizationId: () => string | null | undefined
@@ -91,7 +69,6 @@ export interface CloudSessionsServiceOptions {
 
 export class CloudSessionsService {
 	private readonly fetchImpl: typeof fetch
-	private apiClient: { api: CloudSessionApi; apiBaseUrl: string; appBaseUrl: string } | undefined
 
 	constructor(private readonly options: CloudSessionsServiceOptions) {
 		this.fetchImpl = options.fetch ?? fetch
@@ -103,28 +80,6 @@ export class CloudSessionsService {
 
 	get appBaseUrl(): string {
 		return trimTrailingSlash(this.options.appBaseUrl ?? ClineEnv.config().appBaseUrl)
-	}
-
-	/** Rebuilt when the environment's endpoints change, so requests never reach a stale host. */
-	private get api(): CloudSessionApi {
-		const { apiBaseUrl, appBaseUrl } = this
-		if (this.apiClient?.apiBaseUrl !== apiBaseUrl || this.apiClient.appBaseUrl !== appBaseUrl) {
-			this.apiClient = {
-				apiBaseUrl,
-				appBaseUrl,
-				api: new CloudSessionApi({
-					apiBaseUrl,
-					appBaseUrl,
-					getAuthToken: async () => (await this.options.getAuthToken())?.trim() || undefined,
-					fetch: this.fetchImpl,
-				}),
-			}
-		}
-		return this.apiClient.api
-	}
-
-	private organizationId(): string | undefined {
-		return this.options.getActiveOrganizationId()?.trim() || undefined
 	}
 
 	dashboardUrl(sessionId: string): string {
@@ -139,24 +94,70 @@ export class CloudSessionsService {
 	}
 
 	githubConnectUrl(): string {
-		return this.organizationId()
+		return this.options.getActiveOrganizationId()?.trim()
 			? `${this.appBaseUrl}/dashboard/organization/integrations`
 			: `${this.appBaseUrl}/dashboard/integrations`
+	}
+
+	private async requireToken(): Promise<string> {
+		const token = (await this.options.getAuthToken())?.trim()
+		if (!token) {
+			throw new CloudSessionError("authentication_required", "Sign in to Cline to use cloud sessions.")
+		}
+		return token
+	}
+
+	private async withApi<T>(operation: (api: CloudSessionApi) => Promise<T>): Promise<T> {
+		const api = new CloudSessionApi({
+			apiBaseUrl: this.apiBaseUrl,
+			appBaseUrl: this.appBaseUrl,
+			getAuthToken: async () => (await this.options.getAuthToken())?.trim() || undefined,
+			fetch: this.fetchImpl,
+			createTimeoutMs: CREATE_TIMEOUT_MS,
+		})
+		try {
+			return await operation(api)
+		} catch (error) {
+			if (error instanceof CloudCreationUnconfirmedError || !(error instanceof CoreCloudSessionError)) {
+				throw error
+			}
+			if (error.status === 403) {
+				throw new CloudSessionError(
+					"request_failed",
+					"Your active account or organization cannot use cloud sessions. Switch to Personal or another organization in the Account view and try again.",
+					undefined,
+					403,
+				)
+			}
+			const status =
+				error.status ??
+				{
+					authentication_required: 401,
+					session_not_found: 404,
+					session_expired: 410,
+					github_not_connected: 412,
+					session_failed: undefined,
+					request_failed: undefined,
+				}[error.code]
+			throw new CloudSessionError(error.code, error.detail, error.connectUrl, status)
+		}
 	}
 
 	// ---- GitHub integration ----
 
 	async getGitHubConnection(): Promise<GitHubConnectionResult> {
+		const connectUrl = this.githubConnectUrl()
+		const organizationId = this.options.getActiveOrganizationId()?.trim()
 		try {
-			const result = await translated(this.api.listRepositories(this.organizationId()))
-			return {
-				...result,
-				repositories: [...result.repositories].sort((a, b) => a.fullName.localeCompare(b.fullName)),
-			}
+			const result = await this.withApi((api) => api.listRepositories(organizationId))
+			result.repositories.sort((a, b) => a.fullName.localeCompare(b.fullName))
+			return result
 		} catch (error) {
-			// The SDK's 412 link is always Personal's; an organization connects from its own page.
-			if (error instanceof CloudSessionError && error.code === "github_not_connected") {
-				return { connected: false, connectUrl: this.githubConnectUrl(), repositories: [] }
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "github_not_connected" || error.code === "session_not_found")
+			) {
+				return { connected: false, connectUrl, repositories: [] }
 			}
 			throw error
 		}
@@ -164,10 +165,7 @@ export class CloudSessionsService {
 
 	/** Resolves the GitHub App install URL (the API answers with a redirect to github.com). */
 	async getGitHubInstallUrl(): Promise<string> {
-		const token = (await this.options.getAuthToken())?.trim()
-		if (!token) {
-			throw new CloudSessionError("authentication_required", "Sign in to Cline to use cloud sessions.")
-		}
+		const token = await this.requireToken()
 		const installUrl = new URL("/api/v1/integrations/github/install", this.apiBaseUrl)
 		installUrl.searchParams.set("redirect", new URL("/dashboard/integrations", this.appBaseUrl).toString())
 		const response = await this.fetchImpl(installUrl, {
@@ -192,14 +190,16 @@ export class CloudSessionsService {
 		if (!Number.isSafeInteger(repositoryId) || repositoryId <= 0) {
 			return []
 		}
-		const result = await translated(this.api.listBranches(repositoryId, this.organizationId(), { query }))
+		const organizationId = this.options.getActiveOrganizationId()?.trim()
+		const result = await this.withApi((api) => api.listBranches(repositoryId, organizationId, { query }))
 		return result.branches
 	}
 
 	// ---- Sessions ----
 
 	async listSessions(): Promise<CloudSessionRecord[]> {
-		return translated(this.api.list(this.organizationId()))
+		const orgId = this.options.getActiveOrganizationId()?.trim()
+		return this.withApi((api) => api.list(orgId))
 	}
 
 	async getSession(sessionId: string): Promise<CloudSessionRecord | undefined> {
@@ -211,17 +211,15 @@ export class CloudSessionsService {
 		sessionId: string,
 		signal?: AbortSignal,
 	): Promise<{ status?: string; statusReason?: string; phase?: CloudProvisioningPhase }> {
-		return (await translated(this.api.status(sessionId, { signal }))) ?? {}
+		return (await this.withApi((api) => api.status(sessionId, { signal }))) ?? {}
 	}
 
 	/**
-	 * Creates a resumable sandbox and resolves once it is ready to accept a Hub
-	 * connection. A create whose response is lost is recovered from the account's
-	 * session list rather than provisioned twice. `onProvisioning` fires as soon
-	 * as the record exists so the UI can show progress; providing it transfers
-	 * cleanup ownership to the caller, including when readiness or the record
-	 * lookup fails. Aborting `signal` stops the readiness poll; the record already
-	 * created stays the caller's to delete.
+	 * Creates a resumable sandbox and resolves once it is ready to accept a Hub connection.
+	 * `onProvisioning` fires as soon as the record exists so the UI can show progress.
+	 * Providing that callback transfers cleanup ownership to the caller, including
+	 * when readiness or subsequent record lookup fails. Aborting `signal` stops the
+	 * readiness poll; the record already created stays the caller's to delete.
 	 */
 	async createSession(
 		input: CreateCloudSessionInput,
@@ -229,40 +227,35 @@ export class CloudSessionsService {
 		signal?: AbortSignal,
 		onPhase?: (phase: CloudProvisioningPhase) => void,
 	): Promise<CloudSessionRecord> {
-		const created = await translated(
-			this.api.create({
-				modelId: input.modelId,
-				repoUrl: input.repoUrl,
-				branch: input.branch,
-				organizationId: input.organizationId ?? this.organizationId(),
-				sandboxType: "resumable",
-			}),
-		)
-		const sessionId = created.sessionId
-		onProvisioning?.(sessionId)
-		if (created.status === "provisioning" || !created.sandboxUrl) {
-			try {
-				await this.waitUntilReady(sessionId, signal, onPhase)
-			} catch (error) {
-				if (!onProvisioning && error instanceof CloudSessionError && error.code === "session_failed") {
-					await this.deleteSession(sessionId)
+		const orgId = input.organizationId ?? this.options.getActiveOrganizationId()?.trim()
+		return this.withApi(async (api) => {
+			const created = await api.create({ ...input, organizationId: orgId, sandboxType: "resumable" })
+			const sessionId = created.sessionId
+			onProvisioning?.(sessionId)
+			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
+				try {
+					await this.waitForReady(api, sessionId, signal, onPhase)
+				} catch (error) {
+					if (!onProvisioning && error instanceof CoreCloudSessionError && error.code === "session_failed") {
+						await api.delete(sessionId)
+					}
+					throw error
 				}
-				throw error
 			}
-		}
-		const record = await this.getSession(sessionId)
-		return (
-			record ?? {
-				id: sessionId,
-				status: created.status || "active",
-				sandboxType: "resumable",
-				sandboxUrl: created.sandboxUrl,
-				repoContext: { repoUrl: input.repoUrl, branch: input.branch },
-				metadata: { modelId: input.modelId, sandboxType: "resumable" },
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}
-		)
+			const record = (await api.list(orgId)).find((session) => session.id === sessionId)
+			return (
+				record ?? {
+					id: sessionId,
+					status: created.status || "active",
+					sandboxType: "resumable",
+					sandboxUrl: created.sandboxUrl,
+					repoContext: { repoUrl: input.repoUrl, branch: input.branch },
+					metadata: { modelId: input.modelId, sandboxType: "resumable" },
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				}
+			)
+		})
 	}
 
 	/**
@@ -275,24 +268,35 @@ export class CloudSessionsService {
 		signal?: AbortSignal,
 		onPhase?: (phase: CloudProvisioningPhase) => void,
 	): Promise<void> {
-		await translated(
-			this.api.waitUntilReady(sessionId, signal ?? new AbortController().signal, ({ phase }) => {
-				if (phase) onPhase?.(phase)
-			}),
-		)
+		return this.withApi((api) => this.waitForReady(api, sessionId, signal, onPhase))
 	}
 
-	/**
-	 * Wakes a suspended (resumable) sandbox and resolves once it accepts
-	 * connections again. The control plane refuses sockets to a suspended
-	 * sandbox with 409 until it has been resumed.
-	 */
+	private async waitForReady(
+		api: CloudSessionApi,
+		sessionId: string,
+		signal?: AbortSignal,
+		onPhase?: (phase: CloudProvisioningPhase) => void,
+	): Promise<void> {
+		try {
+			await api.waitUntilReady(sessionId, signal ?? new AbortController().signal, ({ phase }) => {
+				if (phase) onPhase?.(phase)
+			})
+		} catch (error) {
+			signal?.throwIfAborted()
+			if (error instanceof DOMException && error.name === "TimeoutError") {
+				throw new CloudSessionError("request_failed", "Timed out waiting for the cloud sandbox to become ready.")
+			}
+			throw error
+		}
+	}
+
+	/** Wakes a suspended sandbox and waits until it accepts connections. */
 	async resumeSession(sessionId: string, onPhase?: (phase: CloudProvisioningPhase) => void): Promise<void> {
 		let status: string | undefined
 		try {
-			status = (await translated(this.api.resume(sessionId)))?.status
+			status = (await this.withApi((api) => api.resume(sessionId)))?.status
 		} catch (error) {
-			// 409: another client resumed it first, or its resume is still in flight.
+			// Another client may have resumed it first, or resume may still be in flight.
 			if (!(error instanceof CloudSessionError) || error.status !== 409) throw error
 			status = (await this.getStatus(sessionId)).status
 			if (status !== "provisioning" && status !== "ready" && status !== "active") throw error
@@ -303,15 +307,15 @@ export class CloudSessionsService {
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
-		await translated(this.api.delete(sessionId))
+		await this.withApi((api) => api.delete(sessionId))
 	}
 
 	async renameSession(sessionId: string, title: string): Promise<void> {
-		await translated(this.api.updateTitle(sessionId, title))
+		await this.withApi((api) => api.updateTitle(sessionId, title))
 	}
 
 	/** Archived transcript of an expired sandbox; null when no archive exists. */
 	async getHistory(sessionId: string): Promise<unknown[] | null> {
-		return translated(this.api.history(sessionId))
+		return this.withApi((api) => api.history(sessionId))
 	}
 }

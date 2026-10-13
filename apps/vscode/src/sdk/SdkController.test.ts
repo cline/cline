@@ -1,5 +1,8 @@
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
+import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { GetTaskHistoryRequest } from "@shared/proto/cline/task"
 import { describe, expect, it, vi } from "vitest"
+import { ClineError } from "@/services/error/ClineError"
 import { telemetryService } from "@/services/telemetry"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { Controller as SdkController } from "./SdkController"
@@ -397,10 +400,13 @@ describe("SDK remote-config coordination", () => {
 		const input = { prompt: "cloud prompt", images: ["img"], repoUrl: "https://github.com/cline/fixture", branch: "main" }
 		const cloudTarget = { repoUrl: input.repoUrl, branch: input.branch }
 
-		function controllerShowingCloudStartError() {
+		function controllerShowingCloudStartError(unconfirmedAsk?: ClineMessage) {
 			const controller = {
 				task: undefined as TaskProxy | undefined,
-				turnStateTracker: { set: vi.fn(), get: () => ({ phase: "error" }) },
+				turnStateTracker: {
+					set: vi.fn(),
+					get: (): TurnState => ({ phase: "error", anchorTs: unconfirmedAsk?.ts, seq: 1 }),
+				},
 				messageTranslatorState: { clearTurnOutcome: vi.fn() },
 				messages: { appendAndEmit: vi.fn() },
 				sessions: { getActiveSession: () => undefined },
@@ -415,9 +421,30 @@ describe("SDK remote-config coordination", () => {
 			}
 			const errorTask = createTaskProxy("cloud-provisioning-1", controller.askResponse, controller.cancelTask)
 			controller.task = errorTask
-			SdkController.prototype["offerCloudStartRetry"].call(controller as never, errorTask, input)
+			if (unconfirmedAsk) errorTask.messageStateHandler.addMessages([unconfirmedAsk])
+			else SdkController.prototype["offerCloudStartRetry"].call(controller as never, errorTask, input)
 			return { controller, errorTask }
 		}
+
+		it("keeps unconfirmed-create guidance and its anchor when a stale Retry reaches the controller", async () => {
+			const message = "Cloud session creation could not be confirmed. Check History or the cloud dashboard."
+			const ask: ClineMessage = {
+				ts: Date.now() + 1_000,
+				type: "ask",
+				ask: "api_req_failed",
+				text: new ClineError({ message, code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE }).serialize(),
+			}
+			const { controller, errorTask } = controllerShowingCloudStartError(ask)
+			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			expect(controller.initTask).not.toHaveBeenCalled()
+			expect(controller.followups.askResponse).not.toHaveBeenCalled()
+			expect(controller.messages.appendAndEmit).toHaveBeenCalledWith(
+				[expect.objectContaining({ say: "error", text: message })],
+				expect.objectContaining({ type: "status" }),
+			)
+			expect(controller.messages.appendAndEmit.mock.calls[0]?.[0][0].ts).toBeGreaterThan(ask.ts)
+			expect(controller.turnStateTracker.set).toHaveBeenCalledWith("error", ask.ts)
+		})
 
 		it("starts the same cloud task again when Retry is clicked", async () => {
 			const { controller, errorTask } = controllerShowingCloudStartError()

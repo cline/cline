@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { TaskTargetPanel } from "./TaskTargetPanel"
 
 const mocks = vi.hoisted(() => ({
@@ -49,6 +49,7 @@ vi.mock("@/services/grpc-client", () => ({
 const clineRepo = { id: 7, name: "cline", fullName: "cline/cline", url: "https://github.com/cline/cline", defaultBranch: "main" }
 
 describe("TaskTargetPanel", () => {
+	afterEach(() => vi.unstubAllGlobals())
 	beforeEach(() => {
 		vi.clearAllMocks()
 		// The branch picker's popover measures its trigger.
@@ -135,6 +136,31 @@ describe("TaskTargetPanel", () => {
 
 		expect(mocks.chooseCloudTaskTarget).toHaveBeenCalledTimes(1)
 		expect(mocks.chooseCloudTaskTarget).toHaveBeenCalledWith(expect.objectContaining({ target: "local" }))
+	})
+
+	it("hides the previous repository's branches while the new repository loads and ignores a cleared request", async () => {
+		mocks.clineUser = { uid: "user-1" }
+		mocks.connection = { signedIn: true, connected: true, connectUrl: "", repositories: [clineRepo] }
+		mocks.cloudTaskTarget = { target: "cloud", repositoryId: 7, repoUrl: clineRepo.url }
+		let resolveBranches!: (value: { branches: string[] }) => void
+		mocks.getRepositoryBranches.mockResolvedValueOnce({ branches: ["a-only"] }).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveBranches = resolve
+				}),
+		)
+		const { rerender } = render(<TaskTargetPanel />)
+		await userEvent.click(screen.getByRole("button", { name: "Branch" }))
+		expect(await screen.findByRole("button", { name: "a-only" })).toBeInTheDocument()
+
+		mocks.cloudTaskTarget = { target: "cloud", repositoryId: 8 }
+		rerender(<TaskTargetPanel />)
+		expect(screen.queryByRole("button", { name: "a-only" })).not.toBeInTheDocument()
+		mocks.cloudTaskTarget = { target: "cloud" }
+		rerender(<TaskTargetPanel />)
+		await act(async () => resolveBranches({ branches: ["b-only"] }))
+		expect(screen.queryByRole("button", { name: "b-only" })).not.toBeInTheDocument()
+		expect(mocks.chooseCloudTaskTarget).not.toHaveBeenCalled()
 	})
 
 	it("warns when the workspace's repository is not accessible to the GitHub App", async () => {

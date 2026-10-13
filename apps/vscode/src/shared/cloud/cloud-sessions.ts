@@ -1,5 +1,7 @@
 export type CloudExecutionTarget = "local" | "cloud"
 
+export const CLOUD_CREATION_UNCONFIRMED_ERROR_CODE = "cloud_creation_unconfirmed"
+
 /**
  * Lifecycle of a Cline Cloud session as shown in the extension.
  * - provisioning: the sandbox is being created

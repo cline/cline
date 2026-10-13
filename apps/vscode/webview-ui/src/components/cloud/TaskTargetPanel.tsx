@@ -36,7 +36,7 @@ export function TaskTargetPanel() {
 
 	const { connection, loading, refresh } = useGitHubConnection(isCloud && signedIn)
 	const [waitingForGitHub, setWaitingForGitHub] = useState(false)
-	const [branches, setBranches] = useState<string[]>([])
+	const [branchResult, setBranchResult] = useState<{ repositoryId: number; branches: string[] }>()
 	const [branchesLoading, setBranchesLoading] = useState(false)
 	const branchRequest = useRef(0)
 
@@ -51,26 +51,24 @@ export function TaskTargetPanel() {
 
 	// Load branches for the selected repository.
 	const loadBranches = useCallback(async (repositoryId: number | undefined, query?: string) => {
+		const requestId = ++branchRequest.current
 		if (repositoryId === undefined) {
-			setBranches([])
+			setBranchResult(undefined)
+			setBranchesLoading(false)
 			return
 		}
-		const requestId = ++branchRequest.current
-		// A query refines the current list; a repository change must not leave the
-		// previous repository's branches selectable while the new list loads.
-		if (query === undefined) setBranches([])
 		setBranchesLoading(true)
 		try {
 			const result = await CloudServiceClient.getRepositoryBranches(
 				RepositoryBranchesRequest.create({ repositoryId, query }),
 			)
 			if (requestId === branchRequest.current) {
-				setBranches(result.branches)
+				setBranchResult({ repositoryId, branches: result.branches })
 			}
 		} catch (error) {
 			console.error("Failed to load branches:", error)
 			if (requestId === branchRequest.current) {
-				setBranches([])
+				setBranchResult(undefined)
 			}
 		} finally {
 			if (requestId === branchRequest.current) {
@@ -79,9 +77,7 @@ export function TaskTargetPanel() {
 		}
 	}, [])
 	useEffect(() => {
-		if (isCloud) {
-			void loadBranches(selectedRepositoryId)
-		}
+		void loadBranches(isCloud ? selectedRepositoryId : undefined)
 	}, [isCloud, selectedRepositoryId, loadBranches])
 	const onBranchQueryChange = useCallback(
 		(query: string) => void loadBranches(selectedRepositoryId, query || undefined),
@@ -113,6 +109,7 @@ export function TaskTargetPanel() {
 						? "no_repositories"
 						: undefined
 
+	const branches = branchResult && branchResult.repositoryId === selectedRepositoryId ? branchResult.branches : []
 	const branchOptions = useMemo(() => {
 		const known = new Set(branches)
 		const current = cloudTaskTarget?.branch

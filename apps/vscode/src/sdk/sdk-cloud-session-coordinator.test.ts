@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import * as os from "node:os"
 import path from "node:path"
 import * as sdkCore from "@cline/core"
-import type { CloudSessionStatus } from "@shared/cloud/cloud-sessions"
+import { CloudCreationUnconfirmedError } from "@cline/core/cloud"
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE, type CloudSessionStatus } from "@shared/cloud/cloud-sessions"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { ClineEnv } from "@/config"
 import { resetClineRecommendedModelsCacheForTests } from "@/core/controller/models/refreshClineRecommendedModels"
@@ -14,8 +15,10 @@ import {
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
 } from "@/services/cloud/CloudSessionsService"
+import { ClineError } from "@/services/error/ClineError"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
+import { getButtonConfigFromState } from "../../webview-ui/src/components/chat/chat-view/shared/buttonConfig"
 import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
@@ -69,6 +72,7 @@ function makeStateManager(globalState: Record<string, unknown> = {}) {
 function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> = {}) {
 	let task: { taskId: string } | undefined
 	const cloudSessions = {
+		appBaseUrl: "https://example.test",
 		listSessions: vi.fn<() => Promise<CloudSessionRecord[]>>(async () => []),
 		createSession: vi.fn(
 			async (
@@ -660,6 +664,10 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 		expect(coordinator.cancelPendingStartFor(otherTask)).toBe(false)
 		expect(coordinator.getCurrentTaskInfo()?.status).toBe("provisioning")
+		options.setTask(otherTask)
+		expect(coordinator.getCurrentTaskInfo()).toMatchObject({ sessionId: "ses-other", status: "unknown" })
+		options.setTask(startView)
+		expect(coordinator.getCurrentTaskInfo()?.status).toBe("provisioning")
 		expect(coordinator.cancelPendingStartFor(startView)).toBe(true)
 
 		expect(await start).toBe(record.id)
@@ -711,7 +719,8 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		resetClineRecommendedModelsCacheForTests()
 	})
 
-	it("retries the recommendation fetch after a failed attempt left the built-in fallback in place", async () => {
+	it("bounds failed recommendation retries while state posts keep reading the fallback", async () => {
+		vi.useFakeTimers()
 		resetClineRecommendedModelsCacheForTests()
 		vi.spyOn(ClineEnv, "config").mockReturnValue({ apiBaseUrl: "https://api.cline-test.bot" } as ReturnType<
 			typeof ClineEnv.config
@@ -735,13 +744,18 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		// post would read the model again and start the next fetch, so a dead
 		// endpoint would be polled without bound.
 		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
-		await vi.waitFor(() => expect(fetchRecommended).toHaveBeenCalledTimes(1))
-		await new Promise((resolve) => setTimeout(resolve, 20))
+		await vi.advanceTimersByTimeAsync(0)
+		expect(fetchRecommended).toHaveBeenCalledTimes(1)
 		expect(options.postStateToWebview).not.toHaveBeenCalled()
 
-		// The next read the user causes retries, and the fresh list is posted.
+		for (let read = 0; read < 10; read++) coordinator.getCloudModelId()
+		await vi.advanceTimersByTimeAsync(29_999)
 		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
-		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(1))
+		expect(fetchRecommended).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(coordinator.getCloudModelId()).toBe(CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id)
+		await vi.advanceTimersByTimeAsync(0)
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(1)
 		expect(fetchRecommended).toHaveBeenCalledTimes(2)
 		expect(coordinator.getCloudModelId()).toBe("fresh/model")
 		await coordinator.dispose()
@@ -1343,6 +1357,49 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("runs a queued logout after an earlier account mutation fails", async () => {
+		const changing = deferred<void>()
+		const entered = deferred<void>()
+		const { coordinator } = makeCoordinator()
+		const switching = coordinator.reset(async () => {
+			entered.resolve()
+			await changing.promise
+		})
+		const failed = expect(switching).rejects.toThrow("account refresh failed")
+		await entered.promise
+		const logout = vi.fn(async () => undefined)
+		const signingOut = coordinator.reset(logout)
+		changing.reject(new Error("account refresh failed"))
+		await failed
+		await signingOut
+		expect(logout).toHaveBeenCalledOnce()
+		await coordinator.dispose()
+	})
+
+	it("still drains unfinished cleanup before a queued logout after the first transition times out", async () => {
+		vi.useFakeTimers()
+		const deleting = deferred<void>()
+		const entered = deferred<void>()
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.deleteSession.mockImplementation(async () => {
+			entered.resolve()
+			await deleting.promise
+		})
+		const cleanup = coordinator.deleteSession(record.id)
+		await entered.promise
+		const failed = expect(coordinator.reset()).rejects.toThrow("cleanup is still pending")
+		const logout = vi.fn(async () => undefined)
+		const signingOut = coordinator.reset(logout)
+		await vi.advanceTimersByTimeAsync(15_000)
+		await failed
+		expect(logout).not.toHaveBeenCalled()
+		deleting.resolve()
+		await cleanup
+		await signingOut
+		expect(logout).toHaveBeenCalledOnce()
+		await coordinator.dispose()
+	})
+
 	it("does not stamp a fresh cache timestamp when an old request fails after reset", async () => {
 		const oldList = deferred<CloudSessionRecord[]>()
 		const entered = deferred<void>()
@@ -1629,6 +1686,33 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(vi.mocked(options.onStartFailed).mock.invocationCallOrder[0]).toBeLessThan(
 			vi.mocked(options.setTurnPhase).mock.invocationCallOrder.at(-1)!,
 		)
+	})
+
+	it("projects an unconfirmed create into History guidance and a New Task-only footer", async () => {
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		cloudSessions.createSession.mockRejectedValue(new CloudCreationUnconfirmedError(new Error("response lost")))
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBeUndefined()
+		const emitted = vi.mocked(options.messages.appendAndEmit).mock.calls.flatMap(([messages]) => messages)
+		const ask = emitted.find((message) => message.type === "ask" && message.ask === "api_req_failed")
+		expect(ask).toBeDefined()
+		if (!ask) throw new Error("Missing cloud creation recovery marker")
+		const error = ClineError.parse(ask.text)
+		expect(error?._error.code).toBe(CLOUD_CREATION_UNCONFIRMED_ERROR_CODE)
+		expect(error?.message).toContain("History")
+		expect(error?.message).toContain("https://example.test/agents")
+		expect(emitted).toContainEqual(expect.objectContaining({ say: "error", text: error?.message }))
+		const outcome = vi.mocked(options.setTurnPhase).mock.calls.at(-1)
+		expect(outcome).toEqual(["error", ask.ts])
+		expect(getButtonConfigFromState(emitted, { phase: "error", anchorTs: outcome?.[1], seq: 1 })).toEqual({
+			sendingDisabled: true,
+			enableButtons: true,
+			primaryText: "Start New Task",
+			primaryAction: "new_task",
+		})
+		expect(options.onStartFailed).not.toHaveBeenCalled()
+		expect(cloudSessions.createSession).toHaveBeenCalledOnce()
+		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+		await coordinator.dispose()
 	})
 
 	it("does not offer to retry a start the user cancelled", async () => {
