@@ -269,7 +269,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					const request = NewTaskRequest.create({
 						text: messageToSend,
 						images,
-						// Local file paths cannot be read from a cloud sandbox.
+						// Local file paths cannot be read from a cloud sandbox; the composer
+						// refuses a cloud send while files are attached.
 						files: runInCloud ? [] : files,
 						...(runInCloud
 							? {

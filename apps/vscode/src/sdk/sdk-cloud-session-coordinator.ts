@@ -1187,9 +1187,12 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	private async cleanupUnusedSession(sessionId: string, entry?: CloudSessionEntry, host?: SdkSessionHost): Promise<void> {
-		if (entry && this.entries.get(sessionId) === entry) {
+		// A list during provisioning may have added this record before the start
+		// held an entry for it (a cancelled create never reaches upsertRecord), so
+		// drop whatever entry carries this id unless a successor replaced it.
+		const listed = this.entries.get(sessionId)
+		if (listed && (!entry || listed === entry)) {
 			this.entries.delete(sessionId)
-			this.options.invalidateHistoryCache()
 		}
 		let failed = false
 		if (host) {
@@ -1210,6 +1213,10 @@ export class SdkCloudSessionCoordinator {
 				failed = true
 			},
 		)
+		// The pending start's own invalidation is skipped when it was cancelled,
+		// so History learns here that the record is gone.
+		this.options.invalidateHistoryCache()
+		this.options.postStateToWebview().catch(() => {})
 		if (failed) {
 			// Do not log response bodies or credentials, or retry with another account.
 			const message =
@@ -1525,7 +1532,13 @@ export class SdkCloudSessionCoordinator {
 		return this.trackScopeOperation(async () => {
 			assertCurrentScope()
 			const entry = this.entries.get(sessionId)
-			if (entry?.host) await entry.host.dispose("deleted").catch(() => undefined)
+			if (entry?.host) {
+				// A disposed host no longer reports status; if the DELETE fails and the
+				// task is reopened, it must get a fresh connection rather than this one.
+				const host = entry.host
+				entry.host = undefined
+				await host.dispose("deleted").catch(() => undefined)
+			}
 			await this.options.cloudSessions.deleteSession(sessionId)
 			if (entry && this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
 		})
