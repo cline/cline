@@ -74,7 +74,7 @@ export function composeAiSdkProviderOptions(
 	),
 ): Record<string, unknown> {
 	const normalizedRequest = normalizeReasoningRequest(
-		withoutPortableReasoning(request),
+		withoutPortableReasoning(request, context),
 		context,
 	);
 	const providerOptionsKey = toProviderOptionsKey(normalizedRequest.providerId);
