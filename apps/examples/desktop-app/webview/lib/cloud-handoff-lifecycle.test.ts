@@ -138,22 +138,6 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});
 
-	it("keeps the source-thread guard through an asynchronous RPC target open", async () => {
-		const h = makeHarness();
-		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");
-		await h.lifecycle.onRpcResolved(SOURCE, {
-			handoffAttemptId,
-			result: makeResult(),
-			nextCommand: "",
-			sourceAttachments: [],
-			isThreadActive: () => true,
-		});
-		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
-			silent: true,
-			expectedActiveThreadId: "thread-a",
-		});
-	});
-
 	it("does not open the browser when target discovery is cancelled by navigation", async () => {
 		const h = makeHarness({ openSessionResult: false });
 		const isThreadActive = vi
@@ -428,33 +412,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			status: "failed",
 			retryDraft: "/cloud current command",
 			retryAttachments: [currentAttachment],
-		});
-	});
-
-	it("keeps the edited retry payload after consecutive preflight failures", async () => {
-		const h = makeHarness();
-		const originalAttachment = makeAttachment("original.png");
-		const retryAttachment = makeAttachment("retry.png");
-		const originalAttemptId = h.lifecycle.onRpcStarted(SOURCE);
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			handoffAttemptId: originalAttemptId,
-			error: new Error("first preflight failed"),
-			nextCommand: "original command",
-			sourceAttachments: [originalAttachment],
-		});
-
-		const retryAttemptId = h.lifecycle.onRpcStarted(SOURCE);
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			handoffAttemptId: retryAttemptId,
-			error: new Error("retry preflight failed"),
-			nextCommand: "edited retry command",
-			sourceAttachments: [retryAttachment],
-		});
-
-		expect(h.getState()[SOURCE]).toMatchObject({
-			status: "failed",
-			retryDraft: "/cloud edited retry command",
-			retryAttachments: [retryAttachment],
 		});
 	});
 

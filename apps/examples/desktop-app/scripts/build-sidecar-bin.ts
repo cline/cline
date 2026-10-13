@@ -132,7 +132,10 @@ const main = async () => {
 		fileURLToPath(new URL("../../../../", import.meta.url)),
 	);
 	const targetTriple = await resolveTargetTriple();
-	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-helpers`;
+	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-helpers src-tauri/bin/extensions`;
+	// Plugins run in worker threads that load this self-contained bootstrap
+	// from disk; the app ships it as a resource (see plugin-bootstrap.ts).
+	await $`cp ../../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js src-tauri/bin/extensions/plugin-sandbox-bootstrap.js`;
 	if (targetTriple === "universal-apple-darwin") {
 		await buildUniversalMacSidecar();
 	} else {

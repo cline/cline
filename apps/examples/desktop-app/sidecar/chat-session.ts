@@ -12,6 +12,7 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
+	formatSessionPluginIssue,
 	getCoreBuiltinToolCatalog,
 	isSessionNotFoundError,
 	isSkillsToolAvailable,
@@ -40,6 +41,7 @@ import {
 	type ConsecutiveMistakeLimitDecision,
 	formatUserCommandBlock,
 	getClineEnvironmentConfig,
+	type SessionPluginIssue,
 } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -1152,7 +1154,22 @@ async function handleStart(
 		cwd,
 		workspaceRoot,
 		environmentId: binding.environmentId,
+		...pluginWarningsOf(startResult.pluginIssues),
 	};
+}
+
+/**
+ * Plugins the session asked for but could not load, as display lines.
+ * Failures that happen later (setup and hooks run on the first turn) arrive
+ * as notices on the session stream instead.
+ */
+function pluginWarningsOf(
+	issues: ReadonlyArray<SessionPluginIssue> | undefined,
+): { pluginWarnings?: string[] } {
+	const pluginWarnings = (issues ?? [])
+		.filter((issue) => issue.state === "failed")
+		.map(formatSessionPluginIssue);
+	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
 }
 
 async function handleAttach(

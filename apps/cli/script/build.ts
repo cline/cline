@@ -215,6 +215,11 @@ async function buildCompiledBinary(input: {
 		compile: {
 			target: input.bunTarget,
 			outfile: tmpOutfile,
+			// Plugins import the SDK from the wrapper's node_modules at runtime.
+			// Without package.json loading Bun cannot resolve bare imports from
+			// files on disk, so jiti falls back to transpiling the whole SDK
+			// graph, which can blow the plugin load timeout on a cold cache.
+			autoloadPackageJson: true,
 		},
 		minify: true,
 		external: ["@anthropic-ai/vertex-sdk"],

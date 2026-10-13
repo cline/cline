@@ -24,7 +24,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "302ai",
-		defaultModelId: "claude-sonnet-5-5",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["302AI_API_KEY"],
 		docsUrl: "https://doc.302.ai",
 		defaults: {
@@ -150,9 +150,23 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aihubmix",
-		defaultModelId: "claude-opus-5-5",
+		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["AIHUBMIX_API_KEY"],
 		docsUrl: "https://docs.aihubmix.com",
+	},
+	{
+		id: "aimlapi",
+		name: "AI/ML API",
+		description: "AI/ML API model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "aimlapi",
+		defaultModelId: "anthropic/claude-haiku-5.5",
+		apiKeyEnv: ["AIMLAPI_API_KEY"],
+		docsUrl: "https://docs.aimlapi.com",
+		defaults: {
+			baseUrl: "https://api.aimlapi.com/v1",
+		},
 	},
 	{
 		id: "ainetcafe",
@@ -173,9 +187,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Aixy",
 		description: "Aixy model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "prompt-cache"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aixy",
-		defaultModelId: "openai/gpt-4.1-mini",
+		defaultModelId: "openai/gpt-6.1-sol",
 		apiKeyEnv: ["AIXY_API_KEY"],
 		docsUrl: "https://docs.aixy-gateway.com/integrations/overview",
 		defaults: {
@@ -289,9 +303,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Ambient",
 		description: "Ambient model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
+		capabilities: ["tools", "prompt-cache", "reasoning"],
 		modelsProviderId: "ambient",
-		defaultModelId: "qwen/qwen3.8-27b",
+		defaultModelId: "qwen/qwen3-30b-a3b-instruct-2507",
 		apiKeyEnv: ["AMBIENT_API_KEY"],
 		docsUrl: "https://ambient.xyz",
 		defaults: {
@@ -554,7 +568,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "cloudferro-sherlock",
-		defaultModelId: "MiniMaxAI/MiniMax-M2.5",
+		defaultModelId: "zai-org/GLM-5.3",
 		apiKeyEnv: ["CLOUDFERRO_SHERLOCK_API_KEY"],
 		docsUrl: "https://docs.sherlock.cloudferro.com/",
 		defaults: {
@@ -597,7 +611,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cortecs",
-		defaultModelId: "mistral-large-4-0",
+		defaultModelId: "claude-haiku-5.5",
 		apiKeyEnv: ["CORTECS_API_KEY"],
 		docsUrl: "https://api.cortecs.ai/v1/models",
 		defaults: {
@@ -625,7 +639,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "crossmodel",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "anthropic/claude-haiku-5-5",
 		apiKeyEnv: ["CROSSMODEL_API_KEY"],
 		docsUrl: "https://www.crossmodel.ai/docs",
 		defaults: {
@@ -696,7 +710,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "digitalocean",
-		defaultModelId: "openai-gpt-6-1-sol",
+		defaultModelId: "anthropic-claude-5.5-haiku",
 		apiKeyEnv: ["DIGITALOCEAN_ACCESS_TOKEN"],
 		docsUrl:
 			"https://docs.digitalocean.com/products/gradient-ai-platform/details/models/",
@@ -1232,7 +1246,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "anthropic/claude-haiku-5.5",
+		defaultModelId: "meta/muse-wonder",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1345,7 +1359,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway",
-		defaultModelId: "claude-haiku-5-5",
+		defaultModelId: "muse-wonder-1.0",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1359,7 +1373,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway-providers",
-		defaultModelId: "anthropic/claude-haiku-5-5",
+		defaultModelId: "meta/muse-wonder-1.0",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1420,6 +1434,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://longcat.chat/platform/docs/",
 		defaults: {
 			baseUrl: "https://api.longcat.chat/openai",
+		},
+	},
+	{
+		id: "lowrouter",
+		name: "LowRouter",
+		description: "LowRouter model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "lowrouter",
+		defaultModelId: "auto/mistralai/mistral-large-4",
+		apiKeyEnv: ["LOWROUTER_API_KEY"],
+		docsUrl: "https://lowrouter.ai/docs/models/available",
+		defaults: {
+			baseUrl: "https://api.lowrouter.ai/v1",
 		},
 	},
 	{
@@ -1485,7 +1513,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "meta",
-		defaultModelId: "muse-spark-1.3",
+		defaultModelId: "muse-wonder-1.0",
 		apiKeyEnv: ["META_MODEL_API_KEY"],
 		docsUrl: "https://dev.meta.ai/docs",
 		defaults: {
@@ -1580,9 +1608,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "Moark",
 		description: "Moark model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
+		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "moark",
-		defaultModelId: "MiniMax-M2.1",
+		defaultModelId: "GLM-5.3",
 		apiKeyEnv: ["MOARK_API_KEY"],
 		docsUrl:
 			"https://moark.com/docs/openapi/v1#tag/%E6%96%87%E6%9C%AC%E7%94%9F%E6%88%90",
@@ -1707,7 +1735,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "anthropic/claude-haiku-5.5",
+		defaultModelId: "gemma-4-26b-a4b-it-chimeraxheretic",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1721,7 +1749,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nearai",
-		defaultModelId: "google/gemini-3.5-flash",
+		defaultModelId: "anthropic/claude-haiku-5-5",
 		apiKeyEnv: ["NEARAI_API_KEY"],
 		docsUrl: "https://docs.near.ai/",
 		defaults: {
@@ -1777,7 +1805,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "neuralwatt",
-		defaultModelId: "deepseek-v4.1-flash",
+		defaultModelId: "mimo-v2.6-pro",
 		apiKeyEnv: ["NEURALWATT_API_KEY"],
 		docsUrl: "https://portal.neuralwatt.com/docs",
 		defaults: {
@@ -1800,12 +1828,12 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 	},
 	{
 		id: "novita-ai",
-		name: "NovitaAI",
-		description: "NovitaAI model provider from models.dev",
+		name: "Novita AI",
+		description: "Novita AI model provider from models.dev",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "novita-ai",
-		defaultModelId: "moonshotai/kimi-k3",
+		defaultModelId: "inclusionai/ling-3.1-flash",
 		apiKeyEnv: ["NOVITA_API_KEY"],
 		docsUrl: "https://novita.ai/docs/guides/introduction",
 		defaults: {
@@ -1849,7 +1877,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "ofox",
-		defaultModelId: "openai/gpt-6.1-sol",
+		defaultModelId: "anthropic/claude-haiku-5.5",
 		apiKeyEnv: ["OFOX_API_KEY"],
 		docsUrl: "https://ofox.ai/docs",
 		defaults: {
@@ -1883,16 +1911,16 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 	},
 	{
 		id: "opencode",
-		name: "OpenCode Zen",
-		description: "OpenCode Zen model provider from models.dev",
+		name: "OpenCode",
+		description: "OpenCode model provider from models.dev",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "claude-haiku-5-5",
+		defaultModelId: "cat-jam-free",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
-		docsUrl: "https://opencode.ai/docs/zen",
+		docsUrl: "https://opencode.ai/v2/docs/console/models/",
 		defaults: {
-			baseUrl: "https://opencode.ai/zen/v1",
+			baseUrl: "https://opencode.ai/inference/v1",
 		},
 	},
 	{
@@ -1904,9 +1932,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		modelsProviderId: "opencode-go",
 		defaultModelId: "claude-haiku-5-5",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
-		docsUrl: "https://opencode.ai/docs/go",
+		docsUrl: "https://opencode.ai/v2/docs/console/go/",
 		defaults: {
-			baseUrl: "https://opencode.ai/zen/go/v1",
+			baseUrl: "https://opencode.ai/inference/go/v1",
 		},
 	},
 	{
@@ -1930,7 +1958,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "anthropic/claude-haiku-5.5",
+		defaultModelId: "meta/muse-wonder",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2065,6 +2093,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
+		id: "prime",
+		name: "Prime Inference",
+		description: "Prime Inference model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "prime",
+		defaultModelId: "openai/gpt-6.1-sol",
+		apiKeyEnv: ["PRIME_API_KEY"],
+		docsUrl: "https://docs.primeintellect.ai/inference/overview",
+		defaults: {
+			baseUrl: "https://api.pinference.ai/api/v1",
+		},
+	},
+	{
 		id: "privatemode-ai",
 		name: "Privatemode AI",
 		description: "Privatemode AI model provider from models.dev",
@@ -2183,7 +2225,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "sapaicore",
-		defaultModelId: "gemini-3.8-flash",
+		defaultModelId: "gpt-6.1-sol",
 		apiKeyEnv: ["AICORE_SERVICE_KEY"],
 		docsUrl: "https://help.sap.com/docs/sap-ai-core",
 	},
@@ -2642,17 +2684,6 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
-		id: "v0",
-		name: "v0",
-		description: "v0 model provider from models.dev",
-		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
-		modelsProviderId: "v0",
-		defaultModelId: "v0-1.5-lg",
-		apiKeyEnv: ["V0_API_KEY"],
-		docsUrl: "https://sdk.vercel.ai/providers/ai-sdk-providers/vercel",
-	},
-	{
 		id: "vancine",
 		name: "Vancine",
 		description: "Vancine model provider from models.dev",
@@ -2673,7 +2704,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "anthropic/claude-haiku-5.5",
+		defaultModelId: "meta/muse-wonder-1.0",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
