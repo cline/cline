@@ -1,4 +1,11 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -991,16 +998,32 @@ describe("cloud handoff transaction", () => {
 		["idle", "/workspace"],
 		["busy", "/workspace"],
 		["expanding", "/workspace"],
+		["connecting", "/workspace/project/subdirectory"],
+		["idle", "symlink"],
+		["busy", "symlink"],
 	])("preparation consumes approval once and locks overlapping sessions (%s, %s)", async (state, cwd) => {
 		const busy = state === "busy";
+		const directory =
+			cwd === "symlink"
+				? mkdtempSync(join(tmpdir(), "handoff-lock-"))
+				: undefined;
+		const root = directory ? join(directory, "repo") : "/workspace/project";
+		if (directory) {
+			mkdirSync(root);
+			cwd = join(directory, "alias");
+			symlinkSync(root, cwd, "junction");
+		}
 		const f = createHandoffFixture();
+		const source = f.ctx.liveSessions.get(f.sourceSessionId);
+		if (!source) throw new Error("missing fixture source");
+		source.config.cwd = root;
 		vi.mocked(preflightCloudHandoffGit).mockRejectedValue(
 			new CloudHandoffGitPreflightError("dirty_worktree", "dirty"),
 		);
 		const plan: gitPreparation.HandoffGitPlan = {
 			id: "plan-id",
-			cwd: "/workspace/project",
-			root: "/workspace/project",
+			cwd: root,
+			root,
 			repoUrl: "https://github.com/cline/test",
 			pushUrl: "git@github.com:cline/test.git",
 			remote: "origin",
@@ -1030,8 +1053,6 @@ describe("cloud handoff transaction", () => {
 			});
 			expect(apply).not.toHaveBeenCalled();
 			expect(f.create).not.toHaveBeenCalled();
-			const source = f.ctx.liveSessions.get(f.sourceSessionId);
-			if (!source) throw new Error("missing fixture source");
 			f.ctx.liveSessions.set("sibling", {
 				...source,
 				busy,
@@ -1049,23 +1070,76 @@ describe("cloud handoff transaction", () => {
 				expect(apply).not.toHaveBeenCalled();
 				return;
 			}
-			let sendDuringExpansion: Promise<unknown> | undefined;
-			let releaseExpansion: (() => void) | undefined;
+			let pendingSend: Promise<unknown> | undefined;
+			let releaseSend: (() => void) | undefined;
+			const send = vi.fn(async () => undefined);
+			Object.assign(localSessionManager(f.ctx), { send });
 			if (state === "expanding") {
 				expansion = vi
 					.spyOn(pluginCommands, "runPluginSlashCommand")
 					.mockImplementation(async () => {
 						await new Promise<void>((resolve) => {
-							releaseExpansion = resolve;
+							releaseSend = resolve;
 						});
 						return { submitPrompt: "edit this" };
 					});
-				sendDuringExpansion = handleChatSessionCommand(f.ctx, {
+				pendingSend = handleChatSessionCommand(f.ctx, {
 					action: "send",
 					sessionId: "sibling",
 					prompt: "/test-prep",
 				});
-				await vi.waitFor(() => expect(releaseExpansion).toBeDefined());
+				await vi.waitFor(() => expect(releaseSend).toBeDefined());
+			}
+			if (state === "connecting") {
+				const sibling = f.ctx.liveSessions.get("sibling");
+				if (!sibling) throw new Error("missing fixture sibling");
+				sibling.busy = true;
+				sibling.status = "running";
+				sibling.attachedViaHub = true;
+				const updateSessionConnection = vi.fn(async () => {
+					await new Promise<void>((resolve) => {
+						releaseSend = resolve;
+					});
+				});
+				Object.assign(localSessionManager(f.ctx), { updateSessionConnection });
+				pendingSend = handleChatSessionCommand(f.ctx, {
+					action: "send",
+					sessionId: "sibling",
+					prompt: "queued work",
+					delivery: "queue",
+					config: { environmentId: "local" },
+				});
+				await vi.waitFor(() => expect(releaseSend).toBeDefined());
+				sibling.busy = false;
+				sibling.status = "idle";
+			}
+			if (pendingSend) {
+				try {
+					await expect(
+						handleChatSessionCommand(f.ctx, {
+							action: "prepare_handoff_git",
+							sessionId: f.sourceSessionId,
+							gitPreparationId: plan.id,
+						}),
+					).rejects.toThrow("workspace");
+					expect(apply).not.toHaveBeenCalled();
+				} finally {
+					releaseSend?.();
+					await pendingSend;
+				}
+				expect(send).toHaveBeenCalledOnce();
+				await handleChatSessionCommand(f.ctx, {
+					action: "prepare_handoff",
+					sessionId: f.sourceSessionId,
+				});
+				await expect(
+					handleChatSessionCommand(f.ctx, {
+						action: "prepare_handoff_git",
+						sessionId: f.sourceSessionId,
+						gitPreparationId: plan.id,
+					}),
+				).resolves.toEqual({ ok: true });
+				return;
 			}
 			apply.mockImplementation(async () => {
 				await expect(
@@ -1074,12 +1148,6 @@ describe("cloud handoff transaction", () => {
 						config: { cwd },
 					}),
 				).rejects.toThrow("workspace");
-				if (sendDuringExpansion) {
-					const rejected =
-						expect(sendDuringExpansion).rejects.toThrow("workspace");
-					releaseExpansion?.();
-					await rejected;
-				}
 				await expect(
 					handleChatSessionCommand(f.ctx, {
 						action: "send",
@@ -1108,7 +1176,50 @@ describe("cloud handoff transaction", () => {
 			expansion?.mockRestore();
 			inspect.mockRestore();
 			apply.mockRestore();
+			if (directory) rmSync(directory, { recursive: true, force: true });
 		}
+	});
+
+	it("preserves creation settings when a pending handoff resumes after restart", async () => {
+		const first = createHandoffFixture();
+		const config = {
+			autoApproveTools: false,
+			thinking: true,
+			reasoningEffort: "high" as const,
+		};
+		first.create.mockImplementationOnce(async (input) => {
+			await input.handoff?.onCreating?.();
+			await input.handoff?.onOuterSessionCreated?.("ses-cloud", {
+				created: true,
+			});
+			throw new Error("interrupted before seed");
+		});
+		await expect(
+			handleChatSessionCommand(first.ctx, { ...first.request, config }),
+		).rejects.toThrow("interrupted before seed");
+		const metadata = structuredClone(first.getPersistedMetadata());
+		await first.cloud.dispose();
+		const restarted = createHandoffFixture(true, metadata);
+		vi.spyOn(restarted.cloud, "waitUntilReady").mockResolvedValue(undefined);
+		const seed = vi
+			.spyOn(restarted.cloud, "seedHandoff")
+			.mockResolvedValue({ innerSessionId: "inner-cloud" });
+		await expect(
+			handleChatSessionCommand(restarted.ctx, {
+				...restarted.request,
+				config: {
+					autoApproveTools: true,
+					thinking: undefined,
+					reasoningEffort: undefined,
+				},
+			}),
+		).resolves.toMatchObject({ innerSessionId: "inner-cloud" });
+		expect(seed).toHaveBeenCalledWith(
+			"ses-cloud",
+			expect.objectContaining({ config }),
+		);
+		expect(restarted.create).not.toHaveBeenCalled();
+		await restarted.cloud.dispose();
 	});
 
 	it("never prepares a different Git state for an existing uncertain handoff", async () => {
@@ -1129,7 +1240,12 @@ describe("cloud handoff transaction", () => {
 
 	it("preserves uncertain creation across restart and adopts it once visible", async () => {
 		const first = createHandoffFixture();
-		const request = first.request;
+		const config = {
+			autoApproveTools: false,
+			thinking: true,
+			reasoningEffort: "high" as const,
+		};
+		const request = { ...first.request, config };
 		let visible = false;
 		let posts = 0;
 		const createWithFreshApi = async (input: CreateCloudSessionInput) => {
@@ -1194,7 +1310,17 @@ describe("cloud handoff transaction", () => {
 		visible = true;
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		recovered.create.mockImplementation(createWithFreshApi);
-		await handleChatSessionCommand(recovered.ctx, request);
+		await handleChatSessionCommand(recovered.ctx, {
+			...request,
+			config: {
+				autoApproveTools: true,
+				thinking: undefined,
+				reasoningEffort: undefined,
+			},
+		});
+		expect(recovered.create).toHaveBeenCalledWith(
+			expect.objectContaining(config),
+		);
 		expect(posts).toBe(1);
 		expect(
 			readCloudHandoffMetadata(recovered.getPersistedMetadata())?.status,
@@ -1248,8 +1374,14 @@ describe("cloud handoff transaction", () => {
 		);
 		expect(f.getPersistedMetadata()).not.toHaveProperty("cloudHandoffIntent");
 		await expect(
-			handleChatSessionCommand(f.ctx, f.request),
+			handleChatSessionCommand(f.ctx, {
+				...f.request,
+				config: { autoApproveTools: true, thinking: true },
+			}),
 		).resolves.toMatchObject({ outerSessionId: "ses-cloud" });
+		expect(f.create).toHaveBeenLastCalledWith(
+			expect.objectContaining({ autoApproveTools: true, thinking: true }),
+		);
 	});
 
 	it("allows a fresh create after an authoritative deletion of the saved target", async () => {
@@ -1272,8 +1404,14 @@ describe("cloud handoff transaction", () => {
 			new CloudSessionError("session_not_found", "gone"),
 		);
 		await expect(
-			handleChatSessionCommand(f.ctx, f.request),
+			handleChatSessionCommand(f.ctx, {
+				...f.request,
+				config: { autoApproveTools: true, thinking: true },
+			}),
 		).resolves.toMatchObject({ outerSessionId: "ses-cloud" });
+		expect(f.create).toHaveBeenLastCalledWith(
+			expect.objectContaining({ autoApproveTools: true, thinking: true }),
+		);
 	});
 
 	it.each([

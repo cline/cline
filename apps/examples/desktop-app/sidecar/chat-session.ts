@@ -56,6 +56,7 @@ import {
 	handleHandoff,
 	handlePrepareHandoff,
 	handlePrepareHandoffGit,
+	hasActiveSessionSend,
 	isCloudHandoffFollowUpBlocked,
 	isCloudHandoffInProgress,
 } from "./cloud-handoff";
@@ -83,8 +84,8 @@ import { runPluginSlashCommand } from "./plugin-commands";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
-	workspaceIsWithin,
 	workspacePathKey,
+	workspacePathsOverlap,
 } from "./session-config";
 import {
 	derivePromptFromMessages,
@@ -337,10 +338,12 @@ function assertWorkspaceNotRestoring(
 ): void {
 	if (
 		workspace &&
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(workspace, locked) ||
-				workspaceIsWithin(locked, workspace),
+		[...ctx.restoringWorkspacePaths].some((locked) =>
+			workspacePathsOverlap(
+				workspace,
+				locked,
+				getSessionRuntimeBinding(ctx).kind,
+			),
 		)
 	) {
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
@@ -353,21 +356,20 @@ async function withWorkspaceRestoreLock<T>(
 	work: () => Promise<T>,
 ): Promise<T> {
 	const key = resolve(workspacePath);
+	const environment = getSessionRuntimeBinding(ctx).kind;
 	if (
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(key, locked) || workspaceIsWithin(locked, key),
+		[...ctx.restoringWorkspacePaths].some((locked) =>
+			workspacePathsOverlap(key, locked, environment),
 		)
 	) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
-	for (const session of ctx.liveSessions.values()) {
+	for (const [sessionId, session] of ctx.liveSessions) {
 		const sessionWorkspace = workspacePathKey(session.config);
 		if (
 			sessionWorkspace &&
-			(workspaceIsWithin(sessionWorkspace, key) ||
-				workspaceIsWithin(key, sessionWorkspace)) &&
-			hasActiveWorkspaceTurn(session)
+			(hasActiveWorkspaceTurn(session) || hasActiveSessionSend(ctx, sessionId)) &&
+			workspacePathsOverlap(sessionWorkspace, key, environment)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 		}
