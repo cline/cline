@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "dependencies": {
         "@ai-sdk/gateway": "^4.0.98",
         "@ai-sdk/openai": "^4.0.79",
