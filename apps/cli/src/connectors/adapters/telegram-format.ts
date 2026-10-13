@@ -4,8 +4,8 @@ import type { CliLoggerAdapter } from "../../logging/adapter";
 import type { ConnectorThreadState } from "../thread-bindings";
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
-const TELEGRAM_MESSAGE_LIMIT = 4096;
-const TELEGRAM_CAPTION_LIMIT = 1024;
+export const TELEGRAM_MESSAGE_LIMIT = 4096;
+export const TELEGRAM_CAPTION_LIMIT = 1024;
 const TELEGRAM_DOCUMENT_NOTE = "… (resposta completa no arquivo)";
 const TELEGRAM_DOCUMENT_SLUG_LIMIT = 60;
 
@@ -237,21 +237,34 @@ export function buildTelegramDocumentName(text: string, now: Date): string {
 }
 
 /**
- * What shows under the file in the chat: the reply's opening as plain text, cut at a word,
- * so the conversation still reads without opening the file.
+ * The opening of a long text as plain text, cut at a word and closed with `note`, so the
+ * conversation still reads without opening the file that carries the rest.
  */
-export function buildTelegramDocumentCaption(text: string): string {
+export function buildTelegramPreview(
+	text: string,
+	limit: number,
+	note: string,
+): string {
 	const plain = markdownToFormattable(normalizeTelegramText(text))
 		.text.replace(/[ \t]+/g, " ")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
-	const room = TELEGRAM_CAPTION_LIMIT - TELEGRAM_DOCUMENT_NOTE.length;
+	const room = limit - note.length;
 	let cut = plain.slice(0, room);
 	const lastBreak = Math.max(cut.lastIndexOf(" "), cut.lastIndexOf("\n"));
 	if (plain.length > room && lastBreak > room / 2) {
 		cut = cut.slice(0, lastBreak);
 	}
-	return `${cut.trimEnd()}${TELEGRAM_DOCUMENT_NOTE}`;
+	return `${cut.trimEnd()}${note}`;
+}
+
+/** What shows under the file in the chat: the reply's opening. */
+export function buildTelegramDocumentCaption(text: string): string {
+	return buildTelegramPreview(
+		text,
+		TELEGRAM_CAPTION_LIMIT,
+		TELEGRAM_DOCUMENT_NOTE,
+	);
 }
 
 async function sendTelegramDocument(input: {

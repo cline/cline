@@ -106,6 +106,10 @@ import {
 	getConnectorSystemRules,
 } from "./prompts";
 import { postTelegramFormattedReply } from "./telegram-format";
+import {
+	sendLongMessagesAsDocuments,
+	splitLongCardNotice,
+} from "./telegram-long-messages";
 
 /** Pictures a command never used are removed after this long. */
 const TASK_IMAGES_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -845,6 +849,8 @@ class TelegramConnector extends ConnectorBase<
 			userName: options.botUsername,
 			logger,
 		});
+		// The adapter cuts anything past 4096 characters; a long message goes out as a file.
+		sendLongMessagesAsDocuments(telegram);
 		const bot = new Chat({
 			userName: options.botUsername,
 			adapters: { telegram },
@@ -1120,9 +1126,30 @@ class TelegramConnector extends ConnectorBase<
 					const questionText = formatQuestionBody(text, {
 						hasChoices: notifiedOptions.length > 0,
 					});
-					const bodyText = options.supersedesPrevious
-						? anchorText
-						: questionText;
+					let bodyText = options.supersedesPrevious ? anchorText : questionText;
+					// A long notice -- a card's report, a long question -- would be cut. Its full
+					// text goes first as a file; the notice keeps its opening, and with it the
+					// buttons, the reply to the card and the edits that follow. The running
+					// commentary is edited every few seconds and stays as it is.
+					if (!options.supersedesPrevious) {
+						const notice = splitLongCardNotice(bodyText, new Date());
+						if (notice.document) {
+							try {
+								await thread.post(notice.document);
+								bodyText = notice.text;
+							} catch (error) {
+								loggerAdapter.core.log(
+									"Telegram notice file refused; sending the notice as it is",
+									{
+										severity: "warn",
+										transport: "telegram",
+										threadKey,
+										error: String(error),
+									},
+								);
+							}
+						}
+					}
 					// A real reply, so the message links back to the card's own message. The
 					// library cannot make one -- its Telegram adapter has no `reply` -- and a
 					// tap is routed from the incoming update alone, so a message sent straight
