@@ -172,7 +172,7 @@ export function CloudHandoffRecoveryNotice({
 }: {
 	dashboardUrl?: string;
 	onOpenCloud?: () => void;
-	onDismiss: () => void;
+	onDismiss?: () => void;
 	onRestoreDraft?: () => void;
 	disabled?: boolean;
 }) {
@@ -182,46 +182,54 @@ export function CloudHandoffRecoveryNotice({
 			<AlertTitle>
 				{onRestoreDraft
 					? "Follow-up delivery is unconfirmed"
-					: "Handoff interrupted"}
+					: dashboardUrl
+						? "Handoff interrupted"
+						: "Cloud creation is unconfirmed"}
 			</AlertTitle>
 			<AlertDescription>
 				<p>
 					{onRestoreDraft
 						? "Check this conversation before restoring the saved draft; it may already have been sent."
-						: "A cloud session was created and may still be available."}
+						: dashboardUrl
+							? "A cloud session was created and may still be available."
+							: "Retry /cloud to check again before sending another prompt."}
 				</p>
 				<div className="mt-2 flex w-full items-start justify-between gap-3">
 					{dashboardUrl && (
 						<p className="min-w-0 break-all text-xs">{dashboardUrl}</p>
 					)}
-					<Button
-						className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-						onClick={onRestoreDraft ?? onOpenCloud}
-						disabled={disabled}
-						size="sm"
-						variant="outline"
-					>
-						{onRestoreDraft ? (
-							"Restore saved draft"
-						) : (
-							<>
-								<ExternalLink className="size-3.5" />
-								Open Cloud
-							</>
-						)}
-					</Button>
+					{(onRestoreDraft || onOpenCloud) && (
+						<Button
+							className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+							onClick={onRestoreDraft ?? onOpenCloud}
+							disabled={disabled}
+							size="sm"
+							variant="outline"
+						>
+							{onRestoreDraft ? (
+								"Restore saved draft"
+							) : (
+								<>
+									<ExternalLink className="size-3.5" />
+									Open Cloud
+								</>
+							)}
+						</Button>
+					)}
 				</div>
 			</AlertDescription>
-			<Button
-				aria-label="Dismiss handoff recovery"
-				className="absolute right-2 top-2 size-7 text-muted-foreground"
-				onClick={onDismiss}
-				disabled={disabled}
-				size="icon"
-				variant="ghost"
-			>
-				<X className="size-4" />
-			</Button>
+			{onDismiss && (
+				<Button
+					aria-label="Dismiss handoff recovery"
+					className="absolute right-2 top-2 size-7 text-muted-foreground"
+					onClick={onDismiss}
+					disabled={disabled}
+					size="icon"
+					variant="ghost"
+				>
+					<X className="size-4" />
+				</Button>
+			)}
 		</Alert>
 	);
 }
