@@ -72,7 +72,9 @@ export interface SdkInteractionCoordinatorOptions {
 }
 
 export class SdkInteractionCoordinator {
-	private pendingAskResolve: ((answer: AskQuestionAnswer | Promise<AskQuestionAnswer>) => void) | undefined
+	private pendingAskResolve: ((answer: AskQuestionAnswer) => void) | undefined
+	// An answered question whose attachments are still loading; cancellation must still settle it.
+	private loadingAskResolve: ((answer: AskQuestionAnswer) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
@@ -286,17 +288,37 @@ export class SdkInteractionCoordinator {
 
 		// User answered the follow-up — the agent resumes its turn.
 		this.options.setTurnPhase?.("streaming")
-		resolve(hasAttachments ? buildAnswerWithAttachments(responseText, images, files) : responseText)
+		if (!hasAttachments) {
+			resolve(responseText)
+			return true
+		}
+
+		this.loadingAskResolve = resolve
+		void buildAnswerWithAttachments(responseText, images, files)
+			.catch((error) => {
+				Logger.error(`[SdkController] Failed to load ask_question attachments: ${error}`)
+				return responseText
+			})
+			.then((answer) => {
+				if (this.loadingAskResolve === resolve) {
+					this.loadingAskResolve = undefined
+				}
+				// No-op if clearPending already settled this question.
+				resolve(answer)
+			})
 		return true
 	}
 
 	clearPending(reason: string): void {
 		const resolveAsk = this.pendingAskResolve
+		const resolveLoadingAsk = this.loadingAskResolve
 		this.pendingAskResolve = undefined
+		this.loadingAskResolve = undefined
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
 		// before session teardown so the run can unwind instead of remaining suspended;
 		// use an empty answer so the lifecycle reason is not presented as user input.
 		resolveAsk?.("")
+		resolveLoadingAsk?.("")
 
 		this.denyPendingToolApproval(reason)
 	}
