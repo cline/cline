@@ -746,6 +746,7 @@ const LOCAL_SERVER_PROVIDERS = new Set(["lmstudio", "ollama", "openai-compatible
 const LOCAL_NETWORK_ADDRESSES = new BlockList()
 for (const [address, prefix] of [
 	["127.0.0.0", 8],
+	["0.0.0.0", 32],
 	["10.0.0.0", 8],
 	["172.16.0.0", 12],
 	["192.168.0.0", 16],
@@ -769,9 +770,11 @@ function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
 	} catch {
 		return false
 	}
-	const family = isIP(host)
+	// IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) is checked as the IPv4 it wraps.
+	const mapped = host.startsWith("::ffff:") && isIP(host.slice(7)) === 4 ? host.slice(7) : host
+	const family = isIP(mapped)
 	if (family) {
-		return LOCAL_NETWORK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
+		return LOCAL_NETWORK_ADDRESSES.check(mapped, family === 6 ? "ipv6" : "ipv4")
 	}
 	return !host.includes(".") || /\.(localhost|local|internal)$/.test(host)
 }

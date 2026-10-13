@@ -291,7 +291,10 @@ describe("resolveProviderFetch", () => {
 		for (const baseUrl of [
 			"http://localhost:1234/v1",
 			"http://127.0.0.1:4000",
+			"http://0.0.0.0:11434",
 			"http://[::1]:8000/v1",
+			"http://[::ffff:127.0.0.1]:1234/v1",
+			"http://[::ffff:192.168.1.20]:8000/v1",
 			"http://192.168.1.20:8000/v1",
 			"http://10.0.0.5:11434",
 			"http://172.20.0.3:8000",

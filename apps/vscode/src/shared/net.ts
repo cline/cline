@@ -97,7 +97,7 @@
  * ```
  */
 
-import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { Agent, type Dispatcher, EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
@@ -131,7 +131,25 @@ export const fetch: typeof globalThis.fetch = (() => {
 		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
 })()
 
-let idleTimeoutFreeDispatcher: EnvHttpProxyAgent | undefined
+const NO_IDLE_TIMEOUTS = { headersTimeout: 0, bodyTimeout: 0 }
+let directDispatcher: Agent | undefined
+let proxiedDispatcher: EnvHttpProxyAgent | undefined
+
+// The same hosts VS Code's proxy resolver always connects to directly.
+// `EnvHttpProxyAgent` would otherwise send them through `http_proxy` whenever
+// `no_proxy` is unset, which is exactly the shape of a corporate environment.
+const LOOPBACK_HOSTS = new Set(["localhost", "0.0.0.0", "::1", "::ffff:127.0.0.1"])
+
+function isLoopbackHost(input: string | URL | Request): boolean {
+	try {
+		const host = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).hostname
+			.replace(/^\[|\]$/g, "")
+			.toLowerCase()
+		return LOOPBACK_HOSTS.has(host) || host.startsWith("127.")
+	} catch {
+		return false
+	}
+}
 
 /**
  * Fetch for providers that may point at a local model server, with undici's
@@ -148,8 +166,9 @@ let idleTimeoutFreeDispatcher: EnvHttpProxyAgent | undefined
  * extension host wraps global fetch and swaps any caller-supplied dispatcher
  * for its own default-timeout Agent, so the override would be dropped. The
  * trade-off is that these requests honour `http_proxy` / `https_proxy` /
- * `no_proxy` rather than VS Code's `http.proxy` setting. On the standalone
- * build this is the same proxy agent as the global one above.
+ * `no_proxy` rather than VS Code's `http.proxy` setting, except that loopback
+ * always goes direct, as it does in VS Code. On the standalone build the
+ * proxy agent is the same one installed globally above.
  */
 export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
 	input: string | URL | Request,
@@ -158,13 +177,15 @@ export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
 	if (mockFetch) {
 		return mockFetch(input, init)
 	}
-	idleTimeoutFreeDispatcher ??= new EnvHttpProxyAgent({ headersTimeout: 0, bodyTimeout: 0 })
+	let dispatcher: Dispatcher
+	if (isLoopbackHost(input)) {
+		dispatcher = directDispatcher ??= new Agent(NO_IDLE_TIMEOUTS)
+	} else {
+		dispatcher = proxiedDispatcher ??= new EnvHttpProxyAgent(NO_IDLE_TIMEOUTS)
+	}
 	return undiciFetch(
 		input as Parameters<typeof undiciFetch>[0],
-		{
-			...init,
-			dispatcher: idleTimeoutFreeDispatcher,
-		} as Parameters<typeof undiciFetch>[1],
+		{ ...init, dispatcher } as Parameters<typeof undiciFetch>[1],
 	) as unknown as Promise<Response>
 }) as typeof globalThis.fetch
 
