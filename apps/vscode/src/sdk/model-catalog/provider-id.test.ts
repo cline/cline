@@ -58,6 +58,7 @@ describe("parseProviderId", () => {
 		parseProviderId("tencent-tokenhub")
 		parseProviderId("chutes")
 		parseProviderId("aiand")
+		parseProviderId("umans-ai")
 
 		expect(warnSpy).not.toHaveBeenCalled()
 	})
@@ -76,6 +77,7 @@ describe("isKnownProviderId", () => {
 		expect(isKnownProviderId(parseProviderId("tencent-tokenhub"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("chutes"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("aiand"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("umans-ai"))).toBe(true)
 	})
 
 	it("returns false for a custom provider id", () => {
