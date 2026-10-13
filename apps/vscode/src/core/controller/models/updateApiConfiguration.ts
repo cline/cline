@@ -40,7 +40,12 @@ function parseFieldMask(updateMask: string[]): {
  * @param fieldName The field name to get alternate for
  * @returns The alternate mode field name or null if not a mode-specific field
  */
+const independentlyManagedModeFields = new Set(["planModeAwsBedrockUsePromptCache", "actModeAwsBedrockUsePromptCache"])
+
 function getAlternateModeField(fieldName: string): string | null {
+	if (independentlyManagedModeFields.has(fieldName)) {
+		return null
+	}
 	if (fieldName.startsWith("planMode")) {
 		return fieldName.replace("planMode", "actMode")
 	}
