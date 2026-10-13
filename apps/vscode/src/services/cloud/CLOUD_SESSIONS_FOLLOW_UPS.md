@@ -8,34 +8,43 @@ roughly in the order they should be done.
 
 ## How it is wired today
 
-- `src/services/cloud/CloudSessionsService.ts`: REST client for the control
-  plane (GitHub App status/repos/branches, `POST/GET/DELETE/PATCH
-  /api/v1/session`, `/status`, `/history`).
+- `src/services/cloud/CloudSessionsService.ts`: the extension's wrapper around
+  the SDK's shared `CloudSessionApi` (`@cline/core/cloud`), the same REST client
+  the desktop app uses: GitHub App status/repos/branches, session
+  create/list/status/resume/delete/rename, archived `/history`. It adds the VS
+  Code account scope and endpoints, the GitHub App install redirect, and errors
+  whose messages can be shown to the user. Sandboxes are created `resumable`; a
+  create whose response is lost is adopted from the session list instead of
+  provisioned twice.
 - `src/sdk/cloud-session-host.ts`: `CloudSessionHost` implements the same
   `SdkSessionHost` interface the local `VscodeSessionHost` does, on top of the
   SDK's `RemoteRuntimeHost`. It dials the sandbox Hub through
   `wss://api.cline.bot/api/v1/session/{id}` with the account token as a
   `Authorization: Bearer` header and maps the outer `ses-…` id to the inner Hub
   session id. Everything downstream (event coordinator, message translator,
-  chat view) is unchanged.
-- `src/sdk/sdk-cloud-session-coordinator.ts`: starts/reopens cloud tasks, keeps
-  sandbox connections alive so running/finished status is known, projects cloud
-  records into task history, raises the "Cloud task finished" notification.
+  chat view) is unchanged. New sessions start with the SDK's shared cloud
+  prompt (`buildCloudSessionSystemPrompt`: GitHub access, `cline/<task>` work
+  branch). After a sandbox is resumed it rebuilds the conversation's runtime
+  from the saved messages before the first turn.
+- `src/sdk/sdk-cloud-session-coordinator.ts`: starts/reopens cloud tasks
+  (resuming suspended sandboxes first), keeps sandbox connections alive so
+  running/finished status is known, projects cloud records into task history,
+  raises the "Cloud task finished" notification.
 - SDK: `NodeHubClient.resolveConnectionHeaders` (ported from #13519) plus a
-  passthrough on `HubRuntimeHost`/`RemoteRuntimeHost`.
+  passthrough on `HubRuntimeHost`/`RemoteRuntimeHost`, and proxy support for
+  header-authenticated Hub sockets.
 
 ## Consolidate with the desktop app (JC's PR stacks)
 
-1. Consolidate the REST client with `@cline/core`'s cloud API
-   (`CloudSessionApi`, `CloudSessionRecord`, `CloudRepository`,
-   `CloudSessionError`) and have both `apps/examples/desktop-app/sidecar/
-   cloud-sessions.ts` and `CloudSessionsService.ts` import it. The desktop
-   version also has create-timeout recovery (adopt an already-provisioned
-   record after a timed-out POST) which the extension version does not.
-2. Consider replacing the desktop sidecar's hand-rolled `CloudSessionManager`
-   (raw `NodeHubClient`, event buffering, approval relay) with the
-   `RemoteRuntimeHost`-based approach used here. It removes roughly 3k lines of
-   sidecar code and both apps would share one connection/attach strategy.
+1. Done: the REST client is the SDK's `CloudSessionApi`, and the sandbox prompt
+   comes from the SDK.
+2. The desktop app now runs on the SDK's `CloudSessionController`. The extension
+   deliberately keeps `RemoteRuntimeHost`: its chat view renders cloud tasks
+   through the same `SdkSessionHost` events as local tasks, while the controller
+   emits raw Hub events plus transcript snapshots and recovers a dropped
+   connection by replacing the whole transcript. Moving the extension onto it
+   would need `HubRuntimeHost`'s private Hub-event mapping exported from the SDK
+   and a transcript-replace path in the message translator.
 3. Share `normalizeGitHubRemoteUrl` (duplicated in
    `src/shared/cloud/cloud-sessions.ts` and the SDK's `cloud-handoff/
    git-preflight.ts` on the desktop branch) once #13574 lands.
@@ -53,6 +62,11 @@ roughly in the order they should be done.
   window tolerates this client's connect touch but can also hide a quick external
   resume. Exposing an agent revision, activity and last-message time would remove
   that heuristic and improve cross-device status and timestamps.
+- Make restoring a resumed sandbox's conversation atomic: `session.create`
+  replaces a live session with the same id, so two clients that send their
+  first follow-up at the same moment after a resume can overwrite each other.
+  Rejecting a live id with `session_already_exists` (which clients already treat
+  as success) or a restore-if-missing command would close this for every client.
 - A typed error code for billing/limit failures on `POST /api/v1/session`, so
   the start error can offer "Add credits" like local tasks do.
 - Include `title` in the create response and accept it in the create body, so
@@ -65,10 +79,9 @@ roughly in the order they should be done.
   `initialMessages`, model selection). `RemoteRuntimeHost.startSession` already
   accepts `initialMessages`, so the extension side is mostly UI plus the
   preflight error messaging.
-- Opening files from a cloud transcript: the edit/read rows still offer "open
-  in editor", which resolves against the local workspace. Either hide the
-  affordance for cloud tasks or open a read-only virtual document fetched from
-  the sandbox.
+- Opening files from a cloud transcript: edit/read rows no longer open local
+  files for cloud tasks. A read-only virtual document fetched from the sandbox
+  would let users inspect them.
 - Restore notification monitoring for offscreen running tasks after a reload.
   Visible unknown tasks reconnect automatically, but offscreen tasks have no
   persistent notification subscription.

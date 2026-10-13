@@ -53,6 +53,11 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 	// CLINE_LOCAL_CLOUD_REFUSE_SOCKETS=1 refuses every session socket, so a cloud
 	// start fails after its sandbox is ready and the Retry path can be exercised.
 	const refuseSessionSockets = process.env.CLINE_LOCAL_CLOUD_REFUSE_SOCKETS === "1"
+	// CLINE_LOCAL_CLOUD_SUSPEND_IDLE_MS suspends a sandbox that long after its last
+	// client disconnects, like the hosted control plane does to resumable
+	// sandboxes, so reopening and resuming a suspended task can be exercised.
+	const suspendIdleMs = process.env.CLINE_LOCAL_CLOUD_SUSPEND_IDLE_MS
+	const suspendIdleAfterMs = suspendIdleMs ? Number(suspendIdleMs) : undefined
 	try {
 		environment = await startLocalCloudEnvironment({
 			...options,
@@ -63,6 +68,7 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 			seedExpiredSessions,
 			insufficientCredits,
 			refuseSessionSockets,
+			suspendIdleAfterMs,
 		})
 		const settingsDir = path.join(dataDir, "settings")
 		await mkdir(settingsDir, { recursive: true })

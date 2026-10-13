@@ -48,6 +48,8 @@ export default defineConfig({
 			// Vite drops Zod's named namespace export on Windows while preserving
 			// its default export. Restore the package's declared `z` export for tests.
 			{ find: /^zod$/, replacement: path.resolve(__dirname, "src/test/zod-vitest-stub.ts") },
+			// The cloud control-plane client is self-contained and runs as shipped.
+			{ find: "@cline/core/cloud", replacement: path.resolve(__dirname, "node_modules/@cline/core/dist/cloud/index.js") },
 			{ find: "@cline/core", replacement: path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts") },
 			{ find: "@cline/llms", replacement: path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js") },
 			// Map @cline/shared subpath exports explicitly. The bare "@cline/shared"
