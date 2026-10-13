@@ -128,6 +128,29 @@ describe("VscodeTerminalManager", () => {
 		assert.equal(terminalInfo.busy, true)
 		assert.equal(terminalInfo.pendingCwdChange, undefined)
 		assert.equal(terminalInfo.cwdResolved, undefined)
+		sinon.assert.calledOnceWithExactly(terminalInfo.terminal.show as sinon.SinonStub, true)
+	})
+
+	it("reveals the terminal without taking focus when running a command", async () => {
+		const showStub = sandbox.stub()
+		const terminalInfo: TerminalInfo = {
+			id: 1,
+			busy: false,
+			lastCommand: "",
+			lastActive: Date.now(),
+			terminal: {
+				shellIntegration: {
+					executeCommand: () => ({
+						read: () => createNeverEndingStream(),
+					}),
+				},
+				show: showStub,
+			} as unknown as vscode.Terminal,
+		}
+
+		manager.runCommand(terminalInfo as unknown as Parameters<VscodeTerminalManager["runCommand"]>[0], "echo hi")
+
+		sinon.assert.calledOnceWithExactly(showStub, true)
 	})
 
 	it("releases a reused terminal reservation when showing it fails", async () => {
