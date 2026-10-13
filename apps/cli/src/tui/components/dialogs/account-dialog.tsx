@@ -70,7 +70,7 @@ const LOADED_ACTIONS: AccountAction[] = [
 const PRIVACY_SETTINGS_ACTION: AccountAction = {
 	id: "privacy-settings",
 	label: "Privacy settings",
-	description: "Manage data sharing in your Cline account (opens the web app)",
+	description: "Manage data sharing in the Cline web app",
 	enabled: true,
 };
 
