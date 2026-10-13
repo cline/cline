@@ -26,6 +26,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { SessionNotFoundError } from "../../runtime/host/runtime-host";
 import {
 	AgendaTaskManager,
 	type AgendaTaskRuntime,
@@ -154,6 +155,10 @@ describe("Hub agenda task vertical slice", () => {
 				toolCalls: [],
 			};
 		});
+		const updateSessionConnection = vi.fn(async () => {});
+		const readSessionMessages = vi.fn(
+			async (): Promise<Array<{ role: "user"; content: string }>> => [],
+		);
 		const transport = new HubServerTransport({
 			workspaceRoot: canonicalChatWorkspace,
 			runtimeHandlers: {
@@ -171,6 +176,7 @@ describe("Hub agenda task vertical slice", () => {
 			sessionHost: {
 				subscribe: vi.fn(() => () => {}),
 				startSession,
+				updateSessionConnection,
 				runTurn,
 				stopSession: vi.fn(async () => {}),
 				abort: vi.fn(async () => {}),
@@ -182,7 +188,7 @@ describe("Hub agenda task vertical slice", () => {
 				updateSession: vi.fn(async () => ({ updated: false })),
 				updateSessionCompactionState: vi.fn(async () => ({ updated: false })),
 				readSessionCompactionState: vi.fn(async () => undefined),
-				readSessionMessages: vi.fn(async () => []),
+				readSessionMessages,
 				dispatchHookEvent: vi.fn(async () => {}),
 				restoreSession: vi.fn(),
 			} as never,
@@ -626,6 +632,47 @@ describe("Hub agenda task vertical slice", () => {
 				).toBe(false);
 			}
 			expect(capturedStarts[0]?.sessionMetadata?.factoryTaskId).toBeUndefined();
+			const priorDesignerId = z.string().parse(design.payload?.sessionId);
+			const transcript = [
+				{ role: "user" as const, content: "Keep the accepted feature scope." },
+			];
+			readSessionMessages.mockResolvedValueOnce(transcript);
+			updateSessionConnection.mockRejectedValueOnce(
+				new SessionNotFoundError(priorDesignerId),
+			);
+			const resumed = await transport.handleCommand({
+				version: "v1",
+				command: "task.factory.design",
+				clientId: "desktop",
+				payload: { taskId: featureTask.taskId },
+			});
+			expect(resumed.ok).toBe(true);
+			expect(resumed.payload?.sessionId).not.toBe(priorDesignerId);
+			expect(capturedStarts.at(-1)).toMatchObject({
+				initialMessages: transcript,
+				sessionMetadata: {
+					factoryTaskId: featureTask.taskId,
+					factoryRole: "designer",
+				},
+				config: {
+					mode: "plan",
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+				toolPolicies: {
+					"*": { enabled: false },
+					read_files: { enabled: true },
+				},
+			});
+			const resumedTask = await transport.handleCommand({
+				version: "v1",
+				command: "task.get",
+				clientId: "desktop",
+				payload: { taskId: featureTask.taskId },
+			});
+			expect(resumedTask.payload?.task).toMatchObject({
+				originSessionId: resumed.payload?.sessionId,
+			});
 		} finally {
 			await transport.stop();
 		}

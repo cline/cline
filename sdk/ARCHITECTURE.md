@@ -782,7 +782,9 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
 ### Desktop Feature Factory
 
 Factory cards reuse Agenda tasks, revision approvals, task files, and SQLite run
-records. `task.factory.design` links a plan-mode design session to the card;
+records. `task.factory.design` links a plan-mode design session to the card.
+After a Hub restart, reopening design preserves the transcript in a new session
+with the canonical read-only tool policy.
 `task.factory.start` explicitly queues approved revisions for sequential local
 execution. Factory tasks do not enter the Agenda automation pump. Queued starts
 are kept in memory; restarting the Hub requires starting the queue again.

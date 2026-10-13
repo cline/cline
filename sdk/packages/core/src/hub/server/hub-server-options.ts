@@ -8,6 +8,7 @@ import type {
 	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
+	SessionConnectionRuntimeService,
 } from "../../runtime/host/runtime-host";
 import type { SessionHistorySearchOptions } from "../../session/search";
 import type { CoreSettingsService } from "../../settings";
@@ -26,7 +27,11 @@ export interface HubWebSocketServerOptions {
 	pathname?: string;
 	owner?: HubOwnerContext;
 	sessionHost?: RuntimeHost &
-		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
+		Partial<
+			PendingPromptsRuntimeService &
+				CommandExecutionRuntimeService &
+				SessionConnectionRuntimeService
+		>;
 	settingsService?: CoreSettingsService;
 	/** File/DB/watcher overrides for the Hub-owned agenda task manager. */
 	taskOptions?: Omit<AgendaTaskManagerOptions, "runtime" | "publish">;

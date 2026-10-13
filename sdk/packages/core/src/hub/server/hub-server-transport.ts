@@ -25,7 +25,9 @@ import type {
 	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
+	SessionConnectionRuntimeService,
 } from "../../runtime/host/runtime-host";
+import { SessionNotFoundError } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
@@ -260,7 +262,11 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionSearch: SessionHistorySearchService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
+		Partial<
+			PendingPromptsRuntimeService &
+				CommandExecutionRuntimeService &
+				SessionConnectionRuntimeService
+		>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
 	/** Durable event log; created on start(), absent in never-started tests. */
@@ -339,11 +345,27 @@ export class HubServerTransport implements NativeHubTransport {
 						),
 					),
 				startDesignSession: async (task, requestedByClientId) => {
-					if (
-						task.originSessionId &&
-						(await this.sessionHost.getSession(task.originSessionId))
-					)
-						return { sessionId: task.originSessionId };
+					if (task.originSessionId) {
+						const previous = await this.sessionHost.getSession(
+							task.originSessionId,
+						);
+						if (
+							previous?.metadata?.factoryTaskId === task.taskId &&
+							previous.metadata.factoryRole === "designer" &&
+							this.sessionHost.updateSessionConnection
+						) {
+							try {
+								// A persisted session may outlive its runtime after a Hub restart.
+								await this.sessionHost.updateSessionConnection(
+									task.originSessionId,
+									{},
+								);
+								return { sessionId: task.originSessionId };
+							} catch (error) {
+								if (!(error instanceof SessionNotFoundError)) throw error;
+							}
+						}
+					}
 					return this.startAgendaTaskSession(
 						{
 							...task,
@@ -546,6 +568,15 @@ export class HubServerTransport implements NativeHubTransport {
 						enableAgentTeams: !task.factory,
 					},
 					metadata,
+					...(factoryRole === "designer" &&
+					task.originSessionId &&
+					originSession
+						? {
+								initialMessages: await this.sessionHost.readSessionMessages(
+									task.originSessionId,
+								),
+							}
+						: {}),
 					runtimeOptions: {
 						mode: task.mode ?? "act",
 						maxIterations: task.maxIterations,

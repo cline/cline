@@ -3983,6 +3983,7 @@ export function useChatSession(environmentId: string) {
 						workspaceRoot?: string;
 						branch?: string;
 						prompt?: string;
+						mode?: "plan";
 						environmentId?: string;
 					}>("chat_session_command", {
 						request: {
@@ -4029,6 +4030,7 @@ export function useChatSession(environmentId: string) {
 							: undefined),
 					provider: attached?.provider || session.provider || prev.provider,
 					model: attached?.model || session.model || prev.model,
+					mode: attached?.mode ?? prev.mode,
 					workspaceRoot:
 						attached?.workspaceRoot ||
 						session.workspaceRoot ||

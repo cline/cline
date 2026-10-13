@@ -114,7 +114,10 @@ function localRuntimeContext(
 					environmentId: "local",
 					kind: "local" as const,
 					workspaceRoot,
-					sessionManager,
+					sessionManager: {
+						get: vi.fn(async () => undefined),
+						...sessionManager,
+					},
 					hubClient: {
 						command: vi.fn(async () => undefined),
 					},
@@ -1170,6 +1173,108 @@ describe("first-send connection updates", () => {
 		};
 	}
 
+	it("preserves a factory designer on first send and rejects a permission-widening provider rebuild", async () => {
+		const { ctx, sessionId, start, stop, send } = createContext();
+		const factoryMetadata = {
+			factoryTaskId: "feature-1",
+			factoryRole: "designer",
+			mode: "plan",
+		};
+		localSessionManager(ctx).get = vi.fn(async () => ({
+			sessionId,
+			provider: baseConfig.provider,
+			model: baseConfig.model,
+			status: "idle",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			metadata: factoryMetadata,
+		}));
+		const attached = await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...baseConfig, sessionId, mode: "act", autoApproveTools: true },
+		});
+		expect(attached).toMatchObject({
+			sessionId,
+			mode: "plan",
+			metadata: factoryMetadata,
+		});
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "Clarify the acceptance criteria",
+			config: { ...baseConfig, mode: "act", autoApproveTools: true },
+		});
+		expect(start).not.toHaveBeenCalled();
+		expect(stop).not.toHaveBeenCalled();
+		expect(send).toHaveBeenCalledTimes(1);
+		expect(ctx.liveSessions.get(sessionId)?.config).toMatchObject({
+			factoryTaskId: "feature-1",
+			factoryRole: "designer",
+			mode: "plan",
+		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "Continue",
+				config: { provider: "openai", model: "different-model" },
+			}),
+		).rejects.toThrow("original provider");
+		expect(start).not.toHaveBeenCalled();
+		expect(stop).not.toHaveBeenCalled();
+		expect(send).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		"builder",
+		"reviewer",
+	])("opening a factory %s transcript leaves its workflow in control", async (role) => {
+		const { ctx, sessionId, start, stop, send } = createContext();
+		localSessionManager(ctx).get = vi.fn(async () => ({
+			sessionId,
+			provider: baseConfig.provider,
+			model: baseConfig.model,
+			status: "running",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			metadata: { factoryTaskId: "feature-1", factoryRole: role },
+		}));
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...baseConfig, sessionId },
+		});
+		expect(start).not.toHaveBeenCalled();
+		expect(stop).not.toHaveBeenCalled();
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "Change this",
+				config: baseConfig,
+			}),
+		).rejects.toThrow("managed by the feature workflow");
+		expect(send).not.toHaveBeenCalled();
+		expect(start).not.toHaveBeenCalled();
+		expect(stop).not.toHaveBeenCalled();
+	});
+
+	it.each<"fork" | "restore_checkpoint">([
+		"fork",
+		"restore_checkpoint",
+	])("rejects %s of a factory transcript without a live cache", async (action) => {
+		const { ctx, sessionId, start, stop } = createContext();
+		ctx.liveSessions.clear();
+		localSessionManager(ctx).get = vi.fn(async () => ({
+			sessionId,
+			metadata: { factoryTaskId: "feature-1", factoryRole: "designer" },
+		}));
+		await expect(
+			handleChatSessionCommand(ctx, { action, sessionId, config: baseConfig }),
+		).rejects.toThrow("cannot be forked or restored");
+		expect(start).not.toHaveBeenCalled();
+		expect(stop).not.toHaveBeenCalled();
+	});
+
 	it("skips an identical update for a locally-created session", async () => {
 		const { ctx, send, sessionId, updateSessionConnection } = createContext();
 
@@ -1744,6 +1849,28 @@ describe("first-send connection updates", () => {
 			Object.assign(new Error("Hub connection closed"), {
 				name: "HubTransportError",
 			});
+
+		it("does not rebuild a factory designer with ordinary policies after Hub loss", async () => {
+			const { ctx, send, sessionId, start, stop, updateSessionConnection } =
+				createContext({
+					config: {
+						...baseConfig,
+						factoryTaskId: "feature-1",
+						factoryRole: "designer",
+						mode: "plan",
+					},
+				});
+			send.mockRejectedValueOnce(missing(sessionId));
+			const response = await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "Continue design",
+			});
+			expect(response).toMatchObject({ result: { finishReason: "error" } });
+			expect(start).not.toHaveBeenCalled();
+			expect(stop).not.toHaveBeenCalled();
+			expect(updateSessionConnection).not.toHaveBeenCalled();
+		});
 
 		it("rebuilds a session the restarted hub lost and ends the turn interrupted", async () => {
 			const { ctx, send, sessionId, start, updateSessionConnection } =

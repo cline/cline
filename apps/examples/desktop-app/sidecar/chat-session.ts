@@ -1054,6 +1054,15 @@ async function handleStart(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
+	const requestedSessionId = String(
+		request.config.sessionId ?? request.config.session_id ?? "",
+	).trim();
+	if (requestedSessionId && binding.kind === "local") {
+		const existing = await manager.get(requestedSessionId);
+		if (typeof existing?.metadata?.factoryTaskId === "string") {
+			return handleAttach(ctx, { ...request, sessionId: requestedSessionId });
+		}
+	}
 	const config =
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(request.config)
@@ -1065,9 +1074,7 @@ async function handleStart(
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(config)
 			: await resolveSystemPrompt(config);
-	const requestedSessionId = String(
-		config.sessionId ?? config.session_id ?? "",
-	).trim();
+
 	const initialMessages =
 		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
 			? config.initialMessages
@@ -1193,6 +1200,9 @@ async function handleAttach(
 		environmentId: binding.environmentId,
 		provider: session.provider || existing?.config.provider || "",
 		model: session.model || existing?.config.model || "",
+		factoryTaskId: metadata?.factoryTaskId,
+		factoryRole: metadata?.factoryRole,
+		...(metadata?.factoryRole === "designer" ? { mode: "plan" } : {}),
 		cwd:
 			session.cwd ||
 			session.workspaceRoot ||
@@ -1239,6 +1249,7 @@ async function handleAttach(
 		workspaceRoot: session.workspaceRoot,
 		prompt: session.prompt,
 		metadata,
+		...(metadata?.factoryRole === "designer" ? { mode: "plan" } : {}),
 	};
 }
 
@@ -1455,7 +1466,8 @@ async function reconnectSessionAfterHubLoss(
 	sessionId: string,
 	session: LiveSession | undefined,
 ): Promise<HubReconnectOutcome> {
-	if (!session) return "failed";
+	if (!session || typeof session.config.factoryTaskId === "string")
+		return "failed";
 	const existing = hubReconnects.get(sessionId);
 	if (existing?.session === session && !existing.controller.signal.aborted) {
 		return existing.outcome;
@@ -1620,6 +1632,28 @@ async function handleSend(
 		throw new Error("prompt or attachment is required");
 	}
 	const session = ctx.liveSessions.get(sessionId);
+	if (typeof session?.config.factoryTaskId === "string") {
+		if (session.config.factoryRole !== "designer") {
+			throw new Error(
+				"This transcript is managed by the feature workflow. Use the feature controls to change or cancel its work.",
+			);
+		}
+		if (request.config && hasProviderChanged(session.config, request.config)) {
+			throw new Error(
+				"This design interview uses the feature’s original provider. Switch back to that provider to continue.",
+			);
+		}
+		request = {
+			...request,
+			config: {
+				...request.config,
+				mode: "plan",
+				factoryTaskId: session.config.factoryTaskId,
+				factoryRole: "designer",
+			},
+		};
+	}
+
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		sessionId,
@@ -2645,14 +2679,27 @@ export async function handleChatSessionCommand(
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	const targetContext = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	if (
+		sessionId &&
+		(request.action === "fork" || request.action === "restore_checkpoint")
+	) {
+		const source = await getSessionManager(
+			targetContext,
+			sessionId,
+			request.config,
+		).get(sessionId);
+		if (typeof source?.metadata?.factoryTaskId === "string") {
+			throw new Error(
+				"Feature transcripts cannot be forked or restored. Change the feature brief or restart its workflow from the feature controls.",
+			);
+		}
+	}
+	return handler(targetContext, request);
 }
