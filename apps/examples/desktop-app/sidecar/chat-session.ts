@@ -1273,8 +1273,8 @@ async function handleAttach(
 
 	return {
 		sessionId,
-		status: attachedStatus,
 		environmentId: binding.environmentId,
+		status: attachedStatus,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,
