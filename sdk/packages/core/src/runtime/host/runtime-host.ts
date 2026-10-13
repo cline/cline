@@ -375,12 +375,20 @@ export interface ListSessionsOptions {
 	rootOnly?: boolean;
 }
 
+export interface RuntimeActivity {
+	busy: boolean;
+	/** Unix milliseconds of the latest accepted work, execution output, or settlement. */
+	lastActivityAt: number;
+}
+
 /**
  * RuntimeHost is the transport/runtime boundary for core session execution.
  * Callers must normalize broad local config into `RuntimeSessionConfig`
  * plus optional named `localRuntime` bootstrap fields before invoking a host.
  */
 export interface RuntimeHost {
+	/** In-process work only; persisted session statuses are not execution evidence. */
+	getActivity?(): RuntimeActivity;
 	readonly runtimeAddress?: string;
 	startSession(input: StartSessionInput): Promise<StartSessionResult>;
 	runTurn(input: SendSessionInput): Promise<AgentResult | undefined>;

@@ -109,7 +109,7 @@ function createStartedTransportOptions() {
 				readSessionMessages: vi.fn(async () => []),
 				dispatchHookEvent: vi.fn(async () => {}),
 				restoreSession: vi.fn(),
-			} as never,
+			},
 		},
 	};
 }
@@ -128,6 +128,52 @@ async function waitFor(
 }
 
 describe("Hub app-server upgrades", () => {
+	it("omits activity for hosts without current execution observations", async () => {
+		const { options } = createStartedTransportOptions();
+		const transport = new HubServerTransport(options as never);
+		try {
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).not.toHaveProperty("activity");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("reports resident runtime work independently of RPC idle and status reads", async () => {
+		const { options } = createStartedTransportOptions();
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const lastActivityAt = 1_000;
+		const activity = { busy: true, lastActivityAt };
+		const transport = new HubServerTransport({
+			...options,
+			sessionHost: { ...options.sessionHost, getActivity: () => activity },
+		} as never);
+		try {
+			clock.mockReturnValue(2_000);
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).toMatchObject({ idle: true, activity });
+			activity.busy = false;
+			clock.mockReturnValue(3_000);
+			const drained = await transport.handleCommand({
+				version: "v1",
+				command: "hub.drain",
+			});
+			expect(drained.payload?.activity).toEqual({
+				busy: false,
+				lastActivityAt,
+			});
+		} finally {
+			await transport.stop();
+			clock.mockRestore();
+		}
+	});
+
 	it("stamps published events with durable sequences and replays from a cursor", async () => {
 		const { options } = createStartedTransportOptions();
 		const transport = new HubServerTransport(options as never);
@@ -167,7 +213,21 @@ describe("Hub app-server upgrades", () => {
 
 	it("acks run.enqueue immediately and executes the run through the queue", async () => {
 		const { options, runTurn } = createStartedTransportOptions();
-		const transport = new HubServerTransport(options as never);
+		let finishRun: () => void = () => {};
+		const running = new Promise<void>((resolve) => {
+			finishRun = resolve;
+		});
+		runTurn.mockImplementation(async () => {
+			await running;
+			return { text: "done", finishReason: "completed", toolCalls: [] };
+		});
+		const transport = new HubServerTransport({
+			...options,
+			sessionHost: {
+				...options.sessionHost,
+				getActivity: () => ({ busy: false, lastActivityAt: 1 }),
+			},
+		} as never);
 		await transport.start();
 		try {
 			const events: HubEventEnvelope[] = [];
@@ -190,6 +250,12 @@ describe("Hub app-server upgrades", () => {
 			expect(reply.payload?.queuePosition).toBe(0);
 			expect(typeof reply.payload?.acceptedAt).toBe("number");
 
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload?.activity).toMatchObject({ busy: true });
+			finishRun();
 			await waitFor(() =>
 				events.some((event) => event.event === "run.completed"),
 			);
@@ -206,6 +272,7 @@ describe("Hub app-server upgrades", () => {
 			expect(runs).toHaveLength(1);
 			expect(runs[0]?.state).toBe("completed");
 		} finally {
+			finishRun();
 			await transport.stop();
 		}
 	});
@@ -262,7 +329,13 @@ describe("Hub app-server upgrades", () => {
 
 	it("re-issues pending approval requests to a (re)subscribing client", async () => {
 		const { options } = createStartedTransportOptions();
-		const transport = new HubServerTransport(options as never);
+		const transport = new HubServerTransport({
+			...options,
+			sessionHost: {
+				...options.sessionHost,
+				getActivity: () => ({ busy: false, lastActivityAt: 1 }),
+			},
+		} as never);
 		await transport.start();
 		try {
 			await transport.handleCommand({
@@ -302,6 +375,11 @@ describe("Hub app-server upgrades", () => {
 			await waitFor(() =>
 				seen.some((event) => event.event === "approval.requested"),
 			);
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload?.activity).toMatchObject({ busy: true });
 			const requested = seen.find(
 				(event) => event.event === "approval.requested",
 			);
@@ -313,6 +391,11 @@ describe("Hub app-server upgrades", () => {
 				payload: { approvalId, approved: true },
 			});
 			expect(respond.ok).toBe(true);
+			const settled = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(settled.payload?.activity).toMatchObject({ busy: false });
 			await expect(approvalPromise).resolves.toEqual({
 				approved: true,
 				reason: undefined,
