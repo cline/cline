@@ -321,13 +321,22 @@ const RETRYABLE_STATUSES = new Set([
 ]);
 
 /**
- * The sole message fallback. OpenRouter forwards an upstream failure mid-stream
+ * A message fallback. OpenRouter forwards an upstream failure mid-stream
  * as a bare "Provider returned error" string with no HTTP status and no typed
- * error to inspect, so there is nothing else to key on. Every other decision
+ * error to inspect, so there is nothing else to key on. Apart from the
+ * incomplete-stream message below, every other decision
  * comes from the AI SDK's typed `isRetryable` flag or the HTTP status — not
  * from matching free-form message text.
  */
 const PROVIDER_RETURNED_ERROR_PATTERN = /provider returned error/i;
+
+/**
+ * `@ai-sdk/openai-compatible` (OpenRouter, Cline, custom endpoints) reports a
+ * connection that closed cleanly before any `finish_reason` as an untyped
+ * `InvalidResponseDataError` carrying only this message.
+ */
+const INCOMPLETE_STREAM_PATTERN =
+	/response stream ended without a finish reason/i;
 
 /**
  * Retryability taken from a real AI SDK error instance via its own typed
@@ -370,7 +379,7 @@ function isRetryableTypedError(
  * Structural retryability for a value that is not a typed AI SDK error: a
  * flattened message, a gateway-forwarded JSON payload, or the final attempt
  * inside a RetryError. HTTP status decides first; message text only for the
- * one documented statusless provider quirk.
+ * documented statusless provider quirks.
  */
 function isRetryableFromSignals(value: unknown): boolean {
 	const signals: ErrorSignals = {
@@ -406,9 +415,11 @@ function isRetryableFromSignals(value: unknown): boolean {
 	if (statuses.some((status) => status >= 400 && status < 500)) {
 		return false;
 	}
-	// No typed error and no status: the one provider quirk we special-case.
-	return signals.messages.some((message) =>
-		PROVIDER_RETURNED_ERROR_PATTERN.test(message),
+	// No typed error and no status: the provider quirks we special-case.
+	return signals.messages.some(
+		(message) =>
+			PROVIDER_RETURNED_ERROR_PATTERN.test(message) ||
+			INCOMPLETE_STREAM_PATTERN.test(message),
 	);
 }
 
@@ -418,8 +429,8 @@ function isRetryableFromSignals(value: unknown): boolean {
  * (credential rejections, context-window overflow, other client-side 4xx
  * errors). Prefers the AI SDK's own typed `isRetryable` signal; for
  * non-instances (already-flattened messages or gateway-forwarded JSON) it
- * falls back to the HTTP status, and finally to the single documented
- * "Provider returned error" provider quirk. Accepts either a raw structured
+ * falls back to the HTTP status, and finally to the documented
+ * "Provider returned error" and incomplete-stream quirks. Accepts either a raw structured
  * error or a flattened message string.
  */
 export function isRetryableProviderError(error: unknown): boolean {

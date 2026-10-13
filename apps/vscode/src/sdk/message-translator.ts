@@ -125,6 +125,8 @@ function normalizeUsageEvent(usageEvent: {
 export class MessageTranslatorState {
 	/** Current streaming text message timestamp (used for dedup) */
 	private streamingTextTs: number | undefined
+	/** Accumulated text of the open streaming text row */
+	private streamingText = ""
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
 	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
@@ -224,11 +226,43 @@ export class MessageTranslatorState {
 		return this.streamingTextTs
 	}
 
+	/** Remember the open text row's accumulated text and return it */
+	setStreamingText(text: string): string {
+		this.streamingText = text
+		return text
+	}
+
 	/** Clear streaming text (content ended) */
 	clearStreamingText(): number {
 		const ts = this.streamingTextTs ?? this.nextTs()
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		return ts
+	}
+
+	/**
+	 * Finalize the open text/reasoning rows as they stand. A provider retry
+	 * discards the interrupted attempt from history, so its rows stay as shown
+	 * and the retried attempt streams into new rows.
+	 */
+	closeInterruptedContent(): ClineMessage[] {
+		const rows: ClineMessage[] = []
+		if (this.streamingReasoningTs !== undefined) {
+			const reasoning = this.streamingReasoningText
+			rows.push({
+				ts: this.clearStreamingReasoning(),
+				type: "say",
+				say: "reasoning",
+				text: reasoning,
+				reasoning,
+				partial: false,
+			})
+		}
+		if (this.streamingTextTs !== undefined) {
+			const text = this.streamingText
+			rows.push({ ts: this.clearStreamingText(), type: "say", say: "text", text, partial: false })
+		}
+		return rows
 	}
 
 	/** Get and increment for streaming reasoning */
@@ -1323,7 +1357,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						ts,
 						type: "say",
 						say: "text",
-						text: event.accumulated ?? event.text ?? "",
+						text: state.setStreamingText(event.accumulated ?? event.text ?? ""),
 						partial: true,
 					})
 					break
@@ -1878,6 +1912,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// falls through to the info row below so a future one surfaces (as its
 			// raw slug) instead of silently vanishing.
 			if (event.noticeType === "status") {
+				if (event.metadata?.kind === "provider_error_retry") {
+					messages.push(...state.closeInterruptedContent())
+				}
 				const compaction = parseCompactionNoticeMetadata(event.metadata)
 				if (compaction) {
 					const ts =

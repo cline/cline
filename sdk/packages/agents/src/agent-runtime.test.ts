@@ -1764,24 +1764,96 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
-	it("does not retry when the failed attempt already streamed visible output", async () => {
+	it("retries when the failed attempt streamed text and reasoning, keeping only the retry's content", async () => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "reasoning-delta", text: "partial thought" },
+					{ type: "text-delta", text: "partial answer" },
+					{
+						type: "finish",
+						reason: "error",
+						error: "The socket connection was closed unexpectedly.",
+						errorRetryable: true,
+					},
+				],
+				() => [
+					{ type: "reasoning-delta", text: "full thought" },
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({ model });
+			const notices: AgentRuntimeEvent[] = [];
+			runtime.subscribe((event) => {
+				if (event.type === "status-notice") notices.push(event);
+			});
+
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(2);
+			expect(model.requests[1]?.messages).toEqual(model.requests[0]?.messages);
+			const assistant = result.messages.filter((m) => m.role === "assistant");
+			expect(assistant).toHaveLength(1);
+			expect(assistant[0]?.content).toEqual([
+				{ type: "reasoning", text: "full thought" },
+				{ type: "text", text: "recovered" },
+			]);
+			expect(notices).toEqual([
+				expect.objectContaining({
+					metadata: expect.objectContaining({ kind: "provider_error_retry" }),
+				}),
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry when the failed attempt streamed a tool call", async () => {
 		const model = new ScriptedModel([
 			() => [
-				{ type: "text-delta", text: "partial answer" },
+				{ type: "text-delta", text: "Reading it." },
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
 				{
 					type: "finish",
 					reason: "error",
 					error: "Provider returned error",
 				},
 			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
 		]);
 		const runtime = new AgentRuntime({ model });
+		const notices: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") notices.push(event);
+		});
 
 		const result = await runtime.run("Hi");
 
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toBe("Provider returned error");
-		expect(model.requests).toHaveLength(1);
+		// The tool-call turn is kept and continued by the loop, never re-requested.
+		expect(notices).toEqual([]);
+		expect(model.requests).toHaveLength(2);
+		expect(
+			model.requests[1]?.messages.some(
+				(message) =>
+					message.role === "assistant" &&
+					message.content.some((part) => part.type === "tool-call"),
+			),
+		).toBe(true);
+		expect(result.outputText).toBe("done");
 	});
 
 	it("does not retry when the failed attempt ran a provider-executed tool", async () => {
