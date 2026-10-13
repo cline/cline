@@ -503,9 +503,15 @@ async function releaseCLI(version: string): Promise<number> {
 
 	// Step 2: Build all platform binaries
 	header("Step 2/3: Cross-compiling for all platforms");
-	await run(["bun", "script/build.ts", "--install-native-variants"], {
-		cwd: cliDir,
-	});
+	await run(
+		[
+			"bun",
+			"script/build.ts",
+			"--install-native-variants",
+			"--require-darwin-codesign",
+		],
+		{ cwd: cliDir },
+	);
 
 	// Step 3: Publish to npm
 	header("Step 3/3: Publishing to npm");
