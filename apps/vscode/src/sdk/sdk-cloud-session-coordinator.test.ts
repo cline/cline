@@ -1553,6 +1553,33 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(options.resolveContextMentions).not.toHaveBeenCalled()
 	})
 
+	it("reconnects after a failed deletion instead of reusing the host it disposed", async () => {
+		const dispose = vi.fn(async () => {})
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockImplementation(
+			async () =>
+				({
+					status: "completed",
+					readMessages: async () => [],
+					dispose,
+					subscribe: () => () => {},
+				}) as unknown as CloudSessionHost,
+		)
+		const { coordinator, cloudSessions } = makeCoordinator({
+			sessions: { attachExistingSession: async () => {} } as never,
+		})
+		cloudSessions.listSessions.mockResolvedValue([record])
+		cloudSessions.deleteSession.mockRejectedValue(new Error("control plane unavailable"))
+
+		await coordinator.openCloudTask(record.id)
+		expect(connect).toHaveBeenCalledTimes(1)
+		await expect(coordinator.deleteSession(record.id)).rejects.toThrow("control plane unavailable")
+		expect(dispose).toHaveBeenCalledWith("deleted")
+
+		await coordinator.openCloudTask(record.id)
+		expect(connect).toHaveBeenCalledTimes(2)
+		await coordinator.dispose()
+	})
+
 	it("stops the readiness poll as soon as the user cancels", async () => {
 		const provisioned = deferred<void>()
 		const { coordinator, cloudSessions } = makeCoordinator({ sessions: { startNewSession: vi.fn() } as never })

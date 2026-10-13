@@ -29,6 +29,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const successor = { token: "fixture-successor", endpoint: "http://127.0.0.1:2222", organizationId: "org-successor" }
 	let deletionStatus = 204
 	let readinessStatus = "active"
+	const deleted = new Set<string>()
 	const requests: Array<{ method: string; url: string; token: string | null; body?: string }> = []
 	const record = {
 		id: "ses-owned",
@@ -74,16 +75,18 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 			}
 			if (method === "DELETE") {
 				await wait("delete")
-				return deletionStatus === 204
-					? new Response(null, { status: 204 })
-					: Response.json({ error: "untrusted private server detail" }, { status: deletionStatus })
+				if (deletionStatus === 204) {
+					deleted.add(decodeURIComponent(url.slice(url.lastIndexOf("/") + 1)))
+					return new Response(null, { status: 204 })
+				}
+				return Response.json({ error: "untrusted private server detail" }, { status: deletionStatus })
 			}
 			if (url.endsWith("/status")) {
 				await wait("readiness")
 				return Response.json({ data: { status: readinessStatus } })
 			}
 			if (method === "PATCH") return Response.json({ data: record })
-			return Response.json({ data: [currentRecord()] })
+			return Response.json({ data: [currentRecord()].filter((listed) => !deleted.has(listed.id)) })
 		}) as typeof fetch,
 	})
 	const host = {
@@ -260,6 +263,24 @@ describe("originating-account cloud cleanup", () => {
 		await f.coordinator.reset(f.changeScope)
 		expect(f.requests.find((request) => request.method === "DELETE")?.token).toBe(`Bearer ${f.origin.token}`)
 		expect(f.changeScope).toHaveBeenCalledOnce()
+		await f.coordinator.dispose()
+	})
+
+	it("drops a cancelled start's record that History listed while it was provisioning", async () => {
+		const f = fixture("readiness")
+		f.setReadinessStatus("provisioning")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		// A state post during provisioning lists the account's sessions, which now
+		// include the record the create returned; the start has no entry for it yet.
+		await f.coordinator.listHistoryRecords()
+		f.options.invalidateHistoryCache.mockClear()
+		expect(f.coordinator.cancelPendingStart()).toBe(true)
+		f.barrier.resolve()
+		expect(await starting).toBe(f.record.id)
+		expect(f.requests.filter((request) => request.method === "DELETE")).toHaveLength(1)
+		expect(f.options.invalidateHistoryCache).toHaveBeenCalled()
+		expect(await f.coordinator.listHistoryRecords()).toEqual([])
 		await f.coordinator.dispose()
 	})
 

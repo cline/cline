@@ -56,6 +56,9 @@ export function TaskTargetPanel() {
 			return
 		}
 		const requestId = ++branchRequest.current
+		// A query refines the current list; a repository change must not leave the
+		// previous repository's branches selectable while the new list loads.
+		if (query === undefined) setBranches([])
 		setBranchesLoading(true)
 		try {
 			const result = await CloudServiceClient.getRepositoryBranches(
@@ -177,7 +180,7 @@ export function TaskTargetPanel() {
 								<SearchableSelect
 									ariaLabel="Branch"
 									className="max-w-[45%]"
-									disabled={selectedRepositoryId === undefined}
+									disabled={selectedRepositoryId === undefined || (branchesLoading && branches.length === 0)}
 									emptyText="No branches found"
 									icon={<GitBranchIcon className="size-3" />}
 									loading={branchesLoading}
