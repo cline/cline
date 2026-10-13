@@ -121,7 +121,7 @@ describe("local cloud service boundary", () => {
 			"fixture/z",
 		])
 		fetchImpl.mockResolvedValueOnce(Response.json({ error: "Missing" }, { status: 404 }))
-		await expect(service.listBranches(1)).rejects.toMatchObject({ code: "session_not_found", status: 404 })
+		await expect(service.listBranches(1)).resolves.toEqual([])
 	})
 
 	it("does not dispatch creation after the authenticated account changes", async () => {
@@ -164,7 +164,7 @@ describe("local cloud service boundary", () => {
 	it.each(["readiness", "status"] as const)("bounds a hung %s request with a non-expiring caller signal", async (operation) => {
 		const timeout = AbortSignal.timeout.bind(AbortSignal)
 		vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) =>
-			timeout(ms === 15_000 ? (operation === "status" ? 20 : 1_000) : ms),
+			timeout(ms === 610_000 ? 40 : ms === 15_000 ? (operation === "status" ? 20 : 1_000) : ms),
 		)
 		const cancel = new AbortController()
 		const service = controlledService(
@@ -177,7 +177,7 @@ describe("local cloud service boundary", () => {
 		try {
 			const request =
 				operation === "readiness"
-					? service.waitUntilReady("ses-fixture", 40, cancel.signal)
+					? service.waitUntilReady("ses-fixture", cancel.signal)
 					: service.getStatus("ses-fixture", cancel.signal)
 			const outcome = await Promise.race([
 				request.then(
@@ -242,6 +242,7 @@ describe("local cloud service boundary", () => {
 		})
 		expect(created).toMatchObject({
 			status: "ready",
+			sandboxType: "resumable",
 			repoContext: { repoUrl: "https://github.com/cline/fixture", branch: "fixture" },
 			metadata: { modelId: "fixture-model", taskId: expect.stringMatching(/^tsk-/) },
 		})
@@ -251,7 +252,7 @@ describe("local cloud service boundary", () => {
 
 		await service.renameSession(created.id, "renamed")
 		expect(await service.listSessions()).toEqual([expect.objectContaining({ id: created.id, title: "renamed" })])
-		expect(await service.getStatus(created.id)).toEqual({ status: "ready" })
+		expect(await service.getStatus(created.id)).toEqual({ status: "ready", phase: "ready" })
 		expect(await service.getHistory(created.id)).toEqual([])
 
 		await service.deleteSession(created.id)
@@ -280,9 +281,48 @@ describe("local cloud service boundary", () => {
 		await expect(creating).rejects.toThrow("cancelled by test")
 		expect(provisioningId).toMatch(/^ses-/)
 		// The record exists in `provisioning`; the caller owns its deletion.
-		expect(await service.getStatus(provisioningId!)).toEqual({ status: "provisioning" })
+		expect(await service.getStatus(provisioningId!)).toEqual({ status: "provisioning", phase: "cloning_repo" })
 		await service.deleteSession(provisioningId!)
 		expect(await service.listSessions()).toEqual([])
+	})
+
+	it("adopts a sandbox whose create response was lost instead of provisioning a second one", async () => {
+		environment = await startLocalCloudEnvironment()
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			appBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => environment?.accessToken,
+			getActiveOrganizationId: () => undefined,
+		})
+		environment.loseNextCreateResponse()
+
+		const created = await service.createSession({ modelId: "fixture-model", repoUrl: "https://github.com/cline/fixture" })
+
+		expect([...environment.sessions.keys()]).toEqual([created.id])
+		// The request marker used for recovery never reaches History as a title.
+		expect(await service.listSessions()).toEqual([expect.objectContaining({ id: created.id, title: undefined })])
+	})
+
+	it("reports provisioning phases while a sandbox starts", async () => {
+		environment = await startLocalCloudEnvironment({ provisioningDelayMs: 4_000 })
+		const service = new CloudSessionsService({
+			apiBaseUrl: environment.apiBaseUrl,
+			appBaseUrl: environment.apiBaseUrl,
+			getAuthToken: async () => environment?.accessToken,
+			getActiveOrganizationId: () => undefined,
+		})
+		const phases: string[] = []
+
+		await service.createSession(
+			{ modelId: "fixture-model", repoUrl: "https://github.com/cline/fixture" },
+			undefined,
+			undefined,
+			(phase) => {
+				if (phases.at(-1) !== phase) phases.push(phase)
+			},
+		)
+
+		expect(phases).toEqual(["cloning_repo", "agent_starting", "ready"])
 	})
 
 	it("rejects an invalid credential", async () => {
@@ -296,7 +336,7 @@ describe("local cloud service boundary", () => {
 
 		await expect(service.listSessions()).rejects.toMatchObject({
 			code: "authentication_required",
-			status: 401,
+			message: "Unauthorized",
 		} satisfies Partial<CloudSessionError>)
 	})
 

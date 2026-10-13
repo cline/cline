@@ -51,15 +51,16 @@ const clineRepo = { id: 7, name: "cline", fullName: "cline/cline", url: "https:/
 describe("TaskTargetPanel", () => {
 	afterEach(() => vi.unstubAllGlobals())
 	beforeEach(() => {
+		vi.clearAllMocks()
+		// The branch picker's popover measures its trigger.
 		vi.stubGlobal(
 			"ResizeObserver",
-			class {
+			class ResizeObserver {
 				observe() {}
 				unobserve() {}
 				disconnect() {}
 			},
 		)
-		vi.clearAllMocks()
 		mocks.cloudTaskTarget = { target: "cloud" }
 		mocks.clineUser = undefined
 		mocks.connection = undefined
@@ -96,6 +97,32 @@ describe("TaskTargetPanel", () => {
 		expect(screen.getByText("feature/cloud")).toBeInTheDocument()
 		expect(mocks.getRepositoryBranches).toHaveBeenCalledWith(expect.objectContaining({ repositoryId: 7 }))
 		expect(mocks.chooseCloudTaskTarget).not.toHaveBeenCalled()
+	})
+
+	it("offers no branches from the previous repository while the new repository's list loads", async () => {
+		const otherRepo = {
+			id: 9,
+			name: "other",
+			fullName: "cline/other",
+			url: "https://github.com/cline/other",
+			defaultBranch: "main",
+		}
+		mocks.clineUser = { uid: "user-1" }
+		mocks.connection = { signedIn: true, connected: true, connectUrl: "", repositories: [clineRepo, otherRepo] }
+		mocks.cloudTaskTarget = { target: "cloud", repositoryId: 7, repoUrl: clineRepo.url, branch: "main" }
+		mocks.getRepositoryBranches.mockResolvedValueOnce({ branches: ["main", "develop"] })
+
+		const { rerender } = render(<TaskTargetPanel />)
+		await userEvent.click(screen.getByRole("button", { name: "Branch" }))
+		expect(await screen.findByRole("button", { name: "develop" })).toBeInTheDocument()
+		await userEvent.keyboard("{Escape}")
+
+		mocks.getRepositoryBranches.mockReturnValue(new Promise(() => {}))
+		mocks.cloudTaskTarget = { target: "cloud", repositoryId: 9, repoUrl: otherRepo.url, branch: undefined }
+		rerender(<TaskTargetPanel />)
+
+		expect(screen.getByRole("button", { name: "Branch" })).toBeDisabled()
+		expect(screen.queryByRole("button", { name: "develop" })).not.toBeInTheDocument()
 	})
 
 	it("sends Local as one choice and nothing else, even while GitHub is still answering", async () => {

@@ -46,7 +46,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
-import { isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
+import { isCloudSessionsFeatureAvailable, isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
@@ -720,6 +720,10 @@ export class Controller {
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),
+			showChatView: async () => {
+				const { sendChatButtonClickedEvent } = await import("@core/controller/ui/subscribeToChatButtonClicked")
+				await sendChatButtonClickedEvent()
+			},
 			invalidateHistoryCache: () => this.taskHistory.invalidateCache(),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			telemetry: this.sdkTelemetry.telemetry,
@@ -2412,6 +2416,10 @@ export class Controller {
 		return this.cloud.resolveStatuses(sessionIds)
 	}
 
+	invalidateTaskHistoryCache(): void {
+		this.taskHistory.invalidateCache()
+	}
+
 	async exportTaskWithId(id: string): Promise<void> {
 		const taskDirPath = await this.taskHistory.getTaskDirPath(id)
 		if (!taskDirPath) {
@@ -2664,6 +2672,7 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
+				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask: this.cloud.getCurrentTaskInfo(),

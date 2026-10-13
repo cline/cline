@@ -29,6 +29,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 	const successor = { token: "fixture-successor", endpoint: "http://127.0.0.1:2222", organizationId: "org-successor" }
 	let deletionStatus = 204
 	let readinessStatus = "active"
+	const deleted = new Set<string>()
 	const requests: Array<{ method: string; url: string; token: string | null; body?: string }> = []
 	const record = {
 		id: "ses-owned",
@@ -74,16 +75,18 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 			}
 			if (method === "DELETE") {
 				await wait("delete")
-				return deletionStatus === 204
-					? new Response(null, { status: 204 })
-					: Response.json({ error: "untrusted private server detail" }, { status: deletionStatus })
+				if (deletionStatus === 204) {
+					deleted.add(decodeURIComponent(url.slice(url.lastIndexOf("/") + 1)))
+					return new Response(null, { status: 204 })
+				}
+				return Response.json({ error: "untrusted private server detail" }, { status: deletionStatus })
 			}
 			if (url.endsWith("/status")) {
 				await wait("readiness")
 				return Response.json({ data: { status: readinessStatus } })
 			}
 			if (method === "PATCH") return Response.json({ data: record })
-			return Response.json({ data: [currentRecord()] })
+			return Response.json({ data: [currentRecord()].filter((listed) => !deleted.has(listed.id)) })
 		}) as typeof fetch,
 	})
 	const host = {
@@ -123,7 +126,13 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 				providerId: "cline",
 				modelId: "fixture-model",
 				apiKey: "fixture-key",
-				providerConfig: { providerId: "cline", modelId: "fixture-model", apiKey: "fixture-key" },
+				providerConfig: {
+					providerId: "cline",
+					modelId: "fixture-model",
+					apiKey: "fixture-key",
+					knownModels: { "catalog-model": { id: "catalog-model" } },
+				},
+				knownModels: { "catalog-model": { id: "catalog-model" } },
 				cwd: "/workspace",
 				workspaceRoot: "/workspace",
 				systemPrompt: "normal Cline guidance",
@@ -159,6 +168,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),
+		showChatView: vi.fn(async () => {}),
 		invalidateHistoryCache: vi.fn(),
 		resolveContextMentions: async (prompt: string) => {
 			await wait("prompt")
@@ -256,6 +266,41 @@ describe("originating-account cloud cleanup", () => {
 		await f.coordinator.dispose()
 	})
 
+	it("drops a cancelled start's record that History listed while it was provisioning", async () => {
+		const f = fixture("readiness")
+		f.setReadinessStatus("provisioning")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		// A state post during provisioning lists the account's sessions, which now
+		// include the record the create returned; the start has no entry for it yet.
+		await f.coordinator.listHistoryRecords()
+		f.options.invalidateHistoryCache.mockClear()
+		expect(f.coordinator.cancelPendingStart()).toBe(true)
+		f.barrier.resolve()
+		expect(await starting).toBe(f.record.id)
+		expect(f.requests.filter((request) => request.method === "DELETE")).toHaveLength(1)
+		expect(f.options.invalidateHistoryCache).toHaveBeenCalled()
+		expect(await f.coordinator.listHistoryRecords()).toEqual([])
+		await f.coordinator.dispose()
+	})
+
+	it("cancels a still-provisioning start instead of waiting for it to boot", async () => {
+		const f = fixture("readiness", "org-origin")
+		f.setReadinessStatus("provisioning")
+		const starting = f.coordinator.beginCloudTask(startInput)()
+		await f.entered.promise
+		f.barrier.resolve()
+		// The user left the provisioning view for a local task before the change.
+		f.options.setTask({ taskId: "local-task" } as TaskProxy)
+		await f.coordinator.reset(f.changeScope)
+		expect(await starting).toBe(f.record.id)
+		expect(f.changeScope).toHaveBeenCalledOnce()
+		expect(f.requests.filter((request) => request.method === "DELETE")).toEqual([
+			expect.objectContaining({ token: `Bearer ${f.origin.token}` }),
+		])
+		await f.coordinator.dispose()
+	})
+
 	it("reports rejected cleanup once without exposing response text or retrying as the successor", async () => {
 		const f = fixture("create")
 		f.setDeletionStatus(401)
@@ -317,7 +362,7 @@ describe("originating-account cloud cleanup", () => {
 		await f.coordinator.dispose()
 	})
 
-	it("never sends the user's provider key into the sandbox", async () => {
+	it("never sends the user's provider key or the local model catalog into the sandbox", async () => {
 		const f = fixture("prompt")
 		const starting = f.coordinator.beginCloudTask(startInput)()
 		await f.entered.promise
@@ -326,6 +371,7 @@ describe("originating-account cloud cleanup", () => {
 		const config = vi.mocked(f.host.start).mock.calls[0]?.[0]?.config
 		expect(config?.providerConfig).toMatchObject({ providerId: "cline", modelId: "fixture-model" })
 		expect(JSON.stringify(config)).not.toContain("fixture-key")
+		expect(JSON.stringify(config)).not.toContain("catalog-model")
 		await f.coordinator.dispose()
 	})
 

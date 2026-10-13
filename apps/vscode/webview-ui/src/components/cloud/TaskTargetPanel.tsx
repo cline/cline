@@ -109,13 +109,13 @@ export function TaskTargetPanel() {
 						? "no_repositories"
 						: undefined
 
+	const branches = branchResult && branchResult.repositoryId === selectedRepositoryId ? branchResult.branches : []
 	const branchOptions = useMemo(() => {
-		const branches = branchResult && branchResult.repositoryId === selectedRepositoryId ? branchResult.branches : []
 		const known = new Set(branches)
 		const current = cloudTaskTarget?.branch
 		const all = current && !known.has(current) ? [current, ...branches] : branches
 		return all.map((branch) => ({ value: branch, label: branch }))
-	}, [branchResult, selectedRepositoryId, cloudTaskTarget?.branch])
+	}, [branches, cloudTaskTarget?.branch])
 
 	const repoOptions = useMemo(
 		() => repositories.map((repo) => ({ value: String(repo.id), label: repo.fullName || formatRepoLabel(repo.url) })),
@@ -177,7 +177,7 @@ export function TaskTargetPanel() {
 								<SearchableSelect
 									ariaLabel="Branch"
 									className="max-w-[45%]"
-									disabled={selectedRepositoryId === undefined}
+									disabled={selectedRepositoryId === undefined || (branchesLoading && branches.length === 0)}
 									emptyText="No branches found"
 									icon={<GitBranchIcon className="size-3" />}
 									loading={branchesLoading}

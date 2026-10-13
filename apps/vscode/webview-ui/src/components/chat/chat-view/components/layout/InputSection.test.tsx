@@ -164,6 +164,34 @@ describe("InputSection", () => {
 		mockCloudState.mockReturnValue({})
 	})
 
+	it("refuses to send attached files to a cloud sandbox and says why", () => {
+		mockTurnState.mockReturnValue({ phase: "idle", seq: 1 })
+		mockCloudState.mockReturnValue({
+			cloudSessionsEnabled: true,
+			cloudTaskTarget: { target: "cloud", repoUrl: "https://github.com/cline/fixture" },
+			clineMessages: [],
+		})
+		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InputSection
+				chatState={makeChatState({ sendingDisabled: false, selectedFiles: ["/home/me/notes.md"] })}
+				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const composer = screen.getByLabelText("composer")
+		expect(composer).toBeDisabled()
+		expect(screen.getByRole("status")).toHaveTextContent("Attached files can't be sent to a cloud sandbox")
+		fireEvent.keyDown(composer, { key: "Enter" })
+		expect(handleSendMessage).not.toHaveBeenCalled()
+		mockCloudState.mockReturnValue({})
+	})
+
 	it("keeps submit disabled while a cloud sandbox is still provisioning", () => {
 		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
 		mockCloudState.mockReturnValue({
