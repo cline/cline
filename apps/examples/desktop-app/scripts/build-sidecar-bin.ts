@@ -1,5 +1,7 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { stageMxcRuntime } from "../../../../sdk/packages/core/scripts/stage-mxc-runtime";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -126,6 +128,32 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 	await $`lipo -info ${outfile}`;
 };
 
+// Runtime for "Keep changes inside this project", shipped as the bin/mxc
+// resource. macOS is skipped: its native files would sit unsigned under
+// Contents/Resources and fail notarization (see macSidecarCandidates in
+// sidecar/remote-helper.ts). The note keeps the resource glob matching there.
+const stageProjectSandboxRuntime = async (
+	targetTriple: string,
+): Promise<void> => {
+	const destination = "./src-tauri/bin/mxc";
+	const platform = targetTriple.includes("windows")
+		? "win32"
+		: targetTriple.includes("linux")
+			? "linux"
+			: undefined;
+	const arch = targetTriple.startsWith("aarch64") ? "arm64" : "x64";
+	const staged =
+		platform &&
+		(await stageMxcRuntime({ destination, targets: [{ platform, arch }] }));
+	if (!staged) {
+		mkdirSync(destination, { recursive: true });
+		writeFileSync(
+			`${destination}/README.txt`,
+			`The project sandbox runtime is not bundled for ${targetTriple}.\n`,
+		);
+	}
+};
+
 const main = async () => {
 	// All compiled helpers and the sidecar depend on fresh SDK package exports.
 	await $`bun run build:sdk`.cwd(
@@ -139,6 +167,7 @@ const main = async () => {
 		await buildSidecar(targetTriple);
 	}
 	await buildRemoteHelpers();
+	await stageProjectSandboxRuntime(targetTriple);
 };
 
 main().catch((error: unknown) => {
