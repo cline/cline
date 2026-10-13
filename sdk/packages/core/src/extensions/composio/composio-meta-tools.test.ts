@@ -11,7 +11,7 @@ const sessionTools = [
 	{ slug: "COMPOSIO_MULTI_EXECUTE_TOOL" },
 ];
 
-const auth = { baseUrl: "https://api.cline.bot", token: "cline_token_123" };
+const request = (path: string, init: RequestInit) => fetch(path, init);
 
 afterEach(() => {
 	vi.unstubAllGlobals();
@@ -26,14 +26,19 @@ describe("createComposioMetaToolSession", () => {
 						success: true,
 						data: {
 							sessionId: "trs_1",
-							tools: [...sessionTools, { name: "no slug" }],
+							tools: [
+								...sessionTools,
+								{ slug: "COMPOSIO_SEARCH_TOOLS" },
+								{ name: "no slug" },
+								{ slug: "GMAIL_SEND_EMAIL" },
+							],
 						},
 					}),
 				),
 		);
 		vi.stubGlobal("fetch", fetchMock);
 
-		expect(await createComposioMetaToolSession(auth)).toEqual({
+		expect(await createComposioMetaToolSession(request)).toEqual({
 			sessionId: "trs_1",
 			tools: sessionTools,
 		});
@@ -41,13 +46,8 @@ describe("createComposioMetaToolSession", () => {
 			string,
 			RequestInit,
 		];
-		expect(url).toBe(
-			"https://api.cline.bot/api/v1/connectors/meta-tools/sessions",
-		);
+		expect(url).toBe("/api/v1/connectors/meta-tools/sessions");
 		expect(init.method).toBe("POST");
-		expect((init.headers as Record<string, string>).authorization).toBe(
-			"Bearer cline_token_123",
-		);
 	});
 
 	it.each(
@@ -62,7 +62,9 @@ describe("createComposioMetaToolSession", () => {
 			}),
 		);
 		const log = vi.fn();
-		expect(await createComposioMetaToolSession(auth, { log })).toBeUndefined();
+		expect(
+			await createComposioMetaToolSession(request, { log }),
+		).toBeUndefined();
 		expect(log).toHaveBeenCalledWith(expect.stringContaining(missingSlug));
 	});
 
@@ -82,24 +84,30 @@ describe("createComposioMetaToolSession", () => {
 				},
 			}),
 		);
-		expect(await createComposioMetaToolSession(auth)).toBeUndefined();
+		expect(await createComposioMetaToolSession(request)).toBeUndefined();
 	});
 
 	it("returns undefined without logging when there are no connectable toolkits", async () => {
 		vi.stubGlobal("fetch", async () => new Response("{}", { status: 404 }));
 		const log = vi.fn();
-		expect(await createComposioMetaToolSession(auth, { log })).toBeUndefined();
+		expect(
+			await createComposioMetaToolSession(request, { log }),
+		).toBeUndefined();
 		expect(log).not.toHaveBeenCalled();
 	});
 
 	it("returns undefined and logs on server and network errors", async () => {
 		const log = vi.fn();
 		vi.stubGlobal("fetch", async () => new Response("{}", { status: 502 }));
-		expect(await createComposioMetaToolSession(auth, { log })).toBeUndefined();
+		expect(
+			await createComposioMetaToolSession(request, { log }),
+		).toBeUndefined();
 		vi.stubGlobal("fetch", async () => {
 			throw new Error("offline");
 		});
-		expect(await createComposioMetaToolSession(auth, { log })).toBeUndefined();
+		expect(
+			await createComposioMetaToolSession(request, { log }),
+		).toBeUndefined();
 		expect(log).toHaveBeenCalledTimes(2);
 	});
 
@@ -108,7 +116,25 @@ describe("createComposioMetaToolSession", () => {
 			"fetch",
 			async () => new Response(JSON.stringify({ data: {} })),
 		);
-		expect(await createComposioMetaToolSession(auth)).toBeUndefined();
+		expect(await createComposioMetaToolSession(request)).toBeUndefined();
+	});
+
+	it.each([
+		"request",
+		"body",
+	])("times out a stalled %s when the host ignores cancellation", async (stage) => {
+		vi.useFakeTimers();
+		try {
+			const pending = createComposioMetaToolSession(() =>
+				stage === "request"
+					? new Promise<Response>(() => {})
+					: Promise.resolve(new Response(new ReadableStream())),
+			);
+			await vi.advanceTimersByTimeAsync(5_000);
+			await expect(pending).resolves.toBeUndefined();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
@@ -120,7 +146,7 @@ describe("executeComposioMetaTool", () => {
 				new Response(JSON.stringify({ error: "not found" }), { status: 404 }),
 		);
 		const result = await executeComposioMetaTool(
-			auth,
+			request,
 			"trs_1",
 			"COMPOSIO_MANAGE_CONNECTIONS",
 			{},

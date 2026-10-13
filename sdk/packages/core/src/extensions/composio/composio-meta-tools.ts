@@ -28,7 +28,11 @@ const REQUIRED_META_TOOL_SLUGS = [
 	"COMPOSIO_MULTI_EXECUTE_TOOL",
 ] as const;
 
-export type ConnectorsAuth = { baseUrl: string; token: string };
+/** The host owns the API origin and user authentication for connector requests. */
+export type ConnectorsRequest = (
+	path: string,
+	init: RequestInit,
+) => Promise<Response>;
 
 export type ComposioMetaTool = {
 	slug: string;
@@ -48,35 +52,37 @@ export type ComposioMetaToolSession = {
  * any network failure. Callers then run without the meta tools.
  */
 export async function createComposioMetaToolSession(
-	auth: ConnectorsAuth,
+	request: ConnectorsRequest,
 	options?: { log?: (message: string) => void },
 ): Promise<ComposioMetaToolSession | undefined> {
-	let response: Response;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
 	try {
-		response = await fetch(
-			`${auth.baseUrl}${CONNECTORS_API_PATH}/meta-tools/sessions`,
+		const pendingResponse = request(
+			`${CONNECTORS_API_PATH}/meta-tools/sessions`,
 			{
 				method: "POST",
-				headers: { authorization: `Bearer ${auth.token}` },
 				signal: AbortSignal.timeout(META_TOOL_SESSION_TIMEOUT_MS),
 			},
 		);
-	} catch (error) {
-		options?.log?.(
-			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
-		return undefined;
-	}
-	if (!response.ok) {
-		if (response.status !== 404) {
-			options?.log?.(
-				`composio-tools: meta-tool session returned HTTP ${response.status}`,
+		const deadline = new Promise<never>((_, reject) => {
+			timeout = setTimeout(
+				() => reject(new Error("Connector discovery timed out")),
+				META_TOOL_SESSION_TIMEOUT_MS,
 			);
+		});
+		const response = await Promise.race([pendingResponse, deadline]);
+		if (!response.ok) {
+			if (response.status !== 404) {
+				options?.log?.(
+					`composio-tools: meta-tool session returned HTTP ${response.status}`,
+				);
+			}
+			return undefined;
 		}
-		return undefined;
-	}
-	try {
-		const parsed = (await response.json()) as {
+		const parsed = (await Promise.race([
+			response.json().catch(() => undefined),
+			deadline,
+		])) as {
 			data?: { sessionId?: unknown; tools?: unknown };
 		};
 		const sessionId = parsed?.data?.sessionId;
@@ -86,7 +92,8 @@ export async function createComposioMetaToolSession(
 		}
 		const metaTools = tools.filter(
 			(tool): tool is ComposioMetaTool =>
-				typeof tool?.slug === "string" && tool.slug.length > 0,
+				typeof tool?.slug === "string" &&
+				REQUIRED_META_TOOL_SLUGS.some((slug) => slug === tool.slug),
 		);
 		const slugs = new Set(metaTools.map((tool) => tool.slug));
 		const missing = REQUIRED_META_TOOL_SLUGS.filter((slug) => !slugs.has(slug));
@@ -96,25 +103,32 @@ export async function createComposioMetaToolSession(
 			);
 			return undefined;
 		}
-		return { sessionId, tools: metaTools };
-	} catch {
+		return {
+			sessionId,
+			tools: [...new Map(metaTools.map((tool) => [tool.slug, tool])).values()],
+		};
+	} catch (error) {
+		options?.log?.(
+			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
 		return undefined;
+	} finally {
+		clearTimeout(timeout);
 	}
 }
 
 export async function executeComposioMetaTool(
-	auth: ConnectorsAuth,
+	request: ConnectorsRequest,
 	sessionId: string,
 	slug: string,
 	input: unknown,
 ): Promise<unknown> {
-	const url = `${auth.baseUrl}${CONNECTORS_API_PATH}/meta-tools/${encodeURIComponent(slug)}/execute`;
+	const url = `${CONNECTORS_API_PATH}/meta-tools/${encodeURIComponent(slug)}/execute`;
 	let response: Response;
 	try {
-		response = await fetch(url, {
+		response = await request(url, {
 			method: "POST",
 			headers: {
-				authorization: `Bearer ${auth.token}`,
 				"content-type": "application/json",
 			},
 			body: JSON.stringify({

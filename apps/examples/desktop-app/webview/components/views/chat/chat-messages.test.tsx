@@ -1130,10 +1130,21 @@ describe("ChatMessages tool disclosures", () => {
 		const copyButton = container.querySelector<HTMLButtonElement>(
 			'button[aria-label="Copy user message"]',
 		);
-		await act(async () => copyButton?.click());
+		vi.useFakeTimers();
+		try {
+			await act(async () => copyButton?.click());
 
-		expect(writeText).toHaveBeenCalledOnce();
-		expect(writeText).toHaveBeenCalledWith("Original prompt");
+			expect(writeText).toHaveBeenCalledOnce();
+			expect(writeText).toHaveBeenCalledWith("Original prompt");
+			expect(copyButton?.getAttribute("aria-label")).toBe(
+				"Copied user message",
+			);
+
+			await act(async () => vi.runOnlyPendingTimers());
+			expect(copyButton?.getAttribute("aria-label")).toBe("Copy user message");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("hides runtime steering notes from the transcript", async () => {

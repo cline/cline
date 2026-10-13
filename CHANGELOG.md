@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.1.24]
+
+### Changed
+
+- With no model chosen, the Cline and OpenRouter providers now use Claude Sonnet 5.5. For Cline, that's the first model in Cline's recommended list.
+- Selecting ai& shows its own API key and model picker, instead of the generic OpenAI-compatible form with base URL and custom headers.
+- Refreshed the model catalog. Adds Claude Haiku 5.5 and the AI/ML API, LowRouter, and Prime Inference providers. The Cline free list adds Step 5 Preview. The v0 provider now offers only its default model, `v0-1.5-md`, and OpenCode Go uses its new `https://opencode.ai/inference/go/v1` endpoint. Default models change for 302.AI, Cortecs, CrossModel, DevPass, DigitalOcean, Eden AI, GitHub Copilot, Google Vertex AI, LLM Gateway, Meta, Moark, NanoGPT, NEAR AI Cloud, Neuralwatt, Novita AI, Ofox, OpenCode Go, Requesty, Vivgrid, and a few others (most now Claude Haiku 5.5 or Muse Wonder 1.0). If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- Turning reasoning off no longer fails with a 400 error on GPT-6 Astra, GPT-6.1 Sol, Claude Fable 5 or Claude Opus 5.5, and now works on every provider. Level-only Gemini models no longer reject the request with a thinking-budget error.
+- An MCP server or hook that exits before reading all of its input no longer crashes the extension host about 3 seconds later.
+- A 404 from a stale or retired model id is no longer shown as a sign-in problem. Cline shows the real error instead of the logged-out card.
+- Errors in the Cline output log keep their details. Production builds used to drop them, so a line like "Cline OAuth login failed:" showed no reason.
+- Deleting a slash command from the input keeps the spacing of the text around it.
+- Screenshots and other images no longer inflate the token estimate, which made auto-compaction run long before the conversation was near its limit.
+- Auto-compaction uses the selected model's context window when the catalog entry has none.
+- Rule files that are symlinks now load, and skills in `.claude/skills` are now discovered.
+- The editor tool no longer receives null in place of the text to replace from some models.
+- Settings migrated from older versions no longer add an empty SAP AI Core provider.
+
 ## [4.1.23]
 
 ### Changed

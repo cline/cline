@@ -9,7 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import {
 	isClineAccountFeatureEnabled,
-	resolveComposioToolsStatePath,
+	resolveComposioConnectionStatePath,
 } from "@cline/core";
 import { type BasicLogger, FeatureFlag } from "@cline/shared";
 import { resolveClineDir } from "@cline/shared/storage";
@@ -36,7 +36,6 @@ import {
 	fetchConnectableToolkits,
 	initiateConnection,
 	listConnections,
-	listToolkitTools,
 	waitForConnectionActive,
 } from "./cline-connectors-api";
 
@@ -50,15 +49,10 @@ import {
  * account — a client-held key can't be user-scoped, so the proxy is what
  * keeps one install from acting as another user. There is no local API key.
  *
- * The sidecar still owns connection bookkeeping and the OAuth-completion
- * wait, and persists connection state plus fetched tool schemas to
- * `<cline-data>/settings/composio/<account-hash>.json`, which core's built-in
- * `composio-tools` extension (`@cline/core`, composio-tools-extension.ts)
- * reads at session start to register one tool per connected Composio tool.
- * New sessions pick state changes up automatically; running sessions keep
- * their frozen tool set. The persisted file no longer holds an API key; the
- * proxy resolves the account bearer token per call, and the composio-tools
- * extension executes tools through the same proxy.
+ * The sidecar owns connection bookkeeping and OAuth completion, persisting
+ * connection IDs and display metadata to the account-scoped state file.
+ * Core uses a server-owned meta-tool session for discovery and execution;
+ * connection management never fetches or stores app tool schemas.
  */
 
 /** Where pre–in-process-registration builds materialized a drop-in plugin;
@@ -66,23 +60,12 @@ import {
 const LEGACY_COMPOSIO_PLUGIN_RELATIVE_PATH = ["plugins", "composio-tools.ts"];
 /** How long the background waiter gives the user to finish the browser flow. */
 const CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
-const MAX_TOOL_DESCRIPTION_LENGTH = 1024;
-
-type StoredComposioTool = {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: Record<string, unknown>;
-};
-
 type StoredComposioToolkit = {
 	connectedAccountId: string;
 	connectedAt: string;
 	/** Display metadata captured from the catalog at connect time. */
 	name?: string;
 	logo?: string;
-	tools: StoredComposioTool[];
 };
 
 type StoredComposioState = {
@@ -151,40 +134,6 @@ function getAccountScope(): AccountScope | undefined {
 	return scope;
 }
 
-function parseToolInputParameters(
-	value: unknown,
-): Record<string, unknown> | undefined {
-	return typeof value === "object" && value !== null
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-function toStoredTool(raw: {
-	slug: string;
-	name?: string;
-	description?: string;
-	version?: string;
-	input_parameters?: unknown;
-}): StoredComposioTool | undefined {
-	if (!raw?.slug) {
-		return undefined;
-	}
-	const description = raw.description?.trim();
-	return {
-		slug: raw.slug,
-		name: raw.name?.trim() || undefined,
-		description:
-			description && description.length > MAX_TOOL_DESCRIPTION_LENGTH
-				? `${description.slice(0, MAX_TOOL_DESCRIPTION_LENGTH)}…`
-				: description || undefined,
-		version:
-			typeof raw.version === "string" && raw.version.trim()
-				? raw.version.trim()
-				: undefined,
-		input_parameters: parseToolInputParameters(raw.input_parameters),
-	};
-}
-
 function formatConnectorsError(error: unknown): string {
 	if (error instanceof ConnectorsApiError) {
 		return error.message;
@@ -211,7 +160,7 @@ export function parseComposioToolkitSlug(value: unknown): ComposioToolkitSlug {
 // ── Persisted state ──────────────────────────────────────────────────────
 
 function readComposioState(scope: AccountScope): StoredComposioState {
-	const path = resolveComposioToolsStatePath(scope.accountId);
+	const path = resolveComposioConnectionStatePath(scope.accountId);
 	if (!existsSync(path)) {
 		return {};
 	}
@@ -229,7 +178,7 @@ function writeComposioState(
 	scope: AccountScope,
 	state: StoredComposioState,
 ): void {
-	const path = resolveComposioToolsStatePath(scope.accountId);
+	const path = resolveComposioConnectionStatePath(scope.accountId);
 	mkdirSync(dirname(path), { recursive: true });
 	// The file no longer holds an API key, but connection metadata is still
 	// user data; keep it owner-readable only, unchanged from before.
@@ -310,8 +259,8 @@ function pruneConfirmedCancelledAccount(
  * through the proxy's delete (which revokes upstream credentials). Returns
  * true when the account is confirmed gone (deleted now, or already gone / a
  * 404) — the caller then prunes its tombstone. A failure is logged, not
- * thrown: the persisted tombstone keeps the account from ever materializing
- * tools locally, and the status-refresh reconciliation retries the deletion
+ * thrown: the persisted tombstone keeps the account from ever being imported
+ * locally, and the status-refresh reconciliation retries the deletion
  * whenever the proxy still reports the account.
  */
 async function revokeConnectedAccountQuietly(
@@ -338,7 +287,7 @@ async function revokeConnectedAccountQuietly(
  * (their browser flows may still complete afterwards) and revoke them
  * remotely in the background, pruning each tombstone once its revocation is
  * confirmed. The tombstones are what guarantee the accounts can never
- * materialize local tools; the revocations are best-effort cleanup. Mutates
+ * be imported locally; the revocations are best-effort cleanup. Mutates
  * `state`; the caller persists it.
  */
 function abandonPendingConnections(
@@ -363,9 +312,9 @@ function abandonPendingConnections(
 
 /**
  * Earlier builds materialized a drop-in plugin at
- * `~/.cline/plugins/composio-tools.ts`; connector tools now register inside
- * core at session start, so a leftover file would double-register the tools
- * on hosts that can load drop-in plugins (and fail noisily on hosts that
+ * `~/.cline/plugins/composio-tools.ts`; core now registers only meta tools.
+ * A leftover file would eagerly expose app schemas again on hosts that can
+ * load drop-in plugins (and fail noisily on hosts that
  * cannot). Best-effort removal on every reconciled read — a forced unlink
  * of a missing file is a single cheap syscall.
  */
@@ -444,8 +393,7 @@ async function isConnectorsAvailable(
 	if (!configured) {
 		// Signed out or un-entitled: connections in the state file belong to a
 		// session that can no longer act on them. Drop them so no stale
-		// connectors are reported (and so the composio-tools extension, which
-		// also fails closed without a token, and the UI agree).
+		// connectors are reported. Core gates meta-tool registration separately.
 		scope.catalogCache = null;
 		clearConnectorStateForSignedOut(scope);
 	}
@@ -484,14 +432,6 @@ function summarizeToolkit(
 	const catalogEntry = scope.catalogCache?.entries.find(
 		(entry) => entry.slug === slug,
 	);
-	// A connected toolkit with zero materialized tools is a wedge, not a
-	// healthy state (sessions get nothing) — surface it instead of letting
-	// the card look fine. Reconciliation re-fetches the schemas on the next
-	// status refresh (see getComposioStatus).
-	const zeroToolsWarning =
-		status === "connected" && stored && stored.tools.length === 0
-			? "Connected, but no tools were retrieved from Composio yet. They are re-fetched automatically; if this persists, disconnect and reconnect."
-			: undefined;
 	return {
 		toolkit: slug,
 		name: recommended?.name ?? stored?.name ?? catalogEntry?.name ?? slug,
@@ -501,8 +441,7 @@ function summarizeToolkit(
 		status,
 		connectedAccountId: stored?.connectedAccountId,
 		connectedAt: stored?.connectedAt,
-		toolNames: stored?.tools.map((tool) => tool.name?.trim() || tool.slug),
-		error: scope.lastConnectionErrors.get(slug) ?? zeroToolsWarning,
+		error: scope.lastConnectionErrors.get(slug),
 	};
 }
 
@@ -558,8 +497,7 @@ export async function getComposioStatus(options?: {
 	}
 	// Reconcile with the proxy: connections can be revoked (or added) from the
 	// Composio dashboard, or by another device, without this app knowing.
-	// Refresh every active toolkit's schemas too: persisted tools may be
-	// incomplete or outdated. Ordinary status polling still uses local state.
+	// Ordinary status polling uses local connection state.
 	try {
 		const refreshSequence = ++scope.operationSequence;
 		const connections = await listConnections({
@@ -591,7 +529,7 @@ export async function getComposioStatus(options?: {
 		// Reconciliation is computed as per-slug DELTAS against the state
 		// snapshot taken when this refresh started (the baseline), never as a
 		// whole toolkit map to assign: an OAuth connection that finalizes
-		// while the tool fetches below are in flight lives only in the fresh
+		// while the remote request is in flight lives only in the fresh
 		// state, and replacing the map wholesale would silently discard it.
 		const startToolkits = state.toolkits ?? {};
 		const baselineIdBySlug = new Map<ComposioToolkitSlug, string | undefined>();
@@ -619,7 +557,7 @@ export async function getComposioStatus(options?: {
 				!scope.pendingConnections.has(slug) &&
 				// A connect mid-initiation owns the slug (its pending entry does
 				// not exist yet): a redirect-less attempt can already be ACTIVE
-				// remotely while its finalize is still fetching tools, and
+				// remotely while its initiation is still in flight, and
 				// importing it here would keep it installed even if that
 				// finalize then fails and abandons the account.
 				!scope.connectInitiationsInFlight.has(slug) &&
@@ -627,7 +565,7 @@ export async function getComposioStatus(options?: {
 				// toolkit; writing it back would resurrect the connection.
 				(scope.lastDisconnectSequence.get(slug) ?? 0) < refreshSequence
 			) {
-				// A same-account re-fetch keeps the original connection metadata.
+				// A same-account refresh keeps the original connection metadata.
 				const sameAccount = Boolean(
 					stored && stored.connectedAccountId === remoteAccountId,
 				);
@@ -640,13 +578,12 @@ export async function getComposioStatus(options?: {
 					...lookupCatalogDisplayInfo(scope, slug),
 					...(sameAccount && stored?.name ? { name: stored.name } : {}),
 					...(sameAccount && stored?.logo ? { logo: stored.logo } : {}),
-					tools: await fetchToolkitTools(scope, slug, ctx),
 				});
 			}
 		}
 		if (removals.length > 0 || imports.size > 0) {
-			// The tool fetches above are slow enough for a connect, disconnect,
-			// cancel, or sign-out to have landed meanwhile. Each delta is
+			// A connect, disconnect, cancel, or sign-out may have landed while
+			// fetching remote connections. Each delta is
 			// applied to the freshly read state only if that slug still matches
 			// the baseline it was decided against (per-slug compare-and-swap),
 			// so concurrent changes survive this write.
@@ -696,7 +633,7 @@ export async function getComposioStatus(options?: {
 			`composio status refresh failed: ${formatConnectorsError(error)}`,
 		);
 	}
-	return buildStatusResponse(scope, state, configured);
+	return buildStatusResponse(scope, readComposioState(scope), configured);
 }
 
 // ── Toolkit catalog ──────────────────────────────────────────────────────
@@ -893,7 +830,7 @@ export async function connectComposioToolkit(
 					return; // Cancelled or superseded while we waited.
 				}
 				// finalizeToolkitConnection re-checks the attempt at write time,
-				// so a cancel or disconnect that lands during the tool fetch
+				// so a cancel or disconnect that lands during authorization
 				// cannot be overwritten by this attempt.
 				await finalizeToolkitConnection(
 					scope,
@@ -1118,26 +1055,7 @@ export async function disconnectComposioToolkit(
 	return buildStatusResponse(scope, next, true);
 }
 
-// ── Tool materialization ─────────────────────────────────────────────────
-
-async function fetchToolkitTools(
-	scope: AccountScope,
-	toolkit: ComposioToolkitSlug,
-	ctx: ClineAuthTelemetryContext,
-): Promise<StoredComposioTool[]> {
-	const rawTools = await listToolkitTools(toolkit, {
-		...ctx,
-		accountId: scope.accountId,
-	});
-	const tools: StoredComposioTool[] = [];
-	for (const raw of rawTools) {
-		const tool = toStoredTool(raw);
-		if (tool) {
-			tools.push(tool);
-		}
-	}
-	return tools;
-}
+// ── Connection finalization ──────────────────────────────────────────────
 
 type FinalizeGuard = {
 	/** Present for browser-flow attempts; the pending entry must still carry
@@ -1194,14 +1112,13 @@ async function finalizeToolkitConnection(
 	guard: FinalizeGuard,
 	ctx: ClineAuthTelemetryContext,
 ): Promise<boolean> {
-	const tools = await fetchToolkitTools(scope, toolkit, ctx);
 	if (getClineAccountId() !== scope.accountId) {
 		await abandonFinalizedConnection(scope, connectedAccountId, ctx);
 		return false;
 	}
 	// Everything below (up to the state write) runs synchronously, so these
 	// write-time checks cannot be raced by a cancel or disconnect that
-	// happened while the tool fetch (or the browser flow) was in flight.
+	// happened while initiation or the browser flow was in flight.
 	if (
 		guard.attemptId &&
 		scope.pendingConnections.get(toolkit)?.attemptId !== guard.attemptId
@@ -1241,7 +1158,6 @@ async function finalizeToolkitConnection(
 				connectedAccountId,
 				connectedAt: new Date().toISOString(),
 				...lookupCatalogDisplayInfo(scope, toolkit),
-				tools,
 			},
 		};
 	});
@@ -1255,9 +1171,7 @@ async function finalizeToolkitConnection(
 			},
 		);
 	}
-	ctx.logger?.log?.(
-		`composio connected ${toolkit} with ${tools.length} tool(s)`,
-	);
+	ctx.logger?.log?.(`composio connected ${toolkit}`);
 	return true;
 }
 
