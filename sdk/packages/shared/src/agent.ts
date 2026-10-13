@@ -609,9 +609,8 @@ export interface AgentRuntimeConfig {
 	// model request.
 	consumePendingUserMessage?: () =>
 		| string
-		| AgentMessage
 		| undefined
-		| Promise<string | AgentMessage | undefined>;
+		| Promise<string | undefined>;
 }
 
 // =============================================================================

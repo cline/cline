@@ -68,7 +68,6 @@ export type ActiveSession = {
 export type PendingPrompt = {
 	id: string;
 	prompt: string;
-	displayPrompt?: string;
 	mode?: CoreAgentMode;
 	delivery: "queue" | "steer";
 	userImages?: string[];

@@ -2946,7 +2946,7 @@ describe("LocalRuntimeHost", () => {
 		]);
 	});
 
-	it("wraps consumed steer prompts as mode-scoped user input and preserves attachments", async () => {
+	it("wraps consumed steer prompts as mode-scoped user input", async () => {
 		const sessionId = "sess-steer-format";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -3019,40 +3019,6 @@ describe("LocalRuntimeHost", () => {
 			agentConfig?.consumePendingUserMessage?.(),
 		);
 		expect(consumed).toBe('<user_input mode="plan">steer this</user_input>');
-		const attachmentDir = mkdtempSync(
-			join(tmpdir(), "cline-question-attachments-"),
-		);
-		const attachmentPath = join(attachmentDir, "spec.txt");
-		writeFileSync(attachmentPath, "Implementation must use the existing API.");
-		try {
-			await manager.runTurn({
-				sessionId,
-				prompt: "Use these attachments",
-				mode: "plan",
-				delivery: "steer",
-				userImages: ["data:image/png;base64,abc"],
-				userFiles: [attachmentPath],
-			});
-			const multimodal = await agentConfig?.consumePendingUserMessage?.();
-			expect(multimodal).toMatchObject({
-				role: "user",
-				content: [
-					{
-						type: "text",
-						text: '<user_input mode="plan">Use these attachments</user_input>',
-					},
-					{ type: "image", image: "abc", mediaType: "image/png" },
-					{
-						type: "file",
-						path: attachmentPath.replace(/\\/g, "/"),
-						content: "Implementation must use the existing API.",
-					},
-				],
-			});
-			expect(await agentConfig?.consumePendingUserMessage?.()).toBeUndefined();
-		} finally {
-			rmSync(attachmentDir, { recursive: true, force: true });
-		}
 		// The agent receives a session-scoped view over the host telemetry.
 		const capture = vi.spyOn(telemetry, "capture");
 		agentConfig?.telemetry?.capture({

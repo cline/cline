@@ -216,10 +216,6 @@ export async function handleSessionInput(
 			: typeof payload.input === "string"
 				? payload.input
 				: "";
-	const displayPrompt =
-		typeof payload.displayPrompt === "string"
-			? payload.displayPrompt
-			: undefined;
 	const attachments =
 		payload.attachments &&
 		typeof payload.attachments === "object" &&
@@ -271,7 +267,6 @@ export async function handleSessionInput(
 				{
 					sessionId,
 					prompt,
-					displayPrompt,
 					mode: parseTurnMode(payload.mode),
 					delivery:
 						payload.delivery === "queue" || payload.delivery === "steer"

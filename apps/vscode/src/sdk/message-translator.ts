@@ -2184,7 +2184,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "pending_prompt_submitted": {
-			const { prompt, displayPrompt, userImages, userFiles } = event.payload
+			const { prompt, userImages, userFiles } = event.payload
 			// Synthetic prompts (task resumption, plan -> act auto-continue) are
 			// hidden from every other transcript surface, and this echo must
 			// hide them too: a send that races a settling abort is auto-queued
@@ -2197,8 +2197,8 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			// Display boundary: formatDisplayUserInput strips runtime-generated
 			// notice elements (e.g. mode_notice) that normalizeUserInput must
 			// preserve, since the latter also sanitizes model-bound prompts.
-			const visiblePrompt = isSyntheticUserPrompt(prompt) ? "" : formatDisplayUserInput(displayPrompt ?? prompt)
-			const hasPrompt = visiblePrompt.trim().length > 0
+			const displayPrompt = isSyntheticUserPrompt(prompt) ? "" : formatDisplayUserInput(prompt)
+			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0
 			if (hasPrompt || hasImages || hasFiles) {
@@ -2206,7 +2206,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 					ts: state.nextTs(),
 					type: "say",
 					say: "user_feedback",
-					text: visiblePrompt,
+					text: displayPrompt,
 					images: userImages,
 					files: userFiles,
 					partial: false,
