@@ -105,16 +105,26 @@ let mxcModule: Promise<MxcModule> | undefined;
 
 function loadMxc(): Promise<MxcModule> {
 	mxcModule ??= (async () => {
+		// Bun before 1.4 crashes the whole process in koffi's N-API finalizer.
+		const [major = 0, minor = 0] = (process.versions.bun ?? "")
+			.split(".")
+			.map(Number);
+		if (process.versions.bun && (major < 1 || (major === 1 && minor < 4))) {
+			throw new Error(`Bun ${process.versions.bun} is too old`);
+		}
 		const entrypoint = mxcEntrypointCandidates().find((candidate) =>
 			existsSync(candidate),
 		);
-		if (entrypoint) {
-			return (await import(pathToFileURL(entrypoint).href)) as MxcModule;
-		}
 		// A non-literal specifier keeps bundlers from inlining MXC, whose native
 		// FFI layer must load from its installed package directory.
-		const specifier = "@microsoft/mxc-sdk/v1";
-		return (await import(specifier)) as MxcModule;
+		const specifier = entrypoint
+			? pathToFileURL(entrypoint).href
+			: "@microsoft/mxc-sdk/v1";
+		try {
+			return (await import(specifier)) as MxcModule;
+		} catch {
+			throw new Error("the sandbox isn't included in this build of Cline");
+		}
 	})().catch((error) => {
 		mxcModule = undefined;
 		throw error;
@@ -193,9 +203,6 @@ export function spawnInProjectSandbox(
 ): ChildProcess {
 	const handle = new SandboxedProcess();
 	void loadMxc()
-		.catch(() => {
-			throw new Error("the sandbox isn't included in this build of Cline");
-		})
 		.then((mxc) =>
 			mxc.spawn({
 				command: [config.executable, ...config.args].map(quoteArg).join(" "),
