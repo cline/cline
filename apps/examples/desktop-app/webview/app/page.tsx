@@ -109,7 +109,6 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
-	getHandoffTargetDraft,
 	hasLivePendingHandoff,
 	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
@@ -327,6 +326,14 @@ function useCloudProvisioningPhase(
 		? `${label}... This may take several minutes.`
 		: `${label}...`;
 }
+
+type OpenSessionOptions = {
+	environmentId?: string;
+	silent?: boolean;
+	initialPromptDraft?: string;
+	initialAttachments?: File[];
+	expectedActiveThreadId?: string;
+};
 
 function CloudProvisioningPane({ phase }: { phase: string }) {
 	return (
@@ -792,7 +799,7 @@ export default function Home() {
 							return;
 						const { retryDraft, retryAttachments } = source;
 						const matches = await matchesCloudHandoffFollowUp(
-							getHandoffTargetDraft(source),
+							retryDraft,
 							retryAttachments ?? [],
 							saved,
 						).catch(() => false);
@@ -962,20 +969,8 @@ export default function Home() {
 	const handleOpenSessionById = useCallback(
 		async (
 			sessionId: string,
-			optionsOrEnvironment:
-				| string
-				| {
-						environmentId?: string;
-						silent?: boolean;
-						initialPromptDraft?: string;
-						initialAttachments?: File[];
-						expectedActiveThreadId?: string;
-				  } = {},
+			options: OpenSessionOptions = {},
 		): Promise<HandoffOpenResult | undefined> => {
-			const options =
-				typeof optionsOrEnvironment === "string"
-					? { environmentId: optionsOrEnvironment }
-					: optionsOrEnvironment;
 			const environmentId = options.environmentId;
 			if (
 				!isExpectedHandoffSourceActive(
@@ -1460,14 +1455,7 @@ function ChatThreadPane({
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
-		optionsOrEnvironment?:
-			| string
-			| {
-					environmentId?: string;
-					silent?: boolean;
-					initialPromptDraft?: string;
-					initialAttachments?: File[];
-			  },
+		options?: OpenSessionOptions,
 	) => HandoffOpenResult | undefined | Promise<HandoffOpenResult | undefined>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
@@ -1567,9 +1555,8 @@ function ChatThreadPane({
 			? handoffUiState[sourceSessionId]
 			: undefined;
 	const handoffProgress = handoffUi?.status === "progress" ? handoffUi : null;
-	const pendingHandoffRecovery = readPendingHandoffRecovery(
-		historySession?.metadata,
-	);
+	const handoffMetadata = (liveHistorySession ?? historySession)?.metadata;
+	const pendingHandoffRecovery = readPendingHandoffRecovery(handoffMetadata);
 	const handoffRetryEligible =
 		Boolean(pendingHandoffRecovery) ||
 		handoffUi?.status === "recovery" ||
@@ -1593,15 +1580,17 @@ function ChatThreadPane({
 			handoffUi?.status === "recovery_dismissed" ||
 			handoffUi?.status === "failed" ||
 			handoffUi?.status === "retry_restored") &&
-		(handoffUi.retryDraft || handoffUi.retryAttachments?.length)
+		(handoffUi.retryDraft !== undefined || handoffUi.retryAttachments?.length)
 			? {
-					draft: handoffUi.retryDraft,
+					draft: handoffUi.retryDraft
+						? `/cloud ${handoffUi.retryDraft}`
+						: "/cloud",
 					attachments: handoffUi.retryAttachments,
 				}
 			: null;
 	const handoffReceipt = resolveHandoffReceipt(
 		handoffUi,
-		readHandoffReceipt(historySession?.metadata),
+		readHandoffReceipt(handoffMetadata),
 	);
 	const handoffExternalPresentation =
 		handoffUi?.status === "complete" && handoffUi.externalPresentation;
@@ -3093,7 +3082,7 @@ function ChatThreadPane({
 			const outcome = await Promise.resolve(
 				onOpenSessionById?.(receipt.targetSessionId, {
 					silent: true,
-					initialPromptDraft: getHandoffTargetDraft(handoffUi),
+					initialPromptDraft: retryDraft,
 					initialAttachments: retryAttachments,
 				}),
 			).catch(() => ({ opened: false, draftDelivered: false }));
@@ -3240,7 +3229,7 @@ function ChatThreadPane({
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
 		async (agentSessionId: string) => {
-			await onOpenSessionById?.(agentSessionId, environmentId);
+			await onOpenSessionById?.(agentSessionId, { environmentId });
 		},
 		[environmentId, onOpenSessionById],
 	);
@@ -3409,12 +3398,17 @@ function ChatThreadPane({
 			/>
 			{chatComposer}
 		</div>
-	) : handoffRecoveryUrl ? (
+	) : handoffRecoveryUrl ||
+		(pendingHandoffRecovery && !pendingHandoffRecovery.dashboardUrl) ? (
 		<div className="w-full">
 			<CloudHandoffRecoveryNotice
-				dashboardUrl={handoffRecoveryUrl}
-				onDismiss={handleDismissHandoffRecovery}
-				onOpenCloud={handleOpenHandoffProgressLink}
+				dashboardUrl={handoffRecoveryUrl ?? undefined}
+				onDismiss={
+					handoffRecoveryUrl ? handleDismissHandoffRecovery : undefined
+				}
+				onOpenCloud={
+					handoffRecoveryUrl ? handleOpenHandoffProgressLink : undefined
+				}
 			/>
 			{chatComposer}
 		</div>

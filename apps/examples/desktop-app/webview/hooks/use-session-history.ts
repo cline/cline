@@ -449,6 +449,8 @@ function areSessionsEquivalent(
 			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
 			JSON.stringify(a.metadata?.handoff) !==
 				JSON.stringify(b.metadata?.handoff) ||
+			JSON.stringify(a.metadata?.cloudHandoffIntent) !==
+				JSON.stringify(b.metadata?.cloudHandoffIntent) ||
 			!areScheduleInfosEqual(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),

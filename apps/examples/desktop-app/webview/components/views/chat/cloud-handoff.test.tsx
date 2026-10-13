@@ -220,6 +220,12 @@ describe("CloudHandoffReceipt", () => {
 });
 
 describe("CloudHandoffRecoveryNotice", () => {
+	it("explains unresolved creation without offering a nonexistent cloud target", () => {
+		const view = render(<CloudHandoffRecoveryNotice />);
+		expect(view.textContent).toContain("Cloud creation is unconfirmed");
+		expect(view.textContent).toContain("Retry /cloud to check again");
+		expect(view.querySelector("button")).toBeNull();
+	});
 	it("requires an explicit restore or dismiss for uncertain delivery", () => {
 		const onRestoreDraft = vi.fn();
 		const onDismiss = vi.fn();
