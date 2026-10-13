@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SessionNotFoundError } from "@cline/core";
+import { SessionNotFoundError, SqliteSessionStore } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
@@ -2464,6 +2464,80 @@ describe("first-send connection updates", () => {
 			Object.assign(new Error("Hub connection closed"), {
 				name: "HubTransportError",
 			});
+
+		it.each([
+			["send", undefined],
+			["reset", undefined],
+			["send", "pending"],
+			["send", "complete"],
+		] as const)("uses a saved SQLite row without Hub or manifest (%s, %s)", async (action, status) => {
+			const dataDir = mkdtempSync(join(tmpdir(), "desktop-hub-loss-sqlite-"));
+			const previousDbDir = process.env.CLINE_DB_DATA_DIR;
+			const previousSessionDir = process.env.CLINE_SESSION_DATA_DIR;
+			vi.stubEnv("CLINE_DB_DATA_DIR", join(dataDir, "db"));
+			vi.stubEnv("CLINE_SESSION_DATA_DIR", join(dataDir, "sessions"));
+			const store = new SqliteSessionStore();
+			const { ctx, get, send, sessionId } = createContext();
+			store.create({
+				sessionId,
+				source: "desktop",
+				pid: 0,
+				startedAt: "2026-10-13T00:00:00.000Z",
+				updatedAt: "2026-10-13T00:00:00.000Z",
+				status: "completed",
+				interactive: true,
+				provider: "cline",
+				model: "test",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				isSubagent: false,
+				metadata: status
+					? {
+							handoff: {
+								status,
+								toCloudSessionId: "cloud-target",
+								handedOffAt: "2026-10-13T00:00:00.000Z",
+							},
+						}
+					: {},
+			});
+			get.mockRejectedValue(transportLost());
+			const manifest = vi
+				.spyOn(sessionPaths, "readSessionManifest")
+				.mockReturnValue(null);
+			try {
+				const request =
+					action === "send"
+						? { action, sessionId, prompt: "hello" }
+						: { action, sessionId };
+				if (status) {
+					await expect(handleChatSessionCommand(ctx, request)).rejects.toThrow(
+						status === "pending"
+							? "Cloud handoff is still pending"
+							: "This session continued in Cline Cloud",
+					);
+					expect(send).not.toHaveBeenCalled();
+				} else {
+					await expect(
+						handleChatSessionCommand(ctx, request),
+					).resolves.toMatchObject({ sessionId });
+					if (action === "send") expect(send).toHaveBeenCalledOnce();
+					else expect(ctx.liveSessions.has(sessionId)).toBe(false);
+				}
+			} finally {
+				manifest.mockRestore();
+				store.close();
+				if (previousDbDir === undefined) delete process.env.CLINE_DB_DATA_DIR;
+				else process.env.CLINE_DB_DATA_DIR = previousDbDir;
+				if (previousSessionDir === undefined)
+					delete process.env.CLINE_SESSION_DATA_DIR;
+				else process.env.CLINE_SESSION_DATA_DIR = previousSessionDir;
+				rmSync(dataDir, { recursive: true, force: true });
+			}
+		});
 
 		it.each([
 			"pending",
