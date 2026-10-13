@@ -1539,15 +1539,14 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.send("ses-outer", "Fix it");
 		const config = hub.commands.find(
 			({ command }) => command === "session.create",
-		)?.payload?.sessionConfig as { systemPrompt: string };
-		expect(config.systemPrompt).toContain(
-			"credentials are injected transparently",
-		);
-		expect(config.systemPrompt).toContain(`git push -u origin ${branch}`);
-		expect(config.systemPrompt).toContain(
+		)?.payload?.sessionConfig as { rules: string; systemPrompt?: string };
+		expect(config.systemPrompt).toBeUndefined();
+		expect(config.rules).toContain("credentials are injected transparently");
+		expect(config.rules).toContain(`git push -u origin ${branch}`);
+		expect(config.rules).toContain(
 			"never commit directly to the default branch",
 		);
-		expect(config.systemPrompt).toContain(
+		expect(config.rules).toContain(
 			"Do not force-push or amend commits that are already pushed",
 		);
 		await manager.dispose();
