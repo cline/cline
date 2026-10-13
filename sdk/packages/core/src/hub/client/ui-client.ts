@@ -148,6 +148,8 @@ export class HubUIClient {
 	 * Returns an unsubscribe function.
 	 */
 	subscribeUI(handlers: {
+		onDeviceConnected?: (payload: Record<string, unknown>) => void;
+		onDeviceDisconnected?: (payload: Record<string, unknown>) => void;
 		onNotify?: (payload: HubUINotifyPayload) => void;
 		onShowWindow?: (payload: HubUIShowWindowPayload) => void;
 		onClientRegistered?: (payload: Record<string, unknown>) => void;
@@ -158,6 +160,12 @@ export class HubUIClient {
 	}): () => void {
 		return this.client.subscribe((event: HubEventEnvelope) => {
 			switch (event.event) {
+				case "device.connected":
+					handlers.onDeviceConnected?.(event.payload ?? {});
+					break;
+				case "device.disconnected":
+					handlers.onDeviceDisconnected?.(event.payload ?? {});
+					break;
 				case "ui.notify":
 					handlers.onNotify?.(event.payload as unknown as HubUINotifyPayload);
 					break;

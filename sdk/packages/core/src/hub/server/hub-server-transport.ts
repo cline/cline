@@ -282,7 +282,11 @@ export class HubServerTransport implements NativeHubTransport {
 		this.deviceService = new HubDeviceService(
 			this,
 			options.devices || {},
-			() => {
+			(event) => {
+				if (event)
+					this.publish(
+						buildHubEvent(`device.${event.type}`, { name: event.name }),
+					);
 				this.publish(
 					buildHubEvent("device.changed", {
 						deviceService: this.deviceService.snapshot(),

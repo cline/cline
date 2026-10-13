@@ -4,7 +4,10 @@ import {
 	AUDIO_FRAME_HEADER_BYTES,
 	AUDIO_SAMPLE_RATE,
 	type BridgeToDevice,
+	type BrowseRequest,
+	type BrowseResult,
 	clip,
+	type DeviceContext,
 	type DeviceToBridge,
 	MAX_RECORDING_BYTES,
 	PROTOCOL_VERSION,
@@ -13,7 +16,7 @@ import {
 	parseDeviceMessage,
 } from "@cline/device";
 import type { HubEventEnvelope } from "@cline/shared";
-import type { DeviceRegistry } from "./pairing";
+import type { DeviceRegistry, PairedDevice } from "./pairing";
 import { DeviceStateProjector } from "./state";
 
 const TRANSCRIPT_MAX = 120;
@@ -23,6 +26,7 @@ const MIN_RECORDING_BYTES = AUDIO_SAMPLE_RATE * 2 * 0.3; // 300 ms
 
 /** The hub operations the bridge needs. Implemented over the hub client in runtime.ts. */
 export interface HubPort {
+	browse(request: BrowseRequest, context: DeviceContext): Promise<BrowseResult>;
 	subscribe(listener: (event: HubEventEnvelope) => void): () => void;
 	onConnectionChange(listener: (online: boolean) => void): () => void;
 	respondApproval(approvalId: string, approved: boolean): Promise<void>;
@@ -32,8 +36,16 @@ export interface HubPort {
 	 * Start a new task. `recentWorkspace` is where the user last ran Cline,
 	 * as observed from hub events; the implementation decides precedence.
 	 */
-	startTask(prompt: string, recentWorkspace?: string): Promise<string>;
-	startCloudTask(prompt: string, recentWorkspace?: string): Promise<string>;
+	startTask(
+		prompt: string,
+		recentWorkspace?: string,
+		context?: DeviceContext,
+	): Promise<string>;
+	startCloudTask(
+		prompt: string,
+		recentWorkspace?: string,
+		context?: DeviceContext,
+	): Promise<string>;
 }
 
 /**
@@ -50,7 +62,7 @@ export interface TranscriptionStream {
 export type Transcriber = () => TranscriptionStream;
 
 export interface BridgeOptions {
-	devicesChanged?: () => void;
+	devicesChanged?: (event: DeviceConnectionEvent) => void;
 	hub: HubPort;
 	registry: DeviceRegistry;
 	transcribe: Transcriber;
@@ -60,9 +72,16 @@ export interface BridgeOptions {
 	now?: () => number;
 }
 
+export interface DeviceConnectionEvent {
+	type: "connected" | "disconnected";
+	name: string;
+}
+
 export interface DeviceSocketData {
 	authed: boolean;
+	closed?: boolean;
 	name?: string;
+	context?: DeviceContext;
 	helloTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -102,9 +121,12 @@ type VoiceSession =
  */
 export class DeviceBridge {
 	private readonly devices = new Set<DeviceSocket>();
+	private readonly pairedSockets = new Map<string, DeviceSocket>();
+	private readonly socketIdentities = new WeakMap<DeviceSocket, string>();
 	private readonly projector: DeviceStateProjector;
 	private voice?: VoiceSession;
 	private voiceRevision = 0;
+	private readonly voiceSubmitting = new WeakSet<DeviceSocket>();
 	private readonly prompts = new WeakMap<
 		DeviceSocket,
 		{ id: string; result?: PromptResult }
@@ -148,6 +170,7 @@ export class DeviceBridge {
 	}
 
 	onOpen(ws: DeviceSocket): void {
+		ws.data.closed = false;
 		ws.data.helloTimer = setTimeout(
 			() => ws.close(4001, "hello timeout"),
 			HELLO_TIMEOUT_MS,
@@ -156,12 +179,22 @@ export class DeviceBridge {
 
 	onClose(ws: DeviceSocket): void {
 		clearTimeout(ws.data.helloTimer);
-		if (this.devices.delete(ws)) this.options.devicesChanged?.();
+		ws.data.closed = true;
+		ws.data.authed = false;
+		const identity = this.socketIdentities.get(ws);
+		if (identity && this.pairedSockets.get(identity) === ws)
+			this.pairedSockets.delete(identity);
+		const removed = this.devices.delete(ws);
 		if (this.voice?.owner === ws) this.cancelVoice(false);
-		if (ws.data.name) this.log(`device disconnected: ${ws.data.name}`);
+		if (removed) {
+			const name = ws.data.name ?? "cline-device";
+			this.options.devicesChanged?.({ type: "disconnected", name });
+			this.log(`device disconnected: ${name}`);
+		}
 	}
 
 	async onMessage(ws: DeviceSocket, raw: string | Buffer): Promise<void> {
+		if (ws.data.closed) return;
 		if (typeof raw !== "string") {
 			this.onAudio(ws, raw);
 			return;
@@ -197,7 +230,7 @@ export class DeviceBridge {
 			}
 			this.log(`paired new device: ${name}`);
 			this.send(ws, { t: "paired", token, name });
-			this.admit(ws, name);
+			this.admit(ws, this.options.registry.authenticate(token)!);
 			return;
 		}
 		if (msg.t === "hello") {
@@ -207,19 +240,27 @@ export class DeviceBridge {
 				ws.close(4003, "unknown token");
 				return;
 			}
-			this.admit(ws, device.name);
+			this.admit(ws, device);
 			return;
 		}
 		this.send(ws, { t: "auth_error", reason: "not_authenticated" });
 		ws.close(4001, "not authenticated");
 	}
 
-	private admit(ws: DeviceSocket, name: string): void {
+	private admit(ws: DeviceSocket, device: PairedDevice): void {
+		const previous = this.pairedSockets.get(device.tokenHash);
+		if (previous && previous !== ws) {
+			this.onClose(previous);
+			previous.close(4000, "device reconnected");
+		}
+		const name = device.name;
 		clearTimeout(ws.data.helloTimer);
 		ws.data.authed = true;
 		ws.data.name = name;
 		this.devices.add(ws);
-		this.options.devicesChanged?.();
+		this.pairedSockets.set(device.tokenHash, ws);
+		this.socketIdentities.set(ws, device.tokenHash);
+		this.options.devicesChanged?.({ type: "connected", name });
 		this.log(`device connected: ${name}`);
 		this.send(ws, { t: "welcome", v: PROTOCOL_VERSION, name });
 		this.send(ws, this.projector.snapshot());
@@ -233,6 +274,35 @@ export class DeviceBridge {
 		msg: DeviceToBridge,
 	): Promise<void> {
 		switch (msg.t) {
+			case "browse":
+				try {
+					const prompt = this.prompts.get(ws);
+					if (
+						(prompt && !prompt.result) ||
+						this.voice?.owner === ws ||
+						this.voiceSubmitting.has(ws)
+					)
+						throw new Error("Finish the prompt before changing settings");
+					const result = await this.options.hub.browse(
+						msg,
+						(ws.data.context ??= {}),
+					);
+					this.send(ws, result);
+				} catch (error) {
+					this.send(ws, {
+						t: "browse",
+						id: msg.id,
+						title: msg.kind,
+						page: msg.page ?? 0,
+						more: false,
+						items: [],
+						error: clip(
+							error instanceof Error ? error.message : String(error),
+							80,
+						),
+					});
+				}
+				return;
 			case "prompt":
 				await this.submitPrompt(ws, msg);
 				return;
@@ -241,7 +311,8 @@ export class DeviceBridge {
 				await this.options.hub.respondApproval(msg.id, msg.t === "approve");
 				return;
 			case "abort": {
-				const session = this.projector.activeSessionId();
+				const session =
+					ws.data.context?.session ?? this.projector.activeSessionId();
 				if (session) await this.options.hub.abort(session);
 				return;
 			}
@@ -269,27 +340,40 @@ export class DeviceBridge {
 		}
 	}
 
-	private promptRoute(text: string, forceNew: boolean) {
+	private promptRoute(
+		text: string,
+		forceNew: boolean,
+		context?: DeviceContext,
+	) {
 		text = text.trim();
 		const cloud = /^cloud\s+session(?=$|[\s:,.!?])/i.test(text);
 		if (cloud) text = text.replace(/^cloud\s+session[\s:,.!?]*/i, "").trim();
 		if (!text) throw new Error('Use "cloud session" followed by your task');
 		const session =
-			cloud || forceNew ? undefined : this.projector.activeSessionId();
+			cloud || forceNew
+				? undefined
+				: (context?.session ??
+					(context?.workspace || context?.model
+						? undefined
+						: this.projector.activeSessionId()));
 		const target: PromptTarget = cloud ? "cloud" : session ? "followup" : "new";
 		return { text, target, session };
 	}
 
-	private async deliverPrompt(route: {
-		text: string;
-		target: PromptTarget;
-		session?: string;
-	}) {
+	private async deliverPrompt(
+		route: {
+			text: string;
+			target: PromptTarget;
+			session?: string;
+		},
+		context?: DeviceContext,
+	) {
 		// A voice target may have ended during its cancellation window.
 		if (
 			route.target === "followup" &&
 			route.session &&
-			this.projector.activeSessionId() === route.session
+			(context?.session === route.session ||
+				this.projector.activeSessionId() === route.session)
 		) {
 			await this.options.hub.sendFollowup(route.session, route.text);
 			return { session: route.session, target: "followup" as const };
@@ -300,11 +384,14 @@ export class DeviceBridge {
 				? await this.options.hub.startCloudTask(
 						route.text,
 						this.projector.recentWorkspace(),
+						context,
 					)
 				: await this.options.hub.startTask(
 						route.text,
 						this.projector.recentWorkspace(),
+						context,
 					);
+		if (context && target === "new") context.session = session;
 		return { session, target };
 	}
 
@@ -329,8 +416,12 @@ export class DeviceBridge {
 		const pending: { id: string; result?: PromptResult } = { id: msg.id };
 		this.prompts.set(ws, pending);
 		try {
-			const route = this.promptRoute(msg.text, msg.target === "new");
-			const delivered = await this.deliverPrompt(route);
+			const route = this.promptRoute(
+				msg.text,
+				msg.target === "new",
+				ws.data.context,
+			);
+			const delivered = await this.deliverPrompt(route, ws.data.context);
 			pending.result = {
 				t: "prompt",
 				id: msg.id,
@@ -436,7 +527,7 @@ export class DeviceBridge {
 
 		let route: ReturnType<DeviceBridge["promptRoute"]>;
 		try {
-			route = this.promptRoute(text, forceNew);
+			route = this.promptRoute(text, forceNew, ws.data.context);
 		} catch (error) {
 			this.voiceFailed(ws, (error as Error).message);
 			return;
@@ -476,8 +567,12 @@ export class DeviceBridge {
 				target: "cloud",
 			});
 		let submittedTo: string | undefined;
+		this.voiceSubmitting.add(voice.owner);
 		try {
-			const { session, target } = await this.deliverPrompt(voice);
+			const { session, target } = await this.deliverPrompt(
+				voice,
+				voice.owner.data.context,
+			);
 			if (revision === this.voiceRevision)
 				this.send(voice.owner, {
 					t: "voice",
@@ -493,6 +588,8 @@ export class DeviceBridge {
 				this.voiceFailed(voice.owner, reason);
 			else this.log(`earlier voice submission failed: ${reason}`);
 			return;
+		} finally {
+			this.voiceSubmitting.delete(voice.owner);
 		}
 		// Provisioning may finish after a new recording has begun.
 		if (revision !== this.voiceRevision) return;

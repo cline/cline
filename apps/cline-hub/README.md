@@ -121,6 +121,12 @@ or expiry. Endpoints and connected devices are visible here; closing the dashboa
 does not stop them. **Enable devices** / **Disable devices** control the shared
 service for every app connected to this hub.
 
+The connected list tracks live authenticated connections. Clean disconnects
+update it immediately; abrupt power loss is detected within about 15 seconds
+by the heartbeat. Reconnecting with the same pairing replaces the older socket.
+Devices with identical display names are still tracked independently. Device
+joins and departures also appear in **Recent events**.
+
 ## Set up hardware Wi-Fi
 
 Connect your computer to the device's `ClineDevice-XXXX` setup Wi-Fi, keeping
@@ -130,3 +136,10 @@ Then enter Wi-Fi settings and choose **Save Wi-Fi and pair**. Reconnect the
 computer to its home network after the device restarts. The hub sends encrypted
 configuration only after physical confirmation and does not persist the password.
 This requires updated firmware from the device SDK; see its `firmware/SETUP.md`.
+
+
+Cardputer devices with the updated firmware can press **M** to browse sessions,
+read conversation history, and choose a workspace/model for new local tasks.
+Navigation uses the device service's authenticated WebSocket; credentials stay
+on the host. Choices are scoped to each device connection. See the sibling
+`device-sdk` repository's README for keyboard controls and firmware installation.

@@ -1,6 +1,6 @@
 import http from "node:http";
 import { MAX_TEXT_FRAME } from "@cline/device";
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import type { DeviceBridge, DeviceSocket } from "./bridge";
 import type { DeviceServiceStatus } from "./status";
 
@@ -13,6 +13,7 @@ export async function startDeviceServer(options: {
 	port: number;
 	hostname: string;
 	status?: () => DeviceServiceStatus;
+	heartbeat?: { intervalMs: number; timeoutMs: number };
 }): Promise<DeviceServer> {
 	const handler: http.RequestListener = (req, res) => {
 		let url: URL;
@@ -36,6 +37,11 @@ export async function startDeviceServer(options: {
 		noServer: true,
 		maxPayload: Math.max(MAX_TEXT_FRAME, 8192),
 	});
+	const pongDeadlines = new Map<WebSocket, ReturnType<typeof setTimeout>>();
+	const clearDeadline = (ws: WebSocket) => {
+		clearTimeout(pongDeadlines.get(ws));
+		pongDeadlines.delete(ws);
+	};
 	server.on("upgrade", (req, socket, head) => {
 		if (new URL(req.url ?? "/", "http://localhost").pathname !== "/device") {
 			socket.destroy();
@@ -47,8 +53,7 @@ export async function startDeviceServer(options: {
 				send: (data) => ws.send(data),
 				close: (code, reason) => ws.close(code, reason),
 			};
-			alive.set(ws, true);
-			ws.on("pong", () => alive.set(ws, true));
+			ws.on("pong", () => clearDeadline(ws));
 			options.bridge.onOpen(device);
 			ws.on(
 				"message",
@@ -58,7 +63,10 @@ export async function startDeviceServer(options: {
 						binary ? Buffer.from(data as Buffer) : data.toString(),
 					),
 			);
-			ws.on("close", () => options.bridge.onClose(device));
+			ws.on("close", () => {
+				clearDeadline(ws);
+				options.bridge.onClose(device);
+			});
 			ws.on("error", () => ws.terminate());
 		});
 	});
@@ -75,17 +83,21 @@ export async function startDeviceServer(options: {
 		server.close();
 		throw error;
 	}
-	const alive = new WeakMap<import("ws").WebSocket, boolean>();
+	const { intervalMs, timeoutMs } = options.heartbeat ?? {
+		intervalMs: 10_000,
+		timeoutMs: 5_000,
+	};
 	const heartbeat = setInterval(() => {
 		for (const ws of sockets.clients) {
-			if (alive.get(ws) === false) {
-				ws.terminate();
-				continue;
-			}
-			alive.set(ws, false);
-			ws.ping();
+			if (ws.readyState !== WebSocket.OPEN || pongDeadlines.has(ws)) continue;
+			const deadline = setTimeout(() => ws.terminate(), timeoutMs);
+			deadline.unref();
+			pongDeadlines.set(ws, deadline);
+			ws.ping((error?: Error) => {
+				if (error) ws.terminate();
+			});
 		}
-	}, 30000);
+	}, intervalMs);
 	heartbeat.unref();
 	const address = server.address();
 	if (!address || typeof address === "string")
@@ -96,6 +108,7 @@ export async function startDeviceServer(options: {
 		stop: () =>
 			(stopping ??= new Promise<void>((resolve, reject) => {
 				clearInterval(heartbeat);
+				for (const ws of pongDeadlines.keys()) clearDeadline(ws);
 				for (const socket of sockets.clients) socket.terminate();
 				sockets.close();
 				server.close((error) => (error ? reject(error) : resolve()));

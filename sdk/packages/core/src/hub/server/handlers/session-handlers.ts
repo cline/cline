@@ -944,7 +944,11 @@ export async function handleSessionGet(
 			: Promise.resolve(undefined),
 	]);
 	return session
-		? okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) })
+		? okReply(envelope, {
+				session,
+				loaded: ctx.sessionHost.isSessionLoaded?.(sessionId) ?? false,
+				...(snapshot ? { snapshot } : {}),
+			})
 		: errorReply(
 				envelope,
 				"session_not_found",

@@ -675,6 +675,8 @@ export interface HubReplyEnvelope {
 
 export type HubEventName =
 	| "device.changed"
+	| "device.connected"
+	| "device.disconnected"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"

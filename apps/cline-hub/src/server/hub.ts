@@ -134,6 +134,22 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 	});
 
 	ctx.uiClient.subscribeUI({
+		onDeviceConnected(payload) {
+			ctx.pushEvent(
+				"Device connected",
+				`${asString(payload.name) ?? "Cline device"} joined the hub`,
+				"success",
+			);
+			broadcastHubState(ctx);
+		},
+		onDeviceDisconnected(payload) {
+			ctx.pushEvent(
+				"Device disconnected",
+				`${asString(payload.name) ?? "Cline device"} left the hub`,
+				"info",
+			);
+			broadcastHubState(ctx);
+		},
 		onNotify(payload: HubUINotifyPayload) {
 			ctx.pushEvent(
 				payload.title,

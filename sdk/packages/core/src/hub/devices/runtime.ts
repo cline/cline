@@ -8,11 +8,17 @@ import {
 	type HubEventEnvelope,
 } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import type { NativeHubTransport } from "../server/native-transport";
-import { DeviceBridge, type HubPort } from "./bridge";
+import {
+	DeviceBridge,
+	type DeviceConnectionEvent,
+	type HubPort,
+} from "./bridge";
 import { createDeviceCloudSessions } from "./cloud";
 import { advertise, lanIPv4Addresses } from "./mdns";
+import { DeviceNavigation } from "./navigation";
 import { DeviceRegistry } from "./pairing";
 import { startDeviceServer } from "./server";
 import type { DeviceServiceStatus } from "./status";
@@ -26,7 +32,7 @@ const SEND_ACCEPT_MS = 1_500;
 export interface StartDeviceServiceOptions {
 	transport: NativeHubTransport;
 	hubUrl: string;
-	changed?: () => void;
+	changed?: (event: DeviceConnectionEvent) => void;
 	workspace?: string;
 	host?: string;
 	port?: number;
@@ -173,7 +179,37 @@ export async function startDeviceService(
 		await Promise.race([pending, delay(SEND_ACCEPT_MS)]);
 	}
 
+	const navigation = new DeviceNavigation({
+		command,
+		workspace: pinnedWorkspace,
+		models: async () => {
+			const state = providers.read();
+			const ids = new Set([
+				...Object.keys(state.providers),
+				...(state.lastUsedProvider ? [state.lastUsedProvider] : []),
+			]);
+			const rows = await Promise.all(
+				[...ids].map(async (provider) => {
+					const settings = providers.getProviderSettings(provider);
+					if (!settings) return [];
+					const defaults = await resolveProviderConfig(
+						provider,
+						undefined,
+						providers.getProviderConfig(provider),
+					);
+					const models = new Set([
+						...Object.keys(defaults?.knownModels ?? {}),
+						...(settings.model ? [settings.model] : []),
+					]);
+					return [...models].sort().map((model) => ({ provider, model }));
+				}),
+			);
+			return rows.flat();
+		},
+	});
+
 	const hub: HubPort = {
+		browse: (request, context) => navigation.browse(request, context),
 		subscribe: (listener) => {
 			sessionListeners.add(listener);
 			const local = options.transport.subscribe(clientId, listener);
@@ -208,9 +244,13 @@ export async function startDeviceService(
 		sendFollowup: (sessionId, prompt) =>
 			cloud.owns(sessionId)
 				? cloud.send(sessionId, prompt, "queue")
-				: sendInput(sessionId, prompt, "queue"),
-		startCloudTask: async (prompt, recentWorkspace) => {
-			const workspace = pinnedWorkspace ?? recentWorkspace ?? historyWorkspace;
+				: sendInput(sessionId, prompt),
+		startCloudTask: async (prompt, recentWorkspace, context) => {
+			const workspace =
+				context?.workspace ??
+				pinnedWorkspace ??
+				recentWorkspace ??
+				historyWorkspace;
 			if (!workspace)
 				throw new Error(
 					"Run a Cline task once, or configure a device workspace",
@@ -221,14 +261,19 @@ export async function startDeviceService(
 				providers.getProviderSettings("cline")?.model,
 			);
 		},
-		startTask: async (prompt, recentWorkspace) => {
-			const workspace = pinnedWorkspace ?? recentWorkspace ?? historyWorkspace;
+		startTask: async (prompt, recentWorkspace, context) => {
+			const workspace =
+				context?.workspace ??
+				pinnedWorkspace ??
+				recentWorkspace ??
+				historyWorkspace;
 			if (!workspace) {
 				throw new Error(
 					"No workspace yet: run a Cline task once, or configure a device workspace",
 				);
 			}
-			const settings = providers.getLastUsedProviderSettings();
+			const settings =
+				context?.model ?? providers.getLastUsedProviderSettings();
 			if (!settings?.model) {
 				throw new Error("No provider configured; run `cline auth` first");
 			}

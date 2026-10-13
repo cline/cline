@@ -1,4 +1,5 @@
 import type { NativeHubTransport } from "../server/native-transport";
+import type { DeviceConnectionEvent } from "./bridge";
 import { DeviceProvisioning, type DeviceWifiSettings } from "./provisioning";
 import {
 	type DeviceServiceRuntime,
@@ -27,7 +28,7 @@ export class HubDeviceService {
 	constructor(
 		private readonly transport: NativeHubTransport,
 		private readonly options: DeviceServiceOptions,
-		private readonly changed: () => void,
+		private readonly changed: (event?: DeviceConnectionEvent) => void,
 		private readonly startRuntime = startDeviceService,
 	) {}
 	snapshot(): DeviceServiceState {

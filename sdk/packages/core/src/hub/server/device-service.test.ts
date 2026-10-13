@@ -69,6 +69,43 @@ it("shares one device service across app clients, survives app disconnect, and s
 		const pairing = await desktop.devices("pair");
 		await observed;
 		expect(pairing.pairing?.code).toMatch(/^\d{6}$/);
+		const joined: string[] = [],
+			left: string[] = [];
+		const snapshots: string[][] = [];
+		const unsubscribeEvents = vscode.subscribeUI({
+			onDeviceConnected: (payload) => joined.push(String(payload.name)),
+			onDeviceDisconnected: (payload) => left.push(String(payload.name)),
+		});
+		const unsubscribeDevices = vscode.subscribeDevices((state) =>
+			snapshots.push(state.devices),
+		);
+		const device = new WebSocket(endpoint!);
+		try {
+			await new Promise<void>((resolve, reject) => {
+				device.onopen = () => resolve();
+				device.onerror = reject;
+			});
+			device.send(
+				JSON.stringify({
+					t: "pair",
+					code: pairing.pairing!.code,
+					name: "desk",
+				}),
+			);
+			await vi.waitFor(() => {
+				expect(joined).toEqual(["desk"]);
+				expect(snapshots.at(-1)).toEqual(["desk"]);
+			});
+			device.close();
+			await vi.waitFor(() => {
+				expect(left).toEqual(["desk"]);
+				expect(snapshots.at(-1)).toEqual([]);
+			});
+		} finally {
+			device.close();
+			unsubscribeEvents();
+			unsubscribeDevices();
+		}
 		desktop.close();
 		expect((await vscode.devices()).status).toBe("running");
 		await vscode.devices("stop");

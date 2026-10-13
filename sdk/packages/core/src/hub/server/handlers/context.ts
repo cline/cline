@@ -77,8 +77,9 @@ export interface HubTransportContext {
 	readonly sessionTools?: readonly AgentTool[];
 	/** Hub-owned extensions injected into every local session runtime. */
 	readonly sessionExtensions?: readonly AgentExtension[];
-	readonly sessionHost: RuntimeHost &
-		Partial<
+	readonly sessionHost: RuntimeHost & {
+		isSessionLoaded?(sessionId: string): boolean;
+	} & Partial<
 			CommandExecutionRuntimeService &
 				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &

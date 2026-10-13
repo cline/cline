@@ -1263,6 +1263,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.aggregateUsageBySession.clear();
 	}
 
+	isSessionLoaded(sessionId: string): boolean {
+		return this.sessions.has(sessionId);
+	}
+
 	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
 		const active = this.sessions.get(sessionId);
 		if (active) {

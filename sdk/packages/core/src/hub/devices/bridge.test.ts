@@ -3,12 +3,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { HubEventEnvelope } from "@cline/shared";
-import { afterEach, describe, expect, it } from "vitest";
-import { DeviceBridge, type HubPort } from "./bridge";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { WebSocket as NodeWebSocket } from "ws";
+import {
+	type BridgeOptions,
+	DeviceBridge,
+	type DeviceSocket,
+	type HubPort,
+} from "./bridge";
 import { DeviceRegistry } from "./pairing";
 import { startDeviceServer } from "./server";
 
 class FakeHub implements HubPort {
+	async browse(
+		request: import("@cline/device").BrowseRequest,
+		_context: import("@cline/device").DeviceContext,
+	) {
+		return {
+			t: "browse" as const,
+			id: request.id,
+			title: request.kind,
+			page: 0,
+			more: false,
+			items: [],
+		};
+	}
 	listeners = new Set<(e: HubEventEnvelope) => void>();
 	conn = new Set<(online: boolean) => void>();
 	calls: string[] = [];
@@ -46,7 +65,11 @@ class FakeHub implements HubPort {
 		this.calls.push(`cloud:${p}@${ws}`);
 		return "ses-cloud";
 	}
-	async startTask(p: string, ws?: string) {
+	async startTask(
+		p: string,
+		ws?: string,
+		_context?: import("@cline/device").DeviceContext,
+	) {
 		this.calls.push(ws ? `start:${p}@${ws}` : `start:${p}`);
 		if (this.startEmitsRun) this.emit("run.started", "new-session");
 		return "new-session";
@@ -59,13 +82,20 @@ afterEach(async () => {
 	cleanup = [];
 });
 
-async function setup(transcript = "run the tests") {
+async function setup(
+	transcript = "run the tests",
+	options: {
+		devicesChanged?: BridgeOptions["devicesChanged"];
+		heartbeat?: { intervalMs: number; timeoutMs: number };
+	} = {},
+) {
 	const hub = new FakeHub();
 	const registry = new DeviceRegistry(
 		join(mkdtempSync(join(tmpdir(), "device-")), "d.json"),
 	);
 	const wavs: Uint8Array[] = []; // concatenated PCM per recording
 	const bridge = new DeviceBridge({
+		devicesChanged: options.devicesChanged,
 		hub,
 		registry,
 		cancelWindowMs: 50,
@@ -83,6 +113,7 @@ async function setup(transcript = "run the tests") {
 	});
 	hub.online();
 	const server = await startDeviceServer({
+		heartbeat: options.heartbeat,
 		bridge,
 		port: 0,
 		hostname: "127.0.0.1",
@@ -117,10 +148,148 @@ async function setup(transcript = "run the tests") {
 		send({ t: "pair", code: registry.issueCode().code, name: "desk" });
 		return (await next((m) => m.t === "paired")).token as string;
 	};
-	return { hub, ws, send, next, pair, wavs, registry, server };
+	return { hub, ws, send, next, pair, wavs, registry, server, bridge };
 }
 
 describe("DeviceBridge", () => {
+	it("replaces a reconnecting device, ignores its old socket, and distinguishes identical names", async () => {
+		const events: Array<{ type: string; name: string }> = [];
+		const { pair, bridge, registry } = await setup("", {
+			devicesChanged: (event) => events.push(event),
+		});
+		const token = await pair();
+		const socket: DeviceSocket = {
+			data: { authed: false },
+			send: vi.fn(),
+			close: vi.fn(),
+		};
+		await bridge.onMessage(socket, JSON.stringify({ t: "hello", token }));
+		expect(bridge.connectedDevices()).toEqual(["desk"]);
+		expect(events.map((event) => event.type)).toEqual([
+			"connected",
+			"disconnected",
+			"connected",
+		]);
+		const replacement: DeviceSocket = {
+			data: { authed: false },
+			send: vi.fn(),
+			close: vi.fn(),
+		};
+		await bridge.onMessage(replacement, JSON.stringify({ t: "hello", token }));
+		expect(socket.close).toHaveBeenCalledWith(4000, "device reconnected");
+		bridge.onClose(socket); // Delayed close must not remove the replacement or emit twice.
+		await bridge.onMessage(socket, JSON.stringify({ t: "hello", token }));
+		expect(bridge.connectedDevices()).toEqual(["desk"]);
+		expect(events).toHaveLength(5);
+		const otherToken = registry.pair(registry.issueCode().code, "desk")!;
+		const other: DeviceSocket = {
+			data: { authed: false },
+			send: vi.fn(),
+			close: vi.fn(),
+		};
+		await bridge.onMessage(
+			other,
+			JSON.stringify({ t: "hello", token: otherToken }),
+		);
+		expect(bridge.connectedDevices()).toEqual(["desk", "desk"]);
+		bridge.onClose(replacement);
+		bridge.onClose(replacement);
+		expect(bridge.connectedDevices()).toEqual(["desk"]);
+		expect(events).toHaveLength(7);
+		expect(JSON.stringify(events)).not.toContain(token);
+		bridge.onClose(other);
+	});
+
+	it("keeps responsive devices and removes a silent socket on its pong deadline", async () => {
+		const { pair, bridge, server } = await setup("", {
+			heartbeat: { intervalMs: 40, timeoutMs: 100 },
+		});
+		const token = await pair();
+		await delay(180); // Several heartbeats on the responding client.
+		expect(bridge.connectedDevices()).toEqual(["desk"]);
+		const silent = new NodeWebSocket(`ws://127.0.0.1:${server.port}/device`, {
+			autoPong: false,
+		});
+		cleanup.push(() => silent.terminate());
+		await new Promise<void>((resolve, reject) => {
+			silent.once("open", resolve);
+			silent.once("error", reject);
+		});
+		const welcomed = new Promise<void>((resolve) =>
+			silent.on("message", (data) => {
+				if (JSON.parse(data.toString()).t === "welcome") resolve();
+			}),
+		);
+		silent.send(JSON.stringify({ t: "hello", token }));
+		await welcomed;
+		expect(bridge.connectedDevices()).toEqual(["desk"]);
+		await vi.waitFor(() => expect(bridge.connectedDevices()).toEqual([]));
+	});
+	it("routes to a selected idle session and carries device settings into new tasks", async () => {
+		const { hub, pair, send, next } = await setup();
+		await pair();
+		const original = hub.browse.bind(hub);
+		hub.browse = async (request, context) => {
+			if (request.select) {
+				if (request.kind === "sessions") context.session = request.key;
+				else {
+					context.workspace = "/chosen";
+					context.model = { provider: "test", model: "chosen" };
+					delete context.session;
+				}
+			}
+			return {
+				...(await original(request, context)),
+				selected: request.select,
+			};
+		};
+		hub.emit("run.started", "other-running-task");
+		send({
+			t: "browse",
+			id: "select",
+			kind: "sessions",
+			key: "idle-session",
+			select: true,
+		});
+		expect(await next((m) => m.t === "browse")).toMatchObject({
+			id: "select",
+			selected: true,
+		});
+		send({ t: "prompt", id: "resume", text: "Continue this task" });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			session: "idle-session",
+			target: "followup",
+		});
+		expect(hub.calls).toContain("followup:idle-session:Continue this task");
+		send({
+			t: "browse",
+			id: "workspace",
+			kind: "workspaces",
+			key: "chosen",
+			select: true,
+		});
+		await next((m) => m.t === "browse");
+		let chosen: import("@cline/device").DeviceContext | undefined;
+		hub.startTask = async (_prompt, _workspace, context) => {
+			chosen = { ...context };
+			return "new-chosen";
+		};
+		send({ t: "prompt", id: "create", text: "New work" });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			session: "new-chosen",
+			target: "new",
+		});
+		expect(chosen).toEqual({
+			workspace: "/chosen",
+			model: { provider: "test", model: "chosen" },
+		});
+		send({ t: "prompt", id: "continue", text: "Continue new work" });
+		expect(await next((m) => m.t === "prompt")).toMatchObject({
+			session: "new-chosen",
+			target: "followup",
+		});
+	});
+
 	it("routes typed prompts locally, as follow-ups, as new tasks, and to cloud", async () => {
 		const { hub, pair, send, next, wavs } = await setup();
 		await pair();
