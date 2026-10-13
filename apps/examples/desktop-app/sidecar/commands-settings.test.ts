@@ -214,3 +214,18 @@ describe("desktop settings commands", () => {
 		).resolves.toEqual({ cloudSessionsEnabled: enabled });
 	});
 });
+
+describe("get_cline_app_base_url", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it("returns the web app URL of the sidecar's Cline environment", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+		const { ctx } = createContext();
+
+		await expect(
+			handleCommand(ctx, "get_cline_app_base_url", {}),
+		).resolves.toBe("https://staging-app.cline.bot");
+	});
+});

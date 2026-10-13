@@ -3224,6 +3224,9 @@ export async function handleCommand(
 	if (command === "get_desktop_settings") {
 		return readDesktopSettings();
 	}
+	if (command === "get_cline_app_base_url") {
+		return getClineEnvironmentConfig().appBaseUrl;
+	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)
 			? args.sessionIds.filter(

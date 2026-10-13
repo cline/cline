@@ -4,6 +4,7 @@ import type { ClineAccountUser } from "@cline/core";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DesktopTransportState } from "@/lib/desktop-transport";
 import {
 	ACCOUNT_IDENTITY_STORAGE_KEY,
 	AccountProvider,
@@ -12,8 +13,22 @@ import {
 	useAccount,
 } from "./account-context";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
+const { invoke, subscribeTransportState } = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	subscribeTransportState: vi.fn(),
+}));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke, subscribeTransportState },
+}));
+
+type TransportStateHandler = (state: DesktopTransportState) => void;
+let transportStateHandlers: Set<TransportStateHandler>;
+
+function setTransportState(state: DesktopTransportState) {
+	for (const handler of transportStateHandlers) {
+		handler(state);
+	}
+}
 
 function makeUser(overrides: Partial<ClineAccountUser> = {}): ClineAccountUser {
 	return {
@@ -29,12 +44,15 @@ function makeUser(overrides: Partial<ClineAccountUser> = {}): ClineAccountUser {
 }
 
 function Probe() {
-	const { user, activeOrganization } = useAccount();
+	const { user, activeOrganization, privacySettingsUrl } = useAccount();
 	return (
 		<div>
 			<span data-testid="account-name">{user?.displayName ?? "none"}</span>
 			<span data-testid="account-org">
 				{activeOrganization?.name ?? "none"}
+			</span>
+			<span data-testid="privacy-settings-url">
+				{privacySettingsUrl ?? "none"}
 			</span>
 		</div>
 	);
@@ -51,6 +69,14 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
 	invoke.mockReset();
+	transportStateHandlers = new Set();
+	subscribeTransportState.mockImplementation(
+		(handler: TransportStateHandler) => {
+			transportStateHandlers.add(handler);
+			handler("connected");
+			return () => transportStateHandlers.delete(handler);
+		},
+	);
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -122,6 +148,66 @@ describe("account context", () => {
 				window.localStorage.getItem(ACCOUNT_IDENTITY_STORAGE_KEY),
 			)?.email,
 		).toBe("beatrix@cline.bot");
+	});
+
+	it("links to privacy settings on the sidecar's Cline app", async () => {
+		invoke.mockImplementation(async (command: string) =>
+			command === "get_cline_app_base_url"
+				? "https://staging-app.cline.bot"
+				: makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
+		);
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("privacy-settings-url")).toBe(
+				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			);
+		});
+	});
+
+	it("looks up the sidecar's Cline app again after reconnecting", async () => {
+		let sidecarReportsClineApp = false;
+		invoke.mockImplementation(async (command: string) => {
+			if (command !== "get_cline_app_base_url") {
+				return makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" });
+			}
+			if (!sidecarReportsClineApp) {
+				throw new Error("Desktop backend transport unavailable");
+			}
+			return "https://staging-app.cline.bot";
+		});
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("account-name")).toBe("Beatrix");
+		});
+		expect(probeText("privacy-settings-url")).toBe("none");
+
+		sidecarReportsClineApp = true;
+		await act(async () => {
+			setTransportState("reconnecting");
+			setTransportState("connected");
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("privacy-settings-url")).toBe(
+				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			);
+		});
 	});
 
 	it("treats the typed not-authenticated result as signed out", async () => {

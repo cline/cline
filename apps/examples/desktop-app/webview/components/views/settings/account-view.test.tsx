@@ -5,10 +5,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountView } from "./account-view";
 
-const { invoke, openExternalUrl } = vi.hoisted(() => ({
+const { invoke, openExternalUrl, useAccount } = vi.hoisted(() => ({
 	invoke: vi.fn(),
 	openExternalUrl: vi.fn(),
+	useAccount: vi.fn(),
 }));
+vi.mock("@/contexts/account-context", () => ({ useAccount }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	openExternalUrl,
@@ -21,6 +23,10 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	invoke.mockReset();
 	openExternalUrl.mockReset();
+	useAccount.mockReturnValue({
+		privacySettingsUrl: undefined,
+		refreshAccount: vi.fn(),
+	});
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -233,5 +239,64 @@ describe("AccountView signed-out state", () => {
 			expect(container.textContent).toContain("Beatrix");
 		});
 		expect(container.textContent).not.toContain("Sign in to Cline");
+	});
+});
+
+describe("AccountView privacy settings", () => {
+	async function renderSignedInWithPrivacyLink(privacySettingsUrl?: string) {
+		useAccount.mockReturnValue({ privacySettingsUrl, refreshAccount: vi.fn() });
+		invoke.mockImplementation(
+			async (_command: string, args?: Record<string, unknown>) => {
+				switch (args?.operation) {
+					case "fetchMe":
+						return {
+							id: "user-1",
+							email: "harrison@cline.bot",
+							displayName: "Harrison",
+							createdAt: "2024-01-01T00:00:00Z",
+							updatedAt: "2024-01-01T00:00:00Z",
+							organizations: [],
+						};
+					case "fetchBalance":
+						return { balance: 5_000_000 };
+					case "fetchUserOrganizations":
+						return [];
+					default:
+						return {};
+				}
+			},
+		);
+		await act(async () => {
+			root.render(<AccountView />);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Harrison");
+		});
+	}
+
+	const privacySettingsButton = () =>
+		container.querySelector<HTMLButtonElement>(
+			'button[title="Privacy settings"]',
+		);
+
+	it("hides the action when there is no privacy settings link", async () => {
+		await renderSignedInWithPrivacyLink(undefined);
+
+		expect(
+			container.querySelector('button[title="Open dashboard"]'),
+		).not.toBeNull();
+		expect(privacySettingsButton()).toBeNull();
+	});
+
+	it("opens the privacy settings link from the account context", async () => {
+		await renderSignedInWithPrivacyLink(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
+
+		await act(async () => privacySettingsButton()?.click());
+
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
 	});
 });

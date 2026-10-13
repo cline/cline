@@ -16,7 +16,10 @@ import {
 	saveLocalProviderOAuthCredentials,
 	type UserCurrentPlan,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getClineEnvironmentConfig,
+	getClinePrivacySettingsUrl,
+} from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
@@ -35,6 +38,7 @@ export interface ClineAccountSnapshot {
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	displayedBalance: number;
+	privacySettingsUrl?: string;
 }
 
 export function formatClineCredits(value: number): string {
@@ -197,6 +201,11 @@ export async function loadClineAccountSnapshot(input: {
 		organizations,
 		activeOrganization,
 		displayedBalance,
+		privacySettingsUrl: getClinePrivacySettingsUrl(
+			user.dataPrivacyPath,
+			getClineEnvironmentConfig().appBaseUrl,
+			"cli",
+		),
 	};
 }
 

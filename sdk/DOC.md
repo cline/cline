@@ -369,3 +369,17 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## Privacy settings link
+
+`GET /users/me` returns `dataPrivacyPath`, the Cline web app path where users
+manage their data use and Cline Bench preferences (for example
+`/dashboard/account?tab=privacy`). `ClineAccountUser.dataPrivacyPath` carries it,
+and servers that do not send it leave it undefined.
+
+`getClinePrivacySettingsUrl(dataPrivacyPath, appBaseUrl, client)` from
+`@cline/shared` (also exported for browsers) resolves the path against the app
+base URL and adds `client=<cli|desktop|jetbrains|vscode>`. It returns `undefined`
+when the path is missing, the base URL is unusable, or the result would leave the
+app's origin, such as an absolute, protocol-relative, `javascript:`, `file:` or
+editor-scheme value. Hosts render no link in those cases.
