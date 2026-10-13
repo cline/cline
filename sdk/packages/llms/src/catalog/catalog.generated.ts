@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1791870297371,
+  version: 1791877806756,
   providers: {
   "302ai": {
     "claude-haiku-5-5": {
@@ -77188,7 +77188,7 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.045,
+        "input": 0.0441,
         "output": 0.891,
         "cacheRead": 0.0054,
         "cacheWrite": 0
@@ -80591,9 +80591,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.05,
+        "input": 0.0425,
         "output": 1.28,
-        "cacheRead": 0.05,
+        "cacheRead": 0.0425,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -114593,9 +114593,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.22,
-        "output": 0.66,
-        "cacheRead": 0.007,
+        "input": 0.44,
+        "output": 1.32,
+        "cacheRead": 0.014,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-21",
@@ -142741,7 +142741,7 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.045,
+        "input": 0.0441,
         "output": 0.891,
         "cacheRead": 0.0054,
         "cacheWrite": 0
@@ -143020,7 +143020,7 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.045,
+        "input": 0.0441,
         "output": 0.891,
         "cacheRead": 0.0054,
         "cacheWrite": 0
@@ -143905,9 +143905,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.66,
-        "output": 1.98,
-        "cacheRead": 0.022,
+        "input": 1.32,
+        "output": 3.96,
+        "cacheRead": 0.044,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
@@ -146245,9 +146245,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.05,
+        "input": 0.0425,
         "output": 1.28,
-        "cacheRead": 0.05,
+        "cacheRead": 0.0425,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -146800,9 +146800,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.0765,
-        "output": 0.255,
-        "cacheRead": 0.0425,
+        "input": 0.09,
+        "output": 0.3,
+        "cacheRead": 0.05,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-02",
