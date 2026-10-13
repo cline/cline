@@ -1374,18 +1374,13 @@ describe("first-send connection updates", () => {
 		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
 			for (const [listener] of vi.mocked(binding.hubClient.subscribe).mock
 				.calls) {
-				listener({
-					version: "v1",
-					sessionId,
-					event: "run.started",
-					sequence: 2,
-				});
-				listener({
-					version: "v1",
-					sessionId,
-					event: "agent.done",
-					sequence: 2,
-				});
+				if (event !== "session.pending_prompt_submitted")
+					listener({
+						version: "v1",
+						sessionId,
+						event: "run.started",
+						sequence: 2,
+					});
 				listener({
 					version: "v1",
 					sessionId,
@@ -1396,13 +1391,13 @@ describe("first-send connection updates", () => {
 				listener({
 					version: "v1",
 					sessionId,
-					event: "run.started",
+					event: busy ? "run.completed" : "run.started",
 					sequence: 1,
 				});
 				listener({
 					version: "v1",
 					sessionId: "other-session",
-					event: "run.started",
+					event: busy ? "run.completed" : "run.started",
 					sequence: 4,
 				});
 			}
@@ -1453,7 +1448,11 @@ describe("first-send connection updates", () => {
 				sessionId,
 				config: { environmentId: "local" },
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow(
+			failure === "missing"
+				? `Session ${sessionId} not found`
+				: `${failure} failed`,
+		);
 		expect(ctx.liveSessions.has(sessionId)).toBe(false);
 		expect(
 			vi.mocked(binding.hubClient.subscribe).mock.results[0]?.value,
