@@ -8,6 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
+import { BlockList, isIP } from "node:net"
 import {
 	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
@@ -41,7 +42,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { fetch } from "@/shared/net"
+import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -732,6 +733,56 @@ export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: s
 	}
 }
 
+/**
+ * Providers whose base URL commonly points at a local model server. Those
+ * can spend longer than undici's 300s idle timeouts producing the first
+ * token, so they get `fetchWithoutIdleTimeouts` when the base URL is on the
+ * local network. Remote gateways (and every other provider) keep the
+ * proxy-aware fetch: on VS Code it honours `http.proxy`, which
+ * `fetchWithoutIdleTimeouts` cannot, and it keeps the dead-connection cap.
+ */
+const LOCAL_SERVER_PROVIDERS = new Set(["lmstudio", "ollama", "openai-compatible", "litellm"])
+
+const LOCAL_NETWORK_ADDRESSES = new BlockList()
+for (const [address, prefix] of [
+	["127.0.0.0", 8],
+	["0.0.0.0", 32],
+	["10.0.0.0", 8],
+	["172.16.0.0", 12],
+	["192.168.0.0", 16],
+	["169.254.0.0", 16],
+	["100.64.0.0", 10],
+] as const) {
+	LOCAL_NETWORK_ADDRESSES.addSubnet(address, prefix, "ipv4")
+}
+LOCAL_NETWORK_ADDRESSES.addAddress("::1", "ipv6")
+LOCAL_NETWORK_ADDRESSES.addSubnet("fc00::", 7, "ipv6")
+LOCAL_NETWORK_ADDRESSES.addSubnet("fe80::", 10, "ipv6")
+
+// An unset base URL means the provider's localhost default.
+function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
+	if (!baseUrl) {
+		return true
+	}
+	let host: string
+	try {
+		host = new URL(baseUrl).hostname.replace(/^\[|\]$/g, "").toLowerCase()
+	} catch {
+		return false
+	}
+	// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) against the
+	// IPv4 rules, so no unwrapping is needed.
+	const family = isIP(host)
+	if (family) {
+		return LOCAL_NETWORK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
+	}
+	return !host.includes(".") || /\.(localhost|local|internal)$/.test(host)
+}
+
+export function resolveProviderFetch(sdkProviderId: string, baseUrl: string | undefined): typeof globalThis.fetch {
+	return LOCAL_SERVER_PROVIDERS.has(sdkProviderId) && isLocalNetworkUrl(baseUrl) ? fetchWithoutIdleTimeouts : fetch
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -1097,7 +1148,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// straight from providerConfig — notably the compaction summarizer, which
 		// otherwise falls back to a small default output cap (CLINE-2911).
 		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
-		fetch,
+		fetch: resolveProviderFetch(sdkProviderId, baseUrl),
 	}
 
 	const config: CoreSessionConfig = {
