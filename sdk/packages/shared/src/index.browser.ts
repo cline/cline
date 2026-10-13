@@ -432,6 +432,7 @@ export {
 	TEAM_LIFECYCLE_EVENT_TYPE,
 	TEAM_PROGRESS_EVENT_TYPE,
 } from "./rpc/team-progress";
+export { resolveClineAppUrl } from "./runtime/cline-app-url";
 export type { ClineClientIdentity } from "./runtime/cline-client-identity";
 export {
 	getClineClientIdentity,
