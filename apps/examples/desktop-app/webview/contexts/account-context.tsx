@@ -142,11 +142,16 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		void refreshAccount();
 	}, [refreshAccount]);
 
-	useEffect(() => {
-		desktopClient
-			.invoke<string>("get_cline_app_base_url")
-			.then(setClineAppBaseUrl, () => undefined);
-	}, []);
+	useEffect(
+		() =>
+			desktopClient.subscribeTransportState((state) => {
+				if (state !== "connected") return;
+				desktopClient
+					.invoke<string>("get_cline_app_base_url")
+					.then(setClineAppBaseUrl, () => undefined);
+			}),
+		[],
+	);
 
 	const value = useMemo<AccountContextValue>(() => {
 		const organizations = user?.organizations ?? [];

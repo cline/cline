@@ -4,6 +4,7 @@ import type { ClineAccountUser } from "@cline/core";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DesktopTransportState } from "@/lib/desktop-transport";
 import {
 	ACCOUNT_IDENTITY_STORAGE_KEY,
 	AccountProvider,
@@ -12,8 +13,22 @@ import {
 	useAccount,
 } from "./account-context";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({ desktopClient: { invoke } }));
+const { invoke, subscribeTransportState } = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	subscribeTransportState: vi.fn(),
+}));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke, subscribeTransportState },
+}));
+
+type TransportStateHandler = (state: DesktopTransportState) => void;
+let transportStateHandlers: Set<TransportStateHandler>;
+
+function setTransportState(state: DesktopTransportState) {
+	for (const handler of transportStateHandlers) {
+		handler(state);
+	}
+}
 
 function makeUser(overrides: Partial<ClineAccountUser> = {}): ClineAccountUser {
 	return {
@@ -54,6 +69,14 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.localStorage.clear();
 	invoke.mockReset();
+	transportStateHandlers = new Set();
+	subscribeTransportState.mockImplementation(
+		(handler: TransportStateHandler) => {
+			transportStateHandlers.add(handler);
+			handler("connected");
+			return () => transportStateHandlers.delete(handler);
+		},
+	);
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -149,12 +172,16 @@ describe("account context", () => {
 		});
 	});
 
-	it("shows no privacy link when the sidecar cannot report its Cline app", async () => {
+	it("looks up the sidecar's Cline app again after reconnecting", async () => {
+		let sidecarReportsClineApp = false;
 		invoke.mockImplementation(async (command: string) => {
-			if (command === "get_cline_app_base_url") {
-				throw new Error("Unknown command: get_cline_app_base_url");
+			if (command !== "get_cline_app_base_url") {
+				return makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" });
 			}
-			return makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" });
+			if (!sidecarReportsClineApp) {
+				throw new Error("Desktop backend transport unavailable");
+			}
+			return "https://staging-app.cline.bot";
 		});
 
 		await act(async () => {
@@ -169,6 +196,18 @@ describe("account context", () => {
 			expect(probeText("account-name")).toBe("Beatrix");
 		});
 		expect(probeText("privacy-settings-url")).toBe("none");
+
+		sidecarReportsClineApp = true;
+		await act(async () => {
+			setTransportState("reconnecting");
+			setTransportState("connected");
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("privacy-settings-url")).toBe(
+				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			);
+		});
 	});
 
 	it("treats the typed not-authenticated result as signed out", async () => {
