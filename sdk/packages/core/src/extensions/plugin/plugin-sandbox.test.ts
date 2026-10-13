@@ -778,6 +778,17 @@ describe.each([
 				exists: makeExists(["/wrapper/extensions/bootstrap.js"]),
 			}),
 		).toEqual({ file: "/wrapper/extensions/bootstrap.js" });
+
+		// A host that ships no bootstrap at all: there is no fallback. Plugin
+		// code never runs on the host's main thread, so this is a failure.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, undefined],
+				exists: makeExists([]),
+			}),
+		).toBeUndefined();
 	});
 
 	it("ignores the npm wrapper platform package bootstrap when running from source", async () => {
