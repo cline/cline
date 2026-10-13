@@ -38,6 +38,7 @@ import {
 	resolveSidecarAskQuestion,
 } from "./context";
 import * as sessionPaths from "./paths";
+import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -184,6 +185,28 @@ describe("starting SSH sessions", () => {
 		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
 	});
 
+	it.each([
+		"before",
+		"during",
+	])("blocks a start when a parent workspace restore begins %s preparation", async (when) => {
+		const { ctx, config, readMessages, start } = setup();
+		if (when === "before") ctx.restoringWorkspacePaths.add("/remote");
+		else
+			readMessages.mockImplementationOnce(async () => {
+				ctx.restoringWorkspacePaths.add("/remote");
+				return transcript;
+			});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: { ...config, cwd: "/remote/project" },
+			}),
+		).rejects.toThrow(
+			"Cannot send a prompt while the session workspace is being restored",
+		);
+		expect(start).not.toHaveBeenCalled();
+	});
+
 	it("propagates other read failures without creating a session", async () => {
 		const { ctx, config, readMessages, start } = setup();
 		const error = Object.assign(new Error("Hub disconnected"), {
@@ -207,6 +230,116 @@ describe("starting SSH sessions", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: transcript }),
 		);
+	});
+});
+
+describe("SSH session mutations ignore same-id local handoff metadata", () => {
+	it.each([
+		"send",
+		"reset",
+		"fork",
+		"restore_checkpoint",
+	] as const)("does not apply a local pending manifest to %s", async (action) => {
+		const dataDir = mkdtempSync(join(tmpdir(), "desktop-ssh-local-manifest-"));
+		const previousDataDir = process.env.CLINE_DATA_DIR;
+		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_DATA_DIR = dataDir;
+		process.env.CLINE_SESSION_DATA_DIR = join(dataDir, "sessions");
+		const sessionId = "same-id-ssh-session";
+		const config = {
+			environmentId: "ssh-test",
+			cwd: "/remote/project",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+		};
+		const manager = {
+			get: vi.fn(async () => ({
+				sessionId,
+				status: "idle",
+				cwd: "/remote/project",
+				metadata: undefined,
+			})),
+			readMessages: vi.fn(async () => [
+				{ role: "user", content: "remote prompt" },
+			]),
+			updateSessionConnection: vi.fn(async () => undefined),
+			send: vi.fn(async () => ({ finishReason: "stop", text: "ok" })),
+			stop: vi.fn(async () => undefined),
+			start: vi.fn(async () => ({ sessionId: "forked-ssh-session" })),
+			restore: vi.fn(async () => ({
+				sessionId: "restored-ssh-session",
+				messages: [{ role: "user", content: "remote prompt" }],
+				checkpoint: { ref: "checkpoint", createdAt: 1, runCount: 1 },
+			})),
+			pendingPrompts: { list: vi.fn(async () => []) },
+		};
+		const ctx = getEnvironmentContext(
+			{
+				liveSessions: new Map(),
+				sessionEnvironmentIds: new Map([[sessionId, "ssh-test"]]),
+				runtimeBindings: new Map([
+					[
+						"ssh-test",
+						{
+							environmentId: "ssh-test",
+							kind: "ssh",
+							workspaceRoot: "/remote/project",
+							sessionManager: manager,
+							hubClient: {},
+							unsubscribeSessionEvents: () => {},
+						},
+					],
+				]),
+				activeEnvironmentId: "ssh-test",
+				localWorkspaceRoot: "/local/project",
+				restoringWorkspacePaths: new Set(),
+				streamIndices: new Map(),
+				wsClients: new Set(),
+			} as unknown as SidecarContext,
+			"ssh-test",
+		);
+		ctx.liveSessions.set(sessionId, {
+			config,
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			startedAt: Date.now(),
+			status: "idle",
+		});
+		sessionPaths.writeSessionManifest(sessionId, {
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "local-cloud-target",
+					handedOffAt: "2026-10-13T00:00:00.000Z",
+				},
+			},
+		});
+		try {
+			const request = {
+				action,
+				sessionId,
+				config,
+				...(action === "send" ? { prompt: "remote prompt" } : {}),
+				...(action === "restore_checkpoint" ? { checkpointRunCount: 1 } : {}),
+			};
+			await expect(
+				handleChatSessionCommand(ctx, request),
+			).resolves.toBeDefined();
+			if (action === "send") expect(manager.send).toHaveBeenCalled();
+			if (action === "reset")
+				expect(ctx.liveSessions.has(sessionId)).toBe(false);
+			if (action === "fork") expect(manager.start).toHaveBeenCalled();
+			if (action === "restore_checkpoint")
+				expect(manager.restore).toHaveBeenCalled();
+		} finally {
+			if (previousDataDir === undefined) delete process.env.CLINE_DATA_DIR;
+			else process.env.CLINE_DATA_DIR = previousDataDir;
+			if (previousSessionDataDir === undefined)
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			else process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
+			rmSync(dataDir, { recursive: true, force: true });
+		}
 	});
 });
 
@@ -555,6 +688,29 @@ describe("session forks", () => {
 		).rejects.toThrow(
 			"Wait for the cloud handoff to finish before updating session metadata",
 		);
+		get.mockResolvedValue({ sessionId, status: "idle" });
+		ctx.runtimeBindings.set("ssh-test", {
+			...getSessionRuntimeBinding(ctx),
+			environmentId: "ssh-test",
+			kind: "ssh",
+			sessionManager: {
+				...getSessionRuntimeBinding(ctx).sessionManager,
+				get: vi.fn(async () => undefined),
+			} as unknown as ReturnType<
+				typeof getSessionRuntimeBinding
+			>["sessionManager"],
+		});
+		ctx.activeEnvironmentId = "ssh-test";
+		for (const key of ["sessionId", "session_id"]) {
+			await expect(
+				handleCommand(ctx, "update_chat_session_metadata", {
+					[key]: sessionId,
+					metadata: { pinned: true },
+				}),
+			).rejects.toThrow(
+				"Wait for the cloud handoff to finish before updating session metadata",
+			);
+		}
 		releaseGet?.(undefined);
 		await expect(handoff).rejects.toThrow("was not found");
 	});
@@ -1002,6 +1158,16 @@ describe("session forks", () => {
 				"Cannot send a prompt while the session workspace is being restored",
 			);
 			expect(send).not.toHaveBeenCalled();
+			for (const cwd of ["/workspace", "/workspace/project/child"]) {
+				await expect(
+					handleChatSessionCommand(ctx, {
+						action: "restore_checkpoint",
+						sessionId: siblingSessionId,
+						checkpointRunCount: 1,
+						config: { cwd },
+					}),
+				).rejects.toThrow("Wait for all turns in this workspace to finish");
+			}
 		} finally {
 			releaseRestore();
 		}
@@ -1262,7 +1428,12 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it("rejects an edit fork while a sibling session in the workspace is running", async () => {
+	it.each([
+		"/workspace/project/.",
+		"/workspace/project/child",
+		"/workspace",
+		"/",
+	])("rejects an edit fork while a session in %s is running", async (workspaceRoot) => {
 		const sourceSessionId = "idle-source-session";
 		const siblingSessionId = "busy-sibling-session";
 		const restore = vi.fn();
@@ -1282,7 +1453,7 @@ describe("session forks", () => {
 				[
 					siblingSessionId,
 					{
-						config: { workspaceRoot: "/workspace/project/." },
+						config: { workspaceRoot },
 						messages: [],
 						promptsInQueue: [],
 						busy: true,
@@ -1395,7 +1566,12 @@ describe("session forks", () => {
 		}
 	});
 
-	it("blocks sends from sibling sessions while their workspace is restored", async () => {
+	it.each([
+		"/workspace/project/.",
+		"/workspace/project/child",
+		"/workspace",
+		"/",
+	])("blocks sends from %s while an overlapping workspace is restored", async (workspaceRoot) => {
 		const send = vi.fn();
 		const sessionId = "workspace-sibling-session";
 		const ctx = {
@@ -1403,7 +1579,7 @@ describe("session forks", () => {
 				[
 					sessionId,
 					{
-						config: { workspaceRoot: "/workspace/project/." },
+						config: { workspaceRoot },
 						messages: [{ role: "user", content: "prompt" }],
 						promptsInQueue: [],
 						busy: false,
@@ -1502,6 +1678,146 @@ describe("first-send connection updates", () => {
 			updateSessionConnection,
 		};
 	}
+
+	it("preserves an observed idle session when attach reports a resident running process", async () => {
+		const { ctx, sessionId } = createContext({ attachedViaHub: true });
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("missing binding");
+		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
+			handleHubLiveEvent(ctx, {
+				event: "session.attached",
+				sessionId,
+				payload: { session: { status: "running" } },
+			});
+			return {
+				version: "v1",
+				ok: true,
+				payload: { session: { status: "running" } },
+			};
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ status: "idle" });
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "idle",
+			busy: false,
+		});
+	});
+
+	it.each([
+		"observer",
+		"core",
+	])("preserves a run started through %s while attach is pending", async (subscription) => {
+		enableCloudHandoffGates();
+		const { ctx, sessionId } = createContext({
+			attachedViaHub: subscription === "observer",
+		});
+		localSessionManager(ctx).get = vi.fn(async () => ({
+			sessionId,
+			status: "idle",
+		}));
+		localSessionManager(ctx).hasSessionSubscription = () =>
+			subscription === "core";
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("missing binding");
+		const attaching = Promise.withResolvers<void>();
+		const attached = Promise.withResolvers<void>();
+		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
+			attaching.resolve();
+			await attached.promise;
+			return {
+				version: "v1",
+				ok: true,
+				payload: { session: { status: "idle" } },
+			};
+		});
+		const result = handleChatSessionCommand(ctx, {
+			action: "attach",
+			sessionId,
+		});
+		await attaching.promise;
+		if (subscription === "observer")
+			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
+		else
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "running" },
+			});
+		attached.resolve();
+		await expect(result).resolves.toMatchObject({ status: "running" });
+		handleHubLiveEvent(ctx, {
+			event: "session.attached",
+			sessionId,
+			sequence: 1,
+			payload: { session: { status: "idle" } },
+		});
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "running",
+			busy: true,
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
+		).rejects.toThrow("Stop the current run");
+	});
+
+	it("uses the attach reply when no subscribed live state exists", async () => {
+		const { ctx, sessionId } = createContext();
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("missing binding");
+		vi.mocked(binding.hubClient.command).mockResolvedValueOnce({
+			version: "v1",
+			ok: true,
+			payload: { session: { status: "pending" } },
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ status: "pending" });
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "pending",
+			busy: true,
+		});
+	});
+
+	it.each([
+		"/workspace/project",
+		"/workspace/project-sibling",
+	])("rechecks a restore of %s after preparing a prompt", async (locked) => {
+		const { ctx, sessionId, send } = createContext({
+			config: { ...baseConfig, cwd: "/workspace/project/child" },
+		});
+		const preparing = Promise.withResolvers<void>();
+		const prepared = Promise.withResolvers<void>();
+		const command = vi
+			.spyOn(pluginCommands, "runPluginSlashCommand")
+			.mockImplementationOnce(async () => {
+				preparing.resolve();
+				await prepared.promise;
+				return { submitPrompt: "expanded prompt" };
+			});
+		try {
+			const result = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "/custom",
+			});
+			await preparing.promise;
+			ctx.restoringWorkspacePaths.add(locked);
+			prepared.resolve();
+			if (locked === "/workspace/project") {
+				await expect(result).rejects.toThrow(
+					"Cannot send a prompt while the session workspace is being restored",
+				);
+				expect(send).not.toHaveBeenCalled();
+			} else {
+				await result;
+				expect(send).toHaveBeenCalledWith(
+					expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
+				);
+			}
+		} finally {
+			command.mockRestore();
+		}
+	});
 
 	it("skips an identical update for a locally-created session", async () => {
 		const { ctx, send, sessionId, updateSessionConnection } = createContext();
@@ -1803,44 +2119,6 @@ describe("first-send connection updates", () => {
 		}
 	});
 
-	it("preserves an idle fork status when Core reports its resident process as running", async () => {
-		const { ctx, sessionId } = createContext({ attachedViaHub: true });
-		localSessionManager(ctx).hasSessionSubscription = () => false;
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
-			handleHubLiveEvent(ctx, {
-				event: "session.attached",
-				sessionId,
-				payload: { session: { status: "running" } },
-			});
-			return { version: "v1", ok: true };
-		});
-		const existing = ctx.liveSessions.get(sessionId);
-		if (!existing) throw new Error("missing session");
-		existing.status = "idle";
-		existing.busy = false;
-		(localSessionManager(ctx) as { get: unknown }).get = vi.fn(async () => ({
-			sessionId,
-			status: "running",
-			provider: "cline",
-			model: "anthropic/claude-sonnet-4.6",
-			cwd: "/workspace",
-			workspaceRoot: "/workspace",
-		}));
-
-		const result = (await handleChatSessionCommand(ctx, {
-			action: "attach",
-			sessionId,
-		})) as { status: string };
-
-		expect(result.status).toBe("idle");
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "idle",
-			busy: false,
-		});
-	});
-
 	it.each([
 		"before",
 		"during",
@@ -1882,59 +2160,6 @@ describe("first-send connection updates", () => {
 		await expect(
 			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
 		).rejects.toThrow("Stop the current run");
-	});
-
-	it.each([
-		"observer",
-		"core",
-	])("preserves run events from %s while attach is pending and blocks handoff", async (subscription) => {
-		enableCloudHandoffGates();
-		const { ctx, sessionId } = createContext({
-			attachedViaHub: subscription === "observer",
-		});
-		localSessionManager(ctx).hasSessionSubscription = () =>
-			subscription === "core";
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		const attaching = Promise.withResolvers<void>();
-		const attached = Promise.withResolvers<void>();
-		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
-			attaching.resolve();
-			await attached.promise;
-			return { version: "v1", ok: true };
-		});
-		const result = handleChatSessionCommand(ctx, {
-			action: "attach",
-			sessionId,
-		});
-		await attaching.promise;
-		if (subscription === "observer") {
-			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
-		} else {
-			handleCoreSessionEvent(ctx, {
-				type: "status",
-				payload: { sessionId, status: "running" },
-			});
-		}
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		attached.resolve();
-		await expect(result).resolves.toMatchObject({ status: "running" });
-		handleHubLiveEvent(ctx, {
-			event: "session.attached",
-			sessionId,
-			sequence: 1,
-			payload: { session: { status: "idle" } },
-		});
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
-		).rejects.toThrow("Stop the current run before handing off");
 	});
 
 	it("updates a changed connection before sending", async () => {
@@ -2245,7 +2470,6 @@ describe("first-send connection updates", () => {
 			"complete",
 			"missing manifest",
 			"other error",
-			"ssh",
 		])("does not bypass the send guard for %s during a lookup failure", async (scenario) => {
 			const { ctx, get, send, sessionId, start } = createContext();
 			const error =
@@ -2253,8 +2477,6 @@ describe("first-send connection updates", () => {
 					? new Error("access denied")
 					: transportLost();
 			get.mockRejectedValue(error);
-			if (scenario === "ssh")
-				getSessionRuntimeBinding(ctx, sessionId).kind = "ssh";
 			const manifest = vi
 				.spyOn(sessionPaths, "readSessionManifest")
 				.mockReturnValue(

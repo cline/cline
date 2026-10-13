@@ -341,8 +341,9 @@ function assertWorkspaceNotRestoring(
 				workspaceIsWithin(workspace, locked) ||
 				workspaceIsWithin(locked, workspace),
 		)
-	)
+	) {
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 }
 
 async function withWorkspaceRestoreLock<T>(
@@ -1207,9 +1208,14 @@ async function handleAttach(
 		{ sessionId },
 		sessionId,
 	);
-	const attachedSession = reply.payload?.session as
-		| { status?: string }
-		| undefined;
+	const attachedSession = reply.payload?.session;
+	const replyStatus =
+		attachedSession &&
+		typeof attachedSession === "object" &&
+		"status" in attachedSession &&
+		typeof attachedSession.status === "string"
+			? attachedSession.status
+			: undefined;
 	// Only observed live state can override Core's resident-process snapshot.
 	const existing = ctx.liveSessions.get(sessionId);
 	const liveStatus =
@@ -1217,8 +1223,7 @@ async function handleAttach(
 		(existing.attachedViaHub || manager.hasSessionSubscription(sessionId))
 			? existing
 			: undefined;
-	const attachedStatus =
-		liveStatus?.status ?? attachedSession?.status ?? session.status;
+	const attachedStatus = liveStatus?.status ?? replyStatus ?? session.status;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
@@ -1673,10 +1678,11 @@ async function readHandoffSessionMetadata(
 	binding: SessionRuntimeBinding,
 	sessionId: string,
 ) {
+	if (binding.kind !== "local") return undefined;
 	const persisted = await binding.sessionManager
 		.get(sessionId)
 		.catch((error) => {
-			if (binding.kind !== "local" || !isHubLossError(error)) throw error;
+			if (!isHubLossError(error)) throw error;
 			const manifest = readSessionManifest(sessionId);
 			if (!manifest) throw error;
 			return manifest;
@@ -2095,7 +2101,12 @@ async function handleFork(
 	) {
 		throw new Error("forkBeforeRunCount must be a positive integer");
 	}
-	const manager = getSessionManager(ctx, sourceSessionId, request.config);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
 	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -2106,7 +2117,9 @@ async function handleFork(
 	}
 	const sourceSession = await manager.get(sourceSessionId);
 	const sourceHandoff = readCloudHandoffMetadata(
-		sourceSession?.metadata ?? readSessionMetadata(sourceSessionId),
+		binding.kind === "local"
+			? (sourceSession?.metadata ?? readSessionMetadata(sourceSessionId))
+			: undefined,
 	);
 	if (sourceHandoff?.status === "pending") {
 		throw new Error(
@@ -2404,9 +2417,12 @@ async function handleRestoreCheckpoint(
 		readEnvironmentId(requestedConfig),
 	);
 	const manager = binding.sessionManager;
-	const persisted = await manager.get(sourceSessionId);
+	const persisted =
+		binding.kind === "local" ? await manager.get(sourceSessionId) : undefined;
 	const completedHandoff = readCloudHandoffMetadata(
-		persisted?.metadata ?? readSessionMetadata(sourceSessionId),
+		binding.kind === "local"
+			? (persisted?.metadata ?? readSessionMetadata(sourceSessionId))
+			: undefined,
 	);
 	if (completedHandoff?.status === "pending") {
 		throw new Error(
@@ -2808,14 +2824,20 @@ export async function handleChatSessionCommand(
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	ctx = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	if (
+		(request.action === "prepare_handoff" ||
+			request.action === "prepare_handoff_git" ||
+			request.action === "handoff") &&
+		getSessionRuntimeBinding(ctx).kind !== "local"
+	) {
+		throw new Error("Cloud handoff is only supported for local sessions.");
+	}
+	return handler(ctx, request);
 }

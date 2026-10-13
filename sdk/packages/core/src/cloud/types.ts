@@ -12,7 +12,6 @@ export type CloudCreationOptions = Pick<
 >;
 export type CloudSendLifecycle = {
 	beforeDispatch?: () => void;
-	onAccepted?: () => void;
 };
 export type CloudHandoffSeed = {
 	sourceSessionId: string;

@@ -7,7 +7,10 @@ export function workspaceIsWithin(
 	if (!path) return false;
 	const resolved = resolve(path);
 	const parent = resolve(root);
-	return resolved === parent || resolved.startsWith(`${parent}${sep}`);
+	return (
+		resolved === parent ||
+		resolved.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`)
+	);
 }
 
 type WorkspacePathSource = {
