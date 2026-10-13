@@ -9,6 +9,7 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 } from "@cline/core";
+import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import {
 	AlertCircle,
 	Building,
@@ -20,6 +21,7 @@ import {
 	Plus,
 	Receipt,
 	RefreshCw,
+	ShieldCheck,
 	User,
 	UserCircleIcon,
 } from "lucide-react";
@@ -33,6 +35,7 @@ import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 
+const CLINE_APP_URL = "https://app.cline.bot";
 const DASHBOARD_URL = "https://app.cline.bot/dashboard";
 const USAGE_DASHBOARD_URL = "https://app.cline.bot/dashboard/usage";
 const USER_CREDITS_URL =
@@ -437,6 +440,11 @@ export function AccountView() {
 		}).format(value / 1_000_000);
 	};
 
+	const privacySettingsUrl = getClinePrivacySettingsUrl(
+		user?.dataPrivacyPath,
+		CLINE_APP_URL,
+		"desktop",
+	);
 	const displayedBalance = activeOrganization
 		? (organizationBalance?.balance ?? balance?.balance ?? null)
 		: (balance?.balance ?? null);
@@ -648,14 +656,26 @@ export function AccountView() {
 											Member since {formatDate(user.createdAt)}
 										</p>
 									</div>
-									<button
-										type="button"
-										title="Open dashboard"
-										onClick={() => void openExternalUrl(DASHBOARD_URL)}
-										className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-									>
-										<ExternalLink className="h-4 w-4" />
-									</button>
+									<div className="flex items-center gap-1">
+										{privacySettingsUrl && (
+											<button
+												type="button"
+												title="Privacy settings"
+												onClick={() => void openExternalUrl(privacySettingsUrl)}
+												className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+											>
+												<ShieldCheck className="h-4 w-4" />
+											</button>
+										)}
+										<button
+											type="button"
+											title="Open dashboard"
+											onClick={() => void openExternalUrl(DASHBOARD_URL)}
+											className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+										>
+											<ExternalLink className="h-4 w-4" />
+										</button>
+									</div>
 								</div>
 							</div>
 

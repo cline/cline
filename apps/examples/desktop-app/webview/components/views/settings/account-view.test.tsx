@@ -235,3 +235,60 @@ describe("AccountView signed-out state", () => {
 		expect(container.textContent).not.toContain("Sign in to Cline");
 	});
 });
+
+describe("AccountView privacy settings", () => {
+	async function renderSignedInAs(dataPrivacyPath?: string) {
+		invoke.mockImplementation(
+			async (_command: string, args?: Record<string, unknown>) => {
+				switch (args?.operation) {
+					case "fetchMe":
+						return {
+							id: "user-1",
+							email: "harrison@cline.bot",
+							displayName: "Harrison",
+							createdAt: "2024-01-01T00:00:00Z",
+							updatedAt: "2024-01-01T00:00:00Z",
+							organizations: [],
+							dataPrivacyPath,
+						};
+					case "fetchBalance":
+						return { balance: 5_000_000 };
+					case "fetchUserOrganizations":
+						return [];
+					default:
+						return {};
+				}
+			},
+		);
+		await act(async () => {
+			root.render(<AccountView />);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Harrison");
+		});
+	}
+
+	const privacySettingsButton = () =>
+		container.querySelector<HTMLButtonElement>(
+			'button[title="Privacy settings"]',
+		);
+
+	it("hides the action when the API does not advertise privacy settings", async () => {
+		await renderSignedInAs(undefined);
+
+		expect(
+			container.querySelector('button[title="Open dashboard"]'),
+		).not.toBeNull();
+		expect(privacySettingsButton()).toBeNull();
+	});
+
+	it("opens the Cline app's privacy settings as the desktop client", async () => {
+		await renderSignedInAs("/dashboard/account?tab=privacy");
+
+		await act(async () => privacySettingsButton()?.click());
+
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
+	});
+});

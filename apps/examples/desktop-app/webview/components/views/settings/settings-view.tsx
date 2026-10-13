@@ -1,3 +1,4 @@
+import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import { Switch } from "@cline/ui";
 import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { useAccount } from "@/contexts/account-context";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -28,7 +30,7 @@ import {
 	readStoredAppIcon,
 	setStoredAppIcon,
 } from "@/lib/app-icon";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
@@ -85,6 +87,8 @@ export {
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "./sections";
+
+const CLINE_APP_URL = "https://app.cline.bot";
 
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
@@ -691,6 +695,12 @@ function GeneralSettingsContent({
 	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
+	const { user } = useAccount();
+	const privacySettingsUrl = getClinePrivacySettingsUrl(
+		user?.dataPrivacyPath,
+		CLINE_APP_URL,
+		"desktop",
+	);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -1097,6 +1107,20 @@ function GeneralSettingsContent({
 						<p className="text-sm text-muted-foreground">
 							Enable error and usage reports to help improve Cline.
 						</p>
+						{privacySettingsUrl ? (
+							<p className="text-sm text-muted-foreground">
+								Data sharing and Cline Bench preferences live in your Cline
+								account's{" "}
+								<button
+									type="button"
+									className="underline underline-offset-2 hover:text-foreground"
+									onClick={() => void openExternalUrl(privacySettingsUrl)}
+								>
+									privacy settings
+								</button>
+								.
+							</p>
+						) : null}
 						{telemetryError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
 								Failed to update telemetry setting: {telemetryError}
