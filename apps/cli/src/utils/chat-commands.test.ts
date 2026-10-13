@@ -782,4 +782,24 @@ describe("/chat", () => {
 			expect.stringContaining("/chat <question>"),
 		);
 	});
+
+	it("does not let a picture that failed to download vanish silently", async () => {
+		const submitPrompt = vi.fn<(prompt: string) => void>();
+		await maybeHandleChatCommand(
+			"/chat o que é este erro?",
+			context({
+				reply: async () => undefined,
+				submitPrompt,
+				images: async () => ({
+					dir: "/tmp/imgs",
+					paths: [],
+					failed: 1,
+					refused: 1,
+				}),
+			}),
+		);
+		expect(submitPrompt.mock.calls[0]?.[0]).toContain(
+			"2 imagens enviadas com a pergunta não puderam ser baixadas",
+		);
+	});
 });

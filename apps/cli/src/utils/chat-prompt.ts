@@ -8,8 +8,11 @@ export function buildChatPrompt(input: {
 	projectPath: string;
 	/** Pictures sent with the question, saved for the agent to read. */
 	images?: string[];
+	/** Pictures that came with the question but could not be downloaded or were refused. */
+	missingImages?: number;
 }): string {
 	const images = input.images ?? [];
+	const missing = input.missingImages ?? 0;
 	return [
 		`Conversa aberta, não uma demanda. Projeto deste tópico: ${input.projectPath}.`,
 		"A pergunta pode ser sobre ele ou geral. Pesquise, explique ou processe o que",
@@ -21,6 +24,15 @@ export function buildChatPrompt(input: {
 					"",
 					"Imagens enviadas com a pergunta:",
 					...images.map((path) => `- ${path}`),
+				]
+			: []),
+		// Said to the agent, or it answers as if the picture never existed.
+		...(missing > 0
+			? [
+					"",
+					missing === 1
+						? "1 imagem enviada com a pergunta não pôde ser baixada; diga isso na resposta."
+						: `${missing} imagens enviadas com a pergunta não puderam ser baixadas; diga isso na resposta.`,
 				]
 			: []),
 		"",

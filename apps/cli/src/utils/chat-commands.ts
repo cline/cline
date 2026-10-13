@@ -569,6 +569,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 						question,
 						projectPath: state.workspaceRoot || state.cwd,
 						images: images?.paths,
+						missingImages: (images?.failed ?? 0) + (images?.refused ?? 0),
 					}),
 				);
 			},

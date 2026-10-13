@@ -30,4 +30,16 @@ describe("buildChatPrompt", () => {
 		});
 		expect(prompt).not.toContain("Imagens");
 	});
+
+	it("tells the agent when a picture sent with the question could not be read", () => {
+		const prompt = buildChatPrompt({
+			question: "o que é este erro?",
+			projectPath: "/code/cline",
+			images: [],
+			missingImages: 1,
+		});
+		expect(prompt).toContain(
+			"1 imagem enviada com a pergunta não pôde ser baixada; diga isso na resposta.",
+		);
+	});
 });
