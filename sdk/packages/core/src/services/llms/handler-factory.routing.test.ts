@@ -113,7 +113,7 @@ async function expectEndpoint(
 	);
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 	const [url, init] = fetchMock.mock.calls[0];
-	expect(String(url)).toBe(`https://opencode.ai/zen/go/v1/${endpoint}`);
+	expect(String(url)).toBe(`https://opencode.ai/inference/go/v1/${endpoint}`);
 	const body = JSON.parse(String(init?.body));
 	expect(body[inputField]).toBeDefined();
 	if (inputField !== "contents") {

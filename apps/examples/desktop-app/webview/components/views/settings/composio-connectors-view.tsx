@@ -306,19 +306,21 @@ export function ComposioConnectorsView({
 		onCatalogCountChange?.(catalog?.length ?? null);
 	}, [catalog, onCatalogCountChange]);
 
-	const installedEntries = useMemo<ComposioCatalogToolkit[]>(
-		() =>
-			(status?.integrations ?? [])
-				.filter((integration) => integration.status !== "not_connected")
-				.map((integration) => ({
-					slug: integration.toolkit,
-					name: integration.name,
-					description: integration.description,
-					logo: integration.logo,
-					recommended: integration.recommended,
-				})),
-		[status],
-	);
+	const installedEntries = useMemo<ComposioCatalogToolkit[]>(() => {
+		const catalogBySlug = new Map(
+			(catalog ?? []).map((entry) => [entry.slug, entry]),
+		);
+		return (status?.integrations ?? [])
+			.filter((integration) => integration.status !== "not_connected")
+			.map((integration) => ({
+				...catalogBySlug.get(integration.toolkit),
+				slug: integration.toolkit,
+				name: integration.name,
+				description: integration.description,
+				logo: integration.logo,
+				recommended: integration.recommended,
+			}));
+	}, [status, catalog]);
 	// Customize's Browse section lists only what is not installed yet, like
 	// the other Customize tabs; the Marketplace lists the whole catalog.
 	const entries = useMemo<ComposioCatalogToolkit[]>(() => {

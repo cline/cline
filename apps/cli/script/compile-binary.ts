@@ -127,6 +127,9 @@ export async function compileCliBinary(
 			compile: {
 				target: input.bunTarget,
 				outfile: tmpOutfile,
+				// Plugins import SDK packages from disk at runtime; let Bun resolve
+				// their package exports without falling back to transpiling the SDK.
+				autoloadPackageJson: true,
 				...(input.execArgv?.length ? { execArgv: input.execArgv } : {}),
 				...(autoload ? {} : { autoloadDotenv: false, autoloadBunfig: false }),
 			},

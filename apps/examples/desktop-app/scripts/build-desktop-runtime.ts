@@ -155,7 +155,9 @@ const main = async () => {
 	await $`bun run build:sdk`.cwd(REPO_ROOT);
 	process.chdir(APP_ROOT);
 	const targetTriple = await resolveTargetTriple();
-	await $`mkdir -p ${BIN_DIR}/desktop-backend ${REMOTE_CLI_DIR}`;
+	await $`mkdir -p ${BIN_DIR}/desktop-backend ${REMOTE_CLI_DIR} ${BIN_DIR}/extensions`;
+	// Plugin workers load this bootstrap from disk in the backend and Hub.
+	await $`cp ../../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js ${BIN_DIR}/extensions/plugin-sandbox-bootstrap.js`;
 	// Every build cross-compiles the Linux SSH copies (and macOS builds both
 	// architectures), which needs the target platforms' OpenTUI native
 	// packages in addition to the host's.
