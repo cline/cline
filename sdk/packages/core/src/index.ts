@@ -973,6 +973,7 @@ export {
 	type ApplyPatchExecutor,
 	type ApplyPatchInput,
 	type AskQuestionExecutor,
+	type AskQuestionResultContent,
 	type BuiltinToolAvailabilityContext,
 	CommandExitError,
 	CommandSpawnError,

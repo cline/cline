@@ -140,6 +140,15 @@ export type SkillsExecutor = (
 ) => Promise<string>;
 
 /**
+ * Answer to an ask_question call. Hosts whose composer accepts attachments
+ * return content blocks so the user's images travel inside the tool result,
+ * the same shape read_files uses for image files.
+ */
+export type AskQuestionResultContent =
+	| string
+	| Array<TextContent | ImageContent>;
+
+/**
  * Executor for asking a single follow-up question with selectable options
  *
  * @param question - Single clarifying question for the user
@@ -151,7 +160,7 @@ export type AskQuestionExecutor = (
 	question: string,
 	options: string[],
 	context: AgentToolContext,
-) => Promise<string>;
+) => Promise<AskQuestionResultContent>;
 
 /**
  * Skill metadata exposed by SkillsExecutor for clients/UI

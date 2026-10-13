@@ -61,6 +61,7 @@ import {
 import type {
 	ApplyPatchExecutor,
 	AskQuestionExecutor,
+	AskQuestionResultContent,
 	CreateDefaultToolsOptions,
 	DefaultToolsConfig,
 	EditorExecutor,
@@ -817,7 +818,7 @@ export function createSkillsTool(
  */
 export function createAskQuestionTool(
 	executor: AskQuestionExecutor,
-): AgentTool<AskQuestionInput, string> {
+): AgentTool<AskQuestionInput, AskQuestionResultContent> {
 	return {
 		name: "ask_question",
 		description:

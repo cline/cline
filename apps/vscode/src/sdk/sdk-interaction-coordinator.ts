@@ -1,6 +1,8 @@
-import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision } from "@cline/shared"
+import type { AskQuestionResultContent } from "@cline/core"
+import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision, ImageContent, TextContent } from "@cline/shared"
 import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
+import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
@@ -8,6 +10,38 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
 const TOOL_APPROVAL_DELIVERY_FAILED_REASON = "The tool approval request could not be displayed, so the tool was not executed."
+
+interface AskQuestionAnswer {
+	text: string
+	images?: string[]
+	files?: string[]
+}
+
+/**
+ * Builds the ask_question tool result. Attachments are the answer, so they ride
+ * inside the tool result (images as native blocks, files as loaded text) rather
+ * than as a separate user turn; the provider layer forwards this shape as
+ * multimodal tool output, exactly as it does for read_files image results.
+ */
+async function buildAskQuestionResult({ text, images, files }: AskQuestionAnswer): Promise<AskQuestionResultContent> {
+	const imageBlocks = (images ?? []).flatMap((image): ImageContent[] => {
+		const match = image.match(/^data:([^;,]+);base64,(.+)$/)
+		return match ? [{ type: "image", mediaType: match[1], data: match[2] }] : []
+	})
+	const fileText = files?.length ? await processFilesIntoText(files) : ""
+	if (imageBlocks.length === 0 && !fileText) {
+		return text
+	}
+	const blocks: Array<TextContent | ImageContent> = []
+	if (text) {
+		blocks.push({ type: "text", text })
+	}
+	blocks.push(...imageBlocks)
+	if (fileText) {
+		blocks.push({ type: "text", text: fileText })
+	}
+	return blocks
+}
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -52,7 +86,7 @@ export interface SdkInteractionCoordinatorOptions {
 }
 
 export class SdkInteractionCoordinator {
-	private pendingAskResolve: ((answer: string) => void) | undefined
+	private pendingAskResolve: ((answer: AskQuestionAnswer) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
@@ -152,7 +186,7 @@ export class SdkInteractionCoordinator {
 		return approval
 	}
 
-	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<AskQuestionResultContent> {
 		const askData: ClineAskQuestion = {
 			question,
 			options: options?.length ? options : undefined,
@@ -172,9 +206,10 @@ export class SdkInteractionCoordinator {
 		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
 		await this.options.postStateToWebview()
 
-		return new Promise<string>((resolve) => {
+		const answer = await new Promise<AskQuestionAnswer>((resolve) => {
 			this.pendingAskResolve = resolve
 		})
+		return buildAskQuestionResult(answer)
 	}
 
 	resolvePendingToolApproval(
@@ -237,7 +272,7 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
-	resolvePendingAskQuestion(prompt: string | undefined): boolean {
+	resolvePendingAskQuestion(prompt: string | undefined, images?: string[], files?: string[]): boolean {
 		if (!this.pendingAskResolve) {
 			return false
 		}
@@ -247,12 +282,14 @@ export class SdkInteractionCoordinator {
 		const responseText = prompt ?? ""
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
-		if (responseText) {
+		if (responseText || images?.length || files?.length) {
 			const userMessage: ClineMessage = {
 				ts: this.nextMessageTs(),
 				type: "say",
 				say: "user_feedback",
 				text: responseText,
+				images,
+				files,
 				partial: false,
 			}
 			this.options.messages.appendAndEmit([userMessage], {
@@ -263,7 +300,7 @@ export class SdkInteractionCoordinator {
 
 		// User answered the follow-up — the agent resumes its turn.
 		this.options.setTurnPhase?.("streaming")
-		resolve(responseText)
+		resolve({ text: responseText, images, files })
 		return true
 	}
 
@@ -273,7 +310,7 @@ export class SdkInteractionCoordinator {
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
 		// before session teardown so the run can unwind instead of remaining suspended;
 		// use an empty answer so the lifecycle reason is not presented as user input.
-		resolveAsk?.("")
+		resolveAsk?.({ text: "" })
 
 		this.denyPendingToolApproval(reason)
 	}

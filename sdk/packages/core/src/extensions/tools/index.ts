@@ -116,6 +116,7 @@ export { TEAM_TOOL_NAMES } from "./team/team-tools";
 export type {
 	ApplyPatchExecutor,
 	AskQuestionExecutor,
+	AskQuestionResultContent,
 	CreateDefaultToolsOptions,
 	DefaultToolName,
 	DefaultToolsConfig,

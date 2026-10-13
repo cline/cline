@@ -1,4 +1,7 @@
 import type { AgentEvent } from "@cline/shared"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
 import { describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator, type ToolApprovalRequest } from "./sdk-interaction-coordinator"
@@ -356,6 +359,56 @@ describe("SdkInteractionCoordinator", () => {
 			{ type: "ask", ask: "followup" },
 			{ type: "say", say: "user_feedback", text: "yes" },
 		])
+	})
+
+	it("returns ask_question attachments inside the tool result", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const specPath = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "ask-question-")), "spec.md")
+		await fs.writeFile(specPath, "# Spec\nUse the blue layout.")
+		const image = "data:image/png;base64,QUJD"
+
+		const answerPromise = coordinator.handleAskQuestion("Which layout?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingAskQuestion("Use this screenshot", [image], [specPath])).toBe(true)
+		const result = await answerPromise
+		expect(result).toEqual([
+			{ type: "text", text: "Use this screenshot" },
+			{ type: "image", mediaType: "image/png", data: "QUJD" },
+			{ type: "text", text: expect.stringContaining("Use the blue layout.") },
+		])
+		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
+			say: "user_feedback",
+			text: "Use this screenshot",
+			images: [image],
+			files: [specPath],
+		})
+	})
+
+	it("returns an attachment-only ask_question answer as image blocks", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const answerPromise = coordinator.handleAskQuestion("Which layout?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingAskQuestion(undefined, ["data:image/jpeg;base64,QUJD"])).toBe(true)
+		await expect(answerPromise).resolves.toEqual([{ type: "image", mediaType: "image/jpeg", data: "QUJD" }])
+		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
+			say: "user_feedback",
+			text: "",
+			images: ["data:image/jpeg;base64,QUJD"],
+		})
 	})
 
 	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
