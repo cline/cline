@@ -75,6 +75,12 @@ message UserInfo {
   optional string email = 3;
   optional string photo_url = 4;
   optional string app_base_url = 5; // Cline app base URL
+  // Dashboard path (not a URL) of the user's privacy settings, for example
+  // "/dashboard/account?tab=privacy". Present only while the Cline API advertises
+  // it (it is feature-flagged server side); absent means there is no destination
+  // and clients render nothing. Join it with app_base_url via `new URL(path, base)`
+  // rather than string concatenation because the path carries a query string.
+  optional string data_privacy_path = 6;
 }
 
 message UserOrganization {
