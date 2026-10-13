@@ -23,6 +23,13 @@ import {
 } from "./bash";
 import { RunCommandExecutionController } from "./run-command-execution-controller";
 
+// Keep a developer's own "Only allow edits in project directory" setting from
+// sandboxing these tests.
+process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+	tmpdir(),
+	`cline-bash-test-settings-${process.pid}.json`,
+);
+
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
 	conversationId: "conv-1",
