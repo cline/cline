@@ -36,7 +36,7 @@ export function TaskTargetPanel() {
 
 	const { connection, loading, refresh } = useGitHubConnection(isCloud && signedIn)
 	const [waitingForGitHub, setWaitingForGitHub] = useState(false)
-	const [branches, setBranches] = useState<string[]>([])
+	const [branchResult, setBranchResult] = useState<{ repositoryId: number; branches: string[] }>()
 	const [branchesLoading, setBranchesLoading] = useState(false)
 	const branchRequest = useRef(0)
 
@@ -51,23 +51,24 @@ export function TaskTargetPanel() {
 
 	// Load branches for the selected repository.
 	const loadBranches = useCallback(async (repositoryId: number | undefined, query?: string) => {
+		const requestId = ++branchRequest.current
 		if (repositoryId === undefined) {
-			setBranches([])
+			setBranchResult(undefined)
+			setBranchesLoading(false)
 			return
 		}
-		const requestId = ++branchRequest.current
 		setBranchesLoading(true)
 		try {
 			const result = await CloudServiceClient.getRepositoryBranches(
 				RepositoryBranchesRequest.create({ repositoryId, query }),
 			)
 			if (requestId === branchRequest.current) {
-				setBranches(result.branches)
+				setBranchResult({ repositoryId, branches: result.branches })
 			}
 		} catch (error) {
 			console.error("Failed to load branches:", error)
 			if (requestId === branchRequest.current) {
-				setBranches([])
+				setBranchResult(undefined)
 			}
 		} finally {
 			if (requestId === branchRequest.current) {
@@ -76,9 +77,7 @@ export function TaskTargetPanel() {
 		}
 	}, [])
 	useEffect(() => {
-		if (isCloud) {
-			void loadBranches(selectedRepositoryId)
-		}
+		void loadBranches(isCloud ? selectedRepositoryId : undefined)
 	}, [isCloud, selectedRepositoryId, loadBranches])
 	const onBranchQueryChange = useCallback(
 		(query: string) => void loadBranches(selectedRepositoryId, query || undefined),
@@ -111,11 +110,12 @@ export function TaskTargetPanel() {
 						: undefined
 
 	const branchOptions = useMemo(() => {
+		const branches = branchResult && branchResult.repositoryId === selectedRepositoryId ? branchResult.branches : []
 		const known = new Set(branches)
 		const current = cloudTaskTarget?.branch
 		const all = current && !known.has(current) ? [current, ...branches] : branches
 		return all.map((branch) => ({ value: branch, label: branch }))
-	}, [branches, cloudTaskTarget?.branch])
+	}, [branchResult, selectedRepositoryId, cloudTaskTarget?.branch])
 
 	const repoOptions = useMemo(
 		() => repositories.map((repo) => ({ value: String(repo.id), label: repo.fullName || formatRepoLabel(repo.url) })),

@@ -26,7 +26,7 @@ import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } fr
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
-import { CLOUD_SESSION_MODE, isCloudSessionId } from "@shared/cloud/cloud-sessions"
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE, CLOUD_SESSION_MODE, isCloudSessionId } from "@shared/cloud/cloud-sessions"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -1701,26 +1701,35 @@ export class Controller {
 
 		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
 			// No sandbox to send to: still provisioning (only reachable through the
-			// extension API, the composer is disabled), or expired. Refusing the
+			// extension API, the composer is disabled), expired, or unconfirmed. Refusing the
 			// response is itself a turn outcome: the footer holds its Retry claim
 			// until the turn phase advances, so set the phase even though it does
 			// not change.
 			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
+			const anchorTs = this.turnStateTracker.get().anchorTs
+			const anchor = this.task.messageStateHandler.getClineMessages().find((message) => message.ts === anchorTs)
+			const anchoredError =
+				anchor?.type === "ask" && anchor.ask === "api_req_failed" ? ClineError.parse(anchor.text) : undefined
+			const guidance =
+				anchoredError?._error.code === CLOUD_CREATION_UNCONFIRMED_ERROR_CODE ? anchoredError.message : undefined
 			this.messages.appendAndEmit(
 				[
 					{
-						ts: Date.now(),
+						ts: Math.max(Date.now(), (anchorTs ?? 0) + 1),
 						type: "say",
 						say: "error",
-						text: provisioning
-							? "The cloud sandbox is still starting. Send your message again once it is running."
-							: "This cloud session is no longer running. Start a new cloud task to continue.",
+						text:
+							guidance ??
+							(provisioning
+								? "The cloud sandbox is still starting. Send your message again once it is running."
+								: "This cloud session is no longer running. Start a new cloud task to continue."),
 						partial: false,
 					},
 				],
 				{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
 			)
-			this.turnStateTracker.set("error")
+			if (guidance) this.turnStateTracker.set("error", anchorTs)
+			else this.turnStateTracker.set("error")
 			await this.postStateToWebview()
 			return
 		}

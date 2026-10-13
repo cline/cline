@@ -1,24 +1,19 @@
-// REST client for the Cline Cloud control plane: GitHub App integration,
-// repository/branch lookup, and the outer `ses-…` sandbox records. The agent
-// conversation inside a sandbox is reached separately over the Hub WebSocket
-// proxy (see CloudSessionHost). Mirrors the contract the desktop app's
-// sidecar uses (apps/examples/desktop-app/sidecar/cloud-sessions.ts).
-
+import {
+	CloudCreationUnconfirmedError,
+	type CloudErrorCode,
+	type CloudRepositoryOption,
+	CloudSessionApi,
+	CloudSessionError as CoreCloudSessionError,
+	type CloudSessionRecord as CoreCloudSessionRecord,
+} from "@cline/core/cloud"
 import { ClineEnv } from "@/config"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
 const REQUEST_TIMEOUT_MS = 15_000
-const PROVISIONING_POLL_MS = 3_000
 const CREATE_TIMEOUT_MS = 610_000
 
-export type CloudSessionErrorCode =
-	| "authentication_required"
-	| "github_not_connected"
-	| "session_not_found"
-	| "session_expired"
-	| "session_failed"
-	| "request_failed"
+export type CloudSessionErrorCode = CloudErrorCode
 
 export class CloudSessionError extends Error {
 	constructor(
@@ -32,25 +27,9 @@ export class CloudSessionError extends Error {
 	}
 }
 
-export interface CloudSessionRecord {
-	id: string
-	status: string
-	title?: string
-	sandboxUrl?: string
-	repoContext: { repoUrl?: string; branch?: string }
-	metadata: { modelId?: string; taskId?: string; statusReason?: string }
-	expiredAt?: string | null
-	createdAt: string
-	updatedAt: string
-}
+export type CloudSessionRecord = Omit<CoreCloudSessionRecord, "sandboxUrl"> & { sandboxUrl?: string }
 
-export interface CloudRepository {
-	id: number
-	name: string
-	fullName: string
-	url: string
-	defaultBranch: string
-}
+export type CloudRepository = CloudRepositoryOption
 
 export interface GitHubConnectionResult {
 	connected: boolean
@@ -64,8 +43,6 @@ export interface CreateCloudSessionInput {
 	branch?: string
 	organizationId?: string
 }
-
-type ApiEnvelope<T> = { success?: boolean; data?: T; error?: string }
 
 function readApiError(payload: unknown, fallback: string): string {
 	if (payload && typeof payload === "object") {
@@ -138,23 +115,35 @@ export class CloudSessionsService {
 		return token
 	}
 
-	private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-		const token = await this.requireToken()
-		const response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
-			...init,
-			signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-			headers: {
-				Accept: "application/json",
-				Authorization: `Bearer ${token}`,
-				...(init.body ? { "Content-Type": "application/json" } : {}),
-				...(init.headers as Record<string, string> | undefined),
-			},
+	private async withApi<T>(operation: (api: CloudSessionApi) => Promise<T>, createTimeoutMs = CREATE_TIMEOUT_MS): Promise<T> {
+		const api = new CloudSessionApi({
+			apiBaseUrl: this.apiBaseUrl,
+			appBaseUrl: this.appBaseUrl,
+			getAuthToken: async () => (await this.options.getAuthToken()) ?? undefined,
+			fetch: this.fetchImpl,
+			createTimeoutMs,
 		})
-		const payload = response.status === 204 ? undefined : await response.json().catch(() => undefined)
-		if (!response.ok) {
-			throw this.errorForResponse(response.status, payload)
+		try {
+			return await operation(api)
+		} catch (error) {
+			if (error instanceof CloudCreationUnconfirmedError || !(error instanceof CoreCloudSessionError)) {
+				throw error
+			}
+			if (error.status === 403) {
+				throw this.errorForResponse(403, undefined)
+			}
+			const status =
+				error.status ??
+				{
+					authentication_required: 401,
+					session_not_found: 404,
+					session_expired: 410,
+					github_not_connected: 412,
+					session_failed: undefined,
+					request_failed: undefined,
+				}[error.code]
+			throw new CloudSessionError(error.code, error.detail, error.connectUrl, status)
 		}
-		return (payload as ApiEnvelope<T> | undefined)?.data as T
 	}
 
 	private errorForResponse(status: number, payload: unknown): CloudSessionError {
@@ -180,56 +169,21 @@ export class CloudSessionsService {
 		}
 	}
 
-	private orgScopedPath(personal: string, org: (orgId: string) => string): string {
-		const orgId = this.options.getActiveOrganizationId()?.trim()
-		return orgId ? org(encodeURIComponent(orgId)) : personal
-	}
-
 	// ---- GitHub integration ----
 
 	async getGitHubConnection(): Promise<GitHubConnectionResult> {
 		const connectUrl = this.githubConnectUrl()
-		const path = this.orgScopedPath(
-			"/api/v1/integrations/github/repositories",
-			(orgId) => `/api/v1/organizations/${orgId}/integrations/github/repositories`,
-		)
+		const organizationId = this.options.getActiveOrganizationId()?.trim()
 		try {
-			const rows =
-				(await this.request<
-					Array<{
-						id?: unknown
-						name?: unknown
-						full_name?: unknown
-						html_url?: unknown
-						clone_url?: unknown
-						default_branch?: unknown
-					}>
-				>(path)) ?? []
-			const repositories = rows.flatMap((row): CloudRepository[] => {
-				const id = Number(row.id)
-				const url = String(row.html_url ?? row.clone_url ?? "").trim()
-				if (!Number.isSafeInteger(id) || id <= 0 || !url) {
-					return []
-				}
-				const name = String(row.name ?? "").trim()
-				return [
-					{
-						id,
-						name,
-						fullName: String(row.full_name ?? (name || url)).trim(),
-						url,
-						defaultBranch: String(row.default_branch ?? "").trim(),
-					},
-				]
-			})
-			repositories.sort((a, b) => a.fullName.localeCompare(b.fullName))
-			return { connected: true, connectUrl, repositories }
+			const result = await this.withApi((api) => api.listRepositories(organizationId))
+			result.repositories.sort((a, b) => a.fullName.localeCompare(b.fullName))
+			return result
 		} catch (error) {
 			if (
 				error instanceof CloudSessionError &&
 				(error.code === "github_not_connected" || error.code === "session_not_found")
 			) {
-				return { connected: false, connectUrl: error.connectUrl ?? connectUrl, repositories: [] }
+				return { connected: false, connectUrl, repositories: [] }
 			}
 			throw error
 		}
@@ -262,48 +216,19 @@ export class CloudSessionsService {
 		if (!Number.isSafeInteger(repositoryId) || repositoryId <= 0) {
 			return []
 		}
-		const base = this.orgScopedPath(
-			`/api/v1/integrations/github/repositories/${repositoryId}/branches`,
-			(orgId) => `/api/v1/organizations/${orgId}/integrations/github/repositories/${repositoryId}/branches`,
-		)
-		const search = new URLSearchParams()
-		const trimmedQuery = query?.trim()
-		if (trimmedQuery) {
-			search.set("query", trimmedQuery)
+		const organizationId = this.options.getActiveOrganizationId()?.trim()
+		const result = await this.withApi((api) => api.listBranches(repositoryId, organizationId, { query }))
+		if (!result.available) {
+			throw new CloudSessionError("session_not_found", "GitHub repository branches are unavailable.", undefined, 404)
 		}
-		const payload = await this.request<Array<{ name?: unknown }> | { items?: Array<{ name?: unknown }> }>(
-			search.size > 0 ? `${base}?${search}` : base,
-		)
-		const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : []
-		const lowered = trimmedQuery?.toLowerCase()
-		return rows.flatMap((row) => {
-			const name = String(row.name ?? "").trim()
-			if (!name) {
-				return []
-			}
-			// Array responses are unfiltered by the server; apply the query locally.
-			return Array.isArray(payload) && lowered && !name.toLowerCase().includes(lowered) ? [] : [name]
-		})
+		return result.branches
 	}
 
 	// ---- Sessions ----
 
 	async listSessions(): Promise<CloudSessionRecord[]> {
 		const orgId = this.options.getActiveOrganizationId()?.trim()
-		const query = orgId ? `?organizationId=${encodeURIComponent(orgId)}` : ""
-		const rows = (await this.request<CloudSessionRecord[]>(`/api/v1/session${query}`)) ?? []
-		return rows.flatMap((row) => {
-			if (!row || typeof row !== "object" || typeof row.id !== "string") {
-				return []
-			}
-			return [
-				{
-					...row,
-					repoContext: row.repoContext && typeof row.repoContext === "object" ? row.repoContext : {},
-					metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : {},
-				},
-			]
-		})
+		return this.withApi((api) => api.list(orgId))
 	}
 
 	async getSession(sessionId: string): Promise<CloudSessionRecord | undefined> {
@@ -312,7 +237,7 @@ export class CloudSessionsService {
 	}
 
 	async getStatus(sessionId: string, signal?: AbortSignal): Promise<{ status?: string; statusReason?: string }> {
-		return (await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}/status`, { signal })) ?? {}
+		return (await this.withApi((api) => api.status(sessionId, { signal }))) ?? {}
 	}
 
 	/**
@@ -328,44 +253,33 @@ export class CloudSessionsService {
 		signal?: AbortSignal,
 	): Promise<CloudSessionRecord> {
 		const orgId = input.organizationId ?? this.options.getActiveOrganizationId()?.trim()
-		const created = await this.request<{ sessionId: string; sandboxUrl?: string; status?: string }>("/api/v1/session", {
-			method: "POST",
-			body: JSON.stringify({
-				modelId: input.modelId,
-				repoUrl: input.repoUrl,
-				...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
-				...(orgId ? { organizationId: orgId } : {}),
-			}),
-			// Provisioning can take a while when the API blocks on sandbox creation.
-			signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
-		})
-		const sessionId = created?.sessionId?.trim()
-		if (!sessionId) {
-			throw new CloudSessionError("request_failed", "The cloud session service returned no session id.")
-		}
-		onProvisioning?.(sessionId)
-		if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-			try {
-				await this.waitUntilReady(sessionId, CREATE_TIMEOUT_MS, signal)
-			} catch (error) {
-				if (!onProvisioning && error instanceof CloudSessionError && error.code === "session_failed") {
-					await this.deleteSession(sessionId)
+		return this.withApi(async (api) => {
+			const created = await api.create({ ...input, organizationId: orgId })
+			const sessionId = created.sessionId
+			onProvisioning?.(sessionId)
+			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
+				try {
+					await this.waitForReady(api, sessionId, signal)
+				} catch (error) {
+					if (!onProvisioning && error instanceof CoreCloudSessionError && error.code === "session_failed") {
+						await api.delete(sessionId)
+					}
+					throw error
 				}
-				throw error
 			}
-		}
-		const record = await this.getSession(sessionId)
-		return (
-			record ?? {
-				id: sessionId,
-				status: created.status ?? "active",
-				sandboxUrl: created.sandboxUrl,
-				repoContext: { repoUrl: input.repoUrl, branch: input.branch },
-				metadata: { modelId: input.modelId },
-				createdAt: new Date().toISOString(),
-				updatedAt: new Date().toISOString(),
-			}
-		)
+			const record = (await api.list(orgId)).find((session) => session.id === sessionId)
+			return (
+				record ?? {
+					id: sessionId,
+					status: created.status,
+					sandboxUrl: created.sandboxUrl,
+					repoContext: { repoUrl: input.repoUrl, branch: input.branch },
+					metadata: { modelId: input.modelId },
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				}
+			)
+		})
 	}
 
 	/**
@@ -374,62 +288,27 @@ export class CloudSessionsService {
 	 * the sandbox comes up.
 	 */
 	async waitUntilReady(sessionId: string, timeoutMs = CREATE_TIMEOUT_MS, signal?: AbortSignal): Promise<void> {
-		const deadline = Date.now() + timeoutMs
-		const pause = () =>
-			new Promise<void>((resolve, reject) => {
-				if (signal?.aborted) {
-					reject(signal.reason)
-					return
-				}
-				const timer = setTimeout(() => {
-					signal?.removeEventListener("abort", onAbort)
-					resolve()
-				}, PROVISIONING_POLL_MS)
-				const onAbort = () => {
-					clearTimeout(timer)
-					reject(signal?.reason)
-				}
-				signal?.addEventListener("abort", onAbort, { once: true })
-			})
-		while (Date.now() < deadline) {
+		return this.withApi((api) => this.waitForReady(api, sessionId, signal), timeoutMs)
+	}
+
+	private async waitForReady(api: CloudSessionApi, sessionId: string, signal?: AbortSignal): Promise<void> {
+		try {
+			await api.waitUntilReady(sessionId, signal ?? new AbortController().signal)
+		} catch (error) {
 			signal?.throwIfAborted()
-			let result: { status?: string; statusReason?: string } | undefined
-			try {
-				result = await this.getStatus(sessionId, signal)
-			} catch (error) {
-				if (signal?.aborted) {
-					throw error
-				}
-				if (error instanceof CloudSessionError && error.code !== "request_failed") {
-					throw error
-				}
-				await pause()
-				continue
+			if (error instanceof DOMException && error.name === "TimeoutError") {
+				throw new CloudSessionError("request_failed", "Timed out waiting for the cloud sandbox to become ready.")
 			}
-			const status = result?.status?.trim().toLowerCase()
-			if (status === "ready" || status === "active") {
-				return
-			}
-			if (status === "failed") {
-				throw new CloudSessionError(
-					"session_failed",
-					result?.statusReason?.trim() || "The cloud sandbox could not be prepared.",
-				)
-			}
-			await pause()
+			throw error
 		}
-		throw new CloudSessionError("request_failed", "Timed out waiting for the cloud sandbox to become ready.")
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
-		await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}`, { method: "DELETE" })
+		await this.withApi((api) => api.delete(sessionId))
 	}
 
 	async renameSession(sessionId: string, title: string): Promise<void> {
-		await this.request(`/api/v1/session/${encodeURIComponent(sessionId)}`, {
-			method: "PATCH",
-			body: JSON.stringify({ title }),
-		})
+		await this.withApi((api) => api.updateTitle(sessionId, title))
 	}
 
 	/** Archived transcript of an expired sandbox; null when no archive exists. */

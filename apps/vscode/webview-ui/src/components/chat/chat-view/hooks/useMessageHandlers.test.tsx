@@ -1,6 +1,8 @@
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { ClineError } from "../../../../../../src/services/error/ClineError"
 
 // --- Mocks -------------------------------------------------------------------
 // gRPC clients: record which RPC the send path chose.
@@ -542,6 +544,30 @@ describe("useMessageHandlers — send routing", () => {
 			turnStateSeq: 3,
 			messageCount: completedConversation.length,
 		})
+	})
+
+	it("disables recovery for an unconfirmed cloud creation but still clears it for New Task", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const conversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{
+				ts: 2,
+				type: "ask",
+				ask: "api_req_failed",
+				text: new ClineError({
+					message: "Check History before starting another cloud task.",
+					code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE,
+				}).serialize(),
+			},
+		]
+		const { result } = renderHook(() => useMessageHandlers(conversation, makeChatState(conversation)))
+		expect(result.current.errorRecoveryAvailable).toBe(false)
+		await act(async () => {
+			await result.current.startNewTask()
+		})
+		expect(clearTask).toHaveBeenCalledOnce()
+		expect(askResponse).not.toHaveBeenCalled()
+		expect(newTask).not.toHaveBeenCalled()
 	})
 
 	it("submits a new prompt instead of retrying the failed prompt from the error state", async () => {
