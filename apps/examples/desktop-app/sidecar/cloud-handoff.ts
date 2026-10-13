@@ -196,7 +196,7 @@ export function shouldCleanupFailedHandoffVerification(
 	);
 }
 
-export function formatPendingHandoffVerificationError(
+function formatPendingHandoffVerificationError(
 	error: CloudHandoffTranscriptMismatchError,
 	dashboardUrl: string,
 ): string {

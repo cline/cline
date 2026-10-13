@@ -1,23 +1,33 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import type {
 	AgentConfig,
+	PluginPolicies,
 	PluginSetupContext,
+	SessionPluginIssue,
 	WorkspaceInfo,
 } from "@cline/shared";
 import {
 	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
+	getPluginDisplayName,
 	resolveConfiguredPluginModulePaths,
 	resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared,
 	SKILLS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import { filterDisabledPluginPaths } from "../../services/global-settings";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
-import { loadAgentPluginsFromPathsWithDiagnostics } from "./plugin-loader";
-import { loadSandboxedPlugins } from "./plugin-sandbox";
+import {
+	getProcessPluginRegistry,
+	type PluginHookErrorMode,
+	type PluginRegistry,
+} from "./plugin-registry";
+import {
+	isPluginSandboxBootstrapAvailable,
+	loadSandboxedPlugins,
+} from "./plugin-sandbox";
 import type { PluginTargeting } from "./plugin-targeting";
 
-export { getPluginDisplayName } from "@cline/shared/storage";
+export { getPluginDisplayName };
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 
@@ -178,6 +188,46 @@ function collectPluginSkillRootCandidates(entryPath: string): string[] {
 	return dedupePaths(candidates);
 }
 
+/**
+ * Like {@link resolveAgentPluginPaths}, but never throws: configured paths
+ * that cannot be resolved come back as `discoveryFailures`, and paths turned
+ * off in settings come back as `disabledPaths`, so callers can report both.
+ */
+export function resolveAgentPluginPathsWithDiagnostics(
+	options: ResolveAgentPluginPathsOptions = {},
+): {
+	paths: string[];
+	disabledPaths: string[];
+	discoveryFailures: Array<{ pluginPath: string; error: unknown }>;
+} {
+	const cwd = options.cwd ?? process.cwd();
+	const discoveryFailures: Array<{ pluginPath: string; error: unknown }> = [];
+	const configuredPaths: string[] = [];
+	for (const pluginPath of options.pluginPaths ?? []) {
+		try {
+			configuredPaths.push(
+				...resolveConfiguredPluginModulePaths([pluginPath], cwd),
+			);
+		} catch (error) {
+			discoveryFailures.push({ pluginPath: resolve(cwd, pluginPath), error });
+		}
+	}
+	const all = dedupePaths([
+		...configuredPaths,
+		...resolveDiscoveredPluginPaths(options.workspacePath),
+	]);
+	if (options.includeDisabled) {
+		return { paths: all, disabledPaths: [], discoveryFailures };
+	}
+	const enabled = filterDisabledPluginPaths(all);
+	const enabledSet = new Set(enabled);
+	return {
+		paths: enabled,
+		disabledPaths: all.filter((path) => !enabledSet.has(path)),
+		discoveryFailures,
+	};
+}
+
 export function resolveAgentPluginPaths(
 	options: ResolveAgentPluginPathsOptions = {},
 ): string[] {
@@ -232,10 +282,40 @@ export function resolveAgentPluginSkillDirectories(
 	);
 }
 
+export type PluginExecutionMode = "sandbox" | "worker" | "in_process";
+
+export const CLINE_PLUGIN_MODE_ENV = "CLINE_PLUGIN_MODE";
+
+/**
+ * Where plugins run (`CLINE_PLUGIN_MODE`, or `mode`):
+ * - `worker` (default): each plugin runs in its own worker thread per
+ *   session, inside the host runtime. A plugin crash, `process.exit()`, or
+ *   hung loop ends only its worker, and no `node`/`bun` is needed on PATH.
+ * - `in_process`: plugins are imported into the host process.
+ * - `sandbox`: the previous per-session `node`/`bun` subprocess.
+ *
+ * Builds that do not ship the sandbox bootstrap (a host bundle without it)
+ * cannot start workers and fall back to `in_process`.
+ */
+export function resolvePluginExecutionMode(
+	mode?: PluginExecutionMode,
+): PluginExecutionMode {
+	const configured = process.env[CLINE_PLUGIN_MODE_ENV]?.trim();
+	const requested: PluginExecutionMode =
+		mode ??
+		(configured === "sandbox" || configured === "in_process"
+			? configured
+			: "worker");
+	if (requested === "worker" && !isPluginSandboxBootstrapAvailable()) {
+		return "in_process";
+	}
+	return requested;
+}
+
 export interface ResolveAndLoadAgentPluginsOptions
 	extends ResolveAgentPluginPathsOptions,
 		PluginTargeting {
-	mode?: "sandbox" | "in_process";
+	mode?: PluginExecutionMode;
 	exportName?: string;
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
@@ -253,6 +333,17 @@ export interface ResolveAndLoadAgentPluginsOptions
 	automation?: PluginSetupContext["automation"];
 	logger?: PluginSetupContext["logger"];
 	telemetry?: PluginSetupContext["telemetry"];
+	/**
+	 * Per-session plugin selection (`"*"` default plus per-plugin overrides).
+	 * In-process only; the sandbox loads every discovered plugin.
+	 */
+	policy?: PluginPolicies;
+	/** How a failing plugin hook affects the run. Defaults to `"ignore"`. */
+	hookErrorMode?: PluginHookErrorMode;
+	/** In-process registry. Defaults to the process-wide registry. */
+	registry?: PluginRegistry;
+	/** In-process only: a plugin this session uses became degraded or failed. */
+	onIssue?: (issue: SessionPluginIssue) => void;
 }
 
 export async function resolveAndLoadAgentPlugins(
@@ -261,38 +352,80 @@ export async function resolveAndLoadAgentPlugins(
 	{
 		extensions: AgentPlugin[];
 		pluginPaths: string[];
+		/** Plugins the session asked for but does not have (failed, disabled). */
+		issues: SessionPluginIssue[];
 		shutdown?: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
-	const paths = resolveAgentPluginPaths(options);
-	if (paths.length === 0) {
-		return { extensions: [], failures: [], warnings: [], pluginPaths: [] };
-	}
-
-	if (options.mode === "in_process") {
-		const report = await loadAgentPluginsFromPathsWithDiagnostics(paths, {
-			cwd: options.cwd,
+	const mode = resolvePluginExecutionMode(options.mode);
+	if (mode === "in_process" || mode === "worker") {
+		const resolved = resolveAgentPluginPathsWithDiagnostics(options);
+		if (
+			resolved.paths.length === 0 &&
+			resolved.disabledPaths.length === 0 &&
+			resolved.discoveryFailures.length === 0
+		) {
+			return {
+				extensions: [],
+				failures: [],
+				warnings: [],
+				pluginPaths: [],
+				issues: [],
+			};
+		}
+		const registry = options.registry ?? getProcessPluginRegistry();
+		const loaded = await registry.loadForSession({
+			isolation: mode,
+			sessionId: options.session?.sessionId,
+			pluginPaths: resolved.paths,
+			disabledPluginPaths: resolved.disabledPaths,
+			discoveryFailures: resolved.discoveryFailures,
+			policy: options.policy,
 			exportName: options.exportName,
 			providerId: options.providerId,
 			modelId: options.modelId,
-			session: options.session,
-			client: options.client,
-			user: options.user,
-			workspaceInfo: options.workspaceInfo,
-			automation: options.automation,
-			logger: options.logger,
-			telemetry: options.telemetry,
+			cwd: options.cwd,
+			hookErrorMode: options.hookErrorMode,
+			emitEvent: options.onEvent,
+			onIssue: options.onIssue,
+			importTimeoutMs: options.importTimeoutMs,
+			hookTimeoutMs: options.hookTimeoutMs,
+			callTimeoutMs: options.contributionTimeoutMs,
+			setupContext: {
+				session: options.session,
+				client: options.client,
+				user: options.user,
+				workspaceInfo: options.workspaceInfo,
+				automation: options.automation,
+				logger: options.logger,
+				telemetry: options.telemetry,
+			},
 		});
 		return {
-			extensions: report.plugins,
-			failures: report.failures,
-			pluginPaths: report.pluginPaths,
-			warnings: report.warnings,
+			extensions: loaded.extensions,
+			failures: loaded.failures,
+			pluginPaths: loaded.pluginPaths,
+			warnings: loaded.warnings,
+			issues: loaded.issues,
+			shutdown: async () => loaded.release(),
 		};
 	}
 
+	// The subprocess sandbox does not apply the per-session `policy`; it is
+	// an opt-in escape hatch and loads every discovered plugin.
+	const paths = resolveAgentPluginPaths(options);
+	if (paths.length === 0) {
+		return {
+			extensions: [],
+			failures: [],
+			warnings: [],
+			pluginPaths: [],
+			issues: [],
+		};
+	}
 	const sandboxed = await loadSandboxedPlugins({
 		pluginPaths: paths,
+		transport: "subprocess",
 		exportName: options.exportName,
 		importTimeoutMs: options.importTimeoutMs,
 		hookTimeoutMs: options.hookTimeoutMs,
@@ -314,5 +447,22 @@ export async function resolveAndLoadAgentPlugins(
 		failures: sandboxed.failures,
 		pluginPaths: sandboxed.pluginPaths,
 		warnings: sandboxed.warnings,
+		issues: sandboxed.failures.map(
+			(failure): SessionPluginIssue => ({
+				name:
+					failure.pluginName ??
+					basename(failure.pluginPath, extname(failure.pluginPath)),
+				pluginPath: failure.pluginPath,
+				state: "failed",
+				reason: "error",
+				lastError: {
+					phase: failure.phase === "setup" ? "setup" : "import",
+					message: failure.message,
+					stack: failure.stack,
+					pluginPath: failure.pluginPath,
+					timestamp: Date.now(),
+				},
+			}),
+		),
 	};
 }
