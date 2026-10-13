@@ -14,6 +14,7 @@ export interface ClineAccountUser {
 	createdAt: string;
 	updatedAt: string;
 	organizations: ClineAccountOrganization[];
+	dataPrivacyPath?: string;
 }
 
 export interface UserRemoteConfigOrganization {
