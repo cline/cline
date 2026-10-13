@@ -1,3 +1,4 @@
+import { resolveClineAppUrl } from "@cline/shared/browser"
 import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/ClineAccount"
 import type { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/cline/account"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
@@ -55,34 +56,18 @@ export function convertProtoUsageTransactions(protoTransactions: ProtoUsageTrans
 
 export type PrivacySettingsClient = "vscode" | "jetbrains"
 
-/**
- * Which client a privacy-settings link identifies itself as. The JetBrains plugin renders this same
- * webview through the standalone host, so standalone means JetBrains here.
- */
-export const getPrivacySettingsClient = (): PrivacySettingsClient =>
-	PLATFORM_CONFIG.type === PlatformType.STANDALONE ? "jetbrains" : "vscode"
+const runsInJetBrains = () => PLATFORM_CONFIG.type === PlatformType.STANDALONE
 
-/**
- * Builds the web app's privacy settings URL from the `dataPrivacyPath` the API advertises on
- * GET /users/me. The path is relative and carries a query string, so it is joined with
- * `new URL(path, base)` rather than concatenated. Returns undefined when the API advertised
- * nothing, which is the signal to render no link at all.
- */
+export const getPrivacySettingsClient = (): PrivacySettingsClient => (runsInJetBrains() ? "jetbrains" : "vscode")
+
 export const getPrivacySettingsUrl = (
-	base: string,
+	appBaseUrl: string,
 	dataPrivacyPath: string | undefined,
 	client: PrivacySettingsClient = getPrivacySettingsClient(),
 ): URL | undefined => {
-	if (!dataPrivacyPath) {
-		return undefined
-	}
-	try {
-		const url = new URL(dataPrivacyPath, base)
-		url.searchParams.set("client", client)
-		return url
-	} catch {
-		return undefined
-	}
+	const url = resolveClineAppUrl(dataPrivacyPath, appBaseUrl)
+	url?.searchParams.set("client", client)
+	return url
 }
 
 export const isAdminOrOwner = (activeOrg: UserOrganization): boolean => {

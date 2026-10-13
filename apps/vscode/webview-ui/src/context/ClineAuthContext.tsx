@@ -12,7 +12,6 @@ export interface ClineUser {
 	displayName?: string
 	photoUrl?: string
 	appBaseUrl?: string
-	/** Dashboard path of the web privacy settings; present only when the API advertises it. */
 	dataPrivacyPath?: string
 }
 
@@ -75,7 +74,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				// getUserOrganizations prevents no-op re-renders.
 				getUserOrganizations()
 
-				setUser((oldUser) => (oldUser?.uid !== responseUser.uid ? responseUser : oldUser))
+				setUser((oldUser) => (deepEqual(oldUser, responseUser) ? oldUser : responseUser))
 			},
 			onError: (error: Error) => {
 				console.error("Error in auth callback subscription:", error)

@@ -31,6 +31,11 @@ describe("getPrivacySettingsUrl", () => {
 		expect(url?.searchParams.get("client")).toBe("vscode")
 	})
 
+	it("renders no link when the advertised path leaves the Cline app", () => {
+		expect(getPrivacySettingsUrl("https://app.cline.bot", "https://evil.example/privacy", "vscode")).toBeUndefined()
+		expect(getPrivacySettingsUrl("https://app.cline.bot", "javascript:alert(1)", "vscode")).toBeUndefined()
+	})
+
 	it("returns undefined instead of throwing on an unusable base", () => {
 		expect(getPrivacySettingsUrl("not a url", "/dashboard/account?tab=privacy", "vscode")).toBeUndefined()
 	})
