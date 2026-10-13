@@ -1472,12 +1472,15 @@ interface CapturedStreamError {
 	 */
 	reported?: boolean;
 	requestId?: string;
+	baseMessage: string;
 }
 
 function captureStreamError(error: unknown): CapturedStreamError {
 	const requestId = extractResponseRequestId(error);
+	const baseMessage = extractErrorMessage(error);
 	return {
-		message: appendRequestId(extractErrorMessage(error), requestId),
+		message: appendRequestId(baseMessage, requestId),
+		baseMessage,
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
 		...(requestId ? { requestId } : {}),
@@ -2389,13 +2392,14 @@ function createAiSdkProvider(
 									component: "llms",
 									operation: "provider.stream",
 									error: streamError,
-									errorMessage: msg,
+									errorMessage: captured.baseMessage,
 									severity: "error",
 									handled: true,
 									context: {
 										providerId: request.providerId,
 										modelId: request.modelId,
 										providerKind: kind,
+										requestId: captured.requestId,
 									},
 								});
 							},
@@ -2438,13 +2442,14 @@ function createAiSdkProvider(
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
-					errorMessage: msg,
+					errorMessage: captured.baseMessage,
 					severity: "error",
 					handled: true,
 					context: {
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
+						requestId: captured.requestId,
 					},
 				});
 				yield {

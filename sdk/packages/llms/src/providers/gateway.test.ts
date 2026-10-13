@@ -2847,6 +2847,47 @@ describe("sdk-gateway", () => {
 		expect(sdkErrors).toHaveLength(5);
 	});
 
+	it("rate-limits stream failures that differ only by request ID", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = new APICallError({
+				message: "Unauthorized",
+				url: "https://api.cline.bot/api/v1/chat/completions",
+				requestBodyValues: {},
+				statusCode: 401,
+				responseHeaders: { "x-request-id": `req_${"abcdefghijklmnopqrst"[i]}` },
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
+		expect(sdkErrors[0]?.[0]).toMatchObject({
+			properties: { error_message: "Unauthorized", requestId: "req_a" },
+		});
+	});
+
 	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {
 		streamTextSpy.mockImplementation(() => {
 			throw new Error("No output generated. Check the stream for errors.", {
