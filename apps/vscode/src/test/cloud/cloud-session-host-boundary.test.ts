@@ -1,6 +1,7 @@
 import { SessionSource } from "@cline/core"
+import { CLOUD_SESSION_SYSTEM_PROMPT } from "@cline/core/cloud"
 import { afterEach, describe, expect, it } from "vitest"
-import { CLOUD_GITHUB_AUTH_SYSTEM_PROMPT, CloudSessionHost } from "@/sdk/cloud-session-host"
+import { CloudSessionHost } from "@/sdk/cloud-session-host"
 import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
 import { type LocalCloudEnvironment, startLocalCloudEnvironment } from "./local-cloud-environment"
 
@@ -84,7 +85,10 @@ describe("CloudSessionHost real Hub boundary", () => {
 		const messages = await host.readMessages(record.id)
 		expect(JSON.stringify(messages)).toContain("cloud fixture reply")
 		expect(JSON.stringify(messages)).toContain("reply from the fixture")
-		expect(CLOUD_GITHUB_AUTH_SYSTEM_PROMPT).toContain("GitHub API authentication")
+		const created = owned.sessionStore?.get(taskId)
+		expect(created?.metadata?.systemPrompt).toEqual(expect.stringContaining(CLOUD_SESSION_SYSTEM_PROMPT))
+		expect(created?.metadata?.systemPrompt).toContain(`cline/${taskId.slice(-8).toLowerCase()}`)
+		expect(created?.metadata?.systemPrompt).toContain("normal Cline guidance")
 
 		// A status-only connection has no turn subscription. Re-read its snapshot
 		// when another client resumes the same canonical task.
