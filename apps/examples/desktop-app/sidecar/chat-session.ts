@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildConnectionUpdate,
@@ -127,16 +127,6 @@ function workspacePathKey(
 ): string | undefined {
 	const workspacePath = readWorkspacePath(source);
 	return workspacePath ? resolve(workspacePath) : undefined;
-}
-
-function workspaceIsWithin(path: string | undefined, root: string): boolean {
-	if (!path) return false;
-	const resolved = resolve(path);
-	const parent = resolve(root);
-	return (
-		resolved === parent ||
-		resolved.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`)
-	);
 }
 
 /**
@@ -345,42 +335,18 @@ function hasActiveWorkspaceTurn(session: LiveSession): boolean {
 	);
 }
 
-function assertWorkspaceNotRestoring(
-	ctx: SidecarContext,
-	workspace: string | undefined,
-): void {
-	if (
-		workspace &&
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(workspace, locked) ||
-				workspaceIsWithin(locked, workspace),
-		)
-	) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
-}
-
 async function withWorkspaceRestoreLock<T>(
 	ctx: SidecarContext,
 	workspacePath: string,
 	work: () => Promise<T>,
 ): Promise<T> {
 	const key = resolve(workspacePath);
-	if (
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(key, locked) || workspaceIsWithin(locked, key),
-		)
-	) {
+	if (ctx.restoringWorkspacePaths.has(key)) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	for (const session of ctx.liveSessions.values()) {
-		const sessionWorkspace = workspacePathKey(session.config);
 		if (
-			sessionWorkspace &&
-			(workspaceIsWithin(sessionWorkspace, key) ||
-				workspaceIsWithin(key, sessionWorkspace)) &&
+			workspacePathKey(session.config) === key &&
 			hasActiveWorkspaceTurn(session)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
@@ -1085,8 +1051,6 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const workspace = workspacePathKey(request.config) ?? ctx.localWorkspaceRoot;
-	assertWorkspaceNotRestoring(ctx, workspace);
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
@@ -1143,7 +1107,6 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	assertWorkspaceNotRestoring(ctx, workspace);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
@@ -1765,7 +1728,12 @@ async function handleSend(
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
-	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
+	if (
+		lockedWorkspaceKey &&
+		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -1829,7 +1797,6 @@ async function handleSend(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
-	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

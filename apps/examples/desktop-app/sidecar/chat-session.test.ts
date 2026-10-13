@@ -33,7 +33,6 @@ import {
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
-import * as pluginCommands from "./plugin-commands";
 import type { SidecarContext } from "./types";
 
 const { createContextCompactionPrepareTurnMock } = vi.hoisted(() => ({
@@ -208,28 +207,6 @@ describe("starting SSH sessions", () => {
 			expect.objectContaining({ initialMessages: transcript }),
 		);
 		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
-	});
-
-	it.each([
-		"before",
-		"during",
-	])("blocks a start when a parent workspace restore begins %s preparation", async (when) => {
-		const { ctx, config, readMessages, start } = setup();
-		if (when === "before") ctx.restoringWorkspacePaths.add("/remote");
-		else
-			readMessages.mockImplementationOnce(async () => {
-				ctx.restoringWorkspacePaths.add("/remote");
-				return transcript;
-			});
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "start",
-				config: { ...config, cwd: "/remote/project" },
-			}),
-		).rejects.toThrow(
-			"Cannot send a prompt while the session workspace is being restored",
-		);
-		expect(start).not.toHaveBeenCalled();
 	});
 
 	it("propagates other read failures without creating a session", async () => {
@@ -720,16 +697,6 @@ describe("session forks", () => {
 				"Cannot send a prompt while the session workspace is being restored",
 			);
 			expect(send).not.toHaveBeenCalled();
-			for (const cwd of ["/workspace", "/workspace/project/child"]) {
-				await expect(
-					handleChatSessionCommand(ctx, {
-						action: "restore_checkpoint",
-						sessionId: siblingSessionId,
-						checkpointRunCount: 1,
-						config: { cwd },
-					}),
-				).rejects.toThrow("Wait for all turns in this workspace to finish");
-			}
 		} finally {
 			releaseRestore();
 		}
@@ -971,12 +938,7 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it.each([
-		"/workspace/project/.",
-		"/workspace/project/child",
-		"/workspace",
-		"/",
-	])("rejects an edit fork while a session in %s is running", async (workspaceRoot) => {
+	it("rejects an edit fork while a sibling session in the workspace is running", async () => {
 		const sourceSessionId = "idle-source-session";
 		const siblingSessionId = "busy-sibling-session";
 		const restore = vi.fn();
@@ -996,7 +958,7 @@ describe("session forks", () => {
 				[
 					siblingSessionId,
 					{
-						config: { workspaceRoot },
+						config: { workspaceRoot: "/workspace/project/." },
 						messages: [],
 						promptsInQueue: [],
 						busy: true,
@@ -1106,12 +1068,7 @@ describe("session forks", () => {
 		}
 	});
 
-	it.each([
-		"/workspace/project/.",
-		"/workspace/project/child",
-		"/workspace",
-		"/",
-	])("blocks sends from %s while an overlapping workspace is restored", async (workspaceRoot) => {
+	it("blocks sends from sibling sessions while their workspace is restored", async () => {
 		const send = vi.fn();
 		const sessionId = "workspace-sibling-session";
 		const ctx = {
@@ -1119,7 +1076,7 @@ describe("session forks", () => {
 				[
 					sessionId,
 					{
-						config: { workspaceRoot },
+						config: { workspaceRoot: "/workspace/project/." },
 						messages: [{ role: "user", content: "prompt" }],
 						promptsInQueue: [],
 						busy: false,
@@ -1494,47 +1451,6 @@ describe("first-send connection updates", () => {
 			busy: false,
 			lastHubStatusSequence: 3,
 		});
-	});
-
-	it.each([
-		"/workspace/project",
-		"/workspace/project-sibling",
-	])("rechecks a restore of %s after preparing a prompt", async (locked) => {
-		const { ctx, sessionId, send } = createContext({
-			config: { ...baseConfig, cwd: "/workspace/project/child" },
-		});
-		const preparing = Promise.withResolvers<void>();
-		const prepared = Promise.withResolvers<void>();
-		const command = vi
-			.spyOn(pluginCommands, "runPluginSlashCommand")
-			.mockImplementationOnce(async () => {
-				preparing.resolve();
-				await prepared.promise;
-				return { submitPrompt: "expanded prompt" };
-			});
-		try {
-			const result = handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId,
-				prompt: "/custom",
-			});
-			await preparing.promise;
-			ctx.restoringWorkspacePaths.add(locked);
-			prepared.resolve();
-			if (locked === "/workspace/project") {
-				await expect(result).rejects.toThrow(
-					"Cannot send a prompt while the session workspace is being restored",
-				);
-				expect(send).not.toHaveBeenCalled();
-			} else {
-				await result;
-				expect(send).toHaveBeenCalledWith(
-					expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
-				);
-			}
-		} finally {
-			command.mockRestore();
-		}
 	});
 
 	it("skips an identical update for a locally-created session", async () => {
