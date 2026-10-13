@@ -90,7 +90,7 @@ You can also pass a manual `--hook-command` that returns `{"action":"deny"}` for
 
 Telegram final assistant replies are sent directly through Telegram `sendMessage` payloads with message entities. This avoids Telegram markdown parse failures for raw model text. If entity sending fails, the connector falls back to raw text.
 
-Long final assistant replies are split across Telegram messages. Tool/status updates and scheduled delivery messages use the adapter's raw thread posting path.
+A final assistant reply too long for one Telegram message (4096 characters) arrives as a single `.md` file holding the full reply, captioned with its opening lines. The file is named after the reply's first heading, or `resposta-YYYY-MM-DD-HHmm.md` when it has none. If Telegram refuses the file, the reply is split across messages instead. Tool/status updates and scheduled delivery messages use the adapter's raw thread posting path.
 
 Telegram final assistant replies are sent after the runtime turn completes. Google Chat and WhatsApp use the shared connector runtime streaming path for incremental assistant text.
 
