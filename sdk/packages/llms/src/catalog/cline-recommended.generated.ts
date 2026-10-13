@@ -44,12 +44,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
-				id: "cline-free/solar-mini4",
-				name: "Solar Mini 4",
-				description: "Compact 35-billion parameter mixture-of-experts",
-				tags: [],
-			},
-			{
 				id: "cline-free/mimo-v2.6-flash",
 				name: "Mimo V2.6 Flash",
 				description:
@@ -61,6 +55,19 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				name: "Muse Spark 1.3 Contributor",
 				description:
 					"Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows.",
+				tags: [],
+			},
+			{
+				id: "cline-free/step-5-preview",
+				name: "Step 5 Preview",
+				description:
+					"StepFun's flagship model for agentic work, built on a sparse Mixture-of-Experts",
+				tags: [],
+			},
+			{
+				id: "cline-free/solar-mini4",
+				name: "Solar Mini 4",
+				description: "Compact 35-billion parameter mixture-of-experts",
 				tags: [],
 			},
 		],
@@ -121,15 +128,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-max",
-				name: "cline-pass/qwen3.7-max",
-				description: "Flagship agent model with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/minimax-m3",
 				name: "cline-pass/minimax-m3",
 				description: "Frontier coding and agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.7-max",
+				name: "cline-pass/qwen3.7-max",
+				description: "Flagship agent model with 1M context window",
 				tags: [],
 			},
 			{
