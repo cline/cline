@@ -457,6 +457,16 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("serves the Umans AI default model from the catalog instead of the stub fallback", async () => {
+		const provider = await getProvider("umans-ai");
+		const models = await getModelsForProvider("umans-ai");
+		const defaultModel = models[provider?.defaultModelId ?? ""];
+
+		expect(provider?.defaultModelId).toBe("umans-deepseek-v4-flash-0731");
+		expect(defaultModel?.contextWindow).toBeGreaterThan(128_000);
+		expect(defaultModel?.pricing).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");

@@ -156,6 +156,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		modelsDevKey: "tencent-tokenhub",
 		generatedProviderId: "tencent-tokenhub",
 	},
+	{
+		modelsDevKey: "umans-ai",
+		generatedProviderId: "umans-ai",
+		runtimeProviderId: "umans-ai",
+	},
 	{ modelsDevKey: "v0", generatedProviderId: "v0" },
 ];
 
