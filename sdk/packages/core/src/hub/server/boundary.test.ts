@@ -1117,6 +1117,176 @@ describe("HubServerTransport boundaries", () => {
 		await expect(answerPromise).resolves.toBe("Use hub");
 	});
 
+	it("keeps opted-in cloud questions across viewer disconnects and resolves once", async () => {
+		const startSession = vi.fn(async (_input: StartSessionInput) => ({
+			sessionId: "session-1",
+		}));
+		const transport = createTransport({ sessionHost: { startSession } });
+		const ctx = getContext(transport);
+		const created = await transport.handleCommand({
+			version: "v1",
+			requestId: "create",
+			command: "session.create",
+			clientId: "startup",
+			payload: {
+				sessionConfig: { sessionId: "session-1" },
+				metadata: {
+					source: "cloud",
+					interactive: true,
+					enableAskQuestion: true,
+				},
+				// Browser restore supplies this legacy descriptor alongside saved metadata.
+				runtimeOptions: {
+					clientContributions: [
+						{
+							kind: "toolExecutor",
+							executor: "askQuestion",
+							capabilityName: "tool_executor.askQuestion",
+						},
+					],
+				},
+			},
+		});
+		expect(created.ok).toBe(true);
+		const askQuestion =
+			startSession.mock.calls[0]?.[0].capabilities?.toolExecutors?.askQuestion;
+		if (!askQuestion) throw new Error("Expected session-owned question tool");
+		const answer = askQuestion("Which path?", ["A", "B"], {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "close-startup",
+			command: "client.unregister",
+			clientId: "startup",
+		});
+		expect(ctx.pendingCapabilityRequests.size).toBe(1);
+		const events: HubEventEnvelope[] = [];
+		const unsubscribe = transport.subscribe(
+			"viewer-1",
+			(event) => events.push(event),
+			{ sessionId: "session-1" },
+		);
+		await Promise.resolve();
+		const requested = events.find(
+			(event) => event.event === "capability.requested",
+		);
+		expect(requested?.payload?.targetClientId).toBe("");
+		const requestId = String(requested?.payload?.requestId);
+		const missingSession = await transport.handleCommand({
+			version: "v1",
+			requestId: "bad-answer",
+			command: "capability.respond",
+			clientId: "viewer-1",
+			payload: { requestId, ok: true, payload: { result: "A" } },
+		});
+		expect(missingSession.error?.code).toBe("capability_wrong_session");
+		unsubscribe();
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "disconnect",
+			command: "client.unregister",
+			clientId: "viewer-1",
+		});
+		expect(ctx.pendingCapabilityRequests.size).toBe(1);
+		const reconnected: HubEventEnvelope[] = [];
+		transport.subscribe("viewer-2", (event) => reconnected.push(event), {
+			sessionId: "session-1",
+		});
+		await Promise.resolve();
+		expect(reconnected).toContainEqual(requested);
+		const response = {
+			version: "v1" as const,
+			requestId: "answer",
+			command: "capability.respond" as const,
+			clientId: "viewer-2",
+			sessionId: "session-1",
+			payload: { requestId, ok: true, payload: { result: "B" } },
+		};
+		expect((await transport.handleCommand(response)).ok).toBe(true);
+		await expect(answer).resolves.toBe("B");
+		expect(
+			(await transport.handleCommand({ ...response, clientId: "viewer-3" }))
+				.payload?.ignored,
+		).toBe(true);
+		expect(ctx.pendingCapabilityRequests.size).toBe(0);
+		await transport.stop();
+	});
+
+	it.each([
+		{
+			metadata: { source: "cloud", interactive: true, enableAskQuestion: true },
+			enabled: true,
+		},
+		{ metadata: { source: "cloud", interactive: true }, enabled: false },
+		{
+			metadata: {
+				source: "cloud",
+				interactive: false,
+				enableAskQuestion: true,
+			},
+			enabled: false,
+		},
+		{
+			metadata: { source: "cli", interactive: true, enableAskQuestion: true },
+			enabled: false,
+		},
+	])("only enables session-owned questions for interactive cloud opt-in: %j", async ({
+		metadata,
+		enabled,
+	}) => {
+		const startSession = vi.fn(async (_input: StartSessionInput) => ({
+			sessionId: "session-1",
+		}));
+		const transport = createTransport({ sessionHost: { startSession } });
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "create",
+			command: "session.create",
+			clientId: "creator",
+			payload: { sessionConfig: { sessionId: "session-1" }, metadata },
+		});
+		expect(
+			Boolean(
+				startSession.mock.calls[0]?.[0].capabilities?.toolExecutors
+					?.askQuestion,
+			),
+		).toBe(enabled);
+		await transport.stop();
+	});
+
+	it("cancels session-owned questions when their session is deleted", async () => {
+		let questionSettled: Promise<void>;
+		const transport = createTransport({
+			sessionHost: {
+				deleteSession: vi.fn(async () => {
+					await questionSettled;
+					return true;
+				}),
+			},
+		});
+		const ctx = getContext(transport);
+		questionSettled = expect(
+			ctx.requestCapability(
+				"session-1",
+				"tool_executor.askQuestion",
+				{ args: ["Continue?", ["Yes"]] },
+				"",
+			),
+		).rejects.toThrow("Session deleted");
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "delete",
+			command: "session.delete",
+			sessionId: "session-1",
+		});
+		await questionSettled;
+		expect(ctx.pendingCapabilityRequests.size).toBe(0);
+		await transport.stop();
+	});
+
 	it("does not transfer capability ownership to attached clients", async () => {
 		let createdSessionId = "";
 		const startSession = vi.fn(async (input: StartSessionInput) => {
@@ -1733,7 +1903,10 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("cancels pending capability requests when a run is aborted", async () => {
+	it.each([
+		"owner-client",
+		"",
+	])("cancels pending capability requests on abort (owner: %s)", async (targetClientId) => {
 		const abort = vi.fn().mockResolvedValue(undefined);
 		const transport = createTransport({
 			sessionHost: {
@@ -1756,7 +1929,7 @@ describe("HubServerTransport boundaries", () => {
 		transport.subscribe("owner-client", (event) => events.push(event));
 		ctx.pendingCapabilityRequests.set("capreq-1", {
 			sessionId: "session-1",
-			targetClientId: "owner-client",
+			targetClientId,
 			capabilityName: "tool_executor.askQuestion",
 			resolve: resolved,
 		});

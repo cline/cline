@@ -491,9 +491,10 @@ describe("Cloud sessions sidecar wiring", () => {
 			sandboxUrl: "pod",
 		}));
 		const { ctx, hub, manager } = createFixture({
-			hub: new FakeHubClient(false),
+			hub: new FakeHubClient(),
 			api: {
 				list: async () => [],
+				status: async () => ({ status: "ready" }),
 				create,
 			} as unknown as CloudSessionApi,
 		});
@@ -508,6 +509,8 @@ describe("Cloud sessions sidecar wiring", () => {
 				sessionId: "client-planned-id",
 				branch: "feature/login-fix",
 				autoApproveTools: false,
+				mode: "plan",
+				thinking: false,
 			},
 		});
 
@@ -525,15 +528,19 @@ describe("Cloud sessions sidecar wiring", () => {
 				sandboxType: "resumable",
 				branch: "feature/login-fix",
 				autoApproveTools: false,
+				mode: "plan",
+				thinking: false,
 			}),
 		);
-		await manager.send("ses-created", "Fix the provisioning flow");
-		const innerCreate = hub.commands.find(
-			(entry) => entry.command === "session.create",
-		);
-		expect(innerCreate?.payload?.toolPolicies).toEqual({
-			"*": { autoApprove: false },
-		});
+		await manager.readMessages("ses-created");
+		expect(
+			hub.commands.some(
+				(entry) =>
+					entry.command === "session.create" ||
+					entry.command === "session.send_input",
+			),
+		).toBe(false);
+		await manager.dispose();
 	});
 
 	it.each([
@@ -594,7 +601,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		}
 	});
 
-	it("returns the real id immediately and sends only after readiness", async () => {
+	it("returns the real id immediately and attaches the backend task after readiness", async () => {
 		const ready = Promise.withResolvers<void>();
 		const waitUntilReady = vi.fn(() => ready.promise);
 		const session = {
@@ -603,7 +610,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			status: "provisioning",
 		};
 		const { events, hub, manager } = createFixture({
-			hub: new FakeHubClient(false),
+			hub: new FakeHubClient(),
 			api: {
 				create: async () => ({
 					sessionId: session.id,
@@ -624,7 +631,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			sessionId: "ses-created",
 			status: "provisioning",
 		});
-		expect(waitUntilReady).not.toHaveBeenCalled();
+		expect(waitUntilReady).toHaveBeenCalledOnce();
 		expect(hub.commands).toEqual([]);
 		expect(
 			(await manager.listForDiscovery()).map((row) => row.sessionId),
@@ -633,19 +640,19 @@ describe("Cloud sessions sidecar wiring", () => {
 			sessionId: "ses-created",
 			status: "provisioning",
 		});
-		await expect(manager.readMessages("ses-created")).resolves.toEqual([]);
+		const reading = manager.readMessages("ses-created");
 		await expect(manager.pendingPrompts("ses-created")).resolves.toMatchObject({
 			promptsInQueue: [],
 		});
-		expect(waitUntilReady).not.toHaveBeenCalled();
-		const sending = manager.send("ses-created", "Fix this");
+		expect(waitUntilReady).toHaveBeenCalledOnce();
+
 		await vi.waitFor(() => expect(waitUntilReady).toHaveBeenCalledOnce());
 		expect(hub.commands).toEqual([]);
 		ready.resolve();
-		await sending;
+		await reading;
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
-		).toHaveLength(1);
+		).toHaveLength(0);
 		expect(
 			events.some(
 				(event) =>

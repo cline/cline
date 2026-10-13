@@ -43,6 +43,8 @@ export type PendingCapabilityRequest = {
 	sessionId: string;
 	targetClientId: string;
 	capabilityName: string;
+	/** Session-owned questions are replayed when a viewer reconnects. */
+	requestedEvent?: HubEventEnvelope;
 	onProgress?: (payload: Record<string, unknown>) => void;
 	resolve: (result: {
 		ok: boolean;

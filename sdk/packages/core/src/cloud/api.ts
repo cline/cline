@@ -9,6 +9,7 @@ import type {
 	CloudBranchListResult,
 	CloudRepositoryListResult,
 } from "./repositories";
+import { cloudSystemPrompt } from "./system-prompt";
 
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
@@ -60,6 +61,7 @@ export type CreateCloudSessionInput = {
 	modelId: string;
 	repoUrl: string;
 	initialPrompt?: string;
+	userImages?: string[];
 	branch?: string;
 	autoApproveTools?: boolean;
 	thinking?: boolean;
@@ -82,6 +84,13 @@ export type CreateCloudSessionInput = {
 		onSeeding?: () => void | Promise<void>;
 	};
 };
+
+export function hasInitialPrompt(input: CreateCloudSessionInput): boolean {
+	return (
+		!input.handoff &&
+		Boolean(input.initialPrompt?.trim() || input.userImages?.length)
+	);
+}
 
 export type {
 	CloudBranchListOptions,
@@ -704,6 +713,22 @@ export class CloudSessionApi {
 					body: JSON.stringify({
 						modelId: input.modelId,
 						repoUrl: input.repoUrl,
+						...(hasInitialPrompt(input)
+							? {
+									initialPrompt: {
+										prompt: input.initialPrompt?.trim() ?? "",
+										userImages: input.userImages,
+										systemPrompt: cloudSystemPrompt(
+											`cline/${(input.requestId || randomUUID()).slice(-8).toLowerCase()}`,
+											input.sandboxType !== "standard",
+										),
+										mode: input.mode,
+										thinking: input.thinking,
+										reasoningEffort: input.reasoningEffort,
+										autoApproveTools: input.autoApproveTools,
+									},
+								}
+							: {}),
 						...(input.sandboxType ? { sandboxType: input.sandboxType } : {}),
 						title: recoveryTitle,
 						...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),

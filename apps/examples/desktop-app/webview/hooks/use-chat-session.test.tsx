@@ -695,6 +695,172 @@ describe("useChatSession", () => {
 		expect(current.error).toBeNull();
 	});
 
+	it("hydrates a fast backend run after adopting its id and sends only follow-ups", async () => {
+		const requests: Record<string, unknown>[] = [];
+		const snapshot = {
+			sessionId: "ses-created",
+			status: "completed",
+			transcriptKnown: true,
+			messages: [
+				{
+					id: "u1",
+					sessionId: "ses-created",
+					role: "user",
+					content: "First",
+					createdAt: 1,
+				},
+				{
+					id: "a1",
+					sessionId: "ses-created",
+					role: "assistant",
+					content: "Done",
+					createdAt: 2,
+				},
+			],
+		};
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as Record<string, unknown>;
+					requests.push(request);
+					if (request.action === "start") {
+						handlerFor("cloud_session_rehydrated")(snapshot);
+						return {
+							sessionId: "ses-created",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+					return { ok: true, queued: true, promptsInQueue: [] };
+				}
+				if (command === "read_session_messages") {
+					handlerFor("cloud_session_rehydrated")(snapshot);
+					return snapshot.messages;
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.setConfig((previous) => ({
+				...previous,
+				executionTarget: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				provider: "cline",
+			})),
+		);
+		await act(async () => {
+			expect(await current.sendPrompt("First")).toBe(true);
+		});
+		expect(
+			requests.filter(
+				(request) => request.action === "start" || request.action === "send",
+			),
+		).toEqual([expect.objectContaining({ action: "start" })]);
+		expect(requests[0]).toMatchObject({ action: "start", prompt: "First" });
+		expect(invokeMock).toHaveBeenCalledWith(
+			"read_session_messages",
+			expect.objectContaining({ sessionId: "ses-created" }),
+			{ timeoutMs: null },
+		);
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toHaveLength(1);
+		expect(current.messages.some((message) => message.content === "Done")).toBe(
+			true,
+		);
+		expect(current.status).toBe("completed");
+		await act(async () => {
+			await current.sendPrompt("Second");
+		});
+		expect(requests.filter((request) => request.action === "send")).toEqual([
+			expect.objectContaining({ prompt: "Second", sessionId: "ses-created" }),
+		]);
+	});
+
+	it("includes an image-only first prompt in cloud creation and keeps it accepted if viewing fails", async () => {
+		const requests: Record<string, unknown>[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					requests.push(args?.request as Record<string, unknown>);
+					return {
+						sessionId: "ses-created",
+						cwd: "/workspace",
+						workspaceRoot: "/workspace",
+					};
+				}
+				if (command === "read_session_messages")
+					throw new Error("Viewer disconnected");
+				return [];
+			},
+		);
+		await act(async () =>
+			current.setConfig((previous) => ({
+				...previous,
+				executionTarget: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				provider: "cline",
+			})),
+		);
+		const image = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+			type: "image/png",
+		});
+		await act(async () => {
+			expect(await current.sendPrompt("", [image])).toBe(true);
+		});
+		expect(
+			requests.filter(
+				(request) => request.action === "start" || request.action === "send",
+			),
+		).toEqual([expect.objectContaining({ action: "start" })]);
+		expect(requests[0]).toMatchObject({
+			action: "start",
+			attachments: {
+				userImages: ["data:image/png;base64,AQID"],
+				userFiles: [],
+			},
+		});
+		expect(
+			current.messages.find((message) => message.role === "user")?.images,
+		).toHaveLength(1);
+		expect(current.error).toContain("Viewer disconnected");
+	});
+
+	it.each([
+		false,
+		true,
+	])("rejects unsupported cloud files before creating a session (read fails: %s)", async (fails) => {
+		await act(async () =>
+			current.setConfig((previous) => ({
+				...previous,
+				executionTarget: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				provider: "cline",
+			})),
+		);
+		invokeMock.mockClear();
+		const file = {
+			name: "notes.txt",
+			type: "text/plain",
+			size: 3,
+			text: async () => {
+				if (fails) throw new Error("File unreadable");
+				return "abc";
+			},
+		} as unknown as File;
+		await act(async () => {
+			expect(await current.sendPrompt("First", [file])).toBe(false);
+		});
+		expect(
+			invokeMock.mock.calls.some(
+				([command]) => command === "chat_session_command",
+			),
+		).toBe(false);
+		expect(current.error).toContain(
+			fails ? "File unreadable" : "File attachments are not supported",
+		);
+	});
+
 	it("allows cloud provisioning to outlive the default desktop command timeout", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {

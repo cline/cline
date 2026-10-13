@@ -547,6 +547,7 @@ export function createHubClientContributionRuntime(input: {
 	targetClientId: string;
 	contributions: readonly HubClientContribution[];
 	sessionConfig?: Partial<RuntimeSessionConfig>;
+	enableAskQuestion?: boolean;
 	requestCapability: RequestCapability;
 }): {
 	localRuntime: LocalRuntimeStartOptions;
@@ -579,14 +580,33 @@ export function createHubClientContributionRuntime(input: {
 			item.kind === "userInstructionService",
 	);
 
+	let proxiedExecutors = createToolExecutorProxy(
+		input.sessionId,
+		input.targetClientId,
+		toolExecutors,
+		input.requestCapability,
+	);
+	if (input.enableAskQuestion) {
+		// Restored cloud sessions can also carry a legacy creator-owned descriptor.
+		proxiedExecutors = {
+			...proxiedExecutors,
+			...createToolExecutorProxy(
+				input.sessionId,
+				"",
+				[
+					{
+						kind: "toolExecutor",
+						executor: "askQuestion",
+						capabilityName: "tool_executor.askQuestion",
+					},
+				],
+				input.requestCapability,
+			),
+		};
+	}
 	return {
 		hasClientContributions: input.contributions.length > 0,
-		toolExecutors: createToolExecutorProxy(
-			input.sessionId,
-			input.targetClientId,
-			toolExecutors,
-			input.requestCapability,
-		),
+		toolExecutors: proxiedExecutors,
 		localRuntime: {
 			...(hooks.length > 0
 				? {

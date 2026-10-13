@@ -56,7 +56,15 @@ the remote task. Call `dispose` when the host shuts down.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
-`create` accepts `sandboxType: "standard" | "resumable"` (default: `"standard"`).
+`create` accepts `sandboxType: "standard" | "resumable"` (default: `"resumable"`).
+A nonblank `initialPrompt` or `userImages` submits the first input with provisioning,
+using the selected mode, reasoning, and approval settings. Do not send that input
+again: the server creates the task and queues it even if the viewer disconnects.
+The controller connects in the background; hosts should read messages after adopting
+the returned session ID to recover progress that arrived before their UI was ready.
+Discovery of a missing task or an empty server-started task uses a 100-second window
+after Hub connection. Viewing failures do not mean the submitted prompt was rejected.
+Empty starts and transcript handoffs retain client-side task creation.
 The controller resumes suspended sessions when opened and restores their saved tasks.
 
 Hosts replacing controllers during credential refresh can share the
