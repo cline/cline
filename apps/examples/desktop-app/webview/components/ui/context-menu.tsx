@@ -5,6 +5,7 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useOverlayVisibility } from "./overlay-visibility";
 
 function ContextMenu({
 	...props
@@ -31,6 +32,8 @@ function ContextMenuGroup({
 function ContextMenuPortal({
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Portal>) {
+	const visible = useOverlayVisibility();
+	if (!visible) return null;
 	return (
 		<ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
 	);
@@ -98,7 +101,7 @@ function ContextMenuContent({
 	...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
 	return (
-		<ContextMenuPrimitive.Portal>
+		<ContextMenuPortal>
 			<ContextMenuPrimitive.Content
 				data-slot="context-menu-content"
 				className={cn(
@@ -107,7 +110,7 @@ function ContextMenuContent({
 				)}
 				{...props}
 			/>
-		</ContextMenuPrimitive.Portal>
+		</ContextMenuPortal>
 	);
 }
 

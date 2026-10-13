@@ -3,6 +3,25 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
+import {
+	AlertDialog,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogTitle,
+} from "./ui/alert-dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "./ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "./ui/sheet";
 import { LoadingScreen } from "./views/loading/LoadingScreen";
 import { SiteLoader } from "./views/loading/SiteLoader";
 
@@ -15,6 +34,31 @@ let root = createRoot(container);
 afterEach(() => {
 	act(() => root.unmount());
 	root = createRoot(container);
+});
+
+it("releases an open modal menu's pointer lock during recovery", async () => {
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: "ready", attempt: 1 };
+	const render = () =>
+		root.render(
+			<SiteLoader readiness={state}>
+				<DropdownMenu defaultOpen>
+					<DropdownMenuTrigger>Menu</DropdownMenuTrigger>
+					<DropdownMenuContent>
+						<DropdownMenuItem>Item</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</SiteLoader>,
+		);
+	await act(async () => render());
+	expect(document.body.style.pointerEvents).toBe("none");
+	state.transport = "unavailable";
+	await act(async () => render());
+	expect(document.querySelector('[role="menu"]')).toBeNull();
+	expect(document.body.style.pointerEvents).not.toBe("none");
+	await act(async () => container.querySelector("main button")?.click());
+	expect(state.retry).toHaveBeenCalledOnce();
 });
 const readiness = (): ReturnType<typeof useDesktopReadiness> => ({
 	transport: "connecting",
@@ -162,6 +206,65 @@ it("keeps the mounted composer and attachments across transport recovery", () =>
 	state.transport = "connected";
 	state.hub = { state: "ready", attempt: 1 };
 	act(render);
+	expect(container.querySelector("textarea")).toBe(composer);
+	expect(composer?.value).toBe("Unsent draft");
+	expect(container.querySelector("input")).toBe(attachments);
+});
+
+it.each([
+	["dialog", Dialog, DialogContent, DialogTitle, DialogDescription],
+	[
+		"alert dialog",
+		AlertDialog,
+		AlertDialogContent,
+		AlertDialogTitle,
+		AlertDialogDescription,
+	],
+	["sheet", Sheet, SheetContent, SheetTitle, SheetDescription],
+] as const)("suspends an open %s during recovery so Retry remains accessible", async (_name, Modal, Content, Title, Description) => {
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: "ready", attempt: 1 };
+	const render = () =>
+		root.render(
+			<SiteLoader readiness={state}>
+				<textarea defaultValue="Unsent draft" />
+				<input type="file" />
+				<Modal defaultOpen>
+					<Content>
+						<Title>Open modal</Title>
+						<Description>Modal content</Description>
+					</Content>
+				</Modal>
+			</SiteLoader>,
+		);
+	await act(async () => render());
+	const composer = container.querySelector("textarea");
+	const attachments = container.querySelector("input");
+	expect(document.body.style.pointerEvents).toBe("none");
+	expect(
+		document.querySelector('[role="dialog"], [role="alertdialog"]'),
+	).not.toBeNull();
+	state.transport = "unavailable";
+	state.hub = { state: "starting", attempt: 0 };
+	await act(async () => render());
+	expect(
+		document.querySelector('[role="dialog"], [role="alertdialog"]'),
+	).toBeNull();
+	expect(document.body.style.pointerEvents).not.toBe("none");
+	const retry = container.querySelector("button");
+	expect(retry?.closest('[aria-hidden="true"], [inert]')).toBeNull();
+	await act(async () => retry?.click());
+	expect(state.retry).toHaveBeenCalledOnce();
+	expect(container.querySelector("textarea")).toBe(composer);
+	expect(container.querySelector("input")).toBe(attachments);
+	state.transport = "connected";
+	state.hub = { state: "ready", attempt: 1 };
+	await act(async () => render());
+	expect(
+		document.querySelector('[role="dialog"], [role="alertdialog"]'),
+	).not.toBeNull();
+	expect(document.body.style.pointerEvents).toBe("none");
 	expect(container.querySelector("textarea")).toBe(composer);
 	expect(composer?.value).toBe("Unsent draft");
 	expect(container.querySelector("input")).toBe(attachments);

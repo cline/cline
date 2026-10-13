@@ -5,6 +5,7 @@ import { XIcon } from "lucide-react";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useOverlayVisibility } from "./overlay-visibility";
 
 function Dialog({
 	...props
@@ -21,6 +22,8 @@ function DialogTrigger({
 function DialogPortal({
 	...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+	const visible = useOverlayVisibility();
+	if (!visible) return null;
 	return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 

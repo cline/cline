@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useState } from "react";
+import { OverlayVisibility } from "@/components/ui/overlay-visibility";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./LoadingScreen";
 
@@ -23,7 +24,7 @@ export function SiteLoader({
 		<>
 			{(showApp || hasLoaded) && (
 				<div className="h-screen" hidden={!showApp} inert={!showApp}>
-					{children}
+					<OverlayVisibility value={showApp}>{children}</OverlayVisibility>
 				</div>
 			)}
 			{!showApp && <LoadingScreen readiness={readiness} />}

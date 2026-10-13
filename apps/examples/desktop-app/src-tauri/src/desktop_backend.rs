@@ -693,6 +693,7 @@ pub(crate) async fn get_desktop_backend_endpoint(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
@@ -769,6 +770,7 @@ mod tests {
         assert!(!error.contains("private-value"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn crashed_sidecar_retains_stderr_and_exit_status_across_respawn() {
         let state = Arc::new(DesktopBackendState::default());
@@ -802,6 +804,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn status_times_out_pending_startup_without_an_endpoint_request_and_retry_resets_timer() {
         let state = Arc::new(DesktopBackendState::default());
@@ -840,6 +843,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn repeated_retry_replaces_failed_child_once_and_respects_shutdown() {
         let state = Arc::new(DesktopBackendState::default());
@@ -874,6 +878,7 @@ mod tests {
     /// A stand-in sidecar that stays alive without ever publishing a ready
     /// line — the endpoint-pending startup window that used to trigger
     /// duplicate spawns.
+    #[cfg(unix)]
     fn spawn_pending_sidecar() -> Result<Child, String> {
         Command::new("sleep")
             .arg("30")
@@ -884,6 +889,7 @@ mod tests {
             .map_err(|e| e.to_string())
     }
 
+    #[cfg(unix)]
     #[test]
     fn repeated_startup_checks_reuse_live_child_while_endpoint_pending() {
         let state = Arc::new(DesktopBackendState::default());
@@ -906,6 +912,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn concurrent_startup_checks_spawn_exactly_one_child() {
         let state = Arc::new(DesktopBackendState::default());
@@ -940,6 +947,7 @@ mod tests {
     /// check, stop() marks shutdown while startup is still waiting for the
     /// process lock, and then startup acquires the lock. Played out directly
     /// on one thread so the ordering is exact rather than scheduled.
+    #[cfg(unix)]
     #[test]
     fn startup_queued_on_process_lock_does_not_spawn_after_shutdown() {
         let state = Arc::new(DesktopBackendState::default());
@@ -959,6 +967,7 @@ mod tests {
 
     /// A stand-in sidecar that publishes a ready line like the real one and
     /// then stays alive.
+    #[cfg(unix)]
     fn spawn_ready_sidecar(endpoint: &str) -> Result<Child, String> {
         Command::new("sh")
             .arg("-c")
@@ -974,6 +983,7 @@ mod tests {
 
     /// A stand-in sidecar that exits immediately without publishing —
     /// the "first spawn lost a startup race" failure from issue #14129.
+    #[cfg(unix)]
     fn spawn_exiting_sidecar() -> Result<Child, String> {
         Command::new("true")
             .stdin(Stdio::null())
@@ -983,6 +993,7 @@ mod tests {
             .map_err(|e| e.to_string())
     }
 
+    #[cfg(unix)]
     fn wait_until_tracked_child_exits(state: &Arc<DesktopBackendState>) {
         for _ in 0..200 {
             let exited = state
@@ -1002,6 +1013,7 @@ mod tests {
         panic!("tracked child did not exit in time");
     }
 
+    #[cfg(unix)]
     #[test]
     fn endpoint_wait_returns_the_endpoint_published_by_a_live_child() {
         let state = Arc::new(DesktopBackendState::default());
@@ -1032,6 +1044,7 @@ mod tests {
     /// before publishing its endpoint. The wait must respawn it and keep
     /// waiting for the replacement's ready line instead of failing the
     /// webview's endpoint request.
+    #[cfg(unix)]
     #[test]
     fn endpoint_wait_respawns_a_dead_child_and_returns_its_successor_endpoint() {
         let state = Arc::new(DesktopBackendState::default());
@@ -1067,6 +1080,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn endpoint_wait_paces_respawns_of_a_crash_looping_child() {
         let state = Arc::new(DesktopBackendState::default());
@@ -1096,6 +1110,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn endpoint_wait_times_out_while_the_child_stays_pending() {
         let state = Arc::new(DesktopBackendState::default());
@@ -1119,6 +1134,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn endpoint_wait_stops_when_shutdown_begins() {
         let state = Arc::new(DesktopBackendState::default());
@@ -1134,6 +1150,7 @@ mod tests {
         assert_eq!(result, Err("desktop backend is shutting down".to_string()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn endpoint_wait_surfaces_a_permanent_respawn_failure() {
         let state = Arc::new(DesktopBackendState::default());
@@ -1152,6 +1169,7 @@ mod tests {
         state.stop();
     }
 
+    #[cfg(unix)]
     #[test]
     fn exited_child_is_replaced_on_next_startup_check() {
         let state = Arc::new(DesktopBackendState::default());

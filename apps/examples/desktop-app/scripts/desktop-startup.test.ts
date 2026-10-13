@@ -10,6 +10,8 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveHubBuildIdentity } from "@cline/core/hub";
+import { CURRENT_HUB_PROTOCOL_VERSION } from "@cline/shared";
 
 // Exercise the actual compiled entrypoint: source-only tests miss mixed SDK
 // build identities between the desktop client and its embedded Hub daemon.
@@ -234,14 +236,28 @@ test("source desktop publishes transport while hub registration hangs", async ()
 	const errors = join(root, "stderr.log");
 	const stdout = openSync(output, "w");
 	const stderr = openSync(errors, "w");
+	let registrationRequests = 0;
 	const hub = Bun.serve({
 		hostname: "127.0.0.1",
 		port: 0,
 		fetch(request, server) {
 			if (server.upgrade(request)) return;
-			return new Response("pending");
+			return Response.json({
+				...resolveHubBuildIdentity(),
+				protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
+				host: "127.0.0.1",
+				port: server.port,
+				url: `ws://127.0.0.1:${server.port}/hub`,
+				authToken: "test-hub-token",
+			});
 		},
-		websocket: { message() {} },
+		websocket: {
+			message(_socket, data) {
+				if (JSON.parse(String(data)).envelope?.command === "client.register") {
+					registrationRequests += 1;
+				}
+			},
+		},
 	});
 	let child: ReturnType<typeof Bun.spawn> | undefined;
 	let socket: WebSocket | undefined;
@@ -315,6 +331,15 @@ test("source desktop publishes transport while hub registration hangs", async ()
 		expect(await command("providers", "list_provider_catalog")).toMatchObject({
 			ok: true,
 		});
+		// Wait for the intended hang, rather than passing during shell setup
+		// before an invalid fake health response has failed initialization.
+		const registrationDeadline = Date.now() + 8_000;
+		while (!registrationRequests && Date.now() < registrationDeadline) {
+			await Bun.sleep(25);
+		}
+		expect(registrationRequests, readFileSync(errors, "utf8")).toBeGreaterThan(
+			0,
+		);
 		expect(await command("hub", "list_routine_schedules")).toMatchObject({
 			ok: false,
 			errorCode: "SESSION_SERVICE_NOT_READY",

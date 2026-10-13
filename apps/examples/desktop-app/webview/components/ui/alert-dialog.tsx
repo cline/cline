@@ -4,6 +4,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import type * as React from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useOverlayVisibility } from "./overlay-visibility";
 
 function AlertDialog({
 	...props
@@ -22,6 +23,8 @@ function AlertDialogTrigger({
 function AlertDialogPortal({
 	...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
+	const visible = useOverlayVisibility();
+	if (!visible) return null;
 	return (
 		<AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
 	);

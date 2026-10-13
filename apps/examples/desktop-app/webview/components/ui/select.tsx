@@ -5,6 +5,7 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useOverlayVisibility } from "./overlay-visibility";
 
 function Select({
 	...props
@@ -56,6 +57,8 @@ function SelectContent({
 	position = "popper",
 	...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+	const visible = useOverlayVisibility();
+	if (!visible) return null;
 	return (
 		<SelectPrimitive.Portal>
 			<SelectPrimitive.Content
