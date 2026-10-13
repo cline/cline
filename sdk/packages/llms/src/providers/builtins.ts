@@ -923,10 +923,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		id: "umans-ai",
 		name: "Umans AI",
 		description: "Frontier open-weight coding models, billed per token",
-		family: "openai-compatible",
-		defaultModelId: "umans-deepseek-v4-flash-0731",
-		apiKeyEnv: ["UMANS_AI_API_KEY"],
-		defaults: { baseUrl: "https://api.code.umans.ai/v1" },
 	},
 	{
 		id: "aihubmix",

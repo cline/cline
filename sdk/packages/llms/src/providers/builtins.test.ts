@@ -457,14 +457,24 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("keeps Umans AI connection settings and default model from models.dev", () => {
+		const generated = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "umans-ai",
+		);
+		const builtin = BUILTIN_SPECS.find((spec) => spec.id === "umans-ai");
+
+		expect(generated).toBeDefined();
+		expect(builtin).toEqual({
+			...generated,
+			description: "Frontier open-weight coding models, billed per token",
+		});
+	});
+
 	it("serves the Umans AI default model from the catalog instead of the stub fallback", async () => {
 		const provider = await getProvider("umans-ai");
 		const models = await getModelsForProvider("umans-ai");
-		const defaultModel = models[provider?.defaultModelId ?? ""];
 
-		expect(provider?.defaultModelId).toBe("umans-deepseek-v4-flash-0731");
-		expect(defaultModel?.contextWindow).toBeGreaterThan(128_000);
-		expect(defaultModel?.pricing).toBeDefined();
+		expect(models[provider?.defaultModelId ?? ""]?.pricing).toBeDefined();
 	});
 
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
