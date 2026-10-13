@@ -80,7 +80,6 @@ export async function projectSessionEvent(
 			const prompt: SessionPendingPrompt = {
 				id: event.payload.id,
 				prompt: event.payload.prompt,
-				displayPrompt: event.payload.displayPrompt,
 				delivery: event.payload.delivery,
 				attachmentCount: event.payload.attachmentCount,
 				userImages: event.payload.userImages,

@@ -3,11 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
-import type { CoreSessionEvent } from "../../types/events";
-import {
-	buildHubEvent,
-	type HubTransportContext,
-} from "../server/handlers/context";
+import type { HubTransportContext } from "../server/handlers/context";
 import { projectSessionEvent } from "../server/handlers/session-event-projector";
 
 const commandMock = vi.hoisted(() => vi.fn());
@@ -84,66 +80,6 @@ describe("HubRuntimeHost", () => {
 		disposeMock.mockReset();
 		getClientIdMock.mockClear();
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
-	});
-
-	it.each([
-		"Use @/spec.txt",
-		"",
-		undefined,
-	])("preserves submitted prompt display text through both Hub event copies: %s", async (displayPrompt) => {
-		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
-		subscribeMock.mockImplementation((listener) => {
-			onEvent = listener;
-			return () => {};
-		});
-		commandMock.mockResolvedValue({ ok: true, payload: { result: undefined } });
-		const { HubRuntimeHost } = await import("./hub-runtime-host");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
-		const events: CoreSessionEvent[] = [];
-		host.subscribe((event) => events.push(event));
-		const prompt =
-			'Use @/spec.txt\n<file_content path="spec.txt">Reference details</file_content>';
-		await host.runTurn({
-			sessionId: "sess-1",
-			prompt,
-			displayPrompt,
-			delivery: "steer",
-		});
-		const published: HubEventEnvelope[] = [];
-		const ctx = {
-			buildEvent: buildHubEvent,
-			publish: (event: HubEventEnvelope) => {
-				published.push(event);
-				onEvent?.(event);
-			},
-		} as unknown as HubTransportContext;
-		const payload = {
-			sessionId: "sess-1",
-			id: "pending-1",
-			prompt,
-			displayPrompt,
-			delivery: "steer" as const,
-			attachmentCount: 2,
-			userImages: ["data:image/png;base64,abc"],
-			userFiles: ["/tmp/project/spec.txt"],
-		};
-		await projectSessionEvent(ctx, {
-			type: "pending_prompt_submitted",
-			payload,
-		});
-		expect(published).toHaveLength(1);
-		expect(published[0]?.payload?.prompt).toEqual({
-			id: payload.id,
-			prompt,
-			displayPrompt,
-			delivery: payload.delivery,
-			attachmentCount: payload.attachmentCount,
-			userImages: payload.userImages,
-			userFiles: payload.userFiles,
-		});
-		expect(
-			events.filter((event) => event.type === "pending_prompt_submitted"),
-		).toEqual([{ type: "pending_prompt_submitted", payload }]);
 	});
 
 	it("does not auto-start a run during session creation", async () => {

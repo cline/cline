@@ -41,7 +41,6 @@ export interface SessionTeamProgressEvent {
 export interface SessionPendingPrompt {
 	id: string;
 	prompt: string;
-	displayPrompt?: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;
 	userImages?: string[];
@@ -57,7 +56,6 @@ export interface SessionPendingPromptSubmittedEvent {
 	sessionId: string;
 	id: string;
 	prompt: string;
-	displayPrompt?: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;
 	userImages?: string[];
