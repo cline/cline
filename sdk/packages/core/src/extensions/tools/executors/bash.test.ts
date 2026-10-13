@@ -1289,7 +1289,7 @@ const linuxSandboxToolsInstalled =
 	);
 
 describe.skipIf(!linuxSandboxToolsInstalled)(
-	"createShellExecutor with keep changes inside this project",
+	"createShellExecutor with only allow edits in project directory",
 	() => {
 		it("writes inside the project but not outside it", async () => {
 			const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
@@ -1317,7 +1317,7 @@ describe.skipIf(!linuxSandboxToolsInstalled)(
 				);
 				expect(error).toBeInstanceOf(CommandExitError);
 				expect((error as CommandExitError).output).toContain(
-					'"Keep changes inside this project"',
+					'"Only allow edits in project directory"',
 				);
 				expect(existsSync(outsideFile)).toBe(false);
 			} finally {

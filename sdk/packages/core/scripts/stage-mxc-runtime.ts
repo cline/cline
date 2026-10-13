@@ -1,6 +1,6 @@
 /// <reference types="@types/bun" />
 /**
- * Stages the MXC sandbox runtime ("Keep changes inside this project") into
+ * Stages the MXC sandbox runtime ("Only allow edits in project directory") into
  * <destination>/node_modules so a packaged host can ship it next to its
  * executable. Compiled and bundled hosts cannot inline MXC because its FFI
  * layer (koffi) loads native files from its package directory.

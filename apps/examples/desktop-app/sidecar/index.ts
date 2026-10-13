@@ -237,7 +237,7 @@ function runTelemetrySelfcheck(): void {
 }
 
 /**
- * Points core at the sandbox runtime for "Keep changes inside this project",
+ * Points core at the sandbox runtime for "Only allow edits in project directory",
  * which build-sidecar-bin stages into the bundle's bin/mxc resource.
  */
 function configureProjectSandboxRuntime(): void {

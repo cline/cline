@@ -1082,7 +1082,7 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Keep changes inside this project
+							Only allow edits in project directory
 						</p>
 						<p className="text-sm text-muted-foreground">
 							Cline can still read files anywhere on your computer, but commands
@@ -1096,7 +1096,7 @@ function GeneralSettingsContent({
 						) : null}
 					</div>
 					<Switch
-						aria-label="Keep changes inside this project"
+						aria-label="Only allow edits in project directory"
 						checked={keepChangesInProject}
 						disabled={telemetryLoading || keepChangesInProjectSaving}
 						onCheckedChange={(checked) =>

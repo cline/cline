@@ -2,7 +2,7 @@
  * Keep-Changes-In-Project Extension
  *
  * `beforeTool` hook that refuses editor and apply_patch writes outside the
- * project while the "Keep changes inside this project" setting is on. Commands
+ * project while the "Only allow edits in project directory" setting is on. Commands
  * are contained separately by the project sandbox in the shell executor; this
  * covers the file tools, including host replacements like the VS Code diff
  * editor, which run in-process rather than through a shell.

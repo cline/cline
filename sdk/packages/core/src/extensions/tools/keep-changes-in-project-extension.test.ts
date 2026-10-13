@@ -61,7 +61,7 @@ describe("createKeepChangesInProjectExtension", () => {
 		expect(beforeTool("editor", { path: outside })).toEqual({
 			skip: true,
 			reason: expect.stringContaining(
-				'turn off "Keep changes inside this project"',
+				'turn off "Only allow edits in project directory"',
 			),
 		});
 		expect(beforeTool("editor", { path: "../other/file.ts" })?.skip).toBe(true);

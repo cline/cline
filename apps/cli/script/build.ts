@@ -322,7 +322,7 @@ for (const item of targets) {
 		await Bun.write(join(bootstrapDir, "plugin-sandbox-bootstrap.js"), content);
 	}
 
-	// Runtime for "Keep changes inside this project"; core finds it at
+	// Runtime for "Only allow edits in project directory"; core finds it at
 	// <platform package>/mxc.
 	await stageMxcRuntime({
 		destination: join(cliDir, `dist/${dirName}/mxc`),

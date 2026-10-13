@@ -561,7 +561,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 		const { profileId, shell } = state.snapshot
 
 		// Commands typed into a VS Code terminal cannot be sandboxed, so
-		// "Keep changes inside this project" always runs them in the background.
+		// "Only allow edits in project directory" always runs them in the background.
 		if (executionMode === "backgroundExec" || isKeepChangesInProjectEnabledGlobally()) {
 			// Background path — use SDK's createShellExecutor.
 			// Recreate the executor if the shell has changed

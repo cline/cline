@@ -1,7 +1,7 @@
 /**
  * Project sandbox for run_commands.
  *
- * When "Keep changes inside this project" is on, commands run through
+ * When "Only allow edits in project directory" is on, commands run through
  * Microsoft's MXC sandbox (https://github.com/microsoft/mxc): they can read
  * anything but only write inside the project, temp folders, and package
  * manager caches. MXC is an optional dependency loaded at runtime; packaged
@@ -42,7 +42,8 @@ interface MxcModule {
 	};
 }
 
-export const PROJECT_SANDBOX_SETTING_LABEL = "Keep changes inside this project";
+export const PROJECT_SANDBOX_SETTING_LABEL =
+	"Only allow edits in project directory";
 
 const MXC_SDK_DIR_ENV = "CLINE_MXC_SDK_DIR";
 

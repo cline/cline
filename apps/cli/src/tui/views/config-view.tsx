@@ -497,7 +497,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			r.push({
 				kind: "toggle",
 				id: "keep-changes-in-project",
-				label: "Keep changes inside this project",
+				label: "Only allow edits in project directory",
 			});
 			r.push({ kind: "toggle", id: "auto-update", label: "Auto update" });
 			r.push({ kind: "toggle", id: "verbose", label: "Verbose" });

@@ -128,7 +128,7 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 	await $`lipo -info ${outfile}`;
 };
 
-// Runtime for "Keep changes inside this project", shipped as the bin/mxc
+// Runtime for "Only allow edits in project directory", shipped as the bin/mxc
 // resource. macOS is skipped: its native files would sit unsigned under
 // Contents/Resources and fail notarization (see macSidecarCandidates in
 // sidecar/remote-helper.ts). The note keeps the resource glob matching there.

@@ -70,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Before anything spawns with the workspace as cwd (rg, git, hooks, MCP).
 	disableCurrentDirectoryExecutableSearch()
 
-	// Sandbox runtime for "Keep changes inside this project", staged by build:production.
+	// Sandbox runtime for "Only allow edits in project directory", staged by build:production.
 	process.env.CLINE_MXC_SDK_DIR ??= path.join(context.extensionPath, "dist", "mxc", "node_modules", "@microsoft", "mxc-sdk")
 
 	// 1. Set up HostProvider for VSCode
