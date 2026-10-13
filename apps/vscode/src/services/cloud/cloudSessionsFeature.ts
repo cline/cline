@@ -1,11 +1,12 @@
+import { StateManager } from "@/core/storage/StateManager"
 import { featureFlagsService } from "@/services/feature-flags"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 
 /**
- * Cloud sessions are rolled out behind the `ext-cloud-sessions` PostHog flag.
- * `CLINE_CLOUD_SESSIONS=1` forces it on for local development and testing.
+ * `CLINE_CLOUD_SESSIONS=1` forces cloud sessions on (and `0` off) for local
+ * development and testing, bypassing both the flag and the Settings toggle.
  */
-export function isCloudSessionsFeatureEnabled(): boolean {
+function readCloudSessionsOverride(): boolean | undefined {
 	const override = process.env.CLINE_CLOUD_SESSIONS?.trim().toLowerCase()
 	if (override === "1" || override === "true") {
 		return true
@@ -13,5 +14,19 @@ export function isCloudSessionsFeatureEnabled(): boolean {
 	if (override === "0" || override === "false") {
 		return false
 	}
-	return featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLOUD_SESSIONS)
+	return undefined
+}
+
+/** Whether the `ext-cloud-sessions` rollout makes cloud sessions available to this user. */
+export function isCloudSessionsFeatureAvailable(): boolean {
+	return readCloudSessionsOverride() ?? featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLOUD_SESSIONS)
+}
+
+/** Whether cloud sessions are both available and turned on by the user in Settings. */
+export function isCloudSessionsFeatureEnabled(): boolean {
+	const override = readCloudSessionsOverride()
+	if (override !== undefined) {
+		return override
+	}
+	return isCloudSessionsFeatureAvailable() && StateManager.get().getGlobalSettingsKey("cloudSessionsEnabled")
 }

@@ -281,6 +281,7 @@ const USER_SETTINGS_FIELDS = {
 	useAutoCondense: { default: true as boolean },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
+	cloudSessionsEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
 	backgroundEditEnabled: { default: false as boolean },

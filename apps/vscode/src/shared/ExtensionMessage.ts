@@ -145,7 +145,9 @@ export interface ExtensionState {
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
-	/** Cline Cloud sessions feature flag. */
+	/** Cline Cloud sessions rollout flag; shows the Settings toggle. */
+	cloudSessionsAvailable?: boolean
+	/** Cline Cloud sessions are available and turned on in Settings. */
 	cloudSessionsEnabled?: boolean
 	/** Where a new task runs, resolved from the user's choice, the account's repositories and the workspace. */
 	cloudTaskTarget?: CloudTaskTargetView

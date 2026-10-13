@@ -1,7 +1,9 @@
 # Cline Cloud sessions in the VS Code extension: follow-ups
 
 This PR ships cloud sessions in the extension behind the `ext-cloud-sessions`
-feature flag (override locally with `CLINE_CLOUD_SESSIONS=1`). It deliberately
+feature flag plus an opt-in Settings > Features > Cloud toggle that only
+appears when the flag is on (override both locally with
+`CLINE_CLOUD_SESSIONS=1`). It deliberately
 does not wait on the desktop-app PR stacks, so some code is duplicated or
 shortcut. This file lists the cleanup and the features we chose to leave out,
 roughly in the order they should be done.
