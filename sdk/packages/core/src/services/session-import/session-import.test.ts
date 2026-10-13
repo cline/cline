@@ -196,7 +196,135 @@ function writeClaudeCodeFixture(projectsDir: string): string {
 	return dir;
 }
 
+function writeBranchedClaudeCodeFixture(projectsDir: string): string {
+	const dir = join(projectsDir, "-workspace-branched");
+	mkdirSync(dir, { recursive: true });
+	const base = {
+		sessionId: "branched",
+		version: "2.0.0",
+		isSidechain: false,
+		gitBranch: "main",
+	};
+	const lines = [
+		{
+			...base,
+			type: "user",
+			uuid: "meta-user",
+			parentUuid: null,
+			isMeta: true,
+			message: {
+				role: "user",
+				content: "<command-message>/resume</command-message>",
+			},
+		},
+		{
+			...base,
+			type: "assistant",
+			uuid: "root-assistant",
+			parentUuid: "meta-user",
+			timestamp: "2026-01-02T10:00:00.000Z",
+			message: {
+				role: "assistant",
+				content: [{ type: "text", text: "Resuming the session." }],
+			},
+		},
+		{
+			...base,
+			type: "user",
+			uuid: "abandoned-user",
+			parentUuid: "root-assistant",
+			cwd: "/workspace/abandoned",
+			timestamp: "2026-01-02T10:00:01.000Z",
+			message: { role: "user", content: "Abandoned branch prompt" },
+		},
+		{
+			...base,
+			type: "assistant",
+			uuid: "abandoned-assistant",
+			parentUuid: "abandoned-user",
+			cwd: "/workspace/abandoned",
+			timestamp: "2026-01-02T10:00:02.000Z",
+			message: {
+				id: "msg-abandoned",
+				role: "assistant",
+				content: [{ type: "text", text: "Abandoned branch answer" }],
+			},
+		},
+		{
+			...base,
+			type: "user",
+			uuid: "active-user",
+			parentUuid: "root-assistant",
+			cwd: "/workspace/active",
+			timestamp: "2026-01-02T10:00:03.000Z",
+			message: { role: "user", content: "Active branch prompt" },
+		},
+		{
+			...base,
+			type: "assistant",
+			uuid: "active-assistant-1",
+			parentUuid: "active-user",
+			cwd: "/workspace/active",
+			timestamp: "2026-01-02T10:00:04.000Z",
+			message: {
+				id: "msg-active",
+				role: "assistant",
+				content: [{ type: "text", text: "Active answer" }],
+			},
+		},
+		{
+			...base,
+			type: "assistant",
+			uuid: "active-assistant-2",
+			parentUuid: "active-assistant-1",
+			cwd: "/workspace/active",
+			timestamp: "2026-01-02T10:00:05.000Z",
+			message: {
+				id: "msg-active",
+				role: "assistant",
+				content: [{ type: "text", text: "Continued answer" }],
+			},
+		},
+		{
+			...base,
+			type: "user",
+			uuid: "sidechain-user",
+			parentUuid: null,
+			isSidechain: true,
+			cwd: "/workspace/sidechain",
+			message: { role: "user", content: "Sidechain prompt" },
+		},
+		{ type: "ai-title", aiTitle: "Claude title", sessionId: "branched" },
+		{ type: "summary", summary: "Fallback summary", sessionId: "branched" },
+	];
+	writeFileSync(join(dir, "branched.jsonl"), `${jsonl(lines)}not valid json\n`);
+	return dir;
+}
+
 describe("ClaudeCodeImportAdapter", () => {
+	it("summarizes only the active branch using conversation record counts", () => {
+		const projectsDir = tempDir("cc-import-");
+		writeBranchedClaudeCodeFixture(projectsDir);
+		const adapter = new ClaudeCodeImportAdapter({ projectsDir });
+
+		const [summary] = adapter.discover();
+		expect({
+			title: summary?.title,
+			cwd: summary?.cwd,
+			messageCount: summary?.messageCount,
+			preview: summary?.preview,
+		}).toEqual({
+			title: "Claude title",
+			cwd: "/workspace/active",
+			messageCount: 4,
+			preview: "Active branch prompt",
+		});
+
+		const converted = adapter.convert("branched");
+		expect(converted.prompt).toBe("Active branch prompt");
+		expect(converted.messages).toHaveLength(3);
+	});
+
 	it("discovers, walks the active branch, merges turns, and strips noise", () => {
 		const projectsDir = tempDir("cc-import-");
 		writeClaudeCodeFixture(projectsDir);
