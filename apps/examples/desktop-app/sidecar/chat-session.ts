@@ -1673,10 +1673,11 @@ async function readHandoffSessionMetadata(
 	binding: SessionRuntimeBinding,
 	sessionId: string,
 ) {
+	if (binding.kind !== "local") return undefined;
 	const persisted = await binding.sessionManager
 		.get(sessionId)
 		.catch((error) => {
-			if (binding.kind !== "local" || !isHubLossError(error)) throw error;
+			if (!isHubLossError(error)) throw error;
 			const manifest = readSessionManifest(sessionId);
 			if (!manifest) throw error;
 			return manifest;
@@ -2095,7 +2096,12 @@ async function handleFork(
 	) {
 		throw new Error("forkBeforeRunCount must be a positive integer");
 	}
-	const manager = getSessionManager(ctx, sourceSessionId, request.config);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
 	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -2106,7 +2112,9 @@ async function handleFork(
 	}
 	const sourceSession = await manager.get(sourceSessionId);
 	const sourceHandoff = readCloudHandoffMetadata(
-		sourceSession?.metadata ?? readSessionMetadata(sourceSessionId),
+		binding.kind === "local"
+			? (sourceSession?.metadata ?? readSessionMetadata(sourceSessionId))
+			: undefined,
 	);
 	if (sourceHandoff?.status === "pending") {
 		throw new Error(
@@ -2404,9 +2412,12 @@ async function handleRestoreCheckpoint(
 		readEnvironmentId(requestedConfig),
 	);
 	const manager = binding.sessionManager;
-	const persisted = await manager.get(sourceSessionId);
+	const persisted =
+		binding.kind === "local" ? await manager.get(sourceSessionId) : undefined;
 	const completedHandoff = readCloudHandoffMetadata(
-		persisted?.metadata ?? readSessionMetadata(sourceSessionId),
+		binding.kind === "local"
+			? (persisted?.metadata ?? readSessionMetadata(sourceSessionId))
+			: undefined,
 	);
 	if (completedHandoff?.status === "pending") {
 		throw new Error(
@@ -2808,14 +2819,20 @@ export async function handleChatSessionCommand(
 		!explicitEnvironment && request.sessionId
 			? await findSessionRuntimeBinding(ctx, request.sessionId)
 			: undefined;
-	return handler(
-		getEnvironmentContext(
-			ctx,
-			explicitEnvironment ??
-				binding?.environmentId ??
-				ctx.activeEnvironmentId ??
-				"local",
-		),
-		request,
+	ctx = getEnvironmentContext(
+		ctx,
+		explicitEnvironment ??
+			binding?.environmentId ??
+			ctx.activeEnvironmentId ??
+			"local",
 	);
+	if (
+		(request.action === "prepare_handoff" ||
+			request.action === "prepare_handoff_git" ||
+			request.action === "handoff") &&
+		getSessionRuntimeBinding(ctx).kind !== "local"
+	) {
+		throw new Error("Cloud handoff is only supported for local sessions.");
+	}
+	return handler(ctx, request);
 }

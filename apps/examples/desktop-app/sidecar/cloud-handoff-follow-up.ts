@@ -137,16 +137,6 @@ export async function sendWithCloudHandoffFollowUp<
 				command,
 				userImages,
 			});
-		const clearAccepted = () => {
-			try {
-				if (matches(readCloudHandoffFollowUp(targetSessionId)))
-					clearCloudHandoffFollowUp(targetSessionId);
-			} catch {
-				console.warn(
-					"Could not clear the confirmed cloud follow-up recovery copy.",
-				);
-			}
-		};
 		const result = await send({
 			beforeDispatch: () => {
 				const current = readCloudHandoffFollowUp(targetSessionId);
@@ -156,9 +146,17 @@ export async function sendWithCloudHandoffFollowUp<
 						unconfirmed: true,
 					});
 			},
-			onAccepted: clearAccepted,
 		});
-		if (!result.recoveredAfterDisconnect) clearAccepted();
+		if (!result.recoveredAfterDisconnect) {
+			try {
+				if (matches(readCloudHandoffFollowUp(targetSessionId)))
+					clearCloudHandoffFollowUp(targetSessionId);
+			} catch {
+				console.warn(
+					"Could not clear the confirmed cloud follow-up recovery copy.",
+				);
+			}
+		}
 		return result;
 	} finally {
 		const remaining = (activeRecoverySends.get(targetSessionId) as number) - 1;
