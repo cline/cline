@@ -1086,15 +1086,13 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 	binding: SessionRuntimeBinding,
 ): Promise<() => void> {
 	const release = beginActiveSessionDelete(ctx, sessionId);
+	if (binding.kind !== "local") return release;
 	try {
 		let metadata: JsonRecord | undefined;
 		try {
 			const persisted = await binding.sessionManager.get(sessionId);
-			metadata =
-				persisted?.metadata ??
-				(binding.kind === "local" ? readSessionMetadata(sessionId) : undefined);
+			metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
 		} catch (error) {
-			if (binding.kind !== "local") throw error;
 			const manifest = readSessionManifest(sessionId);
 			if (manifest) {
 				metadata =
