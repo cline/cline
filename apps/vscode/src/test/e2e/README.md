@@ -140,9 +140,13 @@ await sidebar.getByTestId("send-button").click()
 
 #### Mode Switching
 ```typescript
-const actButton = sidebar.getByRole("switch", { name: "Act" })
-const planButton = sidebar.getByRole("switch", { name: "Plan" })
-await actButton.click() // Switch to Plan mode
+// The Plan/Act toggle is a single switch: aria-checked is true in Act mode
+// and false in Plan mode. This control is queried by role and accessible name
+// so the switch semantics stay under test.
+const modeSwitch = sidebar.getByRole("switch", { name: "Act mode" })
+await expect(modeSwitch).toHaveAttribute("aria-checked", "true") // Act mode
+await modeSwitch.press("Space") // Keyboard toggle to Plan mode
+await modeSwitch.click() // Pointer toggle back to Act mode
 ```
 
 #### File Operations
