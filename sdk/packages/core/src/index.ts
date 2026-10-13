@@ -255,6 +255,7 @@ export type {
 export {
 	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
 	AGENT_PLUGINS_V1_MCP_SCHEMA,
+	CLINE_PLUGIN_BOOTSTRAP_PATH_ENV,
 	discoverPluginModulePaths,
 	formatSessionPluginIssue,
 	getPluginDisplayName,
@@ -546,6 +547,10 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	WorkerSandbox,
+	type WorkerSandboxOptions,
+} from "./runtime/tools/worker-sandbox";
 export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {

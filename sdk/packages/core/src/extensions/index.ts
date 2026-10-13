@@ -60,3 +60,4 @@ export {
 	PluginCallTimeoutError,
 	PluginRegistry,
 } from "./plugin/plugin-registry";
+export { CLINE_PLUGIN_BOOTSTRAP_PATH_ENV } from "./plugin/plugin-sandbox";

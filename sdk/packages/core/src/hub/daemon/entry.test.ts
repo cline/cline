@@ -128,7 +128,10 @@ const { mockAttributeUncaughtError, mockPluginPreload } = vi.hoisted(() => ({
 
 vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
 	resolvePluginExecutionMode: () =>
-		process.env.CLINE_PLUGIN_MODE === "sandbox" ? "sandbox" : "in_process",
+		process.env.CLINE_PLUGIN_MODE === "sandbox" ||
+		process.env.CLINE_PLUGIN_MODE === "in_process"
+			? process.env.CLINE_PLUGIN_MODE
+			: "worker",
 	resolveAgentPluginPathsWithDiagnostics: () => ({
 		paths: [],
 		disabledPaths: [],
@@ -428,7 +431,7 @@ describe("hub daemon entry", () => {
 		mockAttributeUncaughtError.mockImplementation(() => undefined);
 	});
 
-	it("does not import plugins into the hub in sandbox mode", async () => {
+	it("does not preload plugins in sandbox mode", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = ["node", "entry.js", "--cwd", cwd];
@@ -442,6 +445,32 @@ describe("hub daemon entry", () => {
 			await hubDaemonReady;
 			await new Promise((resolve) => setTimeout(resolve, 10));
 			expect(mockPluginPreload).not.toHaveBeenCalled();
+		} finally {
+			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;
+			else process.env.CLINE_PLUGIN_MODE = previous;
+		}
+	});
+
+	it.each([
+		"worker",
+		"in_process",
+	])("preloads plugin status in %s mode", async (mode) => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation((() => process) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		mockPluginPreload.mockClear();
+		const previous = process.env.CLINE_PLUGIN_MODE;
+		process.env.CLINE_PLUGIN_MODE = mode;
+		try {
+			const { hubDaemonReady } = await import("./entry");
+			await hubDaemonReady;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			// Worker mode preloads in throwaway workers, never in the hub.
+			expect(mockPluginPreload).toHaveBeenCalledWith(
+				expect.objectContaining({ isolation: mode }),
+			);
 		} finally {
 			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;
 			else process.env.CLINE_PLUGIN_MODE = previous;

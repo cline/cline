@@ -27,6 +27,7 @@ import type {
 } from "./plugin-load-report";
 import { loadAgentPluginFromPath } from "./plugin-loader";
 import { fingerprintPluginSources } from "./plugin-module-import";
+import { loadSandboxedPlugins } from "./plugin-sandbox";
 import {
 	matchesPluginManifestTargeting,
 	type PluginTargeting,
@@ -90,6 +91,18 @@ interface PluginEntry {
 	timeoutCount: number;
 	/** Sessions holding a copy, with their `onIssue` callback. */
 	sessions: Map<string, ((issue: SessionPluginIssue) => void) | undefined>;
+	/**
+	 * Set once the plugin has loaded in a worker. Its copies then run in
+	 * workers and the host never imports the module, so a reload validates
+	 * the new code in a worker too.
+	 */
+	isolated?: { exportName?: string };
+	/**
+	 * Worker mode: the plugin's own (exported) name has been seen for its
+	 * current code. Until then `name` is derived from the path, so the host
+	 * cannot apply a policy that names the plugin and leaves it to the worker.
+	 */
+	nameResolved?: boolean;
 	loading?: Promise<void>;
 	updatedAt: number;
 }
@@ -103,6 +116,8 @@ interface PluginInstance {
 	closed: boolean;
 	/** Cleanup registered through `ctx.onDispose`. */
 	disposers: Array<() => void | Promise<void>>;
+	/** Worker copies: stops the worker the copy runs in. */
+	shutdown?: () => Promise<void>;
 	/**
 	 * The async scope every call into this copy runs in, created at import.
 	 * Work the module starts at import time keeps this scope, so claiming the
@@ -134,8 +149,18 @@ export interface PluginRegistryOptions {
 	failureThreshold?: number;
 }
 
+/**
+ * Where a session's plugin copies run. `in_process` imports them into the
+ * host. `worker` runs each plugin in its own worker thread per session: the
+ * host never loads plugin code, and a crash, `process.exit()`, or hung loop
+ * ends only that worker.
+ */
+export type PluginIsolation = "in_process" | "worker";
+
 export interface PluginSessionLoadInput extends PluginTargeting {
 	sessionId?: string;
+	/** Defaults to `in_process`. */
+	isolation?: PluginIsolation;
 	/** Resolved, enabled plugin module paths, in load order. */
 	pluginPaths: ReadonlyArray<string>;
 	/** Plugin paths turned off in settings; reported as `disabled`. */
@@ -431,6 +456,10 @@ export class PluginRegistry {
 			entry.errorCount = 0;
 			entry.timeoutCount = 0;
 			this.log("info", "plugin.reload", entry, {});
+			if (entry.isolated) {
+				await this.reloadIsolated(entry);
+				continue;
+			}
 			await this.ensureLoaded(entry.pluginPath, { force: true });
 		}
 		return matches.map((entry) => this.toStatus(entry));
@@ -477,8 +506,16 @@ export class PluginRegistry {
 			| "discoveryFailures"
 			| "exportName"
 			| "importTimeoutMs"
+			| "isolation"
 		>,
 	): Promise<PluginStatusRecord[]> {
+		if (input.isolation === "worker") {
+			// Load each plugin in a throwaway worker so status (and import
+			// errors) are known before any session starts.
+			const loaded = await this.loadIsolatedForSession(input);
+			await loaded.release();
+			return this.list();
+		}
 		this.recordDiscovery(input, []);
 		for (const rawPath of input.pluginPaths) {
 			await this.ensureLoaded(resolve(rawPath), {
@@ -492,6 +529,9 @@ export class PluginRegistry {
 	async loadForSession(
 		input: PluginSessionLoadInput,
 	): Promise<PluginSessionLoadResult> {
+		if (input.isolation === "worker") {
+			return this.loadIsolatedForSession(input);
+		}
 		const failures: PluginInitializationFailure[] = [];
 		const warnings: PluginInitializationWarning[] = [];
 		const issues: SessionPluginIssue[] = [];
@@ -619,6 +659,329 @@ export class PluginRegistry {
 					),
 				).then(() => undefined);
 				return released;
+			},
+		};
+	}
+
+	/**
+	 * Worker isolation: each plugin loads in its own worker for this session,
+	 * and the copy handed to the session is a proxy whose calls go to that
+	 * worker. The copy goes through the same wrapping as an in-process one, so
+	 * status, timeouts, failure counting, policy, and notices are unchanged.
+	 * What differs is where the code runs: the host never imports it.
+	 */
+	private async loadIsolatedForSession(
+		input: PluginSessionLoadInput,
+	): Promise<PluginSessionLoadResult> {
+		const failures: PluginInitializationFailure[] = [];
+		const warnings: PluginInitializationWarning[] = [];
+		const issues: SessionPluginIssue[] = [];
+		const sessionId = input.sessionId;
+		const timeouts = this.resolveTimeouts(input);
+
+		for (const entry of this.recordDiscovery(input, issues)) {
+			failures.push(this.toInitializationFailure(entry));
+		}
+
+		const candidates: PluginEntry[] = [];
+		for (const rawPath of input.pluginPaths) {
+			const entry = this.ensureEntry(resolve(rawPath));
+			entry.isolated = { exportName: input.exportName };
+			this.refreshIsolatedEntry(entry);
+			// Skip the worker only when the plugin's own name is known; else the
+			// worker applies the policy after import, before setup.
+			if (entry.nameResolved && !this.isEnabledForSession(entry, input)) {
+				issues.push(this.policyIssue(entry));
+				continue;
+			}
+			if (entry.blocked) {
+				failures.push(this.toInitializationFailure(entry));
+				issues.push(this.toIssue(entry, "error"));
+				continue;
+			}
+			candidates.push(entry);
+		}
+
+		const started = await Promise.all(
+			candidates.map((entry) =>
+				this.startWorkerCopy(entry, input, timeouts, sessionId),
+			),
+		);
+
+		const loadedByName = new Map<
+			string,
+			{ entry: PluginEntry; instance: PluginInstance; order: number }
+		>();
+		let order = 0;
+		for (const result of started) {
+			const { entry } = result;
+			if ("error" in result) {
+				if (result.importId !== entry.importId) {
+					// The plugin changed while this copy was loading; the failure
+					// describes the old code, so only this session hears of it.
+					issues.push(
+						this.staleIssue(entry, result.phase, result.error, sessionId),
+					);
+					continue;
+				}
+				if (result.phase === "setup") {
+					// As in-process: a setup failure costs only this session.
+					this.recordFailure(entry, "setup", result.error, {
+						sessionId,
+						state: "failed",
+					});
+				} else {
+					this.recordFailure(entry, "import", result.error, {
+						fatal: true,
+						sessionId,
+					});
+				}
+				failures.push(this.toInitializationFailure(entry));
+				issues.push(this.toIssue(entry, "error"));
+				continue;
+			}
+			if ("policyDisabled" in result) {
+				issues.push(this.policyIssue(entry));
+				continue;
+			}
+			if (!result.instance) continue; // Manifest targeting excluded it.
+			const { instance } = result;
+			// The module's own name is known now; the policy may name it.
+			if (!this.isEnabledForSession(entry, input)) {
+				issues.push(this.policyIssue(entry));
+				await instance.shutdown?.().catch(() => {});
+				continue;
+			}
+			const existing = loadedByName.get(entry.name);
+			if (existing) {
+				warnings.push({
+					type: "duplicate_plugin_override",
+					pluginName: entry.name,
+					pluginPath: entry.pluginPath,
+					overriddenPluginPath: existing.entry.pluginPath,
+					message: `Plugin "${entry.name}" from ${entry.pluginPath} overrides ${existing.entry.pluginPath}`,
+				});
+				await existing.instance.shutdown?.().catch(() => {});
+			}
+			loadedByName.set(entry.name, { entry, instance, order: order++ });
+		}
+
+		const selected = [...loadedByName.values()].sort(
+			(left, right) => left.order - right.order,
+		);
+		if (sessionId) {
+			for (const { entry } of selected) {
+				entry.sessions.set(sessionId, input.onIssue);
+			}
+		}
+		const extensions = selected.map(({ entry, instance }) =>
+			this.wrapForSession(entry, instance, input, timeouts),
+		);
+		let released: Promise<void> | undefined;
+		return {
+			extensions,
+			pluginPaths: selected.map(({ entry }) => entry.pluginPath),
+			failures,
+			warnings,
+			issues,
+			release: () => {
+				released ??= Promise.all(
+					selected.map(({ entry, instance }) =>
+						this.releaseInstance(entry, instance, sessionId, timeouts),
+					),
+				).then(() => undefined);
+				return released;
+			},
+		};
+	}
+
+	/**
+	 * Every worker imports the module fresh, so new code needs no host
+	 * re-import. A source change (or re-enabling) still starts a new import
+	 * id: the plugin gets a clean slate, and copies of the old code go stale.
+	 */
+	private refreshIsolatedEntry(entry: PluginEntry): void {
+		const fingerprint = fingerprintPluginSources(entry.pluginPath);
+		if (entry.fingerprint === fingerprint && entry.state !== "disabled") {
+			return;
+		}
+		entry.fingerprint = fingerprint;
+		entry.importId += 1;
+		entry.blocked = false;
+		entry.consecutiveFailures = 0;
+		entry.extension = undefined;
+		// New code may export a different name.
+		entry.nameResolved = false;
+		this.setState(entry, "loading", true);
+	}
+
+	private async startWorkerCopy(
+		entry: PluginEntry,
+		input: PluginSessionLoadInput,
+		timeouts: PluginTimeouts,
+		sessionId: string | undefined,
+	): Promise<
+		| { entry: PluginEntry; instance?: PluginInstance }
+		| { entry: PluginEntry; policyDisabled: true }
+		| {
+				entry: PluginEntry;
+				error: unknown;
+				phase: "import" | "setup";
+				importId: number;
+		  }
+	> {
+		const importId = entry.importId;
+		const instance = newInstance(undefined, entry.name, importId);
+		instance.scope.sessionId = sessionId;
+		let ready = false;
+		// Set once the import finished and setup() began, so a failure after
+		// that (setup threw, timed out, or crashed the worker) costs only this
+		// session's copy, as in-process, instead of turning the plugin off.
+		let setupStarted = false;
+		const setup = input.setupContext;
+		const startedAt = Date.now();
+		let loaded: Awaited<ReturnType<typeof loadSandboxedPlugins>>;
+		try {
+			loaded = await loadSandboxedPlugins({
+				transport: "worker",
+				pluginPaths: [entry.pluginPath],
+				exportName: input.exportName,
+				importTimeoutMs: timeouts.import,
+				setupTimeoutMs: timeouts.setup,
+				hookTimeoutMs: timeouts.hook,
+				contributionTimeoutMs: timeouts.call,
+				onEvent: input.emitEvent,
+				onSetupStarted: () => {
+					setupStarted = true;
+				},
+				policy: input.policy,
+				policyNames: {
+					[entry.pluginPath]: [
+						derivePluginName(entry.pluginPath, entry.attributionRoot),
+					],
+				},
+				// A worker that dies on its own (stray rejection, process.exit)
+				// is this plugin's fault: the worker runs nothing else.
+				onUnexpectedExit: (error) => {
+					if (!ready || instance.closed) return;
+					this.recordFailure(entry, "uncaught", error, {
+						fatal: true,
+						instance,
+						sessionId,
+					});
+				},
+				providerId: input.providerId,
+				modelId: input.modelId,
+				cwd: input.cwd,
+				workspaceInfo: setup?.workspaceInfo,
+				session: setup?.session,
+				client: setup?.client,
+				user: setup?.user,
+				logger: setup?.logger,
+				telemetryAvailable: Boolean(setup?.telemetry),
+			});
+		} catch (error) {
+			// The worker failed before reporting back: it timed out, crashed, or
+			// exited during import or setup.
+			return {
+				entry,
+				error,
+				phase: setupStarted ? "setup" : "import",
+				importId,
+			};
+		}
+		const disabled = loaded.disabledByPolicy[0];
+		if (disabled) {
+			await loaded.shutdown().catch(() => {});
+			if (importId === entry.importId) {
+				entry.name = disabled.name;
+				entry.nameResolved = true;
+			}
+			return { entry, policyDisabled: true };
+		}
+		const failure = loaded.failures[0];
+		const extension = loaded.extensions?.[0];
+		if (failure || !extension) {
+			await loaded.shutdown().catch(() => {});
+			if (!failure) return { entry };
+			const error = new Error(failure.message);
+			if (failure.stack) error.stack = failure.stack;
+			return {
+				entry,
+				error,
+				phase: failure.phase === "setup" ? "setup" : "import",
+				importId,
+			};
+		}
+		ready = true;
+		instance.extension = extension;
+		instance.shutdown = loaded.shutdown;
+		if (importId === entry.importId) {
+			entry.name = extension.name;
+			entry.nameResolved = true;
+			instance.scope.pluginName = extension.name;
+			entry.extension = extension;
+			if (
+				!entry.blocked &&
+				(entry.state === "loading" || entry.state === "failed")
+			) {
+				this.setState(entry, "ready");
+			}
+			this.log("info", "plugin.import.ready", entry, {
+				elapsedMs: Date.now() - startedAt,
+				isolation: "worker",
+			});
+		}
+		return { entry, instance };
+	}
+
+	/** Re-validates a worker plugin's current code in a throwaway worker. */
+	private async reloadIsolated(entry: PluginEntry): Promise<void> {
+		entry.fingerprint = undefined;
+		this.refreshIsolatedEntry(entry);
+		const input: PluginSessionLoadInput = {
+			pluginPaths: [entry.pluginPath],
+			exportName: entry.isolated?.exportName,
+			isolation: "worker",
+		};
+		const result = await this.startWorkerCopy(
+			entry,
+			input,
+			this.resolveTimeouts(input),
+			undefined,
+		);
+		if ("error" in result) {
+			if (result.importId !== entry.importId) return;
+			this.recordFailure(entry, result.phase, result.error, {
+				fatal: result.phase === "import",
+				...(result.phase === "setup" ? { state: "failed" as const } : {}),
+			});
+			return;
+		}
+		if ("instance" in result) {
+			await result.instance?.shutdown?.().catch(() => {});
+		}
+	}
+
+	private staleIssue(
+		entry: PluginEntry,
+		phase: PluginErrorPhase,
+		error: unknown,
+		sessionId: string | undefined,
+	): SessionPluginIssue {
+		const { message, stack } = toErrorParts(error);
+		return {
+			name: entry.name,
+			pluginPath: entry.pluginPath,
+			state: "failed",
+			reason: "error",
+			lastError: {
+				phase,
+				message,
+				...(stack ? { stack } : {}),
+				pluginPath: entry.pluginPath,
+				timestamp: Date.now(),
+				...(sessionId ? { sessionId } : {}),
 			},
 		};
 	}
@@ -1266,6 +1629,11 @@ export class PluginRegistry {
 				});
 			}
 		}
+		// Ending the worker stops everything the copy started (timers,
+		// sockets, pending work), which in-process cleanup cannot guarantee.
+		await instance.shutdown?.().catch(() => {
+			// Best-effort: the worker may already be gone.
+		});
 	}
 
 	private recordFailure(
