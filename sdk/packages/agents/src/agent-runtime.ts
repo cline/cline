@@ -75,11 +75,11 @@ const MAX_TOKENS_RECOVERY_NUDGE =
 	"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.";
 
 /**
- * Error result for a tool call whose arguments were still streaming when the
- * model hit its output-token limit. Such a call is never executed: the model
- * layer's repair can close an unfinished `{"commands":[` into a plausible
- * `{"commands":[]}`, and running that does something other than what the
- * model was about to ask for.
+ * Error result for the tool calls of a turn that ended at the model's
+ * output-token limit. None of them run, matching the AI SDK's rule for client
+ * tools: a cut-off call's arguments may have been closed up by the model
+ * layer's repair into a plausible `{"commands":[]}`, and even a call that
+ * parsed cleanly belongs to a turn the model did not finish stating.
  */
 function truncatedToolCallMessage(toolName: string): string {
 	return `Tool call ${toolName} was not executed: its arguments were cut off because the response reached the model's output-token limit. Retry with a shorter response, or split the work across smaller tool calls.`;
@@ -949,10 +949,9 @@ export class AgentRuntime {
 					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
-				// A turn that yields an executable tool call is progress: reset the
-				// cut-off streak. A call cut off by the output limit is not.
-				const truncatedToolCalls = toolCalls.filter(isTruncatedToolCall);
-				if (toolCalls.length > truncatedToolCalls.length) {
+				// A turn whose tool calls run is progress: reset the cut-off streak.
+				// A turn cut by the output limit runs none of them.
+				if (toolCalls.length > 0 && finishReason !== "max-tokens") {
 					this.maxTokensRecoveryCount = 0;
 				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
@@ -992,12 +991,13 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
-				// Calls cut off by the output limit were skipped with an error
-				// result above, which keeps them paired in the transcript. Nudge
-				// the model the same way a text-only cut-off does, and end the run
-				// once that is exhausted instead of hitting the same wall forever.
+				// A turn cut by the output limit ran none of its tool calls: each was
+				// skipped with an error result above, which keeps it paired in the
+				// transcript. Nudge the model the same way a text-only cut-off does,
+				// and end the run once that is exhausted instead of hitting the same
+				// wall forever.
 				if (
-					truncatedToolCalls.length > 0 &&
+					finishReason === "max-tokens" &&
 					!(await this.recoverFromIncompleteMaxTokensTurn())
 				) {
 					this.state.lastFinishReason = finishReason;
@@ -1457,17 +1457,9 @@ export class AgentRuntime {
 		) {
 			return false;
 		}
-		// A truncated turn that produced an executable tool call proceeds
-		// through the normal loop, which executes it. A turn whose only tool
-		// calls were themselves cut off is as terminal as a text-only one —
-		// nothing in it can run — and worth a recovery attempt.
-		if (
-			turn.message.content.some(
-				(part) => part.type === "tool-call" && !isTruncatedToolCall(part),
-			)
-		) {
-			return false;
-		}
+		// Tool calls do not make the turn executable: a turn cut by the output
+		// limit runs none of them (see the run loop), so it is as terminal as a
+		// text-only cut-off and worth the same recovery attempt.
 		// Provider-executed tool activity lives in metadata, not content, and has
 		// already happened — replaying the turn would repeat its side effects.
 		return !this.hasModelToolActivity(turn.message);
@@ -1625,7 +1617,7 @@ export class AgentRuntime {
 	}
 
 	/**
-	 * Pair a truncated turn's cut-off tool calls with their error results before
+	 * Pair a truncated turn's tool calls with their error results before
 	 * the run fails on that turn. The calls never execute — prepareToolExecution
 	 * skips them on their parse error — but a transcript that ends in unanswered
 	 * tool calls is rejected by providers that require matching results once the
@@ -1638,14 +1630,14 @@ export class AgentRuntime {
 		if (this.abortController?.signal.aborted) {
 			return;
 		}
-		const truncatedToolCalls = message.content.filter(
+		const skippedToolCalls = message.content.filter(
 			(part): part is AgentToolCallPart =>
-				part.type === "tool-call" && isTruncatedToolCall(part),
+				part.type === "tool-call" && hasInputParseError(part),
 		);
-		if (truncatedToolCalls.length === 0) {
+		if (skippedToolCalls.length === 0) {
 			return;
 		}
-		for (const toolMessage of await this.executeToolCalls(truncatedToolCalls)) {
+		for (const toolMessage of await this.executeToolCalls(skippedToolCalls)) {
 			this.state.messages.push(toolMessage);
 			await this.emit({
 				type: "message-added",
@@ -2087,16 +2079,26 @@ export class AgentRuntime {
 				});
 				continue;
 			}
-			const parsed =
-				finishReason === "max-tokens"
-					? parseTruncatableToolInput(assembly)
-					: parseToolInput(assembly);
-			if (parsed.reason) {
+			const parsed = parseToolInput(assembly);
+			// A turn that ended at the output-token limit is incomplete as a
+			// whole, so none of its tool calls run — the AI SDK's own rule for
+			// client tools. The cut-off call's arguments may already have been
+			// closed up into valid JSON by the model layer's repair, and a call
+			// that parsed cleanly still belongs to a turn the model did not
+			// finish. Each call is recorded with the truncation error, which
+			// makes execution skip it and tells the model why.
+			const truncated = finishReason === "max-tokens";
+			const parseError = truncated
+				? truncatedToolCallMessage(assembly.toolName)
+				: parsed.parseError;
+			if (parsed.reason || truncated) {
 				invalidToolCalls.push({
 					toolCallId: assembly.toolCallId,
 					toolName: assembly.toolName,
-					input: parsed.invalidInput,
-					reason: parsed.reason,
+					input: truncated
+						? buildInvalidToolInput(assembly.inputText, parseError)
+						: parsed.invalidInput,
+					reason: parsed.reason ?? "invalid_arguments",
 				});
 			}
 			content.push({
@@ -2104,11 +2106,10 @@ export class AgentRuntime {
 				toolCallId: assembly.toolCallId,
 				toolName: assembly.toolName,
 				input: parsed.input,
-				metadata: parsed.parseError
+				metadata: parseError
 					? mergeToolMetadata(assembly.metadata, {
-							inputParseError: parsed.parseError,
-							rawInputText: parsed.rawInputText ?? assembly.inputText,
-							...(parsed.truncated ? { truncatedByOutputLimit: true } : {}),
+							inputParseError: parseError,
+							rawInputText: assembly.inputText,
 						})
 					: assembly.metadata,
 			});
@@ -2872,65 +2873,17 @@ interface ParsedToolInput {
 	parseError?: string;
 	invalidInput: Record<string, unknown>;
 	reason?: InvalidToolCall["reason"];
-	/** Argument text to persist with a parse error when it is not the assembly's own. */
-	rawInputText?: string;
-	/** The arguments were cut off by the model's output-token limit. */
-	truncated?: true;
 }
 
-/** Raw argument text the model layer rewrote into valid JSON, when it did. */
-function getRepairedInputText(metadata: unknown): string | undefined {
-	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-		return undefined;
-	}
-	const value = (metadata as Record<string, unknown>).repairedInputText;
-	return typeof value === "string" ? value : undefined;
-}
-
-/** A tool-call part the runtime marked as cut off by the output-token limit. */
-function isTruncatedToolCall(part: AgentToolCallPart): boolean {
+/** A tool-call part that execution will skip with its recorded error. */
+function hasInputParseError(part: AgentToolCallPart): boolean {
 	const metadata = part.metadata;
 	return (
 		!!metadata &&
 		typeof metadata === "object" &&
 		!Array.isArray(metadata) &&
-		(metadata as Record<string, unknown>).truncatedByOutputLimit === true
+		typeof (metadata as Record<string, unknown>).inputParseError === "string"
 	);
-}
-
-/**
- * Tool input for a turn that ended at the output-token limit. Arguments that
- * were not valid JSON on the wire — empty, cut mid-token, or closed up by the
- * model layer's repair — belong to a call the model never finished, so the
- * call is marked truncated and skipped instead of executed with whatever the
- * repair invented. Arguments that arrived as complete JSON are parsed
- * normally: a closed object cannot be the prefix of a longer one, so the
- * cut-off landed after that call.
- */
-function parseTruncatableToolInput(
-	assembly: PendingToolAssembly,
-): ParsedToolInput {
-	const repairedInputText = getRepairedInputText(assembly.metadata);
-	if (repairedInputText === undefined) {
-		const parsed = parseToolInput(assembly);
-		const hadArguments =
-			assembly.inputValue !== undefined || assembly.inputText.trim() !== "";
-		if (!parsed.reason && hadArguments) {
-			return parsed;
-		}
-	}
-	const rawInputText = repairedInputText ?? assembly.inputText;
-	const parseError = truncatedToolCallMessage(
-		assembly.toolName ?? assembly.toolCallId,
-	);
-	return {
-		input: {},
-		invalidInput: buildInvalidToolInput(rawInputText, parseError),
-		parseError,
-		rawInputText,
-		reason: "invalid_arguments",
-		truncated: true,
-	};
 }
 
 function parseToolInput(assembly: PendingToolAssembly): ParsedToolInput {
