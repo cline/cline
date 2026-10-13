@@ -1170,15 +1170,8 @@ export function handleHubLiveEvent(
 				typeof payloadSession?.status === "string"
 					? payloadSession.status
 					: session.status;
-			// Hub "pending" means the run is blocked on approval or otherwise
-			// still active. Desktop has no pending status, so expose it as running
-			// and keep later prompts on the queue path.
+			// Hub "pending" is still active; map it to running so follow-ups stay queued.
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
-			// Core's persisted `running` status also means the interactive runtime
-			// process is resident; it does not prove a model turn is active. Only
-			// run.started may move an already-idle attached session to running.
-			// This is especially important for an idle fork created from handoff
-			// history, which otherwise renders "Thinking" forever after attach.
 			if (
 				event.event === "session.updated" &&
 				status === "running" &&
@@ -1187,6 +1180,7 @@ export function handleHubLiveEvent(
 			) {
 				return;
 			}
+			// A resident interactive process can be idle; run.started marks an active turn.
 			if (
 				runtimeStatus === "running" &&
 				session.status !== "running" &&
