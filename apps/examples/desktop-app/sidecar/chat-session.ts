@@ -341,8 +341,9 @@ function assertWorkspaceNotRestoring(
 				workspaceIsWithin(workspace, locked) ||
 				workspaceIsWithin(locked, workspace),
 		)
-	)
+	) {
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 }
 
 async function withWorkspaceRestoreLock<T>(
@@ -1207,9 +1208,14 @@ async function handleAttach(
 		{ sessionId },
 		sessionId,
 	);
-	const attachedSession = reply.payload?.session as
-		| { status?: string }
-		| undefined;
+	const attachedSession = reply.payload?.session;
+	const replyStatus =
+		attachedSession &&
+		typeof attachedSession === "object" &&
+		"status" in attachedSession &&
+		typeof attachedSession.status === "string"
+			? attachedSession.status
+			: undefined;
 	// Only observed live state can override Core's resident-process snapshot.
 	const existing = ctx.liveSessions.get(sessionId);
 	const liveStatus =
@@ -1217,8 +1223,7 @@ async function handleAttach(
 		(existing.attachedViaHub || manager.hasSessionSubscription(sessionId))
 			? existing
 			: undefined;
-	const attachedStatus =
-		liveStatus?.status ?? attachedSession?.status ?? session.status;
+	const attachedStatus = liveStatus?.status ?? replyStatus ?? session.status;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
