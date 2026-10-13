@@ -2966,25 +2966,6 @@ export async function handleCommand(
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const includeCloudModels =
-			providerId === "cline" &&
-			args?.includeCloudModels === true &&
-			isCloudAgentsEnabled();
-		if (includeCloudModels) {
-			const models = await getCloudSessionManager(ctx).listModels();
-			const capabilities = await getLocalProviderModels(
-				providerId,
-				manager.getProviderConfig(providerId, { includeKnownModels: false }),
-				{ loadLatest: true },
-			).catch(() => undefined);
-			const byId = new Map(
-				capabilities?.models.map((model) => [model.id, model]),
-			);
-			return {
-				providerId,
-				models: models.map(({ id, name }) => ({ ...byId.get(id), id, name })),
-			};
-		}
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),

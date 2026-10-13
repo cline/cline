@@ -1669,6 +1669,21 @@ async function handleSend(
 	}
 }
 
+async function readHandoffSessionMetadata(
+	binding: SessionRuntimeBinding,
+	sessionId: string,
+) {
+	const persisted = await binding.sessionManager
+		.get(sessionId)
+		.catch((error) => {
+			if (binding.kind !== "local" || !isHubLossError(error)) throw error;
+			const manifest = readSessionManifest(sessionId);
+			if (!manifest) throw error;
+			return manifest;
+		});
+	return persisted?.metadata ?? readSessionMetadata(sessionId);
+}
+
 async function handleSendOnce(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1682,15 +1697,8 @@ async function handleSendOnce(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	const persistedSession = await manager.get(sessionId).catch((error) => {
-		if (binding.kind !== "local" || !isHubLossError(error)) throw error;
-		// Keep the handoff guard while allowing the existing send recovery below.
-		const manifest = readSessionManifest(sessionId);
-		if (!manifest) throw error;
-		return manifest;
-	});
 	const handoff = readCloudHandoffMetadata(
-		persistedSession?.metadata ?? readSessionMetadata(sessionId),
+		await readHandoffSessionMetadata(binding, sessionId),
 	);
 	if (handoff?.status === "pending") {
 		throw new Error(
@@ -2336,10 +2344,14 @@ async function handleReset(
 		if (isCloudHandoffInProgress(ctx, sessionId)) {
 			throw new Error("Wait for the cloud handoff to finish before resetting.");
 		}
-		const manager = getSessionManager(ctx, sessionId, request.config);
-		const persisted = await manager.get(sessionId);
+		const binding = getSessionRuntimeBinding(
+			ctx,
+			sessionId,
+			readEnvironmentId(request.config),
+		);
+		const manager = binding.sessionManager;
 		const pendingHandoff = readCloudHandoffMetadata(
-			persisted?.metadata ?? readSessionMetadata(sessionId),
+			await readHandoffSessionMetadata(binding, sessionId),
 		);
 		if (pendingHandoff?.status === "pending") {
 			throw new Error(

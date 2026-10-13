@@ -1688,8 +1688,32 @@ describe("first-send connection updates", () => {
 		}
 	});
 
-	it("deletes tracked attachments when a session is reset", async () => {
-		const { ctx, sessionId } = createContext();
+	it.each([
+		"available",
+		"unavailable",
+		"unavailable with pending handoff",
+	])("resets attachments unless a handoff owns them (Hub: %s)", async (hubState) => {
+		const { ctx, sessionId, get } = createContext();
+		const manifest = vi.spyOn(sessionPaths, "readSessionManifest");
+		const pendingHandoff = hubState === "unavailable with pending handoff";
+		if (hubState !== "available") {
+			get.mockRejectedValue(
+				Object.assign(new Error("Hub connection closed"), {
+					name: "HubTransportError",
+				}),
+			);
+			manifest.mockReturnValue({
+				metadata: pendingHandoff
+					? {
+							handoff: {
+								status: "pending",
+								toCloudSessionId: "cloud-target",
+								handedOffAt: "2026-08-18T00:00:00.000Z",
+							},
+						}
+					: {},
+			});
+		}
 		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
 		const testSessionDataDir = join(
 			tmpdir(),
@@ -1711,15 +1735,19 @@ describe("first-send connection updates", () => {
 				["pending_2", [consumedFile]],
 			]);
 
-			await handleChatSessionCommand(ctx, {
+			const reset = handleChatSessionCommand(ctx, {
 				action: "reset",
 				sessionId,
 			});
+			if (pendingHandoff)
+				await expect(reset).rejects.toThrow("Cloud handoff is still pending");
+			else await reset;
 
-			expect(existsSync(queuedFile)).toBe(false);
-			expect(existsSync(consumedFile)).toBe(false);
-			expect(ctx.liveSessions.has(sessionId)).toBe(false);
+			expect(existsSync(queuedFile)).toBe(pendingHandoff);
+			expect(existsSync(consumedFile)).toBe(pendingHandoff);
+			expect(ctx.liveSessions.has(sessionId)).toBe(pendingHandoff);
 		} finally {
+			manifest.mockRestore();
 			if (previousSessionDataDir === undefined) {
 				delete process.env.CLINE_SESSION_DATA_DIR;
 			} else {
