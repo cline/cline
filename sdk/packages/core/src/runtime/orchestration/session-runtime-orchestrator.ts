@@ -780,7 +780,7 @@ export class SessionRuntime {
 			return new Error(
 				`SessionRuntime.run called after shutdown (agentId=${this.agentId})`,
 			);
-		if (this.running || this.activeRunPromise)
+		if (this.hasActiveRun())
 			return new Error(
 				`SessionRuntime state is "running"; call canStartRun() first (agentId=${this.agentId})`,
 			);
