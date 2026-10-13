@@ -675,3 +675,111 @@ describe("/task with a picture", () => {
 		);
 	});
 });
+
+describe("/chat", () => {
+	function context(input: {
+		reply: (text: string) => Promise<void>;
+		submitPrompt?: (prompt: string) => void;
+		images?: () => Promise<
+			| {
+					dir: string;
+					paths: string[];
+					failed: number;
+					refused: number;
+			  }
+			| undefined
+		>;
+	}) {
+		return {
+			enabled: true,
+			getState: async () => ({
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/home/me/.cline/worktrees/461e5/partyshare",
+				workspaceRoot: "/code/partyshare",
+			}),
+			setState: async () => undefined,
+			reply: input.reply,
+			submitPrompt: input.submitPrompt,
+			images: input.images,
+		};
+	}
+
+	it("hands the question to the agent and files no card", async () => {
+		vi.mocked(createKanbanTask).mockClear();
+		const submitPrompt = vi.fn<(prompt: string) => void>();
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+
+		const handled = await maybeHandleChatCommand(
+			"/chat o que muda se a fila for por tópico?",
+			context({ reply, submitPrompt }),
+		);
+
+		expect(handled).toBe(true);
+		expect(createKanbanTask).not.toHaveBeenCalled();
+		const prompt = submitPrompt.mock.calls[0]?.[0] ?? "";
+		expect(prompt).toContain("Projeto deste tópico: /code/partyshare.");
+		expect(prompt).toContain("o que muda se a fila for por tópico?");
+		expect(reply).not.toHaveBeenCalled();
+	});
+
+	it("keeps the line breaks of a question written over several lines", async () => {
+		const submitPrompt = vi.fn<(prompt: string) => void>();
+		await maybeHandleChatCommand(
+			"/chat compare:\n- fila por tópico\n- fila global",
+			context({ reply: async () => undefined, submitPrompt }),
+		);
+		expect(submitPrompt.mock.calls[0]?.[0]).toContain(
+			"compare:\n- fila por tópico\n- fila global",
+		);
+	});
+
+	it("passes the pictures sent with the question", async () => {
+		const submitPrompt = vi.fn<(prompt: string) => void>();
+		await maybeHandleChatCommand(
+			"/chat o que é este erro?",
+			context({
+				reply: async () => undefined,
+				submitPrompt,
+				images: async () => ({
+					dir: "/tmp/imgs",
+					paths: ["/tmp/imgs/erro.png"],
+					failed: 0,
+					refused: 0,
+				}),
+			}),
+		);
+		expect(submitPrompt.mock.calls[0]?.[0]).toContain("- /tmp/imgs/erro.png");
+	});
+
+	it("shows usage when there is no question", async () => {
+		const submitPrompt = vi.fn<(prompt: string) => void>();
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		await maybeHandleChatCommand("/chat", context({ reply, submitPrompt }));
+		expect(submitPrompt).not.toHaveBeenCalled();
+		expect(reply).toHaveBeenCalledWith(
+			"Usage: /chat <pergunta> - conversa aberta, sem criar card",
+		);
+	});
+
+	it("refuses before saving pictures when the surface has no agent", async () => {
+		const images = vi.fn(async () => undefined);
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		await maybeHandleChatCommand(
+			"/chat o que é isto?",
+			context({ reply, images }),
+		);
+		expect(images).not.toHaveBeenCalled();
+		expect(reply).toHaveBeenCalledWith(
+			expect.stringContaining("cannot chat here"),
+		);
+	});
+
+	it("is listed in the help", async () => {
+		const reply = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		await maybeHandleChatCommand("/help", context({ reply }));
+		expect(reply).toHaveBeenCalledWith(
+			expect.stringContaining("/chat <question>"),
+		);
+	});
+});

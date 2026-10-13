@@ -1,6 +1,7 @@
 import { rm, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { IncomingImages } from "../connectors/message-images";
+import { buildChatPrompt } from "./chat-prompt";
 import { resolveWorkspaceRoot } from "./helpers";
 import {
 	buildBrainstormPrompt,
@@ -300,6 +301,7 @@ function formatHelp(state: ChatCommandState): string {
 		"/yolo [on|off|toggle] - auto-approve tool use",
 		"/cwd <path> - change working directory",
 		"/task [--start] [--brainstorm] [--tags a,b] [--category x] [--priority p] <what needs doing> - add it to the Kanban backlog",
+		"/chat <question> - ask, research or work something out here, without filing a card",
 		"/schedule create/list/trigger/delete - manage scheduled workflows",
 		"/abort - stop the current task",
 		"/mute [target] - ignore this thread or target until /unmute",
@@ -540,6 +542,35 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 				if (!start || (images?.failed ?? 0) > 0 || (images?.refused ?? 0) > 0) {
 					await context.reply(message);
 				}
+			},
+		})
+		.register("command", {
+			names: ["/chat"],
+			run: async ({ trimmed, state }, context) => {
+				// From the message itself, not `args`: those are split on whitespace, and a
+				// question written over several lines would reach the agent as one.
+				const question = trimmed.replace(/^\S+\s*/, "").trim();
+				if (!question) {
+					await context.reply(
+						"Usage: /chat <pergunta> - conversa aberta, sem criar card",
+					);
+					return;
+				}
+				// Before the pictures: nothing should be saved for an agent that is not there.
+				if (!context.submitPrompt) {
+					await context.reply(
+						"I cannot chat here -- this surface has no agent to hand the question to.",
+					);
+					return;
+				}
+				const images = await context.images?.();
+				await context.submitPrompt(
+					buildChatPrompt({
+						question,
+						projectPath: state.workspaceRoot || state.cwd,
+						images: images?.paths,
+					}),
+				);
 			},
 		})
 		.register("command", {

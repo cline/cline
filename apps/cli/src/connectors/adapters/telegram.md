@@ -55,6 +55,7 @@ The Telegram connector uses the shared connector command parser:
 - `/help` or `/start` - show connector help
 - `/new` or `/clear` - start a fresh session for the current thread
 - `/whereami` - show thread, cwd, tools, and yolo state
+- `/chat <question>` - ask, research or work something out in this topic's session without filing a Kanban card; the agent keeps the conversation's context, so a later `/task` can build on it
 - `/tools [on|off|toggle]` - allow or block repo/file/shell tools
 - `/yolo [on|off|toggle]` - auto-approve tool use
 - `/cwd <path>` - change working directory
