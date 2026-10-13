@@ -291,7 +291,6 @@ export class HubServerTransport implements NativeHubTransport {
 	private runQueue?: HubRunQueue;
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
-	private lastActivityAt = Date.now();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
 
@@ -1144,32 +1143,17 @@ export class HubServerTransport implements NativeHubTransport {
 			activeRpcTurns += count;
 		}
 		const activity = this.sessionHost.getActivity?.();
-		const pendingRuns = this.runQueue?.countPending() ?? 0;
 		return {
-			...(activity
-				? {
-						activity: {
-							busy:
-								activity.busy ||
-								activeRpcTurns > 0 ||
-								pendingRuns > 0 ||
-								this.pendingApprovals.size > 0,
-							lastActivityAt: Math.max(
-								activity.lastActivityAt,
-								this.lastActivityAt,
-							),
-						},
-					}
-				: {}),
+			...(activity ? { activity } : {}),
 			hubId: this.hubId,
 			draining: this.draining,
 			activeRpcTurns,
-			pendingRuns,
+			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
 				: undefined,
 			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
-			idle: activeRpcTurns === 0 && pendingRuns === 0,
+			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
 
@@ -1257,19 +1241,6 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	private publish(event: HubEventEnvelope): void {
-		if (
-			event.event === "run.enqueued" ||
-			event.event === "run.started" ||
-			event.event === "run.completed" ||
-			event.event === "run.failed" ||
-			event.event === "run.aborted" ||
-			event.event === "run.interrupted" ||
-			event.event === "approval.requested" ||
-			event.event === "approval.resolved"
-		) {
-			this.lastActivityAt = Date.now();
-		}
-
 		// Durability before delivery: append to the event log and fan out the
 		// sequence-stamped envelope, so live listeners and replaying clients
 		// observe identical frames and the cursor is always meaningful.
