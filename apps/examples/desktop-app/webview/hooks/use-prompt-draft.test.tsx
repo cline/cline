@@ -2,7 +2,7 @@
 
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { shouldPreserveCloudComposer } from "../lib/cloud-handoff-follow-up";
 import {
 	createDesktopAppState,
@@ -371,19 +371,27 @@ describe("usePromptDraft", () => {
 		expect(current.pendingAttachments).toEqual([]);
 	});
 
-	it("merges attachments against the current draft when an older send restores files", async () => {
+	it("restores a rejected prompt and its files alongside attachments added during sending", async () => {
 		await navigate();
 		const original = new File(["a"], "a.png");
 		const added = new File(["b"], "b.png");
-		act(() => current.setPendingAttachments([original]));
+		act(() => {
+			current.setPromptInput("Submitted prompt");
+			current.setPendingAttachments([original]);
+		});
 		const sent = current.pendingAttachments;
 		const update = current.setPendingAttachments;
-		act(() => update([]));
+		let finish!: ReturnType<typeof current.clearPromptForSend>;
+		act(() => {
+			update([]);
+			finish = current.clearPromptForSend();
+		});
 		act(() => current.setPendingAttachments([added]));
-		const restore = vi.fn((files: File[]) => [...files, ...sent]);
-		act(() => update(restore));
+		act(() => {
+			if (finish("Submitted prompt")) update((files) => [...files, ...sent]);
+		});
+		expect(current.promptDraft.value).toBe("Submitted prompt");
 		expect(current.pendingAttachments).toEqual([added, original]);
-		expect(restore).toHaveBeenCalledOnce();
 		act(() => {
 			update([]);
 			update((files) => [...files, original]);

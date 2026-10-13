@@ -102,24 +102,25 @@ describe("cloudHandoffUiReducer", () => {
 		}
 	});
 
-	it("preserves the source's latest progress phase", () => {
+	it("updates progress while preserving the source's recovery URL", () => {
 		const creating = cloudHandoffUiReducer(
 			{},
 			{
 				type: "progress",
 				sourceSessionId: "local-1",
 				phase: "creating",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
 		);
 		const provisioning = cloudHandoffUiReducer(creating, {
 			type: "progress",
 			sourceSessionId: "local-1",
 			phase: "provisioning",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
 		expect(provisioning["local-1"]).toMatchObject({
 			status: "progress",
 			phase: "provisioning",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
 	});
 
