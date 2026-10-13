@@ -1440,14 +1440,6 @@ export class CloudSessionController {
 					},
 				},
 			);
-			try {
-				lifecycle?.onAccepted?.();
-			} catch (error) {
-				this.options.logger?.error?.(
-					"Cloud prompt acceptance callback failed",
-					{ error },
-				);
-			}
 			accept();
 			const queued =
 				delivery === "queue" ||

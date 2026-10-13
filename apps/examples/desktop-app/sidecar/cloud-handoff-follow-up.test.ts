@@ -154,7 +154,6 @@ it.each([
 			images,
 			expect.objectContaining({
 				beforeDispatch: expect.any(Function),
-				onAccepted: expect.any(Function),
 			}),
 		);
 	} finally {
@@ -167,7 +166,6 @@ it.each([
 it.each([
 	"before dispatch",
 	"uncertain",
-	"accepted then disconnected",
 	"successful retry",
 	"text-only reconciliation",
 ])("handles recovery after %s", async (outcome) => {
@@ -185,7 +183,6 @@ it.each([
 			saved.userImages,
 			async (lifecycle) => {
 				if (outcome !== "before dispatch") lifecycle?.beforeDispatch?.();
-				if (outcome === "accepted then disconnected") lifecycle?.onAccepted?.();
 				throw new Error("send failed");
 			},
 		),
@@ -208,7 +205,7 @@ it.each([
 		);
 	}
 	expect(readCloudHandoffFollowUp("target")).toEqual(
-		outcome === "accepted then disconnected" || outcome === "successful retry"
+		outcome === "successful retry"
 			? null
 			: outcome === "before dispatch"
 				? saved
@@ -240,10 +237,9 @@ it.each([
 		"target",
 		difference === "command" ? "other" : saved.command,
 		difference === "images" ? [] : saved.userImages,
-		async (lifecycle) => {
+		async () => {
 			if (difference === "source" || difference === "draftId")
 				saveCloudHandoffFollowUp("target", replacement);
-			lifecycle?.onAccepted?.();
 			return { ok: true };
 		},
 	);
@@ -324,7 +320,6 @@ it.each([
 		async (lifecycle) => {
 			lifecycle?.beforeDispatch?.();
 			if (outcome === "failed") throw new Error("disconnected");
-			lifecycle?.onAccepted?.();
 			return { ok: true };
 		},
 		outcome === "stale draft" ? "older-draft" : undefined,
@@ -420,7 +415,6 @@ it.each([
 			lifecycle?.beforeDispatch?.();
 			await gateB;
 			if (uncertain) throw new Error("disconnected");
-			lifecycle?.onAccepted?.();
 			return { ok: true };
 		},
 	);
