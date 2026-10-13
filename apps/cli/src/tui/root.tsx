@@ -704,11 +704,11 @@ function App(props: TuiProps) {
 	} = session;
 	const deferredHydrationGuardRef = useRef({
 		hasSubmitted: session.hasSubmitted,
-		entryCount: session.entries.length,
+		entries: session.entries,
 	});
 	deferredHydrationGuardRef.current = {
 		hasSubmitted: session.hasSubmitted,
-		entryCount: session.entries.length,
+		entries: session.entries,
 	};
 
 	useEffect(() => {
@@ -724,10 +724,15 @@ function App(props: TuiProps) {
 					return;
 				}
 				const currentSession = deferredHydrationGuardRef.current;
-				if (currentSession.hasSubmitted || currentSession.entryCount > 0) {
+				if (currentSession.hasSubmitted) {
 					return;
 				}
-				replaceSessionEntries(hydrateSessionMessages(messages));
+				// Session startup can post notices (e.g. a plugin that failed to
+				// load) before the transcript arrives; keep them after it.
+				replaceSessionEntries([
+					...hydrateSessionMessages(messages),
+					...currentSession.entries,
+				]);
 				if (typeof result.currentContextSize === "number") {
 					setSessionLastTotalTokens(result.currentContextSize);
 				}
