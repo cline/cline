@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionNotFoundError } from "@cline/core";
+import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
@@ -119,6 +120,7 @@ function localRuntimeContext(
 					sessionManager,
 					hubClient: {
 						command: vi.fn(async () => ({ version: "v1", ok: true })),
+						subscribe: vi.fn(() => vi.fn()),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
@@ -486,7 +488,7 @@ describe("environment-bound session attach", () => {
 						kind: "ssh",
 						workspaceRoot: "/home/pi",
 						sessionManager: { get: remoteGet },
-						hubClient: { command: vi.fn() },
+						hubClient: { command: vi.fn(), subscribe: vi.fn(() => vi.fn()) },
 						unsubscribeSessionEvents: () => {},
 					},
 				],
@@ -1242,15 +1244,22 @@ describe("first-send connection updates", () => {
 	});
 
 	it.each([
-		"observer",
-		"core",
-	])("preserves a run started through %s while attach is pending", async (subscription) => {
+		{ subscription: "observer", fresh: false },
+		{ subscription: "core", fresh: false },
+		{ subscription: "observer", fresh: true },
+		{ subscription: "core", fresh: true },
+	])("preserves a run started while attach is pending ($subscription, fresh: $fresh)", async ({
+		subscription,
+		fresh,
+	}) => {
 		const { ctx, sessionId } = createContext({
 			attachedViaHub: subscription === "observer",
 		});
+		if (fresh) ctx.liveSessions.clear();
 		localSessionManager(ctx).get = vi.fn(async () => ({
 			sessionId,
 			status: "idle",
+			cwd: "/workspace/project",
 		}));
 		localSessionManager(ctx).hasSessionSubscription = () =>
 			subscription === "core";
@@ -1272,9 +1281,19 @@ describe("first-send connection updates", () => {
 			sessionId,
 		});
 		await attaching.promise;
-		if (subscription === "observer")
-			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
-		else
+		const started: HubEventEnvelope = {
+			version: "v1",
+			event: "run.started",
+			sessionId,
+			sequence: 2,
+		};
+		handleHubLiveEvent(ctx, started);
+		for (const [listener] of vi.mocked(binding.hubClient.subscribe).mock
+			.calls) {
+			listener(started);
+			listener({ ...started, event: "agent.done", sequence: 3 });
+		}
+		if (subscription === "core")
 			handleCoreSessionEvent(ctx, {
 				type: "status",
 				payload: { sessionId, status: "running" },
@@ -1291,16 +1310,38 @@ describe("first-send connection updates", () => {
 			status: "running",
 			busy: true,
 		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId,
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
 	});
 
-	it("uses the attach reply when no subscribed live state exists", async () => {
+	it.each([
+		false,
+		true,
+	])("uses the attach reply without observed activity (fresh: %s)", async (fresh) => {
 		const { ctx, sessionId } = createContext();
+		if (fresh) ctx.liveSessions.clear();
 		const binding = ctx.runtimeBindings.get("local");
 		if (!binding) throw new Error("missing binding");
-		vi.mocked(binding.hubClient.command).mockResolvedValueOnce({
-			version: "v1",
-			ok: true,
-			payload: { session: { status: "pending" } },
+		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
+			for (const [listener] of vi.mocked(binding.hubClient.subscribe).mock
+				.calls)
+				listener({
+					version: "v1",
+					sessionId,
+					event: "session.updated",
+					payload: { session: { status: "idle" } },
+				});
+			return {
+				version: "v1",
+				ok: true,
+				payload: { session: { status: "pending" } },
+			};
 		});
 		await expect(
 			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
@@ -1308,6 +1349,151 @@ describe("first-send connection updates", () => {
 		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
 			status: "pending",
 			busy: true,
+		});
+	});
+
+	it.each<{ event: HubEventEnvelope["event"]; status: string; busy: boolean }>([
+		{ event: "run.completed", status: "completed", busy: false },
+		{ event: "run.failed", status: "error", busy: false },
+		{ event: "run.aborted", status: "aborted", busy: false },
+		{ event: "session.updated", status: "idle", busy: false },
+		{
+			event: "session.pending_prompt_submitted",
+			status: "running",
+			busy: true,
+		},
+	])("retains $event during first attach and releases its listener", async ({
+		event,
+		status,
+		busy,
+	}) => {
+		const { ctx, sessionId } = createContext();
+		ctx.liveSessions.clear();
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("missing binding");
+		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
+			for (const [listener] of vi.mocked(binding.hubClient.subscribe).mock
+				.calls) {
+				listener({
+					version: "v1",
+					sessionId,
+					event: "run.started",
+					sequence: 2,
+				});
+				listener({
+					version: "v1",
+					sessionId,
+					event: "agent.done",
+					sequence: 2,
+				});
+				listener({
+					version: "v1",
+					sessionId,
+					event,
+					sequence: 3,
+					payload: { session: { status: "idle" } },
+				});
+				listener({
+					version: "v1",
+					sessionId,
+					event: "run.started",
+					sequence: 1,
+				});
+				listener({
+					version: "v1",
+					sessionId: "other-session",
+					event: "run.started",
+					sequence: 4,
+				});
+			}
+			return {
+				version: "v1",
+				ok: true,
+				payload: { session: { status: "idle" } },
+			};
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ status });
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status,
+			busy,
+			lastHubStatusSequence: 3,
+		});
+		expect(binding.hubClient.subscribe).toHaveBeenCalledWith(
+			expect.any(Function),
+		);
+		expect(
+			vi.mocked(binding.hubClient.subscribe).mock.results[0]?.value,
+		).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		"lookup",
+		"missing",
+		"attach",
+	])("releases the first-attach listener after %s failure", async (failure) => {
+		const { ctx, sessionId } = createContext();
+		ctx.liveSessions.clear();
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("missing binding");
+		if (failure === "lookup")
+			localSessionManager(ctx).get = vi
+				.fn()
+				.mockRejectedValue(new Error("lookup failed"));
+		else if (failure === "missing")
+			localSessionManager(ctx).get = vi.fn().mockResolvedValue(undefined);
+		else
+			vi.mocked(binding.hubClient.command).mockRejectedValueOnce(
+				new Error("attach failed"),
+			);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "attach",
+				sessionId,
+				config: { environmentId: "local" },
+			}),
+		).rejects.toThrow();
+		expect(ctx.liveSessions.has(sessionId)).toBe(false);
+		expect(
+			vi.mocked(binding.hubClient.subscribe).mock.results[0]?.value,
+		).toHaveBeenCalledOnce();
+	});
+
+	it("preserves a live projection installed by another attach", async () => {
+		const { ctx, sessionId } = createContext({ attachedViaHub: true });
+		const existing = ctx.liveSessions.get(sessionId);
+		if (!existing) throw new Error("missing session");
+		ctx.liveSessions.clear();
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("missing binding");
+		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
+			for (const [listener] of vi.mocked(binding.hubClient.subscribe).mock
+				.calls)
+				listener({
+					version: "v1",
+					sessionId,
+					event: "run.started",
+					sequence: 2,
+				});
+			ctx.liveSessions.set(sessionId, existing);
+			handleHubLiveEvent(ctx, {
+				sessionId,
+				event: "run.completed",
+				sequence: 3,
+			});
+			return {
+				version: "v1",
+				ok: true,
+				payload: { session: { status: "idle" } },
+			};
+		});
+		await expect(
+			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
+		).resolves.toMatchObject({ status: "completed" });
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			busy: false,
+			lastHubStatusSequence: 3,
 		});
 	});
 

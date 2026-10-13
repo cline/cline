@@ -1195,20 +1195,76 @@ async function handleAttach(
 		);
 	}
 	const manager = binding.sessionManager;
-	const session = await manager.get(sessionId);
-	if (!session) {
-		throw new Error(`Session ${sessionId} not found`);
+	let observed:
+		| Pick<LiveSession, "status" | "busy" | "lastHubStatusSequence">
+		| undefined;
+	// First attach has no live projection yet. Retain only its latest turn state.
+	const unsubscribe = binding.hubClient.subscribe((event) => {
+		if (event.sessionId !== sessionId || ctx.liveSessions.has(sessionId))
+			return;
+		if (
+			event.sequence !== undefined &&
+			observed?.lastHubStatusSequence !== undefined &&
+			event.sequence < observed.lastHubStatusSequence
+		)
+			return;
+		let status: string;
+		let busy = false;
+		switch (event.event) {
+			case "run.started":
+			case "session.pending_prompt_submitted":
+				status = "running";
+				busy = true;
+				break;
+			case "session.updated": {
+				const updated = event.payload?.session;
+				if (
+					!observed ||
+					!updated ||
+					typeof updated !== "object" ||
+					!("status" in updated) ||
+					updated.status !== "idle"
+				)
+					return;
+				// Queued turns settle through an idle update, without run.completed.
+				status = "idle";
+				break;
+			}
+			case "run.completed":
+			case "run.failed":
+			case "run.aborted":
+				status =
+					typeof event.payload?.reason === "string"
+						? event.payload.reason
+						: event.event === "run.aborted"
+							? "aborted"
+							: event.event === "run.failed"
+								? "error"
+								: "completed";
+				break;
+			default:
+				return;
+		}
+		observed = { status, busy, lastHubStatusSequence: event.sequence };
+	});
+	let session: Awaited<ReturnType<typeof manager.get>>;
+	let reply: Awaited<ReturnType<typeof binding.hubClient.command>>;
+	try {
+		session = await manager.get(sessionId);
+		if (!session) throw new Error(`Session ${sessionId} not found`);
+		reply = await binding.hubClient.command(
+			"session.attach",
+			{ sessionId },
+			sessionId,
+		);
+	} finally {
+		unsubscribe();
 	}
 
 	const metadata =
 		session.metadata && typeof session.metadata === "object"
 			? (session.metadata as JsonRecord)
 			: undefined;
-	const reply = await binding.hubClient.command(
-		"session.attach",
-		{ sessionId },
-		sessionId,
-	);
 	const attachedSession = reply.payload?.session;
 	const replyStatus =
 		attachedSession &&
@@ -1219,11 +1275,11 @@ async function handleAttach(
 			: undefined;
 	// Only observed live state can override Core's resident-process snapshot.
 	const existing = ctx.liveSessions.get(sessionId);
-	const liveStatus =
-		existing &&
-		(existing.attachedViaHub || manager.hasSessionSubscription(sessionId))
+	const liveStatus = existing
+		? existing.attachedViaHub || manager.hasSessionSubscription(sessionId)
 			? existing
-			: undefined;
+			: undefined
+		: observed;
 	const attachedStatus = liveStatus?.status ?? replyStatus ?? session.status;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
@@ -1253,7 +1309,9 @@ async function handleAttach(
 			busy:
 				liveStatus?.busy ??
 				(attachedStatus === "running" || attachedStatus === "pending"),
-			lastHubStatusSequence: existing?.lastHubStatusSequence,
+			lastHubStatusSequence: existing
+				? existing.lastHubStatusSequence
+				: observed?.lastHubStatusSequence,
 			prompt:
 				session.prompt ||
 				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
