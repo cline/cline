@@ -72,7 +72,7 @@ vi.mock("./composio-meta-tools", async (importOriginal) => ({
 import { createComposioMetaToolSession } from "./composio-meta-tools";
 import {
 	createComposioToolsExtension,
-	resolveComposioToolsStatePath,
+	resolveComposioConnectionStatePath,
 } from "./composio-tools-extension";
 
 type RegisteredTool = {
@@ -88,7 +88,9 @@ const originalDataDir = process.env.CLINE_DATA_DIR;
 let tempDataDir: string;
 
 function writeState(state: unknown): void {
-	const path = resolveComposioToolsStatePath(auth.accountId ?? "account-a");
+	const path = resolveComposioConnectionStatePath(
+		auth.accountId ?? "account-a",
+	);
 	const settingsDir = dirname(path);
 	mkdirSync(settingsDir, { recursive: true });
 	writeFileSync(path, JSON.stringify(state, null, "\t"));
@@ -119,7 +121,15 @@ beforeEach(() => {
 	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
 	auth.forbidLocal = false;
-	meta.session = undefined;
+	meta.session = {
+		sessionId: "trs_1",
+		tools: [
+			{ slug: "COMPOSIO_SEARCH_TOOLS" },
+			{ slug: "COMPOSIO_MANAGE_CONNECTIONS" },
+			{ slug: "COMPOSIO_WAIT_FOR_CONNECTIONS" },
+			{ slug: "COMPOSIO_MULTI_EXECUTE_TOOL" },
+		],
+	};
 });
 
 afterEach(() => {
@@ -133,261 +143,114 @@ afterEach(() => {
 });
 
 describe("createComposioToolsExtension", () => {
-	it("does not register another account's saved tools", async () => {
+	it("includes only meta schemas in every model request despite hundreds of saved tools", async () => {
 		writeState({
 			toolkits: {
 				gmail: {
-					connectedAccountId: "a-gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		auth.accountId = "account-b";
-		expect(await setupTools()).toEqual([]);
-	});
-
-	it("rejects a running session's tools after switching accounts", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "a-gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+					connectedAccountId: "ca_gmail",
+					tools: Array.from({ length: 500 }, (_, i) => ({
+						slug: `GMAIL_TOOL_${i}`,
+						input_parameters: { type: "object", properties: {} },
+					})),
 				},
 			},
 		});
 		const tools = await setupTools();
-		auth.accountId = "account-b";
-		const fetchMock = vi.fn();
-		vi.stubGlobal("fetch", fetchMock);
-		expect(await tools[0].execute({})).toMatchObject({
-			successful: false,
-			error: expect.stringContaining("account changed"),
-		});
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-	it("returns undefined when there is no connector state", async () => {
-		expect(await createComposioToolsExtension()).toBeUndefined();
-	});
-
-	it("returns undefined when every connected toolkit has zero tools", async () => {
-		writeState({
-			toolkits: { github: { connectedAccountId: "ca_github", tools: [] } },
-		});
-		expect(await createComposioToolsExtension()).toBeUndefined();
-	});
-
-	it("does not register saved tools without beta access", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		beta.enabled = false;
-		expect(await setupTools()).toEqual([]);
-	});
-
-	it("refuses execution when beta access is removed after registration", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
-				},
-			},
-		});
-		const tools = await setupTools();
-		beta.enabled = false;
-		const fetchMock = vi.fn();
-		vi.stubGlobal("fetch", fetchMock);
-		expect(await tools[0].execute({})).toEqual({
-			successful: false,
-			error: "Composio connectors are not enabled for this account.",
-		});
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
-	it("registers one snake_case tool per stored schema", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
+		const expectedNames = meta.session?.tools.map((tool) =>
+			String(tool.slug).toLowerCase(),
+		);
+		let requests = 0;
+		vi.stubGlobal("fetch", async () =>
+			Response.json({
+				successful: true,
+				data: {
 					tools: [
 						{
-							slug: "GMAIL_SEND_EMAIL",
-							description: "Send an email.",
-							input_parameters: {
-								type: "object",
-								properties: { to: { type: "string" } },
-								required: ["to"],
-							},
+							slug: "GMAIL_TOOL_1",
+							input_parameters: { type: "object", properties: {} },
 						},
-						{ slug: "GMAIL_FETCH_EMAILS" },
 					],
 				},
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
-			},
-		});
-		const tools = await setupTools();
-		expect(tools.map((tool) => tool.name).sort()).toEqual([
-			"github_create_an_issue",
-			"gmail_fetch_emails",
-			"gmail_send_email",
-		]);
-		expect(tools.every((tool) => tool.resultPolicy === "cache-oversized")).toBe(
-			true,
-		);
-		expect(tools.find((t) => t.name === "gmail_send_email")?.retryable).toBe(
-			false,
-		);
-	});
-
-	it("skips a tool whose stored schema createTool rejects instead of failing setup", async () => {
-		writeState({
-			toolkits: {
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [
-						{
-							slug: "GITHUB_BROKEN_TOOL",
-							input_parameters: {
-								allOf: [{ type: "string" }, { type: "number" }],
-							},
-						},
-						{ slug: "GITHUB_CREATE_AN_ISSUE" },
-					],
-				},
-			},
-		});
-		const tools = await setupTools();
-		expect(tools.map((tool) => tool.name)).toEqual(["github_create_an_issue"]);
-	});
-
-	it("executes tools through the Cline connectors proxy with a Bearer token and pinned version", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_SEND_EMAIL", version: "20250101_00" }],
-				},
-			},
-		});
-		const fetchMock = vi.fn(
-			async () =>
-				new Response(
-					JSON.stringify({ successful: true, data: { messageId: "msg_1" } }),
-					{ status: 200 },
-				),
-		);
-		vi.stubGlobal("fetch", fetchMock);
-
-		const tools = await setupTools();
-		const result = await tools[0].execute({ to: "someone@example.com" });
-
-		const [url, init] = fetchMock.mock.calls[0] as unknown as [
-			string,
-			{ method: string; headers: Record<string, string>; body: string },
-		];
-		expect(url).toBe(
-			"https://api.cline.bot/api/v1/connectors/tools/GMAIL_SEND_EMAIL/execute",
-		);
-		expect(init.method).toBe("POST");
-		expect(init.headers.authorization).toBe("Bearer cline_token_123");
-		// No Composio key, and no client-supplied user_id — the proxy derives it.
-		expect(init.headers["x-api-key"]).toBeUndefined();
-		expect(JSON.parse(init.body)).toEqual({
-			arguments: { to: "someone@example.com" },
-			version: "20250101_00",
-		});
-		expect(result).toEqual({ successful: true, data: { messageId: "msg_1" } });
-	});
-
-	it("returns a structured auth error when there is no signed-in account", async () => {
-		writeState({
-			toolkits: {
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
-			},
-		});
-		auth.token = undefined; // signed out
-		const fetchMock = vi.fn();
-		vi.stubGlobal("fetch", fetchMock);
-
-		const tools = await setupTools();
-		const result = (await tools[0].execute({ title: "bug" })) as {
-			successful: boolean;
-			error: string;
-		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toMatch(/Sign in to your Cline account/);
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		401, 403, 502,
-	])("returns structured errors on HTTP %i instead of throwing", async (status) => {
-		writeState({
-			toolkits: {
-				github: {
-					connectedAccountId: "ca_github",
-					tools: [{ slug: "GITHUB_CREATE_AN_ISSUE" }],
-				},
-			},
-		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(
-				async () =>
-					new Response(
-						JSON.stringify({
-							success: false,
-							error: "connector request failed",
-						}),
-						{
-							status,
-						},
-					),
-			),
-		);
-		const tools = await setupTools();
-		const result = (await tools[0].execute({ title: "bug" })) as {
-			successful: boolean;
-			error: string;
-		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toContain(`HTTP ${status}`);
-		expect(result.error).toContain("GITHUB_CREATE_AN_ISSUE");
-	});
-
-	it("returns structured errors when the network is unreachable", async () => {
-		writeState({
-			toolkits: {
-				gmail: {
-					connectedAccountId: "ca_gmail",
-					tools: [{ slug: "GMAIL_FETCH_EMAILS" }],
-				},
-			},
-		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async () => {
-				throw new Error("network down");
 			}),
 		);
-		const tools = await setupTools();
-		const result = (await tools[0].execute({})) as {
-			successful: boolean;
-			error: string;
+		const model: AgentModel = {
+			async *stream(request) {
+				expect(request.tools.map((tool) => tool.name)).toEqual(expectedNames);
+				if (requests++ === 0) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "search",
+						toolName: "composio_search_tools",
+						inputText: "{}",
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "Found the tool." };
+					yield { type: "finish", reason: "stop" };
+				}
+			},
 		};
-		expect(result.successful).toBe(false);
-		expect(result.error).toContain("network down");
+		expect(
+			(
+				await new AgentRuntime({ model, tools: tools as AgentTool[] }).run(
+					"Find Gmail tools",
+				)
+			).status,
+		).toBe("completed");
+		expect(requests).toBe(2);
+	});
+
+	it("does not fall back to saved schemas when meta-session creation fails", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		meta.session = undefined;
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("rejects the whole meta-tool flow when a schema cannot be registered", async () => {
+		meta.session = {
+			sessionId: "trs_1",
+			tools: [
+				{ slug: "COMPOSIO_MANAGE_CONNECTIONS" },
+				{
+					slug: "COMPOSIO_SEARCH_TOOLS",
+					input_parameters: { allOf: [{ type: "string" }, { type: "number" }] },
+				},
+			],
+		};
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("does not register meta tools without beta access or a signed-in account", async () => {
+		beta.enabled = false;
+		expect(await setupTools()).toEqual([]);
+		beta.enabled = true;
+		auth.accountId = undefined;
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("rechecks beta access and credentials before execution", async () => {
+		const [tool] = await setupTools();
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		beta.enabled = false;
+		expect(await tool.execute({})).toMatchObject({
+			successful: false,
+			error: expect.stringContaining("not enabled"),
+		});
+		beta.enabled = true;
+		auth.token = undefined;
+		expect(await tool.execute({})).toMatchObject({
+			successful: false,
+			error: expect.stringContaining("Sign in"),
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("registers meta tools even when no toolkit is connected", async () => {

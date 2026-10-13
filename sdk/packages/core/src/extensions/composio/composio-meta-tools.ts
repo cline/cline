@@ -92,7 +92,8 @@ export async function createComposioMetaToolSession(
 		}
 		const metaTools = tools.filter(
 			(tool): tool is ComposioMetaTool =>
-				typeof tool?.slug === "string" && tool.slug.length > 0,
+				typeof tool?.slug === "string" &&
+				REQUIRED_META_TOOL_SLUGS.some((slug) => slug === tool.slug),
 		);
 		const slugs = new Set(metaTools.map((tool) => tool.slug));
 		const missing = REQUIRED_META_TOOL_SLUGS.filter((slug) => !slugs.has(slug));
@@ -102,7 +103,10 @@ export async function createComposioMetaToolSession(
 			);
 			return undefined;
 		}
-		return { sessionId, tools: metaTools };
+		return {
+			sessionId,
+			tools: [...new Map(metaTools.map((tool) => [tool.slug, tool])).values()],
+		};
 	} catch (error) {
 		options?.log?.(
 			`composio-tools: meta-tool session request failed: ${error instanceof Error ? error.message : String(error)}`,

@@ -140,15 +140,12 @@ it.each([
 	{ command: "newer edit", image: "newer" },
 	{ command: saved.command, image: "newer" },
 	{ command: saved.command, image: undefined },
-	{ command: saved.command, image: "newer", savedImages: ["invalid"] },
 ])("keeps a newer retry when an older send is unconfirmed: %j", async ({
 	command,
 	image,
-	savedImages,
 }) => {
 	vi.mocked(desktopClient.invoke).mockResolvedValue({
 		...saved,
-		userImages: savedImages ?? saved.userImages,
 		unconfirmed: true,
 	});
 	const open = vi.fn();
@@ -244,7 +241,10 @@ it.each([
 it.each([
 	"read failed",
 	"invalid image",
+	"invalid image with explicit retry",
 ])("keeps cloud history openable when recovery has %s", async (failure) => {
+	const explicitRetry = failure === "invalid image with explicit retry";
+	const attachments = [new File(["newer"], "newer.png", { type: "image/png" })];
 	if (failure === "read failed")
 		vi.mocked(desktopClient.invoke).mockRejectedValueOnce(
 			new Error("read failed"),
@@ -253,16 +253,23 @@ it.each([
 		vi.mocked(desktopClient.invoke).mockResolvedValueOnce({
 			...saved,
 			userImages: ["invalid"],
+			unconfirmed: explicitRetry,
 		});
 	const open = vi.fn();
 	expect(
 		await openWithCloudHandoffFollowUp({
 			targetSessionId: "cloud-target",
+			initialPromptDraft: explicitRetry ? saved.command : undefined,
+			initialAttachments: explicitRetry ? attachments : undefined,
 			canOpen: () => true,
 			open,
 		}),
 	).toBe(true);
-	expect(open).toHaveBeenCalledExactlyOnceWith(undefined, undefined, undefined);
+	expect(open).toHaveBeenCalledExactlyOnceWith(
+		explicitRetry ? saved.command : undefined,
+		explicitRetry ? attachments : undefined,
+		undefined,
+	);
 	expect(desktopClient.invoke).toHaveBeenCalledTimes(1);
 	expect(toast).toHaveBeenCalledWith(
 		expect.objectContaining({

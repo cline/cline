@@ -14,7 +14,6 @@ import {
 	assertPendingCloudHandoffCompatible,
 	assertSessionDeleteAllowedDuringHandoff,
 	cloudHandoffGitStateMatchesFingerprint,
-	formatPendingHandoffVerificationError,
 	shouldCleanupFailedHandoffVerification,
 	updateHandoffMetadataOrThrow,
 } from "./cloud-handoff";
@@ -334,17 +333,6 @@ describe("cloud handoff gates", () => {
 		await expect(attempt).rejects.toThrow(
 			"Start a conversation before handing it off to cloud.",
 		);
-	});
-
-	it("explains how to recover a mismatched resumed handoff", () => {
-		const dashboardUrl = "https://app.cline.bot/agents?sessionId=ses-pending";
-		const message = formatPendingHandoffVerificationError(
-			new CloudHandoffTranscriptMismatchError(2, 3),
-			dashboardUrl,
-		);
-
-		expect(message).toContain("delete it before retrying /cloud");
-		expect(message).toContain(dashboardUrl);
 	});
 
 	it("detects repository drift after cloud provisioning", () => {
@@ -1628,7 +1616,11 @@ describe("cloud handoff transaction", () => {
 					modelId: fixture.modelId,
 				},
 			}),
-		).rejects.toThrow();
+		).rejects.toThrow(
+			created
+				? "Cloud transcript verification failed (local 2 messages, cloud 3)."
+				: "delete it before retrying /cloud: https://app.cline.bot/agents?sessionId=ses-cloud",
+		);
 
 		if (created) {
 			expect(deleteTarget).toHaveBeenCalledExactlyOnceWith("ses-cloud");

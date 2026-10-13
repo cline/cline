@@ -50,7 +50,6 @@ export function usePromptDraft(
 				typeof update === "function"
 					? update(draftRef.current.attachments)
 					: update;
-			if (next !== draftRef.current.attachments) draftRef.current.revision += 1;
 			draftRef.current.attachments = next;
 			setAttachments(next);
 		},
