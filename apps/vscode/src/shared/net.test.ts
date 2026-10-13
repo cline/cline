@@ -101,6 +101,13 @@ describe("fetchWithoutIdleTimeouts", () => {
 		expect(proxiedRequests).toEqual([])
 	})
 
+	it("treats IPv4-mapped loopback as loopback", async () => {
+		const mapped = url.replace("127.0.0.1", "[::ffff:127.0.0.1]")
+		const response = await fetchWithoutIdleTimeouts(mapped)
+		expect(await response.text()).toBe("first token")
+		expect(proxiedRequests).toEqual([])
+	})
+
 	it("routes other hosts through the configured proxy, still without idle timeouts", async () => {
 		const response = await fetchWithoutIdleTimeouts(REMOTE_URL)
 		expect(await response.text()).toBe("first token")

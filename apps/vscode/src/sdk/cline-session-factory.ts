@@ -770,11 +770,11 @@ function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
 	} catch {
 		return false
 	}
-	// IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) is checked as the IPv4 it wraps.
-	const mapped = host.startsWith("::ffff:") && isIP(host.slice(7)) === 4 ? host.slice(7) : host
-	const family = isIP(mapped)
+	// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) against the
+	// IPv4 rules, so no unwrapping is needed.
+	const family = isIP(host)
 	if (family) {
-		return LOCAL_NETWORK_ADDRESSES.check(mapped, family === 6 ? "ipv6" : "ipv4")
+		return LOCAL_NETWORK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
 	}
 	return !host.includes(".") || /\.(localhost|local|internal)$/.test(host)
 }

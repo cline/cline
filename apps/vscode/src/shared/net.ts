@@ -97,6 +97,7 @@
  * ```
  */
 
+import { BlockList, isIP } from "node:net"
 import { Agent, type Dispatcher, EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
@@ -138,14 +139,23 @@ let proxiedDispatcher: EnvHttpProxyAgent | undefined
 // The same hosts VS Code's proxy resolver always connects to directly.
 // `EnvHttpProxyAgent` would otherwise send them through `http_proxy` whenever
 // `no_proxy` is unset, which is exactly the shape of a corporate environment.
-const LOOPBACK_HOSTS = new Set(["localhost", "0.0.0.0", "::1", "::ffff:127.0.0.1"])
+// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`, which the URL
+// parser rewrites to `[::ffff:7f00:1]`) against the IPv4 rules.
+const LOOPBACK_ADDRESSES = new BlockList()
+LOOPBACK_ADDRESSES.addSubnet("127.0.0.0", 8, "ipv4")
+LOOPBACK_ADDRESSES.addAddress("0.0.0.0", "ipv4")
+LOOPBACK_ADDRESSES.addAddress("::1", "ipv6")
 
 function isLoopbackHost(input: string | URL | Request): boolean {
 	try {
 		const host = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).hostname
 			.replace(/^\[|\]$/g, "")
 			.toLowerCase()
-		return LOOPBACK_HOSTS.has(host) || host.startsWith("127.")
+		if (host === "localhost") {
+			return true
+		}
+		const family = isIP(host)
+		return family !== 0 && LOOPBACK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
 	} catch {
 		return false
 	}
