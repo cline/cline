@@ -94,6 +94,8 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    /// Tauri's resource directory for this install (None when unresolvable).
+    resource_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -513,10 +515,40 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
+/// Locate the self-contained plugin-sandbox bootstrap that `build:sidecar:bin`
+/// emits. The compiled sidecar cannot hand its embedded copy of the bootstrap
+/// to a child process and the bundle ships no node_modules, so the sidecar is
+/// pointed at this file via `CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH`. A packaged
+/// install resolves it through Tauri's resource directory; a locally built
+/// binary launched from the repo falls back to the checkout.
+fn resolve_plugin_sandbox_bootstrap_path(context: &AppContext) -> Option<PathBuf> {
+    let relative = PathBuf::from("extensions").join("plugin-sandbox-bootstrap.js");
+    let candidates = [
+        context
+            .resource_dir
+            .as_ref()
+            .map(|resource_dir| resource_dir.join(&relative)),
+        Some(
+            PathBuf::from(&context.workspace_root)
+                .join("apps")
+                .join("examples")
+                .join("desktop-app")
+                .join("src-tauri")
+                .join(&relative),
+        ),
+    ];
+    candidates.into_iter().flatten().find(|path| path.exists())
+}
+
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         let mut command = Command::new(binary_path);
         command.current_dir(&context.workspace_root);
+        // Only the compiled sidecar needs the shipped bootstrap; a source run
+        // under `bun` resolves its own sibling bootstrap.
+        if let Some(bootstrap_path) = resolve_plugin_sandbox_bootstrap_path(context) {
+            command.env("CLINE_PLUGIN_SANDBOX_BOOTSTRAP_PATH", bootstrap_path);
+        }
         command
     } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
         let mut command = Command::new("bun");
@@ -1489,9 +1521,17 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
+    let tauri_context = tauri::generate_context!();
+    // Tauri's own per-platform resource layout for this exact install, so a
+    // packaged app never picks up another channel's resources (stable and
+    // Beta both install under /usr/lib on Linux).
+    let resource_dir =
+        tauri::utils::platform::resource_dir(tauri_context.package_info(), &tauri::Env::default())
+            .ok();
     let app_context = AppContext {
         launch_cwd,
         workspace_root,
+        resource_dir,
     };
 
     tauri::Builder::default()
@@ -1593,7 +1633,7 @@ fn main() {
             relaunch_app,
             quit_app
         ])
-        .build(tauri::generate_context!())
+        .build(tauri_context)
         .expect("error while building tauri app")
         .run(|app_handle, event| match event {
             #[cfg(target_os = "macos")]

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
 	CLINE_JS_RUNTIME_PATH_ENV,
+	isCompiledBunExecutable,
 	resolveSubprocessRuntimeExecutable,
 	SubprocessSandbox,
 } from "./subprocess-sandbox";
@@ -49,6 +50,55 @@ describe("SubprocessSandbox runtime resolution", () => {
 				env: {},
 			}),
 		).toBe("node");
+	});
+
+	it("self-execs via BUN_BE_BUN only for the current compiled Bun binary", () => {
+		// A foreign packaged binary (not this process) is never a runtime.
+		expect(isCompiledBunExecutable("/usr/local/bin/cline")).toBe(false);
+		expect(isCompiledBunExecutable("/usr/local/bin/bun")).toBe(false);
+		expect(isCompiledBunExecutable("/usr/local/bin/node")).toBe(false);
+		// Tests run on a real bun/node binary, so the self path does not
+		// qualify here.
+		expect(isCompiledBunExecutable(process.execPath)).toBe(false);
+	});
+
+	it("uses the compiled Bun host itself as the sandbox runtime", () => {
+		const selfExecPath = "/Applications/Cline.app/Contents/MacOS/code-sidecar";
+		expect(
+			isCompiledBunExecutable(selfExecPath, {
+				isBunRuntime: true,
+				selfExecPath,
+			}),
+		).toBe(true);
+		// The same path under node (no embedded bun) cannot be BUN_BE_BUN'd.
+		expect(
+			isCompiledBunExecutable(selfExecPath, {
+				isBunRuntime: false,
+				selfExecPath,
+			}),
+		).toBe(false);
+		// Another compiled binary on disk is not this process.
+		expect(
+			isCompiledBunExecutable("/usr/local/bin/cline", {
+				isBunRuntime: true,
+				selfExecPath,
+			}),
+		).toBe(false);
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: selfExecPath,
+				env: {},
+				host: { isBunRuntime: true, selfExecPath },
+			}),
+		).toBe(selfExecPath);
+		// Env-provided runtimes still win over self-exec.
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: selfExecPath,
+				env: { NODE: "/opt/node/bin/node" },
+				host: { isBunRuntime: true, selfExecPath },
+			}),
+		).toBe("/opt/node/bin/node");
 	});
 
 	it("allows an explicit helper runtime override", () => {
