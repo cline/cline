@@ -63,6 +63,11 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
+import {
+	readWorkspacePath,
+	workspaceIsWithin,
+	workspacePathKey,
+} from "./session-config";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -98,36 +103,6 @@ const WORKSPACE_RESTORE_SEND_ERROR =
 	"Cannot send a prompt while the session workspace is being restored";
 const WORKSPACE_RESTORE_BUSY_ERROR =
 	"Wait for all turns in this workspace to finish before restoring it";
-
-type WorkspacePathSource = {
-	cwd?: unknown;
-	workspaceRoot?: unknown;
-	workspace_root?: unknown;
-};
-
-function readWorkspacePath(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
-	if (cwd) return cwd;
-	const workspaceRoot =
-		typeof source?.workspaceRoot === "string"
-			? source.workspaceRoot.trim()
-			: "";
-	if (workspaceRoot) return workspaceRoot;
-	const snakeCaseWorkspaceRoot =
-		typeof source?.workspace_root === "string"
-			? source.workspace_root.trim()
-			: "";
-	return snakeCaseWorkspaceRoot || undefined;
-}
-
-function workspacePathKey(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const workspacePath = readWorkspacePath(source);
-	return workspacePath ? resolve(workspacePath) : undefined;
-}
 
 /**
  * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
@@ -335,18 +310,42 @@ function hasActiveWorkspaceTurn(session: LiveSession): boolean {
 	);
 }
 
+function assertWorkspaceNotRestoring(
+	ctx: SidecarContext,
+	workspace: string | undefined,
+): void {
+	if (
+		workspace &&
+		[...ctx.restoringWorkspacePaths].some(
+			(locked) =>
+				workspaceIsWithin(workspace, locked) ||
+				workspaceIsWithin(locked, workspace),
+		)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
+}
+
 async function withWorkspaceRestoreLock<T>(
 	ctx: SidecarContext,
 	workspacePath: string,
 	work: () => Promise<T>,
 ): Promise<T> {
 	const key = resolve(workspacePath);
-	if (ctx.restoringWorkspacePaths.has(key)) {
+	if (
+		[...ctx.restoringWorkspacePaths].some(
+			(locked) =>
+				workspaceIsWithin(key, locked) || workspaceIsWithin(locked, key),
+		)
+	) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	for (const session of ctx.liveSessions.values()) {
+		const sessionWorkspace = workspacePathKey(session.config);
 		if (
-			workspacePathKey(session.config) === key &&
+			sessionWorkspace &&
+			(workspaceIsWithin(sessionWorkspace, key) ||
+				workspaceIsWithin(key, sessionWorkspace)) &&
 			hasActiveWorkspaceTurn(session)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
@@ -467,12 +466,13 @@ function createLiveSession(
 		config,
 		messages: overrides?.messages ?? [],
 		promptsInQueue: overrides?.promptsInQueue ?? [],
-		busy: false,
+		busy: overrides?.busy ?? false,
 		startedAt: nowMs(),
 		status: overrides?.status ?? "idle",
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		lastHubStatusSequence: overrides?.lastHubStatusSequence,
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -1050,6 +1050,8 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
+	const workspace = workspacePathKey(request.config) ?? ctx.localWorkspaceRoot;
+	assertWorkspaceNotRestoring(ctx, workspace);
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
@@ -1106,6 +1108,7 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
+	assertWorkspaceNotRestoring(ctx, workspace);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
@@ -1201,8 +1204,27 @@ async function handleAttach(
 		session.metadata && typeof session.metadata === "object"
 			? (session.metadata as JsonRecord)
 			: undefined;
+	const reply = await binding.hubClient.command(
+		"session.attach",
+		{ sessionId },
+		sessionId,
+	);
+	const attachedSession = reply.payload?.session;
+	const replyStatus =
+		attachedSession &&
+		typeof attachedSession === "object" &&
+		"status" in attachedSession &&
+		typeof attachedSession.status === "string"
+			? attachedSession.status
+			: undefined;
+	// Only observed live state can override Core's resident-process snapshot.
 	const existing = ctx.liveSessions.get(sessionId);
-	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
+	const liveStatus =
+		existing &&
+		(existing.attachedViaHub || manager.hasSessionSubscription(sessionId))
+			? existing
+			: undefined;
+	const attachedStatus = liveStatus?.status ?? replyStatus ?? session.status;
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
@@ -1227,7 +1249,11 @@ async function handleAttach(
 			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
-			status: session.status,
+			status: attachedStatus,
+			busy:
+				liveStatus?.busy ??
+				(attachedStatus === "running" || attachedStatus === "pending"),
+			lastHubStatusSequence: existing?.lastHubStatusSequence,
 			prompt:
 				session.prompt ||
 				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
@@ -1249,7 +1275,7 @@ async function handleAttach(
 	return {
 		sessionId,
 		environmentId: binding.environmentId,
-		status: session.status,
+		status: attachedStatus,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,
@@ -1646,12 +1672,7 @@ async function handleSend(
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
-	if (
-		lockedWorkspaceKey &&
-		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
-	) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
+	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -1715,6 +1736,7 @@ async function handleSend(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
+	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
