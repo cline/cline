@@ -1,8 +1,4 @@
-import {
-	type HandoffProgressPhase,
-	type HandoffReceipt,
-	parseHandoffCommand,
-} from "@/lib/cloud-handoff";
+import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
 
 export type CloudHandoffUiEntry =
 	| {
@@ -39,16 +35,6 @@ export type CloudHandoffUiEntry =
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
-
-export function getHandoffTargetDraft(
-	entry: CloudHandoffUiEntry | undefined,
-): string | undefined {
-	if (!entry || entry.status === "progress") return undefined;
-	return entry.status === "complete"
-		? entry.retryDraft
-		: (parseHandoffCommand(entry.retryDraft ?? "")?.nextCommand ??
-				entry.retryDraft);
-}
 
 export function hasLivePendingHandoff(
 	entry: CloudHandoffUiEntry | undefined,
@@ -116,9 +102,7 @@ export function cloudHandoffUiReducer(
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
 		case "start": {
-			// A retry of a pending handoff must not discard the recovery URL:
-			// if the retry fails before any progress event re-supplies it, the
-			// dashboard link would be gone from live state entirely.
+			// A retry can fail before progress re-supplies the recovery URL.
 			const carriedDashboardUrl =
 				current?.status === "recovery" ||
 				current?.status === "recovery_dismissed" ||
@@ -136,13 +120,7 @@ export function cloudHandoffUiReducer(
 			};
 		}
 		case "progress":
-			if (
-				current?.status === "complete" ||
-				current?.status === "failed" ||
-				current?.status === "recovery" ||
-				current?.status === "recovery_dismissed" ||
-				current?.status === "retry_restored"
-			) {
+			if (current && current.status !== "progress") {
 				return state;
 			}
 			return {
@@ -151,15 +129,11 @@ export function cloudHandoffUiReducer(
 					status: "progress",
 					phase: action.phase,
 					message: action.message,
-					dashboardUrl:
-						action.dashboardUrl ||
-						(current?.status === "progress" ? current.dashboardUrl : undefined),
+					dashboardUrl: action.dashboardUrl || current?.dashboardUrl,
 				},
 			};
 		case "failed": {
-			// An authoritative completion event may have already landed while
-			// the RPC transport failed; the receipt (and its cloud URL) must
-			// survive, since the source session is locked either way.
+			// Completion remains authoritative if the RPC transport subsequently fails.
 			if (current?.status === "complete") {
 				if (!action.retryDraft && !action.retryAttachments?.length)
 					return state;
@@ -167,10 +141,7 @@ export function cloudHandoffUiReducer(
 					...state,
 					[action.sourceSessionId]: {
 						...current,
-						retryDraft: getHandoffTargetDraft({
-							status: "failed",
-							retryDraft: action.retryDraft,
-						}),
+						retryDraft: action.retryDraft,
 						retryAttachments: action.retryAttachments,
 					},
 				};

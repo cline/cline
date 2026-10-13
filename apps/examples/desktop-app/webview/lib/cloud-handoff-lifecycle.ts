@@ -396,7 +396,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			effects.dispatch({
 				type: "failed",
 				sourceSessionId,
-				retryDraft: nextCommand ? `/cloud ${nextCommand}` : "/cloud",
+				retryDraft: nextCommand,
 				retryAttachments: sourceAttachments,
 			});
 			if (!ctx.silent) toastFailure(error);
