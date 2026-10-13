@@ -25,6 +25,7 @@ import {
 	getClineEnvironmentConfig,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
+import { z } from "zod";
 import {
 	readCloudHandoffFollowUp,
 	saveCloudHandoffFollowUp,
@@ -56,8 +57,8 @@ import { readSessionManifest } from "./paths";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
-	workspaceIsWithin,
 	workspacePathKey,
+	workspacePathsOverlap,
 } from "./session-config";
 import { readSessionMetadata } from "./session-data/common";
 import type {
@@ -106,7 +107,7 @@ async function assertHandoffIdle(
 	manager: ClineCore,
 	sessionId: string,
 ): Promise<void> {
-	if ((activeSendRequests.get(ctx)?.get(sessionId) ?? 0) > 0) {
+	if (hasActiveSessionSend(ctx, sessionId)) {
 		throw new Error("Wait for the current send to finish before handing off.");
 	}
 	const live = ctx.liveSessions.get(sessionId);
@@ -115,10 +116,8 @@ async function assertHandoffIdle(
 		workspacePathKey(live?.config) ?? workspacePathKey(persisted);
 	if (
 		workspaceKey &&
-		[...ctx.restoringWorkspacePaths].some(
-			(locked) =>
-				workspaceIsWithin(workspaceKey, locked) ||
-				workspaceIsWithin(locked, workspaceKey),
+		[...ctx.restoringWorkspacePaths].some((locked) =>
+			workspacePathsOverlap(workspaceKey, locked, "local"),
 		)
 	) {
 		throw new Error(
@@ -512,6 +511,14 @@ async function handleHandoffOnce(
 	};
 
 	const persistedBefore = await manager.get(sourceSessionId);
+	const metadataBefore =
+		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
+		readSessionMetadata(sourceSessionId) ??
+		{};
+	const pending = readCloudHandoffMetadata(metadataBefore);
+	const creationIntent = metadataBefore.cloudHandoffIntent as
+		| { fingerprint?: CloudHandoffFingerprint; config?: unknown }
+		| undefined;
 	const sourceConfig = {
 		...(ctx.liveSessions.get(sourceSessionId)?.config ?? {}),
 		...(request.config ?? {}),
@@ -519,7 +526,14 @@ async function handleHandoffOnce(
 	const sourceReasoningEffort = readReasoningEffort(
 		sourceConfig.reasoningEffort,
 	);
-	const handoffConfig = {
+	const savedConfig = z
+		.object({
+			autoApproveTools: z.boolean().optional(),
+			thinking: z.boolean().optional(),
+			reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
+		})
+		.safeParse(creationIntent?.config);
+	const requestedConfig = {
 		...(typeof sourceConfig.autoApproveTools === "boolean"
 			? { autoApproveTools: sourceConfig.autoApproveTools }
 			: {}),
@@ -530,17 +544,10 @@ async function handleHandoffOnce(
 			? { reasoningEffort: sourceReasoningEffort }
 			: {}),
 	};
+	let handoffConfig = savedConfig.success ? savedConfig.data : requestedConfig;
 	const sourceCwd =
 		readWorkspacePath(sourceConfig) ?? readWorkspacePath(persistedBefore);
 	if (!sourceCwd) throw new Error("Cloud handoff requires a workspace path.");
-	const metadataBefore =
-		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
-		readSessionMetadata(sourceSessionId) ??
-		{};
-	const pending = readCloudHandoffMetadata(metadataBefore);
-	const creationIntent = metadataBefore.cloudHandoffIntent as
-		| { fingerprint?: CloudHandoffFingerprint }
-		| undefined;
 	if (
 		!pending &&
 		creationIntent &&
@@ -657,6 +664,7 @@ async function handleHandoffOnce(
 			),
 			"The cloud target was removed, but its local pending handoff record could not be cleared.",
 		);
+		handoffConfig = requestedConfig;
 	};
 	const clearPendingTarget = async (sessionId: string): Promise<void> => {
 		try {
@@ -703,8 +711,7 @@ async function handleHandoffOnce(
 					messages: seed,
 					workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
 					mode: prepared.fingerprint.mode ?? "act",
-					// After a sidecar restart nothing else remembers the source
-					// session's approval/reasoning settings for the inner create.
+					// Resume the saved settings, not a restarted pane's defaults.
 					config: handoffConfig,
 					recoverOnly: metadataBefore.cloudHandoffSeedDispatched === true,
 					onSeeding,
@@ -780,7 +787,10 @@ async function handleHandoffOnce(
 							sourceSessionId,
 							{
 								...metadata,
-								cloudHandoffIntent: { fingerprint: prepared.fingerprint },
+								cloudHandoffIntent: {
+									fingerprint: prepared.fingerprint,
+									config: handoffConfig,
+								},
 							},
 							"The cloud workspace could not be created because its recovery state could not be saved locally.",
 						);
@@ -1044,6 +1054,15 @@ export function beginActiveSessionSend(
 		activeSendRequests,
 		handoffLockContext(ctx),
 		sessionId,
+	);
+}
+
+export function hasActiveSessionSend(
+	ctx: SidecarContext,
+	sessionId: string,
+): boolean {
+	return (
+		activeSendRequests.get(handoffLockContext(ctx))?.has(sessionId) ?? false
 	);
 }
 
