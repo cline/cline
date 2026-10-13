@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
 	buildConnectionUpdate,
@@ -63,11 +63,6 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
-import {
-	readWorkspacePath,
-	workspaceIsWithin,
-	workspacePathKey,
-} from "./session-config";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -103,6 +98,46 @@ const WORKSPACE_RESTORE_SEND_ERROR =
 	"Cannot send a prompt while the session workspace is being restored";
 const WORKSPACE_RESTORE_BUSY_ERROR =
 	"Wait for all turns in this workspace to finish before restoring it";
+
+type WorkspacePathSource = {
+	cwd?: unknown;
+	workspaceRoot?: unknown;
+	workspace_root?: unknown;
+};
+
+function readWorkspacePath(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
+	if (cwd) return cwd;
+	const workspaceRoot =
+		typeof source?.workspaceRoot === "string"
+			? source.workspaceRoot.trim()
+			: "";
+	if (workspaceRoot) return workspaceRoot;
+	const snakeCaseWorkspaceRoot =
+		typeof source?.workspace_root === "string"
+			? source.workspace_root.trim()
+			: "";
+	return snakeCaseWorkspaceRoot || undefined;
+}
+
+function workspacePathKey(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const workspacePath = readWorkspacePath(source);
+	return workspacePath ? resolve(workspacePath) : undefined;
+}
+
+function workspaceIsWithin(path: string | undefined, root: string): boolean {
+	if (!path) return false;
+	const resolved = resolve(path);
+	const parent = resolve(root);
+	return (
+		resolved === parent ||
+		resolved.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`)
+	);
+}
 
 /**
  * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
