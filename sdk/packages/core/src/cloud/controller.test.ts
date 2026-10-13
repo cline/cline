@@ -849,7 +849,7 @@ describe("CloudSessionController neutral host contract", () => {
 			dispatched = true;
 			return completed;
 		});
-		const lifecycle = { beforeDispatch: vi.fn(), onAccepted: vi.fn() };
+		const lifecycle = { beforeDispatch: vi.fn() };
 		const sending = f.controller.send(
 			record.id,
 			"same prompt",
@@ -863,7 +863,6 @@ describe("CloudSessionController neutral host contract", () => {
 			f.events.filter((event) => event.type === "prompt_accepted");
 		expect(accepted()).toEqual([]);
 		expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce();
-		expect(lifecycle.onAccepted).not.toHaveBeenCalled();
 		f.emit("run.started", {
 			requestId: "input-request",
 			clientId: "other-viewer",
@@ -871,7 +870,6 @@ describe("CloudSessionController neutral host contract", () => {
 		f.emit("run.started", { requestId: "other-request", clientId: "viewer" });
 		expect(accepted()).toEqual([]);
 		f.emit("run.started", { requestId: "input-request", clientId: "viewer" });
-		expect(lifecycle.onAccepted).not.toHaveBeenCalled();
 		expect(accepted()).toEqual([
 			{
 				type: "prompt_accepted",
@@ -888,12 +886,10 @@ describe("CloudSessionController neutral host contract", () => {
 		} as HubReplyEnvelope);
 		await sending;
 		expect(accepted()).toHaveLength(1);
-		expect(lifecycle.onAccepted).toHaveBeenCalledOnce();
 		await f.controller.dispose();
 	});
 	it("prevents dispatch if durable recovery cannot be saved", async () => {
 		const f = await attached();
-		const onAccepted = vi.fn();
 		try {
 			await expect(
 				f.controller.send(
@@ -906,35 +902,12 @@ describe("CloudSessionController neutral host contract", () => {
 						beforeDispatch: () => {
 							throw new Error("disk full");
 						},
-						onAccepted,
 					},
 				),
 			).rejects.toThrow("disk full");
 			expect(
 				f.commands.some((command) => command.command === "session.send_input"),
 			).toBe(false);
-			expect(onAccepted).not.toHaveBeenCalled();
-		} finally {
-			await f.controller.dispose();
-		}
-	});
-	it("does not turn an acknowledgement callback failure into a send failure", async () => {
-		const f = await attached();
-		try {
-			await expect(
-				f.controller.send(
-					record.id,
-					"accepted",
-					undefined,
-					undefined,
-					undefined,
-					{
-						onAccepted: () => {
-							throw new Error("disk full");
-						},
-					},
-				),
-			).resolves.toMatchObject({ ok: true });
 		} finally {
 			await f.controller.dispose();
 		}
@@ -992,7 +965,7 @@ describe("CloudSessionController neutral host contract", () => {
 		const reply = new Promise<HubReplyEnvelope>((resolve) => {
 			finish = resolve;
 		});
-		const lifecycle = { beforeDispatch: vi.fn(), onAccepted: vi.fn() };
+		const lifecycle = { beforeDispatch: vi.fn() };
 		f.command.mockImplementation(async (...args) => {
 			if (args[0] !== "session.send_input") return original(...args);
 			args[3]?.beforeDispatch?.();
@@ -1017,8 +990,11 @@ describe("CloudSessionController neutral host contract", () => {
 				ok: true,
 				payload: { result: {} },
 			} as HubReplyEnvelope);
-			await sending;
-			expect(lifecycle.onAccepted).toHaveBeenCalledOnce();
+			await expect(sending).resolves.toEqual({
+				sessionId: record.id,
+				ok: true,
+				result: {},
+			});
 			expect(
 				f.events.filter((event) => event.type === "prompt_accepted"),
 			).toEqual([]);

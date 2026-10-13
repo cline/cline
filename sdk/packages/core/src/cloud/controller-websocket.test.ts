@@ -237,7 +237,7 @@ describe("cloud REST and WebSocket integration", () => {
 				if (event.type === "prompt_accepted") accepted(event);
 			});
 			let completed = false;
-			const lifecycle = { beforeDispatch: vi.fn(), onAccepted: vi.fn() };
+			const lifecycle = { beforeDispatch: vi.fn() };
 			const sending = first
 				.send(
 					record.id,
@@ -252,7 +252,6 @@ describe("cloud REST and WebSocket integration", () => {
 				});
 			await vi.waitFor(() => expect(accepted).toHaveBeenCalledOnce());
 			expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce();
-			expect(lifecycle.onAccepted).not.toHaveBeenCalled();
 			expect(completed).toBe(false);
 			expect(accepted).toHaveBeenCalledWith({
 				type: "prompt_accepted",
@@ -262,7 +261,7 @@ describe("cloud REST and WebSocket integration", () => {
 			});
 			finishFirstInput?.();
 			await sending;
-			expect(lifecycle.onAccepted).toHaveBeenCalledOnce();
+			expect(completed).toBe(true);
 			await second.attach(record.id);
 			await second.readMessages(record.id);
 			pendingApproval = true;

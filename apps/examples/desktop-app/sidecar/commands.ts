@@ -1891,10 +1891,14 @@ export async function handleCommand(
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	const explicitEnvironment = requestedEnvironmentId(args);
+	const requestedSession = args?.sessionId ?? args?.session_id;
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);
-	} else if (typeof args?.sessionId === "string" && args.sessionId.trim()) {
-		const binding = await findSessionRuntimeBinding(ctx, args.sessionId.trim());
+	} else if (typeof requestedSession === "string" && requestedSession.trim()) {
+		const binding = await findSessionRuntimeBinding(
+			ctx,
+			requestedSession.trim(),
+		);
 		if (binding) ctx = getEnvironmentContext(ctx, binding.environmentId);
 	}
 

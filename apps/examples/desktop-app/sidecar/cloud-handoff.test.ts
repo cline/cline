@@ -6,6 +6,7 @@ import {
 	CloudHandoffTranscriptMismatchError,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
+	SqliteSessionStore,
 } from "@cline/core";
 import { HubCommandError } from "@cline/core/hub";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -72,35 +73,79 @@ describe("deletion with an unavailable Hub", () => {
 		rmSync(dataDir, { recursive: true, force: true });
 	});
 
-	it.each([
-		{ metadata: { title: "Ordinary local session" }, error: undefined },
-		{
-			metadata: {
-				handoff: {
-					status: "pending",
-					toCloudSessionId: "cloud-target",
-					handedOffAt: "2026-09-30T00:00:00.000Z",
+	it.each(
+		[
+			{ metadata: { title: "Ordinary local session" }, error: undefined },
+			{
+				metadata: {
+					handoff: {
+						status: "complete",
+						toCloudSessionId: "cloud-target",
+						handedOffAt: "2026-09-30T00:00:00.000Z",
+					},
 				},
+				error: undefined,
 			},
-			error: "Cloud handoff is still pending",
-		},
-		{
-			metadata: { cloudHandoffIntent: { requestId: "unconfirmed-create" } },
-			error: "Cloud handoff creation is still unconfirmed",
-		},
-	])("uses durable local metadata when get fails: $metadata", async ({
+			{
+				metadata: {
+					handoff: {
+						status: "pending",
+						toCloudSessionId: "cloud-target",
+						handedOffAt: "2026-09-30T00:00:00.000Z",
+					},
+				},
+				error: "Cloud handoff is still pending",
+			},
+			{
+				metadata: { cloudHandoffIntent: { requestId: "unconfirmed-create" } },
+				error: "Cloud handoff creation is still unconfirmed",
+			},
+		].flatMap((testCase) => [
+			{ ...testCase, storage: "manifest" },
+			{ ...testCase, storage: "sqlite" },
+		]),
+	)("uses durable $storage metadata when get fails: $metadata", async ({
 		metadata,
 		error,
+		storage,
 	}) => {
-		writeSessionManifest(sessionId, { metadata });
-		expect(readSessionMetadata(sessionId)).toEqual(metadata);
+		if (storage === "manifest") {
+			writeSessionManifest(sessionId, { metadata });
+			expect(readSessionMetadata(sessionId)).toEqual(metadata);
+		} else {
+			const store = new SqliteSessionStore();
+			try {
+				store.create({
+					sessionId,
+					source: "desktop",
+					pid: 0,
+					startedAt: "2026-10-13T00:00:00.000Z",
+					updatedAt: "2026-10-13T00:00:00.000Z",
+					status: "completed",
+					interactive: true,
+					provider: "cline",
+					model: "test",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					isSubagent: false,
+					metadata,
+				});
+			} finally {
+				store.close();
+			}
+		}
 		const get = vi.fn();
 		const remove = vi.fn().mockRejectedValue(new Error("Hub unavailable"));
 		const ctx = Object.assign(
 			createSidecarContext("/workspace"),
 			localRuntimeContext({ get, delete: remove }, { sessionIds: [sessionId] }),
 		);
-		for (const response of ["record", "missing", "offline"]) {
+		for (const response of storage === "manifest"
+			? ["record", "missing", "offline"]
+			: ["offline"]) {
 			if (response === "offline")
 				get.mockRejectedValue(new Error("Hub unavailable"));
 			else
@@ -138,7 +183,7 @@ describe("deletion with an unavailable Hub", () => {
 		}
 		expect(remoteDelete).not.toHaveBeenCalled();
 		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
-			Boolean(error),
+			Boolean(error) && storage === "manifest",
 		);
 		expect(ctx.sessionEnvironmentIds.has(sessionId)).toBe(Boolean(error));
 	});
@@ -242,6 +287,57 @@ describe("cloud handoff gates", () => {
 			}),
 		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
 		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it.each([
+		"prepare_handoff",
+		"prepare_handoff_git",
+		"handoff",
+	] as const)("rejects SSH %s before any handoff work", async (action) => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+		const remoteGet = vi.fn(async () => ({
+			sessionId,
+			status: "completed",
+			cwd: "/remote/project",
+			metadata: undefined,
+		}));
+		const remoteReadLiveMessages = vi.fn(async () => [
+			{ role: "user" as const, content: "remote prompt" },
+		]);
+		const binding = getSessionRuntimeBinding(ctx);
+		ctx.runtimeBindings.set("ssh-test", {
+			...binding,
+			environmentId: "ssh-test",
+			kind: "ssh",
+			workspaceRoot: "/remote/project",
+			sessionManager: {
+				...binding.sessionManager,
+				get: remoteGet,
+				readLiveMessages: remoteReadLiveMessages,
+			} as unknown as typeof binding.sessionManager,
+		});
+		const request = {
+			action,
+			sessionId,
+			config: {
+				environmentId: "ssh-test",
+				cwd: "/remote/project",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+			gitPreparationId: "untrusted-plan",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		};
+		await expect(handleChatSessionCommand(ctx, request)).rejects.toThrow(
+			"Cloud handoff is only supported for local sessions",
+		);
+		expect(remoteGet).not.toHaveBeenCalled();
+		expect(remoteReadLiveMessages).not.toHaveBeenCalled();
 	});
 
 	it("requires the trusted approval connection before Git preparation dispatch", async () => {
@@ -1543,7 +1639,6 @@ describe("cloud handoff transaction", () => {
 			undefined,
 			expect.objectContaining({
 				beforeDispatch: expect.any(Function),
-				onAccepted: expect.any(Function),
 			}),
 		);
 		const complete = events.find(
@@ -1717,8 +1812,6 @@ describe("cloud handoff transaction", () => {
 				userImages,
 				unconfirmed: true,
 			});
-			args[5]?.onAccepted?.();
-			expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
 			return { sessionId: "ses-cloud", ok: true, queued: true };
 		});
 		const result = await handleChatSessionCommand(f.ctx, {
@@ -1728,6 +1821,7 @@ describe("cloud handoff transaction", () => {
 		});
 		expect(result).not.toHaveProperty("warning");
 		expect(f.cloudSend).toHaveBeenCalledOnce();
+		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
 	});
 
 	it.each([

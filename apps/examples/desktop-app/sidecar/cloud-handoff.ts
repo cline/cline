@@ -14,6 +14,7 @@ import {
 	mergeCloudHandoffMetadata,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
+	SqliteSessionStore,
 } from "@cline/core";
 import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
@@ -1095,11 +1096,21 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 		} catch (error) {
 			if (binding.kind !== "local") throw error;
 			const manifest = readSessionManifest(sessionId);
-			if (!manifest) throw error;
-			metadata =
-				manifest.metadata && typeof manifest.metadata === "object"
-					? (manifest.metadata as JsonRecord)
-					: undefined;
+			if (manifest) {
+				metadata =
+					manifest.metadata && typeof manifest.metadata === "object"
+						? (manifest.metadata as JsonRecord)
+						: undefined;
+			} else {
+				const store = new SqliteSessionStore();
+				try {
+					const row = store.get(sessionId);
+					if (!row) throw error;
+					metadata = row.metadata;
+				} finally {
+					store.close();
+				}
+			}
 		}
 		const handoff = readCloudHandoffMetadata(metadata);
 		if (!handoff && metadata?.cloudHandoffIntent) {
