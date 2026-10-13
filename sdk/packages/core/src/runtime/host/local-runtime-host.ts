@@ -259,6 +259,15 @@ export interface LocalRuntimeHostOptions {
 	fetch?: typeof fetch;
 }
 
+/** Plugin events that act on a session (prompts) rather than report. */
+function isSessionDirectedPluginEvent(name: string): boolean {
+	return (
+		name === "steer_message" ||
+		name === "queue_message" ||
+		name === "pending_prompt"
+	);
+}
+
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
@@ -551,6 +560,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			inputLocalConfig?.telemetry ??
 			this.defaultTelemetry;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		// Plugin setup runs while the session bootstraps (in worker mode), before
+		// the session is registered. Prompts it sends to the session would find
+		// no session and be dropped, so hold them until registration below.
+		let heldSessionEvents: Array<{ name: string; payload?: unknown }> | null =
+			[];
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
 			subAgentStarts: this.subAgentStarts,
@@ -594,6 +608,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 						event.payload,
 						pluginEventFallbackLogger,
 					);
+					return;
+				}
+				if (heldSessionEvents && isSessionDirectedPluginEvent(event.name)) {
+					heldSessionEvents.push(event);
 					return;
 				}
 				void this.eventBridge.handlePluginEvent(
@@ -977,6 +995,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			active.compactionState = undefined;
 		}
 		this.sessions.set(sessionId, active);
+		const held = heldSessionEvents ?? [];
+		heldSessionEvents = null;
+		for (const event of held) {
+			void this.eventBridge.handlePluginEvent(
+				sessionId,
+				event,
+				pluginEventFallbackAutomation,
+				pluginEventFallbackTelemetry,
+			);
+		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}

@@ -800,6 +800,16 @@ async function loadPluginDescriptor(args: {
 					`Plugin "${plugin.name}" setup`,
 				);
 			} catch (error) {
+				// The plugin is dropped, so nothing would run its cleanup later.
+				// Run it now: a child process started before the failure would
+				// otherwise outlive the worker.
+				await withTimeout(
+					() => runDisposers(plugin?.name ?? args.pluginPath, disposers),
+					args.setupTimeoutMs ?? DISPOSE_AFTER_FAILED_SETUP_TIMEOUT_MS,
+					`Plugin "${plugin.name}" cleanup after failed setup`,
+				).catch(() => {
+					// Best effort; the failure below is what gets reported.
+				});
 				return {
 					type: "failure",
 					failure: {
@@ -1042,16 +1052,26 @@ async function abortToolCall(args: {
 /** Runs every plugin's `ctx.onDispose` cleanup, newest first. */
 async function dispose(): Promise<void> {
 	for (const state of pluginState.values()) {
-		for (const cleanup of state.disposers.splice(0).reverse()) {
-			try {
-				await cleanup();
-			} catch (error) {
-				emitEvent("plugin_log", {
-					level: "error",
-					pluginName: state.plugin.name,
-					message: `onDispose cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
-				});
-			}
+		await runDisposers(state.plugin.name, state.disposers);
+	}
+}
+
+const DISPOSE_AFTER_FAILED_SETUP_TIMEOUT_MS = 3_000;
+
+/** Runs (and clears) `ctx.onDispose` cleanup, newest first. */
+async function runDisposers(
+	pluginName: string,
+	disposers: PluginState["disposers"],
+): Promise<void> {
+	for (const cleanup of disposers.splice(0).reverse()) {
+		try {
+			await cleanup();
+		} catch (error) {
+			emitEvent("plugin_log", {
+				level: "error",
+				pluginName,
+				message: `onDispose cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+			});
 		}
 	}
 }

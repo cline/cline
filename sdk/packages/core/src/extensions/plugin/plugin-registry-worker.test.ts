@@ -566,4 +566,26 @@ export default {
 			reason: "session_policy",
 		});
 	}, 30_000);
+
+	it("runs a failed setup's onDispose cleanup", async () => {
+		const marker = join(root, "cleaned-after-failure.txt");
+		const path = await write(
+			"fails-after-start.mjs",
+			`import { writeFileSync } from "node:fs";
+export default {
+	name: "fails-after-start",
+	manifest: { capabilities: ["tools"] },
+	setup(_api, ctx) {
+		ctx.onDispose(() => writeFileSync(${JSON.stringify(marker)}, "cleaned"));
+		throw new Error("setup failed after starting work");
+	},
+};`,
+		);
+		const session = await load({ sessionId: "s1", pluginPaths: [path] });
+		expect(session.extensions).toHaveLength(0);
+		expect(registry.get("fails-after-start")[0]?.lastError?.phase).toBe(
+			"setup",
+		);
+		await expect(readFile(marker, "utf8")).resolves.toBe("cleaned");
+	}, 30_000);
 });
