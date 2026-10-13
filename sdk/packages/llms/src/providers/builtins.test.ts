@@ -466,7 +466,7 @@ describe("built-in provider metadata", () => {
 		expect(generated).toBeDefined();
 		expect(builtin).toEqual({
 			...generated,
-			description: "Frontier open-weight coding models, billed per token",
+			description: "Frontier open coding models the day they drop, zero data retention",
 		});
 	});
 

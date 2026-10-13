@@ -922,7 +922,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "umans-ai",
 		name: "Umans AI",
-		description: "Frontier open-weight coding models, billed per token",
+		description: "Frontier open coding models the day they drop, zero data retention",
 	},
 	{
 		id: "aihubmix",
