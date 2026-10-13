@@ -10,6 +10,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import {
+	decodeJwtPayload,
 	modelProducesImages,
 	usesImageGenerationOperation,
 } from "@cline/shared";
@@ -229,6 +230,14 @@ function readResponseErrorHandler(
 		: undefined;
 }
 
+function buildTraceMetadata(
+	apiKey: string | undefined,
+): Record<string, string> | undefined {
+	const token = apiKey?.replace(/^workos:/i, "");
+	const sid = decodeJwtPayload(token)?.sid;
+	return typeof sid === "string" && sid ? { "auth.sid": sid } : undefined;
+}
+
 export async function createClineProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -254,6 +263,7 @@ export async function createClineProviderModule(
 				})
 			: undefined;
 	return {
+		traceMetadata: buildTraceMetadata(providerOptions.apiKey),
 		operations: {
 			language: (modelId) =>
 				openRouter &&
