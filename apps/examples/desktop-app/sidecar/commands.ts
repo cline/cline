@@ -887,18 +887,35 @@ async function runGit(
 
 // Unlike runGit, failures surface: source control actions need git's own
 // explanation (nothing to commit, rejected push, ...) shown to the user.
+// The app cannot answer a terminal prompt, so git must fail instead of
+// waiting on one. Background runs also refuse GUI credential prompts.
+const NON_INTERACTIVE_GIT_ENV = { GIT_TERMINAL_PROMPT: "0" };
+const BACKGROUND_GIT_ENV = {
+	...NON_INTERACTIVE_GIT_ENV,
+	GCM_INTERACTIVE: "never",
+	GIT_ASKPASS: "echo",
+	SSH_ASKPASS: "echo",
+};
+const BACKGROUND_GIT_TIMEOUT_MS = 30_000;
+
 async function runGitStrict(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
 	cwd: string,
 	args: string[],
+	options: { background?: boolean } = {},
 ): Promise<string> {
+	const env = options.background ? BACKGROUND_GIT_ENV : NON_INTERACTIVE_GIT_ENV;
 	if (binding.kind === "ssh") {
 		const remote = ctx.remoteEnvironments;
 		if (!remote) throw new Error("Remote environment service is unavailable");
 		const result = await remote.run(binding.environmentId, {
-			command: "git",
-			args,
+			command: "env",
+			args: [
+				...Object.entries(env).map(([key, value]) => `${key}=${value}`),
+				"git",
+				...args,
+			],
 			cwd,
 		});
 		return result.stdout;
@@ -907,7 +924,9 @@ async function runGitStrict(
 		const result = await execFileAsync("git", args, {
 			cwd,
 			encoding: "utf8",
+			env: { ...process.env, ...env },
 			maxBuffer: 16 * 1024 * 1024,
+			...(options.background ? { timeout: BACKGROUND_GIT_TIMEOUT_MS } : {}),
 		});
 		return result.stdout;
 	} catch (error) {
@@ -3636,7 +3655,14 @@ export async function handleCommand(
 				originalPath,
 			);
 		}
-		await runSourceControlAction(git, parseSourceControlAction(args?.action));
+		const action = parseSourceControlAction(args?.action);
+		await runSourceControlAction(
+			action.type === "fetch"
+				? (gitArgs) =>
+						runGitStrict(ctx, binding, root, gitArgs, { background: true })
+				: git,
+			action,
+		);
 		return { environmentId: binding.environmentId };
 	}
 	if (command === "list_git_branches") {

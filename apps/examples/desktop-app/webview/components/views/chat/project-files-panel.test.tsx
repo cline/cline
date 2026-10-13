@@ -175,10 +175,19 @@ async function click(element: Element): Promise<void> {
 	});
 }
 
-function actionCalls() {
+function allActionCalls(): Array<{ type: string }> {
 	return invokeMock.mock.calls
 		.filter(([command]) => command === "run_source_control_action")
-		.map(([, args]) => (args as { action: unknown }).action);
+		.map(([, args]) => (args as { action: { type: string } }).action);
+}
+
+/** Actions the user triggered; the panel's background fetches are excluded. */
+function actionCalls() {
+	return allActionCalls().filter((action) => action.type !== "fetch");
+}
+
+function fetchCount() {
+	return allActionCalls().filter((action) => action.type === "fetch").length;
 }
 
 describe("ProjectFilesPanel source control view", () => {
@@ -398,6 +407,69 @@ describe("ProjectFilesPanel source control view", () => {
 		// its children on screen.
 		expect(listings()).toBe(before + 2);
 		expect(container.textContent).toContain("app.ts");
+	});
+
+	it("fetches on open, every minute while open, and stops when closed", async () => {
+		vi.useFakeTimers();
+		try {
+			await render();
+			expect(fetchCount()).toBe(1);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(60_000);
+			});
+			expect(fetchCount()).toBe(2);
+			await act(async () => root.unmount());
+			root = createRoot(container);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(180_000);
+			});
+			expect(fetchCount()).toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("runs a user action only after an in-flight fetch finishes", async () => {
+		let finishFetch: (value: unknown) => void = () => {};
+		const fallback = invokeMock.getMockImplementation();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				const action = (args as { action?: { type?: string } })?.action;
+				if (
+					command === "run_source_control_action" &&
+					action?.type === "fetch"
+				) {
+					return new Promise((resolve) => {
+						finishFetch = resolve;
+					});
+				}
+				return fallback?.(command, args);
+			},
+		);
+		try {
+			await render();
+			expect(fetchCount()).toBe(1);
+			await click(byLabel("Pull", container));
+			expect(actionCalls()).toEqual([]);
+			await act(async () => {
+				finishFetch({ environmentId: "local" });
+				await Promise.resolve();
+			});
+			expect(actionCalls()).toContainEqual({ type: "pull" });
+		} finally {
+			invokeMock.mockImplementation(fallback as never);
+		}
+	});
+
+	it("does not fetch a branch without an upstream", async () => {
+		const previous = { ...sourceControlState };
+		Object.assign(sourceControlState, { hasUpstream: false, ahead: 0 });
+		try {
+			await render();
+			expect(fetchCount()).toBe(0);
+		} finally {
+			Object.assign(sourceControlState, previous);
+		}
 	});
 
 	it("disables Push when nothing is ahead", async () => {

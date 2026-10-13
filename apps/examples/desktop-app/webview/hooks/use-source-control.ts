@@ -57,6 +57,8 @@ export type SourceControlAction =
 // Over SSH every poll is a remote git invocation, so it runs less often.
 const LOCAL_POLL_INTERVAL_MS = 5_000;
 const REMOTE_POLL_INTERVAL_MS = 15_000;
+// Fetching hits the network, so it runs far less often than status polls.
+export const FETCH_INTERVAL_MS = 60_000;
 
 /** Paths `git restore --staged` needs to fully undo staging these files. */
 export function unstagePaths(files: SourceControlFile[]): string[] {
@@ -72,6 +74,10 @@ export function unstagePaths(files: SourceControlFile[]): string[] {
  * Repository state for the workspace panel. Refreshes on mount, on an
  * interval while the window is visible, on focus, and after every action;
  * callers can also bump `refreshKey` (e.g. when the agent edits files).
+ *
+ * While mounted, it also fetches the upstream once and then every minute so
+ * the behind count reflects commits pushed elsewhere; unmounting (closing the
+ * panel) stops it. Fetches are silent and never overlap a user action.
  */
 export function useSourceControl({
 	environmentId,
@@ -89,6 +95,10 @@ export function useSourceControl({
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const requestRef = useRef(0);
+	// The fetch in flight, so actions wait for it rather than contend for
+	// git's ref locks (a pull fetches too).
+	const fetchRef = useRef<Promise<void> | null>(null);
+	const busyRef = useRef(false);
 
 	const refresh = useCallback(async () => {
 		if (!enabled || !cwd) return;
@@ -133,10 +143,46 @@ export function useSourceControl({
 		};
 	}, [enabled, refresh, environmentId]);
 
+	const hasUpstream = Boolean(state?.root && state.hasUpstream);
+	useEffect(() => {
+		if (!enabled || !hasUpstream) return;
+		let cancelled = false;
+		const fetchUpstream = () => {
+			if (fetchRef.current || busyRef.current) return;
+			if (document.visibilityState !== "visible") return;
+			const run = desktopClient
+				.invoke("run_source_control_action", {
+					environmentId,
+					cwd,
+					action: { type: "fetch" },
+				})
+				.then(
+					() => {
+						if (!cancelled) void refresh();
+					},
+					() => {
+						// Offline, no credentials, or no remote: the next tick retries.
+					},
+				)
+				.finally(() => {
+					if (fetchRef.current === run) fetchRef.current = null;
+				});
+			fetchRef.current = run;
+		};
+		fetchUpstream();
+		const interval = window.setInterval(fetchUpstream, FETCH_INTERVAL_MS);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, [cwd, enabled, environmentId, hasUpstream, refresh]);
+
 	const runAction = useCallback(
 		async (action: SourceControlAction): Promise<boolean> => {
 			setBusy(true);
+			busyRef.current = true;
 			try {
+				await fetchRef.current;
 				await desktopClient.invoke("run_source_control_action", {
 					environmentId,
 					cwd,
@@ -147,6 +193,7 @@ export function useSourceControl({
 				throw caught instanceof Error ? caught : new Error(String(caught));
 			} finally {
 				setBusy(false);
+				busyRef.current = false;
 				void refresh();
 			}
 		},

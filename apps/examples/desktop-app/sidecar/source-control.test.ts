@@ -175,6 +175,9 @@ describe("parseSourceControlAction", () => {
 		expect(parseSourceControlAction({ type: "pull" })).toEqual({
 			type: "pull",
 		});
+		expect(parseSourceControlAction({ type: "fetch" })).toEqual({
+			type: "fetch",
+		});
 		expect(() => parseSourceControlAction({ type: "rebase" })).toThrow(
 			/Unknown/,
 		);
@@ -410,7 +413,8 @@ describe("against a real repository", () => {
 			await otherGit(["add", "remote.txt"]);
 			await otherGit(["commit", "-q", "-m", "remote work"]);
 			await otherGit(["push", "-q"]);
-			await git(["fetch", "-q"]);
+			// The panel's background fetch is what surfaces the behind count.
+			await runSourceControlAction(git, { type: "fetch" });
 			state = await getSourceControlState(git, "local");
 			expect(state.behind).toBe(1);
 			// Park the local edits so the pull is a clean fast-forward.
