@@ -232,7 +232,16 @@ describe("deletion with an unavailable Hub", () => {
 			localRuntimeContext({}, { sessionIds: [sessionId] }),
 		);
 		const binding = getSessionRuntimeBinding(ctx, sessionId);
-		const get = vi.fn().mockResolvedValue({ sessionId });
+		const get = vi.fn().mockResolvedValue({
+			sessionId,
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "remote-target",
+					handedOffAt: "2026-10-13T00:00:00.000Z",
+				},
+			},
+		});
 		const remove = vi.fn().mockResolvedValue(true);
 		ctx.runtimeBindings.set("ssh-test", {
 			...binding,
@@ -248,13 +257,15 @@ describe("deletion with an unavailable Hub", () => {
 			handleCommand(ctx, "delete_chat_session", { sessionId, environmentId }),
 		).resolves.toBe(true);
 		expect(remove).toHaveBeenCalledWith(sessionId);
+		get.mockClear();
 		get.mockRejectedValue(new Error("SSH Hub unavailable"));
 		await expect(
 			handleCommand(ctx, "delete_chat_session", {
 				sessionId,
 				environmentId: "ssh-test",
 			}),
-		).rejects.toThrow("SSH Hub unavailable");
+		).resolves.toBe(true);
+		expect(get).not.toHaveBeenCalled();
 		expect(readSessionMetadata(sessionId)).toHaveProperty("cloudHandoffIntent");
 	});
 });

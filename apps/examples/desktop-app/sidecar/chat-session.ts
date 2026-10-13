@@ -27,6 +27,7 @@ import {
 	type SessionPendingPrompt,
 	type SessionRecord,
 	SessionSource,
+	SqliteSessionStore,
 	splitCoreSessionConfig,
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
@@ -1684,8 +1685,15 @@ async function readHandoffSessionMetadata(
 		.catch((error) => {
 			if (!isHubLossError(error)) throw error;
 			const manifest = readSessionManifest(sessionId);
-			if (!manifest) throw error;
-			return manifest;
+			if (manifest) return manifest;
+			const store = new SqliteSessionStore();
+			try {
+				const row = store.get(sessionId);
+				if (!row) throw error;
+				return row;
+			} finally {
+				store.close();
+			}
 		});
 	return persisted?.metadata ?? readSessionMetadata(sessionId);
 }
