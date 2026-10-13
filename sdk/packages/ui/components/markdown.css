@@ -109,6 +109,23 @@
 	color: var(--muted-foreground);
 }
 
+/* Streamdown colors links with the `text-primary` utility, which only maps to
+ * the Cline accent when the host imports theme.css. Scoped-token hosts whose
+ * Tailwind theme defines its own primary (HeroUI, shadcn) otherwise get that
+ * color instead, so pin links to the accent text token. Link safety also
+ * renders links as <button>, which Tailwind preflight leaves with a default
+ * cursor unless base.css is imported. */
+:is(.markdown, .cline-markdown) [data-streamdown="link"] {
+	color: var(--accent-foreground);
+	cursor: pointer;
+	text-decoration-color: color-mix(in oklab, currentcolor 40%, transparent);
+	text-underline-offset: 2px;
+}
+
+:is(.markdown, .cline-markdown) [data-streamdown="link"]:hover {
+	text-decoration-color: currentcolor;
+}
+
 :is(.markdown, .cline-markdown) [data-streamdown="inline-code"] {
 	padding: 0.1em 0.35em;
 	font-size: 0.8125rem;

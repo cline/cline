@@ -1,4 +1,4 @@
-import { type Command, Option } from "commander";
+import type { Command } from "commander";
 import type { TuiStartupTarget } from "../tui/types";
 import type { CliOutputMode } from "../utils/types";
 import {
@@ -7,9 +7,6 @@ import {
 	runHistoryList,
 	runHistoryUpdate,
 } from "./history";
-
-export const HISTORY_PAGE_DEPRECATION =
-	"--page is deprecated and ignored: cline history lists the newest sessions, up to --limit.";
 
 type HistoryCommandIo = {
 	writeln: (text?: string) => void;
@@ -45,15 +42,9 @@ export function registerHistoryCommand({
 		.description("List session history or manage saved sessions")
 		.option("--json", "Output as JSON")
 		.option("--limit <count>", "Maximum number of sessions to show", "50")
-		// Accepted so existing scripts keep working, but hidden and ignored:
-		// history lists only the newest --limit sessions.
-		.addOption(new Option("--page <number>").hideHelp())
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();
-			if (opts.page !== undefined) {
-				io.writeErr(HISTORY_PAGE_DEPRECATION);
-			}
 			const limit = Number.parseInt(opts.limit, 10);
 			const outputMode = resolveHistoryOutputMode(program, historyCmd);
 			if (outputMode === "text" && isInteractiveTTY()) {

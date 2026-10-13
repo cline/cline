@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	rm,
+	symlink,
+	unlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -51,6 +58,73 @@ describe("UnifiedConfigFileWatcher", () => {
 		);
 		tempRoots.length = 0;
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"loads symlinked files and skips broken, circular, and directory links",
+		async () => {
+			const tempRoot = await mkdtemp(
+				join(tmpdir(), "core-unified-config-symlinks-"),
+			);
+			tempRoots.push(tempRoot);
+			const profilesDir = join(tempRoot, "profiles");
+			await mkdir(profilesDir);
+			const sourcePath = join(tempRoot, "source.profile");
+			await writeFile(sourcePath, "name: Linked\n\nRead linked content.");
+			await writeFile(
+				join(profilesDir, "regular.profile"),
+				"name: Regular\n\nRead regular content.",
+			);
+			const linkedPath = join(profilesDir, "linked.profile");
+			await symlink(sourcePath, linkedPath, "file");
+			await symlink(
+				join(tempRoot, "missing.profile"),
+				join(profilesDir, "broken.profile"),
+				"file",
+			);
+			await symlink(tempRoot, join(profilesDir, "directory.profile"), "dir");
+			const circularPath = join(profilesDir, "circular.profile");
+			await symlink(circularPath, circularPath, "file");
+			const watcher = new UnifiedConfigFileWatcher(
+				[
+					{
+						type: "profile" as const,
+						directories: [profilesDir],
+						includeFile: (fileName) => fileName.endsWith(".profile"),
+						parseFile: (context) => parseTestProfileConfig(context.content),
+						resolveId: (config) => config.name.toLowerCase(),
+					},
+				],
+				{ emitParseErrors: true },
+			);
+			const errors: unknown[] = [];
+			const unsubscribe = watcher.subscribe((event) => {
+				if (event.kind === "error") errors.push(event);
+			});
+			try {
+				await watcher.refreshAll();
+				expect([...watcher.getSnapshot("profile").keys()]).toEqual([
+					"linked",
+					"regular",
+				]);
+				expect(watcher.getSnapshot("profile").get("linked")).toMatchObject({
+					filePath: linkedPath,
+					item: { body: "Read linked content." },
+				});
+				expect(errors).toEqual([]);
+				await writeFile(sourcePath, "name: Linked\n\nUpdated linked content.");
+				await watcher.refreshType("profile");
+				expect(watcher.getSnapshot("profile").get("linked")?.item.body).toBe(
+					"Updated linked content.",
+				);
+				await unlink(sourcePath);
+				await watcher.refreshType("profile");
+				expect([...watcher.getSnapshot("profile").keys()]).toEqual(["regular"]);
+				expect(errors).toEqual([]);
+			} finally {
+				unsubscribe();
+			}
+		},
+	);
 
 	it("emits upsert and remove events with config type", async () => {
 		const tempRoot = await mkdtemp(
