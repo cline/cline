@@ -142,9 +142,8 @@ describe("Hub app-server upgrades", () => {
 		}
 	});
 
-	it("reports resident runtime work independently of RPC idle and status reads", async () => {
+	it("forwards runtime activity independently of RPC idle", async () => {
 		const { options } = createStartedTransportOptions();
-		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		const lastActivityAt = 1_000;
 		const activity = { busy: true, lastActivityAt };
 		const transport = new HubServerTransport({
@@ -152,14 +151,12 @@ describe("Hub app-server upgrades", () => {
 			sessionHost: { ...options.sessionHost, getActivity: () => activity },
 		} as never);
 		try {
-			clock.mockReturnValue(2_000);
 			const status = await transport.handleCommand({
 				version: "v1",
 				command: "hub.status",
 			});
 			expect(status.payload).toMatchObject({ idle: true, activity });
 			activity.busy = false;
-			clock.mockReturnValue(3_000);
 			const drained = await transport.handleCommand({
 				version: "v1",
 				command: "hub.drain",
@@ -170,7 +167,6 @@ describe("Hub app-server upgrades", () => {
 			});
 		} finally {
 			await transport.stop();
-			clock.mockRestore();
 		}
 	});
 

@@ -342,6 +342,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
 			emit: (event) => this.emit(event),
+			onMutation: () => {
+				this.lastActivityAt = Date.now();
+			},
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
@@ -1192,13 +1195,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
-		return this.observeActivity(() => this.runTurnOperation(input));
+		const session = this.getSessionOrThrow(input.sessionId);
+		return this.observeActivity(() => this.runTurnOperation(session, input));
 	}
 
 	private async runTurnOperation(
+		session: ActiveSession,
 		input: SendSessionInput,
 	): Promise<AgentResult | undefined> {
-		const session = this.getSessionOrThrow(input.sessionId);
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -2828,7 +2832,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private emit(event: CoreSessionEvent): void {
 		if (
 			(event.type === "agent_event" && event.payload.event.type !== "notice") ||
-			event.type === "pending_prompts" ||
 			event.type === "pending_prompt_submitted"
 		) {
 			this.lastActivityAt = Date.now();

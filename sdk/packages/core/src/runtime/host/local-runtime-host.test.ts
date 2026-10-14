@@ -301,6 +301,82 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("renews activity for accepted queue mutations, not missing prompts or sessions", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: async () => {} }),
+			},
+			createAgent: (config) => {
+				const agent = new SessionRuntime(config);
+				vi.spyOn(agent, "canStartRun").mockReturnValue(false);
+				return agent;
+			},
+		});
+		try {
+			const { sessionId } = await manager.startSession({
+				config: createConfig({ cwd: isolatedHomeDir, enableAgentTeams: false }),
+				interactive: true,
+			});
+			clock.mockReturnValue(2_000);
+			await expect(
+				manager.runTurn({ sessionId: "missing", prompt: "hello" }),
+			).rejects.toThrow();
+			const snapshots = vi.fn();
+			manager.subscribe((event) => {
+				if (event.type === "pending_prompts") snapshots(event.payload);
+			});
+			expect(
+				await manager.pendingPrompts.delete({ sessionId, promptId: "missing" }),
+			).toMatchObject({ removed: false });
+			expect(
+				await manager.pendingPrompts.update({
+					sessionId,
+					promptId: "missing",
+					prompt: "edit",
+				}),
+			).toMatchObject({ updated: false });
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 1_000,
+			});
+			expect(snapshots.mock.calls).toEqual([
+				[{ sessionId, prompts: [] }],
+				[{ sessionId, prompts: [] }],
+			]);
+
+			await manager.runTurn({ sessionId, prompt: "queued", delivery: "queue" });
+			expect(manager.getActivity()).toEqual({
+				busy: true,
+				lastActivityAt: 2_000,
+			});
+			const [prompt] = await manager.pendingPrompts.list({ sessionId });
+			if (!prompt) throw new Error("Expected queued prompt");
+			clock.mockReturnValue(3_000);
+			expect(
+				await manager.pendingPrompts.update({
+					sessionId,
+					promptId: prompt.id,
+					prompt: "edited",
+				}),
+			).toMatchObject({ updated: true });
+			expect(manager.getActivity().lastActivityAt).toBe(3_000);
+			clock.mockReturnValue(4_000);
+			expect(
+				await manager.pendingPrompts.delete({ sessionId, promptId: prompt.id }),
+			).toMatchObject({ removed: true });
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 4_000,
+			});
+		} finally {
+			await manager.dispose();
+			clock.mockRestore();
+		}
+	});
+
 	it("ignores persisted running status, metadata, and team heartbeats but observes output", async () => {
 		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		const sessionId = "saved-running-session";
