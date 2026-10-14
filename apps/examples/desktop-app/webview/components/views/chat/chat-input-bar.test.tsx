@@ -17,6 +17,7 @@ import {
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	getSlashCommandHighlight,
 } from "./chat-input-bar";
 
 const {
@@ -652,6 +653,23 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("highlights only a leading, known slash command", () => {
+		const commands = [{ name: "compact" }, { name: "release" }];
+		expect(getSlashCommandHighlight("  /Release v2", commands)).toEqual({
+			start: 2,
+			end: 10,
+		});
+		expect(getSlashCommandHighlight("/compact", commands)).toEqual({
+			start: 0,
+			end: 8,
+		});
+		expect(getSlashCommandHighlight("/comp", commands)).toBeUndefined();
+		expect(getSlashCommandHighlight("/compactly", commands)).toBeUndefined();
+		expect(
+			getSlashCommandHighlight("please /compact", commands),
+		).toBeUndefined();
+	});
+
 	it("suggests the built-in /compact command", async () => {
 		await renderVoiceComposer({ prompt: "/comp", executionTarget: "local" });
 		const suggestions = container.querySelector("#slash-command-suggestions");
@@ -1015,9 +1033,10 @@ describe("ChatInputBar", () => {
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("min-h-16");
-		expect(promptInput?.parentElement?.className).toContain("items-end");
-		expect(promptInput?.className).toContain("self-start");
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("min-h-16");
+		expect(field?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).toContain("self-start");
 	});
 
 	it("inserts cumulative browser fallback transcripts without duplicating text", async () => {
@@ -1582,9 +1601,10 @@ describe("ChatInputBar", () => {
 		const stopTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Stop agent"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("items-start");
-		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("items-start");
+		expect(field?.contains(sendTrigger)).toBe(true);
+		expect(field?.contains(stopTrigger)).toBe(true);
 		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
 		expect(speechTrigger).toBeNull();
 		expect(sendTrigger?.parentElement?.className).toContain("self-end");

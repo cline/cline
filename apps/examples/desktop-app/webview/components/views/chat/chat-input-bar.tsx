@@ -286,6 +286,21 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	return { slashIndex, query };
 }
 
+// The sidecar only runs a command when the trimmed prompt starts with it.
+export function getSlashCommandHighlight(
+	input: string,
+	commands: SlashCommand[],
+): { start: number; end: number } | undefined {
+	const match = /^(\s*)\/(\S+)(?=\s|$)/.exec(input);
+	if (!match) return undefined;
+	const [token, leading, name] = match;
+	const lowerName = name.toLowerCase();
+	if (!commands.some((command) => command.name.toLowerCase() === lowerName)) {
+		return undefined;
+	}
+	return { start: leading.length, end: token.length };
+}
+
 /**
  * Externally injected composer text (quick actions, queue undo, resets).
  * The live keystroke state stays local to ChatInputBar so typing never
@@ -660,6 +675,13 @@ function ChatInputBarImpl({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const slashCommandHighlight = useMemo(
+		() =>
+			executionTarget === "local"
+				? getSlashCommandHighlight(promptInput, slashCommands)
+				: undefined,
+		[executionTarget, promptInput, slashCommands],
+	);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -1245,6 +1267,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
+							highlight={slashCommandHighlight}
 							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
