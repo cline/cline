@@ -843,7 +843,10 @@ describe("createHookConfigFileHooks", () => {
 	});
 
 	it("dispatches prompt_submit from beforeRun for a prompt the host seeded, and ignores runtime reminders", async () => {
-		const outputPath = join(tmpdir(), `hooks-seeded-prompt-${Date.now()}.jsonl`);
+		const outputPath = join(
+			tmpdir(),
+			`hooks-seeded-prompt-${Date.now()}.jsonl`,
+		);
 		const { workspace } = await createWorkspaceWithHook(
 			"UserPromptSubmit.js",
 			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, data.trim()+"\\n");});\n`,
@@ -880,6 +883,29 @@ describe("createHookConfigFileHooks", () => {
 					metadata: { displayRole: "system" },
 					createdAt: 0,
 				},
+			});
+
+			// Cline's own plan-to-act continuation is not a user prompt.
+			const continuation = {
+				id: "msg_continue",
+				role: "user" as const,
+				content: [
+					{
+						type: "text" as const,
+						text: "The user approved switching to act mode. Continue with the approved plan now.",
+					},
+				],
+				createdAt: 0,
+			};
+			await hooks?.beforeRun?.({
+				snapshot: { ...snapshot, messages: [continuation] },
+				entry: "run",
+				promptSeeded: true,
+			});
+			await hooks?.onEvent?.({
+				type: "message-added",
+				snapshot,
+				message: continuation,
 			});
 
 			const payloads = (await waitForJsonLines(outputPath, 1)).map(

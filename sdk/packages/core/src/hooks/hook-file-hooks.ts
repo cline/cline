@@ -14,6 +14,7 @@ import type {
 } from "@cline/shared";
 import { augmentNodeCommandForDebug } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
+import { isUserRunMessage } from "../session/user-run-messages";
 import { createAgentHooksExtension } from "./hook-extension";
 import { listHookConfigFiles } from "./hook-file-config";
 import {
@@ -584,7 +585,10 @@ function latestUserPromptText(
 	if (
 		!last ||
 		last.role !== "user" ||
-		last.metadata?.displayRole === "system"
+		last.metadata?.displayRole === "system" ||
+		// Prompts Cline sends on the user's behalf (plan-to-act continuation,
+		// reminders) are not the user's; agrees with checkpoints and Desktop.
+		!isUserRunMessage(last)
 	) {
 		return undefined;
 	}
@@ -1053,7 +1057,8 @@ export function createHookConfigFileHooks(
 					event.message.role !== "user" ||
 					// Injected hook-context blocks are user-role messages with a
 					// system display role; they are not user prompts.
-					event.message.metadata?.displayRole === "system"
+					event.message.metadata?.displayRole === "system" ||
+					!isUserRunMessage(event.message)
 				) {
 					return;
 				}
