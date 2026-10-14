@@ -1,0 +1,107 @@
+---
+title: "Optional MCP Tools"
+sidebarTitle: "Optional MCP Tools"
+description: "Keep a large MCP server's tools out of the model's context until a skill that needs them is activated."
+---
+
+Every enabled MCP server normally injects all of its tools into every request. A server with 100+ tools (for example an Atlassian server) costs a lot of context on every chat, even when the task never touches it. **Optional MCP Tools** hides those tools by default and exposes them only when a skill that declares them is activated.
+
+The feature is opt-in. The default (**Always On**) behaves exactly as before.
+
+## Setting
+
+**Settings → Agent → Optional MCP Tools.** If Plan/Act separate models is enabled, the dropdown edits the value for the mode you are currently in (Plan or Act); until you set a mode-specific value it falls back to the shared one. If Plan/Act is not split, only the shared value is used.
+
+| Value | Behavior |
+|---|---|
+| **Always On** (default) | Every enabled server's tools are exposed. A skill's `disallowed_mcp_tools` still applies. |
+| **Always Off** | Only *baseline* tools are exposed (see below). Skill-declared tools are never exposed. |
+| **Dynamic — Compatible** | Skill-declared tools are hidden until a skill is active. Falls back to exposing **everything** when no skill is active, or the active skill declares nothing. |
+| **Dynamic — Declared Only** | Skill-declared tools are hidden until a skill that allows them is active. No fallback. |
+
+## Declaring tools in a skill
+
+Add frontmatter to `SKILL.md`:
+
+```yaml
+---
+name: jira-triage
+description: Triage Jira tickets
+allowed_mcp_tools:
+  - atlassian:jira_*
+  - atlassian:confluence_get_page
+disallowed_mcp_tools:
+  - atlassian:jira_delete_*
+---
+```
+
+- Format is `server:tool_name`. The server part is the MCP server's config key. Split happens on the **first** colon.
+- `*` matches any run of characters (`jira_*`, `*_page`). No other glob syntax.
+- A single string is accepted in place of a list.
+- **Deny wins** over allow when the active skill matches both.
+- Malformed entries are logged and ignored; the skill still loads.
+- Declaring a field as an empty list (`allowed_mcp_tools: []`) counts as *declared*; omitting it counts as *not declared*. This matters for Compatible mode.
+
+## How a tool's visibility is decided
+
+1. **Baseline classification (per tool, not per server).** A tool is *baseline* if **no enabled skill** (active or not) mentions it in `allowed_mcp_tools` or `disallowed_mcp_tools`. Baseline tools are exposed in every mode, including Always Off.
+2. **Deny.** If the active skill's `disallowed_mcp_tools` matches, the tool is hidden in every mode.
+3. **Mode rule** for non-baseline tools:
+   - Always On → exposed
+   - Always Off → hidden
+   - Dynamic — Compatible → exposed if the active skill declared nothing (or no skill is active); otherwise exposed only if the active skill allows it
+   - Dynamic — Declared Only → exposed only if the active skill allows it
+
+<Warning>
+**Nothing is hidden unless a skill declares it.** If no skill lists `atlassian:*`, every Atlassian tool is baseline and stays visible in every mode, so there is no context saving. Declare the heavy server's tools in the skills that need them.
+</Warning>
+
+<Note>
+**Compatible does not save context at chat start.** With no active skill it exposes everything. Use **Declared Only** if the goal is to keep a large server's tools out of the context until a skill is activated.
+</Note>
+
+Because classification is per tool, one skill declaring `agentmemory:search_notes` hides only that tool when no allowing skill is active; the rest of agentmemory's tools stay baseline and keep working.
+
+## Lifecycle
+
+- **One skill per task.** Calling `use_skill` a second time returns an error. The first skill's policy stays.
+- **Frozen at activation.** The active skill's patterns are snapshotted on the task (`TaskState.activeSkillMcpPolicy`) and written to task metadata as `active_skill_mcp_policy`. The tool list therefore stays stable across turns, which keeps the prompt prefix cacheable.
+- **Resume.** On resuming a task the snapshot is reloaded. If the skill is no longer enabled, the policy is dropped and only baseline tools are exposed.
+- **Mode switch / setting change.** The availability value is re-resolved on each request, so switching Plan↔Act or changing the dropdown takes effect on the next request. The frozen skill policy is kept.
+- **Hidden tool call.** If the model calls a hidden tool anyway, `UseMcpToolHandler` rejects it locally before the approval prompt with `Tool "<name>" is not currently available. It may require a skill to be activated first.` This counts toward consecutive mistakes.
+
+## What is and isn't filtered
+
+- Filtered: MCP **tool** schemas — in native tool calling and in the XML/legacy MCP prompt section.
+- Not filtered: MCP resources, resource templates and prompts of a server.
+- Visibility only, not security. Server `disabled`, tool `autoApprove` and the approval flow remain the real gatekeepers.
+
+## Recommended setup for a large server
+
+1. Put the heavy server's tools in the skills that need them: `allowed_mcp_tools: [atlassian:*]`.
+2. Set Optional MCP Tools to **Dynamic — Declared Only**.
+3. Leave other servers (e.g. agentmemory) undeclared, so they remain always available.
+4. Do not list a small always-needed server's tools in a skill unless every skill that needs them also lists them.
+
+## Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| Atlassian tools still load every chat | No skill declares them (baseline), or mode is Always On / Compatible with no active skill. |
+| A tool "is not currently available" | It is declared by some skill but the active skill doesn't allow it, or no skill is active. Activate the right skill. |
+| Skill's patterns ignored | Check the warning in the logs for a malformed entry; the pattern needs `server:tool`. Server part must equal the MCP server's config key. |
+| Setting change seems ignored | With Plan/Act split, the dropdown edits only the current mode's value. |
+
+## Source map
+
+| Concern | File |
+|---|---|
+| Resolver, pattern matcher, setting types | `apps/vscode/src/shared/mcpToolPolicy.ts` |
+| Skill frontmatter parsing | `apps/vscode/src/core/context/instructions/user-instructions/skills.ts` |
+| Skill metadata types | `apps/vscode/src/shared/skills.ts` |
+| Policy freeze + persistence | `apps/vscode/src/core/task/tools/handlers/UseSkillToolHandler.ts` |
+| Resume revalidation, prompt context | `apps/vscode/src/core/task/index.ts` |
+| Execution-time enforcement | `apps/vscode/src/core/task/tools/handlers/UseMcpToolHandler.ts` |
+| Native tool schema / XML prompt filtering | `.../system-prompt/registry/ClineToolSet.ts`, `.../components/mcp.ts` |
+| Settings keys and UI | `shared/storage/state-keys.ts`, `proto/cline/state.proto`, `controller/state/updateSettings.ts`, `FeatureSettingsSection.tsx` |
+| Tests | `apps/vscode/src/shared/__tests__/mcpToolPolicy.test.ts` |
