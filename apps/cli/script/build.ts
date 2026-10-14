@@ -90,6 +90,8 @@ function findFreePort(): Promise<number> {
 function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
+	if (item.os === "linux" && item.arch === "x64")
+		return "bun-linux-x64-baseline";
 	const targetOs = item.os === "win32" ? "windows" : item.os;
 	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
 }

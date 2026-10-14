@@ -205,6 +205,12 @@ jobs:
             apps/cli/dist/cli-windows-x64/bin/cline.exe
             apps/cli/dist/cli-windows-arm64/bin/cline.exe
 
+      - name: Test standalone Unix installer
+        run: bun test apps/cli/script/install.test.ts apps/cli/script/install-smoke.test.ts apps/cli/script/collect-release-assets.test.ts
+
+      - name: Collect standalone Unix release assets
+        run: bun apps/cli/script/collect-release-assets.ts
+
       - name: Publish to NPM with latest tag
         env:
           NPM_CONFIG_PROVENANCE: "true"
@@ -260,6 +266,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: apps/cli/dist/release/*
           name: "CLI v${{ steps.version.outputs.version }}"
           body: |
             ${{ steps.changelog.outputs.content }}

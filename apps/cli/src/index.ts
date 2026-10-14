@@ -40,6 +40,27 @@ if (!isMainThread) {
 	if (!directory)
 		throw new Error("This CLI does not ship a complete plugin runtime");
 	process.stdout.write(`${directory}\n`);
+} else if (
+	[
+		"--runtime-build-id",
+		"--runtime-build-epoch",
+		"--runtime-target",
+		"--runtime-path",
+		"--runtime-info",
+	].some((flag) => process.argv.includes(flag))
+) {
+	const { getCliRuntimeInfo } = await import("./utils/runtime-info");
+	const info = getCliRuntimeInfo();
+	const value = process.argv.includes("--runtime-build-id")
+		? info.buildId
+		: process.argv.includes("--runtime-build-epoch")
+			? info.buildEpochMs
+			: process.argv.includes("--runtime-target")
+				? info.target
+				: process.argv.includes("--runtime-path")
+					? info.executablePath
+					: JSON.stringify(info);
+	process.stdout.write(`${value}\n`);
 } else if (process.argv.includes("--telemetry-selfcheck")) {
 	// Inspect the config embedded in this executable without starting a hub,
 	// loading user settings, or initializing telemetry exporters.

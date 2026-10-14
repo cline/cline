@@ -148,6 +148,7 @@ export async function compileCliBinary(
 				__CLINE_PLUGIN_RUNTIME_RESOURCES__: JSON.stringify(pluginResources),
 				__CLINE_DASHBOARD_RUNTIME_RESOURCES__:
 					JSON.stringify(dashboardResources),
+				CLINE_CLI_COMPILE_TARGET: JSON.stringify(input.bunTarget),
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.
 				...buildInlinedEnvDefines(),
