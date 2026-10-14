@@ -84,6 +84,18 @@ Callback errors preserve their original type; they do not prove an earlier POST 
 `CloudHandoffSeedRejectedError` means no seed was dispatched; clear only the seed marker before retrying the saved target.
 `verifyHandoffTranscript` checks the seeded history; `waitUntilReady(id)` waits for provisioning.
 
+## Terminal model failures
+
+`AgentModelEvent` finish events carry an optional `failure: AgentModelFailure`.
+It contains the display `message`, original `cause`, `classification`, turn-level
+`retryable` decision, and diagnostic `context`. Successful finish events omit it.
+Custom models return failure details and leave terminal reporting to their caller.
+
+`AgentRuntime` owns terminal `sdk.error` reports for agent operations, including
+models from `Gateway.createAgentModel`. Standalone `Gateway.stream` calls report
+at the stream boundary. Provider tracing remains responsible for marking failed
+Langfuse spans. Recovered attempts do not emit terminal error reports.
+
 ## Voice input models
 
 `getLocalTranscriptionModels(providerId, config?)` from `@cline/core` returns the

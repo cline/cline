@@ -12,6 +12,7 @@ import type {
 	AgentMessagePart,
 	AgentModel,
 	AgentModelEvent,
+	AgentModelFailure,
 	AgentModelFinishReason,
 	AgentModelRequest,
 	AgentModelToolActivity,
@@ -566,19 +567,13 @@ export class AgentRuntime {
 		lastRequestInputTokens: 0,
 		/**
 		 * Whether the last provider failure was transient and worth retrying,
-		 * carried from the model boundary via `errorRetryable` on the `finish`
+		 * carried from the model boundary via `failure.retryable` on the `finish`
 		 * event (the AI SDK's typed `isRetryable` flag). Undefined when no such
 		 * signal was provided, in which case the agent loop classifies from the
 		 * flattened `lastError` message instead.
 		 */
 		lastErrorRetryable: undefined as boolean | undefined,
-		/**
-		 * Whether the model layer already recorded `sdk.error` telemetry for
-		 * `lastError` (from `errorReported` on the stream's `finish` event).
-		 * Custom `AgentModel` implementations that do not record their own
-		 * telemetry leave this false, so their failures still get reported.
-		 */
-		lastErrorReported: false,
+		lastModelFailure: undefined as AgentModelFailure | undefined,
 		/**
 		 * Finish reason carried into the run-failed `sdk.error` event. Set
 		 * only at the throw sites where a finish reason IS the failure's
@@ -680,7 +675,7 @@ export class AgentRuntime {
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorRetryable = undefined;
-		this.state.lastErrorReported = false;
+		this.state.lastModelFailure = undefined;
 		this.state.messages = cloneMessages(messages);
 		this.config = {
 			...this.config,
@@ -800,7 +795,7 @@ export class AgentRuntime {
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorRetryable = undefined;
-		this.state.lastErrorReported = false;
+		this.state.lastModelFailure = undefined;
 		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
@@ -872,7 +867,7 @@ export class AgentRuntime {
 					// field unset and the attribute is omitted.
 					if (finishReason === "error") {
 						this.state.lastFinishReason = finishReason;
-						throw new Error(this.state.lastError ?? "Model stream failed");
+						throw this.modelFailureError();
 					}
 					// Provider-executed tool activity lives in message metadata, not
 					// content (projecting it into content would replay tool_use blocks
@@ -938,7 +933,7 @@ export class AgentRuntime {
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
 					this.state.lastFinishReason = finishReason;
-					throw new Error(this.state.lastError ?? "Model stream failed");
+					throw this.modelFailureError();
 				}
 				// A turn that yields tool calls is progress: reset the cut-off streak.
 				if (toolCalls.length > 0) {
@@ -1039,15 +1034,12 @@ export class AgentRuntime {
 					: normalized.message === this.state.lastError
 						? this.state.lastErrorClass
 						: undefined;
-			// Same guard: the model layer's telemetry only covers this failure
-			// if the run failed on that exact recorded error.
-			const errorAlreadyReported =
-				normalized.message === this.state.lastError &&
-				this.state.lastErrorReported;
+			// Retain provider details only when this is the failure that ended the run.
+			if (normalized.message !== this.state.lastError)
+				this.state.lastModelFailure = undefined;
 			this.state.status = status;
 			this.state.lastError = normalized.message;
 			this.state.lastErrorClass = errorClass;
-			this.state.lastErrorReported = errorAlreadyReported;
 			const lastAssistantMessage = this.findLastAssistantMessage();
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
@@ -1315,7 +1307,7 @@ export class AgentRuntime {
 
 	/**
 	 * Clear the last-error fields. Called at the start of every turn and before
-	 * every provider-error retry, so a `finish` event that omits `error` (allowed
+	 * every provider-error retry, so a `finish` event that omits `failure` (allowed
 	 * by the public AgentModel contract) cannot inherit the class or retryability
 	 * of an earlier attempt. Deliberately not called inside overflow recovery,
 	 * whose "nothing to compact" error reports the first attempt's provider
@@ -1325,7 +1317,7 @@ export class AgentRuntime {
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorRetryable = undefined;
-		this.state.lastErrorReported = false;
+		this.state.lastModelFailure = undefined;
 	}
 
 	/**
@@ -1578,7 +1570,7 @@ export class AgentRuntime {
 			) {
 				await this.recordAssistantMessage(retry.message, retry.finishReason);
 			}
-			throw new Error(this.state.lastError ?? "Model stream failed");
+			throw this.modelFailureError();
 		}
 		// A retry that came back with nothing is no replacement either: handing it
 		// on would trip the loop's empty-response guard, which throws before
@@ -1988,21 +1980,14 @@ export class AgentRuntime {
 				case "finish": {
 					finishReason = event.reason;
 					requestId = event.requestId;
-					if (event.error) {
-						this.state.lastError = event.error;
-						// Models that classify at their own error boundary (where the
-						// raw provider error is still structured) win. Anything else —
-						// custom `AgentModel` implementations, adapters that carry only
-						// a flattened message — is classified from the message so it
-						// stays eligible for overflow recovery.
+					if (event.failure) {
+						this.state.lastModelFailure = event.failure;
+						this.state.lastError = event.failure.message;
+						const error = event.failure.cause ?? event.failure;
 						this.state.lastErrorClass =
-							event.errorClass ?? classifyProviderError(event.error);
-						// Prefer the boundary's typed `isRetryable` signal; fall back to
-						// classifying the flattened message for models that do not carry
-						// it.
+							event.failure.classification ?? classifyProviderError(error);
 						this.state.lastErrorRetryable =
-							event.errorRetryable ?? isRetryableProviderError(event.error);
-						this.state.lastErrorReported = event.errorReported === true;
+							event.failure.retryable ?? isRetryableProviderError(error);
 					}
 					break;
 				}
@@ -2678,6 +2663,12 @@ export class AgentRuntime {
 		}
 	}
 
+	private modelFailureError(): Error {
+		return new Error(this.state.lastError ?? "Model stream failed", {
+			cause: this.state.lastModelFailure?.cause,
+		});
+	}
+
 	private normalizeAbortError(): Error {
 		const reason = this.abortController?.signal.reason;
 		if (reason instanceof Error) {
@@ -2720,31 +2711,28 @@ export class AgentRuntime {
 					...metadata,
 					error: event.error,
 				});
-				// Failures the model layer already recorded at its own error
-				// boundary (`provider.stream`, carried across the stream's
-				// string-flattening boundary as `finish.errorReported`) must not
-				// be re-reported here — that exactly doubled `sdk.error` volume.
-				// Everything else still reports: loop-originated failures, and
-				// failures from model implementations that do not record their
-				// own telemetry.
-				if (!this.state.lastErrorReported) {
-					captureSdkError(this.config.telemetry, {
-						component: "agents",
-						operation: "agent.run",
-						error: event.error,
-						severity: "error",
-						handled: false,
-						context: {
-							...(metadata as TelemetryProperties),
-							providerId: this.getTelemetryProviderId(),
-							modelId: this.getTelemetryModelId(),
-							modelRequestId: this.modelRequestId,
-							...(this.state.lastFinishReason
-								? { finishReason: this.state.lastFinishReason }
-								: {}),
-						},
-					});
-				}
+				captureSdkError(this.config.telemetry, {
+					component: "agents",
+					operation: "agent.run",
+					error: this.state.lastModelFailure?.cause ?? event.error,
+					errorMessage: event.error.message,
+					severity: "error",
+					handled: false,
+					context: {
+						...(metadata as TelemetryProperties),
+						...this.state.lastModelFailure?.context,
+						providerId:
+							this.getTelemetryProviderId() ??
+							this.state.lastModelFailure?.context?.providerId,
+						modelId:
+							this.getTelemetryModelId() ??
+							this.state.lastModelFailure?.context?.modelId,
+						modelRequestId: this.modelRequestId,
+						...(this.state.lastFinishReason
+							? { finishReason: this.state.lastFinishReason }
+							: {}),
+					},
+				});
 				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);

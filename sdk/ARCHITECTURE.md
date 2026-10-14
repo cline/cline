@@ -572,6 +572,14 @@ mark the operation as failed. Exhausted stream recovery disables the agent's
 whole-turn retry so the two retry budgets do not multiply. Previously streamed
 text and reasoning follow AI SDK's append semantics and may repeat on recovery.
 
+Terminal `sdk.error` reporting belongs to the outermost operation. Agent-created
+gateway models return structured `finish.failure` details without reporting;
+the agent run reports once after recovery is exhausted. Standalone `Gateway.stream`
+calls report at their own terminal boundary. Providers maintain tracing spans
+but never emit terminal diagnostic events. Failures retain the display message,
+original cause, classification, retry decision, and correlation context through
+the model boundary; no reporting-ownership flags are carried in events.
+
 ### 7. Storage Adapters
 
 Stateful persistence should be isolated behind adapter/service layers.

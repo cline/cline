@@ -1,6 +1,7 @@
 import type {
 	AgentModel,
 	AgentModelEvent,
+	AgentModelFailure,
 	AgentModelRequest,
 	BasicLogger,
 	GatewayConfig,
@@ -13,9 +14,11 @@ import type {
 	ReasoningEffort,
 } from "@cline/shared";
 import {
+	captureSdkError,
 	estimateRequestInputTokens,
 	ReasoningEffortSchema,
 } from "@cline/shared";
+import { isTimeoutReason } from "../services/stream-error-telemetry";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { providerManifestSupportsModelOperation } from "./model-operations";
@@ -125,7 +128,9 @@ export interface Gateway {
 
 class GatewayModelAdapter implements AgentModel {
 	constructor(
-		private readonly gateway: DefaultGateway,
+		private readonly streamModel: (
+			request: GatewayStreamRequest,
+		) => Promise<AsyncIterable<AgentModelEvent>>,
 		private readonly selection: GatewayModelSelection,
 		private readonly defaults: GatewayModelHandleOptions | undefined,
 	) {}
@@ -162,7 +167,7 @@ class GatewayModelAdapter implements AgentModel {
 						budgetTokens: legacyBudgetTokens,
 					}
 				: undefined;
-		return this.gateway.stream({
+		return this.streamModel({
 			providerId: this.selection.providerId,
 			modelId: this.selection.modelId ?? "",
 			systemPrompt: request.systemPrompt,
@@ -327,10 +332,114 @@ export class DefaultGateway implements Gateway {
 		selection: GatewayModelSelection,
 		options?: GatewayModelHandleOptions,
 	): AgentModel {
-		return new GatewayModelAdapter(this, selection, options);
+		return new GatewayModelAdapter(
+			(request) => this.streamModel(request),
+			selection,
+			options,
+		);
 	}
 
 	async stream(
+		request: GatewayStreamRequest,
+	): Promise<AsyncIterable<AgentModelEvent>> {
+		let stream: AsyncIterable<AgentModelEvent>;
+		try {
+			stream = await this.streamModel(request);
+		} catch (cause) {
+			this.reportFailure(
+				request,
+				{
+					message: cause instanceof Error ? cause.message : String(cause),
+					cause,
+				},
+				"provider.create_or_stream",
+			);
+			throw cause;
+		}
+		return this.streamWithTerminalReporting(request, stream);
+	}
+
+	private async *streamWithTerminalReporting(
+		request: GatewayStreamRequest,
+		stream: AsyncIterable<AgentModelEvent>,
+	): AsyncIterable<AgentModelEvent> {
+		try {
+			for await (const event of stream) {
+				if (event.type === "finish" && event.reason === "error") {
+					this.reportFailure(
+						request,
+						event.failure ?? { message: "Model stream failed" },
+					);
+					yield event;
+					return;
+				}
+				yield event;
+			}
+		} catch (cause) {
+			this.reportFailure(request, {
+				message: cause instanceof Error ? cause.message : String(cause),
+				cause,
+			});
+			throw cause;
+		}
+	}
+
+	private reportFailure(
+		request: GatewayStreamRequest,
+		failure: AgentModelFailure,
+		operation = "provider.stream",
+	): void {
+		if (
+			request.signal?.aborted &&
+			!isTimeoutReason(request.signal.reason) &&
+			!isTimeoutReason(failure.cause)
+		)
+			return;
+		const context = Object.fromEntries(
+			[
+				"runId",
+				"agentId",
+				"sessionId",
+				"conversationId",
+				"modelRequestId",
+				"iteration",
+			].flatMap((key) => {
+				const value = request.metadata?.[key];
+				return typeof value === "string" || typeof value === "number"
+					? [[key, value]]
+					: [];
+			}),
+		);
+		const error = failure.cause ?? failure;
+		const details = {
+			...context,
+			...failure.context,
+			providerId: request.providerId,
+			modelId: request.modelId,
+			error,
+			severity: "error" as const,
+		};
+		if (this.logger?.error) this.logger.error("Gateway stream failed", details);
+		else this.logger?.log(`Gateway stream failed: ${failure.message}`, details);
+		captureSdkError(this.telemetry, {
+			component: "llms",
+			operation:
+				failure.context?.error_phase === "request_start"
+					? "provider.create_or_stream"
+					: operation,
+			error,
+			errorMessage: failure.message,
+			context: {
+				...context,
+				...failure.context,
+				providerId: request.providerId,
+				modelId: request.modelId,
+			},
+		});
+	}
+
+	/** Internal model boundary; the agent run owns terminal reporting. */
+	private async streamModel(
 		request: GatewayStreamRequest,
 	): Promise<AsyncIterable<AgentModelEvent>> {
 		const resolved = this.registry.resolveModel({

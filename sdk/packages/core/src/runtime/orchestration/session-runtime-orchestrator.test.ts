@@ -1815,7 +1815,7 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 						yield {
 							type: "finish" as const,
 							reason: "error" as const,
-							error: "upstream failed",
+							failure: { message: "upstream failed" },
 						};
 						return;
 					}
@@ -1900,7 +1900,7 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 					yield {
 						type: "finish" as const,
 						reason: "error" as const,
-						error: "upstream failed after tool result",
+						failure: { message: "upstream failed after tool result" },
 					};
 				})();
 			},

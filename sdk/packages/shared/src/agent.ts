@@ -13,7 +13,10 @@ import type {
 	ToolPolicy,
 } from "./llms/tools";
 import type { BasicLogger } from "./logging/logger";
-import type { ITelemetryService } from "./services/telemetry";
+import type {
+	ITelemetryService,
+	TelemetryProperties,
+} from "./services/telemetry";
 
 // =============================================================================
 // Lightweight telemetry surface used by AgentRuntime
@@ -303,6 +306,15 @@ export type AgentModelFinishReason =
  */
 export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
 
+/** Structured terminal model failure, reported by the outermost operation. */
+export interface AgentModelFailure {
+	message: string;
+	cause?: unknown;
+	classification?: ProviderErrorClass;
+	retryable?: boolean;
+	context?: TelemetryProperties;
+}
+
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
 	| { type: "media"; media: GeneratedMedia }
@@ -345,25 +357,7 @@ export type AgentModelEvent =
 			reason: AgentModelFinishReason;
 			/** HTTP X-Request-ID of the surfaced response, not the provider's generation ID. */
 			requestId?: string;
-			error?: string;
-			errorClass?: ProviderErrorClass;
-			/**
-			 * Whether the underlying provider error was transient and worth
-			 * retrying, decided at the model boundary from the AI SDK's typed
-			 * `isRetryable` flag while the structured error is still in hand
-			 * (`error` is a flattened string, so the agent loop cannot re-derive
-			 * this). When absent, the agent loop classifies from the message.
-			 */
-			errorRetryable?: boolean;
-			/**
-			 * The model layer already recorded `sdk.error` telemetry for this
-			 * failure at its own error boundary. `error` is a flattened string,
-			 * so this bit carries reporting ownership across the boundary: the
-			 * agent loop skips re-reporting when it is set, and still reports
-			 * failures from model implementations that do not record their own
-			 * telemetry.
-			 */
-			errorReported?: boolean;
+			failure?: AgentModelFailure;
 	  };
 
 export interface AgentModel {

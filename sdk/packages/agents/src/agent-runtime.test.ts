@@ -1,3 +1,4 @@
+import { createGateway } from "@cline/llms";
 import type {
 	AgentMessage,
 	AgentModel,
@@ -715,14 +716,18 @@ describe("AgentRuntime", () => {
 					{
 						type: "finish",
 						reason: "error",
-						errorRetryable: kind === "provider",
-						error:
-							kind === "provider"
-								? "Upstream returned HTTP 429"
-								: "Context window exceeded",
-						...(kind === "context-overflow"
-							? { errorClass: "context_window_exceeded" as const }
-							: {}),
+
+						failure: {
+							message:
+								kind === "provider"
+									? "Upstream returned HTTP 429"
+									: "Context window exceeded",
+							classification:
+								kind === "context-overflow"
+									? "context_window_exceeded"
+									: undefined,
+							retryable: kind === "provider",
+						},
 					},
 				],
 				() => [
@@ -1193,7 +1198,13 @@ describe("AgentRuntime", () => {
 				{ type: "text-delta", text: "truncated..." },
 				{ type: "finish", reason: "max-tokens" },
 			],
-			() => [{ type: "finish", reason: "error", error: "stream dropped" }],
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					failure: { message: "stream dropped" },
+				},
+			],
 		]);
 		const compactedMessages: AgentMessage[] = [
 			{ role: "user", content: [{ type: "text", text: "compacted" }] },
@@ -1336,7 +1347,11 @@ describe("AgentRuntime", () => {
 			}
 			events.push(
 				finish === "error"
-					? { type: "finish", reason: "error", error: "stream dropped" }
+					? {
+							type: "finish",
+							reason: "error",
+							failure: { message: "stream dropped" },
+						}
 					: { type: "finish", reason: finish },
 			);
 			return events;
@@ -1413,7 +1428,11 @@ describe("AgentRuntime", () => {
 					output: { results: [{ url: "https://example.com" }] },
 				},
 				{ type: "text-delta", text: "The weather is" },
-				{ type: "finish", reason: "error", error: "stream dropped" },
+				{
+					type: "finish",
+					reason: "error",
+					failure: { message: "stream dropped" },
+				},
 			],
 		]);
 		const compactedMessages: AgentMessage[] = [
@@ -1458,7 +1477,11 @@ describe("AgentRuntime", () => {
 				],
 				// The compacted request hits a transient provider error...
 				() => [
-					{ type: "finish", reason: "error", error: "Provider returned error" },
+					{
+						type: "finish",
+						reason: "error",
+						failure: { message: "Provider returned error" },
+					},
 				],
 				// ...and succeeds when re-issued.
 				() => [
@@ -1521,7 +1544,7 @@ describe("AgentRuntime", () => {
 					{
 						type: "finish" as const,
 						reason: "error" as const,
-						error: "Provider returned error",
+						failure: { message: "Provider returned error" },
 					},
 				]),
 			]);
@@ -1558,7 +1581,13 @@ describe("AgentRuntime", () => {
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
-			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					failure: { message: "upstream failed" },
+				},
+			],
 		]);
 		const addedMessages: AgentMessage[] = [];
 		const runtime = new AgentRuntime({ model });
@@ -1582,8 +1611,10 @@ describe("AgentRuntime", () => {
 		const overflowEvent: AgentModelEvent = {
 			type: "finish",
 			reason: "error",
-			error: "prompt is too long: 213462 tokens > 200000 maximum",
-			errorClass: "context_window_exceeded",
+			failure: {
+				message: "prompt is too long: 213462 tokens > 200000 maximum",
+				classification: "context_window_exceeded",
+			},
 		};
 		const model = new ScriptedModel([
 			() => [overflowEvent],
@@ -1639,7 +1670,9 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "prompt is too long: 213462 tokens > 200000 maximum",
+					failure: {
+						message: "prompt is too long: 213462 tokens > 200000 maximum",
+					},
 				},
 			],
 			() => [
@@ -1672,7 +1705,7 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "fetch failed: socket closed",
+					failure: { message: "fetch failed: socket closed" },
 				},
 			],
 		]);
@@ -1695,7 +1728,7 @@ describe("AgentRuntime", () => {
 					{
 						type: "finish" as const,
 						reason: "error" as const,
-						error: "Provider returned error",
+						failure: { message: "Provider returned error" },
 					},
 				]),
 			);
@@ -1721,7 +1754,7 @@ describe("AgentRuntime", () => {
 					{
 						type: "finish" as const,
 						reason: "error" as const,
-						error: "Provider returned error",
+						failure: { message: "Provider returned error" },
 					},
 				],
 				() => [
@@ -1729,7 +1762,8 @@ describe("AgentRuntime", () => {
 					{ type: "finish" as const, reason: "stop" as const },
 				],
 			]);
-			const runtime = new AgentRuntime({ model });
+			const { telemetry, capture } = createTelemetryMock();
+			const runtime = new AgentRuntime({ model, telemetry });
 
 			const runPromise = runtime.run("Hi");
 			await vi.runAllTimersAsync();
@@ -1738,21 +1772,23 @@ describe("AgentRuntime", () => {
 			expect(result.status).toBe("completed");
 			expect(result.outputText).toBe("recovered");
 			expect(model.requests).toHaveLength(2);
+			expect(
+				capture.mock.calls.filter(
+					([event]) => event.event === SDK_ERROR_TELEMETRY_EVENT,
+				),
+			).toHaveLength(0);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("does not retry a non-transient provider error (honors errorRetryable=false)", async () => {
+	it("does not retry a non-transient provider error (honors failure.retryable=false)", async () => {
 		const model = new ScriptedModel([
 			() => [
 				{
 					type: "finish",
 					reason: "error",
-					error: "Provider returned error",
-					// Boundary says this specific failure is not retryable; the flag
-					// wins over the message-based fallback.
-					errorRetryable: false,
+					failure: { message: "Provider returned error", retryable: false },
 				},
 			],
 		]);
@@ -1771,7 +1807,7 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "Provider returned error",
+					failure: { message: "Provider returned error" },
 				},
 			],
 		]);
@@ -1797,7 +1833,7 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "Provider returned error",
+					failure: { message: "Provider returned error" },
 				},
 			],
 		]);
@@ -1818,7 +1854,7 @@ describe("AgentRuntime", () => {
 					{
 						type: "finish",
 						reason: "error",
-						error: "Provider returned error",
+						failure: { message: "Provider returned error" },
 					},
 				],
 				// Valid per the AgentModel contract: an error finish with no payload.
@@ -1844,8 +1880,10 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "input is too long for requested model",
-					errorClass: "context_window_exceeded",
+					failure: {
+						message: "input is too long for requested model",
+						classification: "context_window_exceeded",
+					},
 				},
 			],
 		]);
@@ -1871,8 +1909,10 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "prompt is too long",
-					errorClass: "context_window_exceeded",
+					failure: {
+						message: "prompt is too long",
+						classification: "context_window_exceeded",
+					},
 				},
 			],
 		]);
@@ -1892,8 +1932,10 @@ describe("AgentRuntime", () => {
 			{
 				type: "finish",
 				reason: "error",
-				error: "prompt is too long",
-				errorClass: "context_window_exceeded",
+				failure: {
+					message: "prompt is too long",
+					classification: "context_window_exceeded",
+				},
 			},
 		];
 		const model = new ScriptedModel([overflow, overflow]);
@@ -4136,7 +4178,7 @@ describe("AgentRuntime", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "Invalid input for tool echo",
+					failure: { message: "Invalid input for tool echo" },
 				},
 			],
 			(request) => {
@@ -4372,7 +4414,13 @@ describe("AgentRuntime", () => {
 				},
 				{ type: "finish", reason: "tool-calls" },
 			],
-			() => [{ type: "finish", reason: "error", error: "model failed" }],
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					failure: { message: "model failed" },
+				},
+			],
 		]);
 		const runtime = new AgentRuntime({
 			model,
@@ -4563,21 +4611,92 @@ describe("AgentRuntime", () => {
 });
 
 describe("AgentRuntime sdk.error reporting", () => {
+	it.each([
+		"agent",
+		"standalone",
+	])("gives the %s operation sole ownership of gateway failures", async (owner) => {
+		const { telemetry, capture } = createTelemetryMock();
+		const cause = Object.assign(new Error("transport closed"), {
+			code: "ConnectionClosed",
+			statusCode: 504,
+			isRetryable: true,
+		});
+		const gateway = createGateway({
+			builtins: false,
+			telemetry,
+			providers: [
+				{
+					manifest: {
+						id: "test-provider",
+						name: "Test",
+						defaultModelId: "test",
+						models: [{ id: "test", name: "Test", providerId: "test-provider" }],
+					},
+					createProvider: async () => ({
+						async *stream() {
+							yield {
+								type: "finish",
+								reason: "error",
+								failure: {
+									message: "Display error",
+									cause,
+									retryable: false,
+									context: { error_phase: "stream_read" },
+								},
+							};
+						},
+					}),
+				},
+			],
+		});
+		if (owner === "agent") {
+			const runtime = new AgentRuntime({
+				model: gateway.createAgentModel({
+					providerId: "test-provider",
+					modelId: "test",
+				}),
+				telemetry,
+				sessionId: "session-test",
+				messageModelInfo: { id: "test", provider: "test-provider" },
+			});
+			const result = await runtime.run("test");
+			expect(result.status).toBe("failed");
+			expect(result.error?.cause).toBe(cause);
+		} else {
+			for await (const _event of await gateway.stream({
+				providerId: "test-provider",
+				modelId: "test",
+				messages: [],
+			})) {
+			}
+		}
+		const errors = capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) => call.event === SDK_ERROR_TELEMETRY_EVENT);
+		expect(errors).toHaveLength(1);
+		expect(errors[0].properties).toMatchObject({
+			component: owner === "agent" ? "agents" : "llms",
+			error_message: "Display error",
+			error_code: "ConnectionClosed",
+			error_status: 504,
+			error_retryable: true,
+			error_phase: "stream_read",
+		});
+	});
 	function sdkErrorEvents(capture: ReturnType<typeof vi.fn>) {
 		return capture.mock.calls
 			.map(([call]) => call as { event: string; properties?: unknown })
 			.filter((call) => call.event === SDK_ERROR_TELEMETRY_EVENT);
 	}
 
-	it("does not re-report a failure the model layer marked as reported", async () => {
+	it("reports a structured model failure once at the run boundary", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([
 			() => [
 				{
 					type: "finish",
 					reason: "error",
-					error: "Upstream returned HTTP 429",
-					errorReported: true,
+					failure: { message: "Upstream returned HTTP 429" },
 				},
 			],
 		]);
@@ -4586,7 +4705,7 @@ describe("AgentRuntime sdk.error reporting", () => {
 		const result = await runtime.run("Hi");
 
 		expect(result.status).toBe("failed");
-		expect(sdkErrorEvents(capture)).toHaveLength(0);
+		expect(sdkErrorEvents(capture)).toHaveLength(1);
 		// The structured lifecycle event still records the failure.
 		expect(capture).toHaveBeenCalledWith(
 			expect.objectContaining({ event: "agent.run-failed" }),
@@ -4596,14 +4715,14 @@ describe("AgentRuntime sdk.error reporting", () => {
 	it("reports exactly one sdk.error for custom models that do not record their own telemetry", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		// A custom `AgentModel` flattens its failure into the finish event and
-		// never calls `captureSdkError`; without `errorReported` the run loop
+		// never calls `captureSdkError`; the run boundary
 		// must own the report.
 		const model = new ScriptedModel([
 			() => [
 				{
 					type: "finish",
 					reason: "error",
-					error: "backend unavailable",
+					failure: { message: "backend unavailable" },
 				},
 			],
 		]);
@@ -4809,8 +4928,10 @@ describe("AgentRuntime sdk.error reporting", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "prompt is too long: 213462 tokens > 200000 maximum",
-					errorClass: "context_window_exceeded",
+					failure: {
+						message: "prompt is too long: 213462 tokens > 200000 maximum",
+						classification: "context_window_exceeded",
+					},
 				},
 			],
 		]);
@@ -4844,8 +4965,10 @@ describe("AgentRuntime sdk.error reporting", () => {
 				{
 					type: "finish",
 					reason: "error",
-					error: "prompt is too long: 213462 tokens > 200000 maximum",
-					errorClass: "context_window_exceeded",
+					failure: {
+						message: "prompt is too long: 213462 tokens > 200000 maximum",
+						classification: "context_window_exceeded",
+					},
 				},
 			],
 		]);
