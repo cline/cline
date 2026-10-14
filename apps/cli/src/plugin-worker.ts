@@ -8,6 +8,8 @@ registerHostPluginModules({
 	"@cline/core": () => import("@cline/core"),
 	"@cline/core/hub": () => import("@cline/core/hub"),
 	"@cline/core/telemetry": () => import("@cline/core/telemetry"),
+	"@cline/agents": () => import("@cline/agents"),
+	"@cline/llms": () => import("@cline/llms"),
 	"@cline/shared": () => import("@cline/shared"),
 	"@cline/shared/db": () => import("@cline/shared/db"),
 	"@cline/shared/storage": () => import("@cline/shared/storage"),
