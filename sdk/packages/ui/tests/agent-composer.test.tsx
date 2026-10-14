@@ -170,9 +170,33 @@ describe("AgentComposer", () => {
 		const [stop, send] = container.querySelectorAll("button");
 		expect(body?.className).toBe("px-4 py-3 pb-2 pt-4");
 		expect(field?.classList.contains("items-end")).toBe(true);
-		expect(textarea?.classList.contains("self-start")).toBe(true);
+		expect(textarea?.parentElement?.classList.contains("self-start")).toBe(
+			true,
+		);
 		expect(actions?.classList.contains("self-end")).toBe(false);
 		expect(stop.classList.contains("rounded-cline-ui-md")).toBe(true);
 		expect(send.classList.contains("rounded-full")).toBe(true);
+	});
+
+	it("draws the highlighted range behind the textarea without remounting it", async () => {
+		const textarea = createRef<HTMLTextAreaElement>();
+		const render = (value: string, highlighted: boolean) =>
+			root.render(
+				<AgentComposerTextarea
+					ref={textarea}
+					value={value}
+					onChange={() => {}}
+					highlight={highlighted ? { start: 2, end: 10 } : undefined}
+				/>,
+			);
+		await act(async () => render("  /compact", false));
+		const original = textarea.current;
+		expect(container.querySelector("[aria-hidden]")).toBeNull();
+
+		await act(async () => render("  /compact now", true));
+		const backdrop = container.querySelector("[aria-hidden]");
+		expect(backdrop?.textContent).toBe("  /compact");
+		expect(backdrop?.querySelector("span")?.textContent).toBe("/compact");
+		expect(textarea.current).toBe(original);
 	});
 });

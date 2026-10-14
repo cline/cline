@@ -6,6 +6,7 @@ import {
 	createContext,
 	forwardRef,
 	useContext,
+	useState,
 } from "react";
 
 /** Presentation only. Hosts retain drafts, input events, menus, and runtime actions. */
@@ -97,27 +98,56 @@ export const AgentComposerField = forwardRef<
 });
 
 export type AgentComposerTextareaProps = ComponentPropsWithoutRef<"textarea"> &
-	VariantProps;
+	VariantProps & {
+		/** `[start, end)` range of `value` drawn as an inline token, e.g. a slash command. */
+		highlight?: { start: number; end: number };
+	};
 
 export const AgentComposerTextarea = forwardRef<
 	HTMLTextAreaElement,
 	AgentComposerTextareaProps
 >(function AgentComposerTextarea(
-	{ variant: variantProp, className, ...props },
+	{ variant: variantProp, className, highlight, onScroll, ...props },
 	ref,
 ) {
 	const variant = useAgentComposerVariant(variantProp);
+	const [scrollTop, setScrollTop] = useState(0);
+	const value = typeof props.value === "string" ? props.value : "";
+	// The wrapper is always rendered so toggling the highlight never remounts
+	// (and blurs) the textarea mid-typing.
 	return (
-		<textarea
-			{...props}
-			ref={ref}
+		<div
 			className={clsx(
-				variant === "welcome"
-					? "field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none self-start"
-					: "field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none",
-				className,
+				"relative flex min-w-0 flex-1",
+				variant === "welcome" && "self-start",
 			)}
-		/>
+		>
+			{highlight && (
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-0 overflow-y-clip whitespace-pre-wrap break-words text-cline-ui-sm leading-5 text-transparent"
+				>
+					<div style={{ transform: `translateY(${-scrollTop}px)` }}>
+						{value.slice(0, highlight.start)}
+						<span className="-mx-0.5 rounded-cline-ui-sm bg-cline-ui-primary/15 px-0.5 py-0.5 inset-ring inset-ring-cline-ui-primary/30">
+							{value.slice(highlight.start, highlight.end)}
+						</span>
+					</div>
+				</div>
+			)}
+			<textarea
+				{...props}
+				ref={ref}
+				onScroll={(event) => {
+					setScrollTop(event.currentTarget.scrollTop);
+					onScroll?.(event);
+				}}
+				className={clsx(
+					"relative field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none",
+					className,
+				)}
+			/>
+		</div>
 	);
 });
 
