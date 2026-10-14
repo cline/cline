@@ -610,7 +610,14 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 		return undefined
 	}
 
-	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.baseUrl
+	const sdkProviderId = toSdkProviderId(providerId)
+	// OpenAI Compatible endpoints are user-supplied, so use the URL as entered
+	// rather than inheriting the OpenAI default `/v1` path.
+	if (sdkProviderId === "openai-compatible") {
+		return trimmed
+	}
+
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.provider.baseUrl
 	if (!providerDefaultBaseUrl) {
 		return trimmed
 	}
