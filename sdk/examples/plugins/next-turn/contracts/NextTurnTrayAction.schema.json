@@ -1,0 +1,192 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://cline.bot/next-turn/NextTurnTrayAction.schema.json",
+	"title": "NextTurnTrayAction",
+	"description": "What the tray slot sends back through plugin.invoke",
+	"oneOf": [
+		{
+			"type": "object",
+			"required": ["type"],
+			"properties": {
+				"type": {
+					"const": "current"
+				},
+				"client": {
+					"type": "string"
+				},
+				"runCount": {
+					"type": "integer",
+					"minimum": 0
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type", "candidateId"],
+			"properties": {
+				"type": {
+					"const": "skip"
+				},
+				"candidateId": {
+					"type": "string"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"input": {
+					"type": "string",
+					"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+				},
+				"msSinceExposed": {
+					"type": "number"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type", "candidateId"],
+			"properties": {
+				"type": {
+					"const": "unskip"
+				},
+				"candidateId": {
+					"type": "string"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"input": {
+					"type": "string",
+					"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type", "candidateId"],
+			"properties": {
+				"type": {
+					"const": "use"
+				},
+				"candidateId": {
+					"type": "string"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"input": {
+					"type": "string",
+					"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+				},
+				"msSinceExposed": {
+					"type": "number"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type", "candidateId"],
+			"properties": {
+				"type": {
+					"const": "send"
+				},
+				"candidateId": {
+					"type": "string"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"input": {
+					"type": "string",
+					"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+				},
+				"msSinceExposed": {
+					"type": "number"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type"],
+			"properties": {
+				"type": {
+					"const": "reroll"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"input": {
+					"type": "string",
+					"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+				},
+				"cause": {
+					"type": "string",
+					"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type"],
+			"properties": {
+				"type": {
+					"const": "exposed"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"candidateId": {
+					"type": "string"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type"],
+			"properties": {
+				"type": {
+					"const": "hide"
+				},
+				"scope": {
+					"const": "chat"
+				}
+			},
+			"additionalProperties": false
+		},
+		{
+			"type": "object",
+			"required": ["type", "event"],
+			"properties": {
+				"type": {
+					"const": "label"
+				},
+				"event": {
+					"enum": [
+						"set_ready",
+						"highlight_move",
+						"key_inert",
+						"refused_stale",
+						"undo_adjust",
+						"undo_turn",
+						"lineage",
+						"ignored"
+					]
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"fields": {
+					"type": "object"
+				}
+			},
+			"additionalProperties": false
+		}
+	]
+}

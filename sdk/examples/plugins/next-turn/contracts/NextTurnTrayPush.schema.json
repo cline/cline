@@ -1,0 +1,183 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://cline.bot/next-turn/NextTurnTrayPush.schema.json",
+	"title": "NextTurnTrayPush",
+	"description": "A sequenced tray state update pushed on next.state or returned from current",
+	"type": "object",
+	"required": ["sessionId", "seq", "state"],
+	"properties": {
+		"sessionId": {
+			"type": "string"
+		},
+		"seq": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"state": {
+			"enum": ["computing", "ready", "empty", "exhausted", "unavailable", "off"]
+		},
+		"turnKey": {
+			"type": "string"
+		},
+		"rerollsLeft": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 2
+		},
+		"set": {
+			"type": "object",
+			"required": [
+				"sessionId",
+				"offerId",
+				"setId",
+				"turnKey",
+				"runCount",
+				"cueCode",
+				"candidates",
+				"excluded",
+				"planner",
+				"revision"
+			],
+			"properties": {
+				"sessionId": {
+					"type": "string"
+				},
+				"offerId": {
+					"type": "string"
+				},
+				"setId": {
+					"type": "string"
+				},
+				"turnKey": {
+					"type": "string"
+				},
+				"runCount": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"runId": {
+					"type": "string"
+				},
+				"trigger": {
+					"enum": ["after_run", "on_demand"]
+				},
+				"cueCode": {
+					"enum": [
+						"cancelled",
+						"failed",
+						"tool_error",
+						"completed_edits",
+						"completed_no_edits"
+					]
+				},
+				"candidates": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["id", "kind", "source", "prompt", "why"],
+						"properties": {
+							"id": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{8}$"
+							},
+							"kind": {
+								"enum": [
+									"fix_failure",
+									"continue",
+									"next_step",
+									"verify",
+									"review_diff",
+									"wrap_up",
+									"commit",
+									"check_ci",
+									"reply_review",
+									"update_issue",
+									"post_update"
+								]
+							},
+							"source": {
+								"enum": [
+									"turn",
+									"status",
+									"tasks",
+									"bank",
+									"repo",
+									"connector",
+									"replenish",
+									"model"
+								]
+							},
+							"prompt": {
+								"type": "string",
+								"maxLength": 200
+							},
+							"why": {
+								"type": "string",
+								"maxLength": 120
+							},
+							"ref": {
+								"type": "string",
+								"maxLength": 200
+							},
+							"url": {
+								"type": "string"
+							},
+							"outward": {
+								"const": true,
+								"description": "Posts or comments outside the machine: offer Use only, never Send"
+							}
+						},
+						"additionalProperties": false
+					},
+					"maxItems": 3
+				},
+				"excluded": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"maxItems": 12
+				},
+				"planner": {
+					"enum": ["rules", "model"]
+				},
+				"revision": {
+					"type": "string"
+				},
+				"rerollsLeft": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 2
+				},
+				"paused": {
+					"type": "object",
+					"required": ["resetsAt"],
+					"properties": {
+						"resetsAt": {
+							"type": "number"
+						}
+					},
+					"additionalProperties": false
+				},
+				"model": {
+					"type": "object",
+					"required": ["status"],
+					"properties": {
+						"status": {
+							"enum": ["pending", "no_provider", "error", "paused"]
+						},
+						"resetsAt": {
+							"type": "number"
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		},
+		"error": {
+			"type": "string"
+		}
+	},
+	"additionalProperties": false
+}

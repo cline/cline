@@ -1,0 +1,29 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://cline.bot/next-turn/NextTurnManifest.schema.json",
+	"title": "NextTurnManifest",
+	"description": "The environment manifest: each source's state and the capabilities the planner may name",
+	"type": "object",
+	"required": ["sources", "capabilities"],
+	"properties": {
+		"client": {
+			"type": "string"
+		},
+		"mode": {
+			"enum": ["act", "plan"]
+		},
+		"sources": {
+			"type": "object",
+			"additionalProperties": {
+				"enum": ["present", "unknown", "absent", "off"]
+			}
+		},
+		"capabilities": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		}
+	},
+	"additionalProperties": false
+}

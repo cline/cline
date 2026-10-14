@@ -1,0 +1,53 @@
+{
+	"name": "next-turn",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Next Turn: suggestions after each turn, Tasks and a Status Hub, as one Cline plugin.",
+	"engines": {
+		"node": ">=22"
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "bun run scripts/build.ts",
+		"typecheck": "tsc -p tsconfig.json",
+		"test": "bun test src",
+		"contracts": "bun run scripts/build-contracts.ts",
+		"check:contracts": "bun run scripts/build-contracts.ts --check",
+		"check": "bun run typecheck && bun run check:contracts && bun run test",
+		"clean": "rm -rf node_modules dist"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./src/index.ts"
+				],
+				"capabilities": [
+					"hooks"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*",
+		"@cline/llms": "*",
+		"@cline/sdk": "*",
+		"@cline/shared": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		},
+		"@cline/llms": {
+			"optional": true
+		},
+		"@cline/sdk": {
+			"optional": true
+		},
+		"@cline/shared": {
+			"optional": true
+		}
+	}
+}
