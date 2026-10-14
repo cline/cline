@@ -157,6 +157,62 @@ async function clickButton(
 
 describe("WelcomeScreen", () => {
 	it.each([
+		"login",
+		"cancel",
+	])("waits for both requests before retry when %s settles first", async (first) => {
+		invokeMock.mockReset();
+		let finishCancel!: () => void;
+		let rejectLogin!: (error: Error) => void;
+		invokeMock.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login")
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			if (command === "cancel_provider_oauth_login")
+				return await new Promise<void>((resolve) => {
+					finishCancel = resolve;
+				});
+			return {};
+		});
+		await renderWelcomeScreen({
+			workspaceRoot: "",
+			workspaces: [],
+			executionTarget: "cloud",
+			cloudAgentsEnabled: true,
+		});
+		await clickButton("Sign in with Cline");
+		expect(container.textContent).toContain("Waiting for browser");
+		await clickButton("Cancel");
+		const cancelling = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Cancel",
+		);
+		expect(cancelling?.disabled).toBe(true);
+		expect(invokeMock).toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		await act(async () => {
+			if (first === "login") rejectLogin(new Error("Sign-in cancelled"));
+			else finishCancel();
+		});
+		expect(
+			Array.from(container.querySelectorAll("button")).find((button) =>
+				button.textContent?.includes("Waiting for browser"),
+			)?.disabled,
+		).toBe(true);
+		await act(async () => {
+			if (first === "login") finishCancel();
+			else rejectLogin(new Error("Sign-in cancelled"));
+		});
+		expect(container.textContent).not.toContain("Sign in failed");
+		await clickButton("Sign in with Cline");
+		expect(
+			invokeMock.mock.calls.filter(
+				([command]) => command === "run_provider_oauth_login",
+			),
+		).toHaveLength(2);
+	});
+
+	it.each([
 		"none",
 		"retry",
 		"manual",

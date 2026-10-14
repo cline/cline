@@ -9,7 +9,7 @@ Cline CLI's `--config` and `--thinking` flags enable sophisticated multi-model w
 
 **Cost Optimization**
 
-By routing work to the right model for the job, you can dramatically reduce API costs. Fast, inexpensive models like Haiku and Gemini Flash handle simple tasks such as summarization, while expensive models like Opus and O1 are reserved for complex reasoning and planning. This approach can reduce costs by 10-100x on routine operations.
+By routing work to the right model for the job, you can reduce API costs. Fast, inexpensive models like Haiku and Gemini Flash handle simple tasks such as summarization, while more expensive models like Opus are reserved for complex reasoning and planning.
 
 **Bias Reduction**
 
@@ -17,20 +17,11 @@ Different models catch different issues, so cross-validating solutions with mult
 
 **Specialization**
 
-Certain models excel in specific domains: Codex and DeepSeek are strong at code generation, while GPT-4 and Claude shine at documentation and prose. Security analysis in particular benefits from combining multiple model viewpoints, since each brings different training data and heuristics to the table.
+Models differ in what they do well. Security analysis in particular benefits from combining several models, since each brings different training data and heuristics to the table.
 
 ## Pattern 1: CI/CD Code Review
 
-See our production GitHub Actions workflow that uses Cline CLI for automated PR reviews: [cline-pr-review.yml](https://github.com/cline/cline/blob/main/.github/workflows/cline-pr-review.yml)
-
-**Key capabilities demonstrated:**
-- **Automated inline suggestions**: Creates GitHub suggestion blocks that authors can commit with one click
-- **SME identification**: Analyzes git history to find subject matter experts for each file
-- **Related issue discovery**: Searches for context from past issues and PRs
-- **Security-first permissions**: Read-only codebase access, can only post reviews
-- **Deep code analysis**: Understands intent, compares approaches, identifies edge cases
-
-The workflow runs on every PR and provides maintainers with comprehensive context to make faster, more informed decisions.
+The [GitHub PR Review](/cli/samples/github-pr-review) sample runs Cline CLI in GitHub Actions to review pull requests, except drafts and pull requests from forks or Dependabot. Its `cline auth` step picks the model, so you can give the review job a stronger model than the rest of your automation.
 
 ## Pattern 2: Task Phase Optimization
 
@@ -39,16 +30,22 @@ Use different models for different phases of work. Route simple tasks to cheap m
 ### Example: Issue Analysis Pipeline
 
 ```bash
+# Stop if any command, including a cline run, fails
+set -euo pipefail
+
+# Print only Cline's final answer from --json output
+final_answer() { jq -r 'select(.type == "run_result") | .text'; }
+
 # Get latest issue content
 ISSUE_CONTENT=$(gh issue view $(gh issue list -L 1 | awk '{print $1}'))
 
 # Phase 1: Quick summary with cheap model
-SUMMARY=$(echo "$ISSUE_CONTENT" | cline --auto-approve true --config ~/.cline-haiku \
-  "summarize this issue in 2-3 sentences")
+SUMMARY=$(echo "$ISSUE_CONTENT" | cline --auto-approve true --json --config ~/.cline-haiku \
+  "summarize this issue in 2-3 sentences" | final_answer)
 
 # Phase 2: Detailed plan with expensive model + thinking
-PLAN=$(echo "$SUMMARY" | cline --auto-approve true --thinking high --config ~/.cline-opus \
-  "create detailed implementation plan with edge cases")
+PLAN=$(echo "$SUMMARY" | cline --auto-approve true --json --thinking high --config ~/.cline-opus \
+  "create detailed implementation plan with edge cases" | final_answer)
 
 # Phase 3: Execute with mid-tier model
 echo "$PLAN" | cline --auto-approve true --config ~/.cline-sonnet \
@@ -56,35 +53,34 @@ echo "$PLAN" | cline --auto-approve true --config ~/.cline-sonnet \
 ```
 
 <Note>
-Each `cline` invocation needs to complete before passing output to the next phase. Use shell variables to store intermediate results rather than piping `cline` commands directly.
+Without `--json`, the CLI also prints the model's thinking, and the next phase would read it as part of its input. `--json` with `final_answer` keeps only the answer. Each `cline` command must finish before the next phase starts, so store each result in a shell variable rather than piping one `cline` command into the next.
+
+When a run fails, `cline` exits with an error, but `final_answer` still prints the error message. `set -euo pipefail` stops the script there, so that the error message doesn't become the next phase's input.
 </Note>
 
-**Cost impact:**
-- Haiku: $0.80 per million input tokens
-- Opus: $15 per million input tokens  
-- Sonnet: $3 per million input tokens
+**Cost impact** (Anthropic list prices per million input tokens, from the model catalog Cline ships):
+- Haiku 4.5: $1
+- Sonnet 5.5: $2
+- Opus 5.5: $4
 
-This pattern uses Opus only when needed for complex reasoning, saving ~10x on API costs compared to using Opus for everything.
+This pattern uses Opus only where it needs to reason hard. Check your provider's current prices before you plan around them.
 
 ### Setting Up Model Configs
 
-Create separate configuration directories for each model:
+`--config` points Cline at a different configuration directory, and each directory keeps its own provider and model. Set up one directory per model:
 
 ```bash
-# Create config directories
-mkdir -p ~/.cline-haiku ~/.cline-sonnet ~/.cline-opus
-
-# Configure each with different models
-cline --config ~/.cline-haiku auth anthropic --modelid claude-haiku-4-20250514
-cline --config ~/.cline-sonnet auth anthropic --modelid claude-sonnet-4-20250514  
-cline --config ~/.cline-opus auth anthropic --modelid claude-opus-4-5-20251101
+# Configure each directory with its own model
+cline --config ~/.cline-haiku auth anthropic --apikey "$ANTHROPIC_API_KEY" --modelid claude-haiku-4-5
+cline --config ~/.cline-sonnet auth anthropic --apikey "$ANTHROPIC_API_KEY" --modelid claude-sonnet-5-5
+cline --config ~/.cline-opus auth anthropic --apikey "$ANTHROPIC_API_KEY" --modelid claude-opus-5-5
 
 # Or use different providers entirely
-cline --config ~/.cline-gemini auth gemini --modelid gemini-2.0-flash-exp
-cline --config ~/.cline-codex auth openai-codex --modelid gpt-5-latest
+cline --config ~/.cline-gemini auth gemini --apikey "$GEMINI_API_KEY" --modelid gemini-3.8-flash
+cline --config ~/.cline-gpt auth openai-native --apikey "$OPENAI_API_KEY" --modelid gpt-6.1-sol
 ```
 
-Now you can switch models per-task with `--config`:
+Each directory also keeps its own session history. Now you can switch models per task with `--config`:
 
 ```bash
 cline --config ~/.cline-haiku "quick task"
@@ -98,6 +94,11 @@ Get multiple AI perspectives on the same change, then synthesize their feedback.
 ### Example: Diff Review Pipeline
 
 ```bash
+set -euo pipefail
+
+# Remove reviews from an earlier run
+rm -f gemini-review.md gpt-review.md opus-review.md
+
 # Get the latest commit
 DIFF=$(git show)
 
@@ -105,16 +106,16 @@ DIFF=$(git show)
 echo "$DIFF" | cline --auto-approve true --config ~/.cline-gemini \
     "review this diff and write your analysis to gemini-review.md"
 
-# Review 2: Codex's perspective
-echo "$DIFF" | cline --auto-approve true --config ~/.cline-codex \
-    "review this diff and write your analysis to codex-review.md"
+# Review 2: GPT's perspective
+echo "$DIFF" | cline --auto-approve true --config ~/.cline-gpt \
+    "review this diff and write your analysis to gpt-review.md"
 
 # Review 3: Opus's perspective
 echo "$DIFF" | cline --auto-approve true --config ~/.cline-opus \
     "review this diff and write your analysis to opus-review.md"
 
 # Synthesize all reviews into a consensus
-cat gemini-review.md codex-review.md opus-review.md | cline --auto-approve true \
+cat gemini-review.md gpt-review.md opus-review.md | cline --auto-approve true \
     "summarize these 3 reviews and identify: 1) issues all models agree on, 2) issues only one model caught, 3) your final recommendation"
 ```
 
@@ -129,20 +130,28 @@ cat gemini-review.md codex-review.md opus-review.md | cline --auto-approve true 
 Run reviews in parallel for faster feedback:
 
 ```bash
-# Run all reviews simultaneously
-git show | cline --auto-approve true --config ~/.cline-gemini "review and save to gemini-review.md" &
-git show | cline --auto-approve true --config ~/.cline-codex "review and save to codex-review.md" &
-git show | cline --auto-approve true --config ~/.cline-opus "review and save to opus-review.md" &
+set -euo pipefail
 
-# Wait for all to complete
-wait
+# Remove reviews from an earlier run
+rm -f gemini-review.md gpt-review.md opus-review.md
+
+# Run all reviews simultaneously, and save each one's process ID
+git show | cline --auto-approve true --config ~/.cline-gemini "review and save to gemini-review.md" &
+pids=($!)
+git show | cline --auto-approve true --config ~/.cline-gpt "review and save to gpt-review.md" &
+pids+=($!)
+git show | cline --auto-approve true --config ~/.cline-opus "review and save to opus-review.md" &
+pids+=($!)
+
+# Wait for each review, and stop if one failed
+for pid in "${pids[@]}"; do wait "$pid"; done
 
 # Synthesize
-cat *-review.md | cline --auto-approve true "create consensus review"
+cat gemini-review.md gpt-review.md opus-review.md | cline --auto-approve true "create consensus review"
 ```
 
 <Note>
-Parallel execution requires managing multiple Cline instances. See [Multi-instance workflows](/usage/cli-overview#automation-patterns) for details.
+Each `cline` command runs as its own process, so the reviews run at the same time. Give each one a different output file, as above, so that they don't write over each other. `wait` on its own succeeds even when a review fails, so the script saves each review's process ID as it starts and waits for each one. Don't loop over `jobs -p` instead: in the bash 3.2 that macOS ships as `/bin/bash`, it leaves out reviews that have already finished, so a review that fails quickly would be missed.
 </Note>
 
 ## Extended Thinking for Complex Tasks
@@ -177,28 +186,43 @@ The `--thinking <level>` flag sets reasoning effort. Use `--thinking high` or `-
 ### Cost-Optimized PR Review
 
 ```bash
+set -euo pipefail
+
+# Remove findings from an earlier run
+rm -f issues.md
+
 # Haiku: Quick summary and issue identification
-gh pr view $PR | cline --auto-approve true --config ~/.cline-haiku \
-    "list all issues to fix, output as JSON"
+gh pr diff "$PR" | cline --auto-approve true --config ~/.cline-haiku \
+    "list the issues to fix in this diff and write them to issues.md. If there are none, don't create the file."
 
 # Opus with thinking: Deep analysis only if issues found
-if [ -s issues.json ]; then
+if [ -s issues.md ]; then
     cline --auto-approve true --thinking high --config ~/.cline-opus \
-        "analyze these issues and recommend fixes"
+        "analyze the issues in issues.md and recommend fixes"
 fi
 ```
 
 ### Security-Focused Multi-Model Scan
 
 ```bash
+set -euo pipefail
+
+# Print only Cline's final answer from --json output
+final_answer() { jq -r 'select(.type == "run_result") | .text'; }
+
 # Different models have different security perspectives
-git diff main | cline --auto-approve true --config ~/.cline-gemini "security review" > gemini-sec.md &
-git diff main | cline --auto-approve true --config ~/.cline-opus "security review" > opus-sec.md &
-git diff main | cline --auto-approve true --config ~/.cline-codex "security review" > codex-sec.md &
-wait
+git diff main | cline --auto-approve true --json --config ~/.cline-gemini "security review" | final_answer > gemini-sec.md &
+pids=($!)
+git diff main | cline --auto-approve true --json --config ~/.cline-opus "security review" | final_answer > opus-sec.md &
+pids+=($!)
+git diff main | cline --auto-approve true --json --config ~/.cline-gpt "security review" | final_answer > gpt-sec.md &
+pids+=($!)
+
+# Wait for each review, and stop if one failed
+for pid in "${pids[@]}"; do wait "$pid"; done
 
 # High-priority: Issues all 3 models found
-cat *-sec.md | cline --auto-approve true "find security issues all 3 reviews mentioned"
+cat gemini-sec.md opus-sec.md gpt-sec.md | cline --auto-approve true "find security issues all 3 reviews mentioned"
 ```
 
 ## Related Documentation

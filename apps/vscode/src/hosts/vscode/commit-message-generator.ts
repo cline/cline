@@ -55,6 +55,8 @@ type RepoSelectionItem = {
 
 const PROMPT = {
 	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
+	rulesPreamble:
+		"The user's rules follow. Apply any that concern commit messages, their language, format, or content; the rest describe how code is written and are not relevant here.",
 	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
 	instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
 
@@ -63,6 +65,21 @@ The commit message should:
 2. The commit message should adhere to the conventional commit format
 3. Describe what was changed and why
 4. Be clear and informative`,
+}
+
+/**
+ * System prompt for commit message generation: the base instructions plus the
+ * user's enabled rules, rendered the same way a session's system prompt renders
+ * them (see `Controller.getRulesForSystemPrompt`). Without this the button
+ * ignored `.clinerules` entirely — commit conventions users had written down
+ * were applied in chat and dropped here.
+ */
+export function buildCommitMessageSystemPrompt(rulesSection: string): string {
+	const rules = rulesSection.trim()
+	if (!rules) {
+		return PROMPT.system
+	}
+	return `${PROMPT.system}\n\n${PROMPT.rulesPreamble}${rulesSection}`
 }
 
 export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
@@ -197,8 +214,8 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 export async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: GitRepositoryInputBox) {
 	// This generation's cancel handle, registered before the first await. The
 	// SCM stop action is live as soon as the context key flips, so a handle
-	// registered after resolving the host identity would miss a cancel issued meanwhile and
-	// send the request anyway.
+	// registered after resolving the host identity or loading the rules would
+	// miss a cancel issued meanwhile and send the request anyway.
 	const abortController = new AbortController()
 	activeCommitGenerations.add(abortController)
 	try {
@@ -232,13 +249,16 @@ export async function performCommitMsgGeneration(controller: Controller, gitDiff
 		// themselves, and answers anything else with HTTP 403.
 		const apiHandler = await buildApiHandlerWithHostContext(apiConfiguration, currentMode, { disableReasoning: true })
 
-		// Create a system prompt
-		const systemPrompt = PROMPT.system
+		// Create a system prompt, including the user's rules. Stop must not wait
+		// out the first rules scan, which can be slow; the scan itself carries on
+		// and warms the watcher chat uses.
+		const rules = await untilAborted(controller.getRulesForSystemPrompt(), abortController.signal)
+		const systemPrompt = buildCommitMessageSystemPrompt(rules)
 
 		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]
 
-		// Cancelled while the host identity was resolving: send nothing.
+		// Cancelled while the host identity or the rules were loading: send nothing.
 		abortController.signal.throwIfAborted()
 		const stream = apiHandler.createMessage(systemPrompt, messages)
 
@@ -288,6 +308,30 @@ export function abortCommitGeneration() {
 		generation.abort()
 	}
 	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+}
+
+/**
+ * Settles like `promise`, or rejects with the signal's abort reason as soon as
+ * the signal fires. The promise keeps running; only the wait is cut short.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+	if (signal.aborted) {
+		return Promise.reject(signal.reason)
+	}
+	return new Promise<T>((resolve, reject) => {
+		const onAbort = () => reject(signal.reason)
+		signal.addEventListener("abort", onAbort, { once: true })
+		promise.then(
+			(value) => {
+				signal.removeEventListener("abort", onAbort)
+				resolve(value)
+			},
+			(error) => {
+				signal.removeEventListener("abort", onAbort)
+				reject(error)
+			},
+		)
+	})
 }
 
 /**

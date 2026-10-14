@@ -13,7 +13,6 @@ const mockExtensionState = vi.hoisted(() => ({
 		compactionStrategy: "basic",
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: true },
-		focusChainSettings: { enabled: false, remindClineInterval: 6 },
 		remoteConfigSettings: {},
 		backgroundEditEnabled: false,
 	},
@@ -91,5 +90,20 @@ describe("FeatureSettingsSection", () => {
 		fireEvent.click(screen.getByRole("switch", { name: "Feature Tips" }))
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("showFeatureTips", true)
+	})
+
+	it("hides the Cloud toggle unless the rollout flag makes it available", () => {
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.queryByRole("switch", { name: "Cloud" })).toBeNull()
+	})
+
+	it("calls updateSetting with cloudSessionsEnabled when the available Cloud toggle is switched", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, cloudSessionsAvailable: true, cloudSessionsEnabled: false }
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByRole("switch", { name: "Cloud" }))
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("cloudSessionsEnabled", true)
 	})
 })

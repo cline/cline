@@ -49,6 +49,10 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
+could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
+hosts should direct users to their session list instead of offering a blind retry.
+
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
@@ -172,12 +176,15 @@ the host only manages SSH and forwards the authenticated hub connection.
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
-`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
-provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
-registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
-data to the shared helper. `listLocalProviders` includes the resulting facts in
-each `ProviderListItem.auth`, allowing browser clients to render authentication
-guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+`ProviderLocalCli`, `resolveProviderLocalCli(provider)`, and
+`resolveProviderApiKeyOptional(provider)`. The resolvers accept provider data
+(`metadata.localCliCommand` with optional `docsUrl`, and `metadata.apiKeyOptional`);
+they perform no registry lookup. Hosts resolve providers through `@cline/llms` and
+then pass that data to the shared helpers. `listLocalProviders` includes the
+resulting facts in each `ProviderListItem.auth` (`localCli`, and `apiKeyOptional`
+for local inference servers and cloud-credential providers that run without a
+key), allowing browser clients to render authentication guidance and gate sessions
+without importing the LLM catalog. `ProviderListItem.modelTools` likewise
 carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
@@ -343,3 +350,26 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+## Symlinked instruction files
+
+Rules and workflows can be symbolic links to regular files. Source paths and
+fallback names use the link's name and location, not the target's. Broken,
+circular, and non-file targets are skipped.
+
+`UnifiedConfigFileWatcher` watches only the directory containing the link, not
+the link's target. Edits to a symlink's target are picked up on the next
+refresh or new session.
+
+## Unknown model completion recovery
+
+The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. Explicit `stop`, `tool-calls`, `content-filter`, and `error` retain their meanings. The agent also treats a stream without a finish event as unknown.
+
+Without tool activity, an unknown response is preserved in history and continued once, with the model-visible user message “Previous turn ended unexpectedly. Continue from where you left off.” The message uses `displayRole: "system"` and `userRunSpan: 0`, matching injected hook context so it stays out of live and replayed chat transcripts. The system prompt is unchanged. A second unknown completion fails the run. Queued user instructions are consumed before the continuation, including in the first iteration. Tool calls receive their results through the normal loop; provider-executed actions are not replayed.
+
+## Host connector transport
+
+Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost`
+and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
+Paths start with `/api/v1/connectors`; the host supplies the API origin and
+authentication. Omit it to retain local account authentication and rollout checks.

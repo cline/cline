@@ -199,6 +199,10 @@ export interface AgentToolContext {
 	metadata?: Record<string, unknown>;
 	snapshot?: AgentRuntimeStateSnapshot;
 	emitUpdate?: (update: unknown) => void;
+	/** Session working directory. Set by the host for plugin tools. */
+	cwd?: string;
+	/** Sends a plugin event to the calling session. Set by the host for plugin tools. */
+	emitEvent?: (name: string, payload?: unknown) => void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
@@ -276,10 +280,11 @@ export interface AgentRuntimePrepareTurnResult {
  * left both surfacing as "Model returned empty response", which tells a
  * user to retry something that cannot succeed.
  *
- * Provider finish reasons with no dedicated member here (`other`,
- * `unknown`, ...) still normalize to `stop`.
+ * Missing or unrecognized provider finish reasons normalize to `unknown`: the
+ * response may be cut off and must not be treated as successful completion.
  */
 export type AgentModelFinishReason =
+	| "unknown"
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"

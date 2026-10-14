@@ -15,6 +15,7 @@ import type {
 import {
 	isTranscriptionModel,
 	MODEL_TOOL_NAMES,
+	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
@@ -1034,6 +1035,9 @@ export async function listLocalProviders(
 							providerId: id,
 							capabilities,
 							localCli: resolveProviderLocalCli(info),
+							...(resolveProviderApiKeyOptional(info)
+								? { apiKeyOptional: true }
+								: {}),
 						},
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:

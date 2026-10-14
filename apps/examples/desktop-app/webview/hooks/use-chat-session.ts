@@ -61,7 +61,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
-import { formatRunError } from "@/lib/run-error";
+import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -137,6 +137,38 @@ type PendingToolOutput = {
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
+}
+
+/** A visible status line for a plugin the session could not fully use. */
+function makePluginIssueMessage(
+	sid: string | null,
+	content: string,
+): ChatMessage {
+	return {
+		id: makeId("plugin"),
+		sessionId: sid,
+		role: "status",
+		content,
+		createdAt: Date.now(),
+		meta: { messageKind: "plugin_issue" },
+	};
+}
+
+/** The notice text when a core log chunk reports a plugin issue. */
+function readPluginIssueWarning(chunk: string): string | undefined {
+	try {
+		const parsed = JSON.parse(chunk) as {
+			message?: unknown;
+			metadata?: { pluginIssue?: unknown };
+		};
+		return parsed.metadata?.pluginIssue &&
+			typeof parsed.message === "string" &&
+			parsed.message.trim()
+			? parsed.message.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function makeErrorChatMessage(
@@ -1932,6 +1964,11 @@ export function useChatSession(environmentId: string) {
 							rekeyedOptimisticIdByMessageIdRef.current[userMessageId];
 						for (let i = prev.length - 1; i >= 0; i--) {
 							const candidate = prev[i];
+							// Session start appends plugin warnings after the optimistic
+							// bubble; look past them to the prompt.
+							if (candidate.meta?.messageKind === "plugin_issue") {
+								continue;
+							}
 							if (candidate.role !== "user") {
 								break;
 							}
@@ -1982,6 +2019,12 @@ export function useChatSession(environmentId: string) {
 			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
 				dispatchCoreLog(payload.chunk);
+				// Plugin failures after the session started (setup and hooks run
+				// on the first turn) are shown in the chat, not only logged.
+				const pluginWarning = readPluginIssueWarning(payload.chunk);
+				if (pluginWarning) {
+					addMessage(makePluginIssueMessage(payload.sessionId, pluginWarning));
+				}
 				// Remember the latest error so a failed turn can explain itself:
 				// the runtime reports the underlying cause (e.g. an auth failure)
 				// here rather than on the turn-completion event.
@@ -1999,6 +2042,16 @@ export function useChatSession(environmentId: string) {
 					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);
+					// The sidecar is re-creating the session on a restarted hub;
+					// hold the turn open with a status instead of an error.
+					const hubReconnect = (
+						parsed.metadata as { hubReconnect?: unknown } | undefined
+					)?.hubReconnect;
+					if (hubReconnect === "started") {
+						setActivityLabel("Reconnecting to Cline Hub...");
+					} else if (hubReconnect === "finished") {
+						setActivityLabel(null);
+					}
 					if (summaryActivity) {
 						setActivityLabel(
 							summaryActivity.phase === "started"
@@ -2631,6 +2684,9 @@ export function useChatSession(environmentId: string) {
 			}
 			setSessionId(id);
 			setIsCloudSessionExpired(false);
+			for (const warning of payload.pluginWarnings ?? []) {
+				addMessage(makePluginIssueMessage(id, warning));
+			}
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
 			// actually dispatched.
@@ -2646,7 +2702,7 @@ export function useChatSession(environmentId: string) {
 			setHydratedHistorySessionId(null);
 			return id;
 		},
-		[environmentId, postSession],
+		[addMessage, environmentId, postSession],
 	);
 
 	// ---- Actions ----
@@ -3146,7 +3202,11 @@ export function useChatSession(environmentId: string) {
 				// rendered as an assistant bubble (canonical rehydration would
 				// silently wipe it, leaving the user with a blank chat).
 				const isErrorResult = result?.finishReason === "error";
-				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
+				// A hub-restart notice is shown as its own bubble below.
+				const assistantText =
+					isErrorResult || result?.hubInterrupted
+						? ""
+						: (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -3505,6 +3565,19 @@ export function useChatSession(environmentId: string) {
 						promptTaken = withdrawPrompt();
 					}
 				} else if (result?.finishReason === "aborted") {
+					// Canonical history keeps a trailing error-role bubble until a
+					// saved error replaces it, so the resend notice is not wiped
+					// when the rebuilt session's history is applied.
+					if (result.hubInterrupted && !newerTurnOwnsStatus) {
+						setMessages((prev) =>
+							sliceMessages([
+								...prev,
+								makeErrorChatMessage(activeSessionId, result.text, {
+									messageKind: HUB_INTERRUPTED_MESSAGE_KIND,
+								}),
+							]),
+						);
+					}
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus("cancelled");

@@ -5034,6 +5034,137 @@ describe("useChatSession", () => {
 		expect(userMessages[0]?.content).toBe("First prompt");
 	});
 
+	it("shows plugin failures from session start and later notices in the chat", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "info",
+					message:
+						'Plugin "broken-setup" failed during setup: boom (/p/setup.ts). Its tools and hooks are unavailable.',
+					metadata: { pluginIssue: { name: "broken-setup", state: "failed" } },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			// Ordinary core logs stay out of the transcript.
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({ level: "info", message: "compacting" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const pluginMessages = current.messages.filter(
+			(message) => message.meta?.messageKind === "plugin_issue",
+		);
+		expect(pluginMessages.map((message) => message.role)).toEqual([
+			"status",
+			"status",
+		]);
+		expect(pluginMessages[0]?.content).toContain('Plugin "broken-import"');
+		expect(pluginMessages[1]?.content).toContain('Plugin "broken-setup"');
+		expect(
+			current.messages.some((message) => message.content === "compacting"),
+		).toBe(false);
+	});
+
+	it("re-keys the optimistic bubble past a start-time plugin warning", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true, result: {} };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("hi there");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// The warning row now sits after the optimistic bubble; the queued
+		// start for the same prompt must still find and re-key that bubble.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "hi there",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user" && message.content === "hi there",
+		);
+		expect(userMessages).toHaveLength(1);
+		expect(userMessages[0]?.id).toBe("queued_user_queued-prompt-1");
+		expect(
+			current.messages.filter(
+				(message) => message.meta?.messageKind === "plugin_issue",
+			),
+		).toHaveLength(1);
+	});
+
 	it("explains a failed turn with the latest core error log", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

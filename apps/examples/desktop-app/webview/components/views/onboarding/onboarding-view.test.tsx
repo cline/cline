@@ -515,10 +515,16 @@ describe("OnboardingView", () => {
 			buttonByText("Get started").click();
 		});
 
-		// OAuth login that never resolves (browser round-trip abandoned).
+		let rejectLogin!: (error: Error) => void;
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "run_provider_oauth_login") {
-				return await new Promise(() => undefined);
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			}
+			if (command === "cancel_provider_oauth_login") {
+				rejectLogin(new Error("Sign-in cancelled"));
+				return { cancelled: true };
 			}
 			if (command === "cline_account") {
 				throw new Error("No Cline account auth token found");
@@ -543,6 +549,62 @@ describe("OnboardingView", () => {
 		expect(invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
 			provider: "cline",
 		});
+	});
+
+	it("stays on Welcome when sign-in completes after Back", async () => {
+		await render();
+		await act(async () => buttonByText("Get started").click());
+		let finishLogin!: () => void;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise<void>((resolve) => {
+					finishLogin = resolve;
+				});
+			}
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			return {};
+		});
+		await act(async () => buttonByText("Sign in").click());
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Back"]')
+				?.click();
+		});
+		expect(buttonByText("Get started")).toBeDefined();
+		await act(async () => finishLogin());
+		expect(buttonByText("Get started")).toBeDefined();
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(invoke).not.toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		await act(async () => buttonByText("Get started").click());
+		expect(container.textContent).toContain("Signed in as");
+	});
+
+	it("keeps sign-in busy during account refresh and does not advance after Cancel", async () => {
+		await render();
+		await act(async () => buttonByText("Get started").click());
+		let finishRefresh!: (user: { email: string; displayName: string }) => void;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return await new Promise((resolve) => {
+					finishRefresh = resolve;
+				});
+			}
+			return {};
+		});
+		await act(async () => buttonByText("Sign in").click());
+		expect(buttonByText("Waiting for browser...").disabled).toBe(true);
+		await act(async () => buttonByText("Cancel").click());
+		expect(buttonByText("Waiting for browser...").disabled).toBe(true);
+		await act(async () =>
+			finishRefresh({ email: "dev@example.com", displayName: "Dev" }),
+		);
+		expect(container.textContent).toContain("Signed in as");
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(buttonByText("Continue").disabled).toBe(false);
 	});
 
 	it("connects with a Cline API key when OAuth sign-in is not used", async () => {
@@ -694,7 +756,7 @@ describe("OnboardingView", () => {
 			{ provider: "cline" },
 			// The browser round-trip must get the extended OAuth deadline, not
 			// the default 120s command deadline (cline/cline#14201).
-			{ timeoutMs: 15 * 60_000 },
+			{ timeoutMs: 15 * 60_000, signal: expect.any(AbortSignal) },
 		);
 		expect(container.textContent).toContain("Connect GitHub");
 		await act(async () => {

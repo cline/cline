@@ -5,11 +5,12 @@ type StartInput = Parameters<SdkSessionLifecycle["startNewSession"]>[0]
 type SendHost = Parameters<SdkSessionLifecycle["fireAndForgetSend"]>[0]
 
 const mockCreateSessionHost = vi.hoisted(() => vi.fn())
+const mockGetGlobalSettingsKey = vi.hoisted(() => vi.fn())
 
 vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: {
 		get: () => ({
-			getGlobalSettingsKey: () => undefined,
+			getGlobalSettingsKey: mockGetGlobalSettingsKey,
 		}),
 	},
 }))
@@ -23,6 +24,7 @@ vi.mock("./vscode-session-host", () => ({
 describe("SdkSessionLifecycle", () => {
 	beforeEach(() => {
 		mockCreateSessionHost.mockReset()
+		mockGetGlobalSettingsKey.mockReset()
 	})
 
 	it("starts a session and stores active session state", async () => {
@@ -39,6 +41,207 @@ describe("SdkSessionLifecycle", () => {
 		expect(sdkHost.subscribe).toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("session-123")
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
+	})
+
+	it("does not start a host when the caller is superseded", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-stale" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		await expect(lifecycle.startNewSession({} as StartInput, sdkHost as never, () => false)).rejects.toMatchObject({
+			name: "SessionStartSupersededError",
+		})
+
+		expect(sdkHost.start).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+	})
+
+	it("keeps the active session and replacement callbacks untouched for an already superseded start", async () => {
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const onActiveSessionReplacementStarted = vi.fn()
+		const onActiveSessionReplacementFinished = vi.fn()
+		const lifecycle = makeLifecycle({ onActiveSessionReplacementStarted, onActiveSessionReplacementFinished })
+		await lifecycle.startNewSession({} as StartInput)
+		const activeSession = lifecycle.getActiveSession()
+		onActiveSessionReplacementStarted.mockClear()
+		onActiveSessionReplacementFinished.mockClear()
+
+		await expect(lifecycle.startNewSession({} as StartInput, undefined, () => false)).rejects.toMatchObject({
+			name: "SessionStartSupersededError",
+		})
+
+		expect(lifecycle.getActiveSession()).toBe(activeSession)
+		expect(sdkHost.start).toHaveBeenCalledOnce()
+		expect(sdkHost.stop).not.toHaveBeenCalled()
+		expect(onActiveSessionReplacementStarted).not.toHaveBeenCalled()
+		expect(onActiveSessionReplacementFinished).not.toHaveBeenCalled()
+	})
+
+	it("keeps a successor active when a same-id start is superseded while waiting for its old stop", async () => {
+		let finishStop = () => {}
+		const stop = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					finishStop = resolve
+				}),
+		)
+		const sdkHost = makeSdkHost({
+			stop,
+			start: vi
+				.fn()
+				.mockResolvedValueOnce({ sessionId: "old-session" })
+				.mockResolvedValueOnce({ sessionId: "successor" })
+				.mockResolvedValueOnce({ sessionId: "stale-session" }),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const onActiveSessionReplacementFinished = vi.fn()
+		const lifecycle = makeLifecycle({ onActiveSessionReplacementFinished })
+		await lifecycle.startNewSession({} as StartInput)
+		await lifecycle.endActiveSession("pending-stop")
+		let current = true
+		const staleStart = lifecycle
+			.startNewSession({ config: { sessionId: "old-session" } } as StartInput, undefined, () => current)
+			.catch((error: unknown) => error)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(sdkHost.start).toHaveBeenCalledOnce()
+		current = false
+		await lifecycle.startNewSession({} as StartInput)
+		const successor = lifecycle.getActiveSession()
+		finishStop()
+
+		expect(await staleStart).toMatchObject({ name: "SessionStartSupersededError" })
+		expect(lifecycle.getActiveSession()).toBe(successor)
+		expect(sdkHost.start).toHaveBeenCalledTimes(2)
+		expect(sdkHost.stop).toHaveBeenCalledExactlyOnceWith("old-session")
+		expect(onActiveSessionReplacementFinished).toHaveBeenLastCalledWith(successor)
+	})
+
+	it("finishes replacement bookkeeping when a start is superseded during local host creation", async () => {
+		const sdkHost = makeSdkHost()
+		let finishCreation = () => {}
+		mockCreateSessionHost.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishCreation = () => resolve(sdkHost)
+				}),
+		)
+		const onActiveSessionReplacementStarted = vi.fn()
+		const onActiveSessionReplacementFinished = vi.fn()
+		const lifecycle = makeLifecycle({ onActiveSessionReplacementStarted, onActiveSessionReplacementFinished })
+		let current = true
+		const start = lifecycle.startNewSession({} as StartInput, undefined, () => current).catch((error: unknown) => error)
+		await vi.waitFor(() => expect(mockCreateSessionHost).toHaveBeenCalledOnce())
+		current = false
+		finishCreation()
+
+		expect(await start).toMatchObject({ name: "SessionStartSupersededError" })
+		expect(sdkHost.start).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledExactlyOnceWith(undefined)
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledExactlyOnceWith(undefined)
+	})
+
+	it("stops only a superseded remote start when another host has become active", async () => {
+		let finishStaleStart = () => {}
+		const staleHost = makeSdkHost({
+			start: vi
+				.fn()
+				.mockImplementationOnce(
+					() =>
+						new Promise((resolve) => {
+							finishStaleStart = () => resolve({ sessionId: "stale-session" })
+						}),
+				)
+				.mockResolvedValue({ sessionId: "current-session" }),
+		})
+		const currentHost = makeSdkHost({ startResult: { sessionId: "current-session" } })
+		mockCreateSessionHost.mockResolvedValueOnce(staleHost)
+		const onActiveSessionReplacementFinished = vi.fn()
+		const lifecycle = makeLifecycle({ onActiveSessionReplacementFinished })
+		let current = true
+		const staleStart = lifecycle
+			.startNewSession({} as StartInput, staleHost as unknown as SendHost, () => current)
+			.catch((error: unknown) => error)
+		await vi.waitFor(() => expect(staleHost.start).toHaveBeenCalledOnce())
+		current = false
+		await lifecycle.startNewSession({} as StartInput, currentHost as unknown as SendHost)
+		const successor = lifecycle.getActiveSession()
+		finishStaleStart()
+
+		expect(await staleStart).toMatchObject({ name: "SessionStartSupersededError" })
+		expect(staleHost.stop).toHaveBeenCalledExactlyOnceWith("stale-session")
+		expect(currentHost.stop).not.toHaveBeenCalled()
+		expect(staleHost.subscribe).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()).toBe(successor)
+		expect(successor?.sessionId).toBe("current-session")
+		expect(onActiveSessionReplacementFinished).toHaveBeenLastCalledWith(successor)
+	})
+
+	it("routes an override host's events and leaves tool policies to that host", async () => {
+		const unsubscribe = vi.fn()
+		const remoteHost = makeSdkHost({ startResult: { sessionId: "remote-session" }, unsubscribe })
+		const localHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(localHost)
+		mockGetGlobalSettingsKey.mockReturnValue({ enabled: true })
+		const getServers = vi.fn().mockReturnValue([])
+		const onSessionEvent = vi.fn()
+		const onActiveSessionReplacementStarted = vi.fn()
+		const onActiveSessionReplacementFinished = vi.fn()
+		const lifecycle = makeLifecycle({
+			mcpHub: { getServers } as unknown as ConstructorParameters<typeof SdkSessionLifecycle>[0]["mcpHub"],
+			onSessionEvent,
+			onActiveSessionReplacementStarted,
+			onActiveSessionReplacementFinished,
+		})
+
+		const result = await lifecycle.startNewSession({} as StartInput, remoteHost as unknown as SendHost)
+
+		expect(result.sdkHost).toBe(remoteHost)
+		expect(mockCreateSessionHost).not.toHaveBeenCalled()
+		expect(remoteHost.start).toHaveBeenCalledExactlyOnceWith({})
+		expect(getServers).not.toHaveBeenCalled()
+		const listener = remoteHost.subscribe.mock.calls[0][0]
+		const event = { type: "session_started", sessionId: "remote-session" }
+		listener(event)
+		expect(onSessionEvent).toHaveBeenCalledExactlyOnceWith(event)
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledExactlyOnceWith(undefined)
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledExactlyOnceWith(lifecycle.getActiveSession())
+		await lifecycle.endActiveSession("test")
+		expect(unsubscribe).toHaveBeenCalledOnce()
+	})
+
+	it("finishes replacement bookkeeping after an override host fails to start", async () => {
+		const error = new Error("remote start failed")
+		const remoteHost = makeSdkHost({ start: vi.fn().mockRejectedValue(error) })
+		mockCreateSessionHost.mockResolvedValueOnce(makeSdkHost())
+		const onActiveSessionReplacementStarted = vi.fn()
+		const onActiveSessionReplacementFinished = vi.fn()
+		const lifecycle = makeLifecycle({ onActiveSessionReplacementStarted, onActiveSessionReplacementFinished })
+
+		await expect(lifecycle.startNewSession({} as StartInput, remoteHost as unknown as SendHost)).rejects.toBe(error)
+
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+		expect(remoteHost.subscribe).not.toHaveBeenCalled()
+		expect(onActiveSessionReplacementStarted).toHaveBeenCalledExactlyOnceWith(undefined)
+		expect(onActiveSessionReplacementFinished).toHaveBeenCalledExactlyOnceWith(undefined)
+	})
+
+	it("retains local tool policies when no override host is supplied", async () => {
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		mockGetGlobalSettingsKey.mockReturnValue({ enabled: true })
+		const getServers = vi.fn().mockReturnValue([])
+		const lifecycle = makeLifecycle({
+			mcpHub: { getServers } as unknown as ConstructorParameters<typeof SdkSessionLifecycle>[0]["mcpHub"],
+		})
+
+		await lifecycle.startNewSession({} as StartInput)
+
+		expect(sdkHost.start).toHaveBeenCalledWith(
+			expect.objectContaining({ toolPolicies: expect.objectContaining({ read_files: { autoApprove: false } }) }),
+		)
+		expect(getServers).toHaveBeenCalledOnce()
 	})
 
 	it("stores the provider and model config used to start the active session", async () => {
