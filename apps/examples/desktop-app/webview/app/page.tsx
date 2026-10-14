@@ -1236,8 +1236,7 @@ function ChatThreadPane({
 	const cloudAgentsEnabled =
 		cloudAgentsFlagEnabled === true &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
-	const { user: accountUser, activeOrganization } = useAccount();
-	const accountUserId = accountUser?.id ?? null;
+	const { activeOrganization } = useAccount();
 	const openGitHubConnect = useCallback(
 		async (fallbackUrl: string) => {
 			if (activeOrganization) {
@@ -1249,7 +1248,6 @@ function ChatThreadPane({
 		[activeOrganization],
 	);
 	useEffect(() => {
-		void accountUserId;
 		let cancelled = false;
 		let retryTimer: number | undefined;
 		let attempts = 0;
@@ -1276,23 +1274,11 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
-		// Reflect Settings changes without restarting or switching accounts.
-		const unsubscribe = desktopClient.subscribe(
-			"feature_flags_changed",
-			(payload) => {
-				if (!cancelled) {
-					setCloudAgentsFlagEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			},
-		);
 		return () => {
 			cancelled = true;
-			unsubscribe();
 			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
 		};
-	}, [accountUserId]);
+	}, []);
 	// Worktrees are cut by the local sidecar's git, so they are only offered
 	// for the local environment. The choice also only holds while the
 	// workspace is a git repo; a plain folder (or pending discovery) silently
