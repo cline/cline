@@ -447,6 +447,12 @@ describe("isRetryableProviderError", () => {
 		it("retries OpenRouter's bare mid-stream 'Provider returned error' string", () => {
 			expect(isRetryableProviderError("Provider returned error")).toBe(true);
 		});
+
+		it("retries the Cline API's mid-stream upstream timeout string", () => {
+			expect(isRetryableProviderError("Stream failed: upstream timeout")).toBe(
+				true,
+			);
+		});
 	});
 
 	describe("not retryable", () => {
