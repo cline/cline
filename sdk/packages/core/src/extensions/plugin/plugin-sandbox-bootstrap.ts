@@ -26,6 +26,8 @@ import {
 	type PluginTargeting,
 } from "./plugin-targeting";
 
+export { registerHostPluginModules } from "./plugin-module-import";
+
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
 // ---------------------------------------------------------------------------

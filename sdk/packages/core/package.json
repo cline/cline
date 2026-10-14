@@ -27,6 +27,10 @@
 			"types": "./dist/hub/daemon/entry.d.ts",
 			"import": "./dist/hub/daemon/entry.js"
 		},
+		"./plugin-worker": {
+			"types": "./dist/extensions/plugin/plugin-sandbox-bootstrap.d.ts",
+			"import": "./dist/extensions/plugin-sandbox-bootstrap.js"
+		},
 		"./telemetry": {
 			"types": "./dist/services/telemetry/index.d.ts",
 			"import": "./dist/services/telemetry/index.js"

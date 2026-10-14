@@ -22,6 +22,15 @@ import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
 
+declare const CLINE_PLUGIN_WORKER_PATH: string | undefined;
+
+// Compiled executables run plugins in their embedded worker, which serves the
+// SDK from this build. Override any bootstrap a parent process configured: the
+// Hub daemon and SSH remotes run this binary with no plugin files beside it.
+if (typeof CLINE_PLUGIN_WORKER_PATH === "string") {
+	process.env.CLINE_PLUGIN_BOOTSTRAP_PATH = CLINE_PLUGIN_WORKER_PATH;
+}
+
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.
 initVcr(process.env.CLINE_VCR);
