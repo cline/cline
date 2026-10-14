@@ -1679,7 +1679,7 @@ describe("first-send connection updates", () => {
 		};
 	}
 
-	it("preserves an observed idle session when attach reports a resident running process", async () => {
+	it("preserves a newer Hub idle event over a running attach reply", async () => {
 		const { ctx, sessionId } = createContext({ attachedViaHub: true });
 		const binding = ctx.runtimeBindings.get("local");
 		if (!binding) throw new Error("missing binding");
@@ -1687,7 +1687,14 @@ describe("first-send connection updates", () => {
 			handleHubLiveEvent(ctx, {
 				event: "session.attached",
 				sessionId,
+				sequence: 1,
 				payload: { session: { status: "running" } },
+			});
+			handleHubLiveEvent(ctx, {
+				event: "session.updated",
+				sessionId,
+				sequence: 2,
+				payload: { session: { status: "idle" } },
 			});
 			return {
 				version: "v1",
