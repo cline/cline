@@ -281,6 +281,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly settings: CoreSettingsService;
 	private readonly pluginCommands: HubPluginCommandService;
 	private readonly sessionSearch: SessionHistorySearchService;
+	private readonly sessionStore?: SqliteSessionStore;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
@@ -306,14 +307,17 @@ export class HubServerTransport implements NativeHubTransport {
 				}),
 			);
 		});
-		this.sessionHost =
-			options.sessionHost ??
-			new LocalRuntimeHost({
-				sessionService: new CoreSessionService(new SqliteSessionStore()),
+		if (options.sessionHost) {
+			this.sessionHost = options.sessionHost;
+		} else {
+			this.sessionStore = new SqliteSessionStore();
+			this.sessionHost = new LocalRuntimeHost({
+				sessionService: new CoreSessionService(this.sessionStore),
 				fetch: options.fetch,
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		}
 		this.sessionSearch = new SessionHistorySearchService(
 			this.sessionHost,
 			options.sessionSearchOptions ??
@@ -764,7 +768,12 @@ export class HubServerTransport implements NativeHubTransport {
 		await this.pluginCommands.dispose();
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
-		await this.sessionHost.dispose("hub_server_stop");
+		try {
+			await this.sessionHost.dispose("hub_server_stop");
+		} finally {
+			// The Hub owns the default store; injected runtimes own theirs.
+			this.sessionStore?.close();
+		}
 		await this.schedules.dispose();
 		if (this.cronService) {
 			try {

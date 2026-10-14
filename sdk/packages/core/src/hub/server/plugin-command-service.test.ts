@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { localHubHasNoActiveSessions, NodeHubClient } from "../client";
 import { HubPluginClient } from "../client/plugin-client";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
@@ -204,4 +205,21 @@ it("reports a marketplace install as busy without an attached chat", async () =>
 		(await transport.handleCommand({ version: "v1", command: "hub.status" }))
 			.payload?.idle,
 	).toBe(true);
+});
+
+it("closes the Hub-owned session database before removing its directory", async () => {
+	const opened = vi.spyOn(SqliteSessionStore.prototype, "getRawDb");
+	try {
+		await transport.handleCommand({ version: "v1", command: "session.list" });
+		const db = opened.mock.results.find(
+			(result) => result.type === "return",
+		)?.value;
+		if (!db)
+			throw new Error("Expected session.list to open the session database");
+		await transport.stop();
+		stopped = true;
+		expect(() => db.prepare("SELECT 1").get()).toThrow();
+	} finally {
+		opened.mockRestore();
+	}
 });

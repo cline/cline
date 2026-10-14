@@ -1252,3 +1252,7 @@ reports active plugin requests in both `session.list` activity and `hub.status`;
 replacement and recovery checks count these requests even when no chat is attached.
 Admission is drained before activity is checked, preventing new plugin work from
 starting between the idle check and retirement.
+
+The Hub owns the SQLite session store it creates for its default local runtime
+and closes that store after runtime shutdown. An injected session host retains
+ownership of its persistence resources.
