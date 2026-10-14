@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import { telemetryDefineArgs } from "./telemetry-define-args";
@@ -133,12 +134,28 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 // placed in core so every chunk sits inside a `"type": "module"` package.
 const bundlePluginSdkPackages = async (): Promise<void> => {
 	const outdir = "src-tauri/bin/extensions/node_modules/@cline";
-	const packages = ["sdk", "core", "agents", "llms", "shared"];
+	const packagesRoot = "../../../sdk/packages";
+	const packages = await Promise.all(
+		["sdk", "core", "agents", "llms", "shared"].map(async (name) => {
+			const root = `${packagesRoot}/${name}`;
+			const manifest = (await Bun.file(`${root}/package.json`).json()) as {
+				exports: Record<string, { import: string }>;
+			};
+			// Type-only exports (e.g. @cline/shared/types) have no JS to ship.
+			const exports = Object.fromEntries(
+				Object.entries(manifest.exports)
+					.map(([path, entry]) => [path, entry.import] as const)
+					.filter(([, file]) => existsSync(`${root}/${file}`)),
+			);
+			return { root, name, exports };
+		}),
+	);
 	await $`rm -rf ${outdir}`;
 	const result = await Bun.build({
-		entrypoints: packages.map(
-			(name) => `../../../sdk/packages/${name}/dist/index.js`,
+		entrypoints: packages.flatMap(({ root, exports }) =>
+			Object.values(exports).map((file) => `${root}/${file}`),
 		),
+		root: packagesRoot,
 		outdir,
 		naming: { chunk: "core/dist/[name]-[hash].[ext]" },
 		target: "node",
@@ -149,14 +166,10 @@ const bundlePluginSdkPackages = async (): Promise<void> => {
 	if (!result.success) {
 		throw new AggregateError(result.logs, "plugin SDK bundle failed");
 	}
-	for (const name of packages) {
+	for (const { name, exports } of packages) {
 		await Bun.write(
 			`${outdir}/${name}/package.json`,
-			JSON.stringify({
-				name: `@cline/${name}`,
-				type: "module",
-				exports: "./dist/index.js",
-			}),
+			JSON.stringify({ name: `@cline/${name}`, type: "module", exports }),
 		);
 	}
 };
