@@ -94,6 +94,7 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    resource_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -361,7 +362,7 @@ impl DesktopBackendState {
                 let _ = Command::new("kill").arg(child.id().to_string()).status();
                 // Windows has no SIGTERM equivalent, so terminate outright.
                 // Reap the child too: TerminateProcess is quick, and the
-                // update-restart path needs the sidecar exe's file lock
+                // update-restart path needs the bundled CLI's file lock
                 // released before the NSIS installer replaces it.
                 #[cfg(not(unix))]
                 {
@@ -396,7 +397,7 @@ struct DesktopBackendReadyLine {
 }
 
 /// The release binary is a GUI-subsystem app (no console), so on Windows
-/// every console-subsystem child (git, cmd, the sidecar) would otherwise
+/// every console-subsystem child (git, cmd, the bundled CLI) would otherwise
 /// allocate its own visible console window. Piped stdio does not prevent
 /// that; only CREATE_NO_WINDOW does.
 #[cfg(windows)]
@@ -456,9 +457,12 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-fn desktop_backend_binary_names() -> Vec<String> {
+/// The bundled Cline CLI (a Tauri `externalBin`). It starts or reuses the
+/// shared Hub, runs as the Hub daemon, and is the runtime the packaged
+/// desktop backend script executes on, so the app needs no Node or Bun.
+fn desktop_cli_binary_names() -> Vec<String> {
     let extension = if cfg!(windows) { ".exe" } else { "" };
-    let bundled_name = format!("code-sidecar{extension}");
+    let bundled_name = format!("cline-cli{extension}");
     let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
     if target_triple.is_empty() {
         return vec![bundled_name];
@@ -466,72 +470,108 @@ fn desktop_backend_binary_names() -> Vec<String> {
 
     vec![
         bundled_name,
-        format!("code-sidecar-{target_triple}{extension}"),
+        format!("cline-cli-{target_triple}{extension}"),
     ]
 }
 
-fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> {
-    if cfg!(debug_assertions) {
-        return None;
-    }
-    let explicit = std::env::var("CLINE_CODE_SIDECAR_BIN")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from);
+fn non_empty_env_path(name: &str) -> Option<PathBuf> {
+    non_empty_env(name).map(PathBuf::from)
+}
+
+fn desktop_app_bin_dir(context: &AppContext) -> PathBuf {
+    PathBuf::from(&context.workspace_root)
+        .join("apps")
+        .join("examples")
+        .join("desktop-app")
+        .join("src-tauri")
+        .join("bin")
+}
+
+fn resolve_desktop_cli_path(context: &AppContext) -> Option<PathBuf> {
     let current_exe = std::env::current_exe().ok();
     let mut candidates = Vec::new();
-    if let Some(path) = explicit {
+    if let Some(path) = non_empty_env_path("CLINE_DESKTOP_CLI_BIN") {
         candidates.push(path);
     }
-
-    for binary_name in desktop_backend_binary_names() {
-        candidates.push(
-            PathBuf::from(&context.workspace_root)
-                .join("apps")
-                .join("examples")
-                .join("desktop-app")
-                .join("src-tauri")
-                .join("bin")
-                .join(&binary_name),
-        );
+    for binary_name in desktop_cli_binary_names() {
         if let Some(path) = current_exe
             .as_ref()
             .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
         {
             candidates.push(path);
         }
-        if let Some(path) = current_exe.as_ref().and_then(|path| {
-            path.parent()
-                .and_then(|parent| parent.parent())
-                .map(|parent| parent.join("Resources").join(&binary_name))
-        }) {
-            candidates.push(path);
-        }
+        candidates.push(desktop_app_bin_dir(context).join(&binary_name));
     }
+    candidates.into_iter().find(|path| path.is_file())
+}
 
-    candidates.into_iter().find(|path| path.exists())
+fn desktop_backend_bundle_candidates(resource_dir: &Path) -> Vec<PathBuf> {
+    vec![resource_dir
+        .join("bin")
+        .join("desktop-backend")
+        .join("index.js")]
+}
+
+fn resolve_desktop_backend_bundle_path(context: &AppContext) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Some(path) = non_empty_env_path("CLINE_DESKTOP_BACKEND_BUNDLE") {
+        candidates.push(path);
+    }
+    candidates.extend(desktop_backend_bundle_candidates(&context.resource_dir));
+    candidates.push(
+        desktop_app_bin_dir(context)
+            .join("desktop-backend")
+            .join("index.js"),
+    );
+    candidates.into_iter().find(|path| path.is_file())
 }
 
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
-    let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
-        let mut command = Command::new(binary_path);
-        command.current_dir(&context.workspace_root);
-        command
-    } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
+    let cli_path = resolve_desktop_cli_path(context);
+    let script_path = if cfg!(debug_assertions) {
+        resolve_desktop_backend_script_path(context)
+    } else {
+        None
+    };
+    let mut command = if let Some(script_path) = script_path {
         let mut command = Command::new("bun");
         command
             .arg("run")
             .arg(script_path.to_string_lossy().to_string())
             .current_dir(&context.workspace_root);
         command
+    } else if let (Some(cli_path), Some(bundle_path)) = (
+        cli_path.as_ref(),
+        resolve_desktop_backend_bundle_path(context),
+    ) {
+        let mut command = Command::new(cli_path);
+        command.arg("run").arg("--no-env-file").arg(&bundle_path);
+        // Run from the bundle's own directory so the runtime cannot pick up
+        // a workspace .env or bunfig.toml; the backend moves to the
+        // workspace root itself (CLINE_DESKTOP_WORKSPACE_ROOT).
+        if let Some(bundle_dir) = bundle_path.parent() {
+            command.current_dir(bundle_dir);
+        }
+        command
+            .env("BUN_BE_BUN", "1")
+            .env("CLINE_DESKTOP_WORKSPACE_ROOT", &context.workspace_root)
+            .env(
+                "CLINE_REMOTE_HELPER_DIRECTORY",
+                context.resource_dir.join("bin").join("remote-helpers"),
+            );
+        command
     } else {
         return Err(format!(
-            "desktop backend sidecar not found. checked binary/script under workspace_root={} and launch_cwd={}",
-            context.workspace_root, context.launch_cwd
+            "desktop backend not found: needs the bundled Cline CLI ({}) and backend bundle. checked under workspace_root={} and launch_cwd={}",
+            if cli_path.is_some() { "found" } else { "missing" },
+            context.workspace_root,
+            context.launch_cwd
         ));
     };
 
+    if let Some(cli_path) = cli_path.as_ref() {
+        command.env("CLINE_DESKTOP_CLI_PATH", cli_path);
+    }
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -539,7 +579,7 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
     hide_console_window(&mut command);
     command
         .spawn()
-        .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))
+        .map_err(|e| format!("failed to start desktop backend: {e}"))
 }
 
 fn ensure_desktop_backend_started(
@@ -803,7 +843,7 @@ fn wait_for_desktop_backend_endpoint(
                 .unwrap_or(true)
         {
             last_respawn = Some(Instant::now());
-            // A spawn error (sidecar binary missing) is permanent for this
+            // A spawn error (bundled CLI or backend missing) is permanent for this
             // wait; report it instead of burning the rest of the window.
             respawn()?;
         }
@@ -899,7 +939,7 @@ fn apply_staged_update(app: &tauri::AppHandle) {
     let update_state = app.state::<Arc<UpdateState>>();
     // Neither restart() nor install() returns, so the run-loop Exit handler
     // does not get a chance to stop the sidecar; shut it down explicitly
-    // first. On Windows this also releases the sidecar exe's file lock,
+    // first. On Windows this also releases the bundled CLI's file lock,
     // which the NSIS installer needs in order to replace it.
     backend_state.stop();
     // Windows and Linux: install the bytes staged by the background cycle.
@@ -1489,10 +1529,6 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
-    let app_context = AppContext {
-        launch_cwd,
-        workspace_root,
-    };
 
     tauri::Builder::default()
         // Closing the window only hides it, so on Windows a second launch from
@@ -1506,10 +1542,14 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
-        .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
-        .setup(|app| {
+        .setup(move |app| {
+            app.manage(AppContext {
+                launch_cwd: launch_cwd.clone(),
+                workspace_root: workspace_root.clone(),
+                resource_dir: app.path().resource_dir()?,
+            });
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),
@@ -1624,6 +1664,23 @@ mod tests {
 
         let entitlements = include_str!("../entitlements.plist");
         assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+    }
+
+    #[test]
+    fn backend_bundle_uses_only_the_running_apps_resource_directory() {
+        let relative = Path::new("bin").join("desktop-backend").join("index.js");
+        for resource_dir in [
+            Path::new("/Applications/Cline.app/Contents/Resources"),
+            Path::new("C:/Program Files/Cline"),
+            Path::new("/usr/lib/Cline"),
+            Path::new("/usr/lib/Cline Beta"),
+            Path::new("/usr/lib/Cline Nightly"),
+        ] {
+            assert_eq!(
+                desktop_backend_bundle_candidates(resource_dir),
+                vec![resource_dir.join(&relative)]
+            );
+        }
     }
 
     #[test]
