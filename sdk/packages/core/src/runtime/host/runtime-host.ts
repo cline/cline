@@ -158,6 +158,13 @@ export interface StartSessionInput {
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
 	initialMessages?: LlmsProviders.MessageWithMetadata[];
+	/**
+	 * True when the user is resuming an earlier session (CLI `--id` or history
+	 * picker, ACP session load, Desktop opening a past session). Run-start hooks
+	 * then dispatch agent_resume instead of agent_start. Restarts that merely
+	 * carry the transcript forward (plan/act or model switches) leave it unset.
+	 */
+	resumed?: boolean;
 	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
