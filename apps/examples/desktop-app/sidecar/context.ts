@@ -30,6 +30,7 @@ import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
+import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -918,6 +919,9 @@ export function handleHubLiveEvent(
 		payload?: Record<string, unknown>;
 	},
 ): void {
+	if (ctx.activeEnvironmentId === LOCAL_ENVIRONMENT_ID) {
+		recordHubActivity(getSidecarContextOwner(ctx), event);
+	}
 	if (event.event === "approval.requested") {
 		if (typeof event.payload?.agendaTaskId !== "string") return;
 		void handleHubApprovalRequest(ctx, event).catch((error) => {
