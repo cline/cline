@@ -63,6 +63,7 @@ import {
 import {
 	appendRequestId,
 	extractResponseRequestId,
+	findRequestIdHeader,
 } from "./response-request-id";
 import {
 	applyPromptCacheToLastTextPart,
@@ -1527,9 +1528,7 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 				if (part.type === "finish-step") {
-					requestId = Object.entries(part.response?.headers ?? {}).find(
-						([name]) => name.toLowerCase() === "x-request-id",
-					)?.[1];
+					requestId = findRequestIdHeader(part.response?.headers);
 					continue;
 				}
 				if (part.type === "text-delta") {
