@@ -13,14 +13,14 @@ From `apps/examples/desktop-app/`:
 - `bun run build:web` - build production web assets only (includes the shared UI build)
 - `bun run build` - build web assets and the desktop runtime
 - `bun run build:sidecar` - build the Bun sidecar bundle
-- `bun run build:runtime` - compile the bundled Cline CLI (host plus Linux SSH remote copies) and bundle the desktop backend into `src-tauri/bin/`
+- `bun run build:runtime` - compile a local CLI for development and bundle the desktop backend and pinned CLI installer manifests into `src-tauri/bin/`
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
 ### Checking webview changes
 
-Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
+Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` export points to the Node entry point.
 
 ## Pull Requests
 
@@ -155,17 +155,16 @@ content-addressed, branch-matched, self-contained Cline CLI binary under
 `~/.cline/remote/` and runs `cline hub ensure --json --discovery-path ...`
 there, which reuses a compatible healthy remote Hub or starts one bound to
 remote loopback. The desktop forwards it to a random local loopback port.
-Linux x64 and arm64 CLI copies are bundled by `bun run build:runtime`; 32-bit
-Raspberry Pi operating systems are not supported. A macOS desktop reaches
-macOS SSH hosts with its own signed universal Cline CLI; Windows and Linux
-desktops need a locally built darwin CLI passed through
-`CLINE_REMOTE_HELPER_BINARY`. The remote CLI includes its own runtime (about
-115 MB per copy) and must not be UPX-compressed; Bun reads its embedded code
-back from the executable at runtime, so a packed binary crashes with
-`SyntaxError: Invalid character: '\0'`. It is copied once per matching desktop
-build and cached, with no `apt`, `npm`, root access, global CLI install, or
-public Hub port. Disconnecting runs `cline hub stop` for the desktop-owned
-remote Hub but leaves the CLI cached for a faster reconnect. The remote Hub
+macOS/Linux Desktop reuses its compatible installed CLI for a matching SSH
+target, or downloads that target from its pinned `cli-v…` release into
+`~/.cline/remote-runtimes/<target>/`. Linux x64 requires a baseline CPU build.
+Windows retains bundled Linux helpers; explicit local helper overrides take
+priority. 32-bit Linux and musl/Alpine hosts are unsupported. The CLI embeds its
+plugin runtime/SDK and dashboard, so the remote host needs no Node/Bun, package
+manager, root access, global CLI installation, or public Hub port. Uploads hash
+and transfer the same temporary snapshot, so a local CLI upgrade cannot change
+bytes after naming the remote executable. Disconnecting stops the desktop-owned
+remote Hub and retains its cached executable for reconnects. The remote Hub
 imports the remote login-shell `PATH` (`--login-shell-path`), so
 user-installed Git, GitHub CLI, and MCP executables remain visible.
 
@@ -196,6 +195,37 @@ package. Other Cline web surfaces can take only its tokens or opt into the
 Tailwind adapter and shared base styles without depending on the desktop
 runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
 desktop integration notes.
+
+## Shared CLI installation
+
+Packaged macOS/Linux Desktop checks PATH and the user's interactive login shell
+for an installed CLI. A compiled executable with the same SDK build fingerprint
+and Core version is reused, preserving its wrapper-provided launch environment.
+An incompatible external CLI must be updated or removed; Desktop reports that
+error rather than overwriting a package-managed installation.
+
+If no compatible installation is present, the app runs the CLI-owned Unix
+installer non-interactively for its exact pinned release. Versioned executables
+live under `~/.cline/packages/standalone/releases/`, selected by the stable
+`~/.local/bin/cline` symlink. The installer verifies checksum and SDK identity,
+serializes activation, retains old releases, and prevents downgrades. Desktop
+shutdown cancels installation and its download processes. A failed installation
+is shown through the existing backend-startup error flow.
+
+`build:runtime` bundles `install.sh`, `release.txt`, and `identity.json`. The
+release defaults to `cli-v<apps/cli/package.json version>`; set
+`CLINE_DESKTOP_CLI_RELEASE` to another exact CLI tag when needed. macOS/Linux
+bundles contain backend JS and installer resources; Windows keeps its bundled
+CLI and Linux SSH runtimes. Development runs from source with a locally compiled
+CLI and can use `CLINE_REMOTE_HELPER_BINARY` or `CLINE_REMOTE_HELPER_DIRECTORY`
+for other SSH targets.
+
+Publish the matching CLI **before** Desktop. The desktop publish workflow checks
+all four Unix release metadata sets against its SDK fingerprint and rejects
+missing or mismatched releases. Its optional `cli_release` input pins an explicit
+tag; stable, beta, and nightly Desktop builds all require a published matching
+CLI. Offline startup works with a compatible installed CLI or verified managed
+cache; a first install requires access to GitHub release assets.
 
 ## Releases & Auto-Updates
 
@@ -239,13 +269,13 @@ sudo dnf install ./Cline_<version>_aarch64.rpm   # Fedora / RHEL (arm64)
 ```
 
 The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
-bundled Cline CLI is `/usr/bin/cline-cli`, and the desktop backend bundle and
-SSH remote CLIs live in `/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
+desktop backend and installer resources live in `/usr/lib/Cline/`. The shared
+CLI is installed through `~/.local/bin/cline`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
 GNOME with the AppIndicator extension); without one the app still runs but the
-tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
-Bun-compiled Cline CLI (`ldd` fails on it and `patchelf` corrupts it), so the
-AppImage target is excluded from `tauri build` on Linux. A Linux desktop
-cannot use a Mac as an SSH remote host (see the changelog).
+tray menu is unavailable.
+The current Linux release pipeline produces deb/rpm packages; AppImage remains
+excluded. macOS SSH targets use the pinned native CLI release just like Linux
+SSH targets.
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -301,7 +331,7 @@ Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
    In a packaged app the backend is `bin/desktop-backend/index.js`, executed by
-   the bundled Cline CLI (`cline-cli run`); `bun run dev` runs `sidecar/index.ts`
+   the selected compatible Cline CLI (`cline run`); `bun run dev` runs `sidecar/index.ts`
    with Bun directly.
 2. The backend runs `cline-cli hub ensure`, which reuses a compatible healthy
    shared Cline Hub on loopback or starts one (the Hub daemon is the same CLI
