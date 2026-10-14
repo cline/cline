@@ -305,7 +305,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 	return (
 		<div className="h-full flex flex-col">
 			<div className="flex flex-col h-full">
-				<div className="flex flex-col w-full gap-1 mb-6">
+				<div className="flex flex-col w-full gap-1 mb-6 relative z-50">
 					<div className="flex items-center flex-wrap gap-y-4">
 						{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
@@ -380,7 +380,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-				<div className="grow flex flex-col min-h-0 pb-[0px]">
+				<div className="grow flex flex-col min-h-0 pb-[0px] relative z-0">
 					<CreditsHistoryTable
 						isLoading={isLoading}
 						paymentsData={paymentsData}
