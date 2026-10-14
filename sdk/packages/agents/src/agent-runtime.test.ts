@@ -1044,6 +1044,37 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(4);
 	});
 
+	it("fails once repeated turns with a cut-off call exhaust recovery even when another call in each turn ran", async () => {
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const mixed = () => [
+			{
+				type: "tool-call-delta" as const,
+				toolCallId: "call_1",
+				toolName: "echo",
+				inputText: '{"text":"first"}',
+			},
+			{
+				type: "tool-call-delta" as const,
+				toolCallId: "call_2",
+				toolName: "echo",
+				inputText: '{"text":',
+			},
+			{ type: "finish" as const, reason: "max-tokens" as const },
+		];
+		// The complete call runs each time, but the turn is still cut off, so the
+		// streak is not reset: initial attempt + 3 nudged retries, then fail.
+		const model = new ScriptedModel([mixed, mixed, mixed, mixed, mixed]);
+		const runtime = new AgentRuntime({ model, tools: [tool] });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("maximum output token limit");
+		expect(execute).toHaveBeenCalledTimes(4);
+		expect(model.requests).toHaveLength(4);
+	});
+
 	it("fails once repeated output-token-limit cut-offs exhaust recovery", async () => {
 		const cutoff = () => [
 			{ type: "reasoning-delta" as const, text: "thinking..." },

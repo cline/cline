@@ -949,10 +949,13 @@ export class AgentRuntime {
 					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
-				// A turn that yields an executable tool call is progress: reset the
-				// cut-off streak. A call cut off by the output limit is not.
+				// A turn that yields tool calls and was not cut off is progress:
+				// reset the cut-off streak. A turn with a cut-off call is not, even
+				// when its other calls run — otherwise a model that keeps
+				// overshooting with some complete call each time would reset the
+				// streak every turn and the recovery limit would never be reached.
 				const truncatedToolCalls = toolCalls.filter(isTruncatedToolCall);
-				if (toolCalls.length > truncatedToolCalls.length) {
+				if (toolCalls.length > 0 && truncatedToolCalls.length === 0) {
 					this.maxTokensRecoveryCount = 0;
 				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
