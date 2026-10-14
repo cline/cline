@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Probe executable metadata, independent of a parent Hub or Bun script launch.
+unset BUN_BE_BUN CLINE_HUB_BUILD_ID CLINE_HUB_BUILD_EPOCH_MS
 
 usage() {
     cat <<'HELP'
