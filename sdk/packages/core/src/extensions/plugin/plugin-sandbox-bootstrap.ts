@@ -660,8 +660,10 @@ async function loadPluginDescriptor(args: {
 	const disposers: PluginState["disposers"] = [];
 	try {
 		const moduleExports = await importPluginModule(args.pluginPath);
-		plugin = (moduleExports.default ??
-			moduleExports[args.exportName]) as unknown as PluginModule;
+		// Named export first: a native import hands a CommonJS module's whole
+		// `module.exports` to `default`, which wraps an `exports.plugin`.
+		plugin = (moduleExports[args.exportName] ??
+			moduleExports.default) as unknown as PluginModule;
 		assertValidPluginModule(plugin, args.pluginPath);
 		plugin.manifest = normalizePluginManifest(plugin.manifest);
 		if (!matchesPluginManifestTargeting(plugin.manifest, args.targeting)) {
