@@ -4,6 +4,7 @@ import * as sinon from "sinon"
 import * as vscode from "vscode"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { VscodeTerminalManager } from "./VscodeTerminalManager"
+import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
 function createNeverEndingStream(): AsyncIterable<string> {
@@ -132,6 +133,9 @@ describe("VscodeTerminalManager", () => {
 	})
 
 	it("reveals the terminal without taking focus when running a command", async () => {
+		// Reveal-only test: stub the process so no command stream or VS Code
+		// event listeners outlive the test.
+		sandbox.stub(VscodeTerminalProcess.prototype, "run").resolves()
 		const showStub = sandbox.stub()
 		const terminalInfo: TerminalInfo = {
 			id: 1,
@@ -139,11 +143,7 @@ describe("VscodeTerminalManager", () => {
 			lastCommand: "",
 			lastActive: Date.now(),
 			terminal: {
-				shellIntegration: {
-					executeCommand: () => ({
-						read: () => createNeverEndingStream(),
-					}),
-				},
+				shellIntegration: {},
 				show: showStub,
 			} as unknown as vscode.Terminal,
 		}
