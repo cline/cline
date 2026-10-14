@@ -1149,15 +1149,7 @@ export function handleHubLiveEvent(
 			);
 			return;
 		}
-		case "run.started": {
-			const statusChanged = session.status !== "running";
-			session.status = "running";
-			session.busy = true;
-			if (statusChanged) {
-				sendEvent(ctx, "chat_session_status", { sessionId, status: "running" });
-			}
-			return;
-		}
+		case "run.started":
 		case "session.attached":
 		case "session.updated": {
 			const payloadSession =
@@ -1169,7 +1161,9 @@ export function handleHubLiveEvent(
 			const runtimeStatus =
 				typeof payloadSession?.status === "string"
 					? payloadSession.status
-					: session.status;
+					: event.event === "run.started"
+						? "running"
+						: session.status;
 			// Hub "pending" is still active; map it to running so follow-ups stay queued.
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
 			if (
@@ -1177,14 +1171,6 @@ export function handleHubLiveEvent(
 				status === "running" &&
 				session.endedAt !== undefined &&
 				!session.busy
-			) {
-				return;
-			}
-			// A resident interactive process can be idle; run.started marks an active turn.
-			if (
-				runtimeStatus === "running" &&
-				session.status !== "running" &&
-				session.config.executionTarget !== "cloud"
 			) {
 				return;
 			}

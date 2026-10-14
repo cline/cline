@@ -225,7 +225,11 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {
-					type: "navigate",
+					type:
+						state.navigation.current.view === "chat" &&
+						state.navigation.current.activeThreadId === threadId
+							? "replace"
+							: "navigate",
 					destination: {
 						...state.navigation.current,
 						activeThreadId: threadId,

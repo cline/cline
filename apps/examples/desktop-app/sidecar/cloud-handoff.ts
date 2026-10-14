@@ -134,8 +134,7 @@ async function assertHandoffIdle(
 		live?.status === "running" ||
 		live?.status === "stopping";
 	const persistedIsBusy =
-		!live &&
-		(persisted?.status === "running" || persisted?.status === "pending");
+		persisted?.status === "running" || persisted?.status === "pending";
 	if (liveIsBusy || persistedIsBusy) {
 		throw new Error("Stop the current run before handing off to cloud.");
 	}
@@ -1094,6 +1093,20 @@ export function beginSessionMetadataUpdate(
 	);
 }
 
+export function assertCloudHandoffCreationResolved(metadata: unknown): void {
+	if (
+		!readCloudHandoffMetadata(metadata) &&
+		metadata &&
+		typeof metadata === "object" &&
+		"cloudHandoffIntent" in metadata &&
+		metadata.cloudHandoffIntent
+	) {
+		throw new Error(
+			"Cloud handoff creation is still unconfirmed. Retry /cloud to recover it before changing this session.",
+		);
+	}
+}
+
 /**
  * Deleting a source session while its cloud handoff is in flight can remove
  * the only durable recovery record for an already-created sandbox. Keep this
@@ -1130,11 +1143,7 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 			}
 		}
 		const handoff = readCloudHandoffMetadata(metadata);
-		if (!handoff && metadata?.cloudHandoffIntent) {
-			throw new Error(
-				"Cloud handoff creation is still unconfirmed. Retry /cloud to recover it before deleting this session.",
-			);
-		}
+		assertCloudHandoffCreationResolved(metadata);
 		if (handoff?.status === "pending") {
 			throw new Error(
 				`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,

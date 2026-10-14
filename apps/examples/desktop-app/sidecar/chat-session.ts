@@ -52,6 +52,7 @@ import {
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
 import {
+	assertCloudHandoffCreationResolved,
 	beginActiveSessionSend,
 	handleHandoff,
 	handlePrepareHandoff,
@@ -368,7 +369,8 @@ async function withWorkspaceRestoreLock<T>(
 		const sessionWorkspace = workspacePathKey(session.config);
 		if (
 			sessionWorkspace &&
-			(hasActiveWorkspaceTurn(session) || hasActiveSessionSend(ctx, sessionId)) &&
+			(hasActiveWorkspaceTurn(session) ||
+				hasActiveSessionSend(ctx, sessionId)) &&
 			workspacePathsOverlap(sessionWorkspace, key, environment)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
@@ -1713,9 +1715,9 @@ async function handleSendOnce(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	const handoff = readCloudHandoffMetadata(
-		await readHandoffSessionMetadata(binding, sessionId),
-	);
+	const metadata = await readHandoffSessionMetadata(binding, sessionId);
+	assertCloudHandoffCreationResolved(metadata);
+	const handoff = readCloudHandoffMetadata(metadata);
 	if (handoff?.status === "pending") {
 		throw new Error(
 			`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
@@ -2126,11 +2128,13 @@ async function handleFork(
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	const sourceSession = await manager.get(sourceSessionId);
-	const sourceHandoff = readCloudHandoffMetadata(
+	const sourceMetadata =
 		binding.kind === "local"
 			? (sourceSession?.metadata ?? readSessionMetadata(sourceSessionId))
-			: undefined,
-	);
+			: undefined;
+	if (forkBeforeRunCount !== undefined)
+		assertCloudHandoffCreationResolved(sourceMetadata);
+	const sourceHandoff = readCloudHandoffMetadata(sourceMetadata);
 	if (sourceHandoff?.status === "pending") {
 		throw new Error(
 			`Cloud handoff is still pending. Retry /cloud or continue here: ${sourceHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, sourceHandoff.toCloudSessionId)}`,
@@ -2429,11 +2433,12 @@ async function handleRestoreCheckpoint(
 	const manager = binding.sessionManager;
 	const persisted =
 		binding.kind === "local" ? await manager.get(sourceSessionId) : undefined;
-	const completedHandoff = readCloudHandoffMetadata(
+	const handoffMetadata =
 		binding.kind === "local"
 			? (persisted?.metadata ?? readSessionMetadata(sourceSessionId))
-			: undefined,
-	);
+			: undefined;
+	const completedHandoff = readCloudHandoffMetadata(handoffMetadata);
+	assertCloudHandoffCreationResolved(handoffMetadata);
 	if (completedHandoff?.status === "pending") {
 		throw new Error(
 			`Cloud handoff is still pending. Retry /cloud or continue here: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}`,

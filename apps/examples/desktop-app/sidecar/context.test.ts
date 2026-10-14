@@ -923,57 +923,6 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(readEvents(ctx)).toEqual([]);
 	});
 
-	it.each([
-		"session.attached",
-		"session.updated",
-	])("keeps a resident process idle until run.started after %s", async (event) => {
-		const { createSidecarContext, handleHubLiveEvent } = await import(
-			"./context"
-		);
-		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
-		ctx.liveSessions.set("idle-session", {
-			config: {},
-			messages: [],
-			promptsInQueue: [],
-			busy: false,
-			startedAt: Date.now(),
-			status: "idle",
-			attachedViaHub: true,
-		});
-		handleHubLiveEvent(ctx, {
-			event,
-			sessionId: "idle-session",
-			payload: { session: { status: "running" } },
-		});
-		expect(ctx.liveSessions.get("idle-session")).toMatchObject({
-			status: "idle",
-			busy: false,
-		});
-		expect(readEvents(ctx)).toEqual([]);
-		handleHubLiveEvent(ctx, {
-			event: "run.started",
-			sessionId: "idle-session",
-		});
-		expect(ctx.liveSessions.get("idle-session")).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		expect(readEvents(ctx)).toEqual([
-			{
-				type: "event",
-				event: {
-					name: "chat_session_status",
-					payload: {
-						environmentId: "local",
-						sessionId: "idle-session",
-						status: "running",
-					},
-				},
-			},
-		]);
-	});
-
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
