@@ -144,6 +144,17 @@ function findParseError(events: AgentModelEvent[]): string | undefined {
 	return undefined;
 }
 
+function findToolCallMetadata(
+	events: AgentModelEvent[],
+): Record<string, unknown> | undefined {
+	for (const event of events) {
+		if (event.type === "tool-call-delta") {
+			return event.metadata as Record<string, unknown> | undefined;
+		}
+	}
+	return undefined;
+}
+
 function findToolInput(events: AgentModelEvent[]): unknown {
 	for (const event of events) {
 		if (event.type === "tool-call-delta" && event.input !== undefined) {
@@ -184,6 +195,20 @@ describe("ai-sdk adapter malformed tool calls", () => {
 
 		expect(findParseError(events)).toBeUndefined();
 		expect(findToolInput(events)).toEqual({ files: [{ path: "/tmp/a.txt" }] });
+		// The runtime decides by finish reason whether the missing bracket was
+		// an omission or a cut-off, so the raw text travels with the call.
+		expect(findToolCallMetadata(events)?.repairedInputText).toBe(
+			'{"files": [{"path": "/tmp/a.txt"}]',
+		);
+	});
+
+	it("does not mark well-formed input as repaired", async () => {
+		const events = await streamToolCallEvents(
+			sseToolCall("run_commands", '{"commands": ["ls"]}'),
+			[RUN_COMMANDS_TOOL],
+		);
+
+		expect(findToolCallMetadata(events)?.repairedInputText).toBeUndefined();
 	});
 
 	it("surfaces parse error for truncated JSON with unterminated string value", async () => {

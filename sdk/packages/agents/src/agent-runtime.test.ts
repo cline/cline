@@ -833,13 +833,22 @@ describe("AgentRuntime", () => {
 
 	it.each([
 		{
-			label: "closed up into valid JSON by the model layer's repair",
-			delta: { input: { text: [] }, inputText: '{"text":[]}' },
+			label: "closed up by the model layer's repair",
+			delta: {
+				input: { text: [] },
+				inputText: '{"text":[]}',
+				metadata: { repairedInputText: '{"text":[' },
+			},
 		},
-		{ label: "cut mid-token", delta: { inputText: '{"text":' } },
-		{ label: "empty", delta: { inputText: "" } },
-		{ label: "complete", delta: { inputText: '{"text":"hi"}' } },
-	])("skips a tool call whose arguments were $label on a max-tokens turn and nudges instead of executing it", async ({
+		{
+			label: "cut mid-token",
+			delta: { inputText: '{"text":' },
+		},
+		{
+			label: "empty",
+			delta: { inputText: "" },
+		},
+	])("skips a tool call whose arguments were $label at the output-token limit and nudges instead of executing it", async ({
 		delta,
 	}) => {
 		const tool = createEchoTool();
@@ -875,7 +884,7 @@ describe("AgentRuntime", () => {
 			isError: true,
 		});
 		expect(JSON.stringify(toolMessage?.content[0])).toContain(
-			"reached the model's output-token limit",
+			"cut off because the response reached the model's output-token limit",
 		);
 		// The retry carries both the error result and the concision nudge.
 		const retry = JSON.stringify(model.requests[1]?.messages);
@@ -884,7 +893,7 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(2);
 	});
 
-	it("skips every tool call of a max-tokens turn, complete ones included", async () => {
+	it("executes complete tool calls from a max-tokens turn and skips only the cut-off one", async () => {
 		const tool = createEchoTool();
 		const execute = vi.spyOn(tool, "execute");
 		const model = new ScriptedModel([
@@ -913,20 +922,19 @@ describe("AgentRuntime", () => {
 		const result = await runtime.run("Hi");
 
 		expect(result.status).toBe("completed");
-		expect(execute).not.toHaveBeenCalled();
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute.mock.calls[0]?.[0]).toEqual({ text: "first" });
 		const toolResults = result.messages
 			.filter((message) => message.role === "tool")
 			.flatMap((message) => message.content);
 		expect(toolResults).toEqual([
-			expect.objectContaining({ toolCallId: "call_1", isError: true }),
+			expect.objectContaining({ toolCallId: "call_1", isError: undefined }),
 			expect.objectContaining({ toolCallId: "call_2", isError: true }),
 		]);
-		for (const toolResult of toolResults) {
-			expect(JSON.stringify(toolResult)).toContain("output-token limit");
-		}
+		expect(JSON.stringify(toolResults[1])).toContain("output-token limit");
 	});
 
-	it("recovers a max-tokens turn with a tool call by a forced compaction and one retry", async () => {
+	it("recovers a turn whose only tool call was cut off with a forced compaction and one retry", async () => {
 		const tool = createEchoTool();
 		const execute = vi.spyOn(tool, "execute");
 		const model = new ScriptedModel([
@@ -937,6 +945,7 @@ describe("AgentRuntime", () => {
 					toolName: "echo",
 					input: { text: [] },
 					inputText: '{"text":[]}',
+					metadata: { repairedInputText: '{"text":[' },
 				},
 				{ type: "finish", reason: "max-tokens" },
 			],
@@ -967,7 +976,7 @@ describe("AgentRuntime", () => {
 		).toHaveLength(1);
 	});
 
-	it("pairs a max-tokens turn's tool call with its error result when the compacted retry throws", async () => {
+	it("pairs a cut-off tool call with its error result when the compacted retry throws", async () => {
 		const tool = createEchoTool();
 		const execute = vi.spyOn(tool, "execute");
 		const model = new ScriptedModel([
@@ -996,8 +1005,8 @@ describe("AgentRuntime", () => {
 		expect(result.status).toBe("failed");
 		expect(result.error?.message).toBe("prepareTurn exploded");
 		expect(execute).not.toHaveBeenCalled();
-		// The failed run's transcript still pairs the call with a result, so
-		// continuing it later does not replay an unanswered tool call.
+		// The failed run's transcript still pairs the cut-off call with a result,
+		// so continuing it later does not replay an unanswered tool call.
 		const [assistant, toolMessage] = result.messages.slice(-2);
 		expect(assistant?.role).toBe("assistant");
 		expect(assistant?.content).toContainEqual(
@@ -1011,7 +1020,7 @@ describe("AgentRuntime", () => {
 		});
 	});
 
-	it("fails once repeated max-tokens turns with tool calls exhaust recovery", async () => {
+	it("fails once repeated cut-off tool calls exhaust recovery", async () => {
 		const tool = createEchoTool();
 		const execute = vi.spyOn(tool, "execute");
 		const cutoff = () => [

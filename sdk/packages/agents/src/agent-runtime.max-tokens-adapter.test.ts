@@ -21,26 +21,33 @@ function sseChunk(delta: unknown, finish: string | null = null): string {
 	})}\n\n`;
 }
 
-// A two-command call cut after the first element, ended by the server with
-// finish_reason "length" — what llama.cpp sends when generation hits its
-// token or context limit while the tool call is still streaming.
-const CUT_OFF_TOOL_CALL_STREAM =
-	sseChunk({
+function toolCallStart(index: number, id: string): string {
+	return sseChunk({
 		role: "assistant",
 		tool_calls: [
 			{
-				index: 0,
-				id: "call_1",
+				index,
+				id,
 				type: "function",
 				function: { name: "run_commands", arguments: "" },
 			},
 		],
-	}) +
-	sseChunk({
-		tool_calls: [
-			{ index: 0, function: { arguments: '{"commands": ["cd build",' } },
-		],
-	}) +
+	});
+}
+
+function toolCallArguments(index: number, args: string): string {
+	return sseChunk({ tool_calls: [{ index, function: { arguments: args } }] });
+}
+
+// One complete call, then a two-command call cut after its first element,
+// ended by the server with finish_reason "length" — what llama.cpp sends when
+// generation hits its token or context limit while a tool call is still
+// streaming.
+const CUT_OFF_TURN_STREAM =
+	toolCallStart(0, "call_1") +
+	toolCallArguments(0, '{"commands": ["echo one"]}') +
+	toolCallStart(1, "call_2") +
+	toolCallArguments(1, '{"commands": ["cd build",') +
 	sseChunk({}, "length") +
 	"data: [DONE]\n\n";
 
@@ -50,9 +57,9 @@ const DONE_STREAM =
 	"data: [DONE]\n\n";
 
 describe("max-tokens turn through the OpenAI-compatible adapter", () => {
-	it("skips a cut-off tool call the adapter repaired into a plausible one and retries with the error and nudge", async () => {
+	it("executes the complete call, skips the cut-off call the adapter repaired into a plausible one, and retries with both results", async () => {
 		const requestBodies: string[] = [];
-		const responses = [CUT_OFF_TOOL_CALL_STREAM, DONE_STREAM];
+		const responses = [CUT_OFF_TURN_STREAM, DONE_STREAM];
 		const fetch = vi.fn(async (_input: unknown, init?: RequestInit) => {
 			requestBodies.push(String(init?.body));
 			return new Response(responses.shift(), {
@@ -84,7 +91,7 @@ describe("max-tokens turn through the OpenAI-compatible adapter", () => {
 				required: ["commands"],
 			},
 			async execute(input) {
-				return input.commands.join("; ");
+				return `ran ${input.commands.join("; ")}`;
 			},
 		};
 		const execute = vi.spyOn(tool, "execute");
@@ -93,37 +100,45 @@ describe("max-tokens turn through the OpenAI-compatible adapter", () => {
 		const result = await runtime.run("build it");
 
 		expect(result.status).toBe("completed");
-		expect(execute).not.toHaveBeenCalled();
+		// The complete call ran; the cut-off one did not.
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute.mock.calls[0]?.[0]).toEqual({ commands: ["echo one"] });
 
-		// What reached the runtime was a valid, plausible, non-empty call: the
-		// adapter's repair closed `["cd build",` into `["cd build"]`. Only the
-		// finish reason says it is not what the model meant.
+		// The adapter's repair closed `["cd build",` into a valid, plausible
+		// `["cd build"]` before the runtime saw it. The marker preserved the
+		// raw text, and with the length finish the runtime recorded the call as
+		// truncated instead of taking the repaired arguments at face value.
 		const assistant = result.messages.find(
 			(message) => message.role === "assistant",
 		);
 		expect(assistant?.content).toContainEqual(
 			expect.objectContaining({
 				type: "tool-call",
-				toolCallId: "call_1",
-				input: { commands: ["cd build"] },
+				toolCallId: "call_2",
+				input: {},
+				metadata: expect.objectContaining({
+					rawInputText: '{"commands": ["cd build",',
+					truncatedByOutputLimit: true,
+				}),
 			}),
 		);
 
-		const toolMessage = result.messages.find(
-			(message) => message.role === "tool",
-		);
-		expect(toolMessage?.content[0]).toMatchObject({
-			type: "tool-result",
-			toolCallId: "call_1",
-			isError: true,
-		});
-		expect(JSON.stringify(toolMessage?.content[0])).toContain(
+		const toolResults = result.messages
+			.filter((message) => message.role === "tool")
+			.flatMap((message) => message.content);
+		expect(toolResults).toEqual([
+			expect.objectContaining({ toolCallId: "call_1", isError: undefined }),
+			expect.objectContaining({ toolCallId: "call_2", isError: true }),
+		]);
+		expect(JSON.stringify(toolResults[0])).toContain("ran echo one");
+		expect(JSON.stringify(toolResults[1])).toContain(
 			"reached the model's output-token limit",
 		);
 
-		// The retry request the server receives carries the error result and
-		// the concision nudge, and nothing else ran in between.
+		// The retry request the server receives carries both results and the
+		// concision nudge, so the model can retry only the missing work.
 		expect(requestBodies).toHaveLength(2);
+		expect(requestBodies[1]).toContain("ran echo one");
 		expect(requestBodies[1]).toContain("output-token limit");
 		expect(requestBodies[1]).toContain("cut off because it reached");
 	});
