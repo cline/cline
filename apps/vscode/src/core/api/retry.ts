@@ -26,6 +26,17 @@ export class RetriableError extends Error {
 	}
 }
 
+/**
+ * Thrown by a provider when the stream was deliberately stopped (e.g. degenerate output).
+ * Neither withRetry nor the task-level auto-retry may re-issue the request for it.
+ */
+export class NonRetriableStreamError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = "NonRetriableStreamError"
+	}
+}
+
 const INFERENCE_CAP_ERROR_CODE = "INFERENCE_CAP_ERROR"
 
 /**

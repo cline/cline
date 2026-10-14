@@ -19,6 +19,7 @@ import { Logger } from "@/shared/services/Logger"
 import type { ClineTool } from "@/shared/tools"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
+import { InvokeCloserGuard } from "./invoke-closer-guard"
 import { convertToR1Format } from "../transform/r1-format"
 import type { ApiStream } from "../transform/stream"
 
@@ -234,7 +235,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			...(toolConfig ? { toolConfig } : {}),
 		})
 
-		yield* this.executeConverseStream(command, model.info)
+		yield* this.executeConverseStream(command, model.info, new InvokeCloserGuard())
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -665,7 +666,11 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Executes a Converse API stream command and handles the response
 	 * Common implementation for both Anthropic and Nova models
 	 */
-	private async *executeConverseStream(command: ConverseStreamCommand, modelInfo: ModelInfo): ApiStream {
+	private async *executeConverseStream(
+		command: ConverseStreamCommand,
+		modelInfo: ModelInfo,
+		invokeGuard?: InvokeCloserGuard,
+	): ApiStream {
 		try {
 			const client = await this.getBedrockClient()
 			const response = await client.send(command)
@@ -840,6 +845,7 @@ export class AwsBedrockHandler implements ApiHandler {
 										reasoning: textContent,
 									}
 								} else {
+									invokeGuard?.push(textContent)
 									yield {
 										type: "text",
 										text: textContent,
@@ -858,6 +864,7 @@ export class AwsBedrockHandler implements ApiHandler {
 							delete contentBuffers[blockIndex]
 							blockTypes.delete(blockIndex)
 							activeToolCalls.delete(blockIndex)
+							invokeGuard?.reset()
 						}
 					}
 

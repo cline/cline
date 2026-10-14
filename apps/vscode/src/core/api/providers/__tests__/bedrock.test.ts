@@ -369,6 +369,132 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
+	describe("Nemotron </invoke> repetition containment", () => {
+		const CLOSER = "</invoke>"
+		const profileArn = "arn:aws-us-gov:bedrock:us-gov-west-1:123456789012:application-inference-profile/synthetic"
+		const textChunk = (text: string, i = 0) => ({ contentBlockDelta: { contentBlockIndex: i, delta: { text } } })
+
+		function makeHandler(baseId: string, chunks: any[], onReturn?: () => void) {
+			const handler = new AwsBedrockHandler({
+				...mockOptions,
+				apiModelId: profileArn,
+				awsBedrockCustomSelected: true,
+				awsBedrockCustomModelBaseId: baseId,
+			})
+			let sends = 0
+			handler["getBedrockClient"] = async () =>
+				({
+					send: async () => {
+						sends++
+						const queue = [...chunks]
+						return {
+							stream: {
+								[Symbol.asyncIterator]: () => ({
+									next: async () => (queue.length ? { value: queue.shift(), done: false } : { value: undefined, done: true }),
+									return: async () => {
+										onReturn?.()
+										return { value: undefined, done: true }
+									},
+								}),
+							},
+						}
+					},
+				}) as any
+			return { handler, sends: () => sends }
+		}
+
+		async function run(handler: AwsBedrockHandler) {
+			const out: any[] = []
+			let error: any
+			try {
+				for await (const c of handler.createMessage("sys", [{ role: "user", content: "hi" }])) out.push(c)
+			} catch (e) {
+				error = e
+			}
+			return { out, error }
+		}
+
+		it("stops a single delta containing a flood of closers, no retry, releases stream", async () => {
+			let released = 0
+			const { handler, sends } = makeHandler(
+				"nvidia.nemotron-super-3-120b",
+				[textChunk(`<invoke name="read_file">\n<parameter name="path">x.mjs</parameter>\n` + CLOSER.repeat(3000))],
+				() => released++,
+			)
+			const { out, error } = await run(handler)
+			should.exist(error)
+			error.name.should.equal("NonRetriableStreamError")
+			out.filter((c) => c.type === "tool_calls").should.have.length(0)
+			sends().should.equal(1)
+			released.should.equal(1)
+		})
+
+		it("detects closers split across tag boundaries and deltas", async () => {
+			const parts: any[] = []
+			const flood = CLOSER.repeat(30)
+			for (let i = 0; i < flood.length; i += 4) parts.push(textChunk(flood.slice(i, i + 4)))
+			const { handler, sends } = makeHandler("nvidia.nemotron-super-3-120b", parts)
+			const { error } = await run(handler)
+			error.name.should.equal("NonRetriableStreamError")
+			sends().should.equal(1)
+		})
+
+		it("keeps ordinary text and a legitimate quoted invoke example intact", async () => {
+			const chunks = [
+				textChunk("Example: <invoke name=\"a\"></invoke>\n"),
+				textChunk(`${CLOSER} ${CLOSER}`),
+				textChunk(" done <inv"),
+				textChunk("oke> end"),
+			]
+			const { handler } = makeHandler("nvidia.nemotron-super-3-120b", chunks)
+			const { out, error } = await run(handler)
+			should.not.exist(error)
+			out.map((c) => c.text).join("").should.containEql("done <invoke> end")
+		})
+
+		it("resets detector state between blocks and responses", async () => {
+			const nineteen = CLOSER.repeat(19)
+			const chunks = [
+				textChunk(nineteen),
+				{ contentBlockStop: { contentBlockIndex: 0 } },
+				textChunk(nineteen, 1),
+			]
+			const first = makeHandler("nvidia.nemotron-super-3-120b", chunks)
+			should.not.exist((await run(first.handler)).error)
+			should.not.exist((await run(first.handler)).error)
+		})
+
+		it("assembles fragmented native toolUse JSON and keeps tool ids isolated", async () => {
+			const chunks = [
+				{ contentBlockStart: { contentBlockIndex: 0, start: { toolUse: { toolUseId: "t1", name: "read_file" } } } },
+				{ contentBlockDelta: { contentBlockIndex: 0, delta: { toolUse: { input: '{"path":' } } } },
+				{ contentBlockStart: { contentBlockIndex: 1, start: { toolUse: { toolUseId: "t2", name: "list_files" } } } },
+				{ contentBlockDelta: { contentBlockIndex: 1, delta: { toolUse: { input: '{"path":"."}' } } } },
+				{ contentBlockDelta: { contentBlockIndex: 0, delta: { toolUse: { input: '"x.mjs"}' } } } },
+				{ contentBlockStop: { contentBlockIndex: 0 } },
+				{ contentBlockStop: { contentBlockIndex: 1 } },
+			]
+			const { handler } = makeHandler("nvidia.nemotron-super-3-120b", chunks)
+			const { out, error } = await run(handler)
+			should.not.exist(error)
+			const calls = out.filter((c) => c.type === "tool_calls").map((c) => c.tool_call.function)
+			calls.filter((c) => c.id === "t1").map((c) => c.arguments).join("").should.equal('{"path":"x.mjs"}')
+			calls.filter((c) => c.id === "t2").map((c) => c.arguments).join("").should.equal('{"path":"."}')
+		})
+
+		it("does not apply the guard to non-Nemotron models", async () => {
+			const { handler } = makeHandler("anthropic.claude-sonnet-5", [textChunk(CLOSER.repeat(100))])
+			const { out, error } = await run(handler)
+			should.not.exist(error)
+			out.should.have.length(1)
+		})
+
+		it("task-level retry gates recognise NonRetriableStreamError", () => {
+			const src = require("fs").readFileSync(require("path").join(__dirname, "../../../task/index.ts"), "utf8")
+			;(src.match(/instanceof NonRetriableStreamError/g) || []).length.should.equal(2)
+		})
+	})
+
 	const mockModelInfo = {
 		maxTokens: 8192,
 		contextWindow: 200000,
