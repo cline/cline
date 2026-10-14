@@ -1,6 +1,41 @@
 # CLI Distribution
 
-The Cline CLI (`cline`) is distributed as compiled binaries via npm. Users run `npm i -g cline` and get a working `cline` command without needing Bun, Zig, or any other runtime installed.
+The Cline CLI (`cline`) is distributed as compiled binaries via npm and pinned GitHub CLI releases. Users run `npm i -g cline` and get a working `cline` command without needing Bun, Zig, or any other runtime installed.
+
+## Standalone Unix installer
+
+After this installer and the self-contained runtime packaging in #15080 are
+merged and included in a CLI release, macOS and glibc Linux users can install
+without Node or Bun. Use an exact published CLI version (replace `X.Y.Z`):
+
+```bash
+curl -fsSL https://github.com/cline/cline/releases/download/cli-vX.Y.Z/install.sh | bash -s -- --version X.Y.Z
+```
+
+Run that command in an SSH terminal to install on the remote host. The script
+selects Apple Silicon/Intel macOS or ARM64/x64 Linux, verifies the release SHA-256
+checksum and SDK identity, and atomically activates `~/.local/bin/cline`.
+Releases are retained under `~/.cline/packages/standalone/releases` so activation
+does not overwrite files used by running processes. Linux x64 uses a baseline
+CPU build. Alpine/musl and Windows are outside this installer's scope.
+
+The installer adds its command directory to the detected shell's configuration.
+Use `--no-modify-path` to manage PATH yourself. `--release cli-vX.Y.Z` is equivalent
+to `--version X.Y.Z`. A compatible existing CLI is reused; package-owned files are
+never overwritten. An interactive install can offer removal through its package
+manager. `--replace-existing` keeps that external installation and selects the
+standalone command, reporting any PATH conflict.
+
+For a local binary, use `bash apps/cli/script/install.sh --binary /path/to/cline`.
+To download for another machine without activating a terminal command, pass
+`--target x86_64-unknown-linux-gnu --install-dir /path/to/cache --no-modify-path`.
+These commands install the runtime only; provider authentication remains `cline auth`.
+Older releases do not contain these assets. Nightly publication remains npm-only.
+
+The stable CLI workflow collects the four Unix binaries and their `.sha256`,
+`.build-id`, and `.build-epoch` files after platform signing, then attaches them
+and `install.sh` to the matching `cli-vX.Y.Z` release. Collection never rebuilds a
+binary after checksumming it. This is separate from desktop runtime downloading.
 
 ## Why Compiled Binaries?
 
