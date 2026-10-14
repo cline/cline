@@ -124,8 +124,8 @@ function requiredString(value: string | undefined, field: string): string {
 
 function modelSelectionOf(
 	value: TodoTaskInput["model_selection"],
-): GatewayModelSelection | null | undefined {
-	if (value === undefined || value === null) return value;
+): GatewayModelSelection | undefined {
+	if (value === undefined) return undefined;
 	return {
 		providerId: value.provider_id,
 		modelId: value.model_id,
@@ -167,7 +167,6 @@ function assertRequestedScope(
 	if (input.workspace_root !== undefined) {
 		if (
 			!defaults.workspaceRoot ||
-			input.workspace_root === null ||
 			!sameWorkspace(input.workspace_root, defaults.workspaceRoot)
 		) {
 			throw new Error(`this session can only manage ${scope} tasks`);

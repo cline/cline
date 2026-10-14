@@ -303,13 +303,11 @@ function updateTiming(
 	if (input.schedule_type === "recurring" || input.cron_pattern) {
 		return {
 			cronPattern: requiredString(input.cron_pattern, "cron_pattern"),
-			timezone:
-				input.timezone === null ? null : input.timezone?.trim() || undefined,
+			timezone: input.timezone?.trim() || undefined,
 		};
 	}
 	return {
-		timezone:
-			input.timezone === null ? null : input.timezone?.trim() || undefined,
+		timezone: input.timezone?.trim() || undefined,
 	};
 }
 
