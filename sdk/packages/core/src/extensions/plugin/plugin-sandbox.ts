@@ -293,7 +293,12 @@ function resolveBootstrap():
 	if (configured && existsSync(configured)) {
 		return { file: configured };
 	}
-	const runtimeDirectory = resolvePluginRuntimeDirectory();
+	const sourceBootstrapPath = join(dir, "plugin-sandbox-bootstrap.ts");
+	// Source hosts must execute the current bootstrap and module importer,
+	// even when an earlier SDK build left a packaged runtime on disk.
+	const runtimeDirectory = existsSync(sourceBootstrapPath)
+		? undefined
+		: resolvePluginRuntimeDirectory();
 	if (runtimeDirectory)
 		return { file: join(runtimeDirectory, "plugin-sandbox-bootstrap.js") };
 	const selected = selectBootstrapCandidate({
@@ -305,7 +310,7 @@ function resolveBootstrap():
 			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
 		],
-		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
+		sourceBootstrapPath,
 		installedCandidates: [
 			resolveBootstrapFromWrapper(),
 			resolveBootstrapFromExecutable(),

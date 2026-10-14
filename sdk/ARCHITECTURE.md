@@ -769,8 +769,11 @@ manifests, including browser subpaths. Hosts ship this directory as one artifact
   stdout ignored.
 
 Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
-package-local `plugin-runtime` directory, or embedded resources. The CLI compiler
-embeds the archive and materializes it under `CLINE_DIR/runtime/plugins/<hash>`
+package-local `plugin-runtime` directory, or embedded resources. Source hosts
+prefer their sibling TypeScript bootstrap over packaged runtimes so development
+and tests execute the current bootstrap and module importer without rebuilding.
+The CLI compiler embeds the archive and materializes it under
+`CLINE_DIR/runtime/plugins/<hash>`
 when needed. Matching cached bytes are reused and corrupt files are repaired;
 builds retain separate directories so running workers survive upgrades. Plugin
 SDK imports resolve against this same artifact. VS Code copies the complete

@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
 	closeSync,
+	copyFileSync,
 	mkdirSync,
 	mkdtempSync,
 	openSync,
@@ -341,24 +342,13 @@ test.each([
 		const directory = join(root, ".cline", "plugins");
 		mkdirSync(directory, { recursive: true });
 		const marker = join(root, "plugin-result.json");
-		writeFileSync(
+		// Copy the raw TypeScript fixture so SDK imports must resolve from the
+		// packaged runtime, outside the monorepo and without prebundling.
+		copyFileSync(
+			fileURLToPath(
+				new URL("./fixtures/embedded-plugin/smoke.ts", import.meta.url),
+			),
 			join(directory, "smoke.ts"),
-			`
-import { createTool } from "@cline/sdk";
-import { isMainThread } from "node:worker_threads";
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
-import { getAllProviders } from "@cline/llms/browser";
-import { writeFileSync } from "node:fs";
-export default {
- name: "embedded-smoke", manifest: { capabilities: ["tools"] },
- async setup(api) {
-  if (typeof CLINE_DEFAULT_MODEL_ID !== "string" || typeof getAllProviders !== "function") throw new Error("Missing browser SDK exports");
-  const tool = createTool({ name: "embedded_ping", description: "Packaged SDK tool", inputSchema: { type: "object", properties: {} }, execute: async () => ({ pong: true, execPath: process.execPath, isMainThread }) });
-  writeFileSync(${JSON.stringify(marker)}, JSON.stringify(await tool.execute({}, {})));
-  api.registerTool(tool);
- }
-};
-`,
 		);
 		const env = Object.fromEntries(
 			Object.entries(process.env).filter(
@@ -380,6 +370,7 @@ export default {
 				PATH: root,
 				JITI_FS_CACHE: "false",
 				CLINE_PLUGIN_MODE: mode,
+				CLINE_TEST_PLUGIN_RESULT_PATH: marker,
 				TMPDIR: root,
 				CLINE_NO_AUTO_UPDATE: "1",
 			},
