@@ -85,6 +85,101 @@ function createAzureApiVersionFetch(
 	return azureFetch;
 }
 
+/**
+ * Origins whose server answered under `/v1` after the path-less base URL
+ * returned 404. Later requests (and later sessions in this process) go
+ * straight to `/v1` instead of paying for a failed request first.
+ */
+const originsServedUnderV1 = new Set<string>();
+
+function isReplayableBody(body: RequestInit["body"] | undefined): boolean {
+	// A streamed body is consumed by the first attempt and cannot be resent.
+	return !(
+		typeof ReadableStream !== "undefined" && body instanceof ReadableStream
+	);
+}
+
+/**
+ * The OpenAI Compatible base URL is used exactly as entered, so a user who
+ * enters only a host (`http://localhost:8000`) for a server that lives under
+ * `/v1` (vLLM, LM Studio, Ollama, most gateways) gets a 404. Retry such a
+ * request once under `/v1`. Servers that answer at the root never return that
+ * 404, so their requests are untouched.
+ */
+export function createV1PathFallbackFetch(input: {
+	baseUrl: string | undefined;
+	fetch: typeof fetch;
+	onFallback?: (from: string, to: string) => void;
+}): typeof fetch {
+	let base: URL;
+	try {
+		base = new URL(input.baseUrl ?? "");
+	} catch {
+		return input.fetch;
+	}
+	if (base.pathname !== "/") {
+		return input.fetch;
+	}
+	const { origin } = base;
+	const baseFetch = input.fetch;
+
+	const v1FallbackFetch = (async (requestInput, init) => {
+		let url: URL;
+		try {
+			url = new URL(
+				requestInput instanceof Request
+					? requestInput.url
+					: requestInput.toString(),
+			);
+		} catch {
+			return baseFetch(requestInput, init);
+		}
+		if (
+			requestInput instanceof Request ||
+			url.origin !== origin ||
+			url.pathname === "/v1" ||
+			url.pathname.startsWith("/v1/")
+		) {
+			return baseFetch(requestInput, init);
+		}
+		const v1Url = new URL(url);
+		v1Url.pathname = `/v1${url.pathname}`;
+		const v1Input = typeof requestInput === "string" ? v1Url.toString() : v1Url;
+
+		if (originsServedUnderV1.has(origin)) {
+			return baseFetch(v1Input, init);
+		}
+
+		const response = await baseFetch(requestInput, init);
+		if (response.status !== 404 || !isReplayableBody(init?.body)) {
+			return response;
+		}
+
+		const retry = await baseFetch(v1Input, init);
+		if (retry.status === 404) {
+			// Neither path exists; report the URL the user configured.
+			void retry.body?.cancel().catch(() => {});
+			return response;
+		}
+		void response.body?.cancel().catch(() => {});
+		originsServedUnderV1.add(origin);
+		input.onFallback?.(url.toString(), v1Url.toString());
+		return retry;
+	}) as typeof fetch;
+
+	const baseFetchWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
+	(v1FallbackFetch as FetchWithOptionalPreconnect).preconnect =
+		typeof baseFetchWithPreconnect.preconnect === "function"
+			? baseFetchWithPreconnect.preconnect.bind(baseFetch)
+			: () => undefined;
+	return v1FallbackFetch;
+}
+
+/** Test-only: forget origins learned by createV1PathFallbackFetch. */
+export function resetV1PathFallbackForTests(): void {
+	originsServedUnderV1.clear();
+}
+
 type ResponseErrorHandler = (response: Response) => Promise<void> | void;
 
 function resolveVercelGatewayImageBaseUrl(
@@ -232,7 +327,22 @@ export async function createOpenAICompatibleProviderModule(
 	// authoritative error and is surfaced to the user as-is. This keeps
 	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
-	const fetch = createAzureApiVersionFetch(config);
+	const azureFetch = createAzureApiVersionFetch(config);
+	// Only the user-configured OpenAI Compatible provider: built-in providers
+	// on this module have catalog base URLs that already carry their path.
+	// Wrapped inside the response-error hook so a 404 the retry recovers from
+	// is never reported.
+	const fetch =
+		context.provider.id === "openai-compatible"
+			? createV1PathFallbackFetch({
+					baseUrl: config.baseUrl,
+					fetch: ensureFetch(azureFetch),
+					onFallback: (from, to) =>
+						context.logger?.log(
+							`OpenAI Compatible: ${from} returned 404, using ${to} instead. Add /v1 to the base URL to skip this retry.`,
+						),
+				})
+			: azureFetch;
 	const onResponseError = readResponseErrorHandler(config);
 	const providerFetch = onResponseError
 		? createResponseErrorFetch({

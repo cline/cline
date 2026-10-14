@@ -3,10 +3,12 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isOpenAIReasoningEraModelId } from "../model-facts";
 import {
 	createOpenAICompatibleProviderModule,
+	createV1PathFallbackFetch,
+	resetV1PathFallbackForTests,
 	withMaxCompletionTokensForReasoningModels,
 } from "./openai-compatible";
 
@@ -180,6 +182,217 @@ describe("createOpenAICompatibleProviderModule wire format", () => {
 		});
 	});
 });
+
+describe("createV1PathFallbackFetch", () => {
+	const body = JSON.stringify({ model: "m", messages: [] });
+
+	afterEach(() => {
+		resetV1PathFallbackForTests();
+	});
+
+	it("leaves base URLs that carry a path, or no URL, untouched", () => {
+		const fetchMock = serverAt() as unknown as typeof fetch;
+		for (const baseUrl of [
+			"https://example.com/v1",
+			"https://example.com/api",
+			undefined,
+			"not a url",
+		]) {
+			expect(createV1PathFallbackFetch({ baseUrl, fetch: fetchMock })).toBe(
+				fetchMock,
+			);
+		}
+	});
+
+	it("uses the URL as entered when the server answers at the root", async () => {
+		const fetchMock = serverAt("/chat/completions");
+		const wrapped = createV1PathFallbackFetch({
+			baseUrl: "https://example.com",
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+
+		const response = await wrapped("https://example.com/chat/completions", {
+			method: "POST",
+			body,
+		});
+
+		expect(response.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("retries under /v1 after a 404, then goes straight there", async () => {
+		const fetchMock = serverAt("/v1/chat/completions");
+		const onFallback = vi.fn();
+		const wrapped = createV1PathFallbackFetch({
+			baseUrl: "http://localhost:8000/",
+			fetch: fetchMock as unknown as typeof fetch,
+			onFallback,
+		});
+
+		const first = await wrapped("http://localhost:8000/chat/completions", {
+			method: "POST",
+			body,
+		});
+		expect(first.status).toBe(200);
+		expect(requestedUrls(fetchMock)).toEqual([
+			"http://localhost:8000/chat/completions",
+			"http://localhost:8000/v1/chat/completions",
+		]);
+		expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(body);
+		expect(onFallback).toHaveBeenCalledWith(
+			"http://localhost:8000/chat/completions",
+			"http://localhost:8000/v1/chat/completions",
+		);
+
+		// A new wrapper for the same origin (a later session) skips the 404.
+		fetchMock.mockClear();
+		const later = createV1PathFallbackFetch({
+			baseUrl: "http://localhost:8000",
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+		const second = await later("http://localhost:8000/chat/completions", {
+			method: "POST",
+			body,
+		});
+		expect(second.status).toBe(200);
+		expect(requestedUrls(fetchMock)).toEqual([
+			"http://localhost:8000/v1/chat/completions",
+		]);
+	});
+
+	it("returns the original 404 when /v1 does not exist either", async () => {
+		const fetchMock = serverAt();
+		const wrapped = createV1PathFallbackFetch({
+			baseUrl: "https://example.com",
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+
+		const response = await wrapped("https://example.com/chat/completions", {
+			method: "POST",
+			body,
+		});
+
+		expect(response.status).toBe(404);
+		expect(await response.text()).toBe("/chat/completions");
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("adopts /v1 on any non-404 answer, such as an auth error", async () => {
+		const fetchMock = vi.fn(async (input: unknown) =>
+			new URL(String(input)).pathname.startsWith("/v1/")
+				? new Response("unauthorized", { status: 401 })
+				: new Response("not found", { status: 404 }),
+		);
+		const wrapped = createV1PathFallbackFetch({
+			baseUrl: "https://example.com",
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+
+		const response = await wrapped("https://example.com/chat/completions", {
+			method: "POST",
+			body,
+		});
+
+		expect(response.status).toBe(401);
+	});
+
+	it("does not retry streamed bodies or requests to other origins", async () => {
+		const fetchMock = serverAt("/v1/chat/completions");
+		const wrapped = createV1PathFallbackFetch({
+			baseUrl: "https://example.com",
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+
+		const streamed = await wrapped("https://example.com/chat/completions", {
+			method: "POST",
+			body: new ReadableStream(),
+		});
+		const otherOrigin = await wrapped(
+			"https://other.example.com/chat/completions",
+			{ method: "POST", body },
+		);
+
+		expect(streamed.status).toBe(404);
+		expect(otherOrigin.status).toBe(404);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("createOpenAICompatibleProviderModule /v1 fallback", () => {
+	afterEach(() => {
+		resetV1PathFallbackForTests();
+	});
+
+	it("reaches a /v1 server from a host-only OpenAI Compatible base URL without reporting the 404", async () => {
+		const ok = jsonCompletionResponse("gpt-4o");
+		const fetchMock = vi.fn(async (input: unknown, _init?: RequestInit) =>
+			new URL(String(input)).pathname === "/v1/chat/completions"
+				? ok()
+				: new Response("not found", { status: 404 }),
+		);
+		const onResponseError = vi.fn();
+		const provider = await createOpenAICompatibleProviderModule(
+			config({
+				baseUrl: "http://localhost:8000",
+				fetch: fetchMock as unknown as typeof fetch,
+				options: { onResponseError },
+			}),
+			context(),
+		);
+		const model = provider.operations.language("gpt-4o") as LanguageModelV4;
+
+		await model.doGenerate({
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+		});
+
+		expect(requestedUrls(fetchMock)).toEqual([
+			"http://localhost:8000/chat/completions",
+			"http://localhost:8000/v1/chat/completions",
+		]);
+		expect(onResponseError).toHaveBeenCalledTimes(1);
+		expect(onResponseError.mock.calls[0]?.[0]?.status).toBe(200);
+	});
+
+	it("does not retry built-in providers that share this module", async () => {
+		const fetchMock = vi.fn(
+			async (_input: unknown, _init?: RequestInit) =>
+				new Response("not found", { status: 404 }),
+		);
+		const provider = await createOpenAICompatibleProviderModule(
+			config({
+				providerId: "deepseek",
+				baseUrl: "https://api.deepseek.com",
+				fetch: fetchMock as unknown as typeof fetch,
+			}),
+			{
+				...context(),
+				provider: { ...context().provider, id: "deepseek" },
+			} as GatewayProviderContext,
+		);
+		const model = provider.operations.language("gpt-4o") as LanguageModelV4;
+
+		await expect(
+			model.doGenerate({
+				prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+			}),
+		).rejects.toThrow();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+});
+
+/** A fake server that answers 200 on the given paths and 404 elsewhere. */
+function serverAt(...paths: string[]) {
+	return vi.fn(async (input: unknown, _init?: RequestInit) => {
+		const { pathname } = new URL(String(input));
+		return new Response(pathname, {
+			status: paths.includes(pathname) ? 200 : 404,
+		});
+	});
+}
+
+function requestedUrls(fetchMock: ReturnType<typeof vi.fn>): string[] {
+	return fetchMock.mock.calls.map(([input]) => String(input));
+}
 
 async function createModel(input: {
 	modelId: string;
