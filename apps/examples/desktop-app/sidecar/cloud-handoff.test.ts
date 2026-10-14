@@ -777,10 +777,13 @@ describe("cloud handoff gates", () => {
 		await expect(handingOff).rejects.toThrow();
 	});
 
-	it("trusts an authoritative idle live session over a legacy running record", async () => {
+	it.each([
+		"running",
+		"pending",
+	])("rejects handoff when Hub reports %s despite an idle Desktop cache", async (persistedStatus) => {
 		const { ctx, sessionId } = createHandoffGateContext({
 			busy: false,
-			persistedStatus: "running",
+			persistedStatus,
 		});
 
 		await expect(
@@ -788,7 +791,8 @@ describe("cloud handoff gates", () => {
 				action: "prepare_handoff",
 				sessionId,
 			}),
-		).rejects.not.toThrow("Stop the current run");
+		).rejects.toThrow("Stop the current run");
+		expect(ctx.cloudSessionManager).toBeFalsy();
 	});
 
 	it("rejects an empty source before provisioning", async () => {
@@ -1288,6 +1292,21 @@ describe("cloud handoff transaction", () => {
 		);
 		expect(first.getPersistedMetadata()).toHaveProperty("cloudHandoffIntent");
 		const restarted = createHandoffFixture(true, first.getPersistedMetadata());
+		const restore = vi.fn();
+		Object.assign(localSessionManager(restarted.ctx), { restore });
+		for (const action of ["restore_checkpoint", "send", "fork"] as const) {
+			await expect(
+				handleChatSessionCommand(restarted.ctx, {
+					action,
+					sessionId: request.sessionId,
+					prompt: "Change this workspace",
+					checkpointRunCount: 1,
+					forkBeforeRunCount: 1,
+					config: { cwd: "/workspace/project" },
+				}),
+			).rejects.toThrow("Cloud handoff creation is still unconfirmed");
+		}
+		expect(restore).not.toHaveBeenCalled();
 		await expect(
 			assertSessionDeleteAllowedDuringHandoff(
 				restarted.ctx,
