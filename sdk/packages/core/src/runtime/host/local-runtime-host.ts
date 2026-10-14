@@ -2830,10 +2830,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private emit(event: CoreSessionEvent): void {
-		if (
-			(event.type === "agent_event" && event.payload.event.type !== "notice") ||
-			event.type === "pending_prompt_submitted"
-		) {
+		if (event.type === "agent_event" && event.payload.event.type !== "notice") {
 			this.lastActivityAt = Date.now();
 		}
 		this.events.emit(event);
