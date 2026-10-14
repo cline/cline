@@ -126,6 +126,41 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 	await $`lipo -info ${outfile}`;
 };
 
+// Plugin installs drop their @cline/* dependencies because the host provides
+// them, and the plugin worker resolves those from node_modules beside its
+// bootstrap. Nothing like that exists next to the compiled sidecar, so ship
+// self-contained builds there. Splitting keeps one shared copy of the SDK,
+// placed in core so every chunk sits inside a `"type": "module"` package.
+const bundlePluginSdkPackages = async (): Promise<void> => {
+	const outdir = "src-tauri/bin/extensions/node_modules/@cline";
+	const packages = ["sdk", "core", "agents", "llms", "shared"];
+	await $`rm -rf ${outdir}`;
+	const result = await Bun.build({
+		entrypoints: packages.map(
+			(name) => `../../../sdk/packages/${name}/dist/index.js`,
+		),
+		outdir,
+		naming: { chunk: "core/dist/[name]-[hash].[ext]" },
+		target: "node",
+		format: "esm",
+		splitting: true,
+		minify: true,
+	});
+	if (!result.success) {
+		throw new AggregateError(result.logs, "plugin SDK bundle failed");
+	}
+	for (const name of packages) {
+		await Bun.write(
+			`${outdir}/${name}/package.json`,
+			JSON.stringify({
+				name: `@cline/${name}`,
+				type: "module",
+				exports: "./dist/index.js",
+			}),
+		);
+	}
+};
+
 const main = async () => {
 	// All compiled helpers and the sidecar depend on fresh SDK package exports.
 	await $`bun run build:sdk`.cwd(
@@ -136,6 +171,7 @@ const main = async () => {
 	// Plugins run in worker threads that load this self-contained bootstrap
 	// from disk; the app ships it as a resource (see plugin-bootstrap.ts).
 	await $`cp ../../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js src-tauri/bin/extensions/plugin-sandbox-bootstrap.js`;
+	await bundlePluginSdkPackages();
 	if (targetTriple === "universal-apple-darwin") {
 		await buildUniversalMacSidecar();
 	} else {
