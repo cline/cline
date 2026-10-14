@@ -5,6 +5,7 @@ import {
 	buildApiHandler,
 } from "@core/api";
 import type { ApiStream } from "@core/api/transform/stream";
+import { NonRetriableStreamError } from "@core/api/retry";
 import {
 	type AssistantMessageContent,
 	parseAssistantMessageV2,
@@ -2576,6 +2577,7 @@ export class Task {
 					!isOrgClinePassRestrictionError &&
 					!isClinePassLimitError &&
 					!isClineFreeModelLimitError &&
+					!(error instanceof NonRetriableStreamError) &&
 					this.taskState.autoRetryAttempts < 3;
 				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
@@ -2641,7 +2643,8 @@ export class Task {
 						!isEntitlementError &&
 						!isOrgClinePassRestrictionError &&
 						!isClinePassLimitError &&
-						!isClineFreeModelLimitError;
+						!isClineFreeModelLimitError &&
+						!(error instanceof NonRetriableStreamError);
 					if (showRetry) {
 						await this.say(
 							"error_retry",
@@ -3681,7 +3684,8 @@ export class Task {
 					const isStreamingNonRetriableError =
 						isStreamingSpendLimitError ||
 						isStreamingQuotaExceededError ||
-						isStreamingClineFreeModelLimitError;
+						isStreamingClineFreeModelLimitError ||
+						error instanceof NonRetriableStreamError;
 					// Auto-retry for streaming failures (skip for non-retriable errors)
 					if (
 						!isStreamingNonRetriableError &&
