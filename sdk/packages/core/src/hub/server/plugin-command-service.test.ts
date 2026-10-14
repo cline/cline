@@ -135,7 +135,6 @@ it("finishes an active command before shutting down its plugin service", async (
 	);
 });
 
-<<<<<<< HEAD
 it("reports sessionless plugin work as busy until the request finishes", async () => {
 	const directory = await workspace("busy");
 	const source = join(directory, ".cline/plugins/command.ts");
