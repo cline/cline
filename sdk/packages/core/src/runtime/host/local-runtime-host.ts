@@ -143,7 +143,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import { SessionNotFoundError } from "./runtime-host";
+import {
+	SessionNotFoundError,
+	SessionRunInProgressError,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -288,6 +291,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly sessionStarts = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -422,8 +429,48 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		const pendingStart = this.sessionStarts.get(sessionId);
+		if (pendingStart) {
+			if (input.resumeExistingSession)
+				return { ...(await pendingStart), reusedActiveSession: true };
+			throw new Error(`Session is already starting: ${sessionId}`);
+		}
+		const start = this.startOrReuseSession(
+			input,
+			sessionId,
+			requestedSessionId.length > 0,
+		);
+		this.sessionStarts.set(sessionId, start);
+		try {
+			return await start;
+		} finally {
+			this.sessionStarts.delete(sessionId);
+		}
+	}
+
+	private async startOrReuseSession(
+		input: StartSessionInput,
+		sessionId: string,
+		wasSessionIdRequested: boolean,
+	): Promise<StartSessionResult> {
+		const active = this.sessions.get(sessionId);
+		if (active && input.resumeExistingSession) {
+			await this.ensureSessionPersisted(active);
+			const artifacts = active.artifacts;
+			if (!artifacts) throw new Error("Session artifacts were not persisted");
+			return {
+				sessionId,
+				reusedActiveSession: true,
+				manifest: artifacts.manifest,
+				manifestPath: artifacts.manifestPath,
+				messagesPath: artifacts.messagesPath,
+			};
+		}
+		if (input.resumeExistingSession && !(await this.getSession(sessionId))) {
+			throw new SessionNotFoundError(sessionId);
+		}
 		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
+			wasSessionIdRequested &&
 			(input.initialMessages?.length ?? 0) > 0 &&
 			!input.prompt?.trim();
 		const hasRequestedWorkspace = Boolean(
@@ -446,7 +493,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return await this.startResolvedSession(
 			{ ...input, config },
 			sessionId,
-			requestedSessionId.length > 0,
+			wasSessionIdRequested,
 			existingResumeManifest,
 		);
 	}
@@ -1142,6 +1189,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
 		const canStartRun = session.agent.canStartRun();
+		if (input.delivery === "immediate" && !canStartRun) {
+			throw new SessionRunInProgressError();
+		}
 		const delivery =
 			input.delivery ??
 			(session.interactive && !canStartRun ? ("queue" as const) : undefined);

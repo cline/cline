@@ -82,7 +82,10 @@ export interface ActiveScheduledExecution {
 	timeoutAt?: string;
 }
 
+import type { ScheduleResultDelivery } from "./schedule-result-delivery";
+
 export interface HubScheduleServiceOptions {
+	deliverResult?: (delivery: ScheduleResultDelivery) => Promise<void>;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	eventPublisher?: (
 		eventType: string,
@@ -235,6 +238,7 @@ export class HubScheduleService {
 			store: this.store,
 			materializer: this.materializer,
 			runtimeHandlers: options.runtimeHandlers,
+			deliverResult: options.deliverResult,
 			eventPublisher: options.eventPublisher,
 			workspaceRoot: "",
 			specs: options.specs,

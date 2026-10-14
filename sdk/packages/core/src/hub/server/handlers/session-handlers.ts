@@ -283,6 +283,7 @@ export async function handleSessionCreate(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	options?: { resumeExistingSession?: boolean },
 ): Promise<HubReplyEnvelope> {
 	const startedAt = performance.now();
 	const baseLogContext = {
@@ -399,6 +400,7 @@ export async function handleSessionCreate(
 			? runtimeOptions.mode
 			: "act");
 	const started = await ctx.sessionHost.startSession({
+		resumeExistingSession: options?.resumeExistingSession,
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
 		sessionMetadata:
@@ -509,6 +511,11 @@ export async function handleSessionCreate(
 					: undefined,
 		plugins: parsePluginPolicies(payload.plugins),
 	});
+	if (started.reusedActiveSession) {
+		return okReply(envelope, {
+			session: await readHubSessionRecord(ctx, started.sessionId),
+		});
+	}
 	const pluginIssues = started.pluginIssues ?? [];
 	if (pluginIssues.length > 0) {
 		logHubMessage("warn", "session.create.plugin_issues", {

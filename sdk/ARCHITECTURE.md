@@ -913,6 +913,29 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
   workspace, and allow mutations only from an interactive session. One-time
   schedules accept an exact future ISO timestamp; recurring schedules accept a
   five-field cron expression and optional IANA timezone.
+- Scheduled tasks accept `delivery: "new_session"` (default) or
+  `delivery: "current_session"`. Execution always uses a separate unattended
+  session. For current-session delivery, the tool captures the calling session
+  ID in schedule metadata; transport callers cannot inject that private key.
+  Updating delivery to `new_session` clears the destination.
+- Completion and a bounded result prompt are committed together in
+  `cron_result_deliveries`. Failed executions produce failure notifications;
+  cancelled runs do not wake the parent. Lease-bound outbox claims hand results
+  to the Hub's durable FIFO queue using a stable `schedule-result:<run-id>`
+  admission ID. Admission is transactional and idempotent, so a crash between
+  queue acceptance and outbox acknowledgement cannot duplicate the follow-up.
+  Handoff errors retry independently of task execution. A lightweight admission
+  ledger preserves idempotency after terminal queue rows expire; acknowledged
+  outbox rows discard their prompt bodies.
+- The queue executor restores a saved destination using its original ID,
+  history, compaction state, workspace, model, and saved approval setting,
+  through ordinary Hub session bootstrap. A resident runtime is reused without
+  replacing its live history or emitting another creation event. Result turns
+  explicitly request immediate admission: a busy runtime rejects before adding
+  the prompt to its in-memory queue, leaving the durable result queued for
+  retry. Deleted destinations fail visibly in `run.list`; they are not recreated.
+  On Hub restart, queued results resume normally and already-running follow-up
+  turns are marked interrupted rather than automatically replayed.
 - The Hub contributes one tool-conditional system-prompt rule for `tasks`. It
   distinguishes reviewed Todo work from autonomous scheduled execution, states
   that Todo `available_at` is not a timer, requires clarification for ambiguous

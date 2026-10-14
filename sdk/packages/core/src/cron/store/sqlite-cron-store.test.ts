@@ -42,6 +42,94 @@ describe("SqliteCronStore", () => {
 		enabled: true,
 	});
 
+	it("commits result delivery with completion and retains it across restart and schedule deletion", () => {
+		const spec = store.createHubSchedule({
+			name: "Check",
+			cronPattern: "0 9 * * *",
+			prompt: "Check",
+			workspaceRoot: "/ws",
+		});
+		const run = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "manual",
+		});
+		const claim = store.claimDueRuns({
+			nowIso: new Date().toISOString(),
+			leaseMs: 30_000,
+		})[0];
+		expect(claim).toBeDefined();
+		const delivery = {
+			runId: run.runId,
+			sessionId: "origin",
+			prompt: "Result",
+		};
+		expect(
+			store.completeRun(run.runId, {
+				status: "done",
+				claimToken: "stale",
+				delivery,
+			}),
+		).toBe(false);
+		expect(store.listPendingResultDeliveries()).toEqual([]);
+		expect(
+			store.completeRun(run.runId, {
+				status: "done",
+				claimToken: claim?.claimToken,
+				delivery,
+			}),
+		).toBe(true);
+		store.close();
+		store = new SqliteCronStore({ dbPath: join(dir, "cron.db") });
+		store.deleteHubSchedule(spec.externalId);
+		expect(store.listPendingResultDeliveries()).toEqual([delivery]);
+		const deliveryClaim = store.claimResultDeliveries()[0];
+		expect(deliveryClaim).toBeDefined();
+		if (!deliveryClaim) throw new Error("Expected delivery claim");
+		store.recordResultDeliveryError(
+			run.runId,
+			"queue full",
+			deliveryClaim.claimToken,
+		);
+		expect(store.listPendingResultDeliveries()).toEqual([delivery]);
+		const nextClaim = store.claimResultDeliveries()[0];
+		expect(nextClaim).toBeDefined();
+		if (!nextClaim) throw new Error("Expected delivery claim");
+		store.acknowledgeResultDelivery(run.runId, nextClaim.claimToken);
+		expect(store.listPendingResultDeliveries()).toEqual([]);
+	});
+
+	it("leases result handoff across connections and rejects stale acknowledgements", () => {
+		const spec = store.createHubSchedule({
+			name: "Check",
+			cronPattern: "0 9 * * *",
+			prompt: "Check",
+			workspaceRoot: "/ws",
+		});
+		const run = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "manual",
+		});
+		store.completeRun(run.runId, {
+			status: "done",
+			delivery: { runId: run.runId, sessionId: "origin", prompt: "Result" },
+		});
+		const other = new SqliteCronStore({ dbPath: join(dir, "cron.db") });
+		try {
+			const claim = store.claimResultDeliveries()[0];
+			expect(claim).toBeDefined();
+			if (!claim) throw new Error("Expected delivery claim");
+			expect(other.claimResultDeliveries()).toEqual([]);
+			other.acknowledgeResultDelivery(run.runId, "stale-token");
+			expect(store.listPendingResultDeliveries()).toHaveLength(1);
+			store.acknowledgeResultDelivery(run.runId, claim.claimToken);
+			expect(other.listPendingResultDeliveries()).toEqual([]);
+		} finally {
+			other.close();
+		}
+	});
+
 	it("creates a new spec row for a new source path", () => {
 		const result = store.upsertSpec({
 			externalId: "cleanup",

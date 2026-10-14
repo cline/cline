@@ -222,6 +222,77 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("reuses the active runtime for scheduled delivery and rejects an immediate turn while busy", async () => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		try {
+			const input = normalizeStartInput({
+				interactive: true,
+				config: createConfig({
+					sessionId: "scheduled-result-origin",
+					cwd: isolatedHomeDir,
+					workspaceRoot: isolatedHomeDir,
+				}),
+			});
+			const [first, concurrentResume] = await Promise.all([
+				manager.startSession(input),
+				manager.startSession({ ...input, resumeExistingSession: true }),
+			]);
+			expect(concurrentResume.sessionId).toBe(first.sessionId);
+			expect(concurrentResume.reusedActiveSession).toBe(true);
+			const reused = await manager.startSession({
+				...input,
+				config: { ...input.config, sessionId: first.sessionId },
+				resumeExistingSession: true,
+			});
+			expect(reused.sessionId).toBe(first.sessionId);
+			expect(runtimeBuilder.build).toHaveBeenCalledOnce();
+			agent.canStartRun.mockReturnValue(false);
+			await expect(
+				manager.runTurn({
+					sessionId: first.sessionId,
+					prompt: "Scheduled result",
+					delivery: "immediate",
+				}),
+			).rejects.toMatchObject({ code: "session_run_in_progress" });
+			expect(agent.run).not.toHaveBeenCalled();
+			await expect(
+				manager.startSession({
+					...input,
+					config: { ...input.config, sessionId: "deleted-origin" },
+					resumeExistingSession: true,
+				}),
+			).rejects.toMatchObject({ code: "session_not_found" });
+			expect(runtimeBuilder.build).toHaveBeenCalledOnce();
+			expect(
+				await manager.pendingPrompts.list({ sessionId: first.sessionId }),
+			).toEqual([]);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("uses host connector authentication on startup and resume", async () => {
 		const settings = vi
 			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")

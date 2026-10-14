@@ -61,15 +61,31 @@ export function drainingReply(envelope: HubCommandEnvelope): HubReplyEnvelope {
  */
 export class HubRunExecutor {
 	private readonly activeSessions = new Set<string>();
+	private readonly retryTimers = new Map<
+		string,
+		ReturnType<typeof setTimeout>
+	>();
+	private stopped = false;
 
 	constructor(
 		private readonly ctx: HubTransportContext,
 		private readonly queue: HubRunQueue,
+		private readonly prepareRun?: (run: HubRunRecord) => Promise<void>,
 	) {}
+
+	stop(): void {
+		this.stopped = true;
+		for (const timer of this.retryTimers.values()) clearTimeout(timer);
+		this.retryTimers.clear();
+	}
 
 	/** Start (or continue) draining the session's queue in the background. */
 	pump(sessionId: string): void {
-		if (this.activeSessions.has(sessionId)) {
+		if (
+			this.stopped ||
+			this.retryTimers.has(sessionId) ||
+			this.activeSessions.has(sessionId)
+		) {
 			return;
 		}
 		this.activeSessions.add(sessionId);
@@ -80,7 +96,11 @@ export class HubRunExecutor {
 			.finally(() => {
 				this.activeSessions.delete(sessionId);
 				// New work admitted while the finally raced the last check.
-				if (this.queue.nextQueued(sessionId)) {
+				if (
+					!this.stopped &&
+					!this.retryTimers.has(sessionId) &&
+					this.queue.nextQueued(sessionId)
+				) {
 					this.pump(sessionId);
 				}
 			});
@@ -88,16 +108,16 @@ export class HubRunExecutor {
 
 	private async drainSession(sessionId: string): Promise<void> {
 		for (;;) {
+			if (this.stopped) return;
 			const run = this.queue.nextQueued(sessionId);
 			if (!run) {
 				return;
 			}
-			this.queue.markRunning(run.runId);
-			await this.execute(run);
+			if (await this.execute(run)) return;
 		}
 	}
 
-	private async execute(run: HubRunRecord): Promise<void> {
+	private async execute(run: HubRunRecord): Promise<boolean> {
 		const envelope: HubCommandEnvelope = {
 			version: "v1",
 			command: "run.start",
@@ -107,7 +127,25 @@ export class HubRunExecutor {
 			payload: { ...run.input, sessionId: run.sessionId },
 		};
 		try {
+			await this.prepareRun?.(run);
+			if (this.stopped) return true;
+			this.queue.markRunning(run.runId);
 			const reply = await handleSessionInput(this.ctx, envelope);
+			if (this.stopped) return true;
+			if (
+				!reply.ok &&
+				reply.error?.code === "session_run_in_progress" &&
+				run.input.delivery === "immediate"
+			) {
+				this.queue.markQueued(run.runId);
+				const timer = setTimeout(() => {
+					this.retryTimers.delete(run.sessionId);
+					this.pump(run.sessionId);
+				}, 1000);
+				timer.unref?.();
+				this.retryTimers.set(run.sessionId, timer);
+				return true;
+			}
 			if (reply.ok) {
 				const finishReason = (
 					reply.payload?.result as { finishReason?: string } | undefined
@@ -129,12 +167,14 @@ export class HubRunExecutor {
 				);
 			}
 		} catch (error) {
+			if (this.stopped) return true;
 			this.queue.markTerminal(
 				run.runId,
 				"failed",
 				error instanceof Error ? error.message : String(error),
 			);
 		}
+		return false;
 	}
 }
 

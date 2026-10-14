@@ -102,6 +102,59 @@ describe("CronRunner", () => {
 	it.each([
 		false,
 		true,
+	])("delivers %s failure status durably without rerunning scheduled work after admission fails", async (fails) => {
+		const { handlers, calls } = fakeHandlers();
+		if (fails)
+			handlers.sendSession = async () => {
+				calls.send++;
+				throw new Error("provider unavailable");
+			};
+		const spec = store.createHubSchedule({
+			name: "Check",
+			cronPattern: "0 9 * * *",
+			prompt: "Check",
+			workspaceRoot,
+			metadata: { __hubScheduleResultSessionId: "origin" },
+		});
+		store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "manual",
+		});
+		const deliverResult = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("queue unavailable"))
+			.mockResolvedValue(undefined);
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			deliverResult,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		try {
+			await runner.tick();
+			expect(store.listPendingResultDeliveries()).toHaveLength(1);
+			expect(deliverResult).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sessionId: "origin",
+					prompt: expect.stringContaining(
+						fails ? "provider unavailable" : "done text",
+					),
+				}),
+			);
+			await runner.tick();
+			expect(calls.send).toBe(1);
+			expect(store.listPendingResultDeliveries()).toEqual([]);
+		} finally {
+			await runner.dispose();
+		}
+	});
+
+	it.each([
+		false,
+		true,
 	])("dispatches other schedules while a run is pending (expired lease: %s)", async (expiredLease) => {
 		const { handlers, calls } = fakeHandlers();
 		let release!: () => void;
