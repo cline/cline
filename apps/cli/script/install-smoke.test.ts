@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { compileCliBinary } from "./compile-binary";
@@ -31,6 +31,18 @@ test.skipIf(process.platform === "win32")(
 				BUN_BE_BUN: undefined,
 				PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
 			};
+			const flagsProbe = join(root, "runtime-flags.js");
+			writeFileSync(
+				flagsProbe,
+				"console.log(JSON.stringify(process.execArgv))",
+			);
+			const flags = spawnSync(binary, ["run", "--use-system-ca", flagsProbe], {
+				env: { ...env, BUN_BE_BUN: "1" },
+				encoding: "utf8",
+				timeout: 10000,
+			});
+			expect(flags.status, flags.stderr).toBe(0);
+			expect(JSON.parse(flags.stdout)).toContain("--use-system-ca");
 			const before = spawnSync(binary, ["--runtime-info"], {
 				env,
 				encoding: "utf8",
@@ -39,6 +51,7 @@ test.skipIf(process.platform === "win32")(
 			expect(before.status, before.stderr).toBe(0);
 			const identity = JSON.parse(before.stdout);
 			expect(identity.compiled).toBe(true);
+			expect(identity.execArgv).toContain("--use-system-ca");
 			expect(identity.buildEpochMs, before.stdout).toBeGreaterThan(0);
 			const install = spawnSync(
 				"bash",
