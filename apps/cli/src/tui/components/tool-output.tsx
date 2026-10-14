@@ -155,7 +155,7 @@ function EditOutput(props: {
 	const oldText = editorInfo.oldText ?? "";
 	const newText = editorInfo.newText;
 	const language = detectLanguage(editorInfo.path);
-	const addedLines = newText.split("\n").length;
+	const addedLines = newText ? newText.split("\n").length : 0;
 	const removedLines = oldText ? oldText.split("\n").length : 0;
 	const diffPalette = props.theme.diff;
 
