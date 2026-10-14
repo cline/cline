@@ -155,7 +155,14 @@ export function createV1PathFallbackFetch(input: {
 			return response;
 		}
 
-		const retry = await baseFetch(v1Input, init);
+		let retry: Response;
+		try {
+			retry = await baseFetch(v1Input, init);
+		} catch (error) {
+			// The original 404 is never returned on this path; release its body.
+			void response.body?.cancel().catch(() => {});
+			throw error;
+		}
 		if (retry.status === 404) {
 			// Neither path exists; report the URL the user configured.
 			void retry.body?.cancel().catch(() => {});

@@ -296,6 +296,27 @@ describe("createV1PathFallbackFetch", () => {
 		expect(response.status).toBe(401);
 	});
 
+	it("releases the original 404 body when the /v1 retry rejects", async () => {
+		const notFound = new Response("not found", { status: 404 });
+		const cancel = vi.spyOn(notFound.body as ReadableStream, "cancel");
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(notFound)
+			.mockRejectedValueOnce(new Error("connection reset"));
+		const wrapped = createV1PathFallbackFetch({
+			baseUrl: "https://example.com",
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+
+		await expect(
+			wrapped("https://example.com/chat/completions", {
+				method: "POST",
+				body,
+			}),
+		).rejects.toThrow("connection reset");
+		expect(cancel).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not retry streamed bodies or requests to other origins", async () => {
 		const fetchMock = serverAt("/v1/chat/completions");
 		const wrapped = createV1PathFallbackFetch({
