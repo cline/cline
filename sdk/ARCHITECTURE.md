@@ -770,10 +770,21 @@ imports anything but Node builtins, because hosts ship it without
 
 Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
 or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop sidecar
+(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop backend
 sets it to the copy shipped as a Tauri resource). A host that ships none
 cannot start workers, and `resolvePluginExecutionMode` falls back to
 `in_process`.
+
+The compiled CLI (and so every CLI-managed Hub, including SSH remotes) instead
+embeds the bootstrap as a worker entrypoint (`@cline/core/plugin-worker`,
+wrapped by `apps/cli/src/plugin-worker.ts`) and points
+`CLINE_PLUGIN_BOOTSTRAP_PATH` at it. That worker calls
+`registerHostPluginModules`, which serves `@cline/*` imports from the
+executable's own build through Bun's runtime plugin API, and plugins then load
+with Bun's native `import()` instead of jiti (jiti resolves bare specifiers
+itself and would not see those modules). Plugins therefore need no SDK
+packages on disk; their own dependencies still resolve from their
+`node_modules`.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
