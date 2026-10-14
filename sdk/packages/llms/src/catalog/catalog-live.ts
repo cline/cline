@@ -1,4 +1,9 @@
 import {
+	builtinProviderSupportsModelOperation,
+	normalizeBuiltinModelOperationModalities,
+	resolveModelOperation,
+} from "../providers/model-operations";
+import {
 	MODELS_DEV_BLOCKED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
@@ -7,12 +12,18 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
-import type { ModelInfo } from "./types";
+import {
+	resolveCatalogModelOperation,
+	resolveCatalogModelOperationModes,
+} from "./model-operation";
+import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
+	provider?: { npm?: string };
 	name?: string;
 	tool_call?: boolean;
 	reasoning?: boolean;
+	reasoning_options?: ModelInfo["reasoningOptions"];
 	structured_output?: boolean;
 	temperature?: boolean;
 	release_date?: string;
@@ -30,6 +41,7 @@ export interface ModelsDevModel {
 	};
 	modalities?: {
 		input?: string[];
+		output?: string[];
 	};
 	status?: string;
 }
@@ -77,6 +89,7 @@ interface SelectedModelsDevProvider {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
+
 const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/openai": "openai",
 	"@ai-sdk/openai-compatible": "openai-compatible",
@@ -182,6 +195,9 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	if (model.modalities?.input?.includes("image")) {
 		capabilities.push("images");
 	}
+	if (model.modalities?.input?.includes("video")) {
+		capabilities.push("video");
+	}
 	if (model.modalities?.input?.includes("pdf")) {
 		capabilities.push("files");
 	}
@@ -204,6 +220,73 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 		capabilities.push("prompt-cache");
 	}
 	return Array.from(new Set(capabilities));
+}
+
+const KNOWN_MODEL_MODALITIES = new Set<ModelModality>([
+	"text",
+	"image",
+	"audio",
+	"video",
+	"pdf",
+]);
+
+function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
+	const modalities = model.modalities;
+	if (!modalities) {
+		return undefined;
+	}
+	const normalize = (values: string[] | undefined): ModelModality[] =>
+		Array.from(
+			new Set(
+				(values ?? []).filter((value): value is ModelModality =>
+					KNOWN_MODEL_MODALITIES.has(value as ModelModality),
+				),
+			),
+		);
+	const input = normalize(modalities.input);
+	let output = normalize(modalities.output);
+	if (
+		model.family?.trim().toLowerCase() === "gpt-image" &&
+		output.includes("image")
+	) {
+		// models.dev has advertised some GPT Image releases as also producing
+		// text. They are image-endpoint models, so keeping `text` here would route
+		// them through the streaming Responses path instead of `generateImage`.
+		output = output.filter((modality) => modality !== "text");
+	}
+	// A one-sided declaration is incomplete and must not turn an otherwise
+	// usable chat model into an input- or output-incompatible model.
+	if (input.length === 0 || output.length === 0) {
+		return undefined;
+	}
+	const hasGeneratedOutput = output.some((modality) => modality !== "text");
+	const isTranscriptionShape =
+		input.length === 1 &&
+		input[0] === "audio" &&
+		output.length === 1 &&
+		output[0] === "text";
+	const hasAudioInput = input.includes("audio");
+	// Ordinary language-model input modalities already have compact capability
+	// projections (images, video, files). Audio has no generic capability flag,
+	// so retain that input shape along with generated output and transcription.
+	if (!hasGeneratedOutput && !isTranscriptionShape && !hasAudioInput) {
+		return undefined;
+	}
+	return { input, output };
+}
+
+function isSpecializedOperationModel(model: ModelInfo): boolean {
+	return (
+		resolveModelOperation(model) !== "language" ||
+		model.modalities?.output.some((modality) => modality !== "text") === true
+	);
+}
+function isChatModel(model: ModelInfo): boolean {
+	return (
+		(model.modalities === undefined ||
+			model.modalities.input.includes("text")) &&
+		(model.modalities === undefined || model.modalities.output.includes("text"))
+	);
 }
 
 function toStatus(status: string | undefined): ModelInfo["status"] {
@@ -234,6 +317,12 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const maxInputTokens = resolveMaxInputTokens(model.limit);
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
+	const modalities = toModalities(model);
+	const operation = resolveCatalogModelOperation({ ...model, id: modelId });
+	const operationModes = resolveCatalogModelOperationModes(modelId, model);
+	const apiProtocol = model.provider?.npm
+		? MODEL_API_PROTOCOLS[model.provider.npm]
+		: undefined;
 
 	return {
 		id: modelId,
@@ -242,6 +331,9 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
 		capabilities: toCapabilities(model),
+		...(model.reasoning_options !== undefined
+			? { reasoningOptions: model.reasoning_options }
+			: {}),
 		pricing: {
 			input: model.cost?.input ?? 0,
 			output: model.cost?.output ?? 0,
@@ -251,8 +343,22 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		status: toStatus(model.status),
 		releaseDate: model.release_date,
 		family: model.family,
+		...(operation !== "language" ? { operation } : {}),
+		...(operationModes ? { operationModes } : {}),
+		...(modalities !== undefined ? { modalities } : {}),
+		...(apiProtocol ? { metadata: { apiProtocol } } : {}),
 	};
 }
+
+const MODEL_API_PROTOCOLS: Record<
+	string,
+	NonNullable<ModelInfo["metadata"]>["apiProtocol"]
+> = {
+	"@ai-sdk/openai": "openai-responses",
+	"@ai-sdk/openai-compatible": "openai-chat",
+	"@ai-sdk/anthropic": "anthropic",
+	"@ai-sdk/google": "gemini",
+};
 
 function isDeprecatedModel(model: ModelsDevModel): boolean {
 	return model.status === "deprecated";
@@ -272,10 +378,46 @@ export function normalizeModelsDevProviderModels(
 
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
-			if (model.tool_call !== true || isDeprecatedModel(model)) {
+			const rawInfo = toModelInfo(modelId, model);
+			// Go documents Qwen's Messages endpoint, but some models.dev Qwen
+			// entries still omit provider.npm. Explicit upstream declarations win.
+			// https://opencode.ai/docs/go/#endpoints
+			if (
+				targetProviderId === "opencode-go" &&
+				/^qwen(?:\d|$)/.test(model.family ?? "") &&
+				!model.provider?.npm
+			) {
+				rawInfo.metadata = { ...rawInfo.metadata, apiProtocol: "anthropic" };
+			}
+			const modalities = normalizeBuiltinModelOperationModalities({
+				providerId: targetProviderId,
+				modelId,
+				operation: rawInfo.operation,
+				operationModes: rawInfo.operationModes,
+				modalities: rawInfo.modalities,
+				family: rawInfo.family,
+				capabilities: rawInfo.capabilities,
+			});
+			const info = {
+				...rawInfo,
+				...(modalities ? { modalities } : {}),
+			};
+			if (
+				(model.tool_call !== true && !isSpecializedOperationModel(info)) ||
+				isDeprecatedModel(model) ||
+				!builtinProviderSupportsModelOperation({
+					providerId: targetProviderId,
+					modelId,
+					operation: info.operation,
+					operationModes: info.operationModes,
+					modalities: info.modalities,
+					family: info.family,
+					capabilities: info.capabilities,
+				})
+			) {
 				continue;
 			}
-			models[modelId] = toModelInfo(modelId, model);
+			models[modelId] = info;
 		}
 
 		if (Object.keys(models).length > 0) {
@@ -336,6 +478,9 @@ export function normalizeModelsDevProviderSpecs(
 	)) {
 		const baseUrl = normalizeBaseUrl(source.api);
 		const models = providerModels[targetProviderId];
+		const defaultModelId =
+			Object.values(models ?? {}).find(isChatModel)?.id ??
+			Object.keys(models ?? {})[0];
 		const spec: ModelsDevGeneratedProviderSpec = {
 			id: targetProviderId,
 			name: source.name || targetProviderId,
@@ -343,7 +488,7 @@ export function normalizeModelsDevProviderSpecs(
 			family: toProviderFamily(source),
 			capabilities: toProviderCapabilities(models),
 			modelsProviderId: targetProviderId,
-			defaultModelId: Object.keys(models ?? {})[0],
+			defaultModelId,
 			apiKeyEnv: source.env?.length ? [...source.env] : undefined,
 			docsUrl: source.doc,
 			defaults: baseUrl ? { baseUrl } : undefined,
@@ -395,6 +540,7 @@ export async function fetchModelsDevCatalog(
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
 	fetcher: typeof fetch = fetch,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
 	const [providerModels, clineRecommendedPayload] = await Promise.all([
@@ -407,6 +553,7 @@ export async function fetchLiveProviderModels(
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
 				providerModels.openrouter ?? {},
+				options,
 			)
 		: {};
 

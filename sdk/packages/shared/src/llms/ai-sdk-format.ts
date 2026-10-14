@@ -3,7 +3,10 @@ import {
 	createMediaBudgetState,
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	type GeneratedMedia,
+	type GeneratedMediaModality,
 	IMAGE_OMITTED_PLACEHOLDER,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	imageBase64LengthForDecodedBytes,
 	type MediaBudgetState,
 	reserveImageMediaBytes,
@@ -48,6 +51,10 @@ export type AiSdkFormatterPart =
 			mediaType?: string;
 	  }
 	| {
+			type: "media";
+			media: GeneratedMedia;
+	  }
+	| {
 			type: "file";
 			path: string;
 			content: string;
@@ -74,6 +81,20 @@ export interface AiSdkFormatterMessage {
 
 export const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
 const IMAGE_ATTACHED_TEXT = "[image attached]";
+const GENERATED_IMAGE_TEXT = "[generated image]";
+
+function generatedMediaText(modality: GeneratedMediaModality): string {
+	return `[generated ${modality}]`;
+}
+
+function generatedMediaUnavailableText(
+	media: GeneratedMedia,
+): AiSdkMessagePart {
+	return {
+		type: "text",
+		text: `[generated ${media.modality} unavailable to this model]`,
+	};
+}
 
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {
@@ -85,6 +106,16 @@ type AiSdkContentBlock =
 	| { type: "text"; text: string }
 	| { type: "image"; data: string; mediaType: string };
 type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
+
+/**
+ * AI SDK 7 tool-result media part (`LanguageModelV4`-era canonical shape).
+ * `data` is the tagged file-data union rather than a bare base64 string.
+ */
+type ToolResultImagePart = {
+	type: "file";
+	data: { type: "data"; data: string };
+	mediaType: string;
+};
 
 interface StripImagesResult {
 	value: unknown;
@@ -161,15 +192,16 @@ function parseUrlProtocol(value: string): string | undefined {
 	}
 }
 
-function toImageDataPart(
+/**
+ * Build a tool-result `content` media part. AI SDK 7 collapsed the
+ * `image-*`/`file-*` tool-result variants into a single `file` part whose
+ * `data` is a tagged union; the old variants still round-trip through a
+ * runtime shim but log a deprecation warning on every request.
+ */
+function toToolResultImagePart(
 	image: AiSdkImageContentBlock,
 	state: MediaBudgetState,
-):
-	| { type: "image-data"; data: string; mediaType: string }
-	| {
-			type: "text";
-			text: string;
-	  } {
+): ToolResultImagePart | { type: "text"; text: string } {
 	const validation = validateAndReserveImageMedia(
 		image.mediaType,
 		image.data,
@@ -182,10 +214,36 @@ function toImageDataPart(
 	if (!validation.ok) {
 		return imageOmittedTextPart();
 	}
+	return toolResultImagePart(validation.base64, validation.mediaType);
+}
+
+function toolResultImagePart(
+	base64: string,
+	mediaType: string,
+): ToolResultImagePart {
 	return {
-		type: "image-data",
-		data: validation.base64,
-		mediaType: validation.mediaType,
+		type: "file",
+		data: { type: "data", data: base64 },
+		mediaType,
+	};
+}
+
+/**
+ * Build a user-message media part. AI SDK 7 deprecated the `image` message
+ * part in favour of a `file` part carrying an image `mediaType`, so this
+ * always emits `file`. `mediaType` is required on `file` parts; when the
+ * source did not carry one we fall back to the bare `image` top-level type,
+ * which AI SDK 7 resolves per-provider (auto-detecting the subtype from
+ * inline bytes where it can).
+ */
+function userMediaPart(
+	data: string | Uint8Array | ArrayBuffer | URL,
+	mediaType: string | undefined,
+): AiSdkMessagePart {
+	return {
+		type: "file",
+		data,
+		mediaType: mediaType ?? "image",
 	};
 }
 
@@ -207,11 +265,10 @@ function toUserImagePart(
 			if (!validation.ok) {
 				return imageOmittedTextPart();
 			}
-			return {
-				type: "image",
-				image: `data:${validation.mediaType};base64,${validation.base64}`,
-				mediaType: validation.mediaType,
-			};
+			return userMediaPart(
+				`data:${validation.mediaType};base64,${validation.base64}`,
+				validation.mediaType,
+			);
 		}
 		if (image.image.protocol !== "http:" && image.image.protocol !== "https:") {
 			return imageOmittedTextPart();
@@ -219,11 +276,7 @@ function toUserImagePart(
 		if (!reserveRemoteImageUrlBudget(state)) {
 			return imageOmittedTextPart();
 		}
-		return {
-			type: "image",
-			image: image.image,
-			mediaType: image.mediaType,
-		};
+		return userMediaPart(image.image, image.mediaType);
 	}
 
 	if (typeof image.image === "string") {
@@ -232,11 +285,7 @@ function toUserImagePart(
 			if (!reserveRemoteImageUrlBudget(state)) {
 				return imageOmittedTextPart();
 			}
-			return {
-				type: "image",
-				image: image.image,
-				mediaType: image.mediaType,
-			};
+			return userMediaPart(image.image, image.mediaType);
 		}
 		const isDataUrl = protocol === "data:";
 
@@ -252,13 +301,12 @@ function toUserImagePart(
 		if (!validation.ok) {
 			return imageOmittedTextPart();
 		}
-		return {
-			type: "image",
-			image: isDataUrl
+		return userMediaPart(
+			isDataUrl
 				? `data:${validation.mediaType};base64,${validation.base64}`
 				: validation.base64,
-			mediaType: validation.mediaType,
-		};
+			validation.mediaType,
+		);
 	}
 
 	const decodedBytes = image.image.byteLength;
@@ -280,11 +328,71 @@ function toUserImagePart(
 		return imageOmittedTextPart();
 	}
 
-	return {
-		type: "image",
-		image: image.image,
-		mediaType,
-	};
+	return userMediaPart(image.image, mediaType);
+}
+
+function supportsGeneratedMediaInput(
+	media: GeneratedMedia,
+	supportedInputModalities: readonly string[] | undefined,
+): boolean {
+	if (!supportedInputModalities) return true;
+	if (media.modality === "file") {
+		return (
+			media.mediaType === "application/pdf" &&
+			supportedInputModalities.includes("pdf")
+		);
+	}
+	return supportedInputModalities.includes(media.modality);
+}
+
+function toUserGeneratedMediaPart(
+	media: GeneratedMedia,
+	state: MediaBudgetState,
+	supportedInputModalities: readonly string[] | undefined,
+): AiSdkMessagePart {
+	if (!supportsGeneratedMediaInput(media, supportedInputModalities)) {
+		return generatedMediaUnavailableText(media);
+	}
+
+	if (media.modality === "image") {
+		if (media.source.type === "artifact") {
+			return generatedMediaUnavailableText(media);
+		}
+		return toUserImagePart(
+			{
+				type: "image",
+				image:
+					media.source.type === "url" ? media.source.url : media.source.data,
+				mediaType: media.mediaType,
+			},
+			state,
+		);
+	}
+
+	if (media.source.type === "artifact") {
+		return generatedMediaUnavailableText(media);
+	}
+	if (media.source.type === "url") {
+		const protocol = parseUrlProtocol(media.source.url);
+		if (protocol !== "http:" && protocol !== "https:" && protocol !== "data:") {
+			return generatedMediaUnavailableText(media);
+		}
+	}
+	return userMediaPart(
+		media.source.type === "url" ? media.source.url : media.source.data,
+		media.mediaType,
+	);
+}
+
+interface StripImagesOptions {
+	/**
+	 * When true, valid image blocks are collected into `images` for the
+	 * caller to hoist into native multimodal parts. When false, they are
+	 * replaced inline with `inlineImagePlaceholder` text instead (used for
+	 * error outputs and for models without image input support).
+	 */
+	hoistImages: boolean;
+	inlineImagePlaceholder: string;
 }
 
 /**
@@ -301,8 +409,9 @@ function stripImagesFromOutput(
 	value: unknown,
 	images: AiSdkImageContentBlock[],
 	state: MediaBudgetState,
-	hoistImages = true,
+	options: StripImagesOptions,
 ): StripImagesResult {
+	const { hoistImages, inlineImagePlaceholder } = options;
 	if (value == null || typeof value !== "object") {
 		return { value, changed: false, mediaChanged: false };
 	}
@@ -320,7 +429,7 @@ function stripImagesFromOutput(
 					typeof obj.mediaType === "string"
 				) {
 					if (!hoistImages) {
-						out.push(IMAGE_OMITTED_PLACEHOLDER);
+						out.push(inlineImagePlaceholder);
 						changed = true;
 						mediaChanged = true;
 						continue;
@@ -330,11 +439,11 @@ function stripImagesFromOutput(
 						data: obj.data,
 						mediaType: obj.mediaType,
 					} satisfies AiSdkImageContentBlock;
-					const part = toImageDataPart(image, state);
-					if (part.type === "image-data") {
+					const part = toToolResultImagePart(image, state);
+					if (part.type === "file") {
 						images.push({
 							type: "image",
-							data: part.data,
+							data: part.data.data,
 							mediaType: part.mediaType,
 						});
 					} else {
@@ -356,7 +465,7 @@ function stripImagesFromOutput(
 					continue;
 				}
 			}
-			const stripped = stripImagesFromOutput(item, images, state, hoistImages);
+			const stripped = stripImagesFromOutput(item, images, state, options);
 			out.push(stripped.value);
 			changed ||= stripped.changed;
 			mediaChanged ||= stripped.mediaChanged;
@@ -369,7 +478,7 @@ function stripImagesFromOutput(
 		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
 			if (!hoistImages) {
 				return {
-					value: IMAGE_OMITTED_PLACEHOLDER,
+					value: inlineImagePlaceholder,
 					changed: true,
 					mediaChanged: true,
 				};
@@ -379,11 +488,11 @@ function stripImagesFromOutput(
 				data: obj.data,
 				mediaType: obj.mediaType,
 			} satisfies AiSdkImageContentBlock;
-			const part = toImageDataPart(image, state);
-			if (part.type === "image-data") {
+			const part = toToolResultImagePart(image, state);
+			if (part.type === "file") {
 				images.push({
 					type: "image",
-					data: part.data,
+					data: part.data.data,
 					mediaType: part.mediaType,
 				});
 				return {
@@ -405,7 +514,7 @@ function stripImagesFromOutput(
 	let changed = false;
 	let mediaChanged = false;
 	for (const [k, v] of Object.entries(obj)) {
-		const stripped = stripImagesFromOutput(v, images, state, hoistImages);
+		const stripped = stripImagesFromOutput(v, images, state, options);
 		out[k] = stripped.value;
 		changed ||= stripped.changed;
 		mediaChanged ||= stripped.mediaChanged;
@@ -436,7 +545,9 @@ export function toAiSdkToolResultOutput(
 	output: unknown,
 	isError = false,
 	mediaState: MediaBudgetState = createMediaBudgetState(),
+	options?: { supportsImages?: boolean },
 ): Record<string, unknown> {
+	const supportsImages = options?.supportsImages ?? true;
 	if (typeof output === "string") {
 		return {
 			type: isError ? "error-text" : "text",
@@ -450,12 +561,17 @@ export function toAiSdkToolResultOutput(
 	// falls through to the `json` branch below and the base64 image data
 	// is sent to the model as a JSON string — the model cannot see it and
 	// will hallucinate the image's contents.
+	// When the target model does not support image input, the image blocks
+	// are substituted with placeholder text instead so the model knows an
+	// image was there.
 	if (!isError && isAiSdkContentBlockArray(output)) {
 		return {
 			type: "content",
 			value: output.map((block) =>
 				block.type === "image"
-					? toImageDataPart(block, mediaState)
+					? supportsImages
+						? toToolResultImagePart(block, mediaState)
+						: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
 					: { type: "text", text: sanitizeSurrogates(block.text) },
 			),
 		};
@@ -469,14 +585,16 @@ export function toAiSdkToolResultOutput(
 	// text block followed by the extracted images. Without this, the wire
 	// converter JSON-serialises the whole tree and the model receives the
 	// base64 bytes as opaque text.
+	// For models without image input support, images are replaced inline
+	// with placeholder text instead of being hoisted.
 	if (output !== null && typeof output === "object") {
 		const images: AiSdkImageContentBlock[] = [];
-		const stripped = stripImagesFromOutput(
-			output,
-			images,
-			mediaState,
-			!isError,
-		);
+		const stripped = stripImagesFromOutput(output, images, mediaState, {
+			hoistImages: !isError && supportsImages,
+			inlineImagePlaceholder: supportsImages
+				? IMAGE_OMITTED_PLACEHOLDER
+				: IMAGE_UNSUPPORTED_PLACEHOLDER,
+		});
 		if (!isError && images.length > 0) {
 			const headerText =
 				typeof stripped.value === "string"
@@ -486,11 +604,9 @@ export function toAiSdkToolResultOutput(
 				type: "content",
 				value: [
 					{ type: "text", text: headerText },
-					...images.map((image) => ({
-						type: "image-data",
-						data: image.data,
-						mediaType: image.mediaType,
-					})),
+					...images.map((image) =>
+						toolResultImagePart(image.data, image.mediaType),
+					),
 				],
 			};
 		}
@@ -523,11 +639,43 @@ export function toAiSdkToolResultOutput(
 export function formatMessagesForAiSdk(
 	systemContent: string | AiSdkMessagePart[] | undefined,
 	messages: readonly AiSdkFormatterMessage[],
-	options?: { assistantToolCallArgKey?: "args" | "input" },
+	options?: {
+		assistantToolCallArgKey?: "args" | "input";
+		/**
+		 * Whether the target model advertises image input. When false, image
+		 * parts (user-attached and inside tool results) are substituted with
+		 * `IMAGE_UNSUPPORTED_PLACEHOLDER` text so the request stays valid for
+		 * text-only models while the model still learns an image was there.
+		 * Defaults to true. The substitution happens here at request-build
+		 * time only — stored conversation history is never mutated.
+		 */
+		supportedInputModalities?: readonly string[];
+	},
 ): AiSdkMessage[] {
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
+	const supportedInputModalities = options?.supportedInputModalities;
+	const supportsImages =
+		!supportedInputModalities || supportedInputModalities.includes("image");
 	const result: AiSdkMessage[] = [];
 	const mediaState = createMediaBudgetState();
+	const pendingAssistantMedia: Array<
+		| Extract<AiSdkFormatterPart, { type: "image" }>
+		| Extract<AiSdkFormatterPart, { type: "media" }>
+	> = [];
+	const takePendingAssistantMedia = (): AiSdkMessagePart[] => {
+		const pending = pendingAssistantMedia.splice(0);
+		return pending.map((part) =>
+			part.type === "image"
+				? supportsImages
+					? toUserImagePart(part, mediaState)
+					: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
+				: toUserGeneratedMediaPart(
+						part.media,
+						mediaState,
+						supportedInputModalities,
+					),
+		);
+	};
 
 	if (
 		(typeof systemContent === "string" && systemContent.trim().length > 0) ||
@@ -546,6 +694,26 @@ export function formatMessagesForAiSdk(
 		const contentParts = message.content;
 
 		if (typeof contentParts === "string") {
+			const movedAssistantMedia =
+				message.role === "user" && pendingAssistantMedia.length > 0
+					? takePendingAssistantMedia()
+					: [];
+			if (movedAssistantMedia.length > 0) {
+				result.push({
+					role: message.role,
+					content: [
+						{
+							type: "text",
+							text:
+								contentParts.trim().length > 0
+									? sanitizeSurrogates(contentParts)
+									: EMPTY_CONTENT_TEXT,
+						},
+						...movedAssistantMedia,
+					],
+				});
+				continue;
+			}
 			if (contentParts.trim().length === 0) {
 				result.push({
 					role: message.role,
@@ -591,7 +759,42 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push(toUserImagePart(part, mediaState));
+					if (message.role === "assistant") {
+						// AI SDK ModelMessage only accepts generated media as an
+						// assistant `file` part, but common provider wire formats
+						// (including Anthropic and OpenAI chat) only accept images on
+						// user turns. Preserve the assistant output marker and move the
+						// validated image to the following user turn so vision models
+						// can reliably inspect generated images in conversation history.
+						pendingAssistantMedia.push(part);
+						messageParts.push({
+							type: "text",
+							text: GENERATED_IMAGE_TEXT,
+						});
+					} else {
+						messageParts.push(
+							supportsImages
+								? toUserImagePart(part, mediaState)
+								: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+						);
+					}
+					break;
+				case "media":
+					if (message.role === "assistant") {
+						pendingAssistantMedia.push(part);
+						messageParts.push({
+							type: "text",
+							text: generatedMediaText(part.media.modality),
+						});
+					} else {
+						messageParts.push(
+							toUserGeneratedMediaPart(
+								part.media,
+								mediaState,
+								supportedInputModalities,
+							),
+						);
+					}
 					break;
 				case "file":
 					messageParts.push({
@@ -624,6 +827,7 @@ export function formatMessagesForAiSdk(
 							part.output,
 							part.isError ?? false,
 							mediaState,
+							{ supportsImages },
 						),
 					});
 					break;
@@ -631,12 +835,48 @@ export function formatMessagesForAiSdk(
 			}
 		}
 
+		const hasToolResults = toolResultParts.length > 0;
+		if (
+			message.role === "user" &&
+			!hasToolResults &&
+			pendingAssistantMedia.length > 0
+		) {
+			messageParts.push(...takePendingAssistantMedia());
+		}
+
+		// A message whose parts are all empty text is effectively empty: the AI SDK
+		// strips empty text parts before sending, and providers like Vercel reject
+		// the resulting `content: []` ("user message must have content").
+		if (
+			messageParts.length > 0 &&
+			messageParts.every(
+				(part) =>
+					part.type === "text" &&
+					typeof part.text === "string" &&
+					part.text.trim().length === 0,
+			)
+		) {
+			messageParts.splice(0, messageParts.length, {
+				type: "text",
+				text: EMPTY_CONTENT_TEXT,
+			});
+		}
 		if (messageParts.length > 0) {
 			pushAiSdkMessage(result, { role: message.role, content: messageParts });
 		}
-		if (toolResultParts.length > 0) {
+		if (hasToolResults) {
 			pushAiSdkMessage(result, { role: "tool", content: toolResultParts });
 		}
+	}
+
+	if (pendingAssistantMedia.length > 0) {
+		// Tool results must stay contiguous with their assistant tool calls. If
+		// there was no later user turn to receive generated images, append one
+		// synthetic user turn after the complete tool-result sequence.
+		pushAiSdkMessage(result, {
+			role: "user",
+			content: takePendingAssistantMedia(),
+		});
 	}
 
 	return result;

@@ -299,6 +299,21 @@ export class VscodeTerminalManager {
 	}
 
 	/**
+	 * Interrupt the command currently running in a terminal.
+	 *
+	 * VS Code exposes no API to kill a terminal's foreground process, so this
+	 * writes the ETX control character (`\x03`, i.e. Ctrl+C) without a trailing
+	 * newline; the pty's line discipline delivers it to the foreground process
+	 * group as SIGINT. Used when a task is cancelled so the spawned command
+	 * actually stops instead of continuing to run after Cline stops observing it.
+	 * The terminal itself is left open for reuse.
+	 */
+	sendInterrupt(terminalInfo: ITerminalInfo): void {
+		const vscodeTerminalInfo = terminalInfo as unknown as TerminalInfo
+		vscodeTerminalInfo.terminal.sendText("\x03", false)
+	}
+
+	/**
 	 * @param profileId Terminal profile to create/match the terminal with.
 	 * Defaults to the current setting; callers that captured the profile
 	 * earlier (e.g. when the model request was built) pass it here so a

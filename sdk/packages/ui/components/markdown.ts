@@ -1,0 +1,365 @@
+import type { MermaidConfig } from "mermaid";
+import type {
+	HighlighterCore,
+	LanguageRegistration,
+	ThemeRegistration,
+} from "shiki/core";
+import type {
+	CodeHighlighterPlugin,
+	ControlsConfig,
+	DiagramPlugin,
+} from "streamdown";
+import {
+	buildMermaidConfig,
+	createDefaultMermaidConfig,
+	createMermaidService,
+	defaultMermaidLoader,
+	type LazyMermaidInstance,
+	type MermaidModuleLoader,
+} from "./mermaid-diagram.js";
+import { readMermaidTheme } from "./mermaid-dom.js";
+
+/**
+ * Shared Streamdown configuration for agent chat Markdown, so every product
+ * renders assistant prose the same way. Products keep their own Streamdown
+ * wrapper (link policy, image policy, extra plugins) and pass these in:
+ *
+ *   <Streamdown
+ *     className="cline-markdown"
+ *     controls={agentMarkdownControls}
+ *     plugins={{ code: markdownCodeHighlighter }}
+ *   >
+ *
+ * Pair with `@cline/ui/components/markdown.css` for the matching visual
+ * treatment (single quiet code blocks with a hover copy control, chat-scale
+ * headings, table cards).
+ *
+ * Runtime requirements (optional peer dependencies): `streamdown`, `shiki`,
+ * `@shikijs/langs`, and `@shikijs/themes`.
+ */
+
+type HighlightResult = NonNullable<
+	ReturnType<CodeHighlighterPlugin["highlight"]>
+>;
+
+/** Copy on code blocks; no downloads; no mermaid/table chrome. The matching
+ * CSS hides the code-block header and reveals the copy control on hover. */
+export const agentMarkdownControls = {
+	code: { copy: true, download: false },
+	mermaid: false,
+	table: false,
+} satisfies ControlsConfig;
+
+/** Desktop/host opt-in controls for interactive Mermaid diagrams. The default
+ * controls above stay diagram-free so existing consumers don't change unless
+ * they also register a Mermaid DiagramPlugin. */
+export const agentMarkdownControlsWithMermaid = {
+	...agentMarkdownControls,
+	mermaid: {
+		copy: true,
+		download: true,
+		fullscreen: true,
+		panZoom: true,
+	},
+} satisfies ControlsConfig;
+
+export {
+	buildMermaidConfig,
+	buildMermaidThemeVariables,
+	createDefaultMermaidConfig,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
+	type MermaidColorMode,
+	type MermaidColorResolver,
+	type MermaidModuleLoader,
+	type MermaidThemeOptions,
+	type MermaidThemeTokens,
+	neutralizeDiagramLinks,
+} from "./mermaid-diagram.js";
+
+/** Base-theme defaults from the palette (light); hosts with a DOM resolve the
+ * live design tokens instead, see `resolveThemedMermaidConfig`. */
+export const DEFAULT_MERMAID_CONFIG: MermaidConfig =
+	createDefaultMermaidConfig("light");
+
+/**
+ * Creates a Streamdown Mermaid *diagram plugin* (Streamdown's built-in block
+ * chrome). Hosts that want the owned block (filename header, PNG/MMD
+ * downloads, themed PNGs) register `createMermaidRenderer` from
+ * `@cline/ui/components/mermaid-block` instead.
+ *
+ * The default config is resolved from the live Cline design tokens at render
+ * time (falling back to the palette without a DOM) and re-applied when the
+ * resolved theme changes; configs supplied through `getMermaid(config)` layer
+ * on top, with `securityLevel` always forced to `strict`.
+ */
+export function createLazyMermaidPlugin(
+	loader: MermaidModuleLoader = defaultMermaidLoader,
+): DiagramPlugin {
+	const service = createMermaidService(loader);
+	let overrides: MermaidConfig = {};
+	let cached: { config: MermaidConfig; key: string } | undefined;
+
+	const instance: LazyMermaidInstance = {
+		initialize(nextConfig: MermaidConfig) {
+			overrides = { ...overrides, ...nextConfig };
+			cached = undefined;
+		},
+		render(id: string, source: string) {
+			const theme = readMermaidTheme();
+			// One config object per theme key so the shared service only calls
+			// `initialize` when the theme or the overrides change.
+			if (cached?.key !== theme.key) {
+				cached = {
+					config: {
+						...buildMermaidConfig(theme.tokens, theme.mode, {
+							fontFamily: theme.fontFamily,
+						}),
+						...overrides,
+						securityLevel: "strict",
+					},
+					key: theme.key,
+				};
+			}
+			return service.render(id, source, cached.config);
+		},
+	};
+
+	return {
+		getMermaid(nextConfig?: MermaidConfig) {
+			if (nextConfig) instance.initialize(nextConfig);
+			return instance;
+		},
+		language: "mermaid",
+		name: "mermaid",
+		type: "diagram",
+	};
+}
+
+export const SUPPORTED_MARKDOWN_LANGUAGES = [
+	"bash",
+	"css",
+	"diff",
+	"html",
+	"javascript",
+	"json",
+	"jsonc",
+	"jsx",
+	"markdown",
+	"python",
+	"shellscript",
+	"tsx",
+	"typescript",
+	"yaml",
+] as const;
+
+type SupportedMarkdownLanguage = (typeof SUPPORTED_MARKDOWN_LANGUAGES)[number];
+
+const SUPPORTED_LANGUAGE_SET = new Set<string>(SUPPORTED_MARKDOWN_LANGUAGES);
+
+const LANGUAGE_ALIASES: Record<string, SupportedMarkdownLanguage> = {
+	cjs: "javascript",
+	console: "shellscript",
+	htm: "html",
+	js: "javascript",
+	json5: "jsonc",
+	md: "markdown",
+	mjs: "javascript",
+	py: "python",
+	sh: "shellscript",
+	shell: "shellscript",
+	ts: "typescript",
+	yml: "yaml",
+};
+
+const LANGUAGE_LOADERS: Record<
+	SupportedMarkdownLanguage,
+	() => Promise<LanguageRegistration[]>
+> = {
+	bash: () => import("@shikijs/langs/bash").then((module) => module.default),
+	css: () => import("@shikijs/langs/css").then((module) => module.default),
+	diff: () => import("@shikijs/langs/diff").then((module) => module.default),
+	html: () => import("@shikijs/langs/html").then((module) => module.default),
+	javascript: () =>
+		import("@shikijs/langs/javascript").then((module) => module.default),
+	json: () => import("@shikijs/langs/json").then((module) => module.default),
+	jsonc: () => import("@shikijs/langs/jsonc").then((module) => module.default),
+	jsx: () => import("@shikijs/langs/jsx").then((module) => module.default),
+	markdown: () =>
+		import("@shikijs/langs/markdown").then((module) => module.default),
+	python: () =>
+		import("@shikijs/langs/python").then((module) => module.default),
+	shellscript: () =>
+		import("@shikijs/langs/shellscript").then((module) => module.default),
+	tsx: () => import("@shikijs/langs/tsx").then((module) => module.default),
+	typescript: () =>
+		import("@shikijs/langs/typescript").then((module) => module.default),
+	yaml: () => import("@shikijs/langs/yaml").then((module) => module.default),
+};
+
+const LIGHT_THEME = "github-light";
+const DARK_THEME = "github-dark";
+const MAX_CACHED_RESULTS = 256;
+
+let highlighterPromise: Promise<HighlighterCore> | undefined;
+let themesPromise: Promise<void> | undefined;
+const languagePromises = new Map<SupportedMarkdownLanguage, Promise<void>>();
+const resultCache = new Map<string, HighlightResult>();
+const pendingHighlights = new Map<string, Promise<HighlightResult>>();
+const loggedFailures = new Set<string>();
+
+function normalizeLanguage(language: string): SupportedMarkdownLanguage | null {
+	const normalized = language.trim().toLowerCase();
+	if (!normalized) return null;
+	const aliased = LANGUAGE_ALIASES[normalized] ?? normalized;
+	return SUPPORTED_LANGUAGE_SET.has(aliased)
+		? (aliased as SupportedMarkdownLanguage)
+		: null;
+}
+
+function getHighlighter(): Promise<HighlighterCore> {
+	if (!highlighterPromise) {
+		highlighterPromise = Promise.all([
+			import("shiki/core"),
+			import("shiki/engine/javascript"),
+		]).then(([core, engine]) =>
+			core.createHighlighterCore({
+				engine: engine.createJavaScriptRegexEngine({ forgiving: true }),
+			}),
+		);
+	}
+	return highlighterPromise;
+}
+
+function ensureThemes(highlighter: HighlighterCore): Promise<void> {
+	if (!themesPromise) {
+		themesPromise = Promise.all([
+			import("@shikijs/themes/github-light").then((module) => module.default),
+			import("@shikijs/themes/github-dark").then((module) => module.default),
+		]).then((themes: ThemeRegistration[]) => highlighter.loadTheme(...themes));
+	}
+	return themesPromise;
+}
+
+function ensureLanguage(
+	highlighter: HighlighterCore,
+	language: SupportedMarkdownLanguage,
+): Promise<void> {
+	const existing = languagePromises.get(language);
+	if (existing) return existing;
+
+	const loading = LANGUAGE_LOADERS[language]().then((registrations) =>
+		highlighter.loadLanguage(...registrations),
+	);
+	languagePromises.set(language, loading);
+	return loading;
+}
+
+function rawHighlight(code: string): HighlightResult {
+	return {
+		bg: "transparent",
+		fg: "inherit",
+		tokens: code.split("\n").map((line) =>
+			line
+				? [
+						{
+							bgColor: "transparent",
+							color: "inherit",
+							content: line,
+							htmlStyle: {},
+							offset: 0,
+						},
+					]
+				: [],
+		),
+	};
+}
+
+function cacheResult(key: string, result: HighlightResult): void {
+	resultCache.delete(key);
+	resultCache.set(key, result);
+	if (resultCache.size <= MAX_CACHED_RESULTS) return;
+
+	const oldestKey = resultCache.keys().next().value;
+	if (oldestKey !== undefined) resultCache.delete(oldestKey);
+}
+
+function reportHighlightFailure(
+	language: SupportedMarkdownLanguage,
+	error: unknown,
+): void {
+	if (loggedFailures.has(language)) return;
+	loggedFailures.add(language);
+	console.warn(
+		`Syntax highlighting unavailable for ${language}; rendering plain code.`,
+		error,
+	);
+}
+
+function loadHighlight(
+	code: string,
+	language: SupportedMarkdownLanguage,
+): Promise<HighlightResult> {
+	const cacheKey = `${language}\0${code}`;
+	const cached = resultCache.get(cacheKey);
+	if (cached) return Promise.resolve(cached);
+
+	const pending = pendingHighlights.get(cacheKey);
+	if (pending) return pending;
+
+	const loading = getHighlighter()
+		.then(async (highlighter) => {
+			await ensureThemes(highlighter);
+			await ensureLanguage(highlighter, language);
+			const result = highlighter.codeToTokens(code, {
+				lang: language,
+				themes: {
+					dark: DARK_THEME,
+					light: LIGHT_THEME,
+				},
+			});
+			return {
+				bg: result.bg,
+				fg: result.fg,
+				rootStyle: result.rootStyle,
+				tokens: result.tokens,
+			} satisfies HighlightResult;
+		})
+		.catch((error: unknown) => {
+			reportHighlightFailure(language, error);
+			return rawHighlight(code);
+		})
+		.then((result) => {
+			cacheResult(cacheKey, result);
+			return result;
+		})
+		.finally(() => {
+			pendingHighlights.delete(cacheKey);
+		});
+
+	pendingHighlights.set(cacheKey, loading);
+	return loading;
+}
+
+// Annotated (not `satisfies`) so the emitted declaration names the public
+// CodeHighlighterPlugin type instead of streamdown's unexported internals.
+export const markdownCodeHighlighter: CodeHighlighterPlugin = {
+	getSupportedLanguages: () => [...SUPPORTED_MARKDOWN_LANGUAGES],
+	getThemes: () => [LIGHT_THEME, DARK_THEME],
+	highlight: ({ code, language }, callback) => {
+		const normalizedLanguage = normalizeLanguage(language);
+		if (!normalizedLanguage) return rawHighlight(code);
+
+		const cacheKey = `${normalizedLanguage}\0${code}`;
+		const cached = resultCache.get(cacheKey);
+		if (cached) return cached;
+
+		const loading = loadHighlight(code, normalizedLanguage);
+		if (callback) {
+			void loading.then((result) => callback(result));
+		}
+		return null;
+	},
+	name: "shiki",
+	supportsLanguage: (language) => normalizeLanguage(language) !== null,
+	type: "code-highlighter",
+};

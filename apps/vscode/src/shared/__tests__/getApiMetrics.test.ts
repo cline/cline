@@ -149,6 +149,29 @@ describe("getLastApiReqTotalTokens", () => {
 		assert.equal(total, 25_000)
 	})
 
+	it("grows the request total when a compaction made the estimated context larger", () => {
+		// Compacting a tiny conversation can produce a summary bigger than the
+		// original messages. The header must follow the divider's direction
+		// instead of freezing at the pre-compaction value.
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ tokensIn: 4_000, tokensOut: 1_000 }),
+			},
+			{
+				ts: 2,
+				type: "say",
+				say: "compaction",
+				text: JSON.stringify({ status: "completed", mode: "manual", tokensBefore: 1_000, tokensAfter: 1_300 }),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 6_500)
+	})
+
 	it("leaves the request total unscaled when a completed compaction lacks token counters", () => {
 		// The coordinator's fallback divider carries only message counts.
 		const messages: ClineMessage[] = [

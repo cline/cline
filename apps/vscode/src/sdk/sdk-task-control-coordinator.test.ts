@@ -1,6 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { SdkTaskControlCoordinator, type SdkTaskControlCoordinatorOptions } from "./sdk-task-control-coordinator"
+import { createTaskProxy } from "./task-proxy"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -52,6 +55,17 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.sessions.setRunning).not.toHaveBeenCalled()
 	})
 
+	it("leaves a running cloud host alone on sign-out even without a displayed task", async () => {
+		const activeSession = makeActiveSession()
+		Object.assign(activeSession.sdkHost, { isCloud: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.cancelClineTaskOnSignOut(true)
+
+		expect(activeSession.sdkHost.abort).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+	})
+
 	it("raises the cancel fence BEFORE aborting the session (so stragglers are fenced)", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -76,12 +90,89 @@ describe("SdkTaskControlCoordinator", () => {
 		await coordinator.clearTask()
 
 		expect(options.interactions.clearPending).toHaveBeenCalledWith("Task cleared")
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
 		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
 		expect(options.messages.finalizeMessagesForSave).not.toHaveBeenCalled()
 		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
 		expect(task.messageStateHandler.clear).toHaveBeenCalledOnce()
 		expect(state.task).toBeUndefined()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+	})
+
+	it("waits for the task-transition boundary before ending the active session", async () => {
+		let releaseRebuild: () => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
+				}),
+		)
+
+		const clear = coordinator.clearTask()
+		await Promise.resolve()
+
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
+
+		releaseRebuild()
+		await clear
+
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("clearTask")
+	})
+
+	it("does not end the session when a task selection supersedes clearTask during the rebuild wait", async () => {
+		let releaseRebuild: () => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: makeActiveSession() })
+		options.rebuilds.runTaskTransition.mockImplementationOnce(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve) => {
+					releaseRebuild = () => {
+						void operation().then(resolve)
+					}
+				}),
+		)
+
+		const clear = coordinator.clearTask()
+		void coordinator.showTaskWithId("missing-task")
+		releaseRebuild()
+		await clear
+
+		expect(options.sessions.endActiveSession).not.toHaveBeenCalledWith("clearTask")
+	})
+
+	it("drops the task-scoped settings overlay when the task is cleared (#13260)", async () => {
+		// autoApprovalSettings written via setTaskSettings while a task is open
+		// shadow global settings in getGlobalSettingsKey(). If the overlay
+		// survives "New Task", later global updates are accepted but never
+		// reach the webview (the stale overlay version wins), freezing the
+		// auto-approve checkboxes.
+		const { coordinator, options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			task: makeTask("task-1"),
+		})
+
+		await coordinator.clearTask()
+
+		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
+	})
+
+	it("drops the outgoing task's settings overlay when switching to another task", async () => {
+		const { coordinator, options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			task: makeTask("old-task"),
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "completed",
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.rebuilds.runTaskTransition).toHaveBeenCalledOnce()
+		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
+		// The overlay must be gone before the new proxy is installed.
+		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(options.setTask.mock.invocationCallOrder[0])
 	})
 
 	it("shows a task by creating a proxy, loading messages, and appending a fresh resume ask", async () => {
@@ -113,6 +204,58 @@ describe("SdkTaskControlCoordinator", () => {
 			expect.objectContaining({ type: "ask", ask: "resume_completed_task" }),
 		])
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("clears a pending approval when switching tasks so the new task input is not consumed", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const approvalPromise = interactions.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: {},
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task switched" })
+		expect(interactions.resolvePendingToolApproval("next task input", "noButtonClicked")).toBe(false)
+	})
+
+	it("settles a pending question when switching tasks so the outgoing run can unwind", async () => {
+		const pendingTask = createTaskProxy("old-task", vi.fn(), vi.fn())
+		const interactions = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => pendingTask }),
+			getSessionId: () => pendingTask.taskId,
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const { options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			hasHistoryItem: true,
+			clineMessages: [],
+		})
+		const coordinator = new SdkTaskControlCoordinator({ ...options, interactions })
+		const questionPromise = interactions.handleAskQuestion("Which option?", ["A", "B"], {})
+		await vi.waitFor(() => expect(pendingTask.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		await coordinator.showTaskWithId("new-task")
+
+		await expect(questionPromise).resolves.toBe("")
+		expect(interactions.resolvePendingAskQuestion("late answer")).toBe(false)
 	})
 
 	it("shows a legacy task with a warning and a resume ask", async () => {
@@ -406,6 +549,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		raiseCancelFence: vi.fn(),
 		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		clearTaskSettings: vi.fn().mockResolvedValue(undefined),
+		rebuilds: {
+			runTaskTransition: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+		},
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -429,6 +576,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		clearTaskSettings: ReturnType<typeof vi.fn>
+		rebuilds: { runTaskTransition: ReturnType<typeof vi.fn> }
 	}
 
 	return {

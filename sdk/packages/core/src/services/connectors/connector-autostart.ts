@@ -126,6 +126,9 @@ export async function reconnectPersistedConnectors(
 	for (const target of candidates) {
 		const { channel, instanceId } = target;
 		if (options.isHealthy?.(target)) {
+			log(
+				`[connect] skipping ${channel} connector ${instanceId}: already live in this host`,
+			);
 			continue;
 		}
 		log(`[connect] reconnecting ${channel} connector ${instanceId}`);

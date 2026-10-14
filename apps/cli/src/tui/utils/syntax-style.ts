@@ -1,5 +1,5 @@
 import { RGBA, type StyleDefinition, SyntaxStyle } from "@opentui/core";
-import { type TerminalTheme, themePalette } from "../palette";
+import type { ResolvedTheme } from "../themes";
 
 // Markdown's prominent elements (headings, bold, list markers, links) take
 // the accent of the mode the content was produced in, so assistant output
@@ -7,73 +7,6 @@ import { type TerminalTheme, themePalette } from "../palette";
 export type SyntaxAccentMode = "act" | "plan";
 
 const instances = new Map<string, SyntaxStyle>();
-
-interface SyntaxColors {
-	keyword: string;
-	operator: string;
-	type: string;
-	functionName: string;
-	variable: string;
-	string: string;
-	number: string;
-	comment: string;
-	punctuation: string;
-	property: string;
-	constant: string;
-	tag: string;
-	attribute: string;
-	escape: string;
-	markdownCode: string;
-	markdownMuted: string;
-	markdownItalic: string;
-	markdownDefault?: string;
-}
-
-// Dark syntax colors are a pastel family harmonized with the brand accents
-// (act #79b8ff, plan #ffea7f, success #99e89b): every hue sits near the same
-// OKLCH lightness/chroma weight (~L 0.78, C 0.11) so code blocks feel like
-// part of the same palette instead of a bolted-on editor theme.
-const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
-	dark: {
-		keyword: "#d7a0e3",
-		operator: "#9bbbdd",
-		type: "#dfca7d",
-		functionName: themePalette.dark.act,
-		variable: "#ee939b",
-		string: "#99e89b",
-		number: "#f0ad7f",
-		comment: "#5c6370",
-		punctuation: "#abb2bf",
-		property: "#ee939b",
-		constant: "#f0ad7f",
-		tag: "#ee939b",
-		attribute: "#f0ad7f",
-		escape: "#9bbbdd",
-		markdownCode: "#99e89b",
-		markdownMuted: "#808080",
-		markdownItalic: "#dfca7d",
-	},
-	light: {
-		keyword: "#cf222e",
-		operator: "#0550ae",
-		type: "#953800",
-		functionName: "#8250df",
-		variable: "#953800",
-		string: "#0a3069",
-		number: "#0550ae",
-		comment: "#6e7781",
-		punctuation: "#57606a",
-		property: "#0550ae",
-		constant: "#0550ae",
-		tag: "#116329",
-		attribute: "#0550ae",
-		escape: "#0550ae",
-		markdownCode: "#116329",
-		markdownMuted: "#6e7781",
-		markdownItalic: "#8250df",
-		markdownDefault: "#1a1a1a",
-	},
-};
 
 function color(hex: string): RGBA {
 	return RGBA.fromHex(hex);
@@ -92,11 +25,13 @@ function italic(hex: string): StyleDefinition {
 }
 
 function buildSyntaxStyle(
-	theme: TerminalTheme,
+	theme: ResolvedTheme,
 	mode: SyntaxAccentMode,
 ): SyntaxStyle {
-	const colors = syntaxColors[theme];
-	const accent = color(themePalette[theme][mode]);
+	const colors = theme.syntax;
+	const accent = color(
+		mode === "plan" ? theme.accents.plan : theme.accents.act,
+	);
 	const markdownHeading = accent;
 	const markdownCode = color(colors.markdownCode);
 	const markdownMuted = color(colors.markdownMuted);
@@ -150,10 +85,12 @@ function buildSyntaxStyle(
 }
 
 export function getSyntaxStyle(
-	theme: TerminalTheme = "dark",
+	theme: ResolvedTheme,
 	mode: SyntaxAccentMode = "act",
 ): SyntaxStyle {
-	const key = `${theme}:${mode}`;
+	// The auto theme resolves to a different palette per variant, so the
+	// variant participates in the cache key alongside the theme id.
+	const key = `${theme.id}:${theme.variant}:${mode}`;
 	let style = instances.get(key);
 	if (!style) {
 		style = buildSyntaxStyle(theme, mode);

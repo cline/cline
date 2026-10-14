@@ -213,6 +213,77 @@ describe("auth/oca getValidOcaCredentials", () => {
 		nowSpy.mockRestore();
 	});
 
+	it("throws on transient refresh error when the token is already expired", async () => {
+		// A server error landing after expiry is NOT an invalid grant; returning
+		// null here is what turned an outage blip into a forced
+		// "requires re-authentication" stop.
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const fetchMock = vi
+			.fn()
+			.mockImplementationOnce(
+				async () =>
+					new Response(
+						JSON.stringify({
+							token_endpoint: "https://idcs.expired/oauth2/v1/token",
+						}),
+						{
+							status: 200,
+							headers: { "Content-Type": "application/json" },
+						},
+					),
+			)
+			.mockImplementationOnce(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "server_error",
+							error_description: "temporary issue",
+						}),
+						{
+							status: 500,
+							headers: { "Content-Type": "application/json" },
+						},
+					),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const capture = vi.fn();
+		await expect(
+			getValidOcaCredentials(
+				createCredentials({ expires: 90_000 }),
+				{
+					refreshBufferMs: 60_000,
+					retryableTokenGraceMs: 30_000,
+					telemetry: { capture } as never,
+				},
+				{
+					config: {
+						internal: {
+							clientId: "client-3",
+							idcsUrl: "https://idcs.expired",
+							scopes: "openid offline_access",
+							baseUrl: "https://oca.example.com",
+						},
+					},
+				},
+			),
+		).rejects.toThrow("Token refresh failed: 500");
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "user.auth_refresh_soft_failure",
+				properties: expect.objectContaining({
+					provider: "oca",
+					status: 500,
+					tokenExpired: true,
+				}),
+			}),
+		);
+		expect(capture).not.toHaveBeenCalledWith(
+			expect.objectContaining({ event: "user.auth_logged_out" }),
+		);
+		nowSpy.mockRestore();
+	});
+
 	it("re-discovers token endpoint shortly after discovery fallback errors", async () => {
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
 		const fetchMock = vi

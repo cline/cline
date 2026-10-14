@@ -37,6 +37,7 @@ describe("configured agent tools", () => {
 		});
 
 		expect(tool?.name).toBe("subagent_code_reviewer");
+		expect(tool?.executionMode).toBe("parallel");
 		expect(tool?.timeoutMs).toBe(300000);
 		expect(tool?.retryable).toBe(false);
 	});

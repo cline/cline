@@ -1,4 +1,4 @@
-@import "../components/markdown.css" layer(components);
+@import "@cline/ui/components/markdown.css" layer(components);
 
 :root {
 	color-scheme: light;
@@ -14,6 +14,7 @@
 	}
 
 	html {
+		font-size: 15px;
 		@apply font-sans;
 	}
 

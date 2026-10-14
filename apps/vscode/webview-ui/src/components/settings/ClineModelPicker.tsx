@@ -56,6 +56,7 @@ interface ClineModelPickerProps {
 
 interface FeaturedModelCardEntry {
 	id: string
+	name?: string
 	description: string
 	label: string
 }
@@ -67,7 +68,7 @@ function normalizeModelId(modelId: string): string {
 }
 
 function toFeaturedModelCardEntry(
-	model: Pick<ClineRecommendedModel, "id" | "description" | "tags">,
+	model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">,
 	fallbackLabel: string,
 ): FeaturedModelCardEntry | null {
 	if (!model.id) {
@@ -79,6 +80,7 @@ function toFeaturedModelCardEntry(
 
 	return {
 		id: model.id,
+		name: model.name,
 		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
 		label: normalizedLabel || fallbackLabel,
 	}
@@ -442,10 +444,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						recommendedModels.map((model) => (
 							<FeaturedModelCard
 								description={model.description}
+								displayName={model.name || model.id}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
 								label={model.label}
-								modelId={model.id}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)
@@ -456,10 +458,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						freeModels.map((model) => (
 							<FeaturedModelCard
 								description={model.description}
+								displayName={model.name || model.id}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
 								label={model.label}
-								modelId={model.id}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)

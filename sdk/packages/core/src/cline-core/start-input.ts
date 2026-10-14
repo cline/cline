@@ -6,6 +6,11 @@ import type {
 	StartSessionInput,
 } from "../runtime/host/runtime-host";
 import { splitCoreSessionConfig } from "../runtime/host/runtime-host";
+import {
+	resolveClientSessionSource,
+	withSessionHistoryOriginMetadata,
+} from "../session/history-origin";
+import { SessionSource } from "../types/common";
 import type { ClineCoreStartConfig } from "../types/config";
 import type { ClineCoreStartInput } from "./types";
 
@@ -45,9 +50,9 @@ export function normalizeClineCoreStartInput(
 		split.localRuntime,
 		input.localRuntime,
 	);
-	const extensionContext = options.withExtensionContext?.(
-		localRuntime?.extensionContext,
-	);
+	const extensionContext = options.withExtensionContext
+		? options.withExtensionContext(localRuntime?.extensionContext)
+		: localRuntime?.extensionContext;
 	if (extensionContext) {
 		localRuntime = {
 			...(localRuntime ?? {}),
@@ -57,6 +62,14 @@ export function normalizeClineCoreStartInput(
 	return {
 		...input,
 		...split,
+		source:
+			input.source ??
+			resolveClientSessionSource(extensionContext?.client) ??
+			SessionSource.CORE,
+		sessionMetadata: withSessionHistoryOriginMetadata(input.sessionMetadata, {
+			mode: input.mode,
+			version: extensionContext?.client?.version,
+		}),
 		...(localRuntime ? { localRuntime } : {}),
 		...(capabilities ? { capabilities } : {}),
 	};

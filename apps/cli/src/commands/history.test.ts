@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionHistoryRecord } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { exportHistorySession } from "../session/history-export";
 import {
 	formatCheckpointDetail,
 	formatHistoryListLine,
@@ -16,18 +17,12 @@ vi.mock("../session/session", () => ({
 	readSessionMessagesArtifact: vi.fn(),
 }));
 
-vi.mock("../tui/history-standalone", () => ({
-	renderHistoryStandalone: vi.fn(async () => 0),
-}));
-
 import { listSessions, readSessionMessagesArtifact } from "../session/session";
-import { renderHistoryStandalone } from "../tui/history-standalone";
 
 const mockedReadSessionMessagesArtifact = vi.mocked(
 	readSessionMessagesArtifact,
 );
 const mockedListSessions = vi.mocked(listSessions);
-const mockedRenderHistoryStandalone = vi.mocked(renderHistoryStandalone);
 
 function createHistoryRow(
 	overrides: Partial<SessionHistoryRecord> = {},
@@ -200,8 +195,11 @@ describe("runHistoryList", () => {
 		vi.clearAllMocks();
 	});
 
-	it("hydrates interactive history rows so titles can be inferred from messages", async () => {
-		const row = createHistoryRow({ prompt: undefined, metadata: undefined });
+	it("requests hydrated text history rows so titles can come from messages", async () => {
+		const row = createHistoryRow({
+			prompt: undefined,
+			metadata: { title: "hydrated title", totalCost: 0.25 },
+		});
 		mockedListSessions.mockResolvedValue([row]);
 		const io = {
 			writeln: vi.fn(),
@@ -218,8 +216,8 @@ describe("runHistoryList", () => {
 		expect(mockedListSessions).toHaveBeenCalledWith(25, {
 			hydrate: true,
 		});
-		expect(mockedRenderHistoryStandalone).toHaveBeenCalledWith(
-			expect.objectContaining({ rows: [row] }),
+		expect(io.writeln).toHaveBeenCalledWith(
+			expect.stringContaining("hydrated title"),
 		);
 	});
 
@@ -311,6 +309,42 @@ describe("runHistoryExport", () => {
 			expect.stringContaining(outputPath),
 		);
 		await expect(readFile(outputPath, "utf8")).resolves.toContain("world");
+	});
+
+	it("writes structured JSON from a persisted messages artifact", async () => {
+		tempDir = await mkdtemp(join(tmpdir(), "cline-history-export-"));
+		const artifact = {
+			version: 1,
+			updated_at: "2026-04-22T17:42:10.123Z",
+			sessionId: "sess_1",
+			systemPrompt: "Be helpful",
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "hello" }],
+				},
+				{
+					id: "m2",
+					role: "assistant",
+					content: [{ type: "text", text: "world" }],
+				},
+			],
+		} satisfies NonNullable<
+			Awaited<ReturnType<typeof readSessionMessagesArtifact>>
+		>;
+		mockedReadSessionMessagesArtifact.mockResolvedValue(artifact);
+
+		const targetPath = await exportHistorySession({
+			sessionId: "sess_1",
+			format: "json",
+			outputDirectory: tempDir,
+		});
+
+		expect(targetPath).toBe(join(tempDir, "sess_1.json"));
+		await expect(
+			readFile(targetPath, "utf8").then((contents) => JSON.parse(contents)),
+		).resolves.toEqual(artifact);
 	});
 
 	it("exports run_commands history with structured command objects", async () => {

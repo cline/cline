@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import {
+	type McpServerOAuthClientConfig,
 	type McpServerOAuthState,
 	McpSettingsUpdateSkippedError,
 	resolveDefaultMcpSettingsPath,
@@ -10,6 +11,7 @@ export interface McpServerEntry {
 	name: string;
 	transport: McpTransport;
 	disabled?: boolean;
+	oauthClient?: McpServerOAuthClientConfig;
 	oauth?: McpServerOAuthState;
 }
 
@@ -49,6 +51,9 @@ export function loadServers(): McpServerEntry[] {
 				name,
 				transport,
 				disabled: entry.disabled === true,
+				oauthClient: entry.oauthClient as
+					| McpServerOAuthClientConfig
+					| undefined,
 				oauth,
 			};
 		});
@@ -138,6 +143,7 @@ export function clearServerOAuth(name: string): void {
 				);
 			}
 			delete existing.oauth;
+			delete existing.oauthClient;
 			servers[name] = existing;
 		});
 	} catch (error) {
@@ -146,6 +152,29 @@ export function clearServerOAuth(name: string): void {
 		}
 		throw error;
 	}
+}
+
+export function setServerOAuthClient(
+	name: string,
+	client: McpServerOAuthClientConfig | undefined,
+): void {
+	mutateServers((servers) => {
+		const existing = getOwnServerRecord(servers, name);
+		if (!existing)
+			throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+		const previous = existing.oauthClient as
+			| McpServerOAuthClientConfig
+			| undefined;
+		if (
+			previous?.clientId !== client?.clientId ||
+			previous?.clientSecret !== client?.clientSecret
+		) {
+			delete existing.oauth;
+		}
+		if (client) existing.oauthClient = client;
+		else delete existing.oauthClient;
+		servers[name] = existing;
+	});
 }
 
 export function toggleServer(name: string, disabled: boolean): void {

@@ -1,0 +1,168 @@
+diff --git a/dist/index.js b/dist/index.js
+index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244c0c03be1 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -154,7 +154,7 @@ function resolveOllamaThinkFlag({
+     }
+     return reasoning !== "none";
+   }
+-  return false;
++  return void 0;
+ }
+ function fileDataToBase64String(data) {
+   var _a;
+@@ -280,12 +280,20 @@ function createNdjsonStreamResponseHandler(schema) {
+             if (buffer.trim()) {
+               try {
+                 const parsed = JSON.parse(buffer.trim());
+-                const validated = schema.parse(parsed);
+-                controller.enqueue({
+-                  success: true,
+-                  value: validated,
+-                  rawValue: validated
+-                });
++                if (parsed && typeof parsed === "object" && "error" in parsed) {
++                  controller.enqueue({
++                    success: true,
++                    value: parsed,
++                    rawValue: parsed
++                  });
++                } else {
++                  const validated = schema.parse(parsed);
++                  controller.enqueue({
++                    success: true,
++                    value: validated,
++                    rawValue: validated
++                  });
++                }
+               } catch (e) {
+               }
+             }
+@@ -300,12 +308,20 @@ function createNdjsonStreamResponseHandler(schema) {
+             if (trimmedLine) {
+               try {
+                 const parsed = JSON.parse(trimmedLine);
+-                const validated = schema.parse(parsed);
+-                controller.enqueue({
+-                  success: true,
+-                  value: validated,
+-                  rawValue: validated
+-                });
++                if (parsed && typeof parsed === "object" && "error" in parsed) {
++                  controller.enqueue({
++                    success: true,
++                    value: parsed,
++                    rawValue: parsed
++                  });
++                } else {
++                  const validated = schema.parse(parsed);
++                  controller.enqueue({
++                    success: true,
++                    value: validated,
++                    rawValue: validated
++                  });
++                }
+               } catch (error) {
+                 console.warn("Failed to parse NDJSON line:", error);
+               }
+@@ -843,7 +859,7 @@ function convertToOllamaChatMessages({
+         }).map((part) => extractOllamaFileData(part.data));
+         messages.push({
+           role: "user",
+-          content: userText.length > 0 ? userText : [],
++          content: userText,
+           images: images.length > 0 ? images : void 0
+         });
+         break;
+@@ -904,6 +920,7 @@ function convertToOllamaChatMessages({
+               messages.push({
+                 role: "tool",
+                 tool_call_id: toolResponse.toolCallId,
++                tool_name: toolResponse.toolName,
+                 content: formatOllamaToolResultOutput(toolResponse.output)
+               });
+               break;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1fcd29838e 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -143,7 +143,7 @@ function resolveOllamaThinkFlag({
+     }
+     return reasoning !== "none";
+   }
+-  return false;
++  return void 0;
+ }
+ function fileDataToBase64String(data) {
+   var _a;
+@@ -271,12 +271,20 @@ function createNdjsonStreamResponseHandler(schema) {
+             if (buffer.trim()) {
+               try {
+                 const parsed = JSON.parse(buffer.trim());
+-                const validated = schema.parse(parsed);
+-                controller.enqueue({
+-                  success: true,
+-                  value: validated,
+-                  rawValue: validated
+-                });
++                if (parsed && typeof parsed === "object" && "error" in parsed) {
++                  controller.enqueue({
++                    success: true,
++                    value: parsed,
++                    rawValue: parsed
++                  });
++                } else {
++                  const validated = schema.parse(parsed);
++                  controller.enqueue({
++                    success: true,
++                    value: validated,
++                    rawValue: validated
++                  });
++                }
+               } catch (e) {
+               }
+             }
+@@ -291,12 +299,20 @@ function createNdjsonStreamResponseHandler(schema) {
+             if (trimmedLine) {
+               try {
+                 const parsed = JSON.parse(trimmedLine);
+-                const validated = schema.parse(parsed);
+-                controller.enqueue({
+-                  success: true,
+-                  value: validated,
+-                  rawValue: validated
+-                });
++                if (parsed && typeof parsed === "object" && "error" in parsed) {
++                  controller.enqueue({
++                    success: true,
++                    value: parsed,
++                    rawValue: parsed
++                  });
++                } else {
++                  const validated = schema.parse(parsed);
++                  controller.enqueue({
++                    success: true,
++                    value: validated,
++                    rawValue: validated
++                  });
++                }
+               } catch (error) {
+                 console.warn("Failed to parse NDJSON line:", error);
+               }
+@@ -847,7 +863,7 @@ function convertToOllamaChatMessages({
+         }).map((part) => extractOllamaFileData(part.data));
+         messages.push({
+           role: "user",
+-          content: userText.length > 0 ? userText : [],
++          content: userText,
+           images: images.length > 0 ? images : void 0
+         });
+         break;
+@@ -908,6 +924,7 @@ function convertToOllamaChatMessages({
+               messages.push({
+                 role: "tool",
+                 tool_call_id: toolResponse.toolCallId,
++                tool_name: toolResponse.toolName,
+                 content: formatOllamaToolResultOutput(toolResponse.output)
+               });
+               break;

@@ -4,6 +4,7 @@
 	/* Register non-default typography companions for standard text utilities. */
 	--text-xs--letter-spacing: var(--text-xs--letter-spacing);
 	--text-sm--letter-spacing: var(--text-sm--letter-spacing);
+	--text-md--letter-spacing: var(--text-md--letter-spacing);
 	--text-base--letter-spacing: var(--text-base--letter-spacing);
 	--text-lg--letter-spacing: var(--text-lg--letter-spacing);
 	--text-xl--letter-spacing: var(--text-xl--letter-spacing);
@@ -14,6 +15,38 @@
 
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
+	--color-surface-1: var(--surface-1);
+	--color-surface-2: var(--surface-2);
+	--color-surface-3: var(--surface-3);
+	--color-surface-hover: var(--surface-hover);
+	--color-surface-hover-lighter: var(--surface-hover-lighter);
+	--color-surface-hover-darker: var(--surface-hover-darker);
+	--color-text-1: var(--text-1);
+	--color-text-2: var(--text-2);
+	--color-text-disabled: var(--text-disabled);
+	--color-border-1: var(--border-1);
+	--color-border-2: var(--border-2);
+	--color-focus-ring: var(--focus-ring);
+	--color-success-surface: var(--success-surface);
+	--color-success-border: var(--success-border);
+	--color-success-solid: var(--success-solid);
+	--color-success-text: var(--success-text);
+	--color-success-contrast: var(--success-contrast);
+	--color-warning-surface: var(--warning-surface);
+	--color-warning-border: var(--warning-border);
+	--color-warning-solid: var(--warning-solid);
+	--color-warning-text: var(--warning-text);
+	--color-warning-contrast: var(--warning-contrast);
+	--color-error-surface: var(--error-surface);
+	--color-error-border: var(--error-border);
+	--color-error-solid: var(--error-solid);
+	--color-error-text: var(--error-text);
+	--color-error-contrast: var(--error-contrast);
+	--color-info-surface: var(--info-surface);
+	--color-info-border: var(--info-border);
+	--color-info-solid: var(--info-solid);
+	--color-info-text: var(--info-text);
+	--color-info-contrast: var(--info-contrast);
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
 	--color-popover: var(--popover);

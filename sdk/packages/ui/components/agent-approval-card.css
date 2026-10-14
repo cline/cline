@@ -1,0 +1,70 @@
+.cline-ui-agent-approval-card,
+.cline-ui-agent-approval-card__detail,
+.cline-ui-agent-approval-card__button {
+	box-sizing: border-box;
+	border-style: solid;
+}
+
+.cline-ui-agent-approval-card__detail {
+	margin: 0.5rem 0 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+	border-radius: var(--radius-md);
+	background: var(--background);
+	padding: 0.5rem;
+	color: var(--muted-foreground);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__error {
+	margin-top: 0.5rem;
+	color: var(--error-text);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+.cline-ui-agent-approval-card__button {
+	padding-block: 0;
+	font-family: inherit;
+	font-size: inherit;
+	font-style: inherit;
+	font-variant: inherit;
+	letter-spacing: inherit;
+	line-height: inherit;
+}
+
+.cline-ui-agent-approval-card__spinner {
+	animation: cline-ui-agent-approval-card-spin 1s linear infinite;
+}
+
+.cline-ui-agent-approval-card__button:has(
+		> .cline-ui-agent-approval-card__spinner
+	) {
+	padding-inline: 0.625rem;
+}
+
+@keyframes cline-ui-agent-approval-card-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-agent-approval-card__spinner {
+		animation: none;
+	}
+}

@@ -4,6 +4,7 @@ import type {
 	TelemetryMetadata,
 	TelemetryProperties,
 } from "@cline/shared";
+import { resolveCoreDeviceId } from "./distinct-id";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryLoggerSink } from "./TelemetryLoggerSink";
 
@@ -11,6 +12,11 @@ export interface TelemetryServiceOptions {
 	adapters?: ITelemetryAdapter[];
 	metadata?: Partial<TelemetryMetadata>;
 	distinctId?: string;
+	/**
+	 * Deterministic per-device identifier attached to every event as
+	 * `device_id`. Defaults to {@link resolveCoreDeviceId}
+	 */
+	deviceId?: string;
 	commonProperties?: TelemetryProperties;
 	logger?: BasicLogger;
 }
@@ -19,6 +25,7 @@ export class TelemetryService implements ITelemetryService {
 	private adapters: ITelemetryAdapter[];
 	private metadata: Partial<TelemetryMetadata>;
 	private distinctId?: string;
+	private readonly deviceId: string;
 	private commonProperties: TelemetryProperties;
 
 	constructor(options: TelemetryServiceOptions = {}) {
@@ -28,6 +35,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 		this.metadata = { ...(options.metadata ?? {}) };
 		this.distinctId = options.distinctId;
+		this.deviceId = options.deviceId ?? resolveCoreDeviceId();
 		this.commonProperties = { ...(options.commonProperties ?? {}) };
 	}
 
@@ -129,11 +137,22 @@ export class TelemetryService implements ITelemetryService {
 	private buildAttributes(
 		properties?: TelemetryProperties,
 	): TelemetryProperties {
-		return {
+		const scopedDistinctId =
+			typeof properties?.distinct_id === "string" &&
+			properties.distinct_id.trim()
+				? properties.distinct_id.trim()
+				: this.distinctId;
+		const attributes = {
 			...this.commonProperties,
-			...properties,
 			...this.metadata,
-			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+			// Metadata is the host default. A scoped session may override client
+			// dimensions when execution happens in a shared Hub process.
+			...properties,
+			...(scopedDistinctId ? { distinct_id: scopedDistinctId } : {}),
+			device_id: this.deviceId,
 		};
+		return Object.fromEntries(
+			Object.entries(attributes).filter(([, value]) => value !== undefined),
+		);
 	}
 }

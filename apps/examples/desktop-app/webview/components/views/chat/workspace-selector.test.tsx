@@ -154,6 +154,81 @@ describe("WorkspaceSelector", () => {
 		});
 	});
 
+	it("hides git chrome for a plain folder and keeps folder language", async () => {
+		await act(async () => {
+			root.render(
+				<WorkspaceSelector
+					currentBranch="no-git"
+					onListGitBranches={vi.fn(async () => ({
+						current: "no-git",
+						branches: [],
+					}))}
+					onPickWorkspaceDirectory={vi.fn(async () => null)}
+					onRefreshWorkspaces={vi.fn(async () => undefined)}
+					onSwitchGitBranch={vi.fn(async () => false)}
+					onSwitchWorkspace={vi.fn(async () => true)}
+					workspaceRoot="/home/beatrix/recipes"
+					workspaces={["/home/beatrix/recipes"]}
+				/>,
+			);
+		});
+
+		const trigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
+		expect(trigger?.textContent).toContain("recipes");
+		// The "no-git" sentinel and the branch separator are developer jargon
+		// that must never leak into the chip for a plain folder.
+		expect(trigger?.textContent).not.toContain("no-git");
+		expect(trigger?.textContent).not.toContain("/home");
+		expect(trigger?.getAttribute("aria-label")).toBe("Folder recipes");
+
+		await click(trigger as Element);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Workspaces");
+		});
+		expect(container.textContent).not.toContain("Branches");
+		expect(container.textContent).not.toContain(
+			"Create and checkout new branch",
+		);
+		expect(container.textContent).not.toContain("No branches found");
+		expect(container.textContent).toContain("Open folder...");
+		expect(
+			container.querySelector('input[placeholder="Search workspaces"]'),
+		).not.toBeNull();
+	});
+
+	it("keeps the branch switcher for git repositories", async () => {
+		await act(async () => {
+			root.render(
+				<WorkspaceSelector
+					currentBranch="main"
+					onListGitBranches={vi.fn(async () => ({
+						current: "main",
+						branches: ["main", "feature/review"],
+					}))}
+					onPickWorkspaceDirectory={vi.fn(async () => null)}
+					onRefreshWorkspaces={vi.fn(async () => undefined)}
+					onSwitchGitBranch={vi.fn(async () => true)}
+					onSwitchWorkspace={vi.fn(async () => true)}
+					workspaceRoot="/workspace/one"
+					workspaces={["/workspace/one"]}
+				/>,
+			);
+		});
+
+		const trigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
+		expect(trigger?.textContent).toContain("one");
+		expect(trigger?.textContent).toContain("main");
+
+		await click(trigger as Element);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Branches");
+		});
+		expect(container.textContent).toContain("feature/review");
+		expect(container.textContent).toContain("Create and checkout new branch");
+	});
+
 	it("labels the SDK chat workspace as Chat without listing the raw path", async () => {
 		const temporaryWorkspace = "/home/host/.cline/data/workspaces/chat";
 		await act(async () => {

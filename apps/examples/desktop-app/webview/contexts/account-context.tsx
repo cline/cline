@@ -9,6 +9,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient } from "@/lib/desktop-client";
 
 export const ACCOUNT_IDENTITY_STORAGE_KEY = "cline.code.account-identity.v1";
@@ -20,6 +21,9 @@ const SIGNED_OUT_ERROR_MARKERS = [
 
 type AccountContextValue = {
 	user: ClineAccountUser | null;
+	/** False until the first identity lookup has finished, so a `null` user
+	 * can be told apart from "still loading". */
+	accountReady: boolean;
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	refreshAccount: () => Promise<void>;
@@ -27,6 +31,7 @@ type AccountContextValue = {
 
 const AccountContext = createContext<AccountContextValue>({
 	user: null,
+	accountReady: false,
 	organizations: [],
 	activeOrganization: null,
 	refreshAccount: async () => undefined,
@@ -94,6 +99,7 @@ export function isSignedOutAccountError(error: unknown): boolean {
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
+	const [accountReady, setAccountReady] = useState(false);
 
 	const refreshAccount = useCallback(async () => {
 		try {
@@ -101,6 +107,13 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 				action: "clineAccount",
 				operation: "fetchMe",
 			});
+			// Signed out arrives as a typed result, not an error: an expected
+			// state that clears the cached identity without any error handling.
+			if (isClineAccountNotAuthenticatedResult(me)) {
+				setUser(null);
+				writeCachedAccountUser(null);
+				return;
+			}
 			setUser(me ?? null);
 			writeCachedAccountUser(me ?? null);
 		} catch (error) {
@@ -110,6 +123,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 			}
 			// Transient failures (offline, sidecar restarting) keep the cached
 			// identity rather than flashing a signed-out state.
+		} finally {
+			setAccountReady(true);
 		}
 	}, []);
 
@@ -127,12 +142,13 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		const organizations = user?.organizations ?? [];
 		return {
 			user,
+			accountReady,
 			organizations,
 			activeOrganization:
 				organizations.find((organization) => organization.active) ?? null,
 			refreshAccount,
 		};
-	}, [refreshAccount, user]);
+	}, [accountReady, refreshAccount, user]);
 
 	return (
 		<AccountContext.Provider value={value}>{children}</AccountContext.Provider>

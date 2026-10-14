@@ -120,6 +120,130 @@ describe("PendingPromptService", () => {
 		).toThrow("prompt cannot be empty");
 	});
 
+	it("wakes the running model when a queued prompt is promoted and preserves the remaining queue", () => {
+		const notifyPendingUserMessage = vi.fn();
+		const session = {
+			sessionId: "session",
+			pendingPrompts: [],
+			aborting: false,
+			agent: { canStartRun: () => false, notifyPendingUserMessage },
+		} as unknown as ActiveSession;
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: vi.fn(),
+			send: vi.fn(),
+		});
+		controller.enqueue("session", { prompt: "first", delivery: "queue" });
+		controller.enqueue("session", { prompt: "second", delivery: "queue" });
+		expect(notifyPendingUserMessage).not.toHaveBeenCalled();
+		const first = controller.list("session")[0]!;
+		controller.update({
+			sessionId: "session",
+			promptId: first.id,
+			delivery: "steer",
+		});
+		expect(notifyPendingUserMessage).toHaveBeenCalledOnce();
+		expect(controller.consumeSteer("session")?.prompt).toBe("first");
+		expect(controller.list("session").map((prompt) => prompt.prompt)).toEqual([
+			"second",
+		]);
+	});
+
+	it.each([
+		"remove",
+		"reorder",
+		"insert",
+	] as const)("steers the current head after a concurrent %s instead of a stale snapshot", (mutation) => {
+		const notifyPendingUserMessage = vi.fn();
+		const session = {
+			sessionId: "session",
+			pendingPrompts: [],
+			aborting: false,
+			agent: { canStartRun: () => false, notifyPendingUserMessage },
+		} as unknown as ActiveSession;
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: vi.fn(),
+			send: vi.fn(),
+		});
+		controller.enqueue("session", { prompt: "first", delivery: "queue" });
+		controller.enqueue("session", { prompt: "second", delivery: "queue" });
+		const staleHead = controller.list("session")[0]!;
+		if (mutation === "remove") {
+			controller.delete({ sessionId: "session", promptId: staleHead.id });
+		} else if (mutation === "reorder") {
+			// Re-enqueueing the same queued text moves that entry to the tail.
+			controller.enqueue("session", { prompt: "first", delivery: "queue" });
+		} else {
+			controller.enqueue("session", { prompt: "urgent", delivery: "steer" });
+		}
+		notifyPendingUserMessage.mockClear();
+		const result = controller.steerFirst("session");
+		expect(result.prompts[0]).toMatchObject({
+			prompt: mutation === "insert" ? "urgent" : "second",
+			delivery: "steer",
+		});
+		expect(result.prompts[0]?.id).not.toBe(staleHead.id);
+		expect(result.updated).toBe(mutation !== "insert");
+		expect(notifyPendingUserMessage).toHaveBeenCalledTimes(
+			mutation === "insert" ? 0 : 1,
+		);
+	});
+
+	it("does nothing when steering an empty or missing session queue", () => {
+		const controller = new PendingPromptsController({
+			getSession: (id) =>
+				id === "empty"
+					? ({ pendingPrompts: [] } as unknown as ActiveSession)
+					: undefined,
+			emit: vi.fn(),
+			send: vi.fn(),
+		});
+		for (const sessionId of ["empty", "missing"]) {
+			expect(controller.steerFirst(sessionId)).toEqual({
+				sessionId,
+				prompts: [],
+				updated: false,
+			});
+		}
+	});
+
+	it("keeps prompts enqueued while the session is aborting", async () => {
+		const sessionId = "sess-enqueue-while-aborting";
+		const session = {
+			sessionId,
+			pendingPrompts: [],
+			aborting: true,
+			drainingPendingPrompts: false,
+			status: "running",
+			agent: {
+				canStartRun: () => false,
+			},
+		} as unknown as ActiveSession;
+		const events: CoreSessionEvent[] = [];
+		const send = vi.fn().mockResolvedValue(undefined);
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: (event) => events.push(event),
+			send,
+		});
+
+		// A prompt typed right after Escape lands during the abort window; it
+		// must join the queue (which survives the abort) instead of being
+		// silently dropped.
+		controller.enqueue(sessionId, {
+			prompt: "typed after escape",
+			delivery: "queue",
+		});
+
+		expect(controller.list(sessionId).map((prompt) => prompt.prompt)).toEqual([
+			"typed after escape",
+		]);
+		// The drain must not start while the abort is still settling.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(send).not.toHaveBeenCalled();
+	});
+
 	it("requeues a drained prompt when send fails", async () => {
 		const sessionId = "sess-drain-failure";
 		const session = {

@@ -1,6 +1,13 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
+import {
+	type AgentConfig,
+	type AgentTool,
+	CONFIGURABLE_MODEL_TOOL_NAMES,
+	type ConfigurableModelToolName,
+	type ITelemetryService,
+	type ModelToolSettings,
+} from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import { captureTelemetryOptOut } from "./telemetry/core-events";
@@ -33,6 +40,13 @@ const GlobalCompactionStrategySchema = z
 	.enum(["basic", "agentic"])
 	.catch("agentic");
 
+const ModelToolSettingsSchema = z
+	.partialRecord(
+		z.enum(CONFIGURABLE_MODEL_TOOL_NAMES),
+		z.object({ enabled: z.boolean() }).strip(),
+	)
+	.optional();
+
 export type GlobalCompactionStrategy = z.infer<
 	typeof GlobalCompactionStrategySchema
 >;
@@ -52,8 +66,11 @@ export const GlobalSettingsSchema = z
 		compactionEnabled: z.boolean().optional().catch(undefined),
 		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
 		toolAutoApprove: z.boolean().optional().catch(undefined),
+		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
+		tools: ModelToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		disabledAgentPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
@@ -64,8 +81,11 @@ export const GlobalSettingsSchema = z
 			compactionEnabled?: boolean;
 			planActMode?: GlobalPlanActMode;
 			toolAutoApprove?: boolean;
+			tuiTheme?: string;
 			disabledTools?: string[];
+			tools?: ModelToolSettings;
 			disabledPlugins?: string[];
+			disabledAgentPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
@@ -82,11 +102,20 @@ export const GlobalSettingsSchema = z
 		if (settings.toolAutoApprove !== undefined) {
 			normalized.toolAutoApprove = settings.toolAutoApprove;
 		}
+		if (settings.tuiTheme?.trim()) {
+			normalized.tuiTheme = settings.tuiTheme.trim();
+		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
 		}
+		if (settings.tools && Object.keys(settings.tools).length > 0) {
+			normalized.tools = settings.tools;
+		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
+		}
+		if (settings.disabledAgentPlugins?.length) {
+			normalized.disabledAgentPlugins = settings.disabledAgentPlugins;
 		}
 		return normalized;
 	});
@@ -106,6 +135,7 @@ interface CachedSettings {
 	mtimeMs: number;
 	size: number;
 	value: GlobalSettings;
+	loadFailed: boolean;
 }
 
 let settingsCache: CachedSettings | undefined;
@@ -118,24 +148,38 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
 	}
+	if (value.tools) {
+		for (const setting of Object.values(value.tools)) {
+			Object.freeze(setting);
+		}
+		Object.freeze(value.tools);
+	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
+	}
+	if (value.disabledAgentPlugins) {
+		Object.freeze(value.disabledAgentPlugins);
 	}
 	return Object.freeze(value);
 }
 
-function loadSettingsFromDisk(filePath: string): GlobalSettings {
+function loadSettingsFromDisk(filePath: string): {
+	value: GlobalSettings;
+	loadFailed: boolean;
+} {
 	let raw: string;
 	try {
 		raw = readFileSync(filePath, "utf8");
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 	try {
 		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
-		return result.success ? result.data : defaultGlobalSettings();
+		return result.success
+			? { value: result.data, loadFailed: false }
+			: { value: defaultGlobalSettings(), loadFailed: true };
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 }
 
@@ -155,10 +199,17 @@ function getCachedSettings(): CachedSettings {
 		return cached;
 	}
 
-	const value = freezeSettings(
-		stats ? loadSettingsFromDisk(filePath) : defaultGlobalSettings(),
-	);
-	settingsCache = { path: filePath, mtimeMs, size, value };
+	const loaded = stats
+		? loadSettingsFromDisk(filePath)
+		: { value: defaultGlobalSettings(), loadFailed: false };
+	const value = freezeSettings(loaded.value);
+	settingsCache = {
+		path: filePath,
+		mtimeMs,
+		size,
+		value,
+		loadFailed: loaded.loadFailed,
+	};
 	return settingsCache;
 }
 
@@ -266,6 +317,18 @@ export function readToolAutoApproveGlobally(): boolean | undefined {
 	return readGlobalSettings().toolAutoApprove;
 }
 
+/**
+ * Returns the persisted TUI theme id, or undefined when the user never chose
+ * one (callers apply their own default, typically terminal auto-detection).
+ */
+export function readTuiThemeGlobally(): string | undefined {
+	return readGlobalSettings().tuiTheme;
+}
+
+export function setTuiThemeGlobally(tuiTheme: string): void {
+	writeGlobalSettings({ ...readGlobalSettings(), tuiTheme });
+}
+
 export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
 	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
 }
@@ -284,11 +347,56 @@ export function resolveDisabledPluginPaths(
 	);
 }
 
+export function resolveDisabledAgentPluginNames(
+	disabledPluginNames?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(
+		disabledPluginNames ?? readGlobalSettings().disabledAgentPlugins ?? [],
+	);
+}
+
 export function isToolDisabledGlobally(toolName: string): boolean {
+	if (isModelToolName(toolName)) {
+		return !isModelToolEnabledGlobally(toolName);
+	}
 	return resolveDisabledToolNames().has(toolName);
 }
 
+function isModelToolName(value: string): value is ConfigurableModelToolName {
+	return (CONFIGURABLE_MODEL_TOOL_NAMES as readonly string[]).includes(value);
+}
+
+export function resolveModelToolSettings(): ModelToolSettings {
+	const cached = getCachedSettings();
+	return {
+		web_search: { enabled: !cached.loadFailed },
+		...cached.value.tools,
+	};
+}
+
+export function isModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
+): boolean {
+	return resolveModelToolSettings()[name]?.enabled === true;
+}
+
+export function setModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
+	enabled: boolean,
+): void {
+	const settings = readGlobalSettings();
+	writeGlobalSettings({
+		...settings,
+		tools: { ...settings.tools, [name]: { enabled } },
+	});
+}
+
 export function toggleDisabledTool(toolName: string): boolean {
+	if (isModelToolName(toolName)) {
+		const disabled = isModelToolEnabledGlobally(toolName);
+		setModelToolEnabledGlobally(toolName, !disabled);
+		return disabled;
+	}
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
 	const wasDisabled = disabled.has(toolName);
@@ -314,14 +422,19 @@ export function setDisabledTools(
 
 	const settings = readGlobalSettings();
 	const disabled = resolveDisabledToolNames(settings.disabledTools);
+	const tools: ModelToolSettings = { ...settings.tools };
 	for (const name of names) {
+		if (isModelToolName(name)) {
+			tools[name] = { enabled: !disabledValue };
+			continue;
+		}
 		if (disabledValue) {
 			disabled.add(name);
 		} else {
 			disabled.delete(name);
 		}
 	}
-	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
+	writeGlobalSettings({ ...settings, disabledTools: [...disabled], tools });
 }
 
 export function setToolDisabledGlobally(
@@ -353,6 +466,34 @@ export function setDisabledPlugin(
 		disabled.delete(path);
 	}
 	writeGlobalSettings({ ...settings, disabledPlugins: [...disabled] });
+}
+
+export function isAgentPluginDisabledGlobally(pluginName: string): boolean {
+	return resolveDisabledAgentPluginNames().has(pluginName);
+}
+
+export function setDisabledAgentPlugin(
+	pluginName: string,
+	disabledValue: boolean,
+): void {
+	const name = pluginName.trim();
+	if (!name) {
+		return;
+	}
+
+	const settings = readGlobalSettings();
+	const disabled = resolveDisabledAgentPluginNames(
+		settings.disabledAgentPlugins,
+	);
+	if (disabledValue) {
+		disabled.add(name);
+	} else {
+		disabled.delete(name);
+	}
+	writeGlobalSettings({
+		...settings,
+		disabledAgentPlugins: [...disabled],
+	});
 }
 
 export function filterDisabledPluginPaths(

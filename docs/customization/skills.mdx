@@ -20,9 +20,9 @@ Skills use progressive loading to maximize efficiency:
 |-------|-------------|------------|---------|
 | Metadata | Always (at startup) | ~100 tokens per skill | `name` and `description` from YAML frontmatter |
 | Instructions | When skill is triggered | Under 5k tokens | SKILL.md body with instructions and guidance |
-| Resources | As needed | Effectively unlimited | Bundled files accessed via `read_file` or executed scripts |
+| Resources | As needed | Effectively unlimited | Bundled files accessed via `read_files` or executed scripts |
 
-When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `use_skill` tool, which loads the full instructions from SKILL.md.
+When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `skills` tool, which loads the full instructions from SKILL.md.
 
 ## Triggering Skills with Slash Commands
 
@@ -148,7 +148,7 @@ Include real examples. Show what commands to run, what output to expect, and wha
 
 ## Where Skills Live
 
-Skills can be stored globally or in a project workspace. See [Storage Locations](/getting-started/config#storage-locations) for guidance on when to use each.
+Skills can be stored globally or in a project workspace. See [What Goes Where?](/getting-started/config#what-goes-where) for guidance on when to use each.
 
 Project skills:
 - `.cline/skills/` (recommended)

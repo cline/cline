@@ -217,12 +217,87 @@ describe("ai-sdk usage normalization", () => {
 		).toBe(41);
 	});
 
+	it("subtracts reasoning tokens out of outputTokens instead of double-counting them", () => {
+		const normalized = normalizeUsage({
+			outputTokens: 250,
+			completion_tokens_details: { reasoning_tokens: 90 },
+		});
+		expect(normalized.reasoningTokenCount).toBe(90);
+		// 250 already included the 90 reasoning tokens (standard provider
+		// convention); the exposed outputTokens should be the remainder, not
+		// the raw 250.
+		expect(normalized.outputTokens).toBe(160);
+	});
+
+	it("clamps outputTokens at zero if reported reasoning tokens exceed the total", () => {
+		const normalized = normalizeUsage({
+			outputTokens: 10,
+			reasoningTokens: 25,
+		});
+		expect(normalized.outputTokens).toBe(0);
+	});
+
 	describe("cost extraction with pricing fallback", () => {
-		it("uses market_cost when available (Vercel)", () => {
-			const vercelUsage = (fixtures as Record<string, unknown>)
-				.vercel_stream_usage as Record<string, unknown>;
-			const normalized = normalizeUsage(vercelUsage);
-			expect(normalized.totalCost).toBe(0.000641);
+		it.each([
+			["cline-pass", "included-model", { input: 3, output: 15 }],
+			["cline", "cline-pass/included-model", undefined],
+			["cline", "cline-free/free-model", undefined],
+			["cline", "vendor/model:free", undefined],
+			["cline", "vendor/promotional-model", { input: 0, output: 0 }],
+		])("zeros included usage for %s/%s", (providerId, modelId, pricing) => {
+			for (const raw of [
+				undefined,
+				{
+					cost: 0.5,
+					market_cost: 1,
+					cost_details: { upstream_inference_cost: 2 },
+				},
+			]) {
+				expect(
+					normalizeUsage(
+						{ inputTokens: 1000, outputTokens: 100, raw },
+						undefined,
+						pricing,
+						{ providerId, modelId },
+					),
+				).toMatchObject({ inputTokens: 1000, outputTokens: 100, totalCost: 0 });
+			}
+		});
+
+		it.each([
+			"cline",
+			"openrouter",
+		])("preserves paid usage for %s", (providerId) => {
+			expect(
+				normalizeUsage(
+					{ inputTokens: 1000, outputTokens: 100, cost: 0.5 },
+					undefined,
+					{ input: 3, output: 15 },
+					{ providerId, modelId: "vendor/paid-model" },
+				).totalCost,
+			).toBe(0.5);
+		});
+
+		it("prefers billed cost over market_cost when Vercel applies a discount", () => {
+			const normalized = normalizeUsage({
+				inputTokens: 11,
+				outputTokens: 5,
+				raw: {
+					cost: 0.0001025,
+					market_cost: 0.000205,
+					cost_details: { upstream_inference_cost: null },
+				},
+			});
+			expect(normalized.totalCost).toBe(0.0001025);
+		});
+
+		it("uses market_cost when billed cost is unavailable", () => {
+			const normalized = normalizeUsage({
+				inputTokens: 11,
+				outputTokens: 5,
+				raw: { market_cost: 0.000205 },
+			});
+			expect(normalized.totalCost).toBe(0.000205);
 		});
 
 		it("sums BYOK fee + upstream provider cost when OpenRouter marks the request as BYOK", () => {
@@ -282,6 +357,20 @@ describe("ai-sdk usage normalization", () => {
 			// (1000/1M) * 2.5 + (100/1M) * 10 = 0.0025 + 0.001 = 0.0035
 			expect(normalized.totalCost).toBeCloseTo(0.0035, 5);
 		});
+
+		it("bills pricing-fallback cost on the full output count, including reasoning tokens", () => {
+			const pricingInput = { input: 2.5, output: 10 }; // per 1M tokens
+			const normalized = normalizeUsage(
+				{ inputTokens: 1000, outputTokens: 100, reasoningTokens: 40 },
+				undefined,
+				pricingInput,
+			);
+			// Reasoning tokens are billed at the output rate, so cost must use
+			// the full 100 (not the 60 left after subtracting reasoning out of
+			// the exposed outputTokens).
+			expect(normalized.outputTokens).toBe(60);
+			expect(normalized.totalCost).toBeCloseTo(0.0035, 5);
+		});
 	});
 
 	describe("field mapping across providers", () => {
@@ -309,6 +398,23 @@ describe("ai-sdk usage normalization", () => {
 			expect(normalized.outputTokens).toBe(120);
 			expect(normalized.cacheReadTokens).toBe(3605);
 			expect(normalized.cacheWriteTokens).toBe(0);
+		});
+
+		it("subtracts AI SDK v4's nested outputTokens.reasoning from outputTokens", () => {
+			const normalized = normalizeUsage({
+				inputTokens: { total: 1000, noCache: 1000 },
+				outputTokens: {
+					total: 120,
+					text: 97,
+					reasoning: 23,
+				},
+			} as Record<string, unknown>);
+
+			expect(normalized.reasoningTokenCount).toBe(23);
+			// total(120) already includes the 23 reasoning tokens, so the
+			// exposed outputTokens should be the 97 non-reasoning tokens left
+			// over, not the raw 120.
+			expect(normalized.outputTokens).toBe(97);
 		});
 
 		it("falls back to raw Gemini usage metadata", () => {

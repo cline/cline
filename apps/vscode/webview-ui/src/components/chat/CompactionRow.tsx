@@ -80,11 +80,11 @@ export const CompactionRow = ({ message }: { message: ClineMessage }) => {
 			) : (
 				<FoldVerticalIcon className="size-2 shrink-0" />
 			)}
-			<span className="whitespace-nowrap">
+			<span className="min-w-0">
 				{formatCompactionLabel(info)}
 				{inProgress ? "…" : ""}
 			</span>
-			<div className="flex-1 border-t border-description/30" />
+			<div className="flex-1 min-w-4 border-t border-description/30" />
 		</div>
 	)
 }

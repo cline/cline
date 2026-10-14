@@ -1,7 +1,7 @@
 import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
-import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkInteractionCoordinator, type ToolApprovalRequest } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
@@ -445,6 +445,77 @@ describe("SdkInteractionCoordinator", () => {
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
 	})
 
+	it("resolves an approval answered while its state post is still in flight", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn(() => new Promise<void>(() => {})),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval(approvalRequest("tool-call"))
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({ approved: true })
+	})
+
+	it("denies the approval whose state post fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordDeniedToolApproval = vi.fn()
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockRejectedValue(new Error("Task changed while building webview state")),
+			recordDeniedToolApproval,
+			setTurnPhase,
+		})
+
+		const reason = "The tool approval request could not be displayed, so the tool was not executed."
+		await expect(coordinator.handleRequestToolApproval(approvalRequest("tool-call"))).resolves.toEqual({
+			approved: false,
+			reason,
+		})
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "run_commands", reason)
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("does not deny a later approval when an earlier approval's state post fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let rejectFirstPost!: (error: Error) => void
+		const postStateToWebview = vi
+			.fn<() => Promise<void>>()
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((_resolve, reject) => {
+						rejectFirstPost = reject
+					}),
+			)
+			.mockResolvedValue(undefined)
+		const recordDeniedToolApproval = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			recordDeniedToolApproval,
+		})
+
+		const firstApproval = coordinator.handleRequestToolApproval(approvalRequest("first-call"))
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(1))
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(firstApproval).resolves.toEqual({ approved: true })
+
+		const secondApproval = coordinator.handleRequestToolApproval(approvalRequest("second-call"))
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(2))
+		rejectFirstPost(new Error("Task changed while building webview state"))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(recordDeniedToolApproval).not.toHaveBeenCalled()
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(secondApproval).resolves.toEqual({ approved: true })
+	})
+
 	it("awaits onToolApprovalAsk before emitting the approval ask", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const events: string[] = []
@@ -533,3 +604,15 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 })
+
+function approvalRequest(toolCallId: string): ToolApprovalRequest {
+	return {
+		agentId: "agent",
+		conversationId: "conversation",
+		iteration: 1,
+		toolCallId,
+		toolName: "run_commands",
+		input: { commands: ["echo safe"] },
+		policy: { autoApprove: false },
+	}
+}

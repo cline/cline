@@ -12,28 +12,26 @@ index fa1f29023479d5df2daf399c42f1d492365365aa..9a576b394c551269e6944bbb08fb43f7
  			this.updateBackdropVisibility();
  			this.updateBackdropStyle();
 diff --git a/dist/react.mjs b/dist/react.mjs
-index 157bd9c3ba3101810e02da720b8763425fd7b0fd..70bb55028ff815a82fea84205c61fb85d2aac03a 100644
+index 157bd9c3ba3101810e02da720b8763425fd7b0fd..72b2249b64db9c947bdb0bdd65d9cd63894ae83b 100644
 --- a/dist/react.mjs
 +++ b/dist/react.mjs
-@@ -169,7 +169,7 @@ function DialogProvider(props) {
+@@ -169,7 +169,6 @@ function DialogProvider(props) {
  		renderer.root.add(container);
  		return () => {
  			container.destroyRecursively();
 -			renderer.root.remove(container.id);
-+			renderer.root.remove(container);
  			manager.destroy();
  		};
  	}, [
 diff --git a/dist/solid.mjs b/dist/solid.mjs
-index 2aea0ede350d79b5a8e533323fe70480bbd7f3ce..f075087a57c68875f341baa9ada67231fcc9cb10 100644
+index 2aea0ede350d79b5a8e533323fe70480bbd7f3ce..d3f518b3d77c10c06aa1ae2b591f995fe2ebda68 100644
 --- a/dist/solid.mjs
 +++ b/dist/solid.mjs
-@@ -192,7 +192,7 @@ function DialogProvider(props) {
+@@ -192,7 +192,6 @@ function DialogProvider(props) {
  		unsubscribe();
  		portalItemCache.clear();
  		container.destroyRecursively();
 -		renderer.root.remove(container.id);
-+		renderer.root.remove(container);
  		manager.destroy();
  	});
  	createEffect(() => {

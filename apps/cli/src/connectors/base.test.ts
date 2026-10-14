@@ -116,7 +116,29 @@ describe("ConnectorBase background launch", () => {
 		await expect(new TestConnector().runBackground(io)).resolves.toBe(1);
 
 		expect(io.writeErr).toHaveBeenCalledWith(
-			"launch failed: child exited before becoming ready",
+			expect.stringContaining(
+				"launch failed: child exited before becoming ready",
+			),
+		);
+	});
+
+	it("points at the child log so a startup failure is diagnosable", async () => {
+		mocks.spawnDetachedConnector.mockReturnValue(42);
+		mocks.isProcessRunning.mockReturnValue(false);
+
+		await new TestConnector().runBackground(io);
+
+		const [message] = vi.mocked(io.writeErr).mock.calls[0] ?? [];
+		expect(message).toContain("logs/connectors/test/test-connector.log");
+		expect(mocks.spawnDetachedConnector).toHaveBeenCalledWith(
+			["connect", "test"],
+			["--token", "secret"],
+			"CLINE_TEST_CONNECT_CHILD",
+			expect.objectContaining({
+				logPath: expect.stringContaining(
+					"logs/connectors/test/test-connector.log",
+				),
+			}),
 		);
 	});
 
@@ -129,7 +151,7 @@ describe("ConnectorBase background launch", () => {
 
 		expect(mocks.terminateProcess).toHaveBeenCalledWith(42);
 		expect(io.writeErr).toHaveBeenCalledWith(
-			"launch failed: timed out after 0ms",
+			expect.stringContaining("launch failed: timed out after 0ms"),
 		);
 	});
 

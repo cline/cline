@@ -1,10 +1,10 @@
 import * as p from "@clack/prompts";
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import {
 	ensureSchedulerHub,
 	type HubScheduleClient,
 } from "../../commands/schedule/client";
 import { resolveAddress } from "../../commands/schedule/common";
+import { resolveScheduleModelSelection } from "../../commands/schedule/model-selection";
 import { CRON_PRESETS } from "./cron-presets";
 
 function isCancel(value: unknown): value is symbol {
@@ -211,12 +211,13 @@ async function actionCreate(client: HubScheduleClient): Promise<void> {
 		}
 	}
 
+	const modelSelection = resolveScheduleModelSelection({ provider, model });
 	const created = (await client.createSchedule({
 		name: (name as string).trim(),
 		cronPattern,
 		prompt: (prompt as string).trim(),
-		provider: provider ?? "cline",
-		model: model ?? CLINE_DEFAULT_MODEL_ID,
+		provider: modelSelection.provider,
+		model: modelSelection.model,
 		mode: mode as "act" | "plan" | "yolo",
 		workspaceRoot: (workspace as string).trim(),
 		systemPrompt,

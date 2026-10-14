@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionStatus } from "@cline/ui";
+import { AgentConversationHeader, SessionStatus } from "@cline/ui";
 import {
 	AlertCircle,
 	Bot,
@@ -13,7 +13,7 @@ import {
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	agentEntryState,
@@ -62,7 +62,7 @@ type AgentHeaderProps = {
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
 };
 
-export function AgentHeader({
+function AgentHeaderImpl({
 	title,
 	canEditTitle,
 	renamingTitle,
@@ -123,151 +123,163 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7">
-			{/* Left: thread title */}
-			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<SessionStatus
-					className="shrink-0 font-mono"
-					label={`Session status: ${status}`}
-					showLabel={false}
-					style={
-						{
-							"--cline-ui-session-status-color": statusColor,
-						} as CSSProperties
-					}
-					tone={statusTone}
-				/>
-				{isEditingTitle ? (
-					<form
-						className="m-0 min-w-0 max-w-full shrink-0"
-						onSubmit={(event) => {
-							event.preventDefault();
-							void submitTitle();
-						}}
-						style={{ width: titleEditorWidth }}
-					>
-						<Input
-							autoFocus
-							className="h-7 w-full text-sm"
-							disabled={renamingTitle}
-							onBlur={() => {
-								void submitTitle();
-							}}
-							onChange={(event) => setTitleInput(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
-									event.preventDefault();
-									setTitleInput(threadTitle);
-									setIsEditingTitle(false);
-								}
-							}}
-							value={titleInput}
+		<AgentConversationHeader
+			className="max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
+			actions={
+				showSessionActions ? (
+					<>
+						<AgentActivityStatus
+							activity={agentActivity}
+							agents={agents}
+							error={agentsError}
+							loading={agentsLoading}
+							onOpenAgentSession={onOpenAgentSession}
+							onOpenChange={onAgentsOpenChange}
 						/>
-					</form>
-				) : (
-					<button
-						className={cn(
-							"min-w-0 truncate text-sm font-medium text-foreground",
-							canEditTitle &&
-								"rounded px-1 py-0.5 transition-colors hover:bg-accent",
+						{additions !== 0 && (
+							<Button
+								aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
+								className={cn(
+									"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
+									hasChanges
+										? "hover:bg-secondary/80"
+										: "cursor-default opacity-60",
+								)}
+								disabled={!hasChanges}
+								id="diff-stats"
+								onClick={() => onOpenDiff?.()}
+								size="sm"
+								type="button"
+								variant="secondary"
+							>
+								<span className="text-chart-2">+{additions}</span>
+								<span className="text-destructive">-{deletions}</span>
+							</Button>
 						)}
-						disabled={!canEditTitle || renamingTitle}
-						onClick={(event) => {
-							if (!canEditTitle || renamingTitle) {
-								return;
-							}
-							setTitleEditorWidth(
-								event.currentTarget.getBoundingClientRect().width,
-							);
-							setTitleInput(threadTitle);
-							setIsEditingTitle(true);
-						}}
-						type="button"
-						title={threadTitle}
-					>
-						{threadTitle}
-					</button>
-				)}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							aria-label="Session actions"
-							className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-							id="show-more-btn"
-							variant="ghost"
-							size="icon-sm"
-							type="button"
-						>
-							<MoreHorizontal className="size-3" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-44">
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							disabled={!canDeleteSession || deletingSession}
-							onClick={triggerDeleteSession}
-						>
-							<Trash2 className="size-4" />
-							<span>{deletingSession ? "Deleting..." : "Delete session"}</span>
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
-
-			{showSessionActions ? (
-				<div className="flex shrink-0 items-center gap-2">
-					<AgentActivityStatus
-						activity={agentActivity}
-						agents={agents}
-						error={agentsError}
-						loading={agentsLoading}
-						onOpenAgentSession={onOpenAgentSession}
-						onOpenChange={onAgentsOpenChange}
-					/>
-					{additions !== 0 && (
-						<Button
-							aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
-							className={cn(
-								"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
-								hasChanges
-									? "hover:bg-secondary/80"
-									: "cursor-default opacity-60",
-							)}
-							disabled={!hasChanges}
-							id="diff-stats"
-							onClick={() => onOpenDiff?.()}
-							size="sm"
-							type="button"
-							variant="secondary"
-						>
-							<span className="text-chart-2">+{additions}</span>
-							<span className="text-destructive">-{deletions}</span>
-						</Button>
-					)}
-					{/* A child agent run leads back to its parent instead of starting a
+						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}
-					{parentSession ? (
-						<SubagentSessionBadge
-							onOpenParentSession={onOpenParentSession}
-							parentSession={parentSession}
-						/>
-					) : (
-						<Button
-							aria-label="New session"
-							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-							onClick={() => onNewThread?.()}
-							size="icon-sm"
-							variant="ghost"
-						>
-							<Plus className="size-4" />
-						</Button>
+						{parentSession ? (
+							<SubagentSessionBadge
+								onOpenParentSession={onOpenParentSession}
+								parentSession={parentSession}
+							/>
+						) : (
+							<Button
+								aria-label="New session"
+								className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+								onClick={() => onNewThread?.()}
+								size="icon-sm"
+								variant="ghost"
+							>
+								<Plus className="size-4" />
+							</Button>
+						)}
+					</>
+				) : null
+			}
+		>
+			<SessionStatus
+				className="shrink-0 font-mono"
+				label={`Session status: ${status}`}
+				showLabel={false}
+				style={
+					{
+						"--cline-ui-session-status-color": statusColor,
+					} as CSSProperties
+				}
+				tone={statusTone}
+			/>
+			{!canEditTitle ? (
+				<span
+					className="min-w-0 truncate text-sm font-medium text-foreground"
+					title={threadTitle}
+				>
+					{threadTitle}
+				</span>
+			) : isEditingTitle ? (
+				<form
+					className="m-0 min-w-0 max-w-full"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void submitTitle();
+					}}
+					style={{ width: titleEditorWidth }}
+				>
+					<Input
+						autoFocus
+						className="h-7 w-full text-sm"
+						disabled={renamingTitle}
+						onBlur={() => {
+							void submitTitle();
+						}}
+						onChange={(event) => setTitleInput(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								event.preventDefault();
+								setTitleInput(threadTitle);
+								setIsEditingTitle(false);
+							}
+						}}
+						value={titleInput}
+					/>
+				</form>
+			) : (
+				<button
+					className={cn(
+						"min-w-0 truncate text-sm font-medium text-foreground",
+						canEditTitle &&
+							"rounded px-1 py-0.5 transition-colors hover:bg-surface-hover",
 					)}
-				</div>
-			) : null}
-		</header>
+					disabled={renamingTitle}
+					onClick={(event) => {
+						if (!canEditTitle || renamingTitle) {
+							return;
+						}
+						setTitleEditorWidth(
+							Math.max(240, event.currentTarget.getBoundingClientRect().width),
+						);
+						setTitleInput(threadTitle);
+						setIsEditingTitle(true);
+					}}
+					type="button"
+					title={threadTitle}
+				>
+					{threadTitle}
+				</button>
+			)}
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						aria-label="Session actions"
+						className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+						id="show-more-btn"
+						variant="ghost"
+						size="icon-sm"
+						type="button"
+					>
+						<MoreHorizontal className="size-3" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start" className="w-44">
+					<DropdownMenuItem
+						className="text-destructive focus:text-destructive"
+						disabled={!canDeleteSession || deletingSession}
+						onClick={triggerDeleteSession}
+					>
+						<Trash2 className="size-4" />
+						<span>{deletingSession ? "Deleting..." : "Delete session"}</span>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</AgentConversationHeader>
 	);
 }
+
+// Memoized: the header sits above the streaming conversation and would
+// otherwise re-render on every stream flush; its props are kept
+// referentially stable by the chat pane.
+export const AgentHeader = memo(AgentHeaderImpl);
 
 /**
  * Route from a child agent run back to the session that spawned it, in the
@@ -294,7 +306,7 @@ function SubagentSessionBadge({
 	return (
 		<Button
 			aria-label={hint}
-			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 			disabled={!onOpenParentSession}
 			id="subagent-session-badge"
 			onClick={() => void onOpenParentSession?.(parentSession.sessionId)}
@@ -519,7 +531,7 @@ function AgentRosterRow({
 	return (
 		<li>
 			<button
-				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-accent/60"
+				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-hover"
 				onClick={onSelect}
 				title="Open this agent's session"
 				type="button"

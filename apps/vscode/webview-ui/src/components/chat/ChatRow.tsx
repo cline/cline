@@ -1,3 +1,4 @@
+import { GeneratedMediaContent } from "@cline/ui"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
@@ -33,9 +34,11 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonConfig"
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
+import Thumbnails from "@/components/common/Thumbnails"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
@@ -79,6 +82,7 @@ interface ChatRowProps {
 	mode?: Mode
 	reasoningContent?: string
 	responseStarted?: boolean
+	retryFailedRequest?: () => Promise<boolean>
 }
 
 export interface QuoteButtonState {
@@ -119,7 +123,7 @@ const ChatRow = memo(
 				}
 				prevHeightRef.current = height
 			}
-		}, [height, isLast, onHeightChange, message])
+		}, [height, isLast, onHeightChange])
 
 		// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
 		return chatrow
@@ -145,9 +149,22 @@ export const ChatRowContent = memo(
 		mode,
 		reasoningContent,
 		responseStarted,
+		retryFailedRequest,
 	}: ChatRowContentProps) => {
-		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
-			useExtensionState()
+		const {
+			backgroundEditEnabled: backgroundEditSetting,
+			mcpServers,
+			vscodeTerminalExecutionMode,
+			clineMessages,
+			showFeatureTips,
+			enableCheckpointsSetting: checkpointsSetting,
+			turnState,
+			currentCloudTask,
+		} = useExtensionState()
+		// Cloud tasks edit files inside the sandbox: there is no local editor to
+		// preview in, so diffs render inline, and no local workspace to checkpoint.
+		const backgroundEditEnabled = backgroundEditSetting || !!currentCloudTask
+		const enableCheckpointsSetting = checkpointsSetting && !currentCloudTask
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -189,7 +206,7 @@ export const ChatRowContent = memo(
 			prevIsLastRef.current = isLast
 		}, [isLast, message.ask, message.say])
 
-		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
+		const [cost, _apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
 				return [info.cost, info.cancelReason, info.streamingFailedMessage]
@@ -331,16 +348,7 @@ export const ChatRowContent = memo(
 				default:
 					return [null, null]
 			}
-		}, [
-			type,
-			cost,
-			apiRequestFailedMessage,
-			isCommandExecuting,
-			isCommandPending,
-			apiReqCancelReason,
-			isMcpServerResponding,
-			message.text,
-		])
+		}, [type, isMcpServerResponding, message.text])
 
 		const tool = useMemo(() => {
 			if (message.ask === "tool" || message.say === "tool") {
@@ -416,6 +424,7 @@ export const ChatRowContent = memo(
 							</div>
 							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
 								<DiffEditRow
+									canOpenFile={!currentCloudTask}
 									isLoading={message.partial}
 									patch={tool.diff || tool.content!}
 									path={tool.path}
@@ -460,7 +469,12 @@ export const ChatRowContent = memo(
 								<span className="font-bold">Cline wants to create a new file:</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
-								<DiffEditRow patch={tool.content} path={tool.path} startLineNumbers={tool.startLineNumbers} />
+								<DiffEditRow
+									canOpenFile={!currentCloudTask}
+									patch={tool.content}
+									path={tool.path}
+									startLineNumbers={tool.startLineNumbers}
+								/>
 							) : (
 								<CodeAccordian
 									code={tool.content!}
@@ -497,7 +511,7 @@ export const ChatRowContent = memo(
 									{tool.path?.startsWith(".") && <span>.</span>}
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
-										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+										{`${cleanPathPrefix(tool.path ?? "")}\u200E`}
 										{tool.readLineStart != null ? (
 											<span className="opacity-80">
 												{" "}
@@ -615,8 +629,7 @@ export const ChatRowContent = memo(
 											e.stopPropagation()
 											handleToggle()
 										}
-									}}
-									tabIndex={0}>
+									}}>
 									{isExpanded ? (
 										<div>
 											<div className="flex items-center mb-2">
@@ -629,7 +642,7 @@ export const ChatRowContent = memo(
 									) : (
 										<div className="flex items-center">
 											<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2 [direction:rtl]">
-												{tool.content + "\u200E"}
+												{`${tool.content}\u200E`}
 											</span>
 											<ChevronRightIcon className="my-0.5 shrink-0 size-4" />
 										</div>
@@ -662,7 +675,7 @@ export const ChatRowContent = memo(
 									}
 								}}>
 								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 [direction:rtl] text-left text-link underline">
-									{tool.path + "\u200E"}
+									{`${tool.path}\u200E`}
 								</span>
 							</div>
 						</div>
@@ -682,7 +695,7 @@ export const ChatRowContent = memo(
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-[9px] px-2.5">
 								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction:rtl]">
-									{tool.path + "\u200E"}
+									{`${tool.path}\u200E`}
 								</span>
 							</div>
 						</div>
@@ -828,6 +841,7 @@ export const ChatRowContent = memo(
 								mode={mode}
 								reasoningContent={reasoningContent}
 								responseStarted={responseStarted}
+								retryFailedRequest={retryFailedRequest}
 							/>
 						)
 					case "api_req_finished":
@@ -845,17 +859,34 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "text": {
+						const hasText = !!message.text?.trim()
 						return (
 							<WithCopyButton
 								onMouseUp={handleMouseUp}
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								<div className="flex items-center">
-									<div className={cn("flex-1 min-w-0 pl-1")}>
-										<MarkdownRow markdown={message.text} showCursor={false} />
+								{hasText && (
+									<div className="flex items-center">
+										<div className={cn("flex-1 min-w-0 pl-1")}>
+											<MarkdownRow markdown={message.text} showCursor={false} />
+										</div>
 									</div>
-								</div>
+								)}
+								{!!message.images?.length && (
+									<Thumbnails className={hasText ? "mt-2" : undefined} files={[]} images={message.images} />
+								)}
+								{!!message.media?.length && (
+									<div className={cn("flex flex-col gap-2", hasText && "mt-2")}>
+										{message.media.map((media) => (
+											<GeneratedMediaContent
+												className="max-h-96 max-w-full rounded-sm"
+												key={media.id}
+												media={media}
+											/>
+										))}
+									</div>
+								)}
 								{quoteButtonState.visible && (
 									<QuoteButton
 										left={quoteButtonState.left}
@@ -870,7 +901,7 @@ export const ChatRowContent = memo(
 						const isReasoningStreaming = message.partial === true
 						const hasReasoningText = !!message.text?.trim()
 						// Show feature tips throughout the entire thinking/reasoning phase
-						const showFeatureTip = isReasoningStreaming
+						const _showFeatureTip = isReasoningStreaming
 						return (
 							<div>
 								<ThinkingRow
@@ -883,17 +914,21 @@ export const ChatRowContent = memo(
 									showTitle={true}
 									title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								/>
-								{isReasoningStreaming && showFeatureTips !== false && <FeatureTip />}
+								{isReasoningStreaming && showFeatureTips === true && <FeatureTip />}
 							</div>
 						)
 					}
 					case "user_feedback":
 						return (
 							<UserMessage
-								canRestoreWorkspace={canRestoreWorkspaceFromMessage(clineMessages, message.ts)}
+								canRestoreWorkspace={
+									!currentCloudTask && canRestoreWorkspaceFromMessage(clineMessages, message.ts)
+								}
 								files={message.files}
+								// Edit-and-regenerate rebuilds the conversation as a local session, which
+								// a cloud task cannot use; without a timestamp the row is read-only.
 								images={message.images}
-								messageTs={message.ts}
+								messageTs={currentCloudTask ? undefined : message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
 								text={message.text}
 							/>
@@ -911,7 +946,7 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "error":
-						return <ErrorRow errorType="error" message={message} />
+						return <ErrorRow errorType="error" message={message} retryFailedRequest={retryFailedRequest} />
 					case "diff_error":
 						return <ErrorRow errorType="diff_error" message={message} />
 					case "clineignore_error":
@@ -923,17 +958,23 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
-					case "completion_result":
-						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
-						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
+					case "completion_result": {
+						// Strip the legacy HAS_CHANGES sentinel that pre-SDK versions
+						// persisted on completion message text.
+						const hasLegacyChangesFlag = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
+						const text = hasLegacyChangesFlag
+							? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length)
+							: message.text
 
 						return (
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
 								quoteButtonState={quoteButtonState}
+								showViewChanges={isLast && message.partial !== true && enableCheckpointsSetting}
 								text={text || ""}
 							/>
 						)
+					}
 					case "plan_completion_result":
 						// Turn-final plan-mode response inferred at turn end (SDK path)
 						return <PlanCompletionOutputRow text={message.text || ""} />
@@ -999,8 +1040,6 @@ export const ChatRowContent = memo(
 								</button>
 							</div>
 						)
-					case "task_progress":
-						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					case "compaction":
 						return <CompactionRow message={message} />
 					default:
@@ -1021,7 +1060,13 @@ export const ChatRowContent = memo(
 			case "ask":
 				switch (message.ask) {
 					case "mistake_limit_reached":
-						return <ErrorRow errorType="mistake_limit_reached" message={message} />
+						return (
+							<ErrorRow
+								errorType="mistake_limit_reached"
+								message={message}
+								retryFailedRequest={retryFailedRequest}
+							/>
+						)
 					case "completion_result":
 						if (message.text) {
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
@@ -1078,10 +1123,7 @@ export const ChatRowContent = memo(
 								<div className="pt-3">
 									<OptionsButtons
 										inputValue={inputValue}
-										isActive={
-											(isLast && lastModifiedMessage?.ask === "followup") ||
-											(!selected && options && options.length > 0)
-										}
+										isActive={isOptionsAskActive(message, turnState, isLast, lastModifiedMessage)}
 										options={options}
 										selected={selected}
 									/>
@@ -1136,10 +1178,7 @@ export const ChatRowContent = memo(
 								<PlanCompletionOutputRow text={response || message.text || ""} />
 								<OptionsButtons
 									inputValue={inputValue}
-									isActive={
-										(isLast && lastModifiedMessage?.ask === "plan_mode_respond") ||
-										(!selected && options && options.length > 0)
-									}
+									isActive={isOptionsAskActive(message, turnState, isLast, lastModifiedMessage)}
 									options={options}
 									selected={selected}
 								/>

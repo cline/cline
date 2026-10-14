@@ -9,6 +9,7 @@ export interface LocalSlashCommandActionInput {
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
+	openThemePicker: () => void;
 	invocation?: LocalSlashCommandInvocation;
 	runCompact: () => void;
 	runFork: () => void;
@@ -44,6 +45,10 @@ export function runLocalSlashCommandAction(
 	}
 	if (normalized === "model") {
 		input.openModelSelector();
+		return true;
+	}
+	if (normalized === "theme") {
+		input.openThemePicker();
 		return true;
 	}
 	if (normalized === "compact") {

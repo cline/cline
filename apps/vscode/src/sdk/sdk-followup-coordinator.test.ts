@@ -60,6 +60,10 @@ describe("SdkFollowupCoordinator", () => {
 			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
 		)
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		// The echoed bubble must carry the new epoch, so the fence moves first.
+		expect(options.resetMessageTranslator.mock.invocationCallOrder[0]).toBeLessThan(
+			options.messages.appendAndEmit.mock.invocationCallOrder[0],
+		)
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
@@ -67,7 +71,6 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
-			undefined,
 		)
 	})
 
@@ -96,7 +99,6 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
 
-		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
@@ -130,7 +132,6 @@ describe("SdkFollowupCoordinator", () => {
 			undefined,
 			undefined,
 		)
-		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
@@ -166,31 +167,26 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: next request",
 			undefined,
 			undefined,
-			undefined,
 		)
 	})
 
-	it("waits for an in-flight mode rebuild before deciding whether to resume a displayed task", async () => {
-		const task = makeTask("task-1")
+	it("selects the follow-up session inside the rebuild boundary", async () => {
+		const task = makeTask("session-123")
 		const rebuiltSession = makeActiveSession({ isRunning: true })
-		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
-		const { coordinator, options } = makeCoordinator({ task, waitForPendingRebuilds })
+		let runExclusive: (() => Promise<void>) | undefined
+		const { coordinator, options } = makeCoordinator({
+			task,
+			runExclusive: vi.fn(async (operation) => {
+				runExclusive = operation
+			}),
+		})
 		options.sessions.getActiveSession.mockReturnValueOnce(undefined).mockReturnValue(rebuiltSession)
 
 		const sendPromise = coordinator.askResponse("sent during rebuild")
-		await new Promise((resolve) => setTimeout(resolve, 0))
-
-		expect(waitForPendingRebuilds).toHaveBeenCalledOnce()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 
-		resolveRebuild()
+		await runExclusive?.()
 		await sendPromise
 
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
@@ -204,25 +200,13 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("waits for a passive rebuild before choosing the session for an idle follow-up", async () => {
+	it("uses the rebuilt session exposed by the exclusive boundary", async () => {
 		const oldSession = makeActiveSession()
 		const rebuiltSession = makeActiveSession()
-		let resolveRebuild: () => void = () => {}
-		const waitForPendingRebuilds = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveRebuild = resolve
-				}),
-		)
-		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, waitForPendingRebuilds })
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession })
 		options.sessions.getActiveSession.mockReturnValueOnce(oldSession).mockReturnValue(rebuiltSession)
 
-		const sendPromise = coordinator.askResponse("after rebuild")
-		await Promise.resolve()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-
-		resolveRebuild()
-		await sendPromise
+		await coordinator.askResponse("after rebuild")
 
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			rebuiltSession.sdkHost,
@@ -230,8 +214,31 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: after rebuild",
 			undefined,
 			undefined,
-			undefined,
 		)
+	})
+
+	it("abandons a follow-up if task navigation occurs while mentions resolve", async () => {
+		const oldSession = makeActiveSession({ isRunning: true })
+		const oldTask = makeTask("session-123")
+		let currentTask = oldTask
+		let resolveMentions: (prompt: string) => void = () => {}
+		const { coordinator, options } = makeCoordinator({ activeSession: oldSession, task: oldTask })
+		options.getTask.mockImplementation(() => currentTask)
+		options.resolveContextMentions.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveMentions = resolve
+				}),
+		)
+
+		const send = coordinator.askResponse("with @mention", undefined, undefined, "messageResponse", "streaming")
+		await Promise.resolve()
+		currentTask = makeTask("other-task")
+		resolveMentions("resolved after navigation")
+		await send
+
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
 	})
 
 	it("queues a message response after a pending tool approval is not resolved by chat text", async () => {
@@ -426,6 +433,100 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("continues the surviving idle session on a bare resume instead of rebuilding", async () => {
+		// Stop -> Resume: cancelling a turn keeps the session alive, so a bare
+		// Resume must continue that session in place (like the CLI does after
+		// an abort) rather than tearing it down and rebuilding from history.
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.loadInitialMessages).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		const [sdkHost, sessionId, sentPrompt] = options.sessions.fireAndForgetSend.mock.calls[0]
+		expect(sdkHost).toBe(activeSession.sdkHost)
+		expect(sessionId).toBe("session-123")
+		expect(sentPrompt).toContain("[TASK RESUMPTION]")
+		// A bare resumption prompt is synthetic and must not render a user bubble.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
+	it("continues the surviving idle session for a typed follow-up instead of rebuilding", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("keep going", ["image.png"], undefined)
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "user_feedback",
+					text: "keep going",
+					images: ["image.png"],
+				}),
+			],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: keep going",
+			["image.png"],
+			undefined,
+		)
+	})
+
+	it("rebuilds from history when the idle session does not match the displayed task", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("continue")
+
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			"resolved: continue",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("does not resubmit the original task text when a bare resume must rebuild the session", async () => {
+		// No live session (task opened from history / extension reload): the
+		// rebuild path reconstructs the session from persisted messages. The
+		// resumption prompt must stay neutral; re-sending historyItem.task as
+		// "new instructions" made the model redo completed commands (#12975).
+		const task = makeTask("task-1")
+		const historyItem = {
+			id: "task-1",
+			ts: 1,
+			task: "Run the five terminal commands",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
+		expect(sentPrompt).toBe("resolved: [TASK RESUMPTION] Please continue where you left off.")
+		expect(sentPrompt).not.toContain("Run the five terminal commands")
+		// A bare resumption prompt is synthetic and must not render a user bubble.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
 	it("echoes attachments on an attachment-only resume", async () => {
 		const task = makeTask("task-1")
 		const historyItem = {
@@ -543,7 +644,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
-		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
 		onFollowUpAbandoned: vi.fn(),
@@ -606,7 +706,6 @@ interface MakeCoordinatorInput {
 	}
 	mode: "act" | "plan"
 	isLegacyTask: boolean
-	waitForPendingRebuilds: () => Promise<void>
 	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 

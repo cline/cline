@@ -7,6 +7,8 @@
  *   - setup(api, ctx)      — workspace-aware tool registration via
  *                            ctx.workspaceInfo
  *   - hooks.beforeRun / beforeTool / afterTool / afterRun — lifecycle metrics
+ *   - ctx.telemetry        — emitting plugin telemetry into the host's
+ *                            telemetry service
  *
  * CLI usage:
  *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
@@ -16,7 +18,11 @@
  *   ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-metrics.ts
  */
 
-import { type AgentPlugin, createTool } from "@cline/core";
+import {
+	type AgentPlugin,
+	createTool,
+	type ITelemetryService,
+} from "@cline/core";
 
 // ---------------------------------------------------------------------------
 // Plugin-level state — populated from setup context and available to all hook
@@ -26,6 +32,8 @@ import { type AgentPlugin, createTool } from "@cline/core";
 let sessionWorkspaceRoot: string | undefined;
 let sessionBranch: string | undefined;
 let sessionCommit: string | undefined;
+let telemetry: ITelemetryService | undefined;
+let toolCallCount = 0;
 
 const plugin: AgentPlugin = {
 	name: "weather-and-metrics",
@@ -86,6 +94,26 @@ const plugin: AgentPlugin = {
 		sessionCommit = ctx.workspaceInfo?.latestGitCommitHash?.slice(0, 7);
 		const remotes = ctx.workspaceInfo?.associatedRemoteUrls ?? [];
 
+		// ctx.telemetry routes into the host's telemetry service. Always
+		// feature-detect it: it is undefined when the host has no telemetry
+		// service. In the plugin sandbox it is a bridge — events cross the
+		// process boundary as JSON, so pass only plain data (strings, numbers,
+		// booleans), never live objects. The host namespaces every event under
+		// `plugin.` and stamps it with this plugin's name.
+		//
+		// Note: in the sandbox, isEnabled() always reports true — the host
+		// decides whether telemetry is on and drops opted-out events on its
+		// side. So don't gate expensive property computation on isEnabled();
+		// keep properties cheap to build, like the flags below.
+		telemetry = ctx.telemetry;
+		telemetry?.capture({
+			event: "weather_plugin_setup",
+			properties: {
+				has_workspace: Boolean(sessionWorkspaceRoot),
+				branch: sessionBranch,
+			},
+		});
+
 		console.log(`\n[metrics] session started`);
 		if (sessionWorkspaceRoot) {
 			console.log(`[metrics] workspace : ${sessionWorkspaceRoot}`);
@@ -111,6 +139,12 @@ const plugin: AgentPlugin = {
 
 		beforeTool({ toolCall, input }) {
 			console.log(`[metrics] -> ${toolCall.toolName}`, input);
+			toolCallCount += 1;
+			// Counters/histograms/gauges work too; the host prefixes the metric
+			// name with `plugin.` and adds a plugin_name attribute.
+			telemetry?.recordCounter("weather_plugin.tool_calls", 1, {
+				tool_name: toolCall.toolName,
+			});
 
 			if (toolCall.toolName === "run_commands") {
 				const { commands } = input as { commands?: string[] };
@@ -143,6 +177,16 @@ const plugin: AgentPlugin = {
 			console.log(
 				`[metrics] tokens — in: ${usage.inputTokens}, out: ${usage.outputTokens}, cost: ${usage.totalCost?.toFixed(6)}`,
 			);
+			telemetry?.capture({
+				event: "weather_plugin_run_completed",
+				properties: {
+					status,
+					iterations,
+					tool_calls: toolCallCount,
+					input_tokens: usage.inputTokens,
+					output_tokens: usage.outputTokens,
+				},
+			});
 		},
 	},
 };

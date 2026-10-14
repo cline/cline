@@ -1,15 +1,23 @@
 import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import {
 	closeSync,
 	existsSync,
+	linkSync,
 	openSync,
 	readFileSync,
+	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import type { HubSessionClient, HubSessionRow } from "@cline/core";
-import { ensureParentDir, resolveClineDataDir } from "@cline/core";
+import {
+	ensureParentDir,
+	getProcessStartToken,
+	resolveClineDataDir,
+} from "@cline/core";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	withResolvedClineBuildEnv,
@@ -27,6 +35,9 @@ export const CLINE_CONNECTOR_DETACHED_CHILD_ENV =
  * state.
  */
 export const CONNECT_ALREADY_RUNNING_EXIT_CODE = 75;
+
+/** Rotate a detached connector log once it passes this size. */
+const DETACHED_LOG_MAX_BYTES = 8 * 1024 * 1024;
 
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
@@ -72,6 +83,16 @@ export function isProcessRunning(pid: number): boolean {
 		return false;
 	}
 }
+
+type ProcessProbe = {
+	isRunning: (pid: number) => boolean;
+	getStartToken: (pid: number) => string | undefined;
+};
+
+const defaultProcessProbe: ProcessProbe = {
+	isRunning: isProcessRunning,
+	getStartToken: getProcessStartToken,
+};
 
 export async function terminateProcess(pid: number): Promise<boolean> {
 	if (!isProcessRunning(pid)) {
@@ -164,12 +185,30 @@ export function resolveConnectorDebugLogPath(
 	);
 }
 
+/**
+ * Connectors are long-lived and restart often, so an append-only log would grow
+ * without bound on a host that runs them for weeks. Keep one previous
+ * generation and start fresh once the current one gets large.
+ */
+function rotateOversizedLog(path: string): void {
+	try {
+		if (statSync(path).size < DETACHED_LOG_MAX_BYTES) {
+			return;
+		}
+		rmSync(`${path}.1`, { force: true });
+		renameSync(path, `${path}.1`);
+	} catch {
+		// No log yet, or it cannot be rotated: appending is still fine.
+	}
+}
+
 function tryOpenDetachedLogFd(path: string | undefined): number | undefined {
 	if (!path?.trim()) {
 		return undefined;
 	}
 	try {
 		ensureParentDir(path);
+		rotateOversizedLog(path);
 		return openSync(path, "a");
 	} catch {
 		return undefined;
@@ -269,6 +308,9 @@ export const __test__ = {
 	buildDetachedConnectorArgs,
 	buildDetachedConnectorCommand,
 	buildDetachedConnectorEnv,
+	tryReplaceStaleConnectorStateFile,
+	rotateOversizedLog,
+	DETACHED_LOG_MAX_BYTES,
 };
 
 export function readJsonFile<T>(path: string, fallback: T): T {
@@ -287,6 +329,203 @@ export function readJsonFile<T>(path: string, fallback: T): T {
 export function writeJsonFile(path: string, value: unknown): void {
 	ensureParentDir(path);
 	writeFileSync(path, JSON.stringify(value, null, 2), "utf8");
+}
+
+/**
+ * Atomically claim a connector state path for this process.
+ *
+ * Uses O_EXCL so two concurrent `cline connect` launches cannot both observe
+ * "no running instance" and both proceed. Returns undefined when another live
+ * connector already owns the path (or a concurrent claim won the race).
+ */
+export function tryClaimConnectorStateFile(
+	statePath: string,
+	createState: (
+		claimId: string,
+	) => { claimId: string; pid: number } & Record<string, unknown>,
+	processProbe: ProcessProbe = defaultProcessProbe,
+): { claimId: string } | undefined {
+	ensureParentDir(statePath);
+	const claimId = randomUUID();
+	const state = createState(claimId);
+	const payload = `${JSON.stringify(state, null, 2)}
+`;
+
+	if (tryCreateConnectorStateFile(statePath, payload)) {
+		return { claimId };
+	}
+
+	let observedPayload: string;
+	try {
+		observedPayload = readFileSync(statePath, "utf8");
+	} catch {
+		return undefined;
+	}
+	try {
+		const existing = JSON.parse(observedPayload) as { pid?: unknown };
+		const existingPid =
+			typeof existing.pid === "number" ? existing.pid : undefined;
+		if (existingPid !== undefined && processProbe.isRunning(existingPid)) {
+			return undefined;
+		}
+	} catch (error) {
+		if (!(error instanceof SyntaxError)) {
+			return undefined;
+		}
+	}
+
+	return tryReplaceStaleConnectorStateFile(
+		statePath,
+		observedPayload,
+		payload,
+		processProbe,
+	)
+		? { claimId }
+		: undefined;
+}
+
+function tryCreateConnectorStateFile(
+	statePath: string,
+	payload: string,
+): boolean {
+	let fd: number;
+	try {
+		fd = openSync(statePath, "wx");
+	} catch (error) {
+		const code =
+			error && typeof error === "object" && "code" in error
+				? String((error as NodeJS.ErrnoException).code)
+				: undefined;
+		if (code === "EEXIST") {
+			return false;
+		}
+		throw error;
+	}
+	try {
+		writeFileSync(fd, payload, "utf8");
+	} finally {
+		closeSync(fd);
+	}
+	return true;
+}
+
+/**
+ * Replaces exactly the stale generation that the caller observed.
+ *
+ * Each contender atomically links its ownership record into a guard keyed by
+ * the observed generation. A live guard owner blocks replacement. If an owner
+ * dies in the critical section, contenders append a successor guard rather
+ * than deleting the existing one, so stale recovery remains crash-safe.
+ */
+function tryReplaceStaleConnectorStateFile(
+	statePath: string,
+	observedPayload: string,
+	replacementPayload: string,
+	processProbe: ProcessProbe = defaultProcessProbe,
+): boolean {
+	let replacement: { claimId?: unknown; pid?: unknown };
+	try {
+		replacement = JSON.parse(replacementPayload) as {
+			claimId?: unknown;
+			pid?: unknown;
+		};
+	} catch {
+		return false;
+	}
+	if (
+		typeof replacement.claimId !== "string" ||
+		typeof replacement.pid !== "number"
+	) {
+		return false;
+	}
+
+	const generation = createHash("sha256").update(observedPayload).digest("hex");
+	const ownerPayload = `${JSON.stringify(
+		{
+			claimId: replacement.claimId,
+			pid: replacement.pid,
+			processStartToken: processProbe.getStartToken(replacement.pid),
+		},
+		null,
+		2,
+	)}
+`;
+	const candidatePath = `${statePath}.${replacement.claimId}.candidate`;
+	if (!tryCreateConnectorStateFile(candidatePath, ownerPayload)) {
+		return false;
+	}
+
+	const guardPaths: string[] = [];
+	let acquiredGuard = false;
+	try {
+		let guardPath = `${statePath}.${generation}.claim`;
+		while (true) {
+			guardPaths.push(guardPath);
+			try {
+				linkSync(candidatePath, guardPath);
+				acquiredGuard = true;
+				break;
+			} catch (error) {
+				const code =
+					error && typeof error === "object" && "code" in error
+						? String((error as NodeJS.ErrnoException).code)
+						: undefined;
+				if (code !== "EEXIST") {
+					throw error;
+				}
+			}
+
+			let guardPayload: string;
+			try {
+				guardPayload = readFileSync(guardPath, "utf8");
+			} catch {
+				return false;
+			}
+			try {
+				const guardOwner = JSON.parse(guardPayload) as {
+					pid?: unknown;
+					processStartToken?: unknown;
+				};
+				if (
+					typeof guardOwner.pid === "number" &&
+					processProbe.isRunning(guardOwner.pid)
+				) {
+					const runningStartToken = processProbe.getStartToken(guardOwner.pid);
+					if (
+						typeof guardOwner.processStartToken !== "string" ||
+						runningStartToken === undefined ||
+						runningStartToken === guardOwner.processStartToken
+					) {
+						return false;
+					}
+				}
+			} catch {
+				// Invalid ownership metadata cannot identify a live owner.
+			}
+
+			const successor = createHash("sha256")
+				.update(guardPath)
+				.update("\0")
+				.update(guardPayload)
+				.digest("hex");
+			guardPath = `${statePath}.${generation}.${successor}.claim`;
+		}
+
+		if (readFileSync(statePath, "utf8") !== observedPayload) {
+			return false;
+		}
+		rmSync(statePath);
+		return tryCreateConnectorStateFile(statePath, replacementPayload);
+	} catch {
+		return false;
+	} finally {
+		rmSync(candidatePath, { force: true });
+		if (acquiredGuard) {
+			for (const guardPath of guardPaths) {
+				rmSync(guardPath, { force: true });
+			}
+		}
+	}
 }
 
 export function removeFile(path: string): void {

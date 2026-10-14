@@ -1,7 +1,9 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
+import { getInitialThemeId } from "./hooks/theme-provider";
 import { Root } from "./root";
 import { installTuiStdioCapture } from "./stdio-capture";
+import { resolveTheme } from "./themes";
 import type { TuiProps } from "./types";
 
 export type { TuiProps } from "./types";
@@ -22,6 +24,17 @@ export async function renderOpenTui(
 	const terminalBackground = detectedPalette?.defaultBackground ?? null;
 	const terminalForeground = detectedPalette?.defaultForeground ?? null;
 
+	// Paint the selected theme's background before the first frame so themed
+	// sessions don't flash the terminal's own background on startup.
+	const initialThemeId = getInitialThemeId();
+	const initialTheme = resolveTheme(initialThemeId, {
+		background: terminalBackground,
+		foreground: terminalForeground,
+	});
+	if (initialTheme.appBackground) {
+		renderer.setBackgroundColor(initialTheme.appBackground);
+	}
+
 	let root: ReturnType<typeof createRoot>;
 	try {
 		root = createRoot(renderer);
@@ -30,6 +43,7 @@ export async function renderOpenTui(
 				{...props}
 				terminalBackground={terminalBackground}
 				terminalForeground={terminalForeground}
+				initialThemeId={initialThemeId}
 			/>,
 		);
 	} catch (error) {

@@ -26,7 +26,7 @@ export const detectMetaKeyChar = (platform: string) => {
 		return "Win"
 	}
 	if (platform.match(platforms.linux)) {
-		return "Alt"
+		return "Super"
 	}
 	return "CMD"
 }

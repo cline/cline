@@ -102,4 +102,113 @@ describe("InMemoryMcpManager", () => {
 			}),
 		).rejects.toThrow(/disabled/i);
 	});
+
+	it("retains and disconnects a client whose initialization fails", async () => {
+		const connectError = new Error("initialize failed");
+		const client = createClient({
+			connect: vi.fn(async () => {
+				throw connectError;
+			}),
+		});
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () => client,
+		});
+		await manager.registerServer({
+			name: "slow-start",
+			transport: { type: "stdio", command: "node" },
+		});
+
+		await expect(manager.connectServer("slow-start")).rejects.toBe(
+			connectError,
+		);
+		expect(client.disconnect).toHaveBeenCalledTimes(1);
+
+		await manager.dispose();
+		expect(client.disconnect).toHaveBeenCalledTimes(2);
+	});
+
+	it("disconnects the remaining servers when one fails during dispose", async () => {
+		const wedgedClient = createClient({
+			disconnect: vi.fn(async () => {
+				throw new Error("process did not exit");
+			}),
+		});
+		const healthyClient = createClient();
+		const clients = new Map([
+			["wedged", wedgedClient],
+			["healthy", healthyClient],
+		]);
+		const manager = new InMemoryMcpManager({
+			clientFactory: async (registration) => {
+				const client = clients.get(registration.name);
+				if (!client) {
+					throw new Error(`Unexpected server: ${registration.name}`);
+				}
+				return client;
+			},
+		});
+		// "wedged" is registered first, so dispose reaches it before "healthy".
+		await manager.registerServer({
+			name: "wedged",
+			transport: { type: "stdio", command: "node" },
+		});
+		await manager.registerServer({
+			name: "healthy",
+			transport: { type: "stdio", command: "node" },
+		});
+		await manager.connectServer("wedged");
+		await manager.connectServer("healthy");
+
+		await expect(manager.dispose()).rejects.toThrow(AggregateError);
+		expect(wedgedClient.disconnect).toHaveBeenCalledTimes(1);
+		expect(healthyClient.disconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it("replaces the client when its timeout snapshot changes", async () => {
+		const firstClient = createClient();
+		const secondClient = createClient();
+		const clientFactory = vi
+			.fn()
+			.mockResolvedValueOnce(firstClient)
+			.mockResolvedValueOnce(secondClient);
+		const manager = new InMemoryMcpManager({ clientFactory });
+		const registration = {
+			name: "timeout-change",
+			transport: {
+				type: "stdio" as const,
+				command: "node",
+			},
+		};
+
+		await manager.registerServer(registration);
+		await manager.connectServer(registration.name);
+		await manager.registerServer({ ...registration, timeoutSeconds: 60 });
+
+		expect(firstClient.disconnect).toHaveBeenCalledTimes(1);
+		await manager.connectServer(registration.name);
+		expect(clientFactory).toHaveBeenCalledTimes(2);
+		expect(secondClient.connect).toHaveBeenCalledTimes(1);
+	});
+
+	it("preserves the client when re-registration keeps the same timeout snapshot", async () => {
+		const client = createClient();
+		const clientFactory = vi.fn(async () => client);
+		const manager = new InMemoryMcpManager({ clientFactory });
+		const registration = {
+			name: "same-timeout",
+			transport: {
+				type: "stdio" as const,
+				command: "node",
+			},
+			timeoutSeconds: 60_000,
+		};
+
+		await manager.registerServer(registration);
+		await manager.connectServer(registration.name);
+		await manager.registerServer({ ...registration, timeoutSeconds: 3_600 });
+
+		expect(client.disconnect).not.toHaveBeenCalled();
+		await manager.connectServer(registration.name);
+		expect(clientFactory).toHaveBeenCalledTimes(1);
+	});
 });

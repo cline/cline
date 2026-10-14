@@ -76,4 +76,72 @@ describe("useDebouncedInput", () => {
 		expect(values.at(-1)).toBe("second")
 		expect(onChange).not.toHaveBeenCalled()
 	})
+
+	it("does not clobber a pending user edit when an earlier save echoes back", async () => {
+		// Saves round-trip through the backend and update initialValue. While
+		// the user is still typing, an in-flight save can echo back an older
+		// prefix; resyncing to it would delete the newest keystrokes.
+		const onChange = vi.fn()
+		const values: string[] = []
+		let latestSetValue: (value: string) => void = () => {}
+		const { rerender } = render(
+			<Harness
+				initialValue=""
+				onChange={onChange}
+				onRender={(value, setValue) => {
+					values.push(value)
+					latestSetValue = setValue
+				}}
+			/>,
+		)
+
+		act(() => latestSetValue("https://proxy"))
+		// Echo of an earlier, shorter write arrives while the edit is pending.
+		rerender(
+			<Harness
+				initialValue="https://p"
+				onChange={onChange}
+				onRender={(value, setValue) => {
+					values.push(value)
+					latestSetValue = setValue
+				}}
+			/>,
+		)
+
+		expect(values.at(-1)).toBe("https://proxy")
+
+		await flushDebounce()
+		expect(onChange).toHaveBeenCalledTimes(1)
+		expect(onChange).toHaveBeenCalledWith("https://proxy")
+	})
+
+	it("flushes a pending edit on unmount", async () => {
+		const onChange = vi.fn()
+		let latestSetValue: (value: string) => void = () => {}
+		const { unmount } = render(
+			<Harness
+				initialValue=""
+				onChange={onChange}
+				onRender={(_, setValue) => {
+					latestSetValue = setValue
+				}}
+			/>,
+		)
+
+		act(() => latestSetValue("typed-then-closed"))
+		// Unmount before the debounce fires (e.g. clicking Done in settings).
+		unmount()
+
+		expect(onChange).toHaveBeenCalledTimes(1)
+		expect(onChange).toHaveBeenCalledWith("typed-then-closed")
+	})
+
+	it("does not flush on unmount without a pending edit", async () => {
+		const onChange = vi.fn()
+		const { unmount } = render(<Harness initialValue="saved" onChange={onChange} onRender={() => {}} />)
+
+		unmount()
+
+		expect(onChange).not.toHaveBeenCalled()
+	})
 })

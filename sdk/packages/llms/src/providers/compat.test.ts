@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	_testing,
 	createGatewayApiHandler,
+	createGatewayApiHandlerAsync,
 	toGatewayRequestMessages,
 } from "./compat";
 import { ClineNotSubscribedError } from "./errors";
-import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "./gateway";
+import { DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION } from "./gateway";
 import type { Message } from "./types";
 
 const streamTextSpy = vi.fn();
@@ -362,7 +363,35 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
-	it("uses the default maxOutputTokens without expanding to catalog maxTokens", async () => {
+	it.each([
+		["openai-responses", "openai"],
+		["anthropic", "anthropic"],
+	])("retains live model protocol %s through the handler", async (apiProtocol, family) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+		});
+		const handler = createGatewayApiHandler({
+			providerId: "opencode-go",
+			modelId: "new-live-model",
+			apiKey: "test-key",
+			knownModels: {
+				"new-live-model": { id: "new-live-model", metadata: { apiProtocol } },
+			},
+		});
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Exercise the live catalog -> handler -> gateway projection.
+		}
+		expect(streamTextSpy.mock.calls.at(-1)?.[0].model).toMatchObject({
+			modelId: "new-live-model",
+			family,
+		});
+	});
+
+	it("defaults maxOutputTokens to a fraction of the catalog maxTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -398,7 +427,37 @@ describe("createGatewayApiHandler.createMessage", () => {
 			| undefined;
 		expect(call).toHaveProperty(
 			"maxOutputTokens",
-			DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+			Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION),
+		);
+	});
+
+	it("conservatively normalizes exotic effort for unlisted OpenRouter models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "reasoning-model",
+			apiKey: "test-key",
+			thinking: true,
+			reasoningEffort: "max",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				reasoning: "xhigh",
+			}),
 		);
 	});
 
@@ -654,6 +713,44 @@ describe("createGatewayApiHandler.createMessage", () => {
 	});
 });
 
+describe("createGatewayApiHandlerAsync", () => {
+	beforeEach(() => {
+		streamTextSpy.mockReset();
+		openaiCompatibleFactorySpy.mockReset();
+		openaiCompatibleSpy.mockClear();
+	});
+
+	it("honors setAbortSignal on requests, not just the construction-time signal", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = await createGatewayApiHandlerAsync({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "custom-model",
+			apiKey: "test-key",
+		});
+
+		const controller = new AbortController();
+		handler.setAbortSignal?.(controller.signal);
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { abortSignal?: AbortSignal }
+			| undefined;
+		expect(call?.abortSignal).toBe(controller.signal);
+	});
+});
+
 /**
  * Tests for compat.ts message conversion (LlmsProviders.Message → AgentMessage).
  *
@@ -804,6 +901,31 @@ describe("buildGatewayModels", () => {
 				id: "llama3.1",
 				contextWindow: 8192,
 				maxInputTokens: 8192,
+			}),
+		]);
+	});
+
+	it("preserves catalog reasoning controls on projected gateway models", () => {
+		const reasoningOptions = [
+			{ type: "effort" as const, values: ["medium", "high", "max"] as const },
+		];
+		const models = buildGatewayModels("openrouter", {
+			providerId: "openrouter",
+			modelId: "openai/gpt-5.6",
+			knownModels: {
+				"openai/gpt-5.6": {
+					id: "openai/gpt-5.6",
+					name: "GPT-5.6",
+					contextWindow: 400_000,
+					reasoningOptions,
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "openai/gpt-5.6",
+				reasoningOptions,
 			}),
 		]);
 	});

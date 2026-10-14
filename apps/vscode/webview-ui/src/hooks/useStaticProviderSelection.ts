@@ -44,7 +44,7 @@ export function useStaticProviderSelection(
 	hideUsageCost: boolean
 } {
 	const { models, defaultModelId } = useProviderModels(providerId)
-	const hideUsageCost = useProviderUsageCostDisplay(providerId) === "hide"
+	const hideUsageCost = useProviderUsageCostDisplay(providerId) !== "show"
 
 	const fallbackSavedModelId =
 		currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId

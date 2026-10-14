@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { useTerminalBackground } from "../hooks/use-terminal-background";
-import { getDefaultForeground, palette } from "../palette";
+import { useTheme } from "../hooks/use-theme";
 
 export interface SearchableItem {
 	key: string;
@@ -229,8 +228,8 @@ export function SearchableList(props: {
 	emptyText?: string;
 	borderColor?: string;
 }) {
-	const terminalBg = useTerminalBackground();
-	const defaultFg = getDefaultForeground(terminalBg);
+	const theme = useTheme();
+	const defaultFg = theme.defaultForeground;
 	const {
 		items,
 		selected,
@@ -288,23 +287,23 @@ export function SearchableList(props: {
 								paddingX={1}
 								flexDirection="row"
 								gap={1}
-								backgroundColor={isSel ? palette.selection : undefined}
+								backgroundColor={isSel ? theme.selection : undefined}
 								onMouseDown={() => onItemSelect?.(item)}
 								overflow="hidden"
 								height={1}
 							>
 								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
+									fg={isSel ? theme.textOnSelection : "gray"}
 									flexShrink={0}
 								>
 									{isSel ? "\u276f" : " "}
 								</text>
-								<text fg={isSel ? palette.textOnSelection : defaultFg}>
+								<text fg={isSel ? theme.textOnSelection : defaultFg}>
 									{item.label}
 								</text>
 								{item.detail && (
 									<text
-										fg={isSel ? palette.textOnSelection : "gray"}
+										fg={isSel ? theme.textOnSelection : "gray"}
 										flexShrink={1}
 									>
 										{item.detail}
@@ -313,9 +312,7 @@ export function SearchableList(props: {
 								{item.tag && (
 									<text
 										fg={
-											isSel
-												? palette.textOnSelection
-												: (item.tagColor ?? "gray")
+											isSel ? theme.textOnSelection : (item.tagColor ?? "gray")
 										}
 										flexShrink={0}
 									>
@@ -326,8 +323,8 @@ export function SearchableList(props: {
 									<text
 										fg={
 											isSel
-												? palette.textOnSelection
-												: (item.rightLabelColor ?? palette.success)
+												? theme.textOnSelection
+												: (item.rightLabelColor ?? theme.accents.success)
 										}
 										flexShrink={0}
 									>

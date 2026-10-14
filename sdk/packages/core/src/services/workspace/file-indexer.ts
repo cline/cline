@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
-import type { Dirent } from "node:fs";
+import { type Dirent, realpathSync } from "node:fs";
 import { readdir } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { isMainThread, parentPort, Worker } from "node:worker_threads";
+import { toPosixSeparators } from "@cline/shared";
 
 const DEFAULT_INDEX_TTL_MS = 15_000;
 const STALE_CACHE_EVICTION_MS = 10 * 60_000;
@@ -10,6 +12,7 @@ const WORKER_INDEX_REQUEST_TIMEOUT_MS = 1_000;
 const DEFAULT_EXCLUDE_DIRS = new Set([
 	".git",
 	"node_modules",
+	"vendor",
 	"dist",
 	"build",
 	".next",
@@ -74,10 +77,6 @@ function pruneStaleCacheEntries(now: number): void {
 			CACHE.delete(cwd);
 		}
 	}
-}
-
-function toPosixRelative(cwd: string, absolutePath: string): string {
-	return path.relative(cwd, absolutePath).split(path.sep).join("/");
 }
 
 async function listFilesWithRg(cwd: string): Promise<Set<string>> {
@@ -148,7 +147,7 @@ async function walkDir(
 			continue;
 		}
 		if (entry.isFile()) {
-			files.add(toPosixRelative(cwd, absolutePath));
+			files.add(toPosixSeparators(path.relative(cwd, absolutePath)));
 		}
 	}
 }
@@ -159,7 +158,29 @@ async function listFilesFallback(cwd: string): Promise<Set<string>> {
 	return files;
 }
 
+// Indexing the whole home directory or filesystem root is never what the user
+// wants from a file picker, and re-ranking it per keystroke can allocate
+// gigabytes and get the process OOM-killed.
+function isUnindexableRoot(cwd: string): boolean {
+	// realpath so symlinked or differently-cased (Windows) spellings still match.
+	const canonical = (p: string) => {
+		try {
+			return realpathSync.native(p);
+		} catch {
+			return path.resolve(p);
+		}
+	};
+	const resolved = canonical(cwd);
+	return (
+		resolved === canonical(os.homedir()) ||
+		resolved === path.parse(resolved).root
+	);
+}
+
 async function buildIndex(cwd: string): Promise<Set<string>> {
+	if (isUnindexableRoot(cwd)) {
+		return new Set();
+	}
 	try {
 		return await listFilesWithRg(cwd);
 	} catch {

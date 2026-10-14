@@ -23,6 +23,65 @@ describe("session compaction state", () => {
 		).toThrow("Message role cannot contain ':'");
 	});
 
+	it("projects when transport identity (id/ts) was regenerated on round-trip", () => {
+		// Regression: the message codec regenerates id/ts on wire/storage
+		// round-trips (a store's just-appended user turn has none yet, and
+		// consolidated parallel tool results are re-split with minted ids on
+		// resume). The fingerprint must cover content, not the envelope, or
+		// persistence is rejected for semantically identical prefixes.
+		const toolResult = (toolUseId: string, id: string, ts: number) => ({
+			id,
+			ts,
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: toolUseId,
+					name: "read_files",
+					content: `result ${toolUseId}`,
+				},
+			],
+		});
+		const sourceMessages = [
+			{ id: "u1", ts: 1, role: "user" as const, content: "read three files" },
+			{
+				id: "a1",
+				ts: 2,
+				role: "assistant" as const,
+				content: ["a", "b", "c"].map((id) => ({
+					type: "tool_use" as const,
+					id,
+					name: "read_files",
+					input: { files: [`${id}.txt`] },
+				})),
+			},
+			toolResult("a", "tool-a", 3),
+			toolResult("b", "tool-b", 4),
+			toolResult("c", "tool-c", 5),
+		];
+		const compactedMessages = [
+			{ id: "summary", role: "user" as const, content: "summary" },
+		];
+		const state = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		// Same content after a resume round-trip: the typed turn lost its
+		// id/ts and the split tool results carry freshly minted identity.
+		const resumedMessages = [
+			{ role: "user" as const, content: "read three files" },
+			{ ...sourceMessages[1], id: "a1-regenerated", ts: 20 },
+			toolResult("a", "tool-a_tool_a", 30),
+			toolResult("b", "tool-a_tool_b", 30),
+			toolResult("c", "tool-a_tool_c", 30),
+		];
+
+		expect(projectSessionCompactionState(state, resumedMessages)).toEqual(
+			compactedMessages,
+		);
+	});
+
 	it("rejects projection when the canonical prefix was edited before the boundary", () => {
 		const sourceMessages = [
 			{ id: "u1", role: "user" as const, content: "original detail" },
@@ -211,5 +270,52 @@ describe("session compaction state", () => {
 		});
 
 		expect(state).toBeUndefined();
+	});
+});
+
+describe("display-only history and compaction", () => {
+	const conversation = [
+		{ id: "u1", role: "user" as const, content: "first" },
+		{ id: "u2", role: "user" as const, content: "retry" },
+		{ id: "a2", role: "assistant" as const, content: "answer" },
+	];
+	const error = {
+		id: "error",
+		role: "assistant" as const,
+		content: "provider failed",
+		metadata: { displayOnly: true, displayRole: "error" },
+	};
+	const history = [conversation[0], error, ...conversation.slice(1)];
+	const summary = [{ role: "user" as const, content: "summary" }];
+
+	it("uses the same anchors for persisted and runtime history", () => {
+		const fromHistory = createSessionCompactionState({
+			sourceMessages: history,
+			compactedMessages: summary,
+		});
+		const fromRuntime = createSessionCompactionState({
+			sourceMessages: conversation,
+			compactedMessages: summary,
+		});
+		expect(fromHistory.source_message_count).toBe(conversation.length);
+		expect(fromHistory.source_prefix_hash).toBe(fromRuntime.source_prefix_hash);
+		expect(projectSessionCompactionState(fromHistory, conversation)).toEqual(
+			summary,
+		);
+		expect(projectSessionCompactionState(fromRuntime, history)).toEqual(
+			summary,
+		);
+	});
+
+	it("excludes display-only entries from the boundary and appended tail", () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [...conversation, error],
+			compactedMessages: summary,
+		});
+		expect(state.source_last_message_key).toBe("id:a2");
+		const tail = { role: "user" as const, content: "continue" };
+		expect(
+			projectSessionCompactionState(state, [...history, error, tail]),
+		).toEqual([...summary, tail]);
 	});
 });

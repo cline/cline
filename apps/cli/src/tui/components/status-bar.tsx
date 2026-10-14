@@ -4,16 +4,12 @@ import {
 	shouldShowCliUsageCost,
 	shouldShowCliUsageCoveredBySubscription,
 } from "../../utils/usage-cost-display";
-import {
-	useTerminalBackground,
-	useTerminalTheme,
-} from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
-	getModeAccent,
-	getSuccessColor,
-} from "../palette";
+import { useTheme } from "../hooks/use-theme";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
+
+// U+23F5 is missing from most Linux monospace fonts, so fall back to U+25B6 there.
+const AUTO_APPROVE_GLYPH =
+	process.platform === "linux" ? "\u25b6\u25b6" : "\u23f5\u23f5";
 
 export function createContextBar(
 	used: number,
@@ -163,13 +159,12 @@ export function StatusBar(props: StatusBarProps) {
 	} = props;
 
 	const { width } = useTerminalDimensions();
-	const terminalBg = useTerminalBackground();
-	const terminalTheme = useTerminalTheme();
-	const defaultFg = getDefaultForeground(terminalBg);
+	const theme = useTheme();
+	const defaultFg = theme.defaultForeground;
 	const contextBarFilledFg = resolveContextBarFilledForeground(defaultFg);
-	const actAccent = getModeAccent("act", terminalTheme);
-	const planAccent = getModeAccent("plan", terminalTheme);
-	const successColor = getSuccessColor(terminalTheme);
+	const actAccent = theme.accents.act;
+	const planAccent = theme.accents.plan;
+	const successColor = theme.accents.success;
 	const hasMaxInputTokens =
 		typeof maxInputTokens === "number" &&
 		Number.isFinite(maxInputTokens) &&
@@ -275,7 +270,7 @@ export function StatusBar(props: StatusBarProps) {
 			{autoApproveAll ? (
 				<text fg={defaultFg}>
 					<span fg={successColor}>
-						{"\u23f5\u23f5"} Auto-approve all enabled
+						{AUTO_APPROVE_GLYPH} Auto-approve all enabled
 					</span>
 					<span fg="gray"> (Shift+Tab)</span>
 				</text>

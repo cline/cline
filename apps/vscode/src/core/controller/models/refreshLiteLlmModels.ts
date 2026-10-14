@@ -1,10 +1,8 @@
 import type { ModelInfo } from "@shared/api"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { StateManager } from "@/core/storage/StateManager"
-import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
 import { Logger } from "@/shared/services/Logger"
-import type { ProviderCatalogController } from "./providerCatalogShared"
+import { type ProviderCatalogController, resolveProviderModelsRecord } from "./providerCatalogShared"
 import { sendLiteLlmModelsEvent } from "./subscribeToLiteLlmModels"
 
 /**
@@ -14,15 +12,9 @@ import { sendLiteLlmModelsEvent } from "./subscribeToLiteLlmModels"
  */
 export async function refreshLiteLlmModels(controller: ProviderCatalogController): Promise<Record<string, ModelInfo>> {
 	try {
-		const result = await controller.getProviderCatalog().resolveModels(parseProviderId("litellm"), { forceRefresh: true })
-		if (!result.ok) {
-			throw new Error(result.error.message)
-		}
-
-		const models: Record<string, ModelInfo> = Object.fromEntries(result.models)
-
-		// Store in StateManager's in-memory cache
-		StateManager.get().setModelsCache("liteLlm", models)
+		const models: Record<string, ModelInfo> = await resolveProviderModelsRecord(controller, "litellm", {
+			forceRefresh: true,
+		})
 
 		// Send event to subscribers
 		try {

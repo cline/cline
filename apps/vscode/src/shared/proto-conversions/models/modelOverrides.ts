@@ -10,8 +10,6 @@ import { ModelOverrides } from "@shared/proto/cline/models"
  *  - `capabilities` accepts only SDK `ModelCapability` values; unknown
  *    strings are silently dropped. The array is additive over the base
  *    metadata; the explicit `supports*` booleans win when both are present.
- *  - `isR1FormatRequired` is a legacy alias that forces the R1 chat format
- *    only when true; `apiFormat` is canonical.
  *  - Invalid numbers (non-positive token limits, negative prices or
  *    temperature, non-finite values) are silently discarded, not rejected.
  *
@@ -34,7 +32,6 @@ export interface ProviderModelOverrides {
 	cacheWritesPrice?: number
 	temperature?: number
 	apiFormat?: ModelInfo["apiFormat"]
-	isR1FormatRequired?: boolean
 }
 
 export function toProtobufModelOverrides(overrides: ProviderModelOverrides): ModelOverrides {
@@ -53,7 +50,6 @@ export function toProtobufModelOverrides(overrides: ProviderModelOverrides): Mod
 		cacheWritesPrice: overrides.cacheWritesPrice,
 		temperature: overrides.temperature,
 		apiFormat: overrides.apiFormat,
-		isR1FormatRequired: overrides.isR1FormatRequired,
 	})
 }
 
@@ -80,6 +76,5 @@ export function fromProtobufModelOverrides(overrides: ModelOverrides | undefined
 		...(overrides.cacheWritesPrice !== undefined ? { cacheWritesPrice: overrides.cacheWritesPrice } : {}),
 		...(overrides.temperature !== undefined ? { temperature: overrides.temperature } : {}),
 		...(overrides.apiFormat !== undefined ? { apiFormat: overrides.apiFormat } : {}),
-		...(overrides.isR1FormatRequired !== undefined ? { isR1FormatRequired: overrides.isR1FormatRequired } : {}),
 	}
 }

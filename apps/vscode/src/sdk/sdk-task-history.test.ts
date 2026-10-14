@@ -7,7 +7,7 @@ import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { type CloudHistorySource, SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
@@ -116,6 +116,7 @@ describe("SdkTaskHistory", () => {
 			totalCost: 0.01,
 			isFavorited: true,
 			modelId: "claude-test",
+			apiProvider: "anthropic",
 			cwdOnTaskInitialization: "/repo",
 		})
 		expect(result.ts).toBeGreaterThan(0)
@@ -257,6 +258,49 @@ describe("SdkTaskHistory", () => {
 			expect.objectContaining({ type: "say", say: "plan_completion_result", text: "Phase two plan." }),
 		)
 		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "text", text: "Built." }))
+	})
+
+	it("hides the plan -> act auto-continuation prompt when rehydrating from history", async () => {
+		// Live, the canned continuation is sent with fireAndForgetSend and never echoed
+		// as user_feedback; reopening the task from history must not resurface it.
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="plan">plan the feature</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Here is the plan." }] },
+			{
+				role: "user",
+				content:
+					'<user_input mode="act"><mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>The user approved switching to act mode. Continue with the approved plan now.</user_input>',
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Implemented." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result.filter((m) => m.say === "user_feedback")).toHaveLength(0)
+		expect(result.map((m) => m.text).join("\n")).not.toContain("The user approved switching to act mode")
+		// The hidden prompt still carries the turn's mode: the final completion row
+		// must render as an act-mode completion, not a plan box.
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Implemented." }))
+	})
+
+	it("hides [TASK RESUMPTION] prompts when rehydrating from history", async () => {
+		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+		readMessages.mockResolvedValueOnce([
+			{ role: "user", content: '<user_input mode="act">build the feature</user_input>' },
+			{ role: "assistant", content: [{ type: "text", text: "Partway done." }] },
+			{
+				role: "user",
+				content: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Finished." }] },
+		] as never)
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result.filter((m) => m.say === "user_feedback")).toHaveLength(0)
+		expect(result.map((m) => m.text).join("\n")).not.toContain("[TASK RESUMPTION]")
+		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Finished." }))
 	})
 
 	it("retags the terminal text of a session whose record says it completed", async () => {
@@ -520,6 +564,23 @@ describe("SdkTaskHistory", () => {
 		await expect(history.findHistoryItem("favorite-legacy-task")).resolves.toMatchObject({ id: "favorite-legacy-task" })
 	})
 
+	it("never deletes cloud sessions when deleting all history", async () => {
+		const cloudRecord = makeSessionRecord("ses-cloud", { metadata: { executionTarget: "cloud" } })
+		const cloud = {
+			isCloudSessionId: (id: string) => id.startsWith("ses-"),
+			list: vi.fn(async () => [cloudRecord]),
+			find: vi.fn(async (id: string) => (id === cloudRecord.sessionId ? cloudRecord : undefined)),
+			delete: vi.fn(async () => {}),
+		}
+		const { history, deleteSession } = makeHistory([makeSessionRecord("sdk-task")], undefined, undefined, cloud)
+
+		await expect(history.deleteAllTaskHistory()).resolves.toBe(1)
+		await expect(history.deleteAllTaskHistory({ preserveFavorites: true })).resolves.toBe(0)
+
+		expect(deleteSession).toHaveBeenCalledWith("sdk-task")
+		expect(cloud.delete).not.toHaveBeenCalled()
+	})
+
 	it("identifies legacy tasks without migrating them", async () => {
 		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
 		const telemetry = makeTelemetry()
@@ -613,6 +674,11 @@ describe("SdkTaskHistory", () => {
 				makeSessionRecord("migrated", {
 					metadata: { migratedFromLegacyTask: true },
 				}),
+				// Resumed legacy sessions carry legacyTask metadata (stamped by
+				// historyItemToSessionMetadata) and count as migrated too.
+				makeSessionRecord("resumed-legacy", {
+					metadata: { legacyTask: true },
+				}),
 			],
 			telemetry,
 		)
@@ -621,9 +687,9 @@ describe("SdkTaskHistory", () => {
 
 		expect(telemetry.captureLegacyTaskMigrationBacklog).toHaveBeenCalledWith({
 			pendingLegacyTaskCount: 1,
-			migratedSdkTaskCount: 1,
-			visibleSdkTaskCount: 2,
-			visibleTaskCount: 3,
+			migratedSdkTaskCount: 2,
+			visibleSdkTaskCount: 3,
+			visibleTaskCount: 4,
 		})
 	})
 
@@ -877,7 +943,12 @@ function makeTelemetry(): TelemetryService {
 	} as unknown as TelemetryService
 }
 
-function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryService, legacyExtensionStorageDir?: string) {
+function makeHistory(
+	records: SessionHistoryRecord[],
+	telemetry?: TelemetryService,
+	legacyExtensionStorageDir?: string,
+	cloud?: CloudHistorySource,
+) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -931,6 +1002,7 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 		sessions,
 		telemetry,
 		legacyExtensionStorageDir,
+		cloud,
 	})
 
 	return {

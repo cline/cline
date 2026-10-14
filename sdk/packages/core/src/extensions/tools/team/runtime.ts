@@ -36,6 +36,7 @@ export {
 	type TaskResult,
 	type TeamEvent,
 	type TeamMemberConfig,
+	type TeamRuntimeStateDelta,
 } from "./multi-agent";
 
 // =============================================================================

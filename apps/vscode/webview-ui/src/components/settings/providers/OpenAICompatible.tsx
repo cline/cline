@@ -1,6 +1,6 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { azureOpenAiDefaultApiVersion, type OpenAiCompatibleModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
-import { ApiFormat, OpenAiModelsRequest } from "@shared/proto/cline/models"
+import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
@@ -291,7 +291,6 @@ export const OpenAICompatibleProvider = ({
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
-		canWrite: config !== undefined,
 		onApiKeyChange: (apiKey) => {
 			latestOpenAiApiKeyRef.current = apiKey
 			debouncedRefreshOpenAiModels(latestOpenAiBaseUrlRef.current, apiKey)
@@ -314,11 +313,11 @@ export const OpenAICompatibleProvider = ({
 						<DebouncedTextField
 							disabled={remoteConfigSettings?.openAiBaseUrl !== undefined}
 							initialValue={config?.baseUrl || ""}
+							// Intentionally not gated on `config` having loaded:
+							// write() works before the initial read resolves, and a
+							// guard here would silently discard text typed right
+							// after mount, which the late resync then wipes.
 							onChange={(value) => {
-								if (!config) {
-									return
-								}
-
 								latestOpenAiBaseUrlRef.current = value
 								void write({ baseUrl: value }).catch((error) => handleProviderConfigWriteError("base URL", error))
 								debouncedRefreshOpenAiModels(value, latestOpenAiApiKeyRef.current)
@@ -554,16 +553,17 @@ export const OpenAICompatibleProvider = ({
 
 			{modelConfigurationSelected && (
 				<>
+					{/* Render the in-flight pending override, not the stale resolved
+					    value: fast-foundation checkboxes re-emit programmatic checked
+					    re-syncs as change events, so re-applying the stale value during
+					    the commit round-trip would commit it right back (#13694). */}
 					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
+						checked={
+							selectedModelOverridesRef.current[currentMode].overrides.supportsVision ??
+							!!openAiModelInfo?.supportsImages
+						}
 						onChange={(e: any) => updateModelOverride("supportsVision", e.target.checked === true)}>
 						Supports Images
-					</VSCodeCheckbox>
-
-					<VSCodeCheckbox
-						checked={selectedModelOverrides.isR1FormatRequired ?? openAiModelInfo.apiFormat === ApiFormat.R1_CHAT}
-						onChange={(e: any) => updateModelOverride("isR1FormatRequired", e.target.checked === true)}>
-						Enable R1 messages format
 					</VSCodeCheckbox>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>

@@ -3,15 +3,29 @@ import Section from "../Section"
 
 interface AboutSectionProps {
 	version: string
+	extensionVariant?: "legacy" | "next"
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
-const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
+
+const VARIANT_LABELS: Record<"legacy" | "next", string> = {
+	legacy: "Legacy",
+	next: "Next",
+}
+
+const AboutSection = ({ version, extensionVariant, renderSectionHeader }: AboutSectionProps) => {
 	return (
 		<div>
 			{renderSectionHeader("about")}
 			<Section>
 				<div className="flex px-4 flex-col gap-2">
-					<h2 className="text-lg font-semibold">Cline v{version}</h2>
+					<h2 className="text-lg font-semibold">
+						Cline v{version}
+						{extensionVariant && (
+							<span className="ml-2 text-sm font-normal text-description">
+								({VARIANT_LABELS[extensionVariant]})
+							</span>
+						)}
+					</h2>
 					<p>
 						An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks
 						step-by-step with tools that let him create & edit files, explore large projects, use the browser, and

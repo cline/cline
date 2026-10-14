@@ -1,10 +1,15 @@
 import type {
 	HubClientRecord,
 	HubEventEnvelope,
+	HubSessionSearchHit,
 	HubUINotifyPayload,
 	HubUIShowWindowPayload,
 	SessionRecord,
 } from "@cline/shared";
+import type {
+	CoreSettingsMutationResult,
+	CoreSettingsToggleInput,
+} from "../../settings";
 import { NodeHubClient } from "../client";
 
 export interface HubUIClientOptions {
@@ -82,6 +87,30 @@ export class HubUIClient {
 		return Array.isArray(reply.payload?.sessions)
 			? (reply.payload.sessions as SessionRecord[])
 			: [];
+	}
+
+	async searchSessions(input: {
+		query: string;
+		limit?: number;
+		workspaceRoot?: string;
+	}): Promise<HubSessionSearchHit[]> {
+		const reply = await this.client.command("session.search", input);
+		return Array.isArray(reply.payload?.hits)
+			? (reply.payload.hits as unknown as HubSessionSearchHit[])
+			: [];
+	}
+
+	async toggleSetting(
+		input: CoreSettingsToggleInput,
+	): Promise<CoreSettingsMutationResult> {
+		const reply = await this.client.command(
+			"settings.toggle",
+			input as unknown as Record<string, unknown>,
+		);
+		if (!reply.ok) {
+			throw new Error(reply.error?.message ?? "settings.toggle failed");
+		}
+		return reply.payload as unknown as CoreSettingsMutationResult;
 	}
 
 	/**

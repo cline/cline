@@ -67,6 +67,27 @@ export function useAppUpdateStatus(): AppUpdateStatus {
 }
 
 /**
+ * Ask the Rust shell to check for, download, and stage an update right now,
+ * instead of waiting for the next background updater interval. Resolves with
+ * the resulting updater status ("ready" means an update is staged and a
+ * restart will apply it), or null when the check could not run at all
+ * (web/sidecar mode, or a bridge failure).
+ */
+export async function checkForUpdateNow(): Promise<AppUpdateStatus | null> {
+	try {
+		const status = await desktopClient.invoke<AppUpdateStatus>(
+			"check_for_update_now",
+		);
+		// Keep the shared polled store in sync so the sidebar indicator and
+		// update toast reflect an update staged through this path too.
+		setUpdateStatus(status);
+		return status;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Restart the app so the staged update takes effect. Resolves false (after
  * surfacing a toast) if the restart command fails, so callers can reset
  * pending UI.
@@ -88,6 +109,68 @@ export async function restartToApplyUpdate(): Promise<boolean> {
 // Module-scoped so a page remount does not re-toast an update the user
 // already dismissed while the Rust side still reports it as "ready".
 let notifiedVersion: string | null = null;
+
+function showUpdateReadyToast(version: string) {
+	notifiedVersion = version;
+	toast({
+		title: `Update ready: v${version}`,
+		description:
+			"The new version has been downloaded. Restart now, or later from the update button next to the Cline logo.",
+		duration: Number.POSITIVE_INFINITY,
+		action: (
+			<ToastAction
+				altText="Restart now"
+				onClick={() => {
+					void restartToApplyUpdate();
+				}}
+			>
+				Restart now
+			</ToastAction>
+		),
+	});
+}
+
+/**
+ * User-initiated check from the "Check for Updates..." menu item. Unlike the
+ * silent background cycle, every outcome is reported: an update ready to
+ * restart into, already up to date, or a failed check.
+ */
+export async function checkForUpdateAndNotify(): Promise<void> {
+	const checking = toast({
+		title: "Checking for updates...",
+		duration: Number.POSITIVE_INFINITY,
+	});
+	const status = await checkForUpdateNow();
+	checking.dismiss();
+	if (!status) {
+		toast({
+			variant: "destructive",
+			title: "Unable to check for updates",
+			description:
+				"The update check could not be started. Try again in a moment.",
+		});
+		return;
+	}
+	switch (status.state) {
+		case "ready":
+			if (status.version) {
+				showUpdateReadyToast(status.version);
+			}
+			return;
+		case "error":
+			toast({
+				variant: "destructive",
+				title: "Update check failed",
+				description: status.error ?? "Unknown error",
+			});
+			return;
+		default:
+			toast({
+				title: "You're up to date",
+				description: "You're already running the latest version of Cline.",
+			});
+	}
+}
 
 /**
  * Watches the Tauri shell's auto-updater. Updates are checked, downloaded, and
@@ -125,23 +208,7 @@ export function useAppUpdate() {
 			if (notifiedVersion === status.version) {
 				return;
 			}
-			notifiedVersion = status.version;
-			toast({
-				title: `Update ready: v${status.version}`,
-				description:
-					"The new version has been downloaded. Restart now, or later from the update button next to the Cline logo.",
-				duration: Number.POSITIVE_INFINITY,
-				action: (
-					<ToastAction
-						altText="Restart now"
-						onClick={() => {
-							void restartToApplyUpdate();
-						}}
-					>
-						Restart now
-					</ToastAction>
-				),
-			});
+			showUpdateReadyToast(status.version);
 		};
 
 		void poll();

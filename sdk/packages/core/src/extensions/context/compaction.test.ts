@@ -4,17 +4,23 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSessionCompactionState } from "../../session/models/session-compaction";
+import {
+	createSessionCompactionState,
+	projectSessionCompactionState,
+} from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "./compaction";
 import {
+	COMPACTION_TRIGGER_RATIO,
 	createTokenEstimator,
 	estimateTokens,
+	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeMessage,
@@ -43,6 +49,64 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 		(total, message) => total + estimateJsonTokens(message),
 		0,
 	);
+}
+
+/** Multi-turn transcript with prunable tool output for basic-compaction tests. */
+function overflowRecoveryTranscript(): MessageWithMetadata[] {
+	return [
+		{ role: "user", content: "Initial request that should survive" },
+		{
+			role: "assistant",
+			content: [
+				{ type: "text", text: "Older assistant explanation" },
+				{
+					type: "tool_use",
+					id: "tool-1",
+					name: "read_files",
+					input: { file_paths: ["/tmp/example.ts"] },
+				},
+			],
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "tool-1",
+					name: "tool",
+					content: "tool output that should be removed",
+				},
+			],
+		},
+		{ role: "user", content: "Most recent user turn" },
+		{
+			role: "assistant",
+			content: [{ type: "text", text: "Most recent assistant reply" }],
+		},
+	];
+}
+
+/** The compaction produced messages and pruned the marked tool output. */
+function assertBasicCompactionResult(
+	result: { messages: MessageWithMetadata[] } | undefined,
+): void {
+	expect(result?.messages).toBeDefined();
+	expect(result?.messages.length).toBeGreaterThan(0);
+	for (const message of result?.messages ?? []) {
+		if (typeof message.content === "string") {
+			expect(message.content).not.toContain(
+				"tool output that should be removed",
+			);
+		} else {
+			for (const block of message.content) {
+				if (block.type === "text") {
+					expect(block.text).not.toContain(
+						"tool output that should be removed",
+					);
+				}
+			}
+		}
+	}
 }
 
 describe("createTokenEstimator", () => {
@@ -76,6 +140,64 @@ describe("createTokenEstimator", () => {
 		expect(estimateMessageTokens(message)).toBe(
 			Math.ceil(JSON.stringify(message).length / 3),
 		);
+	});
+
+	it("does not bill an image block's base64 payload at CHARS_PER_TOKEN", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const base64Data = "A".repeat(90_000);
+		const message: MessageWithMetadata = {
+			role: "user",
+			content: [{ type: "image", data: base64Data, mediaType: "image/png" }],
+		};
+
+		const naiveCharBasedEstimate = Math.ceil(base64Data.length / 3);
+		expect(estimateMessageTokens(message)).toBeLessThan(
+			naiveCharBasedEstimate / 10,
+		);
+		// Payload length must not move the estimate at all. Fresh objects, since
+		// the estimator caches by message reference.
+		expect(
+			estimateMessageTokens({
+				role: "user",
+				content: [{ type: "image", data: "A", mediaType: "image/png" }],
+			}),
+		).toBe(
+			estimateMessageTokens({
+				role: "user",
+				content: [
+					{ type: "image", data: "A".repeat(500_000), mediaType: "image/png" },
+				],
+			}),
+		);
+	});
+
+	it("does not add a duplicate per-image bonus after JSON.stringify falls back", () => {
+		// A BigInt in the message's metadata makes the primary,
+		// replacer-driven JSON.stringify throw, so createTokenEstimator
+		// falls back to serializeMessage, which already renders images
+		// without base64 ("[User image]: mediaType"). The images the
+		// replacer counted before the throw must not still add
+		// ESTIMATED_TOKENS_PER_IMAGE on top of that fallback text.
+		const base64Data = "A".repeat(90_000);
+		const imageBlock = {
+			type: "image" as const,
+			data: base64Data,
+			mediaType: "image/png",
+		};
+		const buildMessage = (imageCount: number): MessageWithMetadata =>
+			({
+				role: "user",
+				content: Array.from({ length: imageCount }, () => imageBlock),
+				metadata: { broken: 1n },
+			}) as unknown as MessageWithMetadata;
+
+		const estimateMessageTokens = createTokenEstimator();
+		const oneImage = estimateMessageTokens(buildMessage(1));
+		const twoImages = estimateMessageTokens(buildMessage(2));
+
+		// serializeMessage's fallback text differs by only a short constant
+		// line per extra image, not another flat 1600-token bonus.
+		expect(twoImages - oneImage).toBeLessThan(50);
 	});
 });
 
@@ -388,6 +510,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					reason: "manual_compaction",
 					displayRole: "system",
 					messagesRemoved: 2,
+					userRunSpan: 1,
 				},
 			},
 		]);
@@ -496,6 +619,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					reason: "manual_compaction",
 					displayRole: "system",
 					messagesRemoved: 4,
+					userRunSpan: 2,
 				},
 			},
 		]);
@@ -697,6 +821,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			reason: "manual_compaction",
 			displayRole: "system",
 			messagesRemoved: 6,
+			userRunSpan: 1,
 			usageBefore: {
 				inputTokens: 600,
 				outputTokens: 30,
@@ -1050,6 +1175,114 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(JSON.stringify(result?.messages)).not.toContain("<user_input\n...");
 	});
 
+	describe("provider-reported input tokens", () => {
+		const systemPrompt = "You are helpful.";
+		/** Transcript with prunable assistant context and a typed user prompt. */
+		const transcript = (): LlmsProviders.Message[] => [
+			{ role: "user", content: "<user_input>original task</user_input>" },
+			{ role: "assistant", content: "older assistant context ".repeat(400) },
+			{ role: "user", content: "Continue" },
+		];
+		const estimate = () =>
+			estimateRequestInputTokens({
+				systemPrompt,
+				messages: transcript(),
+				tools: [],
+			});
+
+		/**
+		 * Runs basic compaction against a budget expressed as a multiple of the
+		 * character estimate, so the trigger arithmetic stays readable.
+		 * Returns undefined when the pipeline declined to compact.
+		 */
+		const run = async (opts: {
+			maxInputTokensMultiple: number;
+			previousRequestInputTokens?: number;
+		}) => {
+			const messages = transcript();
+			const maxInputTokens = Math.ceil(
+				(estimate() * opts.maxInputTokensMultiple) / COMPACTION_TRIGGER_RATIO,
+			);
+			const prepareTurn = createContextCompactionPrepareTurn({
+				providerId: "openrouter",
+				modelId: "test/model",
+				providerConfig: {
+					providerId: "openrouter",
+					modelId: "test/model",
+				} as LlmsProviders.ProviderConfig,
+				compaction: { enabled: true, strategy: "basic" },
+				logger: undefined,
+			});
+			return await prepareTurn?.({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				abortSignal: new AbortController().signal,
+				systemPrompt,
+				tools: [],
+				messages,
+				apiMessages: messages,
+				previousRequestInputTokens: opts.previousRequestInputTokens,
+				model: {
+					id: "test/model",
+					provider: "openrouter",
+					info: { id: "test/model", maxInputTokens },
+				},
+			});
+		};
+
+		it("leaves the transcript alone when the estimate sits under the trigger", async () => {
+			// Budget is 1.05x the estimate, so nothing should compact.
+			await expect(
+				run({ maxInputTokensMultiple: 1.05 }),
+			).resolves.toBeUndefined();
+		});
+
+		it("compacts when the provider's actual count crosses a trigger the estimate does not", async () => {
+			// Same under-the-trigger estimate, but the provider reports that the
+			// PREVIOUS (smaller) request already consumed more than the estimate
+			// claims the current one does — the estimator is under-counting.
+			// 1.5x sits comfortably past the 1.05x trigger; a count right at the
+			// multiple would only cross it by rounding.
+			const result = await run({
+				maxInputTokensMultiple: 1.05,
+				previousRequestInputTokens: Math.ceil(estimate() * 1.5),
+			});
+			expect(result).toBeDefined();
+			// The retention target must tighten with the trigger, not stay on the
+			// unscaled budget, so the compacted output is genuinely smaller.
+			expect(JSON.stringify(result?.messages).length).toBeLessThan(
+				JSON.stringify(transcript()).length,
+			);
+			expect(JSON.stringify(result?.messages)).toContain("original task");
+		});
+
+		it("ignores a provider count that agrees with or undercuts the estimate", async () => {
+			// Well-estimated models must keep their existing behavior: a count at or
+			// below the estimate cannot loosen or tighten the budget.
+			await expect(
+				run({
+					maxInputTokensMultiple: 1.05,
+					previousRequestInputTokens: Math.floor(estimate() * 0.5),
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		it("caps how far a provider count may tighten the budget", async () => {
+			// An absurd count (100x the estimate) against a budget 10x the estimate.
+			// Uncapped this would collapse the trigger to a tenth of the estimate and
+			// compact; the cap keeps the trigger at 10x/4 = 2.5x the estimate.
+			expect(MAX_INPUT_UNDERESTIMATE_FACTOR).toBeLessThan(10);
+			await expect(
+				run({
+					maxInputTokensMultiple: 10,
+					previousRequestInputTokens: estimate() * 100,
+				}),
+			).resolves.toBeUndefined();
+		});
+	});
+
 	it("can truncate an oversized first task prompt when it exceeds the trigger", () => {
 		const oversizedPrompt = "<user_input>".repeat(500);
 		const messages: LlmsProviders.Message[] = [
@@ -1118,7 +1351,172 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
 		expect(codexConfig.thinking).toBe(false);
-		expect(anthropicConfig.maxOutputTokens).toBe(1_024);
+		expect(anthropicConfig.maxOutputTokens).toBe(8_192);
+	});
+
+	it("resolves the summarizer output budget from explicit config, else the default clamped by model metadata", () => {
+		// An explicit value is user/product intent and wins as-is (the gateway
+		// still clamps against model limits and remaining context per request).
+		const explicitWins = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				maxOutputTokens: 16_000,
+				modelInfo: { id: "local-model", maxTokens: 8_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(explicitWins.maxOutputTokens).toBe(16_000);
+
+		// Model metadata is reported capability, not a request default: it only
+		// ever lowers the default, never raises it.
+		const clampedByModelInfo = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				modelInfo: { id: "local-model", maxTokens: 2_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(clampedByModelInfo.maxOutputTokens).toBe(2_000);
+
+		const notRaisedByModelInfo = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				modelInfo: { id: "local-model", maxTokens: 64_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(notRaisedByModelInfo.maxOutputTokens).toBe(8_192);
+
+		const clampedByKnownModels = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				knownModels: {
+					"local-model": { id: "local-model", maxTokens: 3_000 },
+				},
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(clampedByKnownModels.maxOutputTokens).toBe(3_000);
+
+		const fromDefault = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(fromDefault.maxOutputTokens).toBe(8_192);
+	});
+
+	it("clamps an explicit summarizer's default budget by its own model info but lets its explicit value win", () => {
+		const clamped = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxTokens: 2_000 },
+			},
+		});
+		expect(clamped.maxOutputTokens).toBe(2_000);
+
+		const explicitWins = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxTokens: 2_000 },
+				maxOutputTokens: 6_000,
+			},
+		});
+		expect(explicitWins.maxOutputTokens).toBe(6_000);
+	});
+
+	it("skips with a diagnostic warning when the summarizer only produced reasoning output", async () => {
+		// Repro for CLINE-2911: a reasoning model can spend the entire output
+		// budget thinking. Reasoning chunks are discarded, so no summary text
+		// arrives and compaction is skipped — that skip must be diagnosable.
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		const emitStatusNotice = vi.fn();
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "reasoning",
+						id: "summary-think",
+						reasoning: "thinking about the summary...",
+					},
+					{
+						type: "done",
+						id: "summary-think",
+						success: true,
+						incompleteReason: "max_output_tokens",
+					},
+				]),
+			),
+		});
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai",
+			modelId: "local-reasoner",
+			providerConfig: {
+				providerId: "openai",
+				modelId: "local-reasoner",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "local-reasoner",
+				provider: "openai",
+				info: { id: "local-reasoner", maxInputTokens: 10 },
+			},
+			emitStatusNotice,
+		});
+
+		expect(result).toBeUndefined();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"auto-compaction-skipped",
+			expect.objectContaining({ phase: "skipped" }),
+		);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Skipped agentic compaction: summarizer returned no summary text",
+			expect.objectContaining({
+				severity: "warn",
+				reasoningChars: "thinking about the summary...".length,
+				incompleteReason: "max_output_tokens",
+				likelyCause: "output_budget_consumed_by_reasoning",
+			}),
+		);
 	});
 
 	it("preserves summarizer modelInfo without a nested providerConfig", () => {
@@ -1180,6 +1578,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			messages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Older follow-up to compact" },
+				{ role: "assistant", content: "Older follow-up answer" },
 				{ role: "user", content: "Implement the change" },
 				{
 					role: "assistant",
@@ -1208,6 +1608,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			apiMessages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Older follow-up to compact" },
+				{ role: "assistant", content: "Older follow-up answer" },
 				{ role: "user", content: "Implement the change" },
 				{
 					role: "assistant",
@@ -1254,6 +1656,8 @@ describe("createContextCompactionPrepareTurn", () => {
 			role: "user",
 			metadata: expect.objectContaining({
 				kind: "compaction_summary",
+				displayRole: "system",
+				userRunSpan: 2,
 				details: {
 					readFiles: [],
 					modifiedFiles: [],
@@ -1277,6 +1681,111 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages[4]).toEqual({
 			role: "assistant",
 			content: "Recent assistant state",
+		});
+	});
+
+	describe("summarizer connection resolution", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Old turn to compact" },
+			{ role: "assistant", content: "Old answer" },
+			{ role: "user", content: "Recent turn" },
+			{ role: "assistant", content: "Recent assistant state" },
+		];
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "cline",
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		};
+		// Mirrors bootstrap.config: the nested providerConfig is a snapshot of
+		// the connection resolved at session start.
+		const liveConfig = (): Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0] => ({
+			providerId: "cline",
+			modelId: "cline-free/model",
+			apiKey: "workos:initial",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "cline-free/model",
+				apiKey: "workos:initial",
+				baseUrl: "https://api.cline.bot",
+				headers: { "X-CLIENT-TYPE": "cline-desktop" },
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: undefined,
+		});
+
+		beforeEach(() => {
+			createHandlerMock.mockReturnValue({
+				createMessage: vi.fn(() =>
+					streamChunks([
+						{ type: "text", id: "summary-1", text: "## Goal\nShip it" },
+						{ type: "done", id: "summary-1", success: true },
+					]),
+				),
+			});
+		});
+
+		it("uses a refreshed top-level token while the nested snapshot is stale", async () => {
+			const config = liveConfig();
+			const prepareTurn = createContextCompactionPrepareTurn(config);
+			const importedPrepareTurn = createImportedHistoryCompactionPrepareTurn({
+				config,
+				importedFrom: "claude-code",
+			});
+			// syncOAuthCredentials only writes the top-level apiKey.
+			config.apiKey = "workos:refreshed";
+
+			await prepareTurn?.(context);
+			await importedPrepareTurn(context);
+
+			expect(createHandlerMock).toHaveBeenCalledTimes(2);
+			for (const [summarizerConfig] of createHandlerMock.mock.calls) {
+				expect(summarizerConfig).toMatchObject({
+					providerId: "cline",
+					modelId: "cline-free/model",
+					apiKey: "workos:refreshed",
+					baseUrl: "https://api.cline.bot",
+					headers: { "X-CLIENT-TYPE": "cline-desktop" },
+				});
+			}
+		});
+
+		it("drops the nested snapshot when the provider changes without replacing it", async () => {
+			const config = liveConfig();
+			const prepareTurn = createContextCompactionPrepareTurn(config);
+			// updateConnection({ providerId, modelId, apiKey }) with no new
+			// providerConfig leaves the old provider's snapshot in place.
+			config.providerId = "anthropic";
+			config.modelId = "claude-sonnet-4.5";
+			config.apiKey = "sk-ant-key";
+
+			await prepareTurn?.(context);
+
+			expect(createHandlerMock).toHaveBeenCalledTimes(1);
+			const [summarizerConfig] = createHandlerMock.mock.calls[0] ?? [];
+			expect(summarizerConfig).toMatchObject({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4.5",
+				apiKey: "sk-ant-key",
+			});
+			expect(summarizerConfig.baseUrl).toBeUndefined();
+			expect(summarizerConfig.headers).toBeUndefined();
 		});
 	});
 
@@ -1786,6 +2295,8 @@ describe("createContextCompactionPrepareTurn", () => {
 				content: [{ type: "text", text: "Context summary:\n\nearlier work" }],
 				metadata: {
 					kind: "compaction_summary",
+					displayRole: "system",
+					userRunSpan: 2,
 					summary: "earlier work",
 					details: { readFiles: [], modifiedFiles: [] },
 					tokensBefore: 100,
@@ -1858,7 +2369,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 		expect(result?.messages[0]).toMatchObject({
 			role: "user",
-			metadata: expect.objectContaining({ kind: "compaction_summary" }),
+			metadata: expect.objectContaining({
+				kind: "compaction_summary",
+				userRunSpan: 2,
+			}),
 		});
 		expect(result?.messages.length).toBeLessThan(messages.length);
 	});
@@ -2142,24 +2656,418 @@ describe("createContextCompactionPrepareTurn", () => {
 				reason: "auto_compaction",
 			}),
 		);
-		expect(result?.messages).toBeDefined();
-		expect(result?.messages.length).toBeGreaterThan(0);
-		// Compacted messages should not contain tool_result content that was pruned.
-		for (const message of result?.messages ?? []) {
-			if (typeof message.content === "string") {
-				expect(message.content).not.toContain(
-					"tool output that should be removed",
-				);
-			} else {
-				for (const block of message.content) {
-					if (block.type === "text") {
-						expect(block.text).not.toContain(
-							"tool output that should be removed",
-						);
-					}
-				}
-			}
-		}
+		assertBasicCompactionResult(result);
+	});
+
+	it.each([
+		false,
+		true,
+	])("preserves active attachments with hidden continuation context (overflow recovery: %s)", async (overflowRecovery) => {
+		const attachments: LlmsProviders.ContentBlock[] = [
+			{ type: "image", data: "abc", mediaType: "image/png" },
+			{
+				type: "file",
+				path: "/tmp/question.txt",
+				content: "Attached information",
+			},
+		];
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Older request" },
+			{ role: "assistant", content: "Old context ".repeat(10_000) },
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Answer about these attachments" },
+					...attachments,
+				],
+			},
+			{ role: "assistant", content: "Partial response" },
+			{
+				role: "user",
+				content:
+					"Previous turn ended unexpectedly. Continue from where you left off.",
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			},
+		];
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic" },
+			logger: undefined,
+		});
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: {
+					id: "mock-model",
+					maxInputTokens: overflowRecovery ? 1_000_000 : 5_000,
+				},
+			},
+		});
+		expect(result).toBeDefined();
+		expect(
+			result?.messages.flatMap((message) =>
+				Array.isArray(message.content) ? message.content : [],
+			),
+		).toEqual(expect.arrayContaining(attachments));
+		expect(result?.messages.at(-1)).toMatchObject({
+			role: "user",
+			content: messages.at(-1)?.content,
+			metadata: { displayRole: "system", userRunSpan: 0 },
+		});
+	});
+
+	it("forces a basic compaction on overflow recovery, bypassing the estimate gate", async () => {
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				// Agentic is configured, but recovery must not depend on a
+				// summarizer call succeeding.
+				strategy: "agentic",
+			},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				// Large window: the estimate-based trigger would not fire, yet
+				// the provider said otherwise — recovery must compact anyway.
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compacting",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				reason: "overflow_recovery_compaction",
+			}),
+		);
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compacted",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				phase: "completed",
+			}),
+		);
+		assertBasicCompactionResult(result);
+	});
+
+	it("skips overflow-recovery compaction when there is nothing to remove", async () => {
+		const emitStatusNotice = vi.fn();
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+			},
+			logger: undefined,
+		});
+
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "A single oversized first prompt" },
+		];
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			emitStatusNotice,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(result).toBeUndefined();
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"overflow-recovery-compaction-skipped",
+			expect.objectContaining({
+				kind: "overflow_recovery_compaction",
+				phase: "skipped",
+			}),
+		);
+	});
+
+	it("uses a successful custom compactor during overflow recovery", async () => {
+		const abortSignal = new AbortController().signal;
+		const compacted = [{ role: "user" as const, content: "custom fold" }];
+		const compact = vi.fn(async (context: CoreCompactionContext) => {
+			expect(context.mode).toBe("overflow_recovery");
+			// Custom compactors receive the turn's abort signal so a stalled
+			// external call can be cancelled instead of blocking recovery.
+			expect(context.abortSignal).toBe(abortSignal);
+			return { messages: compacted };
+		});
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(result?.messages).toEqual(compacted);
+	});
+
+	it("falls back to basic compaction when a custom compactor fails during overflow recovery", async () => {
+		const compact = vi.fn(async () => {
+			throw new Error("custom compactor overflowed too");
+		});
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor does not shrink during overflow recovery", async () => {
+		// Echoes its input back — "succeeds" without removing anything, which
+		// the runtime would reject as a non-shrinking retry.
+		const compact = vi.fn(async (context: CoreCompactionContext) => ({
+			messages: context.messages,
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor returns an empty transcript", async () => {
+		// An empty result is trivially "smaller" and under target, but would
+		// erase the very request the retry is supposed to re-send.
+		const compact = vi.fn(async () => ({ messages: [] }));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor shrinks but misses the recovery target", async () => {
+		// Drops only the short final message — strictly smaller, but far above
+		// the ~50% recovery target, so the retry would still not fit.
+		const compact = vi.fn(async (context: CoreCompactionContext) => ({
+			messages: context.messages.slice(0, -1),
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		assertBasicCompactionResult(result);
+	});
+
+	it("falls back to basic compaction when a custom compactor declines during overflow recovery", async () => {
+		const compact = vi.fn(async () => undefined);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			overflowRecovery: true,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: overflowRecoveryTranscript(),
+			apiMessages: overflowRecoveryTranscript(),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 1_000_000 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		assertBasicCompactionResult(result);
 	});
 
 	it("triggers compaction when input reaches exactly 90 percent", async () => {
@@ -3766,5 +4674,51 @@ describe("createContextCompactionPrepareTurn", () => {
 			expect.objectContaining({ messages: currentMessages }),
 		);
 		expect(saveState).not.toHaveBeenCalled();
+	});
+
+	it("passes the exact source messages to saveState so hosts can validate against them", async () => {
+		// Regression: local-runtime-host validated the persist by projecting the
+		// state against agent.getMessages(), which mid-turn can legally differ
+		// from the transcript the prepareTurn context carries (the state's hash
+		// input) — so auto-compaction persists were spuriously skipped as stale.
+		// saveState must receive the same messages the hash was computed over.
+		const compact = vi.fn().mockResolvedValue({
+			messages: [{ role: "user", content: "summary" }],
+		});
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => undefined,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "task" },
+			{ role: "assistant", content: "answer" },
+			{ role: "user", content: "follow-up" },
+		];
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(saveState).toHaveBeenCalledTimes(1);
+		const [savedState, sourceMessages] = saveState.mock.calls[0];
+		expect(sourceMessages).toBe(currentMessages);
+		expect(
+			projectSessionCompactionState(savedState, currentMessages),
+		).toBeDefined();
 	});
 });

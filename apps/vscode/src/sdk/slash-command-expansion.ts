@@ -81,6 +81,8 @@ const REMOTE_CONFIG_PATH_REGEX = /[/\\]\.cline[/\\]remote-config[/\\]/
 
 /** The discovered workflow files toggle filtering and matching operate on. */
 export interface WorkflowRecordRef {
+	/** Stable runtime command ID. */
+	id?: string
 	/** Command name (frontmatter `name`, or file basename without extension). */
 	name: string
 	/** Absolute path of the workflow file. */
@@ -138,6 +140,14 @@ function findRuntimeCommand(
 	const typedCanonical = canonicalWorkflowName(typedName)
 	const record = workflowRecords.find((r) => canonicalWorkflowName(fileBasename(r.filePath)) === typedCanonical)
 	if (record) {
+		// Match by the stable record id: the SDK normalizes command names
+		// (e.g. "Ship It" -> "ship-it"), so the configured record name no
+		// longer compares equal to the command token. Keep the canonical-name
+		// comparison as a fallback for callers that pass records without ids.
+		const byId = record.id === undefined ? undefined : commands.find((command) => command.id === record.id)
+		if (byId) {
+			return byId
+		}
 		const recordCanonical = canonicalWorkflowName(record.name)
 		return commands.find((command) => canonicalWorkflowName(command.name) === recordCanonical)
 	}
@@ -172,7 +182,20 @@ export function expandSlashCommands(
 		if (!command) {
 			continue
 		}
-		if (command.kind === "workflow" && disabledWorkflowNames.has(command.name)) {
+		if (command.kind === "workflow") {
+			const configuredName = workflowRecords.find((record) => record.id === command.id)?.name ?? command.name
+			if (disabledWorkflowNames.has(configuredName)) {
+				continue
+			}
+		}
+		// Configured skills are not expanded into the prompt: the SDK session
+		// registers the `skills` tool, whose description requires the model to
+		// invoke it when the user references a slash command, so the
+		// instructions arrive as a tool result and the transcript keeps the
+		// typed command. Builtins (e.g. /deep-planning) are declared as kind
+		// "skill" but are not served by that tool, so they keep expanding —
+		// as do workflows.
+		if (command.kind === "skill" && !command.id.startsWith("builtin:")) {
 			continue
 		}
 		const start = (match.index ?? 0) + match[1].length

@@ -124,6 +124,32 @@ describe("account context", () => {
 		).toBe("beatrix@cline.bot");
 	});
 
+	it("treats the typed not-authenticated result as signed out", async () => {
+		window.localStorage.setItem(
+			ACCOUNT_IDENTITY_STORAGE_KEY,
+			JSON.stringify({ user: makeUser() }),
+		);
+		invoke.mockResolvedValue({
+			signedIn: false,
+			code: "ACCOUNT_NOT_AUTHENTICATED",
+		});
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("account-name")).toBe("none");
+		});
+		expect(
+			window.localStorage.getItem(ACCOUNT_IDENTITY_STORAGE_KEY),
+		).toBeNull();
+	});
+
 	it("clears the cached identity when the account is signed out", async () => {
 		window.localStorage.setItem(
 			ACCOUNT_IDENTITY_STORAGE_KEY,

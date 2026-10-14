@@ -13,6 +13,7 @@ describe("TelemetryService", () => {
 				cline_type: "cli",
 			},
 			distinctId: "distinct-1",
+			deviceId: "device-1",
 			commonProperties: {
 				organization_id: "org-1",
 			},
@@ -36,6 +37,7 @@ describe("TelemetryService", () => {
 				extension_version: "1.2.3",
 				cline_type: "cli",
 				distinct_id: "distinct-1",
+				device_id: "device-1",
 			}),
 		);
 		expect(recordCounter).toHaveBeenCalledWith(
@@ -44,9 +46,60 @@ describe("TelemetryService", () => {
 			expect.objectContaining({
 				sessionId: "session-1",
 				distinct_id: "distinct-1",
+				device_id: "device-1",
 			}),
 			undefined,
 			false,
+		);
+	});
+
+	it("keeps device_id on events after the distinct id changes on auth", () => {
+		const { adapter, emit } = createAdapter();
+		const service = new TelemetryService({
+			adapters: [adapter],
+			distinctId: "machine-1",
+			deviceId: "device-1",
+		});
+
+		service.setDistinctId("user-1");
+		service.capture({ event: "session.started" });
+
+		expect(emit).toHaveBeenCalledWith(
+			"session.started",
+			expect.objectContaining({
+				distinct_id: "user-1",
+				device_id: "device-1",
+			}),
+		);
+	});
+
+	it("treats metadata as host defaults that event context may override", () => {
+		const { adapter, emit } = createAdapter();
+		const service = new TelemetryService({
+			adapters: [adapter],
+			metadata: {
+				extension_version: "0.0.82",
+				cline_type: "hub",
+				platform: "cline-hub-daemon",
+			},
+		});
+
+		service.capture({
+			event: "task.created",
+			properties: {
+				extension_version: "0.0.23",
+				cline_type: "desktop",
+				platform: "Cline Desktop",
+			},
+		});
+
+		expect(emit).toHaveBeenCalledWith(
+			"task.created",
+			expect.objectContaining({
+				extension_version: "0.0.23",
+				cline_type: "desktop",
+				platform: "Cline Desktop",
+			}),
 		);
 	});
 

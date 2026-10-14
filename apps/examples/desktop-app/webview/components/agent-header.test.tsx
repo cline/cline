@@ -21,21 +21,57 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+describe("AgentHeader title bar", () => {
+	it("leaves drag-region ownership to the persistent window title bar", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="A session" />);
+		});
+
+		expect(
+			container.querySelector("header")?.hasAttribute("data-tauri-drag-region"),
+		).toBe(false);
+	});
+
+	it("renders a read-only title as non-interactive text", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="completed" title="Read-only session" />);
+		});
+
+		expect(
+			container.querySelector('span[title="Read-only session"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('button[title="Read-only session"]'),
+		).toBeNull();
+	});
+});
+
 describe("AgentHeader title editor", () => {
-	it("preserves the displayed title width when editing starts", async () => {
+	it.each([
+		{ title: "test", displayedWidth: 36, editorWidth: 240 },
+		{
+			title: "A title wide enough to expose resizing",
+			displayedWidth: 318,
+			editorWidth: 318,
+		},
+	])("gives $title room to edit while preserving wider titles", async ({
+		title,
+		displayedWidth,
+		editorWidth,
+	}) => {
 		await act(async () => {
 			root.render(
 				<AgentHeader
 					canEditTitle
 					onRenameTitle={vi.fn()}
 					status="completed"
-					title="A title wide enough to expose resizing"
+					title={title}
 				/>,
 			);
 		});
 
 		const titleButton = container.querySelector<HTMLButtonElement>(
-			'button[title="A title wide enough to expose resizing"]',
+			`button[title="${title}"]`,
 		);
 		expect(container.querySelector("header")?.className).toContain(
 			"max-md:pl-28",
@@ -51,7 +87,7 @@ describe("AgentHeader title editor", () => {
 			titleButton as HTMLButtonElement,
 			"getBoundingClientRect",
 		).mockReturnValue({
-			width: 318,
+			width: displayedWidth,
 		} as DOMRect);
 
 		await act(async () => {
@@ -60,7 +96,8 @@ describe("AgentHeader title editor", () => {
 
 		const titleForm = container.querySelector("form");
 		const titleInput = container.querySelector<HTMLInputElement>("input");
-		expect(titleForm?.style.width).toBe("318px");
+		expect(titleForm?.style.width).toBe(`${editorWidth}px`);
+		expect(titleForm?.classList.contains("shrink-0")).toBe(false);
 		expect(titleInput?.className).toContain("w-full");
 		expect(titleInput?.className).not.toContain("w-64");
 	});

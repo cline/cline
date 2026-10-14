@@ -112,8 +112,6 @@ async function main() {
 					cwd: cwd,
 					mode: "act",
 					enableTools: false,
-					enableSpawn: false,
-					enableTeams: false,
 				},
 			},
 		},

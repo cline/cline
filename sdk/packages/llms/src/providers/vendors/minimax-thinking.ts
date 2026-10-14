@@ -1,6 +1,6 @@
 import type {
-	LanguageModelV3CallOptions,
-	LanguageModelV3Middleware,
+	LanguageModelV4CallOptions,
+	LanguageModelV4Middleware,
 } from "@ai-sdk/provider";
 
 export const MINIMAX_THINKING_DISABLED_HEADER =
@@ -26,8 +26,8 @@ function getMiniMaxThinkingType(providerOptions: unknown): string | undefined {
 	return typeof thinking?.type === "string" ? thinking.type : undefined;
 }
 
-export const miniMaxThinkingDisabledMiddleware: LanguageModelV3Middleware = {
-	specificationVersion: "v3",
+export const miniMaxThinkingDisabledMiddleware: LanguageModelV4Middleware = {
+	specificationVersion: "v4",
 	transformParams: async ({ params }) => {
 		if (getMiniMaxThinkingType(params.providerOptions) !== "disabled") {
 			return params;
@@ -39,7 +39,7 @@ export const miniMaxThinkingDisabledMiddleware: LanguageModelV3Middleware = {
 				...params.headers,
 				[MINIMAX_THINKING_DISABLED_HEADER]: "1",
 			},
-		} satisfies LanguageModelV3CallOptions;
+		} satisfies LanguageModelV4CallOptions;
 	},
 };
 

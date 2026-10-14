@@ -23,7 +23,7 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "deepseek",
 			providerName: "DeepSeek",
-			signupUrl: "https://www.deepseek.com/",
+			signupUrl: "https://platform.deepseek.com/api_keys",
 		})
 	})
 
@@ -35,6 +35,10 @@ describe("providerSettingsRegistry", () => {
 			),
 		).toEqual({
 			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
 			providerId: "gemini",
 			providerName: "Google Gemini",
 			signupUrl: "https://aistudio.google.com/apikey",
@@ -53,10 +57,12 @@ describe("providerSettingsRegistry", () => {
 
 	it("allows migrated simple SDK providers to use the generic fallback", () => {
 		const migratedProviders = [
+			["aiand", "ai&", "https://console.aiand.com/"],
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
+			["chutes", "Chutes", "https://chutes.ai/app/api"],
 			["doubao", "Doubao", "https://console.volcengine.com/home"],
-			["fireworks", "Fireworks", "https://fireworks.ai/"],
+			["fireworks", "Fireworks", "https://app.fireworks.ai/settings/users/api-keys"],
 			["groq", "Groq", "https://console.groq.com/keys"],
 			[
 				"huawei-cloud-maas",
@@ -64,7 +70,7 @@ describe("providerSettingsRegistry", () => {
 				"https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
 			],
 			["huggingface", "Hugging Face", "https://huggingface.co/settings/tokens"],
-			["mistral", "Mistral", "https://console.mistral.ai/codestral"],
+			["mistral", "Mistral", "https://console.mistral.ai/api-keys"],
 			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
 			["nousResearch", "NousResearch", undefined],
 			["poolside", "Poolside", undefined],
@@ -72,7 +78,7 @@ describe("providerSettingsRegistry", () => {
 			["tencent-tokenhub", "Tencent TokenHub", "https://cloud.tencent.com/document/product/1823/130050"],
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
 			["v0", "Vercel v0", undefined],
-			["wandb", "W&B", "https://wandb.ai"],
+			["wandb", "CoreWeave", "https://wandb.ai/settings"],
 			["xiaomi", "Xiaomi", undefined],
 			["zai-coding-plan", "Z.AI Coding Plan", undefined],
 		] as const
@@ -154,7 +160,17 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "deepseek",
 			providerName: "DeepSeek",
-			signupUrl: "https://www.deepseek.com/",
+			signupUrl: "https://platform.deepseek.com/api_keys",
+		})
+		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
+			providerId: "gemini",
+			providerName: "Gemini",
+			signupUrl: "https://aistudio.google.com/apikey",
 		})
 		expect(getFallbackGenericProviderSettings("minimax")).toEqual({
 			allowsCustomIds: false,
@@ -176,10 +192,26 @@ describe("providerSettingsRegistry", () => {
 			providerName: "Together",
 			signupUrl: "https://api.together.ai/settings/api-keys",
 		})
+		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
+			providerId: "gemini",
+			providerName: "Gemini",
+			signupUrl: "https://aistudio.google.com/apikey",
+		})
 		expect(getFallbackGenericProviderSettings("zai-coding-plan")).toEqual({
 			allowsCustomIds: false,
 			providerId: "zai-coding-plan",
 			providerName: "Z.AI Coding Plan",
+		})
+		expect(getFallbackGenericProviderSettings("aiand")).toEqual({
+			allowsCustomIds: false,
+			providerId: "aiand",
+			providerName: "ai&",
+			signupUrl: "https://console.aiand.com/",
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})

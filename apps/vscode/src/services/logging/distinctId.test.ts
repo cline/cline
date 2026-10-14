@@ -10,7 +10,13 @@ import { HostProvider } from "@/hosts/host-provider"
 const machineIdStub: sinon.SinonStub = sinon.stub()
 mock.module("node-machine-id", () => ({ ...actualNodeMachineId, machineId: machineIdStub }))
 
-import { _GENERATED_MACHINE_ID_KEY, getDistinctId, initializeDistinctId, setDistinctId } from "@/services/logging/distinctId"
+import {
+	_GENERATED_MACHINE_ID_KEY,
+	getDeviceId,
+	getDistinctId,
+	initializeDistinctId,
+	setDistinctId,
+} from "@/services/logging/distinctId"
 import { StorageContext } from "@/shared/storage"
 
 describe("distinctId", () => {
@@ -115,6 +121,19 @@ describe("distinctId", () => {
 		expect(getDistinctId()).to.equal(MOCK_MACHINE_ID)
 
 		expect(mockGlobalState.update.notCalled).to.be.true
+	})
+
+	it("device ID should match the initial distinct ID and survive auth overrides", async () => {
+		machineIdStub.resolves(MOCK_MACHINE_ID)
+
+		await initializeDistinctId(mockStorage, mockUuidGenerator)
+		expect(getDeviceId()).to.equal(MOCK_MACHINE_ID)
+
+		// Simulate authentication replacing the distinct ID with the user ID.
+		setDistinctId("cline-user-id-789")
+
+		expect(getDistinctId()).to.equal("cline-user-id-789")
+		expect(getDeviceId()).to.equal(MOCK_MACHINE_ID)
 	})
 
 	it("should generate and store UUID if node-machine-id returns empty string", async () => {

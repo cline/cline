@@ -1,8 +1,8 @@
-// LanguageModelV3 middleware that recovers image bytes from
+// LanguageModelV4 middleware that recovers image bytes from
 // `role:"tool"` messages whose content arrays the downstream chat-completions
 // converter would otherwise destroy.
 //
-// Background: AI SDK's `LanguageModelV3ToolResultOutput` of type `'content'`
+// Background: AI SDK's `LanguageModelV4ToolResultOutput` of type `'content'`
 // may contain `image-data`, `image-url`, `file-data`, `file-url`, or
 // `image-file-id` parts. The OpenAI Chat Completions wire format does NOT
 // support multimodal tool messages — `role:"tool"` content must be a single
@@ -11,7 +11,7 @@
 // base64 inside a string, which the model treats as ~50KB of opaque text and
 // hallucinates the image's actual contents.
 //
-// This middleware operates on the typed `LanguageModelV3Prompt` BEFORE the
+// This middleware operates on the typed `LanguageModelV4Prompt` BEFORE the
 // downstream converter runs. For every `role:"tool"` message containing
 // image/file parts inside a tool-result `output.type === 'content'` value,
 // it:
@@ -20,7 +20,7 @@
 //      text parts: `(see following user message for image)`. The
 //      tool-result then carries only text — safe for any wire format.
 //   2. Inserts a synthetic `role:"user"` message right after the tool
-//      message, carrying the media parts as `LanguageModelV3FilePart`s.
+//      message, carrying the media parts as `LanguageModelV4FilePart`s.
 //
 // Because the synthetic user message is typed (not raw JSON), every
 // downstream converter — Chat Completions, Mistral, Anthropic, Bedrock,
@@ -44,13 +44,13 @@
 //     changes how it serialises content arrays, this layer doesn't care.
 
 import type {
-	LanguageModelV3CallOptions,
-	LanguageModelV3FilePart,
-	LanguageModelV3Message,
-	LanguageModelV3Middleware,
-	LanguageModelV3TextPart,
-	LanguageModelV3ToolResultOutput,
-	LanguageModelV3ToolResultPart,
+	LanguageModelV4CallOptions,
+	LanguageModelV4FilePart,
+	LanguageModelV4Message,
+	LanguageModelV4Middleware,
+	LanguageModelV4TextPart,
+	LanguageModelV4ToolResultOutput,
+	LanguageModelV4ToolResultPart,
 } from "@ai-sdk/provider";
 import {
 	createMediaBudgetState,
@@ -66,113 +66,47 @@ import {
 const IMAGE_PLACEHOLDER = "(see following user message for image)";
 
 type ContentOutput = Extract<
-	LanguageModelV3ToolResultOutput,
+	LanguageModelV4ToolResultOutput,
 	{ type: "content" }
 >;
 type ContentPart = ContentOutput["value"][number];
 
-function isMediaContentPart(part: ContentPart): part is Extract<
-	ContentPart,
-	{
-		type:
-			| "image-data"
-			| "image-url"
-			| "file-data"
-			| "file-url"
-			| "image-file-id";
-	}
-> {
-	switch (part.type) {
-		case "image-data":
-		case "image-url":
-		case "file-data":
-		case "file-url":
-		case "image-file-id":
-			return true;
-		default:
-			return false;
-	}
+function isMediaContentPart(
+	part: ContentPart,
+): part is Extract<ContentPart, { type: "file" }> {
+	return part.type === "file";
 }
 
 /**
  * Convert a media content-part from a `ToolResultOutput` of type `'content'`
- * into the equivalent `LanguageModelV3FilePart` for use in a user message.
- * Returns `null` for `image-file-id` parts because `LanguageModelV3FilePart`
+ * into the equivalent `LanguageModelV4FilePart` for use in a user message.
+ * Returns `null` for `image-file-id` parts because `LanguageModelV4FilePart`
  * has no provider-file-id slot — those parts are left in place inside the
  * tool-result and pass through to the converter as-is. (Image-file-id is
  * an OpenAI-specific reference; if a caller is using it they are already
  * on a multimodal-aware path and don't need this rewrite.)
  */
 function mediaPartToFilePart(
-	part: Extract<
-		ContentPart,
-		{
-			type:
-				| "image-data"
-				| "image-url"
-				| "file-data"
-				| "file-url"
-				| "image-file-id";
-		}
-	>,
-): LanguageModelV3FilePart | null {
-	switch (part.type) {
-		case "image-data":
-			return {
-				type: "file",
-				data: part.data,
-				mediaType: part.mediaType,
-				...(part.providerOptions
-					? { providerOptions: part.providerOptions }
-					: {}),
-			};
-		case "image-url":
-			return {
-				type: "file",
-				// FilePart.data accepts a URL or string. Pass the URL string;
-				// the converter will wire it through to e.g. `image_url.url`.
-				data: part.url,
-				// AI SDK requires a mediaType. We don't know the actual type
-				// from a URL, so fall back to a wildcard image type — the
-				// downstream converter (chat-completions) only needs the
-				// URL anyway.
-				mediaType: "image/*",
-				...(part.providerOptions
-					? { providerOptions: part.providerOptions }
-					: {}),
-			};
-		case "file-data":
-			return {
-				type: "file",
-				data: part.data,
-				mediaType: part.mediaType,
-				...(part.filename ? { filename: part.filename } : {}),
-				...(part.providerOptions
-					? { providerOptions: part.providerOptions }
-					: {}),
-			};
-		case "file-url":
-			return {
-				type: "file",
-				data: part.url,
-				mediaType: "application/octet-stream",
-				...(part.providerOptions
-					? { providerOptions: part.providerOptions }
-					: {}),
-			};
-		case "image-file-id":
-			// No FilePart equivalent — caller is on a path that already handles
-			// provider-side file references, so we leave the part in place.
-			return null;
+	part: Extract<ContentPart, { type: "file" }>,
+): LanguageModelV4FilePart | null {
+	if (part.data.type === "reference") {
+		return null;
 	}
+	return {
+		type: "file",
+		data: part.data,
+		mediaType: part.mediaType,
+		...(part.filename ? { filename: part.filename } : {}),
+		...(part.providerOptions ? { providerOptions: part.providerOptions } : {}),
+	};
 }
 
 interface SplitResult {
 	stripped: ContentOutput;
-	media: LanguageModelV3FilePart[];
+	media: LanguageModelV4FilePart[];
 }
 
-function imageOmittedTextPart(): LanguageModelV3TextPart {
+function imageOmittedTextPart(): LanguageModelV4TextPart {
 	return {
 		type: "text",
 		text: IMAGE_OMITTED_PLACEHOLDER,
@@ -277,19 +211,19 @@ function reserveGenericMediaDataBudget(
  * Split a tool-result `output` of type `'content'` into:
  *   - a `stripped` output where every media part is replaced by a
  *     placeholder text part, and
- *   - the list of media parts converted to `LanguageModelV3FilePart`.
+ *   - the list of media parts converted to `LanguageModelV4FilePart`.
  *
  * Returns `null` if the output isn't of type `'content'`, or if it doesn't
  * carry any extractable media parts (in which case no rewrite is needed).
  */
 function splitContentOutputMedia(
-	output: LanguageModelV3ToolResultOutput,
+	output: LanguageModelV4ToolResultOutput,
 	mediaState: MediaBudgetState,
 ): SplitResult | null {
 	if (output.type !== "content") {
 		return null;
 	}
-	const media: LanguageModelV3FilePart[] = [];
+	const media: LanguageModelV4FilePart[] = [];
 	const newValue: ContentOutput["value"] = [];
 	let mutated = false;
 	for (const part of output.value) {
@@ -298,10 +232,14 @@ function splitContentOutputMedia(
 			continue;
 		}
 		let currentPart = part;
-		if (currentPart.type === "image-data") {
+		if (
+			currentPart.mediaType.startsWith("image/") &&
+			currentPart.data.type === "data" &&
+			typeof currentPart.data.data === "string"
+		) {
 			const validation = validateAndReserveImageMedia(
 				currentPart.mediaType,
-				currentPart.data,
+				currentPart.data.data,
 				{
 					maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 					maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
@@ -318,14 +256,18 @@ function splitContentOutputMedia(
 			}
 			currentPart = {
 				...currentPart,
-				data: validation.base64,
+				data: { type: "data", data: validation.base64 },
 				mediaType: validation.mediaType,
 			};
-		} else if (currentPart.type === "image-url") {
-			if (isDataUrl(currentPart.url)) {
+		} else if (
+			currentPart.mediaType.startsWith("image/") &&
+			currentPart.data.type === "url"
+		) {
+			const url = currentPart.data.url.toString();
+			if (isDataUrl(url)) {
 				const validation = validateAndReserveImageMedia(
 					undefined,
-					currentPart.url,
+					url,
 					{
 						maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 						maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
@@ -339,21 +281,31 @@ function splitContentOutputMedia(
 				}
 				currentPart = {
 					...currentPart,
-					url: `data:${validation.mediaType};base64,${validation.base64}`,
+					data: {
+						type: "url",
+						url: new URL(
+							`data:${validation.mediaType};base64,${validation.base64}`,
+						),
+					},
 				};
-			} else if (!reserveUnknownUrlMediaBudget(currentPart.url, mediaState)) {
+			} else if (!reserveUnknownUrlMediaBudget(url, mediaState)) {
 				newValue.push(imageOmittedTextPart());
 				mutated = true;
 				continue;
 			}
-		} else if (currentPart.type === "file-url") {
-			if (!reserveUnknownUrlMediaBudget(currentPart.url, mediaState)) {
+		} else if (currentPart.data.type === "url") {
+			if (
+				!reserveUnknownUrlMediaBudget(
+					currentPart.data.url.toString(),
+					mediaState,
+				)
+			) {
 				newValue.push(imageOmittedTextPart());
 				mutated = true;
 				continue;
 			}
-		} else if (currentPart.type === "file-data") {
-			if (!reserveGenericMediaDataBudget(currentPart.data, mediaState)) {
+		} else if (currentPart.data.type === "data") {
+			if (!reserveGenericMediaDataBudget(currentPart.data.data, mediaState)) {
 				newValue.push(imageOmittedTextPart());
 				mutated = true;
 				continue;
@@ -367,7 +319,7 @@ function splitContentOutputMedia(
 		}
 		media.push(filePart);
 		mutated = true;
-		const placeholder: LanguageModelV3TextPart = {
+		const placeholder: LanguageModelV4TextPart = {
 			type: "text",
 			text: IMAGE_PLACEHOLDER,
 		};
@@ -386,18 +338,18 @@ function splitContentOutputMedia(
 }
 
 /**
- * Walk a `LanguageModelV3Prompt` and rewrite every `role:"tool"` message
+ * Walk a `LanguageModelV4Prompt` and rewrite every `role:"tool"` message
  * containing image/file parts inside its tool-result `output`s. See the
  * file-level comment for the rewrite shape.
  *
  * Returns the (possibly new) prompt array and a `mutated` flag for
  * test/observation use.
  */
-export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
-	prompt: LanguageModelV3Message[];
+export function rewritePromptToolImages(prompt: LanguageModelV4Message[]): {
+	prompt: LanguageModelV4Message[];
 	mutated: boolean;
 } {
-	const newPrompt: LanguageModelV3Message[] = [];
+	const newPrompt: LanguageModelV4Message[] = [];
 	let mutated = false;
 	const mediaState = createMediaBudgetState();
 
@@ -407,7 +359,7 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
 			continue;
 		}
 
-		const collectedMedia: LanguageModelV3FilePart[] = [];
+		const collectedMedia: LanguageModelV4FilePart[] = [];
 		const newContent: typeof message.content = message.content.map((part) => {
 			if (part.type !== "tool-result") {
 				return part;
@@ -418,7 +370,7 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
 			}
 			collectedMedia.push(...split.media);
 			mutated = true;
-			const newPart: LanguageModelV3ToolResultPart = {
+			const newPart: LanguageModelV4ToolResultPart = {
 				...part,
 				output: split.stripped,
 			};
@@ -439,7 +391,7 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
 }
 
 /**
- * `LanguageModelV3Middleware` that splits image-carrying tool-result
+ * `LanguageModelV4Middleware` that splits image-carrying tool-result
  * messages so chat-completions-style converters don't lose the bytes.
  *
  * Apply via `wrapLanguageModel({ model, middleware: splitToolImagesMiddleware })`
@@ -452,8 +404,8 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
  * structurally-faithful tool-results with the placeholder text + sibling
  * user message pattern unnecessarily.
  */
-export const splitToolImagesMiddleware: LanguageModelV3Middleware = {
-	specificationVersion: "v3",
+export const splitToolImagesMiddleware: LanguageModelV4Middleware = {
+	specificationVersion: "v4",
 	transformParams: async ({ params }) => {
 		const { prompt: newPrompt, mutated } = rewritePromptToolImages(
 			params.prompt,
@@ -461,7 +413,7 @@ export const splitToolImagesMiddleware: LanguageModelV3Middleware = {
 		if (!mutated) {
 			return params;
 		}
-		const next: LanguageModelV3CallOptions = {
+		const next: LanguageModelV4CallOptions = {
 			...params,
 			prompt: newPrompt,
 		};

@@ -66,11 +66,10 @@ export async function createCliCore(options?: {
 		messagesArtifactUploader: createCliMessagesArtifactUploader(),
 		prepare: prepareCliEnterpriseIntegration,
 	});
-	try {
-		await core.featureFlags.poll();
-	} catch (error) {
+	// Refresh cached flags without putting PostHog on the CLI startup path.
+	void core.featureFlags.poll().catch((error) => {
 		options?.logger?.error?.("Error polling CLI feature flags", { error });
-	}
+	});
 	options?.logger?.log("CLI core runtime routing selected", {
 		backendMode: explicitBackendMode ?? "env-managed",
 		rpcAddress: core.runtimeAddress,

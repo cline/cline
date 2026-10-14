@@ -1,20 +1,38 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@cline/llms";
+import { ReasoningLevelSchema } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
 	emptyStoredProviderSettings,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+	type StoredProviderSettings,
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
+	type StoredModelEntry,
 	type StoredModelsFile,
 	writeModelsFileSync,
 } from "../providers/local-provider-registry";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
 
 type LegacyMode = "plan" | "act";
+
+/**
+ * Legacy `OpenAiCompatibleModelInfo` snapshot persisted by the old extension
+ * under `planModeOpenAiModelInfo` / `actModeOpenAiModelInfo`. Only the
+ * user-editable fields the legacy settings form exposed are read here.
+ */
+interface LegacyOpenAiModelInfo {
+	maxTokens?: number;
+	contextWindow?: number;
+	supportsImages?: boolean;
+	supportsPromptCache?: boolean;
+	inputPrice?: number;
+	outputPrice?: number;
+	temperature?: number;
+}
 
 interface LegacyGlobalState {
 	mode?: LegacyMode;
@@ -72,6 +90,8 @@ interface LegacyGlobalState {
 	actModeClineModelId?: string;
 	planModeOpenAiModelId?: string;
 	actModeOpenAiModelId?: string;
+	planModeOpenAiModelInfo?: LegacyOpenAiModelInfo;
+	actModeOpenAiModelInfo?: LegacyOpenAiModelInfo;
 	planModeOllamaModelId?: string;
 	actModeOllamaModelId?: string;
 	planModeLmStudioModelId?: string;
@@ -369,14 +389,8 @@ function resolveReasoning(
 	]
 		.map(trimNonEmpty)
 		.find(Boolean);
-	const effort =
-		rawEffort === "none" ||
-		rawEffort === "low" ||
-		rawEffort === "medium" ||
-		rawEffort === "high" ||
-		rawEffort === "xhigh"
-			? rawEffort
-			: undefined;
+	const parsedEffort = ReasoningLevelSchema.safeParse(rawEffort);
+	const effort = parsedEffort.success ? parsedEffort.data : undefined;
 	const normalizedBudget =
 		typeof budgetTokens === "number" &&
 		Number.isInteger(budgetTokens) &&
@@ -430,12 +444,56 @@ function getDefaultModelForProvider(providerId: string): string | undefined {
 	const builtInModels = LlmsModels.getGeneratedModelsForProvider(providerId);
 	const providerCollection = LlmsModels.getProviderCollectionSync(providerId);
 	const defaultModelId = providerCollection?.provider.defaultModelId;
-	if (defaultModelId && builtInModels[defaultModelId]) {
+	// The declared default may live only in the collection's model list (e.g.
+	// Cline's generated block holds a few free models while its default,
+	// anthropic/claude-sonnet-5, comes from the collection catalog).
+	if (
+		defaultModelId &&
+		(builtInModels[defaultModelId] ||
+			providerCollection?.models?.[defaultModelId])
+	) {
 		return defaultModelId;
 	}
 
 	const firstModelId = Object.keys(builtInModels)[0];
 	return firstModelId ?? undefined;
+}
+
+/**
+ * Cline is a fixed-catalog provider: an unknown legacy model id (retired
+ * model, a suffixed variant like `...:1m`, corrupted state) would otherwise
+ * be carried into inference requests as-is. Resolve the legacy id against the
+ * runtime catalog (the collection model list, which `buildClineModels` in
+ * @cline/llms mirrors), folding alias spellings onto their canonical ids
+ * (e.g. OpenRouter's `z-ai/...` -> `zai/...`) so those users keep their
+ * model. Returns undefined for unavailable models so the caller falls back
+ * to the catalog default.
+ */
+function resolveKnownClineModel(
+	providerId: string,
+	modelId: string | undefined,
+): string | undefined {
+	if (!modelId || providerId !== "cline") {
+		return modelId;
+	}
+	const catalogModels =
+		LlmsModels.getProviderCollectionSync(providerId)?.models;
+	if (!catalogModels) {
+		return modelId;
+	}
+	if (catalogModels[modelId]) {
+		return modelId;
+	}
+	for (const rule of LlmsModels.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES) {
+		if (!modelId.startsWith(rule.aliasPrefix)) {
+			continue;
+		}
+		const canonicalModelId = `${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`;
+		if (catalogModels[canonicalModelId]) {
+			return canonicalModelId;
+		}
+	}
+	return undefined;
 }
 
 function buildLegacyProviderSettings(
@@ -454,11 +512,14 @@ function buildLegacyProviderSettings(
 		? normalizeLegacyProviderId(rawActiveProviderForMode)
 		: undefined;
 	const model =
-		resolveModelForProvider(
-			legacyGlobalState,
-			providerId,
-			mode,
-			activeProviderForMode,
+		resolveKnownClineModel(
+			targetProviderId,
+			resolveModelForProvider(
+				legacyGlobalState,
+				providerId,
+				mode,
+				activeProviderForMode,
+			),
 		) ?? getDefaultModelForProvider(targetProviderId);
 	const reasoning = resolveReasoning(legacyGlobalState, targetProviderId, mode);
 	const timeout =
@@ -532,21 +593,34 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
-		const bedrockAuthentication = normalizeLegacyBedrockAuthentication(
+		const legacyBedrockAuthentication = normalizeLegacyBedrockAuthentication(
 			legacyGlobalState.awsAuthentication,
 		);
+		const legacyBedrockProfile = trimNonEmpty(legacyGlobalState.awsProfile);
+		// Legacy state grew three ways to say "use a named AWS profile":
+		// awsAuthentication "profile" (newest), the awsUseProfile toggle, and,
+		// on older installs, a bare awsProfile value with neither flag. Treat a
+		// profile name with no explicit authentication choice as profile auth,
+		// mirroring how the settings UI displays that state and how the Next
+		// extension resolves it from live settings — otherwise the migrated
+		// entry has no profile and providers.json readers (CLI, desktop) fall
+		// back to the default credential chain (cline/cline#14095).
 		const useBedrockProfile =
-			bedrockAuthentication === "profile" ||
-			legacyGlobalState.awsUseProfile === true;
+			legacyBedrockAuthentication === "profile" ||
+			legacyGlobalState.awsUseProfile === true ||
+			(legacyBedrockAuthentication === undefined &&
+				legacyBedrockProfile !== undefined);
+		const bedrockAuthentication =
+			useBedrockProfile && legacyBedrockAuthentication === undefined
+				? "profile"
+				: legacyBedrockAuthentication;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
 			authentication: bedrockAuthentication,
-			profile: useBedrockProfile
-				? trimNonEmpty(legacyGlobalState.awsProfile)
-				: undefined,
+			profile: useBedrockProfile ? legacyBedrockProfile : undefined,
 			usePromptCache: legacyGlobalState.awsBedrockUsePromptCache,
 			useCrossRegionInference: legacyGlobalState.awsUseCrossRegionInference,
 			useGlobalInference: legacyGlobalState.awsUseGlobalInference,
@@ -653,15 +727,44 @@ function buildLegacyProviderSettings(
 	return hasNonProviderFields ? parsed.data : undefined;
 }
 
+function positiveFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: undefined;
+}
+
 function resolveLegacyCustomProviderRegistration(
 	providerId: string,
 	settings: ProviderSettings,
+	legacyModelInfo?: LegacyOpenAiModelInfo,
 ): StoredModelsFile["providers"][string] | undefined {
 	if (providerId !== OPENAI_COMPATIBLE_PROVIDER_ID) {
 		return undefined;
 	}
 	if (!settings.baseUrl || !settings.model) {
 		return undefined;
+	}
+	// Carry the user-authored legacy model overrides into the seeded entry.
+	// This entry becomes the source of truth for openai-compatible models, and
+	// later override migrations skip models that already exist here — so
+	// seeding bare defaults would silently discard the user's configuration.
+	// Legacy treated maxTokens -1, temperature 0, and prices 0 as unset.
+	const contextWindow =
+		positiveFiniteNumber(legacyModelInfo?.contextWindow) ??
+		LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW;
+	const maxTokens = positiveFiniteNumber(legacyModelInfo?.maxTokens);
+	const inputPrice = positiveFiniteNumber(legacyModelInfo?.inputPrice);
+	const outputPrice = positiveFiniteNumber(legacyModelInfo?.outputPrice);
+	const temperature = positiveFiniteNumber(legacyModelInfo?.temperature);
+	const capabilities: NonNullable<StoredModelEntry["capabilities"]> = [
+		"streaming",
+		"tools",
+	];
+	if (legacyModelInfo?.supportsImages !== false) {
+		capabilities.push("images");
+	}
+	if (legacyModelInfo?.supportsPromptCache === true) {
+		capabilities.push("prompt-cache");
 	}
 	return {
 		provider: {
@@ -673,9 +776,13 @@ function resolveLegacyCustomProviderRegistration(
 			[settings.model]: {
 				id: settings.model,
 				name: settings.model,
-				contextWindow: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
-				maxInputTokens: LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW,
-				capabilities: ["streaming", "tools", "images"],
+				contextWindow,
+				maxInputTokens: contextWindow,
+				capabilities,
+				...(maxTokens !== undefined ? { maxTokens } : {}),
+				...(inputPrice !== undefined ? { inputPrice } : {}),
+				...(outputPrice !== undefined ? { outputPrice } : {}),
+				...(temperature !== undefined ? { temperature } : {}),
 			},
 		},
 	};
@@ -767,12 +874,67 @@ function collectCandidateProviderIds(
 		trimNonEmpty(legacySecrets.sapAiCoreClientSecret) ||
 		trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl) ||
 		trimNonEmpty(legacyGlobalState.sapAiCoreBaseUrl) ||
-		trimNonEmpty(legacyGlobalState.sapAiResourceGroup) ||
-		legacyGlobalState.sapAiCoreUseOrchestrationMode !== undefined
+		trimNonEmpty(legacyGlobalState.sapAiResourceGroup)
 	) {
 		candidates.add("sapaicore");
 	}
 	return candidates;
+}
+
+/**
+ * Repair a Bedrock entry written by an earlier run of this migration that
+ * dropped a bare legacy `awsProfile` (see the profile inference in
+ * buildLegacyProviderSettings). Migration never overwrites an existing
+ * entry, so without this pass the inference only reaches installs that have
+ * not migrated yet. Only untouched migration output is repaired: the entry
+ * is still tagged "migration", carries no authentication choice, profile,
+ * static credentials or API key, and legacy state still has the bare
+ * profile with no explicit authentication.
+ *
+ * Applied at most once per file: legacy state is never deleted, so a repair
+ * that re-evaluated on every launch would keep restoring a profile a user had
+ * removed through a path that does not write legacy state back (a hand-edited
+ * providers.json, or another client sharing the same data directory).
+ */
+function backfillMigratedBedrockProfile(
+	next: StoredProviderSettings,
+	legacyGlobalState: LegacyGlobalState,
+	now: string,
+): boolean {
+	if (next.repairs?.bedrockProfile) {
+		return false;
+	}
+	const entry = next.providers.bedrock;
+	if (!entry || entry.tokenSource !== "migration") {
+		return false;
+	}
+	if (legacyGlobalState.awsAuthentication !== undefined) {
+		return false;
+	}
+	const profile = trimNonEmpty(legacyGlobalState.awsProfile);
+	if (!profile) {
+		return false;
+	}
+	const aws = entry.settings.aws;
+	if (
+		aws?.authentication !== undefined ||
+		aws?.profile !== undefined ||
+		aws?.accessKey ||
+		aws?.secretKey ||
+		entry.settings.apiKey
+	) {
+		return false;
+	}
+	next.providers.bedrock = {
+		...entry,
+		settings: {
+			...entry.settings,
+			aws: { ...(aws ?? {}), authentication: "profile", profile },
+		},
+		updatedAt: now,
+	};
+	next.repairs = { ...next.repairs, bedrockProfile: true };
+	return true;
 }
 
 export function migrateLegacyProviderSettings(
@@ -811,6 +973,9 @@ export function migrateLegacyProviderSettings(
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
 	next.lastUsedProvider = existing.lastUsedProvider;
+	// Everything this function does not own has to survive the rewrite.
+	next.modes = existing.modes;
+	next.repairs = existing.repairs;
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
 	const modelsPath = join(
@@ -850,6 +1015,9 @@ export function migrateLegacyProviderSettings(
 		const registration = resolveLegacyCustomProviderRegistration(
 			providerId,
 			settings,
+			modeForProvider === "plan"
+				? globalState.planModeOpenAiModelInfo
+				: globalState.actModeOpenAiModelInfo,
 		);
 		if (registration && !modelsState.providers[providerId]) {
 			modelsState.providers[providerId] = registration;
@@ -857,7 +1025,17 @@ export function migrateLegacyProviderSettings(
 		}
 	}
 
-	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
+	const repairedBedrockProfile = backfillMigratedBedrockProfile(
+		next,
+		globalState,
+		now,
+	);
+
+	if (
+		addedProviderCount === 0 &&
+		addedCustomProviderCount === 0 &&
+		!repairedBedrockProfile
+	) {
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,
@@ -885,7 +1063,10 @@ export function migrateLegacyProviderSettings(
 	}
 
 	return {
-		migrated: addedProviderCount > 0 || addedCustomProviderCount > 0,
+		migrated:
+			addedProviderCount > 0 ||
+			addedCustomProviderCount > 0 ||
+			repairedBedrockProfile,
 		providerCount: Object.keys(next.providers).length,
 		lastUsedProvider: next.lastUsedProvider,
 	};

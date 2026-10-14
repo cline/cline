@@ -7,13 +7,23 @@ export const CLINE_PASS_PROVIDER_ID = "cline-pass"
 /**
  * ClinePass always uses the user's personal Cline account balance.
  *
+ * The account switch is a network round-trip (plus a possible token refresh),
+ * so it runs fire-and-forget: callers must not block the config update — or
+ * the state post that re-renders the settings UI — on it. Auth state changes
+ * propagate to the webview separately once the switch completes.
+ *
+ * switchAccount does nothing when the account is already Personal, waits for
+ * any switch already in flight before deciding, and tears down the previous
+ * account's cloud task and connections before the account changes, so this
+ * call is safe on every API configuration update.
+ *
  * This is intentionally best-effort: selecting the provider should still be
  * saved even if the account switch fails.
  */
-export async function clearOrganizationForClinePassProviderSelection(
+export function clearOrganizationForClinePassProviderSelection(
 	controller: Controller,
 	apiConfiguration: Pick<ApiConfiguration, "planModeApiProvider" | "actModeApiProvider">,
-): Promise<void> {
+): void {
 	if (
 		apiConfiguration.planModeApiProvider !== CLINE_PASS_PROVIDER_ID &&
 		apiConfiguration.actModeApiProvider !== CLINE_PASS_PROVIDER_ID
@@ -21,9 +31,7 @@ export async function clearOrganizationForClinePassProviderSelection(
 		return
 	}
 
-	try {
-		await controller.accountService.switchAccount(undefined)
-	} catch (error) {
+	controller.accountService.switchAccount(undefined).catch((error) => {
 		Logger.debug("Failed to switch ClinePass to personal account", { error })
-	}
+	})
 }

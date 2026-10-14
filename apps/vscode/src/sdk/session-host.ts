@@ -1,6 +1,8 @@
 import type {
 	ClineCoreListHistoryOptions,
 	ClineCoreStartInput,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	CoreSessionEvent,
 	HookEventPayload,
 	PendingPromptMutationResult,
@@ -42,6 +44,8 @@ export interface SdkSessionHost {
 	readLiveMessages?(sessionId: string): Promise<SdkInitialMessages>
 	updateSessionCompactionState?(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }>
 	restore(input: RestoreInput): Promise<RestoreResult>
+	/** Diffs a checkpoint snapshot against the current working tree. */
+	compareCheckpoint?(input: CompareCheckpointInput): Promise<CompareCheckpointResult>
 	update(
 		sessionId: string,
 		updates: {
@@ -59,3 +63,19 @@ export interface SdkSessionHost {
 }
 
 export type SdkInitialMessages = NonNullable<StartSessionInput["initialMessages"]>
+
+/**
+ * Reads the current conversation of a session. The persisted transcript is
+ * written after Core reports a turn done, so a host that tracks live
+ * sessions is asked for the in-memory conversation first; the persisted
+ * transcript is the answer for a host that does not, or for a session that
+ * is no longer resident. Every reader that maps a visible message to its
+ * position in the conversation must use this, so that a lookup and the edit
+ * it enables agree on which messages exist.
+ */
+export function readCurrentMessages(
+	sessionHost: Pick<SdkSessionHost, "readMessages" | "readLiveMessages">,
+	sessionId: string,
+): Promise<SdkInitialMessages> {
+	return sessionHost.readLiveMessages?.(sessionId) ?? sessionHost.readMessages(sessionId)
+}

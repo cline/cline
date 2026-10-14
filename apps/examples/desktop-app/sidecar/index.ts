@@ -1,17 +1,35 @@
 import { homedir } from "node:os";
-import { setHomeDirIfUnset } from "@cline/core";
-import { isHubDaemonProcess } from "@cline/shared";
+import {
+	checkManagedHubBuildMismatch,
+	createClineTelemetryServiceConfig,
+	ensureLoginShellPath,
+	readGlobalSettings,
+	setHomeDirIfUnset,
+	setModelToolEnabledGlobally,
+	watchManagedHubBuildMismatch,
+} from "@cline/core";
+import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
+import {
+	captureSdkError,
+	claimHubDaemonProcess,
+	disableCurrentDirectoryExecutableSearch,
+	ensureLoopbackProxyBypass,
+	setClineClientIdentity,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
+import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
+	broadcastEvent,
 	createSidecarContext,
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
 import { createDesktopObservability } from "./observability";
+import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
-import { ensureLoginShellPath } from "./shell-path";
+import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -59,6 +77,20 @@ async function main() {
 		pid: process.pid,
 	});
 
+	// Web search is opt-in elsewhere in Cline, but the desktop app defaults
+	// it to on. Seed the shared setting only when the user has never set it,
+	// so an explicit off (from any Cline app) stays off. Best-effort: an
+	// unwritable settings file must not block startup over a default.
+	try {
+		if (readGlobalSettings().tools?.web_search === undefined) {
+			setModelToolEnabledGlobally("web_search", true);
+		}
+	} catch (error) {
+		observability.logger.error?.("Failed to seed web search default", {
+			error,
+		});
+	}
+
 	prewarmWorkspaceMetadata(workspaceRoot);
 	observability.logger.log(
 		"Login shell PATH resolution",
@@ -103,6 +135,13 @@ async function main() {
 			kind,
 			error,
 		});
+		captureSdkError(observability.telemetry, {
+			component: "desktop",
+			operation: `sidecar.${kind}`,
+			error,
+			handled: false,
+			severity: "fatal",
+		});
 		void shutdown(`code_sidecar_${kind}`).finally(() => process.exit(1));
 	};
 	process.on("uncaughtException", (error) => {
@@ -115,30 +154,109 @@ async function main() {
 		void shutdown("code_sidecar_before_exit");
 	});
 
-	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
+	const { port, approvalToken } = startServer(ctx, SIDECAR_PORT, shutdown);
 	observability.logger.log("Desktop sidecar ready", {
 		port,
 		mode: SIDECAR_MODE,
 	});
 
+	// Another Cline installation (e.g. an updated CLI) can replace the shared
+	// Hub daemon while this app is running. Surface that to the webview so it
+	// can prompt the user to update and restart.
+	watchManagedHubBuildMismatch({
+		onMismatch: (mismatch) => {
+			ctx.hubBuildMismatch = mismatch;
+			observability.logger.log("Managed hub build mismatch detected", {
+				hubBuildId: mismatch.hubBuildId,
+				hubCoreVersion: mismatch.hubCoreVersion,
+				reason: mismatch.reason,
+			});
+			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+		},
+	});
+	// The watcher's first check only runs after its interval, but a mismatch
+	// that already exists at startup - an older Hub this app attached to
+	// because it is still serving other clients' sessions - must prompt
+	// before the user starts working, not half a minute in. Session-manager
+	// init has already settled the hub state, so check once right away. The
+	// broadcast reaches webviews that are already connected; the replay in
+	// createWebSocketHandler covers ones that connect later. Skipped when
+	// CLINE_HUB_PORT pins an explicit endpoint, matching the watcher: such
+	// hosts keep protocol-only compatibility and must not show update prompts.
+	if (!process.env.CLINE_HUB_PORT?.trim()) {
+		void checkManagedHubBuildMismatch()
+			.then((mismatch) => {
+				if (!mismatch || ctx.hubBuildMismatch) {
+					return;
+				}
+				ctx.hubBuildMismatch = mismatch;
+				observability.logger.log(
+					"Managed hub build mismatch detected at startup",
+					{
+						hubBuildId: mismatch.hubBuildId,
+						hubCoreVersion: mismatch.hubCoreVersion,
+						reason: mismatch.reason,
+					},
+				);
+				broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+			})
+			.catch(() => undefined);
+	}
+
 	// A wildcard bind isn't a dialable address; advertise loopback instead.
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
 	const endpoint = `http://${dialHost}:${port}`;
-	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
+	const wsEndpoint = new URL(`ws://${dialHost}:${port}/transport`);
+	wsEndpoint.searchParams.set("approval_token", approvalToken);
 	process.stdout.write(
 		`${JSON.stringify({
 			type: "ready",
 			endpoint,
-			wsEndpoint,
+			wsEndpoint: wsEndpoint.toString(),
 			pid: process.pid,
 			mode: SIDECAR_MODE,
 		})}\n`,
 	);
 }
 
+/**
+ * Prints whether the telemetry configuration that was inlined at build time
+ * (see scripts/telemetry-define-args.ts) actually made it into this binary,
+ * then exits. CI runs this against the packaged sidecar and fails the
+ * publish when a release-grade build reports `"enabled":false` or an
+ * unusable OTLP endpoint, so a regression in the build-time inlining can
+ * never ship silently again.
+ */
+function runTelemetrySelfcheck(): void {
+	const report = buildTelemetrySelfcheckReport(
+		createClineTelemetryServiceConfig(),
+	);
+	process.stdout.write(`${JSON.stringify(report)}\n`);
+}
+
 async function runEntrypoint(): Promise<void> {
-	if (isHubDaemonProcess()) {
+	// Before the daemon-sentinel claim: the selfcheck only inspects build-time
+	// config and must not consume the sentinel or start anything.
+	if (process.argv.includes("--telemetry-selfcheck")) {
+		runTelemetrySelfcheck();
+		return;
+	}
+	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
+
+	disableCurrentDirectoryExecutableSearch();
+	// Before the Hub daemon (this binary, re-executed) loads any plugin.
+	configurePluginBootstrap();
+	// Before the Hub daemon and agent-spawned processes inherit this env.
+	ensureLoopbackProxyBypass();
+	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
+	// daemon import resolves to the dist build of @cline/core while this bundle
+	// resolves the source build, and a daemon from the other copy publishes a
+	// different build id, so the sidecar would retire its own Hub on launch.
+	if (claimHubDaemonProcess()) {
 		await import("@cline/core/hub/daemon-entry");
+		return;
+	}
+	if (await runRemoteHelperEntrypoint()) {
 		return;
 	}
 	await main();
@@ -148,6 +266,13 @@ runEntrypoint().catch(async (error) => {
 	const message = error instanceof Error ? error.message : String(error);
 	activeObservability?.logger.error?.("Desktop sidecar process failed", {
 		error,
+	});
+	captureSdkError(activeObservability?.telemetry, {
+		component: "desktop",
+		operation: "sidecar.startup",
+		error,
+		handled: false,
+		severity: "fatal",
 	});
 	await activeObservability?.dispose();
 	process.stderr.write(`${message}\n`);

@@ -60,6 +60,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
+	filterChatModels,
 	loadProviderModelCatalog,
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
@@ -492,7 +493,9 @@ export function RoutineSchedulesContent() {
 
 		async function loadModelsForProvider() {
 			try {
-				const models = await loadProviderModels(normalizedProvider);
+				const models = filterChatModels(
+					await loadProviderModels(normalizedProvider),
+				);
 				if (cancelled || models.length === 0) {
 					return;
 				}
@@ -1154,9 +1157,7 @@ export function RoutineSchedulesContent() {
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>
-							{editingSchedule ? "Edit Routine" : "Create Routine"}
-						</DialogTitle>
+						<DialogTitle>Schedule</DialogTitle>
 						<DialogDescription>
 							{editingSchedule
 								? "Update this scheduler routine."

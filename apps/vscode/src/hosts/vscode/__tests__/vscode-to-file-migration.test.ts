@@ -117,8 +117,8 @@ describe("vscode-to-file-migration", () => {
 			result.globalStateCount.should.be.greaterThan(0)
 			storageContext.globalState.get("mode")!.should.equal("act")
 			// Both sentinels should be written
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(2)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(2)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("should run only MCP settings migration when v1 storage export sentinels are already present", async () => {
@@ -144,14 +144,14 @@ describe("vscode-to-file-migration", () => {
 			result.mcpServersAdded.should.equal(1)
 			;(storageContext.globalState.get("mode") === undefined).should.be.true()
 			;(storageContext.workspaceState.get("localClineRulesToggles") === undefined).should.be.true()
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(2)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(2)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("should skip everything when both sentinels are current version", async () => {
 			// Pre-set BOTH sentinels
-			storageContext.globalState.update("__vscodeMigrationVersion", 2)
-			storageContext.workspaceState.set("__vscodeMigrationVersion", 2)
+			storageContext.globalState.update("__vscodeMigrationVersion", 3)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 3)
 
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan")
@@ -216,7 +216,7 @@ describe("vscode-to-file-migration", () => {
 			const stored = storageContext.workspaceState.get("localClineRulesToggles") as any
 			stored.should.deepEqual({ "rule-1": true })
 			// Workspace sentinel should now be set
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(2)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("should migrate globals when workspace already migrated", async () => {
@@ -237,7 +237,7 @@ describe("vscode-to-file-migration", () => {
 			// Workspace state should NOT have been migrated
 			result.workspaceStateCount.should.equal(0)
 			// Global sentinel should now be set
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(2)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 	})
 
@@ -245,14 +245,14 @@ describe("vscode-to-file-migration", () => {
 		it("should migrate global state keys", async () => {
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan")
-			mockCtx._globalStateStore.set("yoloModeToggled", true)
+			mockCtx._globalStateStore.set("preferredLanguage", "German")
 			mockCtx._globalStateStore.set("enableCheckpointsSetting", false)
 
 			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
 
 			result.migrated.should.be.true()
 			storageContext.globalState.get("mode")!.should.equal("plan")
-			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
+			storageContext.globalState.get("preferredLanguage")!.should.equal("German")
 			storageContext.globalState.get("enableCheckpointsSetting")!.should.equal(false)
 		})
 
@@ -613,6 +613,117 @@ describe("vscode-to-file-migration", () => {
 		})
 	})
 
+	describe("yolo mode to auto-approval migration (v3)", () => {
+		const allActionsEnabled = {
+			readFiles: true,
+			readFilesExternally: true,
+			editFiles: true,
+			editFilesExternally: true,
+			executeSafeCommands: true,
+			executeAllCommands: true,
+			useBrowser: true,
+			useMcp: true,
+		}
+
+		it("enables all auto-approval actions for a legacy user with yoloModeToggled in VSCode storage", async () => {
+			const mockCtx = createMockVSCodeContext()
+			mockCtx._globalStateStore.set("yoloModeToggled", true)
+			mockCtx._globalStateStore.set("autoApprovalSettings", {
+				version: 5,
+				enabled: true,
+				favorites: [],
+				maxRequests: 20,
+				actions: { readFiles: true, editFiles: false, useBrowser: false, useMcp: false },
+				enableNotifications: true,
+			})
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.yoloModeMigrated.should.be.true()
+			const settings = storageContext.globalState.get("autoApprovalSettings") as any
+			settings.actions.should.deepEqual(allActionsEnabled)
+			// Non-action fields are preserved; version is bumped for race-condition detection.
+			settings.enableNotifications.should.equal(true)
+			settings.version.should.equal(6)
+			// The removed key is never exported to the file store (no longer a known key).
+			;(storageContext.globalState.get("yoloModeToggled") === undefined).should.be.true()
+		})
+
+		it("enables all auto-approval actions for a legacy user with autoApproveAllToggled", async () => {
+			const mockCtx = createMockVSCodeContext()
+			mockCtx._globalStateStore.set("autoApproveAllToggled", true)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.yoloModeMigrated.should.be.true()
+			const settings = storageContext.globalState.get("autoApprovalSettings") as any
+			settings.actions.should.deepEqual(allActionsEnabled)
+		})
+
+		it("runs for already-exported users (sentinel v2) whose file store has yoloModeToggled", async () => {
+			// A user who ran an SDK-extension build that still had the setting: the
+			// v1 export copied it into the file store and the sentinel sits at v2.
+			storageContext.globalState.update("__vscodeMigrationVersion", 2)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 2)
+			storageContext.globalState.update("yoloModeToggled", true)
+
+			const mockCtx = createMockVSCodeContext()
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.true()
+			result.yoloModeMigrated.should.be.true()
+			const settings = storageContext.globalState.get("autoApprovalSettings") as any
+			settings.actions.should.deepEqual(allActionsEnabled)
+			// The dead key stays in place (inert for current builds, preserved for downgrades).
+			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
+		})
+
+		it("does NOT migrate when the file store explicitly disabled yolo after a stale VSCode true", async () => {
+			// User turned YOLO on in the legacy extension, later turned it off in the
+			// SDK extension (file store wins, matching the export's merge semantics).
+			storageContext.globalState.update("__vscodeMigrationVersion", 2)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 2)
+			storageContext.globalState.update("yoloModeToggled", false)
+
+			const mockCtx = createMockVSCodeContext()
+			mockCtx._globalStateStore.set("yoloModeToggled", true)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.yoloModeMigrated.should.be.false()
+			// autoApprovalSettings untouched (never written)
+			;(storageContext.globalState.get("autoApprovalSettings") === undefined).should.be.true()
+			// The dead key stays in place (inert for current builds, preserved for downgrades).
+			storageContext.globalState.get("yoloModeToggled")!.should.equal(false)
+		})
+
+		it("does NOT touch auto-approval settings when yolo was never enabled", async () => {
+			const mockCtx = createMockVSCodeContext()
+			mockCtx._globalStateStore.set("mode", "act")
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.yoloModeMigrated.should.be.false()
+			;(storageContext.globalState.get("autoApprovalSettings") === undefined).should.be.true()
+		})
+
+		it("does NOT run again once the sentinel is current", async () => {
+			storageContext.globalState.update("__vscodeMigrationVersion", 3)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 3)
+			// A yolo value that reappears after the migration ran must stay untouched.
+			storageContext.globalState.update("yoloModeToggled", true)
+
+			const mockCtx = createMockVSCodeContext()
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			result.migrated.should.be.false()
+			result.yoloModeMigrated.should.be.false()
+			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
+		})
+	})
+
 	describe("error handling", () => {
 		it("should NOT write sentinel if migration throws", async () => {
 			const mockCtx = createMockVSCodeContext()
@@ -623,7 +734,7 @@ describe("vscode-to-file-migration", () => {
 			})
 
 			mockCtx._globalStateStore.set("mode", "act")
-			mockCtx._globalStateStore.set("yoloModeToggled", true)
+			mockCtx._globalStateStore.set("preferredLanguage", "German")
 			mockCtx._globalStateStore.set("enableCheckpointsSetting", true)
 
 			try {

@@ -4,11 +4,32 @@
 
 import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType } from "../shared/buttonConfig"
+import type { ButtonActionType, SubmittingButtonActionType } from "../shared/buttonConfig"
+
+export interface DraftSnapshot {
+	revision: number
+	text: string
+	activeQuote: string | null
+	images: string[]
+	files: string[]
+}
+
+export type ButtonActionInvocation =
+	| { type: SubmittingButtonActionType; draft: DraftSnapshot }
+	| { type: Exclude<ButtonActionType, SubmittingButtonActionType>; draft?: never }
 
 export interface PendingUserMessage {
 	message: ClineMessage
 	afterTs: number
+}
+
+export interface PendingResponse {
+	/** Locally unique submission id, used to avoid an older RPC clearing newer state. */
+	id: number
+	/** TurnState sequence observed when the RPC was sent. */
+	turnStateSeq: number | undefined
+	/** Raw backend message count observed when the RPC was sent (legacy fallback). */
+	messageCount: number
 }
 
 /**
@@ -26,6 +47,8 @@ export interface ChatState {
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
 	selectedFiles: string[]
 	setSelectedFiles: React.Dispatch<React.SetStateAction<string[]>>
+	getDraftSnapshot: () => DraftSnapshot
+	consumeDraftSnapshot: (draft: DraftSnapshot) => void
 	sendingDisabled: boolean
 	setSendingDisabled: React.Dispatch<React.SetStateAction<boolean>>
 	enableButtons: boolean
@@ -38,6 +61,8 @@ export interface ChatState {
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
 	pendingUserMessage: PendingUserMessage | undefined
 	setPendingUserMessage: React.Dispatch<React.SetStateAction<PendingUserMessage | undefined>>
+	pendingResponse: PendingResponse | undefined
+	setPendingResponse: React.Dispatch<React.SetStateAction<PendingResponse | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
@@ -62,10 +87,14 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
-	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
+	errorRecoveryAvailable: boolean
+	recoveryActionInFlight: boolean
+	compactTask: () => Promise<boolean>
+	executeButtonAction: (invocation: ButtonActionInvocation) => Promise<boolean>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
-	startNewTask: () => Promise<void>
+	retryFailedRequest: () => Promise<boolean>
+	startNewTask: (source?: "chat_new_task" | "navbar") => Promise<boolean>
 }
 
 /**
@@ -93,6 +122,7 @@ export interface ScrollBehavior {
  * Welcome section props
  */
 export interface WelcomeSectionProps {
+	isVisible: boolean
 	showAnnouncement: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void

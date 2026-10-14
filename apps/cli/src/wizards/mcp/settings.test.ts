@@ -8,6 +8,7 @@ import {
 	clearServerOAuth,
 	loadServers,
 	removeServer,
+	setServerOAuthClient,
 } from "./settings";
 
 describe("MCP wizard settings", () => {
@@ -138,5 +139,36 @@ describe("MCP wizard settings", () => {
 		clearServerOAuth("missing");
 
 		await expect(readFile(settingsPath, "utf8")).resolves.toBe(before);
+	});
+
+	it("clears OAuth state when the configured client changes", async () => {
+		const settingsPath = await useTempSettingsPath();
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					github: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://api.githubcopilot.com/mcp/",
+						},
+						oauthClient: { clientId: "old-client", clientSecret: "old-secret" },
+						oauth: { tokens: { access_token: "old-token" } },
+					},
+				},
+			}),
+		);
+
+		setServerOAuthClient("github", {
+			clientId: "new-client",
+			clientSecret: "new-secret",
+		});
+
+		const [github] = loadServers();
+		expect(github?.oauth).toBeUndefined();
+		expect(github?.oauthClient).toEqual({
+			clientId: "new-client",
+			clientSecret: "new-secret",
+		});
 	});
 });

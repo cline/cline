@@ -1,8 +1,8 @@
 import { $ } from "bun";
 
 const main = async () => {
-	await $`next build`.cwd("webview");
 	await $`bun run build:sidecar:bin`;
+	await $`next build`.cwd("webview");
 };
 
 main().catch((error: unknown) => {

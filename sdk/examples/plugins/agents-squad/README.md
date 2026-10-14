@@ -120,3 +120,12 @@ All optional. Environment variables override defaults:
 ## How it works
 
 Each subagent is a full Cline SDK session created via `ClineCore.create(...)`. `start_subagent` resolves the preset, merges any overrides, starts a non-interactive session, and returns the session ID immediately. The first turn runs in the background; when it finishes (or fails) the result is stored and — unless `notifyParent: false` — pushed back to the parent session as a steer message. The parent can also poll with `get_subagent`.
+
+## Observability
+
+The plugin reports through both host observability channels (feature-detected, so it works on hosts without them):
+
+- **`ctx.logger`** — structured, session-scoped logs: plugin setup, each subagent start, and queued follow-ups, tagged with the plugin name in the host's log sink.
+- **`ctx.telemetry`** — aggregated signals: a `subagents_setup` event, a `subagents.started` counter (by preset/provider), a `subagent_turn_completed` event (status, preset, finish reason), and a `subagents.turn_duration_ms` histogram. Properties are low-cardinality only — never task text or subagent output. The host namespaces everything under `plugin.` and stamps `plugin_name`.
+
+See [`telemetry.ts`](../telemetry.ts) for the full `ctx.telemetry` / `ctx.logger` contract.

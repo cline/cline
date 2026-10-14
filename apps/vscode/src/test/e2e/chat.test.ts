@@ -65,3 +65,112 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await inputbox.pressSequentially("following text should be preserved")
 	await expect(inputbox).toHaveValue("@problems following text should be preserved")
 })
+
+e2e.describe("Checkpoint settings", () => {
+	e2e.describe.configure({ timeout: 180_000 })
+
+	e2e("enabling during a turn applies after the queued message", async ({ helper, page, server, sidebar }) => {
+		await helper.signin(sidebar)
+
+		const openSettings = async () => {
+			await page.getByRole("button", { name: "Settings" }).first().click()
+			await expect(sidebar.getByText("Settings", { exact: true })).toBeVisible()
+			await sidebar.getByRole("tab").nth(1).click()
+			await expect(sidebar.getByText("Feature Settings", { exact: true })).toBeVisible()
+		}
+		const checkpoints = sidebar.getByText("Checkpoints", { exact: true }).locator("..").getByRole("switch")
+		const checkpointSetting = sidebar.locator("#checkpoints-setting")
+		const inputbox = sidebar.getByTestId("chat-input")
+
+		await openSettings()
+		await expect(checkpoints).toBeChecked()
+		await checkpoints.click()
+		await expect(checkpoints).not.toBeChecked()
+		await sidebar.getByRole("button", { name: "Done" }).click()
+
+		await inputbox.fill("message without checkpoints")
+		await sidebar.getByTestId("send-button").click()
+		await expect(sidebar.getByText("mock Cline API response")).toBeVisible({ timeout: 30_000 })
+
+		// A streamed reply becomes visible before its turn ends. Wait for the
+		// footer's Cancel button to go and for the chat input to take focus back
+		// before sending or editing: a message sent earlier joins the running
+		// turn's queue and runs on the old session instead of the rebuilt one,
+		// and the refocus that follows the turn would close the Reset Code
+		// popover.
+		const footerCancel = sidebar.getByRole("button", { name: "Cancel", exact: true })
+		const waitForTurnEnd = async () => {
+			await expect(footerCancel).toHaveCount(0, { timeout: 30_000 })
+			await expect(inputbox).toBeFocused()
+		}
+		const openEditor = async (messageText: string) => {
+			await waitForTurnEnd()
+			await sidebar.locator('[title="Edit and regenerate from here"]').filter({ hasText: messageText }).click()
+		}
+
+		await inputbox.fill("follow-up without checkpoints")
+		await sidebar.getByTestId("send-button").click()
+		await expect(sidebar.getByText("mock Cline API response")).toHaveCount(2, { timeout: 30_000 })
+
+		await openEditor("follow-up without checkpoints")
+		const resetCode = sidebar.getByRole("button", { name: "Reset Code" })
+		// The button is busy while the checkpoint is looked up; the answer
+		// swaps its tooltip for the explanation popover.
+		await expect(resetCode).not.toHaveAttribute("aria-busy")
+		await expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await resetCode.focus()
+		await resetCode.press("Enter")
+		const popover = sidebar.locator('[data-slot="popover-content"]')
+		await expect(popover).toBeVisible()
+		await popover.getByText("Settings", { exact: true }).click()
+		await expect(sidebar.getByText("Feature Settings", { exact: true })).toBeVisible()
+		await expect(popover).not.toBeVisible()
+		await expect(checkpoints).not.toBeChecked()
+		await expect(checkpoints).toBeFocused()
+		await expect(checkpointSetting).toHaveClass(/settings-target-highlight/)
+		await sidebar.getByRole("button", { name: "Done" }).click()
+		await sidebar.getByTestId("virtuoso-item-list").getByRole("button", { name: "Cancel" }).click()
+
+		if (!server) {
+			throw new Error("Checkpoint settings test requires the mock API server")
+		}
+		server.holdCheckpointProbe()
+		try {
+			await inputbox.fill("checkpoint_rebuild_probe")
+			await sidebar.getByTestId("send-button").click()
+			await expect(sidebar.getByText("Checkpoint rebuild probe", { exact: false })).toBeVisible({ timeout: 30_000 })
+
+			await openSettings()
+			await checkpoints.click()
+			await expect(checkpoints).toBeChecked()
+			await sidebar.getByRole("button", { name: "Done" }).click()
+
+			// A message sent during the turn joins Core's queue and runs with the
+			// settings in force when that turn ends; the setting change applies
+			// from the next message.
+			await inputbox.fill("queued during checkpoint change")
+			const sendButton = sidebar.getByTestId("send-button")
+			await expect(sendButton).not.toHaveClass(/disabled/)
+			await sendButton.click()
+			await expect(sidebar.getByText("queued during checkpoint change")).toBeVisible({ timeout: 30_000 })
+			server.releaseCheckpointProbe()
+			await expect(sidebar.getByText("mock Cline API response")).toHaveCount(3, { timeout: 30_000 })
+		} finally {
+			server.releaseCheckpointProbe()
+		}
+
+		// The setting change rebuilds the session once the queued turn ends;
+		// the next message must start on the rebuilt, checkpoint-enabled session.
+		await waitForTurnEnd()
+		await inputbox.fill("follow-up after enabling checkpoints")
+		await sidebar.getByTestId("send-button").click()
+		await expect(sidebar.getByText("Checkpoint-enabled follow-up reached the rebuilt session.")).toBeVisible({
+			timeout: 30_000,
+		})
+
+		await openEditor("follow-up after enabling checkpoints")
+		const checkpointedResetCode = sidebar.getByRole("button", { name: "Reset Code" })
+		await expect(checkpointedResetCode).not.toHaveAttribute("aria-disabled")
+		await expect(checkpointedResetCode).toBeEnabled()
+	})
+})

@@ -41,7 +41,7 @@ describe("AgentHeroHeading", () => {
 				?.textContent,
 		).toBe("build");
 
-		await act(async () => vi.advanceTimersByTime(2600));
+		await act(async () => vi.advanceTimersByTime(5000));
 
 		expect(
 			container.querySelector(".cline-ui-agent-hero-heading__word")
@@ -54,7 +54,7 @@ describe("AgentHeroHeading", () => {
 		window.matchMedia = vi.fn().mockReturnValue({ matches: false });
 		await renderHeading();
 
-		await act(async () => vi.advanceTimersByTime(2600));
+		await act(async () => vi.advanceTimersByTime(5000));
 
 		expect(
 			container.querySelector(".cline-ui-agent-hero-heading__word")

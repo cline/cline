@@ -5,7 +5,7 @@ import type { McpHub } from "@/services/mcp/McpHub"
  * Build SDK `toolPolicies` for tools governed by Cline's auto-approval UI.
  *
  * The SDK defaults unlisted tools to auto-approved. For tools controlled by
- * AutoApproveBar/MCP per-tool settings, force the SDK to call
+ * the AutoApproveBar toggles (including all MCP tools), force the SDK to call
  * `requestToolApproval`; the approval callback then evaluates the latest
  * settings and either silently approves or shows the approval UI. This keeps
  * active sessions in sync when the user toggles auto-approval mid-task.
@@ -45,7 +45,7 @@ export function buildToolPolicies(
  * approval callback, so changes from the AutoApproveBar are respected even if
  * an SDK session was created before the toggle changed.
  */
-export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings, mcpHub?: McpHub): boolean {
+export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings): boolean {
 	if (isReadTool(toolName)) {
 		return !!settings.actions.readFiles
 	}
@@ -59,14 +59,9 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.useBrowser
 	}
 
-	const mcpTool = parseMcpToolName(toolName)
-	if (mcpTool) {
-		if (!settings.actions.useMcp || !mcpHub) {
-			return false
-		}
-		const server = mcpHub.getServers().find((entry) => entry.name === mcpTool.serverName)
-		const tool = server?.tools?.find((entry) => entry.name === mcpTool.toolName)
-		return !!tool?.autoApprove
+	if (isMcpToolName(toolName)) {
+		// One global toggle governs all MCP tools; there is no per-tool opt-in.
+		return !!settings.actions.useMcp
 	}
 
 	return false
@@ -90,11 +85,8 @@ function isBrowserTool(toolName: string): boolean {
 	return toolName === "fetch_web_content" || toolName === "web_fetch" || toolName === "web_search"
 }
 
-function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
+/** MCP tools are registered by `createMcpTools` under `serverName__toolName`. */
+function isMcpToolName(toolName: string): boolean {
 	const separatorIndex = toolName.indexOf("__")
-	if (separatorIndex <= 0) return undefined
-	const serverName = toolName.substring(0, separatorIndex)
-	const mcpToolName = toolName.substring(separatorIndex + 2)
-	if (!mcpToolName) return undefined
-	return { serverName, toolName: mcpToolName }
+	return separatorIndex > 0 && separatorIndex + 2 < toolName.length
 }

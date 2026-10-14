@@ -8,11 +8,12 @@ import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "reac
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
@@ -24,6 +25,7 @@ interface RequestyModelPickerProps {
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
+	const { write } = useProviderConfig("requesty")
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
@@ -170,9 +172,16 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 		}
 	}, [selectedIndex])
 
-	const showBudgetSlider = useMemo(() => {
-		return selectedModelId?.includes("claude-3-7-sonnet")
-	}, [selectedModelId])
+	// Reasoning support comes from the SDK catalog (models.dev), not model-id
+	// heuristics: any reasoning-capable model gets the effort selector. Gate on
+	// the live catalog entry — the committed legacy snapshot can be cleared by
+	// provider-config writes, and the safe-default fallback would over-report.
+	const showReasoningEffort = requestyModels[selectedModelId]?.supportsReasoning === true
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({
+			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+		}).catch((err) => console.error("Failed to update Requesty reasoning effort:", err))
+	}
 
 	return (
 		<div style={{ width: "100%" }}>
@@ -248,7 +257,14 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{showReasoningEffort && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={handleReasoningEffortChange}
+						/>
+					)}
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			) : (

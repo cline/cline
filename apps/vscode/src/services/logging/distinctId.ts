@@ -9,6 +9,13 @@ import { StorageContext } from "@/shared/storage"
  */
 let _distinctId = ""
 
+/*
+ * Deterministic identifier for the device, resolved once at initialization.
+ * Unlike the distinct ID, this is never replaced by the Cline User ID on auth,
+ * so every session on this device reports the same value.
+ */
+let _deviceId = ""
+
 /**
  * Some environments don't return a value for the machine ID. For these situations we generated
  * a unique ID and store it locally.
@@ -31,6 +38,7 @@ export async function initializeDistinctId(storage: StorageContext, uuid: () => 
 		storage.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
 	}
 
+	_deviceId = distinctId
 	setDistinctId(distinctId)
 
 	await HostRegistryInfo.init(distinctId)
@@ -75,4 +83,14 @@ export function getDistinctId() {
 		Logger.debug("[DistinctId] Not initialized. Call initializeDistinctId() first.")
 	}
 	return _distinctId
+}
+
+/*
+ * Deterministic identifier for the device (machine ID, or the stored generated
+ * ID as a fallback). Attached to all telemetry events as `device_id` so events
+ * can be tied to a device regardless of auth status. Empty string until
+ * initializeDistinctId() has run.
+ */
+export function getDeviceId() {
+	return _deviceId
 }

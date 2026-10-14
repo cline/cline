@@ -51,6 +51,10 @@ import {
 } from "./services/feature-flags";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
 import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
+import {
+	projectSessionMessagesForDisplay,
+	type SessionDisplayMessage,
+} from "./session/display-messages";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -168,6 +172,7 @@ export class ClineCore {
 					}),
 					dbPath: automationOptions.dbPath,
 					logger: automationOptions.logger,
+					telemetry: this.telemetry,
 					pollIntervalMs: automationOptions.pollIntervalMs,
 					claimLeaseSeconds: automationOptions.claimLeaseSeconds,
 					globalMaxConcurrency: automationOptions.globalMaxConcurrency,
@@ -505,10 +510,12 @@ export class ClineCore {
 		...args
 	) => this.host.readSessionCompactionState(...args);
 	/**
-	 * Reads message history for a session.
+	 * Reads the canonical message history for a session.
 	 *
-	 * Retrieves the full message transcript for a specific session, including all
-	 * user messages, agent responses, and tool interactions.
+	 * This is the model/replay representation used by resume, fork, and
+	 * compaction. Provider-owned model-tool activity remains observational
+	 * metadata here. Use {@link readDisplayMessages} for a UI transcript with
+	 * that activity projected into ordinary tool blocks.
 	 *
 	 * @example
 	 * ```ts
@@ -520,6 +527,20 @@ export class ClineCore {
 	 */
 	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
 		this.host.readSessionMessages(...args);
+
+	/**
+	 * Reads a transcript projected for presentation. Observational model-tool
+	 * activity is represented with the same tool blocks as ordinary local tools.
+	 *
+	 * Use {@link readMessages} for resume, fork, compaction, or model replay.
+	 */
+	async readDisplayMessages(
+		sessionId: string,
+	): Promise<SessionDisplayMessage[]> {
+		return projectSessionMessagesForDisplay(
+			await this.host.readSessionMessages(sessionId),
+		);
+	}
 
 	/**
 	 * Reads message history for a session, preferring the live in-memory
@@ -618,6 +639,17 @@ export class ClineCore {
 		options?: RuntimeHostSubscribeOptions,
 	): () => void {
 		return this.host.subscribe(listener, options);
+	}
+	/**
+	 * Whether this instance is subscribed to a session's live events.
+	 *
+	 * In hub mode ClineCore subscribes to a session when it starts, sends to,
+	 * or lists pending prompts for it, and unsubscribes on stop. A client that
+	 * also observes the hub directly can use this to render one copy of the
+	 * session's events instead of both.
+	 */
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.host.hasSessionSubscription?.(sessionId) ?? false;
 	}
 	/**
 	 * Updates the AI model used by an active session.

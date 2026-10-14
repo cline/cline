@@ -17,7 +17,6 @@ import { z } from "zod"
 const OpenAiCompatibleModelSchema = z.object({
 	id: z.string(), // The model ID is required
 	temperature: z.number().optional(),
-	isR1FormatRequired: z.boolean().optional(),
 	maxTokens: z.number().optional(),
 	contextWindow: z.number().optional(),
 	inputPrice: z.number().optional(),
@@ -205,6 +204,7 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryEnabled: z.boolean().optional(),
 	openTelemetryMetricsExporter: z.string().optional(),
 	openTelemetryLogsExporter: z.string().optional(),
+	openTelemetryTracesExporter: z.string().optional(),
 	openTelemetryOtlpProtocol: z.string().optional(),
 	openTelemetryOtlpEndpoint: z.string().optional(),
 	openTelemetryOtlpHeaders: z.record(z.string(), z.string()).optional(),
