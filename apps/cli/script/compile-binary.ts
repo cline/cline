@@ -147,6 +147,7 @@ export async function compileCliBinary(
 					`${bunfsRoot}plugin-runtime`,
 				),
 				__CLINE_DASHBOARD_RUNTIME_DIR__: JSON.stringify(`${bunfsRoot}webview`),
+				CLINE_CLI_COMPILE_TARGET: JSON.stringify(input.bunTarget),
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.
 				...buildInlinedEnvDefines(),
