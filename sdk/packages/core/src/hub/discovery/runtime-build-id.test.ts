@@ -68,6 +68,13 @@ describe("SDK runtime build identity", () => {
 		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
 	});
 
+	it("changes when package resolution changes", () => {
+		const root = createRuntimeFixture();
+		const first = resolveSdkRuntimeBuildId(root);
+		writeFileSync(join(root, "sdk/packages/core/tsconfig.json"), JSON.stringify({ compilerOptions: { paths: {} } }));
+		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
+	});
+
 	it("ignores test-only source changes", () => {
 		const root = createRuntimeFixture();
 		const first = resolveSdkRuntimeBuildId(root);

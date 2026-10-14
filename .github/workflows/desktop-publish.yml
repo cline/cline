@@ -12,6 +12,10 @@ on:
         description: "Existing stable/beta tag; leave empty for nightly"
         required: false
         type: string
+      cli_release:
+        description: "Pinned standalone CLI release tag (defaults to apps/cli version); SDK must match"
+        required: false
+        type: string
       confirm_publish:
         description: 'Type "publish" to confirm the desktop release.'
         required: true
@@ -36,6 +40,9 @@ permissions:
 defaults:
   run:
     working-directory: .
+
+env:
+  CLINE_DESKTOP_CLI_RELEASE: ${{ inputs.cli_release }}
 
 jobs:
   validate:
@@ -372,11 +379,8 @@ jobs:
           # bare DMG. macOS runners have a GUI session, so opt out of the skip.
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"
 
-      # Tauri lipos the main binary itself but the bundled Cline CLI is merged
-      # by our own build-desktop-runtime.ts, so assert every Mach-O in the
-      # bundle really carries both slices before anything is published. A
-      # single-arch CLI would otherwise ship fine and only crash on the other
-      # arch.
+      # Tauri merges the app's Rust binaries; verify every shipped Mach-O.
+      # The CLI is installed from its native standalone release at startup.
       - name: Verify bundle is a universal binary
         working-directory: apps/examples/desktop-app
         env:
@@ -462,6 +466,11 @@ jobs:
       # malformed, or non-http(s) OTLP endpoint would still drop every event
       # at runtime (the SDK exporters speak OTLP http/json only), so the
       # selfcheck must also report a usable endpoint host.
+      - name: Verify pinned standalone CLI release
+        if: runner.os != 'Windows'
+        working-directory: apps/examples/desktop-app
+        run: bun scripts/verify-cli-release.ts
+
       - name: Verify CLI and desktop backend telemetry configs were inlined
         working-directory: apps/examples/desktop-app
         run: |
@@ -818,6 +827,11 @@ jobs:
           echo "Updater endpoint verified: ${WANT:-disabled}"
 
       # Same guardrail as the macOS job, run natively on the Windows build.
+      - name: Verify pinned standalone CLI release
+        if: runner.os != 'Windows'
+        working-directory: apps/examples/desktop-app
+        run: bun scripts/verify-cli-release.ts
+
       - name: Verify CLI and desktop backend telemetry configs were inlined
         shell: bash
         working-directory: apps/examples/desktop-app
@@ -1098,6 +1112,11 @@ jobs:
           echo "Updater endpoint verified: ${WANT:-disabled}"
 
       # Same guardrail as the other build jobs, run on the Linux build.
+      - name: Verify pinned standalone CLI release
+        if: runner.os != 'Windows'
+        working-directory: apps/examples/desktop-app
+        run: bun scripts/verify-cli-release.ts
+
       - name: Verify CLI and desktop backend telemetry configs were inlined
         working-directory: apps/examples/desktop-app
         env:
@@ -1147,10 +1166,10 @@ jobs:
       # (#14815, #14781); nothing exercised that path before release. Isolated
       # CLINE_DIR and discovery record, as in the runtime test above. Only the
       # exit status is checked; the ensure output carries the Hub auth token.
-      - name: Smoke-test the bundled SSH remote CLI
+      - name: Smoke-test the Linux runtime for SSH
         working-directory: apps/examples/desktop-app
         env:
-          REMOTE_CLI: src-tauri/bin/remote-helpers/cline-${{ matrix.target }}
+          REMOTE_CLI: src-tauri/bin/cline-cli-${{ matrix.target }}
         run: |
           export CLINE_DIR="$(mktemp -d)"
           export CLINE_DATA_DIR="$CLINE_DIR/data"
@@ -1158,7 +1177,7 @@ jobs:
           DISCOVERY="$CLINE_DIR/remote-hub.json"
           trap 'timeout 30 "$REMOTE_CLI" hub stop --discovery-path "$DISCOVERY" >/dev/null 2>&1 || true' EXIT
           if ! timeout 60 "$REMOTE_CLI" hub ensure --json --allow-port-fallback --no-connectors --cwd "$CLINE_DIR" --host 127.0.0.1 --port 0 --pathname /hub --discovery-path "$DISCOVERY" >/dev/null; then
-            echo "Bundled remote CLI failed hub ensure; SSH remotes would not"
+            echo "Linux CLI failed hub ensure; SSH remotes would not"
             echo "start from this build. Check scripts/build-desktop-runtime.ts."
             exit 1
           fi

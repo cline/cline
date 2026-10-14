@@ -19,6 +19,13 @@
 			"nsis": {
 				"installerHooks": "nsis/installer-hooks.nsh"
 			}
-		}
+		},
+		"externalBin": ["bin/cline-cli"],
+		"resources": [
+			"icons/app/*.png",
+			"icons/app/macos/*.png",
+			"bin/desktop-backend/*",
+			"bin/remote-helpers/*"
+		]
 	}
 }

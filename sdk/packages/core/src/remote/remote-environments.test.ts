@@ -20,6 +20,7 @@ import {
 	type RemoteEnvironmentServiceOptions,
 	type RemoteTunnelProcess,
 	runRemoteProcess,
+	snapshotHelper,
 } from "./remote-environments";
 
 vi.mock("node:child_process", async (importOriginal) => {
@@ -90,6 +91,7 @@ describe("RemoteEnvironmentService", () => {
 			...options,
 			profilesPath,
 			dependencies: {
+				snapshotHelper: async (path) => ({ path, dispose: async () => {} }),
 				now: () => new Date("2026-08-06T12:00:00.000Z"),
 				randomId: () => `test-id-${++id}`,
 				requestHubShutdown: async () => true,
@@ -188,6 +190,19 @@ describe("RemoteEnvironmentService", () => {
 		const pid = Number(await readFile(pidFile, "utf8"));
 		expect(() => process.kill(pid, 0)).toThrow();
 	});
+	it("keeps a stable snapshot when a shared runtime is atomically replaced", async () => {
+		const source = join(testDirectory, "shared-cline");
+		await writeFile(source, "old runtime");
+		const snapshot = await snapshotHelper(source);
+		try {
+			await writeFile(source, "new runtime");
+			expect(await readFile(snapshot.path, "utf8")).toBe("old runtime");
+		} finally {
+			await snapshot.dispose();
+		}
+		await expect(stat(snapshot.path)).rejects.toThrow();
+	});
+
 	it("cleans up when the upload input cannot be opened", async () => {
 		await expect(
 			runRemoteProcess(process.execPath, ["-e", "process.stdin.resume()"], {
@@ -868,6 +883,7 @@ describe("RemoteEnvironmentService", () => {
 			profilesPath,
 			onConnectionLost,
 			dependencies: {
+				snapshotHelper: async (path) => ({ path, dispose: async () => {} }),
 				now: () => new Date("2026-08-06T12:00:00.000Z"),
 				randomId: () => "lost-profile",
 				runProcess: async (_executable, args) => {

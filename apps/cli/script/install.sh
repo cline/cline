@@ -240,6 +240,17 @@ if [[ "$cached" == false ]]; then
     printf '%s\n' "$expected_epoch" > "$temporary/cline.build-epoch"
     state_dir="$temporary"
 fi
+# Cross-target caches cannot execute the binary locally, so validate the pinned
+# release metadata against the SDK expected by the desktop that will upload it.
+if [[ "$managed" == false && -n "${CLINE_INSTALL_BUILD_ID:-}" ]]; then
+    actual_build=$(cat "$state_dir/build-id" 2>/dev/null || true)
+    if [[ -z "$actual_build" ]]; then
+        if [[ -n "$binary" ]]; then actual_build=$(CLINE_NO_AUTO_UPDATE=1 "$state_dir/cline" --runtime-build-id)
+        else actual_build=$(curl --fail --location --silent --show-error --connect-timeout 15 --max-time 30 --proto '=https' --proto-redir '=https' "https://github.com/cline/cline/releases/download/$release/cline-runtime-$target.build-id"); fi
+    fi
+    [[ "$actual_build" == "$CLINE_INSTALL_BUILD_ID" ]] || fail 'downloaded runtime has an incompatible SDK build'
+    printf '%s\n' "$actual_build" > "$state_dir/build-id"
+fi
 # Recheck under the activation lock, even when selecting a cached release.
 expected_epoch=$(cat "$state_dir/cline.build-epoch")
 installed_epoch=$(cat "$install_dir/cline.build-epoch" 2>/dev/null || true)
@@ -283,6 +294,7 @@ if [[ "$managed" == true ]]; then
 else
     if [[ "$cached" == false ]]; then
         for file in cline.sha256 cline.build-epoch release cline; do mv -f "$temporary/$file" "$install_dir/$file"; done
+        [[ ! -f "$temporary/build-id" ]] || mv -f "$temporary/build-id" "$install_dir/build-id"
     fi
 fi
 if [[ "$modify_path" == true ]]; then

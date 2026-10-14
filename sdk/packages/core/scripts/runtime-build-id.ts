@@ -48,6 +48,11 @@ export function resolveSdkRuntimeBuildId(repoRoot: string): string {
 	for (const packageName of RUNTIME_PACKAGE_NAMES) {
 		const packageRoot = join(packagesRoot, packageName);
 		inputs.push(join(packageRoot, "package.json"));
+		// Package resolution affects bundled runtime graphs even without source edits.
+		for (const config of ["tsconfig.json", "tsconfig.build.json"]) {
+			const path = join(packageRoot, config);
+			if (existsSync(path)) inputs.push(path);
+		}
 		const buildScript = join(packageRoot, "bun.mts");
 		if (existsSync(buildScript)) {
 			inputs.push(buildScript);

@@ -495,6 +495,25 @@ esac
 			expect(existsSync(oldCli)).toBe(true);
 		}));
 
+	test("validates the desktop SDK for a cross-target cache and reuses it offline", () =>
+		fixture((root, env) => {
+			const directory = join(root, "cross-target");
+			const installationEnv = { ...env, CLINE_INSTALL_BUILD_ID: "sdk-fixture" };
+			execFileSync("bash", args(directory), { env: installationEnv });
+			expect(readFileSync(join(directory, "build-id"), "utf8")).toBe(
+				"sdk-fixture\n",
+			);
+			execFileSync("bash", args(directory), {
+				env: { ...installationEnv, FAIL_DOWNLOAD: "1" },
+			});
+			const mismatch = spawnSync("bash", args(directory), {
+				env: { ...installationEnv, CLINE_INSTALL_BUILD_ID: "different-sdk" },
+				encoding: "utf8",
+			});
+			expect(mismatch.status).not.toBe(0);
+			expect(mismatch.stderr).toContain("incompatible SDK build");
+		}));
+
 	test.each([
 		["Darwin", "arm64", "aarch64-apple-darwin"],
 		["Darwin", "x86_64", "x86_64-apple-darwin"],

@@ -81,8 +81,8 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The packaged backend runs on the bundled Cline CLI and has it start the Hub:
-`cline-cli hub ensure` reuses a compatible healthy Hub or starts one, and the
+The packaged backend runs on the selected compatible Cline CLI and has it start the Hub:
+`cline hub ensure` reuses a compatible healthy Hub or starts one, and the
 Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
@@ -248,3 +248,15 @@ bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
 bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```
+
+## Shared runtime selection
+
+The Rust shell reuses a compatible installed CLI or runs the pinned CLI installer
+on macOS/Linux before spawning the backend. Windows retains the bundled CLI.
+The backend inherits the selected executable, installer resource directory, and
+SSH runtime cache directory. SSH selection reuses a matching portable host CLI
+or installs the target release into that cache. Installer subprocess groups are
+owned by `RuntimeInstallers` and cancelled before remote connection cleanup.
+Core snapshots, hashes, and uploads identical executable bytes before starting
+the isolated remote Hub. The shell releases its process lock during preparation
+and uses a separate startup lock, so shutdown can cancel a download promptly.

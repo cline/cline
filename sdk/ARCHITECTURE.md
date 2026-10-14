@@ -1259,3 +1259,18 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Desktop SSH runtime distribution
+
+Desktop selects a compatible installed CLI or downloads its pinned CLI release
+before starting its backend. For SSH, the host-specific resolver supplies a
+matching native CLI or downloads a target-specific cache. Core owns staging:
+`snapshotHelper` copies the selected executable, then hashes and uploads that
+same snapshot so activation of a newer local release cannot race the upload.
+Snapshot cleanup runs on success or failure. Desktop owns download cancellation
+and disposes installer subprocesses before tearing down SSH connections.
+
+Packaged CLI, Hub, and Desktop imports resolve through compiled SDK exports.
+Core's source aliases are restricted to its development typecheck config;
+runtime build fingerprints include SDK package resolution configs so a change
+to the compiled graph changes the identity used for CLI compatibility checks.
