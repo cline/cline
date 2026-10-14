@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
@@ -39,7 +45,12 @@ it("downloads only the requested SSH target from the desktop's exact release", a
 		const installerDir = join(root, "installer");
 		mkdirSync(installerDir);
 		writeFileSync(join(installerDir, "release.txt"), "cli-v0.0.43-beta.1\n");
-		const directory = join(root, "cache", "aarch64-unknown-linux-gnu");
+		const directory = join(
+			root,
+			"cache",
+			"cli-v0.0.43-beta.1",
+			"aarch64-unknown-linux-gnu",
+		);
 		const runInstaller = vi.fn(async () => {
 			mkdirSync(directory, { recursive: true });
 			writeFileSync(join(directory, "cline"), "runtime");
@@ -148,7 +159,12 @@ it("downloads a baseline Linux x64 runtime instead of reusing a non-baseline CLI
 	const root = mkdtempSync(join(tmpdir(), "cline-baseline-"));
 	try {
 		writeFileSync(join(root, "release.txt"), "cli-v0.0.43\n");
-		const directory = join(root, "cache", "x86_64-unknown-linux-gnu");
+		const directory = join(
+			root,
+			"cache",
+			"cli-v0.0.43",
+			"x86_64-unknown-linux-gnu",
+		);
 		const runInstaller = vi.fn(async () => {
 			mkdirSync(directory, { recursive: true });
 			writeFileSync(join(directory, "cline"), "baseline");
@@ -169,6 +185,77 @@ it("downloads a baseline Linux x64 runtime instead of reusing a non-baseline CLI
 		);
 		expect(result).toBe(join(directory, "cline"));
 		expect(runInstaller).toHaveBeenCalledTimes(1);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("keeps stable and beta SSH releases separate across repeated connections", async () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-release-cache-"));
+	try {
+		const installs = new Map<string, string>();
+		const runInstaller = async (
+			_script: string,
+			release: string,
+			_target: string,
+			directory: string,
+		) => {
+			const previous = installs.get(directory);
+			if (previous && previous !== release)
+				throw new Error("the installed CLI is newer");
+			installs.set(directory, release);
+			mkdirSync(directory, { recursive: true });
+			writeFileSync(join(directory, "cline"), release);
+		};
+		const paths = [];
+		for (const release of [
+			"cli-v0.0.43",
+			"cli-v0.0.44-beta.1",
+			"cli-v0.0.43",
+		]) {
+			writeFileSync(join(root, "release.txt"), release);
+			paths.push(
+				await resolveDesktopRemoteHelper(
+					{ platform: "linux", arch: "arm64" },
+					{
+						platform: "darwin",
+						runInstaller,
+						env: {
+							CLINE_DESKTOP_INSTALLER_DIRECTORY: root,
+							CLINE_DESKTOP_RUNTIME_DIRECTORY: join(root, "cache"),
+						},
+					},
+				),
+			);
+		}
+		expect(paths[0]).toBe(paths[2]);
+		expect(paths[0]).not.toBe(paths[1]);
+		expect(readFileSync(paths[0] ?? "", "utf8")).toBe("cli-v0.0.43");
+		expect(readFileSync(paths[1] ?? "", "utf8")).toBe("cli-v0.0.44-beta.1");
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("rejects invalid release paths before invoking the SSH installer", async () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-release-path-"));
+	try {
+		writeFileSync(join(root, "release.txt"), "../../escape");
+		const runInstaller = vi.fn(async () => {});
+		await expect(
+			resolveDesktopRemoteHelper(
+				{ platform: "linux", arch: "arm64" },
+				{
+					platform: "darwin",
+					runInstaller,
+					env: {
+						CLINE_DESKTOP_INSTALLER_DIRECTORY: root,
+						CLINE_DESKTOP_RUNTIME_DIRECTORY: root,
+					},
+				},
+			),
+		).rejects.toThrow("release manifest is invalid");
+		expect(runInstaller).not.toHaveBeenCalled();
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

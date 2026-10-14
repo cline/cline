@@ -545,6 +545,7 @@ fn spawn_desktop_backend_process(
         let mut command = Command::new("bun");
         command
             .arg("run")
+            .arg("--use-system-ca")
             .arg(script_path.to_string_lossy().to_string())
             .current_dir(&context.workspace_root);
         command
@@ -553,8 +554,7 @@ fn spawn_desktop_backend_process(
         resolve_desktop_backend_bundle_path(context),
     ) {
         let mut command = Command::new(cli_path);
-        // Under BUN_BE_BUN the CLI's baked-in --use-system-ca does not apply,
-        // so pass it again or the backend only trusts Bun's bundled roots.
+        // BUN_BE_BUN script mode does not inherit compiled execArgv.
         command
             .arg("run")
             .arg("--use-system-ca")

@@ -255,7 +255,8 @@ The Rust shell reuses a compatible installed CLI or runs the pinned CLI installe
 on macOS/Linux before spawning the backend. Windows retains the bundled CLI.
 The backend inherits the selected executable, installer resource directory, and
 SSH runtime cache directory. SSH selection reuses a matching portable host CLI
-or installs the target release into that cache. Installer subprocess groups are
+or installs the target release into a release-and-target directory in that cache.
+Stable and beta versions keep separate SSH executables. Installer subprocess groups are
 owned by `RuntimeInstallers` and cancelled before remote connection cleanup.
 Core snapshots, hashes, and uploads identical executable bytes before starting
 the isolated remote Hub. The shell releases its process lock during preparation

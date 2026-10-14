@@ -45,7 +45,6 @@ async function resolveCliBinary(): Promise<string> {
 				`bun-${process.platform === "win32" ? "windows" : process.platform}-${process.arch}` as Bun.Build.CompileTarget,
 			outfile,
 			autoloadLaunchDirectoryConfig: false,
-			execArgv: ["--use-system-ca"],
 		});
 		compiledCli = outfile;
 	}
@@ -107,7 +106,13 @@ test("the shipped CLI and backend report telemetry without starting a hub", asyn
 	const bundle = resolveBackendBundle();
 	for (const args of [
 		["--telemetry-selfcheck"],
-		["run", "--no-env-file", bundle, "--telemetry-selfcheck"],
+		[
+			"run",
+			"--use-system-ca",
+			"--no-env-file",
+			bundle,
+			"--telemetry-selfcheck",
+		],
 	]) {
 		const result = spawnSync(cli, args, {
 			encoding: "utf8",

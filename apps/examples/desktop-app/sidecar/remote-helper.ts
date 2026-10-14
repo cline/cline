@@ -80,6 +80,8 @@ export async function resolveDesktopRemoteHelper(
 		const release = (
 			await readFile(join(installerDir, "release.txt"), "utf8")
 		).trim();
+		if (!/^cli-v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(release))
+			throw new Error("Desktop CLI release manifest is invalid");
 		const triple =
 			target.platform === "darwin"
 				? `${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`
@@ -94,7 +96,7 @@ export async function resolveDesktopRemoteHelper(
 				(platform === "darwin" && isUniversalMacCli(cli)))
 		)
 			return cli;
-		const directory = join(runtimeDir, triple);
+		const directory = join(runtimeDir, release, triple);
 		const run =
 			options.runInstaller ??
 			(async (script, release, triple, directory) => {

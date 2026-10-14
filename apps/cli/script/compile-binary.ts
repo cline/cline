@@ -81,7 +81,7 @@ export async function installOpenTuiNativeVariants(): Promise<void> {
 export interface CompileCliBinaryOptions {
 	bunTarget: Bun.Build.CompileTarget;
 	outfile: string;
-	/** Runtime flags baked into the executable, e.g. `--use-system-ca`. */
+	/** Additional runtime flags; OS certificate trust is always enabled. */
 	execArgv?: string[];
 	/**
 	 * Read `.env` / `bunfig.toml` from the launch directory before the CLI
@@ -135,7 +135,8 @@ export async function compileCliBinary(
 				// Plugins import SDK packages from the runtime tree; let Bun resolve
 				// their package exports without falling back to transpiling the SDK.
 				autoloadPackageJson: true,
-				...(input.execArgv?.length ? { execArgv: input.execArgv } : {}),
+				// CLI, Hub, desktop backend, and SSH workers share OS CA trust.
+				execArgv: [...new Set(["--use-system-ca", ...(input.execArgv ?? [])])],
 				...(autoload ? {} : { autoloadDotenv: false, autoloadBunfig: false }),
 			},
 			minify: true,

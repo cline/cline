@@ -76,13 +76,6 @@ const compileDesktopCli = async (
 		// user did not choose (/, an SSH home). Reading .env or bunfig.toml
 		// from there could fail startup or leak credentials into the Hub.
 		autoloadLaunchDirectoryConfig: false,
-		// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS to
-		// intranet endpoints signed by a corporate CA (LiteLLM proxies, MITM
-		// firewalls) fails with "unable to get local issuer certificate". Bake
-		// --use-system-ca in so the Hub also trusts the OS Keychain/cert store,
-		// as the npm wrapper does. `BUN_BE_BUN=1 cline-cli run` ignores baked-in
-		// flags, so main.rs passes it again when launching the backend.
-		execArgv: ["--use-system-ca"],
 	});
 	return outfile;
 };
