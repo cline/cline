@@ -384,15 +384,11 @@ async function withWorkspaceRestoreLock<T>(
 			throw new Error("Remote environment service is unavailable");
 		}
 		const result = await ctx.remoteEnvironments.run(binding.environmentId, {
-			command: "git",
-			args: ["rev-parse", "--show-toplevel"],
+			command: "sh",
+			args: ["-c", "git rev-parse --show-toplevel 2>/dev/null || pwd -P"],
 			cwd: workspacePath,
 		});
-		key = resolve(
-			result.exitCode === 0 && result.stdout.trim()
-				? result.stdout.trim()
-				: workspacePath,
-		);
+		key = resolve(result.stdout.trim() || workspacePath);
 	} else {
 		key = resolveWorkspaceRoot(workspacePath);
 	}

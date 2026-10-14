@@ -154,11 +154,16 @@ describe("starting SSH sessions", () => {
 			provider: "cline",
 			model: "anthropic/claude-sonnet-4.6",
 		}));
-		const run = vi.fn(async () => ({
-			stdout: "/remote/project\n",
-			stderr: "",
-			exitCode: 0,
-		}));
+		const run = vi.fn(
+			async (
+				_id: string,
+				_input: { command: string; args?: string[]; cwd?: string },
+			) => ({
+				stdout: "/remote/project\n",
+				stderr: "",
+				exitCode: 0,
+			}),
+		);
 		const start = vi.fn(async (_input: unknown) => ({
 			sessionId,
 			manifest: { cwd: "/remote/project", workspace_root: "/remote/project" },
@@ -244,40 +249,64 @@ describe("starting SSH sessions", () => {
 			}),
 		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(run).toHaveBeenCalledWith(environmentId, {
-			command: "git",
-			args: ["rev-parse", "--show-toplevel"],
+			command: "sh",
+			args: ["-c", "git rev-parse --show-toplevel 2>/dev/null || pwd -P"],
 			cwd: "/remote/project/api",
 		});
 	});
 
-	it("allows editing remote messages without a Git repository or checkpoints", async () => {
-		const { ctx, config, run, start, readMessages } = setup();
-		ctx.wsClients = new Set();
-		run.mockResolvedValueOnce({
-			stdout: "",
-			stderr: "not a git repository",
-			exitCode: 128,
-		});
-		start.mockResolvedValueOnce({
-			sessionId: "edited-ssh",
-			manifest: { cwd: "/remote/project", workspace_root: "/remote/project" },
-		});
-		readMessages.mockResolvedValueOnce(transcript).mockResolvedValueOnce([]);
+	it.skipIf(process.platform === "win32")(
+		"allows editing remote messages without a Git repository or checkpoints",
+		async () => {
+			const { ctx, config, run, start, readMessages } = setup();
+			ctx.wsClients = new Set();
+			const directory = mkdtempSync(join(tmpdir(), "cline-remote-non-git-"));
+			onTestFinished(() => rmSync(directory, { recursive: true, force: true }));
+			run.mockImplementationOnce(async (_id, input) => ({
+				stdout: execFileSync(input.command, input.args ?? [], {
+					cwd: directory,
+					encoding: "utf8",
+					stdio: ["ignore", "pipe", "pipe"],
+				}),
+				stderr: "",
+				exitCode: 0,
+			}));
+			start.mockResolvedValueOnce({
+				sessionId: "edited-ssh",
+				manifest: { cwd: "/remote/project", workspace_root: "/remote/project" },
+			});
+			readMessages.mockResolvedValueOnce(transcript).mockResolvedValueOnce([]);
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "fork",
+					sessionId,
+					forkBeforeRunCount: 1,
+					config,
+				}),
+			).resolves.toEqual({
+				sessionId: "edited-ssh",
+				forkedFromSessionId: sessionId,
+			});
+			expect(start).toHaveBeenCalledWith(
+				expect.objectContaining({ initialMessages: [] }),
+			);
+			expect(ctx.liveSessions.get("edited-ssh")?.messages).toEqual([]);
+			expect(ctx.restoringWorkspacePaths.size).toBe(0);
+		},
+	);
+
+	it("does not continue a restore when remote root discovery loses its connection", async () => {
+		const { ctx, config, run } = setup();
+		const error = new Error("SSH connection failed");
+		run.mockRejectedValueOnce(error);
 		await expect(
 			handleChatSessionCommand(ctx, {
-				action: "fork",
+				action: "restore_checkpoint",
 				sessionId,
-				forkBeforeRunCount: 1,
-				config,
+				checkpointRunCount: 1,
+				config: { ...config, cwd: "/remote/project" },
 			}),
-		).resolves.toEqual({
-			sessionId: "edited-ssh",
-			forkedFromSessionId: sessionId,
-		});
-		expect(start).toHaveBeenCalledWith(
-			expect.objectContaining({ initialMessages: [] }),
-		);
-		expect(ctx.liveSessions.get("edited-ssh")?.messages).toEqual([]);
+		).rejects.toBe(error);
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
