@@ -135,7 +135,7 @@ describe("SettingsView cloud sessions rollout", () => {
 				return featureFlags;
 			}
 			if (command === "get_desktop_settings") {
-				return { cloudSessionsEnabled: false };
+				return { cloudSessionsEnabled: false, keepAwakeEnabled: true };
 			}
 			return {
 				telemetryOptOut: false,

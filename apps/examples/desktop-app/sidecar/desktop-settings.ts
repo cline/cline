@@ -6,10 +6,18 @@ import { resolveClineDataDir } from "@cline/shared/storage";
 export type DesktopSettings = {
 	/** Opt-in gate for cloud sessions while the feature is in preview. */
 	cloudSessionsEnabled: boolean;
+	/**
+	 * Hold an OS power assertion while tasks run so a long run is not cut off
+	 * by idle sleep. Defaults on because the failure mode (a frozen app with
+	 * dropped connections mid-run) is silent and easy to misread as a model or
+	 * network error.
+	 */
+	keepAwakeEnabled: boolean;
 };
 
 const DEFAULT_SETTINGS: DesktopSettings = {
 	cloudSessionsEnabled: false,
+	keepAwakeEnabled: true,
 };
 
 export function resolveDesktopSettingsPath(): string {
@@ -27,6 +35,7 @@ export function readDesktopSettings(): DesktopSettings {
 		const parsed = JSON.parse(raw) as Record<string, unknown>;
 		return {
 			cloudSessionsEnabled: parsed.cloudSessionsEnabled === true,
+			keepAwakeEnabled: parsed.keepAwakeEnabled !== false,
 		};
 	} catch {
 		return { ...DEFAULT_SETTINGS };
@@ -44,6 +53,12 @@ export function writeDesktopSettings(settings: DesktopSettings): void {
 
 export function setCloudSessionsEnabled(enabled: boolean): DesktopSettings {
 	const next = { ...readDesktopSettings(), cloudSessionsEnabled: enabled };
+	writeDesktopSettings(next);
+	return next;
+}
+
+export function setKeepAwakeEnabled(enabled: boolean): DesktopSettings {
+	const next = { ...readDesktopSettings(), keepAwakeEnabled: enabled };
 	writeDesktopSettings(next);
 	return next;
 }
