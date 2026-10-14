@@ -872,8 +872,16 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionMessages(this.ctx, envelope);
 			case "session.compaction.get":
 				return await handleSessionCompactionGet(this.ctx, envelope);
-			case "session.list":
-				return await handleSessionList(this.ctx, envelope);
+			case "session.list": {
+				const reply = await handleSessionList(this.ctx, envelope);
+				return {
+					...reply,
+					payload: {
+						...reply.payload,
+						activePluginRequests: this.pluginCommands.activeRequestCount,
+					},
+				};
+			}
 			case "session.search":
 				return await handleSessionSearch(this.ctx, envelope);
 			case "session.update":
@@ -1154,12 +1162,16 @@ export class HubServerTransport implements NativeHubTransport {
 			hubId: this.hubId,
 			draining: this.draining,
 			activeRpcTurns,
+			activePluginRequests: this.pluginCommands.activeRequestCount,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
 				: undefined,
 			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
-			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
+			idle:
+				activeRpcTurns === 0 &&
+				this.pluginCommands.activeRequestCount === 0 &&
+				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
 

@@ -78,9 +78,14 @@ describe("plugin command warmup", () => {
 		await flushPromises();
 
 		// The service is keyed on the reported workspace, not the launch root.
-		expect(commandMock).toHaveBeenCalledWith("plugins.commands.list", {
-			workspaceRoot: WORKSPACE,
-		});
+		expect(commandMock).toHaveBeenCalledWith(
+			"plugins.commands.list",
+			{
+				workspaceRoot: WORKSPACE,
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 
 		expect(listCommandsMock).toHaveBeenCalledTimes(1);
 
@@ -95,9 +100,14 @@ describe("plugin command warmup", () => {
 		await expect(
 			handleCommand(ctx, "list_plugin_commands", { workspacePath: WORKSPACE }),
 		).resolves.toEqual([{ name: "goal" }]);
-		expect(commandMock).toHaveBeenCalledWith("plugins.commands.list", {
-			workspaceRoot: WORKSPACE,
-		});
+		expect(commandMock).toHaveBeenCalledWith(
+			"plugins.commands.list",
+			{
+				workspaceRoot: WORKSPACE,
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 	});
 
 	it("recovers from a failed cold load and makes the command available", async () => {
@@ -165,9 +175,14 @@ describe("plugin command warmup", () => {
 			workspacePath: "/srv/code",
 		});
 		await flushPromises();
-		expect(commandMock).toHaveBeenCalledWith("plugins.commands.list", {
-			workspaceRoot: "/srv/code",
-		});
+		expect(commandMock).toHaveBeenCalledWith(
+			"plugins.commands.list",
+			{
+				workspaceRoot: "/srv/code",
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 	});
 });
 
@@ -201,9 +216,14 @@ it("uses the selected SSH workspace and Hub for discovery and command execution"
 	binding.workspaceRoot = "/srv/project";
 	runMock.mockResolvedValueOnce({ reply: "remote reply" });
 	await handleCommand(ctx, "list_plugin_commands");
-	expect(commandMock).toHaveBeenLastCalledWith("plugins.commands.list", {
-		workspaceRoot: "/srv/project",
-	});
+	expect(commandMock).toHaveBeenLastCalledWith(
+		"plugins.commands.list",
+		{
+			workspaceRoot: "/srv/project",
+		},
+		undefined,
+		{ timeoutMs: null },
+	);
 	expect(
 		await runPluginSlashCommand({
 			binding,
@@ -211,9 +231,14 @@ it("uses the selected SSH workspace and Hub for discovery and command execution"
 			prompt: "/hello remote",
 		}),
 	).toEqual({ reply: "remote reply" });
-	expect(commandMock).toHaveBeenLastCalledWith("plugins.commands.run", {
-		workspaceRoot: "/srv/project",
-		name: "hello",
-		input: " remote",
-	});
+	expect(commandMock).toHaveBeenLastCalledWith(
+		"plugins.commands.run",
+		{
+			workspaceRoot: "/srv/project",
+			name: "hello",
+			input: " remote",
+		},
+		undefined,
+		{ timeoutMs: null },
+	);
 });

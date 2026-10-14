@@ -287,7 +287,7 @@ export type HubRetirementOutcome =
  *
  * Failing open (treating an unanswerable Hub as idle) preserves the existing
  * replacement path for a Hub that is wedged or too old to answer the query;
- * only a Hub that positively reports live sessions is spared.
+ * A Hub reporting live sessions or plugin requests is spared.
  */
 export async function hubHasLiveSessions(
 	record: Pick<HubServerProbeRecord, "url" | "authToken">,
@@ -297,7 +297,7 @@ export async function hubHasLiveSessions(
 			record.url,
 			record.authToken,
 		);
-		return activity.activeSessionCount > 0;
+		return activity.activeSessionCount > 0 || activity.activePluginRequests > 0;
 	} catch {
 		return false;
 	}
@@ -946,12 +946,16 @@ export async function upgradeManagedHub(
 	// Only an observed-zero reading ends the window before the deadline.
 	// (Checks at least once so waitForIdleMs: 0 still observes an idle hub.)
 	let observedSessionCount: number | undefined;
+	let observedPluginRequests: number | undefined;
 	for (;;) {
 		try {
-			observedSessionCount = (
-				await queryHubSessionActivity(record.url, record.authToken)
-			).activeSessionCount;
-			if (observedSessionCount === 0) {
+			const activity = await queryHubSessionActivity(
+				record.url,
+				record.authToken,
+			);
+			observedSessionCount = activity.activeSessionCount;
+			observedPluginRequests = activity.activePluginRequests;
+			if (observedSessionCount === 0 && observedPluginRequests === 0) {
 				break;
 			}
 		} catch {
@@ -964,7 +968,8 @@ export async function upgradeManagedHub(
 			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
 		);
 	}
-	const confirmedIdle = observedSessionCount === 0;
+	const confirmedIdle =
+		observedSessionCount === 0 && observedPluginRequests === 0;
 	// Without force, only a positively idle hub may be replaced: a busy or
 	// unanswerable hub is handed back un-drained. With force, the user has
 	// already consented to interrupting the sessions the prompt showed them,

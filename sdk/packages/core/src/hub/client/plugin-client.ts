@@ -10,9 +10,14 @@ export class HubPluginClient {
 	constructor(private readonly client: Pick<NodeHubClient, "command">) {}
 
 	async listCommands(workspaceRoot: string): Promise<PluginSlashCommand[]> {
-		const reply = await this.client.command("plugins.commands.list", {
-			workspaceRoot,
-		});
+		const reply = await this.client.command(
+			"plugins.commands.list",
+			{
+				workspaceRoot,
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 		if (!reply.ok)
 			throw new Error(
 				reply.error?.message ?? "Plugin command discovery failed",
@@ -25,11 +30,18 @@ export class HubPluginClient {
 		name: string,
 		input: string,
 	): Promise<PluginCommandResult | undefined> {
-		const reply = await this.client.command("plugins.commands.run", {
-			workspaceRoot,
-			name,
-			input,
-		});
+		// The plugin runtime bounds loading and execution. A transport deadline
+		// must not abandon a valid handler while it is still running.
+		const reply = await this.client.command(
+			"plugins.commands.run",
+			{
+				workspaceRoot,
+				name,
+				input,
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 		if (!reply.ok)
 			throw new Error(
 				reply.error?.message ?? "Plugin command execution failed",

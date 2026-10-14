@@ -397,5 +397,8 @@ An unrecognized command returns `undefined`; recognized commands return
 `{ reply?, submitPrompt? }`. Discovery refreshes when plugin files or settings
 change. `install` installs globally on the Hub host and syncs plugin MCP
 contributions there; it allows up to ten minutes for installation. Failed Hub
-replies reject with the reported error. The Hub owns command services, waits
+replies reject with the reported error. Discovery and command execution leave
+timeouts to the plugin runtime rather than imposing the transport's 30-second
+default. Active plugin requests prevent automatic Hub replacement even when
+no session is attached. The Hub owns command services, waits
 for active requests when stopping, and then shuts down their plugin runtimes.

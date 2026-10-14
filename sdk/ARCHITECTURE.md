@@ -1245,3 +1245,10 @@ when stopping. `HubPluginClient` exposes these operations to clients without
 loading plugin modules. Desktop routes local and SSH command menus/execution to
 the corresponding runtime binding; its marketplace installs target the local Hub.
 Desktop no longer requests an extracted runtime directory from the CLI.
+
+Plugin command discovery and execution defer their deadline to the plugin runtime,
+so the transport cannot discard a valid long-running handler's result. The Hub
+reports active plugin requests in both `session.list` activity and `hub.status`;
+replacement and recovery checks count these requests even when no chat is attached.
+Admission is drained before activity is checked, preventing new plugin work from
+starting between the idle check and retirement.

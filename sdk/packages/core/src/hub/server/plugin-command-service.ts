@@ -93,6 +93,10 @@ export class HubPluginCommandService {
 		}
 	}
 
+	get activeRequestCount(): number {
+		return this.pending.size;
+	}
+
 	async dispose(): Promise<void> {
 		this.stopping = true;
 		await Promise.allSettled(this.pending);

@@ -1703,15 +1703,15 @@ async function handleSend(
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
 	const runtimePrompt =
-		binding.kind === "ssh"
+		pluginCommand?.submitPrompt ??
+		(binding.kind === "ssh"
 			? prompt
-			: (pluginCommand?.submitPrompt ??
-				(await resolveDesktopRuntimePrompt(
+			: await resolveDesktopRuntimePrompt(
 					ctx,
 					workspacePath,
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
-				)));
+				));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

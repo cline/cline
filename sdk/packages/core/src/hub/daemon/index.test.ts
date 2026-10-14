@@ -36,6 +36,7 @@ const {
 	queryHubSessionActivity: vi.fn(async () => ({
 		activeSessionCount: 0,
 		participantClientCount: 0,
+		activePluginRequests: 0,
 	})),
 	requestHubDrain: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
@@ -178,6 +179,7 @@ describe("ensureDetachedHubServer", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -485,6 +487,61 @@ describe("ensureDetachedHubServer", () => {
 			queryHubSessionActivity.mockResolvedValue({
 				activeSessionCount: 1,
 				participantClientCount: 1,
+				activePluginRequests: 0,
+			});
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			probeHubServer.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+			});
+			// Reuse is rejected by build id before any connection check, so the
+			// only verify call is the one guarding the deferred attach.
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+
+			await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			expect(requestHubShutdown).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalled();
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
+			expect(spawn).not.toHaveBeenCalled();
+			// The admission barrier is requested BEFORE the busy reading, so an
+			// idle result could not be invalidated by a session admitted right
+			// after it - and deferring hands the drained hub back to its work.
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"busy-token",
+				"retired by newer install",
+			);
+			expect(requestHubDrain.mock.invocationCallOrder[0]).toBeLessThan(
+				queryHubSessionActivity.mock.invocationCallOrder[0] ?? 0,
+			);
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"busy-token",
+				"hub retirement deferred",
+				{ off: true },
+			);
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("attaches to an older hub that is installing a plugin without sessions instead of retiring it", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			queryHubSessionActivity.mockResolvedValue({
+				activeSessionCount: 0,
+				activePluginRequests: 1,
+				participantClientCount: 0,
 			});
 			readHubDiscovery.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
@@ -920,6 +977,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -946,6 +1004,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 2,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery
 			.mockResolvedValueOnce({
@@ -1007,6 +1066,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 3,
 			participantClientCount: 2,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1027,6 +1087,42 @@ describe("upgradeManagedHub", () => {
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "old-token",
 			activeSessionCount: 3,
+		});
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub upgrade aborted",
+			{ off: true },
+		);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("leaves a sessionless plugin install running during a non-forced upgrade", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 0 });
+
+		expect(result).toEqual({
+			outcome: "still_busy",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+			activeSessionCount: 0,
 		});
 		expect(requestHubDrain).toHaveBeenCalledWith(
 			"ws://127.0.0.1:25463/hub",
@@ -1141,7 +1237,11 @@ describe("upgradeManagedHub", () => {
 	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {
 		queryHubSessionActivity
 			.mockRejectedValueOnce(new Error("session.list timed out"))
-			.mockResolvedValue({ activeSessionCount: 2, participantClientCount: 1 });
+			.mockResolvedValue({
+				activeSessionCount: 2,
+				participantClientCount: 1,
+				activePluginRequests: 0,
+			});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "old-token",
@@ -1247,6 +1347,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
