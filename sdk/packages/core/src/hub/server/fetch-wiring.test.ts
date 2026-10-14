@@ -113,20 +113,26 @@ describe("hub runtime wiring", () => {
 		}
 	});
 
-	it("forwards createLocalHubScheduleRuntimeHandlers fetch into its internal LocalRuntimeHost", async () => {
+	it("forwards host transports into the scheduler's internal LocalRuntimeHost", async () => {
 		localRuntimeHostMock.mockClear();
 		const { createLocalHubScheduleRuntimeHandlers } = await import(
 			"../daemon/runtime-handlers"
 		);
 
 		const customFetch = (async () => new Response()) as unknown as typeof fetch;
-		createLocalHubScheduleRuntimeHandlers({ fetch: customFetch });
+		const connectorsRequest = async () => new Response();
+		createLocalHubScheduleRuntimeHandlers({
+			fetch: customFetch,
+			connectorsRequest,
+		});
 
 		expect(localRuntimeHostMock).toHaveBeenCalledTimes(1);
 		const constructorArgs = localRuntimeHostMock.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
+			connectorsRequest?: typeof connectorsRequest;
 		};
 		expect(constructorArgs.fetch).toBe(customFetch);
+		expect(constructorArgs.connectorsRequest).toBe(connectorsRequest);
 	});
 
 	it("leaves fetch undefined when createLocalHubScheduleRuntimeHandlers is called without one", async () => {

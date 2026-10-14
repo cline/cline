@@ -40,7 +40,7 @@ const AppContent = () => {
 		hideAnnouncement,
 	} = useExtensionState()
 
-	const { clineUser, organizations, activeOrganization } = useClineAuth()
+	const { clineUser, organizations, activeOrganization, accountSwitch, accountSwitchError } = useClineAuth()
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
@@ -78,6 +78,15 @@ const AppContent = () => {
 
 	return (
 		<div className="flex h-screen w-full flex-col">
+			{(accountSwitch || accountSwitchError) && !showAccount && (
+				<div className="z-50 bg-editor-background p-2 text-xs" role="status">
+					{accountSwitch
+						? accountSwitch.slow
+							? "Account switch is still pending. You can navigate while it finishes."
+							: "Switching account…"
+						: `Could not confirm account switch: ${accountSwitchError}`}
+				</div>
+			)}
 			{showSettings && <SettingsView navigationRequest={settingsNavigationRequest} onDone={hideSettings} />}
 			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMarketplace && <MarketplaceView initialType={mcpTab ? "mcp" : undefined} onDone={closeMarketplaceView} />}

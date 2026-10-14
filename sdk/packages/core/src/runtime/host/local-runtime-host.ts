@@ -15,11 +15,13 @@ import {
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
+import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
+import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -243,6 +245,7 @@ export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
+	connectorsRequest?: ConnectorsRequest;
 	createAgent?: (config: AgentConfig) => SessionRuntime;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
@@ -256,6 +259,15 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+}
+
+/** Plugin events that act on a session (prompts) rather than report. */
+function isSessionDirectedPluginEvent(name: string): boolean {
+	return (
+		name === "steer_message" ||
+		name === "queue_message" ||
+		name === "pending_prompt"
+	);
 }
 
 export class LocalRuntimeHost implements RuntimeHost {
@@ -273,6 +285,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly distinctId: string;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
+	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
@@ -321,6 +334,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.defaultTelemetry?.setDistinctId(distinctId);
 		}
 		this.defaultFetch = options.fetch;
+		this.connectorsRequest = options.connectorsRequest;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -550,6 +564,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			inputLocalConfig?.telemetry ??
 			this.defaultTelemetry;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		// Plugin setup runs while the session bootstraps (in worker mode), before
+		// the session is registered. Prompts it sends to the session would find
+		// no session and be dropped, so hold them until registration below.
+		let heldSessionEvents: Array<{ name: string; payload?: unknown }> | null =
+			[];
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
 			subAgentStarts: this.subAgentStarts,
@@ -586,6 +605,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultFetch: this.defaultFetch,
+			connectorsRequest: this.connectorsRequest,
 			onPluginEvent: (event) => {
 				if (event.name === "plugin_log") {
 					this.eventBridge.handlePluginLog(
@@ -595,12 +615,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 					);
 					return;
 				}
+				if (heldSessionEvents && isSessionDirectedPluginEvent(event.name)) {
+					heldSessionEvents.push(event);
+					return;
+				}
 				void this.eventBridge.handlePluginEvent(
 					sessionId,
 					event,
 					pluginEventFallbackAutomation,
 					pluginEventFallbackTelemetry,
 				);
+			},
+			onPluginIssue: (issue) => {
+				// Setup runs on the first turn, after the start result went out;
+				// surface later plugin failures as a status notice instead.
+				if (!bootstrap) return;
+				this.eventBridge.dispatchAgentEvent(sessionId, bootstrap.config, {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message: formatSessionPluginIssue(issue),
+					metadata: { pluginIssue: issue },
+				});
 			},
 			onTeamEvent: (event: TeamEvent) => {
 				void this.eventBridge.handleTeamEvent(sessionId, event);
@@ -642,11 +678,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build({
-			...bootstrap.runtimeBuilderInput,
-			distinctId: this.distinctId,
-			runCommandExecutionController: this.runCommandExecutionController,
-		});
+		let runtime: Awaited<ReturnType<typeof this.runtimeBuilder.build>>;
+		try {
+			runtime = await this.runtimeBuilder.build({
+				...bootstrap.runtimeBuilderInput,
+				distinctId: this.distinctId,
+				runCommandExecutionController: this.runCommandExecutionController,
+			});
+		} catch (error) {
+			// The session never registers, so its stop/dispose paths will not
+			// run; release the plugin copies the bootstrap loaded for it.
+			await bootstrap.pluginSandboxShutdown?.().catch(() => undefined);
+			throw error;
+		}
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
@@ -956,6 +1000,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			active.compactionState = undefined;
 		}
 		this.sessions.set(sessionId, active);
+		const held = heldSessionEvents ?? [];
+		heldSessionEvents = null;
+		for (const event of held) {
+			void this.eventBridge.handlePluginEvent(
+				sessionId,
+				event,
+				pluginEventFallbackAutomation,
+				pluginEventFallbackTelemetry,
+			);
+		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
@@ -1045,6 +1099,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			manifestPath,
 			messagesPath,
 			result,
+			...(bootstrap.pluginIssues.length > 0
+				? { pluginIssues: bootstrap.pluginIssues }
+				: {}),
 		};
 	}
 

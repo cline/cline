@@ -241,22 +241,34 @@ export type {
 	LoadAgentPluginPackagesOptions,
 	LoadedAgentPluginPackage,
 	ParsedAgentSkill,
+	PluginExecutionMode,
+	PluginHookErrorMode,
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 	PluginLoadDiagnostics,
+	PluginRegistryOptions,
+	PluginSessionLoadInput,
+	PluginSessionLoadResult,
+	PluginStatusListener,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
 	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
 	AGENT_PLUGINS_V1_MCP_SCHEMA,
+	CLINE_PLUGIN_BOOTSTRAP_PATH_ENV,
 	discoverPluginModulePaths,
+	formatSessionPluginIssue,
 	getPluginDisplayName,
+	getProcessPluginRegistry,
 	loadAgentPluginFromPath,
 	loadAgentPluginPackages,
 	loadAgentPluginsFromPaths,
 	loadAgentPluginsFromPathsWithDiagnostics,
+	PluginCallTimeoutError,
+	PluginRegistry,
 	parseAgentSkillMarkdown,
 	resolveAgentPluginPaths,
+	resolveAgentPluginPathsWithDiagnostics,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -535,6 +547,10 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	WorkerSandbox,
+	type WorkerSandboxOptions,
+} from "./runtime/tools/worker-sandbox";
 export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
@@ -946,7 +962,8 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
+export type { ConnectorsRequest } from "./extensions/composio/composio-meta-tools";
+export { resolveComposioConnectionStatePath } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,

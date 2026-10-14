@@ -238,6 +238,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,

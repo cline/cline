@@ -131,6 +131,8 @@ export async function compileCliBinary(
 			compile: {
 				target: input.bunTarget,
 				outfile: tmpOutfile,
+				// Let plugins resolve bare SDK imports from the embedded runtime.
+				autoloadPackageJson: true,
 				execArgv: [...new Set(["--use-system-ca", ...(input.execArgv ?? [])])],
 				...(autoload ? {} : { autoloadDotenv: false, autoloadBunfig: false }),
 			},

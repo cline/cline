@@ -1,5 +1,23 @@
 # Cline Desktop Changelog
 
+## 0.0.46
+
+- A new outline along the left edge of the conversation lists each prompt you sent. Hover a mark to preview the prompt, and click it to jump there
+- Plugins that fail to load or error during a session now show a status line in the chat naming the plugin and the error, instead of silently losing their tools
+- You can cancel a Cline Cloud sign-in while it is waiting for the browser
+- Session titles renamed on the web now update in the app
+- The Cloud setup card stays visible on smaller windows when signed out
+- Installing a skill without Git installed now says Git is required and how to fix it, instead of showing a raw clone error
+- Scheduled routines: queued runs now start instead of staying pending forever, a run whose model call fails (for example, a retired model) is marked failed with the error, and after downtime only the latest missed occurrence runs instead of every one back to back. The routine editor now lists current models instead of retired ones
+- With no model chosen, the Cline provider uses the first model in Cline's recommended list (Claude Sonnet 5.5)
+- Turning reasoning off now works on every provider. Models that can't turn it off keep their default, and level-only Gemini models no longer reject the request with a thinking-budget error
+- Screenshots and other images no longer inflate the token estimate, which made auto-compaction run long before the conversation was near its limit
+- Auto-compaction uses the selected model's context window when the catalog entry has none
+- Rule files that are symlinks now load
+- Skills in `.claude/skills` are now discovered
+- The editor tool no longer receives null in place of the text to replace from some models
+- Refreshed the model catalog. Adds the AI/ML API, LowRouter, and Prime Inference providers. The v0 provider now offers only its default model, `v0-1.5-md`, and OpenCode Go uses its new `https://opencode.ai/inference/go/v1` endpoint. The Cline free list adds Step 5 Preview. Default models change for 302.AI, CrossModel, Cortecs, DigitalOcean, NEAR AI Cloud, and Ofox (Claude Haiku 5.5), DevPass (LLM Gateway), LLM Gateway, and Meta (Muse Wonder 1.0), Aixy (GPT-6.1 Sol), CloudFerro Sherlock and Moark (GLM 5.3), Ambient, NanoGPT, Neuralwatt, and Novita AI
+
 ## 0.0.45
 
 - SSH remotes start again. Since 0.0.38, connecting to an SSH environment failed with `SyntaxError: Invalid character`

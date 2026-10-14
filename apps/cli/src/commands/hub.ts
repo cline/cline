@@ -3,6 +3,7 @@ import {
 	ensureDetachedHubServer,
 	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
+	NodeHubClient,
 	probeHubServer,
 	readHubDiscovery,
 	requestHubDrain,
@@ -10,7 +11,11 @@ import {
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
+import {
+	formatUptime,
+	type PluginStatusRecord,
+	resolveClineBuildEnv,
+} from "@cline/shared";
 import { Command, InvalidArgumentError } from "commander";
 import { version as cliVersion } from "../../package.json";
 import { createDashboardCommand } from "./dashboard-command";
@@ -225,6 +230,55 @@ export function createHubCommand(
 			);
 		}),
 	);
+
+	hub
+		.command("plugins")
+		.description("Show the status and last error of each plugin the hub loaded")
+		.option(
+			"--reload <plugin>",
+			"Re-import one plugin (name or path) without restarting the hub",
+		)
+		.action(
+			action(async (cmdOptions: { reload?: string }) => {
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (!discovery?.url) {
+					io.writeErr("No hub is running.");
+					fail();
+					return;
+				}
+				const client = new NodeHubClient({
+					url: discovery.url,
+					...(discovery.authToken ? { authToken: discovery.authToken } : {}),
+					clientType: "cli-hub-plugins",
+					displayName: "hub plugins",
+				});
+				try {
+					await client.connect();
+					const reply = cmdOptions.reload
+						? await client.command("plugins.reload", {
+								plugin: cmdOptions.reload,
+							})
+						: await client.command("plugins.status");
+					if (!reply.ok) {
+						io.writeErr(
+							reply.error?.message ?? "The hub rejected the plugins request.",
+						);
+						fail();
+						return;
+					}
+					const plugins = (reply.payload?.plugins ??
+						[]) as PluginStatusRecord[];
+					io.writeln(JSON.stringify({ plugins }));
+				} finally {
+					try {
+						client.close();
+					} catch {
+						// One-shot connection; a failed close changes nothing.
+					}
+				}
+			}),
+		);
 
 	hub.command("stop").action(
 		action(async () => {
