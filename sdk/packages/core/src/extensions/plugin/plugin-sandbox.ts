@@ -19,9 +19,11 @@ import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { WorkerSandbox } from "../../runtime/tools/worker-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
+import { resolvePluginRuntimeDirectory } from "./plugin-runtime";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
+
 /**
  * Absolute path to a compiled `plugin-sandbox-bootstrap.js`, for hosts that
  * ship it somewhere this module cannot find on its own (an app bundle's
@@ -291,6 +293,9 @@ function resolveBootstrap():
 	if (configured && existsSync(configured)) {
 		return { file: configured };
 	}
+	const runtimeDirectory = resolvePluginRuntimeDirectory();
+	if (runtimeDirectory)
+		return { file: join(runtimeDirectory, "plugin-sandbox-bootstrap.js") };
 	const selected = selectBootstrapCandidate({
 		siblingCandidates: [
 			join(dir, "plugin-sandbox-bootstrap.js"),

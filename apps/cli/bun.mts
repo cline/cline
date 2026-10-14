@@ -1,11 +1,4 @@
-import {
-	copyFileSync,
-	cpSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	statSync,
-} from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
@@ -136,16 +129,12 @@ if (result.logs.length > 0) {
 	}
 }
 
-const coreBootstrapPath = join(
+const corePluginRuntimePath = join(
 	rootDir,
-	"../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
+	"../../sdk/packages/core/dist/plugin-runtime",
 );
-const cliBootstrapPath = join(
-	rootDir,
-	"./dist/extensions/plugin-sandbox-bootstrap.js",
-);
-mkdirSync(dirname(cliBootstrapPath), { recursive: true });
-copyFileSync(coreBootstrapPath, cliBootstrapPath);
+const cliPluginRuntimePath = join(rootDir, "dist/plugin-runtime");
+cpSync(corePluginRuntimePath, cliPluginRuntimePath, { recursive: true });
 
 if (existsSync(hubWebviewDistPath)) {
 	mkdirSync(dirname(cliHubWebviewDistPath), { recursive: true });

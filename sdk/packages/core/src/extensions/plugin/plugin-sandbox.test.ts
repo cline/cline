@@ -289,7 +289,13 @@ describe.each([
 			"utf8",
 		);
 
-		const sdkDepDir = join(dir, "node_modules", "@cline", "shared");
+		const sdkDepDir = join(
+			dir,
+			"sdk-plugin",
+			"node_modules",
+			"@cline",
+			"shared",
+		);
 		await mkdir(sdkDepDir, { recursive: true });
 		await writeFile(
 			join(sdkDepDir, "package.json"),
@@ -306,7 +312,7 @@ describe.each([
 			"utf8",
 		);
 		await writeFile(
-			join(dir, "plugin-sdk.ts"),
+			join(dir, "sdk-plugin", "plugin-sdk.ts"),
 			[
 				"import { sdkMarker } from '@cline/shared';",
 				"export default {",
@@ -397,7 +403,7 @@ describe.each([
 				join(dir, "plugin-rules.mjs"),
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
-				join(dir, "plugin-sdk.ts"),
+				join(dir, "sdk-plugin", "plugin-sdk.ts"),
 				join(dir, "plugin-host-dep.ts"),
 				join(dir, "plugin-create-tool.ts"),
 			],

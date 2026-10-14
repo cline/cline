@@ -752,10 +752,10 @@ mode exists to remove these risks.
 #### Worker and subprocess transports
 
 Both transports share one RPC protocol and one bootstrap
-(`plugin-sandbox-bootstrap.ts`), bundled self-contained into
-`dist/extensions/plugin-sandbox-bootstrap.js` (the core build fails if it
-imports anything but Node builtins, because hosts ship it without
-`node_modules`):
+(`plugin-sandbox-bootstrap.ts`). After SDK compilation, Core builds
+`dist/plugin-runtime/`, containing the self-contained bootstrap and the complete
+SDK import graph under `node_modules/@cline`. Package exports come from the SDK
+manifests, including browser subpaths. Hosts ship this directory as one artifact:
 
 - `WorkerSandbox` (worker mode): structured clone over the worker's message
   port. A worker must not `chdir` (Bun would change the host's cwd), so the
@@ -768,12 +768,19 @@ imports anything but Node builtins, because hosts ship it without
 - `SubprocessSandbox` (sandbox mode): JSON IPC to a `node`/`bun` child with
   stdout ignored.
 
-Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
-or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop sidecar
-sets it to the copy shipped as a Tauri resource). A host that ships none
-cannot start workers, and `resolvePluginExecutionMode` falls back to
-`in_process`.
+Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
+package-local `plugin-runtime` directory, or embedded resources. The CLI compiler
+embeds the archive and materializes it under `CLINE_DIR/runtime/plugins/<hash>`
+when needed. Matching cached bytes are reused and corrupt files are repaired;
+builds retain separate directories so running workers survive upgrades. Plugin
+SDK imports resolve against this same artifact. VS Code copies the complete
+artifact into its extension bundle. Desktop asks its bundled CLI for
+`--plugin-runtime-dir` before starting the backend's Hub client, so the sidecar
+uses the matching runtime even when launched with `BUN_BE_BUN=1`.
+
+Compiled Bun executables can also run subprocess plugins themselves, using
+`BUN_BE_BUN=1` when no separate Node or Bun runtime is available. Resource
+packaging is independent of execution-mode policy.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
