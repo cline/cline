@@ -132,6 +132,11 @@ import {
 } from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
 import {
+	readKeybindings,
+	resolveKeybindingsPath,
+	writeKeybindings,
+} from "./keybindings";
+import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
@@ -3223,6 +3228,21 @@ export async function handleCommand(
 	}
 	if (command === "get_desktop_settings") {
 		return readDesktopSettings();
+	}
+	if (command === "get_keybindings") {
+		return readKeybindings();
+	}
+	if (command === "set_keybindings") {
+		const saved = writeKeybindings(args?.keybindings);
+		broadcastEvent(ctx, "keybindings_changed", saved);
+		return saved;
+	}
+	if (command === "open_keybindings_file") {
+		// Materialize the file so there is always something to open and edit.
+		writeKeybindings(readKeybindings());
+		const filePath = resolveKeybindingsPath();
+		openFileInEditor(filePath);
+		return { path: filePath };
 	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)

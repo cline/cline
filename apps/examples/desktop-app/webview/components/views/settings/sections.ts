@@ -9,6 +9,7 @@ const ALL_SETTINGS_SECTIONS = [
 	"General",
 	"Providers",
 	"Voice",
+	"Keybindings",
 	"Channels",
 	"Schedules",
 	"Import",
