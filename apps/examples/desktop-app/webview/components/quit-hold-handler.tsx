@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 import {
 	acceleratorKeys,
+	areShortcutsSuspended,
+	isMacPlatform,
 	matchesAccelerator,
+	normalizeKeyName,
 	parseAccelerator,
 	type ResolvedKeybindings,
 } from "@/lib/keybindings";
@@ -22,10 +25,25 @@ function quitApp() {
 	void desktopClient.invoke("quit_app").catch(() => {});
 }
 
+/** Whether the binding is the shortcut the OS menu already handles (⌘Q). */
+function isNativeQuitAccelerator(accelerator: string): boolean {
+	const parsed = parseAccelerator(accelerator);
+	return (
+		isMacPlatform() &&
+		parsed !== null &&
+		parsed.mod &&
+		!parsed.ctrl &&
+		!parsed.alt &&
+		!parsed.shift &&
+		parsed.key === "q"
+	);
+}
+
 /**
- * Native Cmd+Q quits instantly, so while this is mounted with a hold time the
- * native shortcut is released (see `set_quit_shortcut_native`) and the quit
- * keybinding is handled here: the keys must stay down for `holdMs`.
+ * Handles the quit keybinding. The native ⌘Q menu accelerator is kept only
+ * when the binding is exactly ⌘Q with no hold time; any other binding (a
+ * different shortcut, a hold time, or unbound) releases it via
+ * `set_quit_shortcut_native` and is handled here instead.
  */
 export function QuitHoldHandler({
 	bindings,
@@ -34,23 +52,22 @@ export function QuitHoldHandler({
 }) {
 	const { key: accelerator, holdMs = 0 } = bindings.quit;
 	const [progress, setProgress] = useState<number | null>(null);
-	const holdRef = useRef<{
-		start: number;
-		lastEvent: number;
-		repeating: boolean;
-	} | null>(null);
+	const holdRef = useRef<{ start: number; lastRepeat: number | null } | null>(
+		null,
+	);
 
-	// A hold time of 0 (or no binding) keeps the OS's immediate Cmd+Q.
-	const handlesHold = holdMs > 0 && accelerator.trim() !== "";
+	const bound = accelerator.trim() !== "";
+	const nativeQuit =
+		bound && holdMs === 0 && isNativeQuitAccelerator(accelerator);
 	useEffect(() => {
 		if (!isTauriAvailable()) return;
 		void desktopClient
-			.invoke("set_quit_shortcut_native", { enabled: !handlesHold })
+			.invoke("set_quit_shortcut_native", { enabled: nativeQuit })
 			.catch(() => {});
-	}, [handlesHold]);
+	}, [nativeQuit]);
 
 	useEffect(() => {
-		if (!handlesHold) {
+		if (!bound || nativeQuit) {
 			holdRef.current = null;
 			setProgress(null);
 			return;
@@ -64,39 +81,47 @@ export function QuitHoldHandler({
 				timer = undefined;
 			}
 		};
+		// Only drives the progress bar and the release timeout; quitting itself
+		// happens on a keydown so time after the key was let go never counts.
 		const tick = () => {
 			const hold = holdRef.current;
 			if (!hold) return stop();
 			const now = performance.now();
-			const idle = now - hold.lastEvent;
-			if (idle > (hold.repeating ? REPEAT_GAP_MS : FIRST_REPEAT_TIMEOUT_MS)) {
+			const idle = now - (hold.lastRepeat ?? hold.start);
+			if (idle > (hold.lastRepeat ? REPEAT_GAP_MS : FIRST_REPEAT_TIMEOUT_MS)) {
 				return stop();
 			}
-			const elapsed = now - hold.start;
-			setProgress(Math.min(1, elapsed / holdMs));
-			// A bare tap never auto-repeats, so require a repeat before quitting.
-			if (elapsed >= holdMs && hold.repeating) {
-				stop();
-				quitApp();
-			}
+			setProgress(Math.min(1, (now - hold.start) / holdMs));
 		};
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (areShortcutsSuspended()) return stop();
 			if (!matchesAccelerator(event, accelerator)) return;
 			event.preventDefault();
+			if (holdMs === 0) {
+				if (!event.repeat) quitApp();
+				return;
+			}
 			const now = performance.now();
-			if (!holdRef.current) {
-				holdRef.current = { start: now, lastEvent: now, repeating: false };
+			const hold = holdRef.current;
+			if (!hold) {
+				holdRef.current = { start: now, lastRepeat: null };
 				setProgress(0);
 				timer = window.setInterval(tick, TICK_MS);
-			} else {
-				holdRef.current.lastEvent = now;
-				if (event.repeat) holdRef.current.repeating = true;
+				return;
+			}
+			// A bare tap never auto-repeats, so the quit needs a repeat event that
+			// arrives at or after the threshold: proof the key is still down.
+			if (!event.repeat) return;
+			hold.lastRepeat = now;
+			if (now - hold.start >= holdMs) {
+				stop();
+				quitApp();
 			}
 		};
 		const onRelease = (event: KeyboardEvent) => {
 			// Releasing the main key or any modifier ends the hold.
 			if (!holdRef.current) return;
-			const released = event.key.toLowerCase();
+			const released = normalizeKeyName(event.key);
 			const main = parseAccelerator(accelerator)?.key;
 			if (
 				["meta", "control", "alt", "shift"].includes(released) ||
@@ -114,14 +139,13 @@ export function QuitHoldHandler({
 			window.removeEventListener("blur", stop);
 			stop();
 		};
-	}, [accelerator, handlesHold, holdMs]);
+	}, [accelerator, bound, holdMs, nativeQuit]);
 
 	if (progress === null) return null;
 	return (
-		<div
+		<output
 			aria-live="polite"
 			className="pointer-events-none fixed inset-x-0 bottom-10 z-[100] flex justify-center"
-			role="status"
 		>
 			<div className="w-64 rounded-lg border bg-popover px-4 py-3 text-popover-foreground shadow-lg">
 				<p className="flex items-center gap-2 text-sm font-medium">
@@ -140,6 +164,6 @@ export function QuitHoldHandler({
 					/>
 				</div>
 			</div>
-		</div>
+		</output>
 	);
 }

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
 	acceleratorFromEvent,
+	areShortcutsSuspended,
+	canonicalAccelerator,
 	formatAccelerator,
 	matchesAccelerator,
 	resolveKeybindings,
+	suspendShortcuts,
 } from "./keybindings";
 
 const event = (init: Partial<KeyboardEvent> & { key: string }) => ({
@@ -28,6 +31,44 @@ describe("keybindings", () => {
 		expect(
 			matchesAccelerator(event({ key: ",", metaKey: true }), "Mod+,", true),
 		).toBe(true);
+	});
+
+	it("enforces shift on named keys but not on shifted punctuation", () => {
+		const shiftEnter = event({ key: "Enter", metaKey: true, shiftKey: true });
+		expect(matchesAccelerator(shiftEnter, "Mod+Enter", true)).toBe(false);
+		expect(matchesAccelerator(shiftEnter, "Mod+Shift+Enter", true)).toBe(true);
+		// "+" is already the shifted "=" key, so the shift state is implied.
+		expect(
+			matchesAccelerator(
+				event({ key: "+", metaKey: true, shiftKey: true }),
+				"Mod++",
+				true,
+			),
+		).toBe(true);
+	});
+
+	it("treats aliases and case as the same shortcut", () => {
+		expect(canonicalAccelerator("Cmd+N", true)).toBe(
+			canonicalAccelerator("mod+n", true),
+		);
+		expect(canonicalAccelerator("Mod+N", true)).not.toBe(
+			canonicalAccelerator("Mod+N", false),
+		);
+		expect(canonicalAccelerator("Ctrl+N", false)).toBe(
+			canonicalAccelerator("Mod+N", false),
+		);
+		expect(canonicalAccelerator("", true)).toBeNull();
+	});
+
+	it("suspends shortcuts until every suspension is released", () => {
+		expect(areShortcutsSuspended()).toBe(false);
+		const first = suspendShortcuts();
+		const second = suspendShortcuts();
+		first();
+		first(); // releasing twice must not undo the other suspension
+		expect(areShortcutsSuspended()).toBe(true);
+		second();
+		expect(areShortcutsSuspended()).toBe(false);
 	});
 
 	it("never matches an unbound action", () => {

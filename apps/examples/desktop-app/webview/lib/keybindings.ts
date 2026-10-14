@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
 
 /**
- * Keybindings are stored in `<data dir>/settings/keybindings.json` (managed
- * by the sidecar). The file only needs to hold overrides: any action missing
- * from it falls back to DEFAULT_KEYBINDINGS.
+ * Keybindings are stored in `<data dir>/settings/clients/desktop/keybindings.json`
+ * (managed by the sidecar). The file only needs to hold overrides: any action
+ * missing from it falls back to `defaultKeybindings()`.
  */
 
 export type KeybindingActionId =
@@ -134,7 +134,7 @@ const MODIFIER_TOKENS = new Set([
 	"shift",
 ]);
 
-function normalizeKeyName(key: string): string {
+export function normalizeKeyName(key: string): string {
 	const lower = key.toLowerCase();
 	if (lower === " " || lower === "spacebar") return "space";
 	if (lower === "esc") return "escape";
@@ -200,11 +200,62 @@ export function matchesAccelerator(
 	if (event.metaKey !== wantMeta) return false;
 	if (event.ctrlKey !== wantCtrl) return false;
 	if (event.altKey !== parsed.alt) return false;
-	// Shifted punctuation reports a different `key` ("+" vs "="), so only
-	// enforce shift for letters/digits where it is unambiguous.
-	const isSingleAlnum = /^[a-z0-9]$/.test(parsed.key);
-	if (isSingleAlnum && event.shiftKey !== parsed.shift) return false;
+	// Shifted punctuation already reports a different `key` ("+" vs "="), so
+	// shift is implied by the key there; everywhere else it must match, or
+	// Mod+Enter would also fire for Mod+Shift+Enter.
+	if (!isShiftedByKey(parsed.key) && event.shiftKey !== parsed.shift) {
+		return false;
+	}
 	return normalizeKeyName(event.key) === parsed.key;
+}
+
+/** Single punctuation characters whose shifted form is a different key. */
+function isShiftedByKey(key: string): boolean {
+	return key.length === 1 && !/[a-z0-9]/.test(key);
+}
+
+/**
+ * Platform-resolved identity of a shortcut, so aliases ("Cmd+N", "mod+n",
+ * "Mod+N") compare equal. Returns null for an unbound or malformed value.
+ */
+export function canonicalAccelerator(
+	accelerator: string,
+	mac: boolean = isMacPlatform(),
+): string | null {
+	const parsed = parseAccelerator(accelerator);
+	if (!parsed) return null;
+	const meta = mac && parsed.mod;
+	const ctrl = parsed.ctrl || (!mac && parsed.mod);
+	const shift = parsed.shift && !isShiftedByKey(parsed.key);
+	return [
+		meta ? "meta" : "",
+		ctrl ? "ctrl" : "",
+		parsed.alt ? "alt" : "",
+		shift ? "shift" : "",
+		parsed.key,
+	].join("+");
+}
+
+// --- Suspension --------------------------------------------------------------
+
+// While a shortcut is being recorded the keys the user presses must not run
+// their current action (holding the quit keys would quit the app). Every
+// shortcut listener checks this before acting.
+let suspensions = 0;
+
+export function areShortcutsSuspended(): boolean {
+	return suspensions > 0;
+}
+
+/** Suspends every shortcut until the returned release function is called. */
+export function suspendShortcuts(): () => void {
+	suspensions += 1;
+	let released = false;
+	return () => {
+		if (released) return;
+		released = true;
+		suspensions -= 1;
+	};
 }
 
 /** Builds an accelerator string from a keydown, or null for a bare modifier. */

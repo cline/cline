@@ -2,13 +2,14 @@
 
 import { Kbd, KbdGroup } from "@cline/ui";
 import { Keyboard } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	acceleratorFromEvent,
 	acceleratorKeys,
+	canonicalAccelerator,
 	DEFAULT_QUIT_HOLD_MS,
 	defaultKeybindings,
 	KEYBINDING_DEFINITIONS,
@@ -16,6 +17,7 @@ import {
 	type KeybindingEntry,
 	type ResolvedKeybindings,
 	saveKeybindings,
+	suspendShortcuts,
 	useKeybindings,
 } from "@/lib/keybindings";
 import { cn } from "@/lib/utils";
@@ -32,9 +34,12 @@ function ShortcutRecorder({
 
 	useEffect(() => {
 		if (!recording) return;
+		// The keys being recorded must not run their current action meanwhile:
+		// holding the quit keys to re-record them would otherwise quit the app.
+		const release = suspendShortcuts();
 		const onKeyDown = (event: KeyboardEvent) => {
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
 			if (event.key === "Escape") {
 				setRecording(false);
 				return;
@@ -50,7 +55,10 @@ function ShortcutRecorder({
 			setRecording(false);
 		};
 		window.addEventListener("keydown", onKeyDown, true);
-		return () => window.removeEventListener("keydown", onKeyDown, true);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown, true);
+			release();
+		};
 	}, [onChange, recording]);
 
 	return (
@@ -82,27 +90,40 @@ export function KeybindingsContent() {
 	const stored = useKeybindings();
 	const [draft, setDraft] = useState<ResolvedKeybindings>(stored);
 	const [error, setError] = useState<string | null>(null);
+	// Every save is broadcast back as `stored`; while any save is still in
+	// flight those broadcasts may predate the current draft, so they are
+	// ignored rather than rolling newer edits back.
+	const pendingSaves = useRef(0);
 
 	// Follow external changes (file edits, other windows).
-	useEffect(() => setDraft(stored), [stored]);
+	useEffect(() => {
+		if (pendingSaves.current === 0) setDraft(stored);
+	}, [stored]);
 
 	const persist = (next: ResolvedKeybindings) => {
 		setDraft(next);
 		setError(null);
-		void saveKeybindings(next).catch((cause) =>
-			setError(cause instanceof Error ? cause.message : String(cause)),
-		);
+		pendingSaves.current += 1;
+		void saveKeybindings(next)
+			.catch((cause) =>
+				setError(cause instanceof Error ? cause.message : String(cause)),
+			)
+			.finally(() => {
+				pendingSaves.current -= 1;
+			});
 	};
 
 	const update = (id: KeybindingActionId, patch: Partial<KeybindingEntry>) =>
 		persist({ ...draft, [id]: { ...draft[id], ...patch } });
 
 	const conflicts = (id: KeybindingActionId) => {
-		const key = draft[id].key;
+		// Compare platform-resolved shortcuts so "Cmd+N" clashes with "Mod+N".
+		const key = canonicalAccelerator(draft[id].key);
 		if (!key) return null;
 		return (
 			KEYBINDING_DEFINITIONS.find(
-				(other) => other.id !== id && draft[other.id].key === key,
+				(other) =>
+					other.id !== id && canonicalAccelerator(draft[other.id].key) === key,
 			)?.label ?? null
 		);
 	};
@@ -163,10 +184,14 @@ export function KeybindingsContent() {
 							</div>
 							<div className="flex shrink-0 items-center gap-3">
 								{definition.supportsHold && entry.key ? (
-									<label className="flex items-center gap-2 text-xs text-muted-foreground">
+									<label
+										className="flex items-center gap-2 text-xs text-muted-foreground"
+										htmlFor={`keybinding-hold-${definition.id}`}
+									>
 										Hold (s)
 										<Input
 											aria-label={`${definition.label} hold time in seconds`}
+											id={`keybinding-hold-${definition.id}`}
 											className="h-8 w-16"
 											min={0}
 											max={5}

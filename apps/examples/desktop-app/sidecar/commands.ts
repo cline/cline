@@ -3238,9 +3238,13 @@ export async function handleCommand(
 		return saved;
 	}
 	if (command === "open_keybindings_file") {
-		// Materialize the file so there is always something to open and edit.
-		writeKeybindings(readKeybindings());
+		// Create the file when missing so there is something to edit, but never
+		// rewrite an existing one: a malformed file reads as empty bindings and
+		// writing that back would wipe what the user is opening it to fix.
 		const filePath = resolveKeybindingsPath();
+		if (!existsSync(filePath)) {
+			writeKeybindings(readKeybindings());
+		}
 		openFileInEditor(filePath);
 		return { path: filePath };
 	}
