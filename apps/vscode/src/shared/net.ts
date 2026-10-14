@@ -177,8 +177,9 @@ function isLoopbackHost(input: string | URL | Request): boolean {
  * for its own default-timeout Agent, so the override would be dropped. The
  * trade-off is that these requests honour `http_proxy` / `https_proxy` /
  * `no_proxy` rather than VS Code's `http.proxy` setting, except that loopback
- * always goes direct, as it does in VS Code. On the standalone build the
- * proxy agent is the same one installed globally above.
+ * always goes direct, as it does in VS Code. It also skips the OS certificate
+ * store VS Code adds to global fetch, so only use it for plain HTTP. On the
+ * standalone build the proxy agent is the same one installed globally above.
  */
 export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
 	input: string | URL | Request,
