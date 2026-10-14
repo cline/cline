@@ -254,6 +254,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showUnsupportedImageError, setShowUnsupportedImageError] = useState(false)
+		const unsupportedImageTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -261,8 +263,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
-		// Images are attached regardless; when the selected model has no image input the thumbnails get a warning
-		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
+		// When the model explicitly disables image support, paste/drop is blocked with an inline error.
+		// Unknown capability (undefined) fails open, like core does. The thumbnails warning badge and
+		// "switch model" notice still show when images are already attached to a text-only model.
 		const modelSupportsImages = selectedModelInfo.supportsImages !== false
 		const unsupportedImagesAttached = selectedImages.length > 0 && !modelSupportsImages
 
@@ -852,6 +855,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
+		const showUnsupportedImageErrorMessage = useCallback(() => {
+			setShowUnsupportedImageError(true)
+			if (unsupportedImageTimerRef.current) {
+				clearTimeout(unsupportedImageTimerRef.current)
+			}
+			unsupportedImageTimerRef.current = setTimeout(() => {
+				setShowUnsupportedImageError(false)
+				unsupportedImageTimerRef.current = null
+			}, 3000)
+		}, [])
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -887,6 +901,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
+				if (imageItems.length > 0 && !modelSupportsImages) {
+					e.preventDefault()
+					showUnsupportedImageErrorMessage()
+					return
+				}
 				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
@@ -938,6 +957,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[
 				shouldDisableFilesAndImages,
+				modelSupportsImages,
+				showUnsupportedImageErrorMessage,
 				setSelectedImages,
 				selectedImages,
 				selectedFiles,
@@ -1332,7 +1353,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
+			if (imageFiles.length === 0) {
+				return
+			}
+			if (!modelSupportsImages) {
+				showUnsupportedImageErrorMessage()
+				return
+			}
+			if (shouldDisableFilesAndImages) {
 				return
 			}
 
@@ -1426,6 +1454,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showUnsupportedFileError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
 							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
+						</div>
+					)}
+					{showUnsupportedImageError && (
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs text-center">This model doesn't support images</span>
 						</div>
 					)}
 					{showSlashCommandsMenu && (
