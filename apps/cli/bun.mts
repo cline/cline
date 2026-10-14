@@ -1,4 +1,11 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	rmSync,
+	statSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
@@ -134,6 +141,7 @@ const corePluginRuntimePath = join(
 	"../../sdk/packages/core/dist/plugin-runtime",
 );
 const cliPluginRuntimePath = join(rootDir, "dist/plugin-runtime");
+rmSync(cliPluginRuntimePath, { recursive: true, force: true });
 cpSync(corePluginRuntimePath, cliPluginRuntimePath, { recursive: true });
 
 if (existsSync(hubWebviewDistPath)) {
