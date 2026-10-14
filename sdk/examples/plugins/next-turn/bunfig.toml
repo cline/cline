@@ -1,0 +1,4 @@
+[test]
+# Every `bun test` run from this package, scratch test files included, gets a
+# throwaway Cline directory. See src/test-preload.ts.
+preload = ["./src/test-preload.ts"]
