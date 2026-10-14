@@ -388,12 +388,11 @@ async function withWorkspaceRestoreLock<T>(
 			args: ["rev-parse", "--show-toplevel"],
 			cwd: workspacePath,
 		});
-		if (result.exitCode !== 0 || !result.stdout.trim()) {
-			throw new Error(
-				"Cannot resolve the Git working tree before restoring it",
-			);
-		}
-		key = resolve(result.stdout.trim());
+		key = resolve(
+			result.exitCode === 0 && result.stdout.trim()
+				? result.stdout.trim()
+				: workspacePath,
+		);
 	} else {
 		key = resolveWorkspaceRoot(workspacePath);
 	}
@@ -1109,10 +1108,6 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const workspace = workspacePathKey(ctx, request.config);
-	if (isWorkspaceRestoring(ctx, workspace)) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
@@ -1169,9 +1164,6 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	if (isWorkspaceRestoring(ctx, workspace)) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,

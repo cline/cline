@@ -147,6 +147,13 @@ describe("starting SSH sessions", () => {
 
 	function setup() {
 		const readMessages = vi.fn(async () => transcript);
+		const get = vi.fn(async () => ({
+			sessionId,
+			status: "completed",
+			cwd: "/remote/project",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+		}));
 		const run = vi.fn(async () => ({
 			stdout: "/remote/project\n",
 			stderr: "",
@@ -166,7 +173,7 @@ describe("starting SSH sessions", () => {
 					{
 						environmentId,
 						kind: "ssh",
-						sessionManager: { readMessages, start },
+						sessionManager: { get, readMessages, start },
 					},
 				],
 			]),
@@ -215,31 +222,7 @@ describe("starting SSH sessions", () => {
 		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
 	});
 
-	it.each([
-		"before",
-		"during",
-	])("blocks a start when a parent workspace restore begins %s preparation", async (when) => {
-		const { ctx, config, readMessages, start } = setup();
-		if (when === "before") ctx.restoringWorkspacePaths.add("/remote");
-		else
-			readMessages.mockImplementationOnce(async () => {
-				ctx.restoringWorkspacePaths.add("/remote");
-				return transcript;
-			});
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "start",
-				config: { ...config, cwd: "/remote/project" },
-			}),
-		).rejects.toThrow(
-			"Cannot send a prompt while the session workspace is being restored",
-		);
-		expect(start).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		0, 1,
-	])("checks remote restore activity after Git-root discovery (exit %s)", async (exitCode) => {
+	it("checks remote restore activity after Git-root discovery", async () => {
 		const { ctx, config, run } = setup();
 		run.mockImplementationOnce(async () => {
 			ctx.liveSessions.set("busy-remote", {
@@ -250,7 +233,7 @@ describe("starting SSH sessions", () => {
 				startedAt: Date.now(),
 				status: "running",
 			});
-			return { stdout: "/remote/project\n", stderr: "", exitCode };
+			return { stdout: "/remote/project\n", stderr: "", exitCode: 0 };
 		});
 		await expect(
 			handleChatSessionCommand(ctx, {
@@ -259,16 +242,43 @@ describe("starting SSH sessions", () => {
 				checkpointRunCount: 1,
 				config: { ...config, cwd: "/remote/project/api" },
 			}),
-		).rejects.toThrow(
-			exitCode === 0
-				? "Wait for all turns in this workspace to finish"
-				: "Cannot resolve the Git working tree before restoring it",
-		);
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(run).toHaveBeenCalledWith(environmentId, {
 			command: "git",
 			args: ["rev-parse", "--show-toplevel"],
 			cwd: "/remote/project/api",
 		});
+	});
+
+	it("allows editing remote messages without a Git repository or checkpoints", async () => {
+		const { ctx, config, run, start, readMessages } = setup();
+		ctx.wsClients = new Set();
+		run.mockResolvedValueOnce({
+			stdout: "",
+			stderr: "not a git repository",
+			exitCode: 128,
+		});
+		start.mockResolvedValueOnce({
+			sessionId: "edited-ssh",
+			manifest: { cwd: "/remote/project", workspace_root: "/remote/project" },
+		});
+		readMessages.mockResolvedValueOnce(transcript).mockResolvedValueOnce([]);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId,
+				forkBeforeRunCount: 1,
+				config,
+			}),
+		).resolves.toEqual({
+			sessionId: "edited-ssh",
+			forkedFromSessionId: sessionId,
+		});
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: [] }),
+		);
+		expect(ctx.liveSessions.get("edited-ssh")?.messages).toEqual([]);
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
 	it("propagates other read failures without creating a session", async () => {
@@ -412,10 +422,7 @@ describe("hasProviderChanged", () => {
 });
 
 describe("pathless session starts", () => {
-	it.each([
-		false,
-		true,
-	])("uses the SDK-resolved chat workspace (launch workspace restoring: %s)", async (restoring) => {
+	it("uses the SDK-resolved chat workspace", async () => {
 		const start = vi.fn(
 			async (input: {
 				config: Record<string, unknown>;
@@ -456,7 +463,7 @@ describe("pathless session starts", () => {
 		);
 		const ctx = {
 			liveSessions: new Map(),
-			restoringWorkspacePaths: new Set(restoring ? ["/workspace"] : []),
+			restoringWorkspacePaths: new Set(["/workspace"]),
 			...localRuntimeContext({ start }),
 			telemetryUser: {
 				distinctId: "account-1",
