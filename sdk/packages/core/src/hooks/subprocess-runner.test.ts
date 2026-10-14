@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { isPowerShellCommand, runSubprocessEvent } from "./subprocess-runner";
+import { runSubprocessEvent } from "./subprocess-runner";
 
 describe("runSubprocessEvent", () => {
 	it("does not lose close events from children that exit while stdin is flushing", async () => {
@@ -224,31 +224,6 @@ describe("runSubprocessEvent", () => {
 			}
 		},
 	);
-});
-
-describe("isPowerShellCommand", () => {
-	it("detects powershell executables regardless of case and extension", () => {
-		expect(isPowerShellCommand(["powershell"])).toBe(true);
-		expect(isPowerShellCommand(["PowerShell.EXE", "-File", "test.ps1"])).toBe(
-			true,
-		);
-		expect(isPowerShellCommand(["pwsh"])).toBe(true);
-		expect(isPowerShellCommand(["PWSH.exe", "-File", "test.ps1"])).toBe(true);
-		expect(
-			isPowerShellCommand([
-				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-			]),
-		).toBe(true);
-		expect(isPowerShellCommand(["/usr/bin/pwsh"])).toBe(true);
-	});
-
-	it("returns false for non-powershell commands", () => {
-		expect(isPowerShellCommand(["node", "index.js"])).toBe(false);
-		expect(isPowerShellCommand(["bun", "run", "index.ts"])).toBe(false);
-		expect(isPowerShellCommand(["bash", "hook.sh"])).toBe(false);
-		expect(isPowerShellCommand(["cmd.exe", "/c", "hook.cmd"])).toBe(false);
-		expect(isPowerShellCommand([])).toBe(false);
-	});
 });
 
 /** Pipes currently keeping this process's event loop alive. */

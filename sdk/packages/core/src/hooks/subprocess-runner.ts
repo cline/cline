@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { win32 } from "node:path";
 import {
 	augmentNodeCommandForDebug,
+	getShellKind,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 
@@ -178,19 +178,6 @@ async function writeToChildStdin(
 	});
 }
 
-export function isPowerShellCommand(command: string[]): boolean {
-	if (!Array.isArray(command) || command.length === 0) {
-		return false;
-	}
-	const base = win32.basename(command[0]).toLowerCase();
-	return (
-		base === "powershell" ||
-		base === "powershell.exe" ||
-		base === "pwsh" ||
-		base === "pwsh.exe"
-	);
-}
-
 export async function runSubprocessEvent(
 	payload: unknown,
 	options: RunSubprocessEventOptions,
@@ -208,10 +195,16 @@ export async function runSubprocessEvent(
 	// PowerShell to exit 0 immediately (~200ms) without executing the script
 	// (issue #14767). Running attached (detached: false) allows standard handles
 	// to remain valid while child.unref() and stdio: ['pipe', 'ignore', 'ignore']
-	// maintain the non-blocking fire-and-forget contract. Non-PowerShell commands
-	// and non-Windows platforms preserve detached: true.
+	// maintain the non-blocking fire-and-forget contract.
+	//
+	// Tradeoff: Spawning attached means the child joins a Windows job object that
+	// terminates when the parent process exits, so a .ps1 hook still running when
+	// Cline exits is stopped with it (unlike hooks spawned with detached: true, which
+	// outlive the parent). This matters primarily for TaskComplete and SessionShutdown
+	// hooks in non-hub runs like `cline -y`. Non-PowerShell commands and non-Windows
+	// platforms preserve detached: true.
 	const isWinPowerShell =
-		process.platform === "win32" && isPowerShellCommand(command);
+		process.platform === "win32" && getShellKind(command[0]) === "powershell";
 	const spawnDetached = detached && !isWinPowerShell;
 
 	const child = spawn(command[0], command.slice(1), {
