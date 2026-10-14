@@ -1271,7 +1271,7 @@ async function handleAttach(
 		typeof attachedSession.status === "string"
 			? attachedSession.status
 			: undefined;
-	// Only observed live state can override Core's resident-process snapshot.
+	// Preserve Hub events received while the attach request was pending.
 	const existing = ctx.liveSessions.get(sessionId);
 	const liveStatus = existing
 		? existing.attachedViaHub || manager.hasSessionSubscription(sessionId)

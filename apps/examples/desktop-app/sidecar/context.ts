@@ -1180,14 +1180,6 @@ export function handleHubLiveEvent(
 			) {
 				return;
 			}
-			// A resident interactive process can be idle; run.started marks an active turn.
-			if (
-				runtimeStatus === "running" &&
-				session.status !== "running" &&
-				session.config.executionTarget !== "cloud"
-			) {
-				return;
-			}
 			// Pods emit periodic session.updated snapshots; re-broadcasting an
 			// unchanged status marks the session unread in the sidebar every time.
 			const statusChanged = session.status !== status;

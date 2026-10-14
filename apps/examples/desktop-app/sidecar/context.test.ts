@@ -926,7 +926,7 @@ describe("Code sidecar runtime capabilities", () => {
 	it.each([
 		"session.attached",
 		"session.updated",
-	])("keeps a resident process idle until run.started after %s", async (event) => {
+	])("accepts Hub running status without run.started through %s", async (event) => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
 		);
@@ -945,15 +945,6 @@ describe("Code sidecar runtime capabilities", () => {
 			event,
 			sessionId: "idle-session",
 			payload: { session: { status: "running" } },
-		});
-		expect(ctx.liveSessions.get("idle-session")).toMatchObject({
-			status: "idle",
-			busy: false,
-		});
-		expect(readEvents(ctx)).toEqual([]);
-		handleHubLiveEvent(ctx, {
-			event: "run.started",
-			sessionId: "idle-session",
 		});
 		expect(ctx.liveSessions.get("idle-session")).toMatchObject({
 			status: "running",
