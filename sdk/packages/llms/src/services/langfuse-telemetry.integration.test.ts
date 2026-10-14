@@ -82,7 +82,11 @@ it.each([
 	["relay", "reader rejection"],
 	["direct", "error part"],
 	["direct", "reader rejection"],
-])("exports %s socket %s as failed Langfuse observations", async (route, failure) => {
+	["relay", "timeout abort"],
+	["relay", "caller abort"],
+	["direct", "timeout abort"],
+	["direct", "caller abort"],
+])("exports %s %s with the correct Langfuse observation status", async (route, failure) => {
 	if (route === "direct") {
 		trace.disable();
 		context.disable();
@@ -90,16 +94,22 @@ it.each([
 		vi.stubEnv("LANGFUSE_PUBLIC_KEY", "public-key");
 		vi.stubEnv("LANGFUSE_SECRET_KEY", "secret-key");
 	}
-	const error = Object.assign(
-		new Error("The socket connection was closed unexpectedly"),
-		{
-			code: "ConnectionClosed",
-		},
-	);
+	const error = failure.endsWith("abort")
+		? new DOMException(
+				"test abort",
+				failure === "timeout abort" ? "TimeoutError" : "AbortError",
+			)
+		: Object.assign(
+				new Error("The socket connection was closed unexpectedly"),
+				{
+					code: "ConnectionClosed",
+				},
+			);
 	const { telemetry, recordError } = createStreamErrorTelemetry(
 		await resolveAiSdkTelemetry("cline", "socket-test"),
 	);
 	let index = 0;
+	const abortController = new AbortController();
 	const result = streamText({
 		model: new MockLanguageModelV4({
 			provider: "cline",
@@ -122,7 +132,15 @@ it.each([
 								});
 								break;
 							default:
-								if (failure === "reader rejection") controller.error(error);
+								if (failure.endsWith("abort")) {
+									abortController.abort(error);
+									controller.enqueue({
+										type: "text-delta",
+										id: "text",
+										delta: "discarded",
+									});
+								} else if (failure === "reader rejection")
+									controller.error(error);
 								else {
 									controller.enqueue({ type: "error", error });
 									controller.close();
@@ -133,6 +151,7 @@ it.each([
 			}),
 		}),
 		prompt: "test",
+		abortSignal: abortController.signal,
 		telemetry,
 		onError: ({ error }) => recordError(error),
 	});
@@ -159,9 +178,15 @@ it.each([
 	expect(errorExporter).toBeDefined();
 	const spans = errorExporter?.getFinishedSpans() ?? [];
 	expect(spans.length).toBeGreaterThan(0);
-	expect(spans.every((span) => span.status.code === SpanStatusCode.ERROR)).toBe(
-		true,
-	);
+	expect(
+		spans.every(
+			(span) =>
+				span.status.code ===
+				(failure === "caller abort"
+					? SpanStatusCode.UNSET
+					: SpanStatusCode.ERROR),
+		),
+	).toBe(true);
 	expect(
 		spans.some((span) =>
 			span.events.some(
@@ -170,7 +195,7 @@ it.each([
 					event.attributes?.["exception.message"] === error.message,
 			),
 		),
-	).toBe(true);
+	).toBe(failure !== "caller abort");
 	const count = spans.length;
 	await recordError(error);
 	await provider.forceFlush();

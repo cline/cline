@@ -44,7 +44,10 @@ import {
 } from "ai";
 import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
-import { createStreamErrorTelemetry } from "../services/stream-error-telemetry";
+import {
+	createStreamErrorTelemetry,
+	isTimeoutReason,
+} from "../services/stream-error-telemetry";
 import {
 	classifyProviderError,
 	isRetryableBeyondSdkRetries,
@@ -719,6 +722,12 @@ function buildAiSdkRuntimeContext(
 			? { conversationId: metadata.conversationId }
 			: {}),
 		...(typeof metadata.runId === "string" ? { runId: metadata.runId } : {}),
+		...(typeof metadata.agentId === "string"
+			? { agentId: metadata.agentId }
+			: {}),
+		...(typeof metadata.modelRequestId === "string"
+			? { modelRequestId: metadata.modelRequestId }
+			: {}),
 		...(typeof metadata.iteration === "number"
 			? { iteration: metadata.iteration }
 			: {}),
@@ -1451,6 +1460,13 @@ function extractGoogleThoughtMetadata(
  */
 interface CapturedStreamError {
 	error: unknown;
+	phase:
+		| "stream_callback"
+		| "stream_part"
+		| "stream_read"
+		| "result"
+		| "request_start"
+		| "timeout";
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
@@ -1471,9 +1487,13 @@ interface CapturedStreamError {
 	reported?: boolean;
 }
 
-function captureStreamError(error: unknown): CapturedStreamError {
+function captureStreamError(
+	error: unknown,
+	phase: CapturedStreamError["phase"] = "stream_callback",
+): CapturedStreamError {
 	return {
 		error,
+		phase,
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
@@ -1853,12 +1873,18 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "error") {
 					streamError =
-						capturedError?.current ?? captureStreamError(part.error);
+						capturedError?.current ??
+						captureStreamError(part.error, "stream_part");
 					break;
 				}
 
 				if (part.type === "abort") {
 					streamAborted = true;
+					if (isTimeoutReason(part.reason)) {
+						streamError =
+							capturedError?.current ??
+							captureStreamError(part.reason, "timeout");
+					}
 					break;
 				}
 			}
@@ -1870,7 +1896,8 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? captureStreamError(error);
+		streamError =
+			capturedError?.current ?? captureStreamError(error, "stream_read");
 	}
 
 	if (!streamError) {
@@ -1981,7 +2008,8 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? captureStreamError(error);
+				streamError =
+					capturedError?.current ?? captureStreamError(error, "result");
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -2141,15 +2169,39 @@ function createAiSdkProvider(
 				current: undefined,
 			};
 			let recordTraceError: ((error: unknown) => Promise<void>) | undefined;
+			let getAiSdkCallId: (() => string | undefined) | undefined;
 			let reportedError: CapturedStreamError | undefined;
 			const reportError = async (
 				captured: CapturedStreamError,
 				operation = "provider.stream",
 			) => {
 				if (reportedError === captured) return;
+				// Explicit user/steering cancellation is not a provider failure.
+				if (
+					request.signal?.aborted &&
+					!isTimeoutReason(request.signal.reason) &&
+					!isTimeoutReason(captured.error)
+				)
+					return;
 				reportedError = captured;
+				const runtimeContext = buildAiSdkRuntimeContext(request, context);
+				const correlation = Object.fromEntries(
+					[
+						"runId",
+						"agentId",
+						"sessionId",
+						"conversationId",
+						"modelRequestId",
+						"iteration",
+					].flatMap((key) =>
+						runtimeContext[key] === undefined
+							? []
+							: [[key, runtimeContext[key]]],
+					),
+				);
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
+						...correlation,
 						providerId: request.providerId,
 						error: captured.error,
 						severity: "error",
@@ -2168,6 +2220,10 @@ function createAiSdkProvider(
 					severity: "error",
 					handled: true,
 					context: {
+						...correlation,
+						aiSdkCallId: getAiSdkCallId?.(),
+						error_phase: captured.phase,
+						error_turn_retryable: captured.retryable,
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
@@ -2307,6 +2363,7 @@ function createAiSdkProvider(
 				);
 				const aiSdkTelemetry = streamTelemetry.telemetry;
 				recordTraceError = streamTelemetry.recordError;
+				getAiSdkCallId = streamTelemetry.getCallId;
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
@@ -2390,6 +2447,8 @@ function createAiSdkProvider(
 									tags: true,
 									conversationId: true,
 									runId: true,
+									agentId: true,
+									modelRequestId: true,
 									iteration: true,
 									providerId: true,
 									modelId: true,
@@ -2405,6 +2464,12 @@ function createAiSdkProvider(
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),
 							onError: async ({ error: streamError }) => {
 								const captured = captureStreamError(streamError);
+								capturedError.current = captured;
+								await reportError(captured);
+							},
+							onAbort: async ({ reason }) => {
+								if (!isTimeoutReason(reason)) return;
+								const captured = captureStreamError(reason, "timeout");
 								capturedError.current = captured;
 								await reportError(captured);
 							},
@@ -2430,7 +2495,8 @@ function createAiSdkProvider(
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const captured = capturedError.current ?? captureStreamError(error);
+				const captured =
+					capturedError.current ?? captureStreamError(error, "request_start");
 				await reportError(captured, "provider.create_or_stream");
 				yield {
 					type: "finish",

@@ -716,6 +716,8 @@ describe("sdk-gateway", () => {
 				tags: true,
 				conversationId: true,
 				runId: true,
+				agentId: true,
+				modelRequestId: true,
 				iteration: true,
 				providerId: true,
 				modelId: true,
@@ -2686,6 +2688,14 @@ describe("sdk-gateway", () => {
 				providerId: "openai-native",
 				modelId: "gpt-5-mini",
 				messages: baseMessages,
+				metadata: {
+					runId: "run-test",
+					agentId: "agent-test",
+					sessionId: "session-test",
+					conversationId: "conversation-test",
+					modelRequestId: "request-test",
+					iteration: 3,
+				},
 			}),
 		);
 		expect(logger.error).toHaveBeenCalledWith(
@@ -2698,6 +2708,13 @@ describe("sdk-gateway", () => {
 				component: "llms",
 				operation: "provider.stream",
 				severity: "error",
+				runId: "run-test",
+				agentId: "agent-test",
+				sessionId: "session-test",
+				conversationId: "conversation-test",
+				modelRequestId: "request-test",
+				iteration: 3,
+				error_phase: "stream_read",
 				error_code: "ConnectionClosed",
 				error_message: error.message,
 			}),
@@ -2711,6 +2728,54 @@ describe("sdk-gateway", () => {
 		expect(
 			capture.mock.calls.filter(([call]) => call.event === "sdk.error"),
 		).toHaveLength(1);
+	});
+
+	it.each([
+		"AbortError",
+		"TimeoutError",
+	])("classifies %s cancellation independently of provider failure", async (name) => {
+		const controller = new AbortController();
+		const reason = new DOMException("request aborted", name);
+		controller.abort(reason);
+		streamTextSpy.mockImplementation(
+			(input: { onAbort?: (event: { reason: unknown }) => Promise<void> }) => {
+				return {
+					fullStream: (async function* () {
+						await input.onAbort?.({ reason });
+						yield { type: "abort", reason };
+					})(),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				signal: controller.signal,
+			}),
+		);
+		const errors = capture.mock.calls.filter(
+			([call]) => call.event === "sdk.error",
+		);
+		if (name === "TimeoutError") {
+			expect(errors).toHaveLength(1);
+			expect(errors[0]?.[0].properties).toMatchObject({
+				error_type: "TimeoutError",
+				error_phase: "timeout",
+				severity: "error",
+			});
+		} else {
+			expect(errors).toHaveLength(0);
+			expect(logger.error).not.toHaveBeenCalled();
+		}
 	});
 
 	it("records the extracted provider message for AI SDK stream errors", async () => {

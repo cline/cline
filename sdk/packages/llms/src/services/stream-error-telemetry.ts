@@ -5,6 +5,7 @@ import type { AiSdkTelemetryDecision } from "./langfuse-telemetry";
 export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 	telemetry: AiSdkTelemetryDecision;
 	recordError: (error: unknown) => Promise<void>;
+	getCallId: () => string | undefined;
 } {
 	const integrations = decision.integrations
 		? Array.isArray(decision.integrations)
@@ -23,25 +24,37 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 		onEnd() {
 			callId = undefined;
 		},
-		onAbort() {
+		async onAbort(event) {
+			if (isTimeoutReason(event.reason)) await recordError(event.reason);
 			callId = undefined;
 		},
 	};
+	async function recordError(error: unknown) {
+		if (!callId || failed) return;
+		failed = true;
+		await Promise.all(
+			integrations.map((integration) =>
+				integration.onError?.({ callId, error }),
+			),
+		);
+	}
 	return {
 		telemetry:
 			decision.isEnabled && integrations.length > 0
 				? { ...decision, integrations: [lifecycle, ...integrations] }
 				: decision,
-		async recordError(error) {
-			if (!callId || failed) return;
-			failed = true;
-			// Error stream parts invoke the application's onError without notifying
-			// tracing integrations. Supply the operation ID captured by onStart.
-			await Promise.all(
-				integrations.map((integration) =>
-					integration.onError?.({ callId, error }),
-				),
-			);
-		},
+		// Error stream parts do not always notify tracing integrations.
+		recordError,
+		getCallId: () => callId,
 	};
+}
+
+/** Native AbortSignal timeouts are distinct from user cancellation. */
+export function isTimeoutReason(reason: unknown): boolean {
+	return (
+		typeof reason === "object" &&
+		reason !== null &&
+		"name" in reason &&
+		reason.name === "TimeoutError"
+	);
 }
