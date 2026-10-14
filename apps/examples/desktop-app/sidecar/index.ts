@@ -16,7 +16,11 @@ import {
 	setClineClientIdentity,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
-import { adoptDesktopCliRuntime, ensureHubWithDesktopCli } from "./cli-runtime";
+import {
+	adoptDesktopCliRuntime,
+	configureDesktopPluginRuntime,
+	ensureHubWithDesktopCli,
+} from "./cli-runtime";
 import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -26,7 +30,6 @@ import {
 	initializeSessionManager,
 } from "./context";
 import { createDesktopObservability } from "./observability";
-import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
@@ -256,7 +259,7 @@ async function runEntrypoint(): Promise<void> {
 
 	disableCurrentDirectoryExecutableSearch();
 	// Before the bundled CLI starts the Hub daemon and loads any plugin.
-	configurePluginBootstrap();
+	if (cliPath) await configureDesktopPluginRuntime(cliPath);
 	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
 	await main(cliPath);

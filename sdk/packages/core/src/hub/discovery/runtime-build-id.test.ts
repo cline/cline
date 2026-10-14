@@ -29,6 +29,10 @@ describe("SDK runtime build identity", () => {
 				`export const packageName = ${JSON.stringify(packageName)};\n`,
 			);
 		}
+		writeFileSync(
+			join(root, "sdk", "packages", "core", "build-plugin-runtime.mts"),
+			"// package runtime\n",
+		);
 		return root;
 	}
 
@@ -40,6 +44,16 @@ describe("SDK runtime build identity", () => {
 		writeFileSync(
 			join(root, "sdk", "packages", "core", "src", "index.ts"),
 			"export const packageName = 'changed-core';\n",
+		);
+		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
+	});
+
+	it("changes with plugin runtime packaging", () => {
+		const root = createRuntimeFixture();
+		const first = resolveSdkRuntimeBuildId(root);
+		writeFileSync(
+			join(root, "sdk", "packages", "core", "build-plugin-runtime.mts"),
+			"// changed packaging\n",
 		);
 		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
 	});

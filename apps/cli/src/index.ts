@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
+import { resolvePluginRuntimeDirectory } from "@cline/core";
 import {
 	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
@@ -34,6 +35,11 @@ ensureLoopbackProxyBypass();
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (process.argv.includes("--plugin-runtime-dir")) {
+	const directory = resolvePluginRuntimeDirectory();
+	if (!directory)
+		throw new Error("This CLI does not ship a complete plugin runtime");
+	process.stdout.write(`${directory}\n`);
 } else if (process.argv.includes("--telemetry-selfcheck")) {
 	// Inspect the config embedded in this executable without starting a hub,
 	// loading user settings, or initializing telemetry exporters.

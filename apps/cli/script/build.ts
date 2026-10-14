@@ -1,15 +1,6 @@
 #!/usr/bin/env bun
 
-import {
-	cpSync,
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	statSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -81,48 +72,6 @@ if (!buildOptions.skipSdkBuild) {
 
 	console.log("Building CLI bundle...");
 	await $`bun -F @cline/cli build`.cwd(rootDir);
-}
-
-const hubWebviewSource = join(cliDir, "../cline-hub/src/webview");
-const hubWebviewDist = join(cliDir, "../cline-hub/dist/webview");
-const hubWebviewIndex = join(hubWebviewDist, "index.html");
-
-function newestFileMtimeMs(dir: string): number {
-	let newest = 0;
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		if (
-			entry.name === "node_modules" ||
-			entry.name === "dist" ||
-			entry.name === ".turbo"
-		) {
-			continue;
-		}
-		const path = join(dir, entry.name);
-		if (entry.isDirectory()) {
-			newest = Math.max(newest, newestFileMtimeMs(path));
-		} else if (entry.isFile()) {
-			newest = Math.max(newest, statSync(path).mtimeMs);
-		}
-	}
-	return newest;
-}
-
-function shouldBuildHubWebview(): boolean {
-	if (!existsSync(hubWebviewIndex)) {
-		return true;
-	}
-	try {
-		return (
-			newestFileMtimeMs(hubWebviewSource) > statSync(hubWebviewIndex).mtimeMs
-		);
-	} catch {
-		return true;
-	}
-}
-
-if (shouldBuildHubWebview()) {
-	console.log("Building Cline Hub webview...");
-	await $`bun -F @cline/cline-hub build:webview`.cwd(rootDir);
 }
 
 const binaries: Record<string, string> = {};
@@ -217,26 +166,6 @@ for (const item of targets) {
 			console.error(`  Smoke test FAILED for ${name}:`, e);
 			process.exit(1);
 		}
-	}
-
-	// Copy plugin sandbox bootstrap if it exists
-	const bootstrapSrc = join(
-		rootDir,
-		"sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
-	);
-	if (existsSync(bootstrapSrc)) {
-		const bootstrapDir = join(cliDir, `dist/${dirName}/extensions`);
-		mkdirSync(bootstrapDir, { recursive: true });
-		const content = readFileSync(bootstrapSrc);
-		await Bun.write(join(bootstrapDir, "plugin-sandbox-bootstrap.js"), content);
-	}
-
-	if (existsSync(hubWebviewDist)) {
-		const hubWebviewDest = join(cliDir, `dist/${dirName}/cline-hub/webview`);
-		mkdirSync(join(cliDir, `dist/${dirName}/cline-hub`), {
-			recursive: true,
-		});
-		cpSync(hubWebviewDist, hubWebviewDest, { recursive: true });
 	}
 
 	// Generate platform package.json
