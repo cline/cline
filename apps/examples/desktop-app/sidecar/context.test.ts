@@ -168,6 +168,51 @@ describe("Code sidecar runtime capabilities", () => {
 		}
 	});
 
+	it("keeps CLI Hub bootstrap in startup readiness and stops before attaching after shutdown", async () => {
+		const cliRuntime = await import("./cli-runtime");
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			getBackendInitialization,
+		} = await import("./context");
+		let finish!: (hub: { url: string }) => void;
+		const path = vi
+			.spyOn(cliRuntime, "resolveDesktopCliPath")
+			.mockReturnValue("/bundled/cline-cli");
+		const ensure = vi
+			.spyOn(cliRuntime, "ensureHubWithDesktopCli")
+			.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+		const ctx = createSidecarContext("/workspace/project");
+		const starting = initializeSessionManager(ctx);
+		try {
+			await vi.waitFor(() =>
+				expect(ensure).toHaveBeenCalledWith(
+					"/bundled/cline-cli",
+					"/workspace/project",
+				),
+			);
+			expect(getBackendInitialization(ctx).state).toMatchObject({
+				state: "starting",
+				step: "discovery",
+			});
+			expect(createCoreMock).not.toHaveBeenCalled();
+			getBackendInitialization(ctx).stop();
+			finish({ url: "ws://127.0.0.1:25463/hub" });
+			await starting;
+			expect(createCoreMock).not.toHaveBeenCalled();
+			expect(nodeHubClientCtorMock).not.toHaveBeenCalled();
+		} finally {
+			getBackendInitialization(ctx).stop();
+			path.mockRestore();
+			ensure.mockRestore();
+		}
+	});
+
 	it("registers the desktop capability factory with core", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

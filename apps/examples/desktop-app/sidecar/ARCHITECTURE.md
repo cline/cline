@@ -35,6 +35,7 @@ Tauri launches the app
          +--> Initialize local session service asynchronously [starting]
                 |
                 +--> Resolve login-shell PATH
+                +--> Packaged app: bundled CLI hub ensure
                 +--> ClineCore (hub mode, require-hub)
                 |      |
                 |      +--> Discover/reuse compatible shared hub
@@ -59,6 +60,8 @@ Remote SSH hubs -> connect on user request, outside local startup gating
 ```
 
 `index.ts` publishes the endpoint before starting `initializeSessionManager()`.
+The packaged CLI Hub bootstrap runs inside session initialization, after PATH
+resolution, so readiness, recovery, and shutdown also cover this startup step.
 `backend-readiness.ts` owns the `starting`, `ready`, and `failed` states; each new
 WebSocket connection receives the current state, and later changes are broadcast
 as `backend_readiness`. Hub-dependent commands return a structured
@@ -168,9 +171,11 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
-the desktop start the same detached Hub when no CLI process has started it yet.
-Startup discovery and locking ensure concurrent clients converge on one Hub.
+The packaged backend runs on the bundled Cline CLI and has it start the Hub:
+`cline-cli hub ensure` reuses a compatible healthy Hub or starts one, and the
+Hub daemon is that same CLI binary. Any Hub the backend itself has to start
+later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
+and locking ensure concurrent clients converge on one Hub.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards

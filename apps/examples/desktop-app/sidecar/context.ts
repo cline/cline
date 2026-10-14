@@ -31,6 +31,7 @@ import {
 	BackendInitialization,
 	BackendReadinessError,
 } from "./backend-readiness";
+import { ensureHubWithDesktopCli, resolveDesktopCliPath } from "./cli-runtime";
 import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
@@ -1352,6 +1353,21 @@ async function createLocalSessionRuntime(
 	ctx.logger?.log("Login shell PATH resolution", shellPath);
 	setHomeDirIfUnset(homedir());
 	getBackendInitialization(ctx).reportStep("discovery");
+	const desktopCliPath = resolveDesktopCliPath();
+	if (desktopCliPath) {
+		try {
+			const hub = await ensureHubWithDesktopCli(
+				desktopCliPath,
+				ctx.localWorkspaceRoot,
+			);
+			ctx.logger?.log("Hub ready via Cline CLI", { url: hub.url });
+		} catch (error) {
+			// Core can still start the Hub through the configured CLI launcher.
+			signal.throwIfAborted();
+			ctx.logger?.error?.("Cline CLI hub ensure failed", { error });
+		}
+		signal.throwIfAborted();
+	}
 	const sessionManager = await ClineCore.create({
 		signal,
 		clientName: "cline-code",

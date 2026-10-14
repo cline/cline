@@ -95,6 +95,7 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    resource_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -333,7 +334,7 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 }
 
 /// The release binary is a GUI-subsystem app (no console), so on Windows
-/// every console-subsystem child (git, cmd, the sidecar) would otherwise
+/// every console-subsystem child (git, cmd, the bundled CLI) would otherwise
 /// allocate its own visible console window. Piped stdio does not prevent
 /// that; only CREATE_NO_WINDOW does.
 #[cfg(windows)]
@@ -505,7 +506,7 @@ fn apply_staged_update(app: &tauri::AppHandle) {
     let update_state = app.state::<Arc<UpdateState>>();
     // Neither restart() nor install() returns, so the run-loop Exit handler
     // does not get a chance to stop the sidecar; shut it down explicitly
-    // first. On Windows this also releases the sidecar exe's file lock,
+    // first. On Windows this also releases the bundled CLI's file lock,
     // which the NSIS installer needs in order to replace it.
     backend_state.stop();
     // Windows and Linux: install the bytes staged by the background cycle.
@@ -1095,10 +1096,6 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
-    let app_context = AppContext {
-        launch_cwd,
-        workspace_root,
-    };
 
     tauri::Builder::default()
         // Closing the window only hides it, so on Windows a second launch from
@@ -1112,10 +1109,14 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
-        .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
-        .setup(|app| {
+        .setup(move |app| {
+            app.manage(AppContext {
+                launch_cwd: launch_cwd.clone(),
+                workspace_root: workspace_root.clone(),
+                resource_dir: app.path().resource_dir()?,
+            });
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),
@@ -1427,5 +1428,4 @@ mod tests {
         assert_eq!(tray_badge_text(0), None);
         assert_eq!(tray_badge_text(3), Some("3".to_string()));
     }
-
 }

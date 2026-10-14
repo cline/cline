@@ -108,14 +108,13 @@ A worker contains its plugin's failures:
 
 Values passed to and returned from a plugin cross a thread boundary, so they must be plain data; functions are dropped. `process.cwd()` reports the session's directory, but relative file paths resolve against the host's, so use `ctx.cwd`. Workers share the host's memory limit, environment snapshot, and native addons: this is crash isolation, not a security boundary.
 
-Two other modes are available as opt-ins through `CLINE_PLUGIN_MODE` (or `mode` on `resolveAndLoadAgentPlugins`):
+Plugin code never runs on the host's main thread. One other mode is available as an opt-in through `CLINE_PLUGIN_MODE` (or `mode` on `resolveAndLoadAgentPlugins`):
 
-- **`in_process`**: plugins are imported into the host process. Lowest overhead, but globals, `process.env`, and the working directory are shared with the host, a synchronous loop blocks it, and a stray error the host cannot attribute to the plugin can end it.
 - **`sandbox`**: the previous per-session subprocess sandbox. It needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself, and does not apply the per-session plugin policy or report plugin status.
 
-Hosts that do not ship the worker bootstrap fall back to `in_process`. The CLI, the hub, the desktop app, and the VS Code extension ship it; an SDK host that bundles `@cline/core` can copy `dist/extensions/plugin-sandbox-bootstrap.js` next to its bundle, or point `CLINE_PLUGIN_BOOTSTRAP_PATH` at it.
+Both modes need the worker bootstrap. The CLI, the hub, the desktop app, and the VS Code extension ship it; an SDK host that bundles `@cline/core` can copy `dist/extensions/plugin-sandbox-bootstrap.js` next to its bundle, or point `CLINE_PLUGIN_BOOTSTRAP_PATH` at it. A host that ships none (the SSH remote, which receives only the Cline CLI binary, does not yet) cannot load any plugin; each one is reported `failed` with a message naming that variable.
 
-Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. In worker mode every new session imports the plugin fresh, so any change is picked up; `cline hub plugins --reload <plugin>` re-checks it and clears a failed status. In `in_process` mode, edits to the plugin's entry file, or to any file it reaches through a relative `import ... from` or `require()`, are picked up automatically; after changing anything else the plugin loads (a dependency in `node_modules`, a side-effect `import "./x"`, a dynamic import), run `cline hub plugins --reload <plugin>`.
+Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Every new session imports the plugin fresh, so any change is picked up; `cline hub plugins --reload <plugin>` re-checks it and clears a failed status.
 
 ## Choosing Plugins per Session
 
@@ -132,7 +131,7 @@ await cline.start({
 })
 ```
 
-A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`. The policy applies in worker and `in_process` mode; the opt-in `sandbox` mode loads every discovered plugin.
+A session only gets tools, hooks, rules, and providers from plugins it enabled. Plugin tools still go through `toolPolicies`. The policy applies in worker mode; the opt-in `sandbox` mode loads every discovered plugin.
 
 ## Setup and Call Context
 

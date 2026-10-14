@@ -1,7 +1,5 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { basename, dirname, extname, join, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import type {
 	AgentExtension,
 	AgentExtensionApi,
@@ -25,13 +23,9 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "./plugin-load-report";
-import { loadAgentPluginFromPath } from "./plugin-loader";
 import { fingerprintPluginSources } from "./plugin-module-import";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
-import {
-	matchesPluginManifestTargeting,
-	type PluginTargeting,
-} from "./plugin-targeting";
+import type { PluginTargeting } from "./plugin-targeting";
 
 export const DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS = 4_000;
 export const DEFAULT_PLUGIN_SETUP_TIMEOUT_MS = 4_000;
@@ -61,8 +55,8 @@ type SetupApi = AgentExtensionApi<AgentTool, Message[]>;
 
 interface PluginEntry {
 	pluginPath: string;
-	/** Directory (package plugins) or file path used to attribute stack frames. */
-	attributionRoot: string;
+	/** Directory (package plugins) or the file itself (drop-in plugins). */
+	pluginRoot: string;
 	name: string;
 	state: PluginRuntimeState;
 	/**
@@ -80,30 +74,20 @@ interface PluginEntry {
 	importId: number;
 	/** The imported module, read for metadata (name, manifest). */
 	extension?: AgentExtension;
-	/**
-	 * An imported copy no session has used yet. The first session claims it;
-	 * later sessions import their own copy so module state is per session.
-	 */
-	spare?: PluginInstance;
 	fingerprint?: string;
 	lastError?: PluginErrorRecord;
 	errorCount: number;
 	timeoutCount: number;
 	/** Sessions holding a copy, with their `onIssue` callback. */
 	sessions: Map<string, ((issue: SessionPluginIssue) => void) | undefined>;
+	/** The export the plugin was last loaded from, reused by `reload`. */
+	exportName?: string;
 	/**
-	 * Set once the plugin has loaded in a worker. Its copies then run in
-	 * workers and the host never imports the module, so a reload validates
-	 * the new code in a worker too.
-	 */
-	isolated?: { exportName?: string };
-	/**
-	 * Worker mode: the plugin's own (exported) name has been seen for its
-	 * current code. Until then `name` is derived from the path, so the host
-	 * cannot apply a policy that names the plugin and leaves it to the worker.
+	 * The plugin's own (exported) name has been seen for its current code.
+	 * Until then `name` is derived from the path, so the host cannot apply a
+	 * policy that names the plugin and leaves it to the worker.
 	 */
 	nameResolved?: boolean;
-	loading?: Promise<void>;
 	updatedAt: number;
 }
 
@@ -116,20 +100,9 @@ interface PluginInstance {
 	closed: boolean;
 	/** Cleanup registered through `ctx.onDispose`. */
 	disposers: Array<() => void | Promise<void>>;
-	/** Worker copies: stops the worker the copy runs in. */
+	/** Stops the worker the copy runs in. */
 	shutdown?: () => Promise<void>;
-	/**
-	 * The async scope every call into this copy runs in, created at import.
-	 * Work the module starts at import time keeps this scope, so claiming the
-	 * copy for a session fills in its session id and event callback here
-	 * rather than in a new scope that work would never see.
-	 */
-	scope: PluginCallScope;
-}
-
-interface PluginCallScope {
-	sessionId?: string;
-	pluginName: string;
+	/** The session's event sink, given to tools that do not bring their own. */
 	emitEvent?: (name: string, payload?: unknown) => void;
 }
 
@@ -149,18 +122,8 @@ export interface PluginRegistryOptions {
 	failureThreshold?: number;
 }
 
-/**
- * Where a session's plugin copies run. `in_process` imports them into the
- * host. `worker` runs each plugin in its own worker thread per session: the
- * host never loads plugin code, and a crash, `process.exit()`, or hung loop
- * ends only that worker.
- */
-export type PluginIsolation = "in_process" | "worker";
-
 export interface PluginSessionLoadInput extends PluginTargeting {
 	sessionId?: string;
-	/** Defaults to `in_process`. */
-	isolation?: PluginIsolation;
 	/** Resolved, enabled plugin module paths, in load order. */
 	pluginPaths: ReadonlyArray<string>;
 	/** Plugin paths turned off in settings; reported as `disabled`. */
@@ -217,10 +180,10 @@ function toErrorParts(error: unknown): { message: string; stack?: string } {
 
 /**
  * Package plugins own their whole package directory; a single-file plugin
- * in a shared `plugins/` folder owns only its file, so a stray error from one
- * drop-in file is never blamed on its neighbours.
+ * in a shared `plugins/` folder owns only its file. The root decides the
+ * plugin's display name before its module is imported.
  */
-function resolveAttributionRoot(pluginPath: string): string {
+function resolvePluginRoot(pluginPath: string): string {
 	let current = dirname(pluginPath);
 	for (let depth = 0; depth < 4; depth++) {
 		const manifestPath = join(current, "package.json");
@@ -243,66 +206,16 @@ function resolveAttributionRoot(pluginPath: string): string {
 }
 
 /** Name used before the module is imported (or when it never imports). */
-function derivePluginName(pluginPath: string, attributionRoot: string): string {
-	return attributionRoot === pluginPath
+function derivePluginName(pluginPath: string, pluginRoot: string): string {
+	return pluginRoot === pluginPath
 		? basename(pluginPath, extname(pluginPath))
-		: getPluginDisplayName(pluginPath, attributionRoot);
+		: getPluginDisplayName(pluginPath, pluginRoot);
 }
 
 /** The name a plugin is known by before its module is imported. */
 export function derivePluginNameFromPath(pluginPath: string): string {
 	const absolute = resolve(pluginPath);
-	return derivePluginName(absolute, resolveAttributionRoot(absolute));
-}
-
-/**
- * Windows stack frames may spell a path differently from how it was
- * configured (case, separators, 8.3 short names such as `RUNNER~1`), so
- * compare a normalized form there.
- */
-function normalizeStackPath(value: string): string {
-	return process.platform === "win32"
-		? value.replace(/\\/g, "/").toLowerCase()
-		: value;
-}
-
-function stackMentionsPath(stack: string, root: string): boolean {
-	const roots = new Set([root]);
-	// Module resolution follows symlinks, and on Windows may or may not
-	// expand 8.3 short names depending on the resolver, so the stack can name
-	// the real path in either spelling.
-	for (const realpath of [realpathSync, realpathSync.native]) {
-		try {
-			roots.add(realpath(root));
-		} catch {
-			// A missing root can only match by its configured spelling.
-		}
-	}
-	const haystack = normalizeStackPath(stack);
-	const candidates = [...roots].flatMap((candidate) => [
-		normalizeStackPath(candidate),
-		normalizeStackPath(pathToFileURL(candidate).href),
-	]);
-	return candidates.some((candidate) => {
-		let index = haystack.indexOf(candidate);
-		while (index !== -1) {
-			const next = haystack[index + candidate.length];
-			// Require a boundary so /plugins/foo does not match /plugins/foobar.
-			if (
-				next === undefined ||
-				next === sep ||
-				next === "/" ||
-				next === ":" ||
-				next === ")" ||
-				next === "?" ||
-				/\s/.test(next)
-			) {
-				return true;
-			}
-			index = haystack.indexOf(candidate, index + 1);
-		}
-		return false;
-	});
+	return derivePluginName(absolute, resolvePluginRoot(absolute));
 }
 
 function runWithTimeout<T>(
@@ -349,54 +262,25 @@ function isPluginEnabledByPolicy(
 	return policy["*"]?.enabled ?? true;
 }
 
-const pluginCallScope = new AsyncLocalStorage<PluginCallScope>();
-let lastPluginCallScope: PluginCallScope | undefined;
-
-function runInPluginScope<T>(scope: PluginCallScope, fn: () => T): T {
-	lastPluginCallScope = scope;
-	return pluginCallScope.run(scope, fn);
-}
-
-/**
- * Plugins written for the subprocess sandbox emit events through
- * `globalThis.__clinePluginHost.emitEvent`. In-process, route those calls to
- * the session whose hook or tool is running (async context follows timers and
- * promises the call started), else to the session that last called a plugin.
- */
-export function installPluginHostShim(): void {
-	const globals = globalThis as Record<string, unknown>;
-	if (globals.__clinePluginHost) return;
-	globals.__clinePluginHost = {
-		emitEvent: (name: string, payload?: unknown) => {
-			const scope = pluginCallScope.getStore() ?? lastPluginCallScope;
-			scope?.emitEvent?.(name, payload);
-		},
-	};
-}
-
-function newInstance(
-	extension: AgentExtension | undefined,
-	pluginName: string,
-	importId: number,
-): PluginInstance {
+function newInstance(importId: number): PluginInstance {
 	return {
-		// Assigned as soon as the import resolves; never read before that.
-		extension: extension as AgentExtension,
+		// Assigned as soon as the worker reports its import; never read before.
+		extension: undefined as unknown as AgentExtension,
 		importId,
 		setupFailed: false,
 		closed: false,
 		disposers: [],
-		scope: { pluginName },
 	};
 }
 
 /**
  * Tracks plugins for the whole process and hands each session a guarded copy
- * of the plugins it enabled. Each session gets its own import of the module,
- * matching the per-session sandbox plugins were written for. Every import,
- * setup, hook, tool, command, rule, and message-builder call is wrapped with
- * a timeout and error capture, and the result is recorded per plugin so
- * failures are visible instead of silently dropping the plugin's tools.
+ * of the plugins it enabled. Each copy runs in its own worker thread, so
+ * module state is per session and plugin code never runs on the host's main
+ * thread. Every import, setup, hook, tool, command, rule, and message-builder
+ * call is wrapped with a timeout and error capture, and the result is
+ * recorded per plugin so failures are visible instead of silently dropping
+ * the plugin's tools.
  */
 export class PluginRegistry {
 	private readonly entries = new Map<string, PluginEntry>();
@@ -418,7 +302,6 @@ export class PluginRegistry {
 		};
 		this.failureThreshold =
 			options.failureThreshold ?? DEFAULT_PLUGIN_FAILURE_THRESHOLD;
-		installPluginHostShim();
 	}
 
 	setLogger(logger: BasicLogger | undefined): void {
@@ -443,60 +326,28 @@ export class PluginRegistry {
 	}
 
 	/**
-	 * Re-imports the matching plugins and resets their status. Sessions
-	 * started afterwards use the new module; running sessions keep the copy
-	 * they set up, which stays callable unless the re-import fails (the plugin
-	 * is then turned off for every session, failing closed).
+	 * Re-validates the matching plugins' current code in throwaway workers and
+	 * resets their status. Sessions started afterwards use the new code;
+	 * running sessions keep the copy they set up, which stays callable unless
+	 * the re-import fails (the plugin is then turned off for every session,
+	 * failing closed).
 	 */
 	async reload(nameOrPath: string): Promise<PluginStatusRecord[]> {
 		const matches = this.match(nameOrPath);
 		for (const entry of matches) {
-			entry.fingerprint = undefined;
 			entry.lastError = undefined;
 			entry.errorCount = 0;
 			entry.timeoutCount = 0;
 			this.log("info", "plugin.reload", entry, {});
-			if (entry.isolated) {
-				await this.reloadIsolated(entry);
-				continue;
-			}
-			await this.ensureLoaded(entry.pluginPath, { force: true });
+			await this.reloadEntry(entry);
 		}
 		return matches.map((entry) => this.toStatus(entry));
 	}
 
 	/**
-	 * Finds the plugin whose module root appears in `error`'s stack and turns
-	 * it off for every session. Used by the Hub daemon so a stray plugin error
-	 * does not take the process down.
-	 */
-	attributeUncaughtError(
-		error: unknown,
-		label = "uncaught",
-	): PluginStatusRecord | undefined {
-		const stack = error instanceof Error ? error.stack : undefined;
-		if (!stack) return undefined;
-		// Prefer the most specific root when roots nest.
-		const entry = [...this.entries.values()]
-			.filter((candidate) =>
-				stackMentionsPath(stack, candidate.attributionRoot),
-			)
-			.sort(
-				(left, right) =>
-					right.attributionRoot.length - left.attributionRoot.length,
-			)[0];
-		if (!entry) return undefined;
-		this.recordFailure(entry, "uncaught", error, {
-			fatal: true,
-			messagePrefix: `${label}: `,
-		});
-		return this.toStatus(entry);
-	}
-
-	/**
-	 * Imports plugins without attaching them to a session, so the Hub can
-	 * discover them at startup and report status before any session exists.
-	 * The imported copy is kept for the first session to claim.
+	 * Loads each plugin in a throwaway worker without attaching it to a
+	 * session, so the Hub can discover plugins at startup and report status
+	 * (including import errors) before any session exists.
 	 */
 	async preload(
 		input: Pick<
@@ -506,171 +357,21 @@ export class PluginRegistry {
 			| "discoveryFailures"
 			| "exportName"
 			| "importTimeoutMs"
-			| "isolation"
 		>,
 	): Promise<PluginStatusRecord[]> {
-		if (input.isolation === "worker") {
-			// Load each plugin in a throwaway worker so status (and import
-			// errors) are known before any session starts.
-			const loaded = await this.loadIsolatedForSession(input);
-			await loaded.release();
-			return this.list();
-		}
-		this.recordDiscovery(input, []);
-		for (const rawPath of input.pluginPaths) {
-			await this.ensureLoaded(resolve(rawPath), {
-				exportName: input.exportName,
-				importTimeoutMs: input.importTimeoutMs,
-			});
-		}
+		const loaded = await this.loadForSession(input);
+		await loaded.release();
 		return this.list();
 	}
 
-	async loadForSession(
-		input: PluginSessionLoadInput,
-	): Promise<PluginSessionLoadResult> {
-		if (input.isolation === "worker") {
-			return this.loadIsolatedForSession(input);
-		}
-		const failures: PluginInitializationFailure[] = [];
-		const warnings: PluginInitializationWarning[] = [];
-		const issues: SessionPluginIssue[] = [];
-		const sessionId = input.sessionId;
-		const timeouts = this.resolveTimeouts(input);
-
-		for (const entry of this.recordDiscovery(input, issues)) {
-			failures.push(this.toInitializationFailure(entry));
-		}
-
-		const loadedByName = new Map<
-			string,
-			{ entry: PluginEntry; order: number }
-		>();
-		let order = 0;
-		for (const rawPath of input.pluginPaths) {
-			const pluginPath = resolve(rawPath);
-			const entry = await this.ensureLoaded(pluginPath, {
-				exportName: input.exportName,
-				importTimeoutMs: timeouts.import,
-			});
-			const enabledByPolicy = this.isEnabledForSession(entry, input);
-			if (entry.blocked || entry.state === "disabled" || !entry.extension) {
-				// A broken plugin the session turned off is not this session's
-				// problem; report it as disabled rather than as a failure.
-				if (!enabledByPolicy) {
-					issues.push(this.policyIssue(entry));
-					continue;
-				}
-				if (entry.state === "failed") {
-					failures.push(this.toInitializationFailure(entry));
-				}
-				issues.push(
-					this.toIssue(
-						entry,
-						entry.state === "disabled" ? "settings" : "error",
-					),
-				);
-				continue;
-			}
-			if (!matchesPluginManifestTargeting(entry.extension.manifest, input)) {
-				continue;
-			}
-			if (!enabledByPolicy) {
-				issues.push(this.policyIssue(entry));
-				continue;
-			}
-			const existing = loadedByName.get(entry.name);
-			if (existing) {
-				warnings.push({
-					type: "duplicate_plugin_override",
-					pluginName: entry.name,
-					pluginPath,
-					overriddenPluginPath: existing.entry.pluginPath,
-					message: `Plugin "${entry.name}" from ${pluginPath} overrides ${existing.entry.pluginPath}`,
-				});
-			}
-			loadedByName.set(entry.name, { entry, order: order++ });
-		}
-
-		const ordered = [...loadedByName.values()].sort(
-			(left, right) => left.order - right.order,
-		);
-		const selected: Array<{ entry: PluginEntry; instance: PluginInstance }> =
-			[];
-		for (const { entry } of ordered) {
-			const importId = entry.importId;
-			try {
-				const instance = await this.claimInstance(
-					entry,
-					input.exportName,
-					timeouts,
-					sessionId,
-				);
-				selected.push({ entry, instance });
-			} catch (error) {
-				if (entry.importId !== importId) {
-					// A reload or source change re-imported the plugin while this
-					// copy was loading. The failure describes the old module: tell
-					// this session, but leave the current module's status alone.
-					const { message, stack } = toErrorParts(error);
-					issues.push({
-						name: entry.name,
-						pluginPath: entry.pluginPath,
-						state: "failed",
-						reason: "error",
-						lastError: {
-							phase: "import",
-							message,
-							...(stack ? { stack } : {}),
-							pluginPath: entry.pluginPath,
-							timestamp: Date.now(),
-							...(sessionId ? { sessionId } : {}),
-						},
-					});
-					continue;
-				}
-				this.recordFailure(entry, "import", error, {
-					fatal: true,
-					sessionId,
-				});
-				failures.push(this.toInitializationFailure(entry));
-				issues.push(this.toIssue(entry, "error"));
-			}
-		}
-		if (sessionId) {
-			for (const { entry } of selected) {
-				entry.sessions.set(sessionId, input.onIssue);
-			}
-		}
-		const extensions = selected.map(({ entry, instance }) =>
-			this.wrapForSession(entry, instance, input, timeouts),
-		);
-		let released: Promise<void> | undefined;
-		return {
-			extensions,
-			pluginPaths: selected.map(({ entry }) => entry.pluginPath),
-			failures,
-			warnings,
-			issues,
-			release: () => {
-				released ??= Promise.all(
-					selected.map(({ entry, instance }) =>
-						this.releaseInstance(entry, instance, sessionId, timeouts),
-					),
-				).then(() => undefined);
-				return released;
-			},
-		};
-	}
-
 	/**
-	 * Worker isolation: each plugin loads in its own worker for this session,
-	 * and the copy handed to the session is a proxy whose calls go to that
-	 * worker. The copy goes through the same wrapping as an in-process one, so
-	 * status, timeouts, failure counting, policy, and notices are unchanged.
-	 * What differs is where the code runs: the host never imports it.
+	 * Each plugin loads in its own worker for this session, and the copy
+	 * handed to the session is a proxy whose calls go to that worker. The host
+	 * never imports plugin code. Every setup, hook, tool, command, rule, and
+	 * message-builder call is wrapped with a timeout and error capture, and
+	 * the result is recorded per plugin.
 	 */
-	private async loadIsolatedForSession(
+	async loadForSession(
 		input: PluginSessionLoadInput,
 	): Promise<PluginSessionLoadResult> {
 		const failures: PluginInitializationFailure[] = [];
@@ -686,8 +387,8 @@ export class PluginRegistry {
 		const candidates: PluginEntry[] = [];
 		for (const rawPath of input.pluginPaths) {
 			const entry = this.ensureEntry(resolve(rawPath));
-			entry.isolated = { exportName: input.exportName };
-			this.refreshIsolatedEntry(entry);
+			entry.exportName = input.exportName;
+			this.refreshEntry(entry);
 			// Skip the worker only when the plugin's own name is known; else the
 			// worker applies the policy after import, before setup.
 			if (entry.nameResolved && !this.isEnabledForSession(entry, input)) {
@@ -725,7 +426,7 @@ export class PluginRegistry {
 					continue;
 				}
 				if (result.phase === "setup") {
-					// As in-process: a setup failure costs only this session.
+					// A setup failure costs only this session.
 					this.recordFailure(entry, "setup", result.error, {
 						sessionId,
 						state: "failed",
@@ -800,7 +501,7 @@ export class PluginRegistry {
 	 * re-import. A source change (or re-enabling) still starts a new import
 	 * id: the plugin gets a clean slate, and copies of the old code go stale.
 	 */
-	private refreshIsolatedEntry(entry: PluginEntry): void {
+	private refreshEntry(entry: PluginEntry): void {
 		const fingerprint = fingerprintPluginSources(entry.pluginPath);
 		if (entry.fingerprint === fingerprint && entry.state !== "disabled") {
 			return;
@@ -831,12 +532,11 @@ export class PluginRegistry {
 		  }
 	> {
 		const importId = entry.importId;
-		const instance = newInstance(undefined, entry.name, importId);
-		instance.scope.sessionId = sessionId;
+		const instance = newInstance(importId);
 		let ready = false;
 		// Set once the import finished and setup() began, so a failure after
 		// that (setup threw, timed out, or crashed the worker) costs only this
-		// session's copy, as in-process, instead of turning the plugin off.
+		// session's copy instead of turning the plugin off.
 		let setupStarted = false;
 		const setup = input.setupContext;
 		const startedAt = Date.now();
@@ -857,7 +557,7 @@ export class PluginRegistry {
 				policy: input.policy,
 				policyNames: {
 					[entry.pluginPath]: [
-						derivePluginName(entry.pluginPath, entry.attributionRoot),
+						derivePluginName(entry.pluginPath, entry.pluginRoot),
 					],
 				},
 				// A worker that dies on its own (stray rejection, process.exit)
@@ -919,7 +619,6 @@ export class PluginRegistry {
 		if (importId === entry.importId) {
 			entry.name = extension.name;
 			entry.nameResolved = true;
-			instance.scope.pluginName = extension.name;
 			entry.extension = extension;
 			if (
 				!entry.blocked &&
@@ -929,20 +628,18 @@ export class PluginRegistry {
 			}
 			this.log("info", "plugin.import.ready", entry, {
 				elapsedMs: Date.now() - startedAt,
-				isolation: "worker",
 			});
 		}
 		return { entry, instance };
 	}
 
-	/** Re-validates a worker plugin's current code in a throwaway worker. */
-	private async reloadIsolated(entry: PluginEntry): Promise<void> {
+	/** Re-validates a plugin's current code in a throwaway worker. */
+	private async reloadEntry(entry: PluginEntry): Promise<void> {
 		entry.fingerprint = undefined;
-		this.refreshIsolatedEntry(entry);
+		this.refreshEntry(entry);
 		const input: PluginSessionLoadInput = {
 			pluginPaths: [entry.pluginPath],
-			exportName: entry.isolated?.exportName,
-			isolation: "worker",
+			exportName: entry.exportName,
 		};
 		const result = await this.startWorkerCopy(
 			entry,
@@ -1012,7 +709,6 @@ export class PluginRegistry {
 			const entry = this.ensureEntry(pluginPath);
 			if (entry.state !== "disabled") {
 				entry.extension = undefined;
-				entry.spare = undefined;
 				this.setState(entry, "disabled");
 			}
 			if (this.isEnabledForSession(entry, input)) {
@@ -1028,7 +724,7 @@ export class PluginRegistry {
 	): boolean {
 		return isPluginEnabledByPolicy(input.policy, [
 			entry.name,
-			derivePluginName(entry.pluginPath, entry.attributionRoot),
+			derivePluginName(entry.pluginPath, entry.pluginRoot),
 		]);
 	}
 
@@ -1058,7 +754,7 @@ export class PluginRegistry {
 			(entry) =>
 				entry.pluginPath === absolute ||
 				entry.name === target ||
-				derivePluginName(entry.pluginPath, entry.attributionRoot) === target,
+				derivePluginName(entry.pluginPath, entry.pluginRoot) === target,
 		);
 	}
 
@@ -1066,11 +762,11 @@ export class PluginRegistry {
 		const absolute = resolve(pluginPath);
 		let entry = this.entries.get(absolute);
 		if (!entry) {
-			const attributionRoot = resolveAttributionRoot(absolute);
+			const pluginRoot = resolvePluginRoot(absolute);
 			entry = {
 				pluginPath: absolute,
-				attributionRoot,
-				name: derivePluginName(absolute, attributionRoot),
+				pluginRoot,
+				name: derivePluginName(absolute, pluginRoot),
 				state: "loading",
 				blocked: false,
 				consecutiveFailures: 0,
@@ -1085,116 +781,6 @@ export class PluginRegistry {
 		return entry;
 	}
 
-	private async ensureLoaded(
-		pluginPath: string,
-		options: { force?: boolean; exportName?: string; importTimeoutMs?: number },
-	): Promise<PluginEntry> {
-		const entry = this.ensureEntry(pluginPath);
-		if (entry.loading) {
-			await entry.loading;
-			return entry;
-		}
-		const fingerprint = fingerprintPluginSources(entry.pluginPath);
-		const upToDate =
-			!options.force &&
-			entry.fingerprint === fingerprint &&
-			entry.state !== "disabled" &&
-			entry.state !== "loading";
-		if (upToDate) return entry;
-
-		entry.loading = this.importEntry(
-			entry,
-			fingerprint,
-			options.exportName,
-			options.importTimeoutMs ?? this.defaults.import,
-		);
-		try {
-			await entry.loading;
-		} finally {
-			entry.loading = undefined;
-		}
-		return entry;
-	}
-
-	/** Imports one copy of the module in its own call scope. */
-	private async importCopy(
-		entry: PluginEntry,
-		exportName: string | undefined,
-		timeoutMs: number,
-		sessionId: string | undefined,
-	): Promise<PluginInstance> {
-		const instance = newInstance(undefined, entry.name, entry.importId);
-		instance.scope.sessionId = sessionId;
-		instance.extension = await runWithTimeout(
-			() =>
-				runInPluginScope(instance.scope, () =>
-					loadAgentPluginFromPath(entry.pluginPath, {
-						exportName,
-						freshModule: true,
-					}),
-				),
-			timeoutMs,
-			`Plugin import of ${entry.pluginPath}`,
-		);
-		return instance;
-	}
-
-	/**
-	 * Hands a session its own copy of the plugin module. Plugins written for
-	 * the per-session sandbox keep state at module level (one plugin object
-	 * per import), so sharing one copy across sessions would break them.
-	 */
-	private async claimInstance(
-		entry: PluginEntry,
-		exportName: string | undefined,
-		timeouts: PluginTimeouts,
-		sessionId: string | undefined,
-	): Promise<PluginInstance> {
-		const spare = entry.spare;
-		if (spare) {
-			entry.spare = undefined;
-			return spare;
-		}
-		return this.importCopy(entry, exportName, timeouts.import, sessionId);
-	}
-
-	private async importEntry(
-		entry: PluginEntry,
-		fingerprint: string,
-		exportName: string | undefined,
-		importTimeoutMs: number,
-	): Promise<void> {
-		entry.fingerprint = fingerprint;
-		entry.extension = undefined;
-		entry.spare = undefined;
-		// Copies from before this import are stale from here on: what they
-		// report no longer describes the module being imported.
-		entry.importId += 1;
-		this.setState(entry, "loading", true);
-		const startedAt = Date.now();
-		try {
-			const instance = await this.importCopy(
-				entry,
-				exportName,
-				importTimeoutMs,
-				undefined,
-			);
-			// A successful re-import (reload or source change) gives the plugin
-			// a clean slate.
-			entry.blocked = false;
-			entry.consecutiveFailures = 0;
-			entry.extension = instance.extension;
-			entry.spare = instance;
-			entry.name = instance.extension.name;
-			this.setState(entry, "ready");
-			this.log("info", "plugin.import.ready", entry, {
-				elapsedMs: Date.now() - startedAt,
-			});
-		} catch (error) {
-			this.recordFailure(entry, "import", error, { fatal: true });
-		}
-	}
-
 	private wrapForSession(
 		entry: PluginEntry,
 		instance: PluginInstance,
@@ -1202,29 +788,16 @@ export class PluginRegistry {
 		timeouts: PluginTimeouts,
 	): AgentExtension {
 		const extension = instance.extension;
-		const sessionId = input.sessionId;
 		const emitEvent = input.emitEvent
 			? (name: string, payload?: unknown) =>
 					input.emitEvent?.({ name, payload })
 			: undefined;
-		// Connect the copy's own scope (the one its import-time work holds) to
-		// this session.
-		const scope = instance.scope;
-		scope.sessionId = sessionId;
-		scope.pluginName = entry.name;
-		scope.emitEvent = emitEvent;
+		instance.emitEvent = emitEvent;
 		const originalSetup = extension.setup;
 		const wrapped: AgentExtension & { __clinePluginPath?: string } = {
 			...extension,
 			__clinePluginPath: entry.pluginPath,
-			hooks: this.wrapHooks(
-				entry,
-				instance,
-				extension.hooks,
-				scope,
-				input,
-				timeouts,
-			),
+			hooks: this.wrapHooks(entry, instance, extension.hooks, input, timeouts),
 			setup: originalSetup
 				? async (api, ctx) => {
 						if (!this.isUsable(entry, instance)) return;
@@ -1253,7 +826,6 @@ export class PluginRegistry {
 							(bufferedApi) =>
 								originalSetup.call(extension, bufferedApi, setupContext),
 							api,
-							scope,
 							input,
 							timeouts,
 						);
@@ -1268,7 +840,6 @@ export class PluginRegistry {
 		instance: PluginInstance,
 		invoke: (api: SetupApi) => void | Promise<void>,
 		api: SetupApi,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		timeouts: PluginTimeouts,
 	): Promise<void> {
@@ -1300,7 +871,6 @@ export class PluginRegistry {
 					entry,
 					instance,
 					rule,
-					scope,
 					input,
 					timeouts,
 				);
@@ -1311,7 +881,6 @@ export class PluginRegistry {
 					entry,
 					instance,
 					builder,
-					scope,
 					input,
 					timeouts,
 				);
@@ -1347,7 +916,7 @@ export class PluginRegistry {
 		const startedAt = Date.now();
 		try {
 			await runWithTimeout(
-				() => runInPluginScope(scope, () => invoke(bufferedApi)),
+				() => invoke(bufferedApi),
 				timeouts.setup,
 				`Plugin "${entry.name}" setup`,
 			);
@@ -1358,13 +927,11 @@ export class PluginRegistry {
 		this.warnIfSlow(entry, "setup", startedAt, timeouts.setup, input);
 		try {
 			for (const tool of pending.tools) {
-				api.registerTool(
-					this.wrapTool(entry, instance, tool, scope, input, timeouts),
-				);
+				api.registerTool(this.wrapTool(entry, instance, tool, input, timeouts));
 			}
 			for (const command of pending.commands) {
 				api.registerCommand(
-					this.wrapCommand(entry, instance, command, scope, input, timeouts),
+					this.wrapCommand(entry, instance, command, input, timeouts),
 				);
 			}
 			for (const call of pending.calls) {
@@ -1389,7 +956,6 @@ export class PluginRegistry {
 		entry: PluginEntry,
 		instance: PluginInstance,
 		hooks: ExtensionHooks | undefined,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		timeouts: PluginTimeouts,
 	): ExtensionHooks | undefined {
@@ -1406,7 +972,6 @@ export class PluginRegistry {
 						instance,
 						phase,
 						timeouts.hook,
-						scope,
 						input,
 						() => (hook as HookFn).apply(hooks, args),
 					);
@@ -1423,7 +988,6 @@ export class PluginRegistry {
 		entry: PluginEntry,
 		instance: PluginInstance,
 		tool: AgentTool,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		timeouts: PluginTimeouts,
 	): AgentTool {
@@ -1437,13 +1001,12 @@ export class PluginRegistry {
 					instance,
 					phase,
 					tool.timeoutMs ?? timeouts.call,
-					scope,
 					input,
 					() =>
 						tool.execute(toolInput, {
 							...context,
 							cwd: context.cwd ?? input.cwd,
-							emitEvent: context.emitEvent ?? scope.emitEvent,
+							emitEvent: context.emitEvent ?? instance.emitEvent,
 						}),
 					// A cancelled run is not the plugin's fault.
 					() => context.signal?.aborted === true,
@@ -1456,7 +1019,6 @@ export class PluginRegistry {
 		entry: PluginEntry,
 		instance: PluginInstance,
 		command: AgentExtensionCommand,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		timeouts: PluginTimeouts,
 	): AgentExtensionCommand {
@@ -1471,7 +1033,6 @@ export class PluginRegistry {
 					instance,
 					`command:${command.name}`,
 					timeouts.call,
-					scope,
 					input,
 					() => handler.call(command, commandInput),
 				);
@@ -1484,7 +1045,6 @@ export class PluginRegistry {
 		entry: PluginEntry,
 		instance: PluginInstance,
 		rule: AgentExtensionRule,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		timeouts: PluginTimeouts,
 	): AgentExtensionRule {
@@ -1500,7 +1060,6 @@ export class PluginRegistry {
 						instance,
 						`rule:${rule.id}`,
 						timeouts.call,
-						scope,
 						input,
 						() => content.call(rule),
 					);
@@ -1516,7 +1075,6 @@ export class PluginRegistry {
 		entry: PluginEntry,
 		instance: PluginInstance,
 		builder: AgentExtensionMessageBuilder<Message[]>,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		timeouts: PluginTimeouts,
 	): AgentExtensionMessageBuilder<Message[]> {
@@ -1530,7 +1088,6 @@ export class PluginRegistry {
 						instance,
 						`messageBuilder:${builder.name}`,
 						timeouts.call,
-						scope,
 						input,
 						() => builder.build.call(builder, messages),
 					);
@@ -1542,15 +1099,14 @@ export class PluginRegistry {
 	}
 
 	/**
-	 * Runs one plugin call in its session scope with a timeout, records the
-	 * outcome against the plugin, and rethrows failures.
+	 * Runs one plugin call with a timeout, records the outcome against the
+	 * plugin, and rethrows failures.
 	 */
 	private async guardedCall<T>(
 		entry: PluginEntry,
 		instance: PluginInstance,
 		phase: PluginErrorPhase,
 		timeoutMs: number,
-		scope: PluginCallScope,
 		input: PluginSessionLoadInput,
 		call: () => T | Promise<T>,
 		isCancelled?: () => boolean,
@@ -1558,7 +1114,7 @@ export class PluginRegistry {
 		const startedAt = Date.now();
 		try {
 			const result = await runWithTimeout(
-				() => runInPluginScope(scope, call),
+				call,
 				timeoutMs,
 				`Plugin "${entry.name}" ${phase}`,
 			);
@@ -1609,11 +1165,10 @@ export class PluginRegistry {
 		if (instance.closed) return;
 		instance.closed = true;
 		if (sessionId) entry.sessions.delete(sessionId);
-		const scope: PluginCallScope = { sessionId, pluginName: entry.name };
 		for (const cleanup of instance.disposers.splice(0).reverse()) {
 			try {
 				await runWithTimeout(
-					() => runInPluginScope(scope, cleanup),
+					cleanup,
 					timeouts.hook,
 					`Plugin "${entry.name}" dispose`,
 				);
@@ -1630,7 +1185,7 @@ export class PluginRegistry {
 			}
 		}
 		// Ending the worker stops everything the copy started (timers,
-		// sockets, pending work), which in-process cleanup cannot guarantee.
+		// sockets, pending work).
 		await instance.shutdown?.().catch(() => {
 			// Best-effort: the worker may already be gone.
 		});
@@ -1710,7 +1265,6 @@ export class PluginRegistry {
 		if (block) {
 			entry.blocked = true;
 			entry.extension = undefined;
-			entry.spare = undefined;
 		}
 		this.setState(entry, next, true);
 		const issue = this.toIssue(entry, "error");
