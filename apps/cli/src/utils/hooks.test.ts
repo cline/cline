@@ -261,6 +261,29 @@ describe("createRuntimeHooks", () => {
 		}
 	});
 
+	it("sends agent_abort for an aborted run that carries no error", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			dispatchHookEvent,
+		});
+
+		await runtimeHooks.hooks?.afterRun?.({
+			snapshot: {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				parentAgentId: null,
+			},
+			result: { status: "aborted", iterations: 1 },
+		} as never);
+
+		const [[payload]] = dispatchHookEvent.mock.calls;
+		expect(payload.hookName).toBe("agent_abort");
+		expect(parseHookEventPayload(payload)).toBeDefined();
+	});
+
 	it("suppresses text hook output when verbose is disabled", async () => {
 		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
 		const runtimeHooks = createRuntimeHooks({

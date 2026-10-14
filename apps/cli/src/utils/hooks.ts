@@ -315,9 +315,12 @@ export function createRuntimeHooks(options: {
 					);
 					return;
 				}
-				const hookName = isAbortReason(result.error?.message)
-					? "agent_abort"
-					: "agent_error";
+				// The runtime reports a cancelled run as `status: "aborted"` with
+				// no error, so the message check only catches older callers.
+				const hookName =
+					result.status === "aborted" || isAbortReason(result.error?.message)
+						? "agent_abort"
+						: "agent_error";
 				await dispatchHookPayload(
 					hookName === "agent_abort"
 						? {
