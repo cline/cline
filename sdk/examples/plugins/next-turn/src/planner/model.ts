@@ -38,10 +38,15 @@ type Completion = {
 	modelId?: string;
 };
 
-/** One tool-less call; null when no provider can be resolved. */
+/**
+ * One tool-less call; null when no provider can be resolved. `settings` are
+ * the ones the input's sources were allowed under, so the call goes where they
+ * allowed it to.
+ */
 export type Complete = (
 	input: PlannerInput,
 	signal: AbortSignal,
+	settings: Settings,
 ) => Promise<Completion | null>;
 
 /** Pools by turn position, oldest dropped first: a pool is only worth the turn it was written for. */
@@ -72,11 +77,12 @@ export async function generatePool(
 	complete: Complete,
 	input: PlannerInput,
 	kinds: readonly SuggestionKind[],
+	settings: Settings,
 	timeoutMs: number = PLANNER_TIMEOUT_MS,
 ): Promise<PoolAttempt> {
 	try {
 		const answer = await withDeadline(
-			(signal) => complete(input, signal),
+			(signal) => complete(input, signal, settings),
 			timeoutMs,
 		);
 		if (answer === TIMED_OUT) return { reason: "timeout" };
@@ -207,7 +213,7 @@ const LOW_REASONING = {
 const reasoningRequired = new Set<string>();
 
 type CompleterOptions = {
-	choice: () => ProviderChoice;
+	choice: (settings: Settings) => ProviderChoice;
 	/** Read on every call, so the request headers name the client viewing the chat now. */
 	requestContext?: () => PlannerRequestContext;
 	load?: () => Promise<{ core: CoreModule; llms: LlmsModule }>;
@@ -234,8 +240,8 @@ export function clineCompleter({
 				resolve: ReturnType<typeof providerResolver>;
 		  }>
 		| undefined;
-	return async (input, signal) => {
-		const picked = choice();
+	return async (input, signal, settings) => {
+		const picked = choice(settings);
 		if (!picked.providerId) return null;
 		ready ??= load()
 			.then(({ core, llms }) => ({

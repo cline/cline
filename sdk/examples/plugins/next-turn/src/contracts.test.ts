@@ -74,6 +74,60 @@ describe("what Next Turn publishes as JSON Schema", () => {
 		).toEqual([]);
 	});
 
+	test("rule rows built from a long task title, status headline and failing check list stay inside their schemas", async () => {
+		const session = new NextSession({
+			sessionId: "sess_1",
+			settings: defaultSettings,
+			env: () => ({ client: "cline-cli", tools: [] }),
+			sources: () => [
+				{ id: "turn", tier: "T0", probe: () => "present" },
+				{ id: "status", tier: "T2", probe: () => "present" },
+				{ id: "tasks", tier: "T2", probe: () => "present" },
+				{
+					id: "github",
+					tier: "T3",
+					probe: () => "present",
+					capabilities: () => ["github", "remote:github"],
+				},
+			],
+			backlog: async () => ({
+				...EMPTY_BACKLOG,
+				statusRows: [
+					{
+						subject: "migration/auth",
+						state: "blocked",
+						headline: "a".repeat(110),
+					},
+				],
+				tasks: [
+					{
+						taskId: "t1",
+						title: "b".repeat(200),
+						status: "approved",
+						priority: 2,
+						updatedAt: 1,
+					},
+				],
+			}),
+			github: () => ({
+				failingChecks: Array.from(
+					{ length: 6 },
+					(_, index) => `build (ubuntu-latest, node ${20 + index})`,
+				),
+			}),
+		});
+		const set = await session.afterRun(runResult([message("user", "Go")]));
+		expect(set?.candidates.map((row) => row.source)).toEqual([
+			"status",
+			"tasks",
+			"connector",
+		]);
+		expect(contractErrors("NextTurnSet", set)).toEqual([]);
+		expect(contractErrors("NextTurnTrayPush", session.currentPush())).toEqual(
+			[],
+		);
+	});
+
 	test("the tray action parser accepts exactly what NextTurnTrayAction accepts", () => {
 		const schema = contractSchema("NextTurnTrayAction");
 		const accepted = [

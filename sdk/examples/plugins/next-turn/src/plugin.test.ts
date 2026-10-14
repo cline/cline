@@ -174,6 +174,52 @@ describe("Next Turn as a plugin", () => {
 		).toBeUndefined();
 	});
 
+	test("turning Next on in an open chat serves its next run, whether setup started nothing or only notifications", async () => {
+		for (const needsYou of [false, true]) {
+			const settings = defaultSettings();
+			settings.features.next = false;
+			settings.notify.needsYou = needsYou;
+			const next = new NextSession({
+				sessionId: "sess_1",
+				settings: () => settings,
+				env: sessionEnv(context, { tools: () => [] }),
+				sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+				backlog: async () => EMPTY_BACKLOG,
+			});
+			const sets: (OfferedSet | undefined)[] = [];
+			next.onSet((set) => sets.push(set));
+			const plugin = createNextTurnPlugin({
+				startRuntime: (_context, { active }) => {
+					if (!settings.features.next && !settings.notify.needsYou)
+						return undefined;
+					const runtime = fakeRuntime(undefined, {
+						activateNext: () => {
+							if (settings.features.next) runtime.next = next;
+							return runtime.next;
+						},
+					});
+					if (active) runtime.activateNext();
+					return runtime;
+				},
+				lifecycle: alwaysActive,
+			});
+			await plugin.setup?.(
+				{} as Parameters<NonNullable<typeof plugin.setup>>[0],
+				context,
+			);
+			const agent = new Agent({
+				model: editingModel().model,
+				tools: [editorTool],
+				hooks: plugin.hooks,
+			});
+			await agent.run("A turn while Next is off");
+			settings.features.next = true;
+			await agent.run("A turn after Next was turned on");
+			await next.settled();
+			expect([needsYou, sets.filter(Boolean).length]).toEqual([needsYou, 1]);
+		}
+	});
+
 	test("the session's environment comes from the setup context", () => {
 		expect(sessionEnv(context, { tools: () => ["editor"] })()).toEqual({
 			client: "cline-cli",
@@ -425,7 +471,7 @@ describe("Next Turn as a plugin", () => {
 			refreshed = resolve;
 		});
 		const connectors = {
-			refresher: { onTurn: async () => refreshed(sets.length) },
+			onTurn: async () => refreshed(sets.length),
 		} as unknown as SessionRuntime["connectors"];
 		const plugin = createNextTurnPlugin({
 			startRuntime: () => fakeRuntime(next, { connectors }),

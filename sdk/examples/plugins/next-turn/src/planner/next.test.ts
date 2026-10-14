@@ -3,14 +3,18 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ContextSource, SourceEnv } from "../context/source";
 import { defaultSettings, type Settings } from "../settings/settings";
-import { FileSessionStateStore } from "../store/session-state";
+import {
+	FileSessionStateStore,
+	updateSessionState,
+} from "../store/session-state";
 import { editRun, message, runResult, useTempDirs } from "../test-support";
 import { PlannerLedger, readLedgerTail } from "./allowance";
 import { type Backlog, EMPTY_BACKLOG } from "./backlog";
 import { LabelLog } from "./labels";
-import type { Complete } from "./model";
+import { type Complete, plannerProvider } from "./model";
 import { type NextOptions, NextSession } from "./next";
 import type { OfferedSet } from "./tray";
+import { deriveTurn } from "./turn";
 
 const sources: ContextSource[] = [
 	{ id: "turn", tier: "T0", probe: () => "present" },
@@ -190,7 +194,10 @@ describe("Next, for one chat", () => {
 		});
 		const resume =
 			'<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>';
-		const ask = message("user", "Fix the flaky test");
+		const ask = message(
+			"user",
+			'<user_input mode="act">Fix the flaky test</user_input>',
+		);
 		await session.afterRun(runResult([ask]));
 		await session.settled();
 		await session.afterRun(runResult([ask, message("user", resume)]));
@@ -284,6 +291,61 @@ describe("Next, for one chat", () => {
 		expect(JSON.stringify(typed.labels())).not.toContain("staging");
 	});
 
+	test("a row sent inside the runtime's input wrapper and mode notice is labelled as that row", async () => {
+		const { session, labels } = harness({ complete: undefined });
+		const run = editRun();
+		const set = await session.afterRun(run.result);
+		const row = set?.candidates[1];
+		session.invoke({
+			type: "send",
+			candidateId: row?.id ?? "",
+			input: "click",
+		});
+		session.outgoing([
+			...run.messages,
+			message(
+				"user",
+				`<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice><user_input mode="act">${row?.prompt}</user_input>`,
+			),
+		]);
+		expect(labels().map((record) => record.event)).toEqual([
+			"offer",
+			"do",
+			"superseded",
+		]);
+		expect(labels()[1]).toMatchObject({ candidateId: row?.id, input: "click" });
+	});
+
+	test("a run sent in plan mode drops the Commit row and asks for planning requests until the plan is approved", async () => {
+		const systems: string[] = [];
+		const { session, labels } = harness({
+			sources: () => sources.filter((source) => source.id !== "tasks"),
+			backlog: async () => EMPTY_BACKLOG,
+			complete: async (input) => {
+				systems.push(input.system);
+				return { text: MODEL_ANSWER };
+			},
+		});
+		const planned = editRun(
+			'<user_input mode="plan">Plan the retry for the client</user_input>',
+		);
+		const set = await session.afterRun(planned.result);
+		await session.settled();
+		expect(set?.candidates.map((row) => row.kind)).not.toContain("commit");
+		expect(systems[0]).toContain("The chat is in plan mode");
+		expect(labels().find((record) => record.event === "offer")?.tags).toContain(
+			"mode:plan",
+		);
+		const approval = message(
+			"user",
+			'<user_input mode="act">The user approved switching to act mode. Continue with the approved plan now.</user_input>',
+		);
+		const approved = await session.afterRun(
+			runResult([...planned.messages, approval]),
+		);
+		expect(approved?.candidates.map((row) => row.kind)).toContain("commit");
+	});
+
 	test("skip and reroll serve new sets from the same turn; hide clears the tray", async () => {
 		const { session, labels } = harness({ complete: undefined });
 		const set = await session.afterRun(editRun().result);
@@ -355,6 +417,37 @@ describe("Next, for one chat", () => {
 		};
 		const set = await session.afterRun(pushed);
 		expect(set?.candidates.map((row) => row.kind)).toContain("check_ci");
+	});
+
+	test("a turn that switched branches gets the new branch's CI evidence and facts", async () => {
+		let branch = "main";
+		const branches: (string | undefined)[] = [];
+		const { session } = harness({
+			env: () => ({ ...env, git: { branch, remotes: [] } }),
+			dirtyFiles: async () => {
+				branch = "feature-b";
+				return 2;
+			},
+			github: (turnEnv) => {
+				branches.push(turnEnv.git?.branch);
+				return undefined;
+			},
+			sources: () => [
+				...sources,
+				{
+					id: "branch",
+					tier: "T1",
+					probe: () => "present",
+					facts: (factsEnv) => {
+						branches.push(factsEnv.git?.branch);
+						return { heading: "Branch", lines: [] };
+					},
+				},
+			],
+		});
+		await session.afterRun(editRun().result);
+		await session.settled();
+		expect(branches).toEqual(["feature-b", "feature-b"]);
 	});
 
 	test("offer-addressed actions: skipping or using a rules row after the model swap resolves against the rules offer, and a stale offerId is refused", async () => {
@@ -546,6 +639,85 @@ describe("Next under overlapping actions", () => {
 		expect(session.currentPush().state).toBe("off");
 	});
 
+	test("a turn that ends while the planner is still answering the last one stays within the allowance", async () => {
+		const settings = defaultSettings();
+		settings.planner.callsPerHour = 1;
+		let release: () => void = () => {};
+		const answered = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let dispatched: () => void = () => {};
+		const asking = new Promise<void>((resolve) => {
+			dispatched = resolve;
+		});
+		let asked = 0;
+		const { session, ledgerCalls } = harness(
+			{
+				complete: async () => {
+					asked += 1;
+					dispatched();
+					await answered;
+					return { text: MODEL_ANSWER, costUsd: 0.001 };
+				},
+			},
+			settings,
+		);
+		await session.afterRun(editRun().result);
+		await asking;
+		const second = await session.afterRun(editRun("And now a timeout").result);
+		release();
+		await session.settled();
+		expect(asked).toBe(1);
+		expect(second?.paused?.resetsAt).toBeGreaterThan(0);
+		expect(ledgerCalls()).toHaveLength(1);
+	});
+
+	test("a reroll after the planner moves to another provider leaves other chats out", async () => {
+		const settings = defaultSettings();
+		const history: ContextSource = {
+			id: "history",
+			tier: "T2",
+			settingsToggle: "history",
+			readsOtherChats: true,
+			probe: () => "present",
+			facts: () => ({
+				heading: "Related chats in this workspace",
+				lines: ['"Secret payroll migration" · 2h ago · idle'],
+			}),
+		};
+		const sent: { providerId?: string; user: string }[] = [];
+		const { session } = harness(
+			{
+				sources: () => [...sources, history],
+				complete: async (input, _signal, planned) => {
+					sent.push({
+						providerId: plannerProvider(planned, session.chat()).providerId,
+						user: input.user,
+					});
+					return { text: MODEL_ANSWER };
+				},
+			},
+			settings,
+		);
+		const ask = message("user", "Add a retry to the client");
+		const reply = message("assistant", "Added the retry.", {
+			modelInfo: { provider: "anthropic", id: "claude" },
+		});
+		await session.afterRun(runResult([ask, reply]));
+		await session.settled();
+		expect(sent[0]?.providerId).toBe("anthropic");
+		expect(sent[0]?.user).toContain("Secret payroll migration");
+		settings.planner.model = {
+			kind: "model",
+			providerId: "openai",
+			modelId: "gpt",
+		};
+		session.invoke({ type: "reroll" });
+		await session.settled();
+		expect(sent[1]?.providerId).toBe("openai");
+		expect(sent[1]?.user).not.toContain("Secret payroll migration");
+	});
+
 	test("a reroll while the planner is still answering asks the model once", async () => {
 		let release: () => void = () => {};
 		const answered = new Promise<void>((resolve) => {
@@ -644,6 +816,74 @@ describe("Next under overlapping actions", () => {
 		release();
 		expect((await reply).state).toBe("off");
 		expect(session.current()).toBeUndefined();
+	});
+
+	test("a viewer that opens a chat while its run is still going gets no set until the run ends", async () => {
+		const { messages } = editRun("Fix the parser");
+		const opened = harness({
+			readTranscript: async () => ({ messages, status: "running" }),
+		});
+		expect((await opened.session.ensureCurrent(1)).state).toBe("off");
+		await opened.session.settled();
+		expect(opened.calls).toEqual([]);
+		expect(opened.sets.filter(Boolean)).toEqual([]);
+
+		const live = harness({ complete: undefined });
+		const first = editRun();
+		await live.session.afterRun(first.result);
+		live.session.outgoing([
+			...first.messages,
+			message("user", "Now the parser"),
+		]);
+		expect((await live.session.ensureCurrent()).state).toBe("off");
+		expect(live.session.current()).toBeUndefined();
+	});
+
+	test("a Next that starts while the chat's next run is going (a dormant chat's viewer, a respawn) serves nothing from the turn before it", async () => {
+		const first = editRun("Fix the parser");
+		const storeWithFirstTurn = (label: string) => {
+			const store = new FileSessionStateStore(tempDir(label), "sess_1");
+			updateSessionState(store, {
+				lastTurn: deriveTurn("sess_1", first.result) ?? undefined,
+			});
+			return store;
+		};
+		const secondRun = [
+			...first.messages,
+			message("assistant", "Fixed."),
+			message("user", "Now the lexer"),
+		];
+		let transcript = { messages: secondRun, status: "running" };
+		const started = harness({
+			store: storeWithFirstTurn("mid-run-"),
+			readTranscript: async () => transcript,
+		});
+		expect((await started.session.ensureCurrent()).state).toBe("off");
+		await started.session.settled();
+		expect(started.calls).toEqual([]);
+		expect(started.ledgerCalls()).toEqual([]);
+		expect(started.sets.filter(Boolean)).toEqual([]);
+
+		transcript = {
+			messages: [...secondRun, message("assistant", "Done.")],
+			status: "idle",
+		};
+		expect(await started.session.ensureCurrent()).toMatchObject({
+			state: "ready",
+			set: { runCount: 2, trigger: "on_demand" },
+		});
+
+		const caughtUp = harness({
+			store: storeWithFirstTurn("caught-up-"),
+			readTranscript: async () => ({
+				messages: first.messages,
+				status: "idle",
+			}),
+		});
+		expect(await caughtUp.session.ensureCurrent()).toMatchObject({
+			state: "ready",
+			set: { runCount: 1, runId: first.result.runId },
+		});
 	});
 
 	test("a tray action that lands while the next turn is computing is refused, not applied to the previous set", async () => {
@@ -749,6 +989,34 @@ describe("Next under overlapping actions", () => {
 				expect.arrayContaining(["source:tasks:present"]),
 			);
 		}
+	});
+
+	test("a Use made before a respawn labels the edited message against the row it used", async () => {
+		const store = new FileSessionStateStore(tempDir("intent-"), "sess_1");
+		const first = harness({ store, complete: undefined });
+		const { result, messages } = editRun();
+		const set = await first.session.afterRun(result);
+		const used = set?.candidates[0];
+		first.session.invoke({
+			type: "use",
+			candidateId: used?.id ?? "",
+			offerId: set?.offerId,
+			input: "key",
+		});
+		const respawned = harness({ store, complete: undefined });
+		respawned.session.outgoing([
+			...messages,
+			message("user", `${used?.prompt} now`),
+		]);
+		expect(respawned.labels().map((record) => record.event)).toEqual([
+			"adjust_sent",
+			"superseded",
+		]);
+		expect(respawned.labels()[0]).toMatchObject({
+			offerId: set?.offerId,
+			candidateId: used?.id,
+			input: "key",
+		});
 	});
 
 	test("a disposed session installs no set from a serve already under way", async () => {

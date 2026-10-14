@@ -88,13 +88,14 @@ export function defaultIsNextActive(
 }
 
 /**
- * Next Turn as one plugin. Setup builds the session's runtime;
- * the run hooks feed it:
+ * Next Turn as one plugin. Setup builds the session's runtime, and a hook
+ * builds it later when setup needed none and the settings have since turned
+ * a feature on. The run hooks feed it:
  * - `beforeModel` records the agent's tools, a capability source, and labels
  *   the person's new message against the set on screen once per `runId`.
  *   `beforeRun` cannot: its snapshot predates the new message;
- * - `afterRun` derives the turn and returns; the rule-based set, the planner
- *   and the connector refresher's check of whether the turn pushed follow
+ * - `afterRun` derives the turn and returns; the rule-based set, the planner,
+ *   and the connectors' check for new connections and for a push follow
  *   without holding up the run.
  *
  * No hook can fail the person's run: each catches its own errors.
@@ -107,6 +108,17 @@ export function createNextTurnPlugin(
 	let lastBeforeModelRunId: string | undefined;
 	let wasActive = true;
 	let log: Log = () => {};
+	/** Whether setup's viewer gate started Next at once for this chat. */
+	let nextActive = false;
+	/** Tries setup's start again; setup sets it. */
+	let retryStart: () => void = () => {};
+	/** Subscribes the slot and the debug log to a Next started since; setup sets it. */
+	let bindNext: () => void = () => {};
+	/** The runtime, started now when setup started none and the settings have since turned a feature on. */
+	const ensureRuntime = (): SessionRuntime | undefined => {
+		if (!runtime && !startError) retryStart();
+		return runtime;
+	};
 	const lifecycle = options.lifecycle ?? new PluginLifecycle();
 	const checkActive = (): boolean => {
 		const nowActive = lifecycle.active();
@@ -145,30 +157,42 @@ export function createNextTurnPlugin(
 					if (runId && runId === lastBeforeModelRunId) return undefined;
 					if (!checkActive()) return undefined;
 					if (runId) lastBeforeModelRunId = runId;
-					runtime?.setTools(context.request.tools.map((tool) => tool.name));
-					runtime?.next?.outgoing(context.request.messages);
+					const current = ensureRuntime();
+					current?.setTools(context.request.tools.map((tool) => tool.name));
+					current?.next?.outgoing(context.request.messages);
 				} catch (error) {
 					log("beforeModel failed", error);
 				}
 				return undefined;
 			},
 			async afterRun(context) {
-				if (!runtime || !isRootRun(context.snapshot) || !checkActive()) return;
-				if (!runtime.next) {
+				if (!isRootRun(context.snapshot) || !checkActive()) return;
+				const current = ensureRuntime();
+				if (!current) return;
+				if (!current.next && nextActive) {
 					try {
-						runtime.recordDormantTurn(context.result);
+						current.activateNext();
+						bindNext();
+					} catch (error) {
+						log("Next did not start", error);
+					}
+				}
+				const next = current.next;
+				if (!next) {
+					try {
+						current.recordDormantTurn(context.result);
 					} catch (error) {
 						log("afterRun dormant turn failed", error);
 					}
 					return;
 				}
-				const served = runtime.next
+				const served = next
 					.afterRun(context.result)
 					.catch((error: unknown) => log("afterRun failed", error));
-				const pushed = runtime.next.turn()?.pushed ?? false;
-				const refresher = runtime.connectors?.refresher;
+				const pushed = next.turn()?.pushed ?? false;
+				const connectors = current.connectors;
 				served
-					.then(() => refresher?.onTurn({ pushed }))
+					.then(() => connectors?.onTurn({ pushed }))
 					.catch((error: unknown) => log("a refresh failed", error));
 			},
 		},
@@ -181,6 +205,7 @@ export function createNextTurnPlugin(
 			lastBeforeModelRunId = undefined;
 			wasActive = lifecycle.active();
 			const active = defaultIsNextActive(api, context);
+			nextActive = active;
 			const pushToSlot = (payload: TrayPush) => {
 				try {
 					context.ui?.push("next.state", payload);
@@ -189,30 +214,35 @@ export function createNextTurnPlugin(
 				}
 			};
 			let subscribedNext: unknown;
-			const bindNext = () => {
+			bindNext = () => {
 				const next = runtime?.next;
 				if (!next || next === subscribedNext) return;
 				subscribedNext = next;
 				next.onSet(logSet(context));
 				next.onPush(pushToSlot);
 			};
+			retryStart = () => {
+				try {
+					const started = start(context, { active });
+					if (!started) return;
+					runtime = started;
+					context.onDispose?.(() => stopRuntime(started));
+					bindNext();
+				} catch (error) {
+					startError = errorMessage(error);
+					log("the runtime did not start", error);
+				}
+			};
 			void stopRuntime(runtime);
 			runtime = undefined;
-			try {
-				const started = start(context, { active });
-				runtime = started;
-				context.onDispose?.(() => stopRuntime(started));
-				bindNext();
-			} catch (error) {
-				startError = errorMessage(error);
-				log("the runtime did not start", error);
-			}
+			retryStart();
 			if (typeof api.registerUiHandler === "function") {
 				const off: TrayPush = { sessionId, seq: 0, state: "off" };
 				api.registerUiHandler("next", async (rawInput: unknown) => {
 					const action = parseTrayAction(rawInput);
 					if (!action) throw new Error("invalid NextTurnTrayAction");
 					if (!checkActive()) return runtime?.next?.off() ?? off;
+					ensureRuntime();
 					if (startError) {
 						return {
 							sessionId,

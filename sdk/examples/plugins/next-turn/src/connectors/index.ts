@@ -28,6 +28,8 @@ type ConnectorsOptions = {
 	mcp: McpRunnerDeps;
 	settings: () => Settings;
 	env: () => SourceEnv;
+	/** Whether the plugin is still enabled and installed; the refresher reads nothing while it is not. */
+	active?: () => boolean;
 	log?: Log;
 	now?: () => number;
 };
@@ -43,6 +45,7 @@ export class Connectors {
 	readonly refresher: Refresher;
 	private connections: ClineConnections | undefined;
 	private pinned: PinnedReadConnector[] = [];
+	private detecting: Promise<void> | undefined;
 
 	constructor(private readonly options: ConnectorsOptions) {
 		this.github = new GitHubConnector({
@@ -54,6 +57,7 @@ export class Connectors {
 			connectors: () => this.all(),
 			access: (id) => this.access(id),
 			env: options.env,
+			active: options.active,
 			now: options.now,
 			log: options.log,
 		});
@@ -67,27 +71,55 @@ export class Connectors {
 		};
 	}
 
-	/** Reads Cline's connections and GitHub's routes, once Next starts for this chat. */
-	async detect(): Promise<void> {
-		const connections = await readClineConnections(this.options.loaders);
+	/**
+	 * Reads Cline's connections and GitHub's routes: when Next starts for this
+	 * chat, and after each turn, so a connection added or removed since counts.
+	 * Calls that overlap share one read.
+	 */
+	detect(): Promise<void> {
+		this.detecting ??= this.readConnections().finally(() => {
+			this.detecting = undefined;
+		});
+		return this.detecting;
+	}
+
+	/** A connector still connected, or in a store that failed to read, keeps its instance and the facts its reads have cached. */
+	private async readConnections(): Promise<void> {
+		const connections = await readClineConnections(
+			this.options.loaders,
+			this.connections,
+		);
 		this.connections = connections;
+		const kept = new Map(
+			this.pinned.map((connector) => [connector.id, connector]),
+		);
 		this.pinned = [
-			...composioToolkits(connections).map((toolkit) =>
-				composioConnector(
-					toolkit,
-					this.pinnedDeps(composioConnectorId(toolkit)),
-				),
-			),
+			...composioToolkits(connections).map((toolkit) => {
+				const id = composioConnectorId(toolkit);
+				return kept.get(id) ?? composioConnector(toolkit, this.pinnedDeps(id));
+			}),
 			...connections.mcp
 				.filter((server) => !server.disabled)
-				.map((server) =>
-					mcpConnector(server, {
-						...this.pinnedDeps(mcpConnectorId(server.name)),
-						runner: mcpRunner(server.name, this.options.mcp),
-					}),
-				),
+				.map((server) => {
+					const id = mcpConnectorId(server.name);
+					return (
+						kept.get(id) ??
+						mcpConnector(server, {
+							...this.pinnedDeps(id),
+							runner: mcpRunner(server.name, this.options.mcp),
+						})
+					);
+				}),
 		];
 		await this.github.detect(this.options.env(), connections);
+	}
+
+	/** After each completed turn: finds connections added or removed since, then refreshes what the turn made due. */
+	async onTurn(turn: { pushed?: boolean }): Promise<void> {
+		await this.detect().catch((error: unknown) =>
+			this.options.log?.("connector detection failed", error),
+		);
+		await this.refresher.onTurn(turn);
 	}
 
 	all(): Connector[] {

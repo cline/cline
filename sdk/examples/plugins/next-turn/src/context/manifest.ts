@@ -76,6 +76,25 @@ export async function buildManifest(
 	};
 }
 
+/** The manifest with every source `isOff` now refuses marked off, so a later planner call neither reads nor names it. */
+export function withSourcesOff(
+	manifest: Manifest,
+	sources: readonly ContextSource[],
+	isOff: (source: ContextSource) => boolean,
+): Manifest {
+	const off = sources.filter(
+		(source) => source.id in manifest.sources && isOff(source),
+	);
+	if (off.length === 0) return manifest;
+	return {
+		...manifest,
+		sources: {
+			...manifest.sources,
+			...Object.fromEntries(off.map((source) => [source.id, "off"])),
+		},
+	};
+}
+
 /**
  * The manifest as flat tags for the offer record, each a label token
  * (`source:tasks:present`, `cap:github`). Ids and states only, never content,

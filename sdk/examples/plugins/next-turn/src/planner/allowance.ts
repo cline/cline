@@ -78,6 +78,14 @@ export function readLedgerTail(
 	}
 }
 
+type PlannerSpend = Omit<PlannerCall, "sessionId" | "at">;
+
+/** A call on its way out. It counts against the allowance until it is recorded, or released when it never reached a provider. */
+export type PlannerCallSlot = {
+	record(spend?: PlannerSpend): void;
+	release(): void;
+};
+
 export class PlannerLedger {
 	private readonly sessionCalls = new Map<string, PlannerCall[]>();
 
@@ -87,17 +95,36 @@ export class PlannerLedger {
 		private readonly tailBytes: number = PLANNER_LEDGER_TAIL_BYTES,
 	) {}
 
-	record(
-		sessionId: string,
-		spend: Omit<PlannerCall, "sessionId" | "at"> = {},
-	): void {
+	record(sessionId: string, spend: PlannerSpend = {}): void {
 		const call: PlannerCall = { sessionId, at: this.now(), ...spend };
 		appendJsonLine(this.path, call);
 		this.sessionCalls.get(sessionId)?.push(call);
 	}
 
+	/** Holds one of the session's calls before it is sent, so a call still in flight already counts. */
+	reserve(sessionId: string): PlannerCallSlot {
+		const calls = this.calls(sessionId);
+		const held: PlannerCall = { sessionId, at: this.now() };
+		calls.push(held);
+		const release = () => {
+			const index = calls.indexOf(held);
+			if (index !== -1) calls.splice(index, 1);
+		};
+		return {
+			record: (spend) => {
+				release();
+				this.record(sessionId, spend);
+			},
+			release,
+		};
+	}
+
 	/** Calls for one session, seeded once from the tail of the ledger file and maintained in memory. */
 	callsForSession(sessionId: string): readonly PlannerCall[] {
+		return this.calls(sessionId);
+	}
+
+	private calls(sessionId: string): PlannerCall[] {
 		const cached = this.sessionCalls.get(sessionId);
 		if (cached) return cached;
 		const loaded = readLedgerTail(this.path, this.tailBytes).filter(

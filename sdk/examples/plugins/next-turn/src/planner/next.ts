@@ -11,6 +11,7 @@ import {
 	collectFacts,
 	type Manifest,
 	manifestTags,
+	withSourcesOff,
 } from "../context/manifest";
 import { sourceOff } from "../context/policy";
 import type { ContextSource, SourceEnv } from "../context/source";
@@ -62,6 +63,8 @@ export type NextOptions = {
 	labels?: LabelLog;
 	store?: SessionStateStore;
 	viewerClient?: () => string | undefined;
+	/** Whether the plugin is still enabled and installed: work that lands after it is disabled pushes and labels nothing. */
+	active?: () => boolean;
 	/** Reads the session's transcript and status from the hub on demand when no turn is in memory. */
 	readTranscript?: () => Promise<
 		{ messages: readonly MessageLike[]; status?: string } | undefined
@@ -108,6 +111,7 @@ export type TurnSnapshot = Pick<
 	| "excluded"
 	| "rerollsUsed"
 	| "offers"
+	| "pendingIntent"
 	| "endedAt"
 > & {
 	/** Missing from state files written before the manifest was persisted. */
@@ -128,6 +132,7 @@ function snapshotOf(state: TurnState): TurnSnapshot {
 		rerollsUsed: state.rerollsUsed,
 		offers: state.offers,
 		exposedOffers: [...state.exposedOffers],
+		pendingIntent: state.pendingIntent,
 		endedAt: state.endedAt,
 	};
 }
@@ -144,6 +149,12 @@ function restore(snapshot: TurnSnapshot, env: SourceEnv): TurnState {
 		exposedOffers: new Set(snapshot.exposedOffers),
 	};
 }
+
+/** Session statuses while a run is still going: a set for it would come before its outcome, and its planner call would be wasted. */
+const UNFINISHED_SESSION_STATUSES: ReadonlySet<string> = new Set([
+	"running",
+	"pending",
+]);
 
 /** The label verb a refused Send or Use would have recorded. */
 const STALE_VERB: Partial<Record<TrayAction["type"], string>> = {
@@ -188,6 +199,14 @@ export class NextSession {
 	private lastTurn: Turn | undefined;
 	private lastChat: Turn["chat"];
 	private hiddenForChat = false;
+	/** A message went out and its run has not ended: the last turn is no longer the chat's latest. */
+	private runUnderway = false;
+	/**
+	 * The last turn was read back from the store, so a run this session never
+	 * saw start (a dormant chat's viewer, a respawn mid-run) may be going: the
+	 * hub is asked before it is served.
+	 */
+	private lastTurnFromStore = false;
 	private seq = 0;
 	private generation = 0;
 	private pending: Promise<void> = Promise.resolve();
@@ -213,6 +232,7 @@ export class NextSession {
 		this.seq = saved.seq ?? 0;
 		this.lastPush = saved.lastPush;
 		this.lastTurn = saved.lastTurn;
+		this.lastTurnFromStore = saved.lastTurn !== undefined;
 		this.lastChat = saved.lastChat;
 		try {
 			this.state =
@@ -241,6 +261,7 @@ export class NextSession {
 			...base,
 			sessionId: this.options.sessionId,
 			providerId: (turn.chat ?? this.lastChat)?.providerId ?? base.providerId,
+			...(turn.mode ? { mode: turn.mode } : {}),
 			turn: {
 				editedPaths: [...turn.context.editedPaths],
 				request: turn.context.request,
@@ -330,7 +351,11 @@ export class NextSession {
 
 	/** Whether work started under `gen` (and for `state`) still owns the tray. */
 	private isCurrent(gen: number, state?: TurnState): boolean {
-		return gen === this.generation && (!state || this.state === state);
+		return (
+			gen === this.generation &&
+			(!state || this.state === state) &&
+			(this.options.active?.() ?? true)
+		);
 	}
 
 	private pushState(
@@ -481,6 +506,7 @@ export class NextSession {
 
 	/** A completed root run. The hook must not wait on the manifest, backlog or planner, so they follow on the next tick. */
 	async afterRun(result: AgentRunResult): Promise<OfferedSet | undefined> {
+		this.runUnderway = false;
 		const settings = this.options.settings();
 		if (!this.isOn(settings)) {
 			this.off();
@@ -502,6 +528,7 @@ export class NextSession {
 		trigger: OfferTrigger,
 	): Promise<OfferedSet | undefined> {
 		this.lastTurn = turn;
+		this.lastTurnFromStore = false;
 		if (turn.chat) this.lastChat = turn.chat;
 		const endedAt = Date.now();
 		this.generation += 1;
@@ -535,7 +562,9 @@ export class NextSession {
 	/**
 	 * `current` from a viewer: the set for `runCount`, served on demand when
 	 * the chat has none (a forked chat after Undo, a reopened session) from the
-	 * last turn or, failing that, the transcript `readTranscript` returns.
+	 * last turn or the transcript `readTranscript` returns, whichever is newer.
+	 * A last turn from the store is served only once the hub says no run is
+	 * going.
 	 */
 	async ensureCurrent(runCount?: number): Promise<TrayPush> {
 		const settings = this.options.settings();
@@ -543,7 +572,7 @@ export class NextSession {
 		const wanted = (candidate: { runCount: number } | undefined) =>
 			candidate !== undefined &&
 			(runCount === undefined || candidate.runCount === runCount);
-		if (wanted(this.shown)) return this.currentPush();
+		if (wanted(this.shown) || this.runUnderway) return this.currentPush();
 		let turn = wanted(this.lastTurn) ? this.lastTurn : undefined;
 		const inFlight = this.serving;
 		if (
@@ -554,10 +583,14 @@ export class NextSession {
 			await inFlight.done;
 			return this.currentPush();
 		}
-		if (!turn && this.options.readTranscript) {
+		if ((!turn || this.lastTurnFromStore) && this.options.readTranscript) {
 			const gen = this.generation;
 			const loaded = await this.options.readTranscript().catch(() => undefined);
-			if (!this.isCurrent(gen) || !this.isOn(this.options.settings()))
+			if (
+				!this.isCurrent(gen) ||
+				!this.isOn(this.options.settings()) ||
+				UNFINISHED_SESSION_STATUSES.has(loaded?.status ?? "")
+			)
 				return this.currentPush();
 			const derived =
 				loaded &&
@@ -566,7 +599,12 @@ export class NextSession {
 					loaded.messages,
 					loaded.status,
 				);
-			if (derived && wanted(derived)) turn = derived;
+			if (
+				derived &&
+				wanted(derived) &&
+				(!turn || derived.runCount > turn.runCount)
+			)
+				turn = derived;
 		}
 		if (!turn) return this.currentPush();
 		await this.startTurn(turn, settings, "on_demand");
@@ -580,14 +618,16 @@ export class NextSession {
 		settings: Settings,
 		trigger: OfferTrigger,
 	): Promise<OfferedSet | undefined> {
-		const env = this.turnEnv(turn);
+		const probeEnv = this.turnEnv(turn);
 		const [manifest, dirtyFiles] = await Promise.all([
-			buildManifest(this.options.sources(), env, {
-				isOff: sourceOff(settings, env),
+			buildManifest(this.options.sources(), probeEnv, {
+				isOff: sourceOff(settings, probeEnv),
 			}),
-			this.readDirty(env),
+			this.readDirty(probeEnv),
 		]);
 		if (!this.isCurrent(gen)) return undefined;
+		// The git read can move the branch, so the PR and the facts follow the branch the turn ended on.
+		const env = this.turnEnv(turn);
 		const backlog = await this.options.backlog(manifest);
 		if (!this.isCurrent(gen)) return undefined;
 		const github = { pushed: turn.pushed, ...this.options.github?.(env) };
@@ -649,11 +689,17 @@ export class NextSession {
 			state.restored = false;
 			if (!this.isCurrent(gen, state)) return;
 		}
+		const settings = this.options.settings();
 		const sources = this.options.sources();
-		const facts = await collectFacts(sources, state.manifest, state.env);
+		const manifest = withSourcesOff(
+			state.manifest,
+			sources,
+			sourceOff(settings, state.env),
+		);
+		const facts = await collectFacts(sources, manifest, state.env);
 		if (!this.isCurrent(gen, state)) return;
-		const kinds = offerableKinds(state.manifest);
-		const key = `${state.turn.revision}:${state.turn.userMessageId}:${fnv1a32(stableJson({ backlog: state.backlog, facts, manifest: state.manifest }))}`;
+		const kinds = offerableKinds(manifest);
+		const key = `${state.turn.revision}:${state.turn.userMessageId}:${fnv1a32(stableJson({ backlog: state.backlog, facts, manifest }))}`;
 		let pool = this.cache
 			.get(key)
 			?.filter((item) => !state.excluded.includes(item.prompt));
@@ -662,7 +708,7 @@ export class NextSession {
 				turn: state.turn.facts,
 				context: state.turn.context,
 				backlog: state.backlog,
-				manifest: state.manifest,
+				manifest,
 				facts,
 				names: Object.fromEntries(
 					sources.map((source) => [source.id, source.displayName ?? source.id]),
@@ -670,15 +716,17 @@ export class NextSession {
 				kinds,
 				excluded: state.excluded,
 			});
-			const attempt = await generatePool(complete, input, kinds);
+			const slot = this.options.ledger?.reserve(this.options.sessionId);
+			const attempt = await generatePool(complete, input, kinds, settings);
 			const chat = state.turn.chat ?? this.lastChat;
-			if (!("reason" in attempt) || attempt.reason !== "no_provider") {
-				this.options.ledger?.record(this.options.sessionId, {
+			if ("reason" in attempt && attempt.reason === "no_provider")
+				slot?.release();
+			else
+				slot?.record({
 					costUsd: attempt.costUsd,
 					providerId: attempt.providerId ?? chat?.providerId,
 					modelId: attempt.modelId ?? chat?.modelId,
 				});
-			}
 			if (!this.isCurrent(gen, state)) return;
 			if ("reason" in attempt) {
 				this.options.log?.(
@@ -727,6 +775,7 @@ export class NextSession {
 	outgoing(messages: readonly AgentMessage[]): void {
 		const message = lastPersonMessage(messages);
 		if (!message || message.id === this.lastTurn?.userMessageId) return;
+		this.runUnderway = true;
 		this.generation += 1;
 		const set = this.shown;
 		const state = this.state;
@@ -880,6 +929,7 @@ export class NextSession {
 					msSinceExposed: action.msSinceExposed,
 					at: Date.now(),
 				};
+				this.persist();
 				return;
 			}
 			case "unskip": {

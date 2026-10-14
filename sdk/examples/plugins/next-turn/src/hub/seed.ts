@@ -165,12 +165,19 @@ export function seedTasks(
 	return next === fold.tasks ? fold : { ...fold, tasks: next };
 }
 
-/** Fold a `schedule.upcoming` reply payload (`{ runs: { scheduleId, name, nextRunAt }[] }`). Names and next runs always refresh. */
+/**
+ * Fold a `schedule.upcoming` reply payload (`{ runs: { scheduleId, name, nextRunAt }[] }`).
+ * Names and next runs always refresh. A reply under the limit lists every
+ * upcoming run, so a schedule it leaves out, disabled or done, has none.
+ */
 export function seedUpcoming(fold: HubFold, payload: unknown): HubFold {
 	const schedules = copyOnWrite(fold.schedules);
-	for (const run of listOf(payload, "runs")) {
+	const runs = listOf(payload, "runs");
+	const listed = new Set<string>();
+	for (const run of runs) {
 		const scheduleId = text(run.scheduleId);
 		if (!scheduleId) continue;
+		listed.add(scheduleId);
 		const current: ScheduleFold = schedules.get(scheduleId) ?? { scheduleId };
 		schedules.set(scheduleId, {
 			...current,
@@ -178,9 +185,27 @@ export function seedUpcoming(fold: HubFold, payload: unknown): HubFold {
 			nextRunAt: text(run.nextRunAt),
 		});
 	}
+	const complete =
+		isRecord(payload) &&
+		Array.isArray(payload.runs) &&
+		runs.length < SEED_UPCOMING_LIMIT;
+	if (complete) {
+		for (const [scheduleId, current] of Object.entries(schedules.result())) {
+			if (listed.has(scheduleId) || current.nextRunAt === undefined) continue;
+			const { nextRunAt: _passed, ...rest } = current;
+			schedules.set(scheduleId, rest);
+		}
+	}
 	const next = schedules.result();
 	return next === fold.schedules ? fold : { ...fold, schedules: next };
 }
+
+/** The upcoming runs: seeded when the link comes up, and asked again whenever a schedule's next run may have moved. */
+export const UPCOMING_SEED = {
+	command: "schedule.upcoming",
+	payload: { allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
+	seed: seedUpcoming,
+} as const;
 
 function executionTime(record: Record<string, unknown>): number {
 	return (
@@ -240,11 +265,7 @@ export const HUB_SEEDS = [
 		payload: { limit: SEED_TASK_LIMIT },
 		seed: seedTasks,
 	},
-	{
-		command: "schedule.upcoming",
-		payload: { allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
-		seed: seedUpcoming,
-	},
+	UPCOMING_SEED,
 	{
 		command: "schedule.list_executions",
 		payload: { allWorkspaces: true, limit: SEED_EXECUTION_LIMIT },

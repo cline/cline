@@ -41,6 +41,9 @@ When a chat starts, the plugin's `setup` builds that chat's runtime:
 - with Next on, the Cline-first sources and the person's connectors join it,
   and so does Next itself, once the chat is active (see Install).
 
+A chat set up with Next and notifications both off builds its runtime at the
+first hook after either is turned on.
+
 After each completed root run, `afterRun` serves the **rule-based set** at
 once: one rule set for every host. The planner call then runs detached, on
 the chat's own provider by default, and its set is served when it answers.
@@ -53,7 +56,7 @@ first `beforeModel` of the next run. Every served set and label goes to
 | Directory | What it holds |
 |---|---|
 | [`src/hub/`](src/hub/link.ts) | The engine's single hub connection (it never starts a hub, never advertises a capability, and refuses to send `approval.respond` or `capability.respond`), the pure fold over an allowlist of hub events (ids, states and counts, never content), the seed commands run on every connect, and the fold's saved sequence |
-| [`src/engine/`](src/engine/engine.ts) | One subscription, the live fold, seeding on connect, and Needs-you notifications for its own chat |
+| [`src/engine/`](src/engine/engine.ts) | One subscription, the live fold, seeding on connect, upcoming runs read again whenever a schedule changes or runs, and Needs-you notifications for its own chat |
 | [`src/model/`](src/model/needs-you.ts) | The Status Hub model a host UI can render: session rows with their `report_status` rows, Needs you (approvals, questions, tasks awaiting approval, blocked or urgent status rows, and scheduled runs whose latest execution failed), schedules and teams |
 | [`src/context/`](src/context/source.ts) | The source interface, the environment manifest, facts under per-tier budgets, source policy and redaction, and the Cline-first sources: the turn, git, repository commands, the person's Cline setup (names only), their other chats in this workspace, and the hub's tasks |
 | [`src/connectors/`](src/connectors/index.ts) | Connectors over the connections the person already gave Cline; Next Turn never signs in to anything. GitHub reads through `gh`; MCP servers read only through pinned reads; Composio toolkits are Mention only until Cline exposes its Composio tools to plugins |

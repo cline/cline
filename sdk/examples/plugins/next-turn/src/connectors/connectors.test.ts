@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { McpServerRegistration } from "@cline/core";
 import { sourceOff } from "../context/policy";
 import type { SourceEnv } from "../context/source";
 import type { RunCommand } from "../run";
@@ -25,7 +26,7 @@ import {
 } from "./github/github";
 import { Connectors } from "./index";
 import { Refresher } from "./refresher";
-import type { McpRunnerDeps } from "./runners";
+import { type McpRunnerDeps, mcpRunner } from "./runners";
 
 const tempDir = useTempDirs("next-turn-connectors-");
 
@@ -718,10 +719,11 @@ describe("the refresher", () => {
 
 	test("the tick refreshes each scope on its own cadence, and only scopes the person chose", async () => {
 		const refreshed: string[] = [];
+		const github = stub(refreshed);
 		let now = 0;
 		let tick: () => void = () => undefined;
 		const refresher = new Refresher({
-			connectors: () => [stub(refreshed)],
+			connectors: () => [github],
 			access: () => ({ role: "read", scopes: ["pr", "ci"], readAllowed: true }),
 			env: () => repoEnv,
 			now: () => now,
@@ -748,6 +750,71 @@ describe("the refresher", () => {
 		});
 		await off.start();
 		expect(refreshed).toHaveLength(5);
+	});
+
+	test("a connector found again after it was removed reads at the next tick, without waiting out its cadence", async () => {
+		const refreshed: string[] = [];
+		let connector = stub(refreshed);
+		let tick: () => void = () => undefined;
+		const refresher = new Refresher({
+			connectors: () => [connector],
+			access: () => ({ role: "read", scopes: ["pr", "ci"], readAllowed: true }),
+			env: () => repoEnv,
+			now: () => 0,
+			startTicking: (run) => {
+				tick = run;
+				return () => undefined;
+			},
+		});
+		await refresher.start();
+		tick();
+		await Bun.sleep(0);
+		expect(refreshed).toEqual(["pr", "ci"]);
+		connector = stub(refreshed);
+		tick();
+		await Bun.sleep(0);
+		expect(refreshed).toEqual(["pr", "ci", "pr", "ci"]);
+	});
+});
+
+describe("a pinned read on an MCP server", () => {
+	test("a connection that comes up after the read gave up on it is closed", async () => {
+		let finishConnecting: () => void = () => undefined;
+		let open = false;
+		const resolveRunner = mcpRunner(
+			"linear",
+			{
+				registration: async (name) => ({
+					name,
+					transport: {
+						type: "streamableHttp",
+						url: "https://mcp.linear.app/mcp",
+					},
+				}),
+				client: async () => ({
+					connect: () =>
+						new Promise<void>((resolve) => {
+							finishConnecting = () => {
+								open = true;
+								resolve();
+							};
+						}),
+					disconnect: async () => {
+						open = false;
+					},
+					callTool: async () => ({ content: [] }),
+				}),
+			},
+			10,
+		);
+		const run = await resolveRunner();
+		if (typeof run !== "function") throw new Error(run.reason);
+		await expect(run("list_my_issues", {})).rejects.toThrow(
+			'connecting to "linear" took longer than 10 ms',
+		);
+		finishConnecting();
+		await Bun.sleep(0);
+		expect(open).toBe(false);
 	});
 });
 
@@ -938,5 +1005,150 @@ describe("Connected to Next Turn", () => {
 		await connectors.refresher.start();
 		connectors.refresher.stop();
 		expect(ran).toEqual(["list_my_issues"]);
+	});
+
+	test("after a turn, connections added or removed during the chat count, and a kept one keeps its facts", async () => {
+		const settings = defaultSettings();
+		settings.connectors["mcp:linear"] = {
+			role: "read",
+			scopes: ["mine"],
+			reads: [{ id: "mine", tool: "list_my_issues", arguments: {} }],
+		};
+		const linear = {
+			transport: {
+				type: "streamableHttp" as const,
+				url: "https://mcp.linear.app/mcp",
+			},
+		};
+		let servers: Record<string, Omit<McpServerRegistration, "name">> = {
+			linear,
+			sentry: { transport: { type: "stdio", command: "npx" } },
+		};
+		let now = 0;
+		let signedIn = false;
+		const connectors = connectorsWith({
+			settings,
+			loaders: { mcp: async () => ({ mcpServers: servers }) },
+			gh: new GhReader(
+				fakeRun((call) => {
+					if (!signedIn) throw failure(1);
+					return ghHandler(call);
+				}),
+				() => now,
+			),
+			mcp: {
+				registration: async (name) => ({ name, transport: linear.transport }),
+				client: async () => ({
+					connect: async () => undefined,
+					disconnect: async () => undefined,
+					callTool: async () => ({
+						content: [{ type: "text", text: '["ENG-1"]' }],
+					}),
+				}),
+			},
+		});
+		await connectors.detect();
+		await connectors.refresher.start();
+		connectors.refresher.stop();
+		const linearFacts = () =>
+			connectors
+				.all()
+				.find((connector) => connector.id === "mcp:linear")
+				?.facts?.(repoEnv, 100);
+		const read = linearFacts();
+		expect(connectors.access("github").role).toBe("off");
+		servers = {
+			linear,
+			notion: { transport: { type: "stdio", command: "x" } },
+		};
+		signedIn = true;
+		now = 300_001;
+		await connectors.onTurn({});
+		expect(connectors.all().map((connector) => connector.id)).toEqual([
+			"github",
+			"mcp:linear",
+			"mcp:notion",
+		]);
+		expect(connectors.access("github").role).toBe("mention");
+		expect(connectors.access("mcp:sentry").role).toBe("off");
+		expect(linearFacts()).toEqual(read);
+		expect(JSON.stringify(read)).toContain("ENG-1");
+	});
+
+	test("a store or gh check that fails after a turn keeps what it last found, facts included; a store that is gone has nothing", async () => {
+		const settings = settingsWith("mention");
+		settings.connectors["mcp:linear"] = {
+			role: "read",
+			scopes: ["mine"],
+			reads: [{ id: "mine", tool: "list_my_issues", arguments: {} }],
+		};
+		const linear = {
+			transport: {
+				type: "streamableHttp" as const,
+				url: "https://mcp.linear.app/mcp",
+			},
+		};
+		let storeError: Error | undefined;
+		let ghFails = false;
+		let now = 0;
+		const reads: string[] = [];
+		const connectors = connectorsWith({
+			settings,
+			loaders: {
+				mcp: async () => {
+					if (storeError) throw storeError;
+					return { mcpServers: { linear } };
+				},
+				channels: async () => {
+					if (storeError) throw storeError;
+					return { configured: [{ id: "c", type: "slack" }] };
+				},
+			},
+			gh: new GhReader(
+				fakeRun((call) => {
+					if (ghFails) throw failure("ETIMEDOUT");
+					return ghHandler(call);
+				}),
+				() => now,
+			),
+			mcp: {
+				registration: async (name) => ({ name, transport: linear.transport }),
+				client: async () => ({
+					connect: async () => undefined,
+					disconnect: async () => undefined,
+					callTool: async ({ name }) => {
+						reads.push(name);
+						return { content: [{ type: "text", text: '["ENG-1"]' }] };
+					},
+				}),
+			},
+		});
+		const linearFacts = () =>
+			connectors
+				.all()
+				.find((connector) => connector.id === "mcp:linear")
+				?.facts?.(repoEnv, 100);
+		await connectors.detect();
+		await connectors.refresher.start();
+		connectors.refresher.stop();
+		const read = linearFacts();
+		expect(JSON.stringify(read)).toContain("ENG-1");
+
+		storeError = new Error('Failed to parse MCP settings JSON at "mcp.json"');
+		ghFails = true;
+		now = 300_001;
+		await connectors.onTurn({});
+		expect(connectors.access("mcp:linear").readAllowed).toBe(true);
+		expect(linearFacts()).toEqual(read);
+		expect(connectors.access("github").role).toBe("mention");
+		expect(connectors.rows().map((row) => row.id)).toContain("channel:slack");
+
+		storeError = Object.assign(new Error("no such file"), { code: "ENOENT" });
+		await connectors.onTurn({});
+		expect(connectors.all().map((connector) => connector.id)).toEqual([
+			"github",
+		]);
+		expect(connectors.access("mcp:linear").role).toBe("off");
+		expect(reads).toEqual(["list_my_issues"]);
 	});
 });

@@ -172,6 +172,7 @@ export function startSessionRuntime(
 			mcp: clineMcpRunnerDeps(),
 			settings,
 			env,
+			active: pluginActive,
 			log,
 		});
 		void connectors
@@ -201,7 +202,7 @@ export function startSessionRuntime(
 			}),
 			github: (turnEnv) => connectors.github.ciEvidence(turnEnv),
 			complete: clineCompleter({
-				choice: () => plannerProvider(settings(), next.chat()),
+				choice: (planned) => plannerProvider(planned, next.chat()),
 				requestContext: () => ({
 					sessionId,
 					client: {
@@ -220,6 +221,7 @@ export function startSessionRuntime(
 			),
 			store,
 			viewerClient: () => clientOverride,
+			active: pluginActive,
 			readTranscript: () => hubTranscript(link, sessionId),
 			log,
 		});

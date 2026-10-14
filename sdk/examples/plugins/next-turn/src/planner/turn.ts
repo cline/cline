@@ -52,6 +52,8 @@ export type Turn = {
 	pushed: boolean;
 	/** The chat's provider and model, from the last reply. */
 	chat?: { providerId: string; modelId: string };
+	/** The mode the chat's newest input was sent in; absent on transcripts the runtime did not wrap. */
+	mode?: "act" | "plan";
 };
 
 /** A message as core's run count reads it: a live `AgentMessage`, or a stored one whose content may be a string. */
@@ -108,6 +110,8 @@ const USER_INPUT_PATTERNS = ["user_input", "user_command"].map((tag) => ({
 	strayOpening: new RegExp(`<${tag}[^>]*>`, "g"),
 }));
 const MODE_NOTICE_TAG = "mode_notice";
+/** The mode core's `<user_input>` wrapper names: `@cline/shared`'s `parseUserInputMode`, vendored like the run count. */
+const USER_INPUT_MODE = /<user_input\b[^>]*\bmode="(act|plan|yolo)"/;
 const COMMAND_ENVELOPE = /^<user_command\b([^>]*)>([\s\S]*?)<\/user_command>$/i;
 const SLASH_ATTRIBUTE = /slash="([^"]+)"/i;
 
@@ -279,6 +283,30 @@ function textOf(message: MessageLike): string {
 		.trim();
 }
 
+/**
+ * True when a call's result reports a failure the tool caught, although the
+ * call itself did not error: Cline's editor, apply_patch and run_commands
+ * answer `success: false`, run_commands once per command. Of several commands
+ * only those `matching` count, or all of them when no query matches, since a
+ * long command's query is cut short.
+ */
+function failedInBand(output: unknown, matching?: RegExp): boolean {
+	const operations = (Array.isArray(output) ? output : [output]).filter(
+		isRecord,
+	);
+	const named = matching
+		? operations.filter(
+				(operation) =>
+					typeof operation.query === "string" && matching.test(operation.query),
+			)
+		: [];
+	const counted = named.length > 0 ? named : operations;
+	return (
+		counted.length > 0 &&
+		counted.every((operation) => operation.success === false)
+	);
+}
+
 function errorText(output: unknown): string {
 	if (typeof output === "string") return output;
 	if (isRecord(output) && typeof output.error === "string") return output.error;
@@ -304,12 +332,16 @@ function isPersonMessage(message: MessageLike): boolean {
 	return getUserRunSpan(message) === 1 && !HOOK_CONTEXT.test(textOf(message));
 }
 
-/** The person's newest message, or undefined when there is none. Its text is empty when it carried only an attachment. */
+/**
+ * The person's newest message as they typed it, without the wrappers and mode
+ * notices the runtime adds, or undefined when there is none. Its text is empty
+ * when it carried only an attachment.
+ */
 export function lastPersonMessage(
 	messages: readonly AgentMessage[],
 ): { id: string; text: string } | undefined {
 	const last = messages.findLast(isPersonMessage);
-	return last ? { id: last.id, text: textOf(last) } : undefined;
+	return last ? { id: last.id, text: shownText(textOf(last)) } : undefined;
 }
 
 function chatOf(message: MessageLike): Turn["chat"] {
@@ -319,6 +351,20 @@ function chatOf(message: MessageLike): Turn["chat"] {
 		typeof modelInfo.id === "string"
 		? { providerId: modelInfo.provider, modelId: modelInfo.id }
 		: undefined;
+}
+
+/**
+ * The mode of the newest input the runtime wrapped. That can follow the
+ * person's message: approving a plan sends a continuation in act mode.
+ */
+function chatMode(messages: readonly MessageLike[]): Turn["mode"] {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (message?.role !== "user") continue;
+		const mode = USER_INPUT_MODE.exec(textOf(message))?.[1];
+		if (mode) return mode === "plan" ? "plan" : "act";
+	}
+	return undefined;
 }
 
 function turnStatus(status: string): TurnStatus {
@@ -338,9 +384,10 @@ function turnFrom(
 	if (!user) return null;
 	const runCount = countUserRunMessages(messages);
 	const turnKey = `${sessionId}:${runCount}`;
-	const paths = new Set<string>();
+	const writes: { callId: unknown; paths: string[] }[] = [];
+	const pushCallIds: unknown[] = [];
 	const tools = new Map<string, ToolFact>();
-	let pushed = false;
+	const unsuccessful = new Set<string>();
 	let chat: Turn["chat"];
 	let lastAssistantText = "";
 	for (const message of messages.slice(lastUser + 1)) {
@@ -352,13 +399,19 @@ function turnFrom(
 			if (!isRecord(part)) continue;
 			if (part.type === "tool-call" && typeof part.toolName === "string") {
 				if (WRITE_FILE_TOOL_NAMES.has(part.toolName))
-					for (const path of editedPaths(part.input)) paths.add(path);
-				else if (isPushCommand(part.input)) pushed = true;
+					writes.push({
+						callId: part.toolCallId,
+						paths: editedPaths(part.input),
+					});
+				else if (isPushCommand(part.input)) pushCallIds.push(part.toolCallId);
 			} else if (
 				part.type === "tool-result" &&
 				typeof part.toolCallId === "string" &&
 				typeof part.toolName === "string"
 			) {
+				// Only an errored call is a failure the turn owes a fix for: a command
+				// exiting non-zero is routine, a search with no match or a test the
+				// agent went on to fix.
 				const failed = part.isError === true;
 				const error = failed
 					? clampRedacted(errorText(part.output), TURN_ERROR_LIMIT)
@@ -368,9 +421,25 @@ function turnFrom(
 					failed,
 					...(error ? { error } : {}),
 				});
+				const pushCall = pushCallIds.includes(part.toolCallId);
+				if (failed || failedInBand(part.output, pushCall ? PUSH : undefined))
+					unsuccessful.add(part.toolCallId);
 			}
 		}
 	}
+	/**
+	 * A call that errored, such as an edit the person denied, or that reported
+	 * a failure, such as an edit whose text was not found or a rejected push,
+	 * changed nothing.
+	 */
+	const succeeded = (callId: unknown) =>
+		typeof callId !== "string" || !unsuccessful.has(callId);
+	const paths = new Set(
+		writes
+			.filter((write) => succeeded(write.callId))
+			.flatMap((write) => write.paths),
+	);
+	const mode = chatMode(messages);
 	const toolFacts = [...tools.values()];
 	const userMessageId =
 		typeof user.id === "string" && user.id.trim().length > 0
@@ -398,8 +467,9 @@ function turnFrom(
 			tools: toolFacts.slice(-TURN_TOOL_LIMIT),
 			editedPaths: [...paths].slice(0, TURN_PATH_LIMIT),
 		},
-		pushed,
+		pushed: pushCallIds.some(succeeded),
 		...(chat ? { chat } : {}),
+		...(mode ? { mode } : {}),
 	};
 }
 

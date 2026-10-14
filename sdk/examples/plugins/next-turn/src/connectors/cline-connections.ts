@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { McpServerTransportConfig, McpSettingsFile } from "@cline/core";
 import type { HubLink } from "../hub/link";
+import { errorCode } from "../run";
 import { isRecord } from "../values";
 
 /**
@@ -82,20 +83,26 @@ export function parseChannels(reply: unknown): string[] {
 	return [...types].sort();
 }
 
-/** Each store read independently: one that fails reads as empty and the others still count. */
+/**
+ * Each store read independently. A store that is not there has nothing
+ * connected; one that fails to read, such as MCP settings caught mid-edit,
+ * keeps what `previous` read of it, so a connection is never dropped for a
+ * read that did not happen.
+ */
 export async function readClineConnections(
 	loaders: ConnectionLoaders,
+	previous?: ClineConnections,
 ): Promise<ClineConnections> {
+	const orPrevious =
+		<T>(kept: T[] | undefined) =>
+		(error: unknown): T[] =>
+			errorCode(error) === "ENOENT" ? [] : (kept ?? []);
 	const [composio, mcp, channels] = await Promise.all([
-		loaders.composio().catch(() => undefined),
-		loaders.mcp().catch(() => undefined),
-		loaders.channels().catch(() => undefined),
+		loaders.composio().then(parseComposio, orPrevious(previous?.composio)),
+		loaders.mcp().then(parseMcp, orPrevious(previous?.mcp)),
+		loaders.channels().then(parseChannels, orPrevious(previous?.channels)),
 	]);
-	return {
-		composio: parseComposio(composio),
-		mcp: parseMcp(mcp),
-		channels: parseChannels(channels),
-	};
+	return { composio, mcp, channels };
 }
 
 /** The host's `@cline/core`: before 0.0.93 it exported the Composio state resolver as `resolveComposioToolsStatePath`. */

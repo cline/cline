@@ -1,12 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import {
 	Agent,
+	CommandExitError,
 	countUserRunMessages as coreCount,
 	getUserRunSpan as coreSpan,
+	createDefaultTools,
 } from "@cline/core";
 import type { AgentMessage } from "@cline/shared";
 import { TURN_TEXT_LIMIT } from "../config";
-import { editingModel, editorTool, message, runResult } from "../test-support";
+import {
+	editingModel,
+	editorTool,
+	type Model,
+	message,
+	runResult,
+} from "../test-support";
 import { fnv1a32 } from "./candidates";
 import {
 	countUserRunMessages,
@@ -23,6 +31,32 @@ function turnOf(messages: AgentMessage[], sessionId = "s") {
 	const turn = deriveTurn(sessionId, runResult(messages));
 	expect(turn?.runCount).toBe(coreCount(messages));
 	return turn;
+}
+
+/** Makes `calls` together on its first request, then answers in text. */
+function callingModel(
+	calls: ReadonlyArray<readonly [toolName: string, input: unknown]>,
+): Model {
+	let requests = 0;
+	return {
+		async *stream() {
+			requests += 1;
+			if (requests === 1) {
+				for (const [index, [toolName, input]] of calls.entries())
+					yield {
+						type: "tool-call-delta",
+						index,
+						toolCallId: `c${index}`,
+						toolName,
+						input,
+					};
+				yield { type: "finish", reason: "tool-calls" };
+			} else {
+				yield { type: "text-delta", text: "Done." };
+				yield { type: "finish", reason: "stop" };
+			}
+		},
+	};
 }
 
 const IMAGE = {
@@ -503,7 +537,7 @@ describe("the turn's identity is core's run count", () => {
 			turnKey: "sess_tx:1",
 			revision: fnv1a32("sess_tx:1"),
 			facts: { status: "failed", filesEdited: 1, toolErrored: true },
-			pushed: true,
+			pushed: false,
 			chat: { providerId: "anthropic", modelId: "claude-sonnet-4-5" },
 		});
 		expect(turn?.context.request).toBe("Fix the retry logic");
@@ -615,7 +649,7 @@ describe("the turn, from the run result", () => {
 			runCount: 2,
 			turnKey: "s1:2",
 			facts: { status: "completed", filesEdited: 3, toolErrored: true },
-			pushed: true,
+			pushed: false,
 			chat: { providerId: "anthropic", modelId: "claude-sonnet-5-5" },
 		});
 		expect(turn?.context.request).toBe("Fix the failing test in users.test.ts");
@@ -628,6 +662,136 @@ describe("the turn, from the run result", () => {
 				error: "token=[redacted] rejected",
 			},
 		]);
+	});
+
+	test("an edit or a push whose call was denied or failed changes nothing", () => {
+		const turn = deriveTurn(
+			"s",
+			runResult([
+				message("user", "Fix the client"),
+				message("assistant", [
+					{
+						type: "tool-call",
+						toolCallId: "denied",
+						toolName: "editor",
+						input: { path: "src/client.ts" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "written",
+						toolName: "editor",
+						input: { path: "src/retry.ts" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "push",
+						toolName: "run_commands",
+						input: { command: "git push" },
+					},
+				]),
+				message("tool", [
+					{
+						type: "tool-result",
+						toolCallId: "denied",
+						toolName: "editor",
+						output: { error: "The user denied this operation." },
+						isError: true,
+					},
+					{
+						type: "tool-result",
+						toolCallId: "written",
+						toolName: "editor",
+						output: "ok",
+					},
+					{
+						type: "tool-result",
+						toolCallId: "push",
+						toolName: "run_commands",
+						output: { error: "rejected" },
+						isError: true,
+					},
+				]),
+			]),
+		);
+		expect(turn).toMatchObject({
+			facts: { filesEdited: 1, toolErrored: true },
+			pushed: false,
+		});
+		expect(turn?.context.editedPaths).toEqual(["src/retry.ts"]);
+	});
+
+	test("an edit whose text was not found and a rejected push, as Cline's own tools report them, change nothing", async () => {
+		const editor = createDefaultTools({
+			cwd: "/repo",
+			executors: {
+				editor: async (input) => {
+					if (input.path.endsWith("retry.ts"))
+						throw new Error("old_text was not found in src/retry.ts");
+					return "edited";
+				},
+				bash: async (command) => {
+					const line = String(command);
+					if (line.startsWith("npm test"))
+						throw new CommandExitError(1, "1 failing");
+					if (line.startsWith("git push"))
+						throw new CommandExitError(1, "! [rejected] main -> main");
+					return "";
+				},
+			},
+		});
+		const patch = createDefaultTools({
+			cwd: "/repo",
+			enableApplyPatch: true,
+			executors: {
+				applyPatch: async () => {
+					throw new Error("context lines did not match src/parser.ts");
+				},
+			},
+		});
+		const failedEdits = await new Agent({
+			model: callingModel([
+				[
+					"editor",
+					{ path: "/repo/src/retry.ts", old_text: "a", new_text: "b" },
+				],
+				[
+					"editor",
+					{ path: "/repo/src/client.ts", old_text: "a", new_text: "b" },
+				],
+				["run_commands", { commands: ["npm test", "git push"] }],
+			]),
+			tools: editor,
+		}).run("Fix the retry and push");
+		const results = failedEdits.messages.flatMap((item) =>
+			item.content.filter((part) => part.type === "tool-result"),
+		);
+		expect(results).toHaveLength(3);
+		expect(results.some((part) => part.isError)).toBe(false);
+		const turn = deriveTurn("s", failedEdits);
+		expect(turn).toMatchObject({
+			facts: { filesEdited: 1, toolErrored: false },
+			pushed: false,
+		});
+		expect(turn?.context.editedPaths).toEqual(["/repo/src/client.ts"]);
+
+		const pushedPastFailingTests = await new Agent({
+			model: callingModel([
+				["run_commands", { commands: ["npm test", "gh pr create --fill"] }],
+			]),
+			tools: editor,
+		}).run("Open the PR");
+		expect(deriveTurn("s", pushedPastFailingTests)?.pushed).toBe(true);
+
+		const failedPatch = await new Agent({
+			model: callingModel([
+				[
+					"apply_patch",
+					{ input: "*** Begin Patch\n*** Update File: src/parser.ts\n" },
+				],
+			]),
+			tools: patch,
+		}).run("Fix the parser");
+		expect(deriveTurn("s", failedPatch)?.facts.filesEdited).toBe(0);
 	});
 
 	test("an aborted run is a stopped turn, a failed run a failed one; no message is no turn", () => {

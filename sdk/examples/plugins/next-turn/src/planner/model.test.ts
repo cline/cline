@@ -20,13 +20,14 @@ import {
 } from "./model";
 
 const input = { system: "s", user: "u" };
+const defaults = defaultSettings();
 const answer =
 	'{"suggestions":[{"kind":"verify","source":"turn","prompt":"Run the retry tests.","why":"changed"}]}';
 
 describe("one planner call", () => {
 	test("a good answer is a pool, with its cost", async () => {
 		const complete: Complete = async () => ({ text: answer, costUsd: 0.002 });
-		const attempt = await generatePool(complete, input, CORE_KINDS);
+		const attempt = await generatePool(complete, input, CORE_KINDS, defaults);
 		expect(attempt).toMatchObject({
 			costUsd: 0.002,
 			pool: [{ kind: "verify", prompt: "Run the retry tests." }],
@@ -34,17 +35,25 @@ describe("one planner call", () => {
 	});
 
 	test("no provider, a bad answer, a throw and a slow call each say why", async () => {
-		expect(await generatePool(async () => null, input, CORE_KINDS)).toEqual({
+		expect(
+			await generatePool(async () => null, input, CORE_KINDS, defaults),
+		).toEqual({
 			reason: "no_provider",
 		});
 		expect(
-			await generatePool(async () => ({ text: "sorry" }), input, CORE_KINDS),
+			await generatePool(
+				async () => ({ text: "sorry" }),
+				input,
+				CORE_KINDS,
+				defaults,
+			),
 		).toEqual({ reason: "unparseable" });
 		expect(
 			await generatePool(
 				async () => Promise.reject(new Error("401")),
 				input,
 				CORE_KINDS,
+				defaults,
 			),
 		).toEqual({ reason: "error", error: "401" });
 		let aborted = false;
@@ -55,7 +64,7 @@ describe("one planner call", () => {
 					resolve({ text: answer });
 				});
 			});
-		expect(await generatePool(slow, input, CORE_KINDS, 5)).toEqual({
+		expect(await generatePool(slow, input, CORE_KINDS, defaults, 5)).toEqual({
 			reason: "timeout",
 		});
 		expect(aborted).toBe(true);
@@ -307,7 +316,9 @@ describe("the planner's provider", () => {
 				return { core, llms };
 			},
 		});
-		expect(await complete(input, new AbortController().signal)).toEqual({
+		expect(
+			await complete(input, new AbortController().signal, defaults),
+		).toEqual({
 			text: answer,
 			providerId: "anthropic",
 			modelId: "m",
@@ -317,7 +328,7 @@ describe("the planner's provider", () => {
 			thinking: false,
 			maxOutputTokens: 600,
 		});
-		await complete(input, new AbortController().signal);
+		await complete(input, new AbortController().signal, defaults);
 		expect(loads).toBe(1);
 		expect(viewers).toEqual([]);
 		const none = clineCompleter({
@@ -327,7 +338,9 @@ describe("the planner's provider", () => {
 				return { core: fakeCore(undefined).core, llms };
 			},
 		});
-		expect(await none(input, new AbortController().signal)).toBeNull();
+		expect(
+			await none(input, new AbortController().signal, defaults),
+		).toBeNull();
 		expect(loads).toBe(1);
 	});
 
@@ -357,7 +370,9 @@ describe("the planner's provider", () => {
 				}),
 			});
 		const refusesOff = completer("m");
-		expect(await refusesOff(input, new AbortController().signal)).toEqual({
+		expect(
+			await refusesOff(input, new AbortController().signal, defaults),
+		).toEqual({
 			text: answer,
 			providerId: "cline",
 			modelId: "m",
@@ -368,7 +383,9 @@ describe("the planner's provider", () => {
 			reasoningEffort: "low",
 		});
 		configs.length = 0;
-		expect(await refusesOff(input, new AbortController().signal)).toEqual({
+		expect(
+			await refusesOff(input, new AbortController().signal, defaults),
+		).toEqual({
 			text: answer,
 			providerId: "cline",
 			modelId: "m",
@@ -376,33 +393,35 @@ describe("the planner's provider", () => {
 		expect(configs.map((config) => config.thinking)).toEqual([true]);
 		configs.length = 0;
 		const broken = completer("other", () => new Error("400 from the provider"));
-		await expect(broken(input, new AbortController().signal)).rejects.toThrow(
-			"400",
-		);
+		await expect(
+			broken(input, new AbortController().signal, defaults),
+		).rejects.toThrow("400");
 		expect(configs).toHaveLength(2);
 		configs.length = 0;
 		const aborted = new AbortController();
 		aborted.abort();
-		await expect(broken(input, aborted.signal)).rejects.toThrow("400");
+		await expect(broken(input, aborted.signal, defaults)).rejects.toThrow(
+			"400",
+		);
 		expect(configs).toHaveLength(1);
 		configs.length = 0;
 		const unauthorized = completer("auth", () =>
 			Object.assign(new Error("unauthorized"), { status: 401 }),
 		);
 		await expect(
-			unauthorized(input, new AbortController().signal),
+			unauthorized(input, new AbortController().signal, defaults),
 		).rejects.toThrow("unauthorized");
 		expect(configs).toHaveLength(1);
 		configs.length = 0;
 		const busy = completer("busy", () =>
 			Object.assign(new Error("overloaded"), { status: 503 }),
 		);
-		await expect(busy(input, new AbortController().signal)).rejects.toThrow(
-			"overloaded",
-		);
-		await expect(busy(input, new AbortController().signal)).rejects.toThrow(
-			"overloaded",
-		);
+		await expect(
+			busy(input, new AbortController().signal, defaults),
+		).rejects.toThrow("overloaded");
+		await expect(
+			busy(input, new AbortController().signal, defaults),
+		).rejects.toThrow("overloaded");
 		expect(configs.map((config) => config.thinking)).toEqual([false, false]);
 	});
 });

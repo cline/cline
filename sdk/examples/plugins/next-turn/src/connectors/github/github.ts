@@ -220,11 +220,18 @@ export class GitHubConnector implements Connector {
 		return (this.deps.now ?? Date.now)();
 	}
 
-	/** Background: which Cline routes exist. The probe answers from the last detection. */
+	/**
+	 * Background: which Cline routes exist. The probe answers from the last
+	 * detection, and a `gh` check that fails rather than answers keeps it.
+	 */
 	async detect(env: SourceEnv, connections: ClineConnections): Promise<void> {
 		const signedIn = await this.deps.gh
 			.isAvailable(env.workspaceRoot ?? ".")
-			.catch(() => false);
+			.catch(
+				() =>
+					this.detectedRoutes?.some((route) => route.id === GH_ROUTE.id) ??
+					false,
+			);
 		this.detectedRoutes = githubRoutes(signedIn, connections);
 	}
 

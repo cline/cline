@@ -20,6 +20,8 @@ type RefresherOptions = {
 	connectors: () => readonly Connector[];
 	access: (connectorId: string) => Access;
 	env: () => SourceEnv;
+	/** Whether the plugin is still enabled and installed: a disabled plugin reads no connector. */
+	active?: () => boolean;
 	log?: Log;
 	now?: () => number;
 	/** Runs `tick` every minute until the returned function is called. */
@@ -33,7 +35,11 @@ function tickEveryMinute(tick: () => void): () => void {
 
 export class Refresher {
 	private readonly inFlight = new Set<string>();
-	private readonly lastRefreshed = new Map<string, number>();
+	/** Per instance: a connector found again after it was removed has read nothing yet, so its scopes are due. */
+	private readonly lastRefreshed = new WeakMap<
+		Connector,
+		Map<string, number>
+	>();
 	private stopTicking: (() => void) | undefined;
 	private branch: string | undefined;
 
@@ -42,7 +48,7 @@ export class Refresher {
 	start(): Promise<void> {
 		this.stop();
 		this.stopTicking = (this.options.startTicking ?? tickEveryMinute)(
-			() => void this.refresh("due", (scope, key) => this.due(scope, key)),
+			() => void this.refresh("due", (scope, last) => this.due(scope, last)),
 		);
 		this.branch = this.options.env().git?.branch;
 		return this.refreshAll("start");
@@ -73,8 +79,7 @@ export class Refresher {
 		return (this.options.now ?? Date.now)();
 	}
 
-	private due(scope: ReadScope, key: string): boolean {
-		const last = this.lastRefreshed.get(key);
+	private due(scope: ReadScope, last: number | undefined): boolean {
 		return (
 			last === undefined || this.now() - last >= scope.everyMinutes * MINUTE_MS
 		);
@@ -82,23 +87,27 @@ export class Refresher {
 
 	private async refresh(
 		reason: string,
-		wanted: (scope: ReadScope, key: string) => boolean,
+		wanted: (scope: ReadScope, lastRefreshed: number | undefined) => boolean,
 	): Promise<void> {
+		if (this.options.active?.() === false) return;
 		const env = this.options.env();
 		const work: Promise<void>[] = [];
 		for (const connector of this.options.connectors()) {
 			const access = this.options.access(connector.id);
 			if (!access.readAllowed) continue;
+			const refreshed =
+				this.lastRefreshed.get(connector) ?? new Map<string, number>();
+			this.lastRefreshed.set(connector, refreshed);
 			for (const scope of connector.scopes) {
 				const key = `${connector.id}/${scope.id}`;
 				if (
 					!access.scopes.includes(scope.id) ||
 					this.inFlight.has(key) ||
-					!wanted(scope, key)
+					!wanted(scope, refreshed.get(scope.id))
 				)
 					continue;
 				this.inFlight.add(key);
-				this.lastRefreshed.set(key, this.now());
+				refreshed.set(scope.id, this.now());
 				work.push(
 					connector
 						.refresh(scope.id, env)

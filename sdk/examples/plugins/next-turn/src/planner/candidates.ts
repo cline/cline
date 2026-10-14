@@ -1,4 +1,4 @@
-import { REF_MAX_CHARS } from "../config";
+import { PROMPT_MAX_CHARS, REF_MAX_CHARS, WHY_MAX_CHARS } from "../config";
 import { isOutward, type SuggestionKind } from "./kinds";
 
 /**
@@ -76,6 +76,12 @@ function suggestionId(kind: SuggestionKind, prompt: string): string {
 	return fnv1a32(`${kind}:${prompt}`);
 }
 
+/** Text within `max` stays byte for byte, so the hosts' rows keep their ids. */
+function clip(text: string, max: number): string {
+	return text.length <= max ? text : text.slice(0, max).trimEnd();
+}
+
+/** A row inside the published bounds, whatever a task title, headline or check name made it say. */
 export function suggestion(
 	kind: SuggestionKind,
 	source: SuggestionSource,
@@ -83,13 +89,14 @@ export function suggestion(
 	why: string,
 	extra: { ref?: string; url?: string } = {},
 ): Suggestion {
+	const boundedPrompt = clip(prompt, PROMPT_MAX_CHARS);
 	const ref = extra.ref?.trim().slice(0, REF_MAX_CHARS);
 	return {
-		id: suggestionId(kind, prompt),
+		id: suggestionId(kind, boundedPrompt),
 		kind,
 		source,
-		prompt,
-		why,
+		prompt: boundedPrompt,
+		why: clip(why, WHY_MAX_CHARS),
 		...(ref ? { ref } : {}),
 		...(extra.url ? { url: extra.url } : {}),
 		...(isOutward(kind) ? { outward: true as const } : {}),

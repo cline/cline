@@ -1,3 +1,4 @@
+import type { HubEventName } from "@cline/shared";
 import type { CursorWriter } from "../hub/cursor";
 import {
 	emptyFold,
@@ -7,7 +8,7 @@ import {
 	type SessionFold,
 } from "../hub/fold";
 import type { HubLink } from "../hub/link";
-import { HUB_SEEDS } from "../hub/seed";
+import { HUB_SEEDS, UPCOMING_SEED } from "../hub/seed";
 import type { Log } from "../log";
 import { type NeedsYouItem, needsYou } from "../model/needs-you";
 import { type UpcomingRun, upcomingRuns } from "../model/schedules";
@@ -24,6 +25,15 @@ export type EngineLink = Pick<
 	"onStatus" | "start" | "subscribe" | "command" | "dispose"
 >;
 
+/** Events after which a schedule's next run may have moved: a run ended, or a schedule was added, edited, enabled, disabled or removed. Only their names are read. */
+const UPCOMING_CHANGED: ReadonlySet<HubEventName> = new Set([
+	"schedule.created",
+	"schedule.updated",
+	"schedule.deleted",
+	"schedule.execution_completed",
+	"schedule.execution_failed",
+]);
+
 type EngineOptions = {
 	link: EngineLink;
 	cursor?: CursorWriter;
@@ -38,7 +48,8 @@ type EngineOptions = {
  * The engine's live view of the hub. One subscription folds the
  * allowlisted events; each time the link comes up, session, task and
  * schedule commands seed what live events have not supplied, and after a
- * reconnect, replace what went stale while the link was down. Planner
+ * reconnect, replace what went stale while the link was down. A schedule
+ * that changes or runs has its upcoming runs read again. Planner
  * backlogs, the Status Hub's session rows and Needs you all read this fold
  * instead of querying the hub per offer.
  */
@@ -51,6 +62,8 @@ export class NextTurnEngine {
 	private linkUp = false;
 	private linkUps = 0;
 	private foldAtDrop?: HubFold;
+	private readingUpcoming = false;
+	private upcomingMoved = false;
 
 	constructor(private readonly options: EngineOptions) {}
 
@@ -82,6 +95,9 @@ export class NextTurnEngine {
 			link.subscribe(FOLDED_EVENTS, (event) =>
 				this.apply(foldEvent(this.current, event), event.sequence),
 			),
+		);
+		this.teardown.push(
+			link.subscribe(UPCOMING_CHANGED, () => void this.readUpcoming()),
 		);
 		this.teardown.push(
 			link.onStatus((status) => {
@@ -123,6 +139,33 @@ export class NextTurnEngine {
 				);
 		});
 		this.apply(next);
+	}
+
+	/** Asks the hub for the upcoming runs, one request at a time; a change while one is out asks once more after it. */
+	private async readUpcoming(): Promise<void> {
+		if (this.readingUpcoming) {
+			this.upcomingMoved = true;
+			return;
+		}
+		this.readingUpcoming = true;
+		try {
+			do {
+				this.upcomingMoved = false;
+				const { command, payload, seed } = UPCOMING_SEED;
+				const reply = await this.options.link
+					.command(command, payload)
+					.catch((error: unknown) => {
+						this.options.log?.(
+							`${command} failed; the upcoming runs stay`,
+							error,
+						);
+						return undefined;
+					});
+				if (reply) this.apply(seed(this.current, reply));
+			} while (this.upcomingMoved && !this.disposed);
+		} finally {
+			this.readingUpcoming = false;
+		}
 	}
 
 	async dispose(): Promise<void> {

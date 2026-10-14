@@ -36,19 +36,25 @@ export function mcpRunner(
 			};
 		return async (tool, args) => {
 			const client = await deps.client(registration);
+			const disconnect = () => client.disconnect().catch(() => undefined);
+			const connecting = client.connect();
+			let connectedInTime = false;
 			try {
 				await rejectAfter(
-					client.connect(),
+					connecting,
 					timeoutMs,
 					`connecting to "${serverName}"`,
 				);
+				connectedInTime = true;
 				return await rejectAfter(
 					client.callTool({ name: tool, arguments: args }),
 					timeoutMs,
 					`${serverName}/${tool}`,
 				);
 			} finally {
-				await client.disconnect().catch(() => undefined);
+				await disconnect();
+				// A connect that outlives the deadline opens its connection after the disconnect above, which had nothing to close yet.
+				if (!connectedInTime) void connecting.then(disconnect, () => undefined);
 			}
 		};
 	};

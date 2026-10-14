@@ -308,6 +308,57 @@ describe("NextTurnEngine", () => {
 		expect(engine.upcoming()).toEqual([]);
 	});
 
+	test("a finished scheduled run asks for the upcoming runs again, and a schedule the hub no longer lists leaves them", async () => {
+		const replies: Record<string, Record<string, unknown>> = {
+			"schedule.upcoming": {
+				runs: [
+					{
+						scheduleId: "nightly",
+						name: "Nightly",
+						nextRunAt: "2026-10-14T02:00:00Z",
+					},
+					{
+						scheduleId: "weekly",
+						name: "Weekly",
+						nextRunAt: "2026-10-18T09:00:00Z",
+					},
+				],
+			},
+		};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		expect(engine.upcoming()).toHaveLength(2);
+		replies["schedule.upcoming"] = {
+			runs: [
+				{
+					scheduleId: "nightly",
+					name: "Nightly",
+					nextRunAt: "2026-10-15T02:00:00Z",
+				},
+			],
+		};
+		link.emit({
+			event: "schedule.execution_completed",
+			sequence: 1,
+			payload: {
+				scheduleId: "nightly",
+				executionId: "e1",
+				status: "completed",
+			},
+		});
+		await settle();
+		expect(engine.upcoming()).toEqual([
+			{
+				scheduleId: "nightly",
+				name: "Nightly",
+				nextRunAt: "2026-10-15T02:00:00Z",
+			},
+		]);
+	});
+
 	test("notifies once for its own session's new approval, never for another chat's", async () => {
 		const link = fakeLink();
 		const engine = new NextTurnEngine({

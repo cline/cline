@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { Agent } from "@cline/core";
+import { Refresher } from "./connectors/refresher";
 import { PluginLifecycle } from "./lifecycle";
 import { EMPTY_BACKLOG } from "./planner/backlog";
 import { LabelLog } from "./planner/labels";
@@ -126,6 +127,69 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 
 		rmSync(pkgRoot, { recursive: true, force: true });
 		expect(lifecycle.active()).toBe(false);
+	});
+
+	test("a disable no hook has seen yet stops a late planner answer and the connector tick", async () => {
+		const dir = tempDir();
+		let enabled = true;
+		let release: () => void = () => {};
+		const answered = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const labelsPath = join(dir, "labels.jsonl");
+		const next = new NextSession({
+			sessionId: "sess_quiet",
+			settings: defaultSettings,
+			env: () => ({ client: "cline-cli", tools: [] }),
+			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+			backlog: async () => EMPTY_BACKLOG,
+			complete: async () => {
+				await answered;
+				return {
+					text: '{"suggestions":[{"kind":"verify","source":"turn","prompt":"Run tests.","why":"changed"}]}',
+				};
+			},
+			labels: new LabelLog(labelsPath),
+			active: () => enabled,
+		});
+		const planners: (string | undefined)[] = [];
+		next.onPush((push) => planners.push(push.set?.planner));
+		await next.afterRun(editRun().result);
+		enabled = false;
+		release();
+		await next.settled();
+		expect(planners).toEqual([undefined, "rules"]);
+		expect(readFileSync(labelsPath, "utf8").trim().split("\n")).toHaveLength(1);
+
+		const read: string[] = [];
+		let tick: () => void = () => {};
+		enabled = true;
+		const refresher = new Refresher({
+			connectors: () => [
+				{
+					id: "github",
+					tier: "T3",
+					scopes: [{ id: "pr", label: "PR", everyMinutes: 5 }],
+					probe: () => "present",
+					refresh: async (scope) => {
+						read.push(scope);
+					},
+				},
+			],
+			access: () => ({ role: "read", scopes: ["pr"], readAllowed: true }),
+			env: () => ({ tools: [] }),
+			active: () => enabled,
+			now: () => (enabled ? 0 : 10 * 60_000),
+			startTicking: (run) => {
+				tick = run;
+				return () => {};
+			},
+		});
+		await refresher.start();
+		enabled = false;
+		tick();
+		await Bun.sleep(0);
+		expect(read).toEqual(["pr"]);
 	});
 
 	test("a chat set up while the plugin is disabled answers current with off, not the saved set", async () => {
