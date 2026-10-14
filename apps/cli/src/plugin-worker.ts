@@ -4,13 +4,13 @@
 import { registerHostPluginModules } from "@cline/core/plugin-worker";
 
 registerHostPluginModules({
-	"@cline/sdk": () => import("@cline/core"),
-	"@cline/core": () => import("@cline/core"),
-	"@cline/core/hub": () => import("@cline/core/hub"),
-	"@cline/core/telemetry": () => import("@cline/core/telemetry"),
-	"@cline/agents": () => import("@cline/agents"),
-	"@cline/llms": () => import("@cline/llms"),
-	"@cline/shared": () => import("@cline/shared"),
-	"@cline/shared/db": () => import("@cline/shared/db"),
-	"@cline/shared/storage": () => import("@cline/shared/storage"),
+	"@cline/sdk": () => require("@cline/core"),
+	"@cline/core": () => require("@cline/core"),
+	"@cline/core/hub": () => require("@cline/core/hub"),
+	"@cline/core/telemetry": () => require("@cline/core/telemetry"),
+	"@cline/agents": () => require("@cline/agents"),
+	"@cline/llms": () => require("@cline/llms"),
+	"@cline/shared": () => require("@cline/shared"),
+	"@cline/shared/db": () => require("@cline/shared/db"),
+	"@cline/shared/storage": () => require("@cline/shared/storage"),
 });

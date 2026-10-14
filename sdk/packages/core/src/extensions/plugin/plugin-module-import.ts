@@ -46,10 +46,10 @@ type BunRuntime = {
 		setup(build: {
 			module(
 				specifier: string,
-				load: () => Promise<{
+				load: () => {
 					exports: Record<string, unknown>;
 					loader: "object";
-				}>,
+				},
 			): void;
 		}): void;
 	}): void;
@@ -60,9 +60,11 @@ type BunRuntime = {
  * process (Bun only), so a compiled executable can provide the SDK to plugins
  * without any `node_modules` on disk. Plugins then load through Bun's own
  * loader: jiti resolves bare specifiers itself and would not see these.
+ * Loaders must be synchronous: Bun cannot hand an async module to `require()`,
+ * which CommonJS plugins and dependencies use.
  */
 export function registerHostPluginModules(
-	modules: Record<string, () => Promise<object>>,
+	modules: Record<string, () => object>,
 ): void {
 	const bun = (globalThis as { Bun?: BunRuntime }).Bun;
 	if (!bun) {
@@ -72,8 +74,8 @@ export function registerHostPluginModules(
 		name: "cline-host-plugin-modules",
 		setup(build) {
 			for (const [specifier, load] of Object.entries(modules)) {
-				build.module(specifier, async () => ({
-					exports: (await load()) as Record<string, unknown>,
+				build.module(specifier, () => ({
+					exports: load() as Record<string, unknown>,
 					loader: "object",
 				}));
 			}
