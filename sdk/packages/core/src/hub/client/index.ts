@@ -10,6 +10,15 @@ import {
 	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
+import { HttpProxyAgent } from "http-proxy-agent";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { getProxyForUrl } from "proxy-from-env";
+// Node loads the npm package; Bun substitutes its own `ws`, which reads the
+// proxy URL and Proxy-Authorization from the same `agent` option. One socket
+// shape therefore serves the extension host, the CLI and the Bun-hosted
+// desktop sidecar. Do not alias the npm package to bypass Bun's substitution:
+// Bun's node:http client has not always emitted `upgrade`, and the npm client
+// then fails the handshake with "Unexpected server response: 101".
 import NodeWebSocket from "ws";
 import corePackage from "../../../package.json";
 import {
@@ -76,6 +85,18 @@ function getWebSocketCtor(): WebSocketCtor {
 		);
 	}
 	return ctor;
+}
+
+function resolveWebSocketProxyAgent(url: URL) {
+	const proxyLookupUrl = new URL(url);
+	proxyLookupUrl.protocol = url.protocol === "wss:" ? "https:" : "http:";
+	const proxyUrl = getProxyForUrl(proxyLookupUrl.toString());
+	if (!proxyUrl) {
+		return undefined;
+	}
+	return url.protocol === "wss:"
+		? new HttpsProxyAgent(proxyUrl)
+		: new HttpProxyAgent(proxyUrl);
 }
 
 function decodeSocketData(data: unknown): string {
@@ -556,9 +577,22 @@ export class NodeHubClient {
 			throw error;
 		}
 
+		// Proxy settings and origin headers are resolved for the same connection
+		// attempt so environment and credential changes apply on reconnect.
+		let agent: ReturnType<typeof resolveWebSocketProxyAgent>;
+		try {
+			agent = headers ? resolveWebSocketProxyAgent(url) : undefined;
+		} catch (error) {
+			const transportError = normalizeWebSocketConnectError(error, url);
+			if (generation === this.connectGeneration) {
+				this.lastCloseError = transportError;
+			}
+			throw transportError;
+		}
 		const socket = headers
 			? (new NodeWebSocket(url.toString(), {
 					headers: { ...headers },
+					agent,
 				}) as unknown as WebSocketLike)
 			: new (getWebSocketCtor())(
 					url.toString(),
