@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { type ApiHandler, resolveProviderRequestHeaders } from "@cline/llms";
+import {
+	type ApiHandler,
+	classifyProviderError,
+	isRetryableProviderError,
+	resolveProviderRequestHeaders,
+} from "@cline/llms";
+import { POOL_CACHE_LIMIT } from "../config";
 import { defaultSettings } from "../settings/settings";
 import { suggestion } from "./candidates";
 import { CORE_KINDS } from "./kinds";
@@ -9,7 +15,7 @@ import {
 	generatePool,
 	PoolCache,
 	plannerProvider,
-	resolveProviderConfig,
+	providerResolver,
 	streamCompletion,
 } from "./model";
 
@@ -56,14 +62,15 @@ describe("one planner call", () => {
 	});
 
 	test("pools are kept per turn position, oldest dropped first", () => {
-		const cache = new PoolCache(2);
+		const cache = new PoolCache();
 		const pool = [suggestion("verify", "model", "Run it.", "why")];
-		cache.set("a", pool);
-		cache.set("b", pool);
-		cache.set("a", pool);
-		cache.set("c", pool);
-		expect(cache.get("b")).toBeUndefined();
-		expect(cache.get("a")).toBe(pool);
+		for (let index = 0; index < POOL_CACHE_LIMIT; index += 1)
+			cache.set(`k${index}`, pool);
+		cache.set("k0", pool);
+		cache.set("overflow", pool);
+		expect(cache.get("k1")).toBeUndefined();
+		expect(cache.get("k0")).toBe(pool);
+		expect(cache.get("overflow")).toBe(pool);
 	});
 });
 
@@ -84,26 +91,22 @@ describe("the planner's provider", () => {
 		).toEqual({ providerId: "openai", modelId: "fast" });
 	});
 
+	/** Settings already shaped as the provider config, so the fake's `toProviderConfig` passes them through. */
 	function fakeCore(
-		config: Record<string, unknown> | undefined,
+		settings: Record<string, unknown> | undefined,
 		oauthKey?: string,
-		stored?: Record<string, unknown>,
 	) {
 		const asked: string[] = [];
 		const core = {
 			CORE_BUILD_VERSION: "0.0.92",
 			ProviderSettingsManager: class {
-				getProviderConfig(id: string) {
-					asked.push(`provider:${id}`);
-					return config;
-				}
 				getProviderSettings(id: string) {
 					asked.push(`settings:${id}`);
-					return stored;
+					return settings;
 				}
 				getLastUsedProviderConfig() {
 					asked.push("last-used");
-					return config;
+					return settings;
 				}
 			},
 			RuntimeOAuthTokenManager: class {
@@ -112,44 +115,52 @@ describe("the planner's provider", () => {
 				}
 			},
 			resolveProviderApiKeyFromSettings: () => undefined,
+			toProviderConfig: (stored: Record<string, unknown>) => ({ ...stored }),
 		};
 		return { core: core as unknown as typeof import("@cline/core"), asked };
 	}
 
-	test("resolves the key the way a chat does, never borrows last-used when the chat provider is unknown, and refuses a provider it cannot call", async () => {
+	const llmsHelpers = {
+		resolveProviderRequestHeaders,
+		classifyProviderError,
+		isRetryableProviderError,
+	};
+
+	test("resolves the key the way a chat does, reads the provider's settings once, and refuses a provider it cannot call", async () => {
 		const { core, asked } = fakeCore(
 			{ providerId: "cline", modelId: "x", apiKey: "" },
 			"oauth-key",
 		);
 		expect(
-			await resolveProviderConfig(core, { providerId: "cline", modelId: "y" }),
+			await providerResolver(
+				core,
+				llmsHelpers,
+			)({
+				providerId: "cline",
+				modelId: "y",
+			}),
 		).toMatchObject({
 			providerId: "cline",
 			modelId: "y",
 			apiKey: "oauth-key",
 			accessToken: "oauth-key",
 		});
-		expect(asked).toEqual(["provider:cline", "settings:cline"]);
-		const noChoice = fakeCore({ providerId: "openai", apiKey: "k" });
-		expect(await resolveProviderConfig(noChoice.core, {})).toBeUndefined();
-		expect(noChoice.asked).toEqual([]);
+		expect(asked).toEqual(["settings:cline"]);
+		const resolveWith = (settings: Record<string, unknown> | undefined) =>
+			providerResolver(fakeCore(settings).core, llmsHelpers);
 		expect(
-			await resolveProviderConfig(
-				fakeCore({ providerId: "openai", apiKey: "" }).core,
-				{ providerId: "openai" },
-			),
-		).toBeUndefined();
-		expect(
-			await resolveProviderConfig(fakeCore(undefined).core, {
+			await resolveWith({ providerId: "openai", apiKey: "" })({
 				providerId: "openai",
 			}),
 		).toBeUndefined();
 		expect(
-			await resolveProviderConfig(
-				fakeCore({ providerId: "ollama", baseUrl: "http://localhost:11434" })
-					.core,
-				{ providerId: "ollama" },
-			),
+			await resolveWith(undefined)({ providerId: "openai" }),
+		).toBeUndefined();
+		expect(
+			await resolveWith({
+				providerId: "ollama",
+				baseUrl: "http://localhost:11434",
+			})({ providerId: "ollama" }),
 		).toMatchObject({ providerId: "ollama" });
 	});
 
@@ -161,22 +172,24 @@ describe("the planner's provider", () => {
 			platformVersion: "24.0.0",
 			isMultiRoot: false,
 		};
-		const llms = { resolveProviderRequestHeaders };
+		const resolve = (settings: Record<string, unknown>, sessionId: string) =>
+			providerResolver(fakeCore(settings).core, llmsHelpers)(
+				{
+					providerId: String(settings.providerId),
+					modelId: String(settings.modelId),
+				},
+				{ sessionId, client: desktopClient },
+			);
 
 		for (const providerId of ["cline", "cline-pass"]) {
-			const { core } = fakeCore(
-				{ providerId, modelId: "claude-sonnet", apiKey: "tok" },
-				undefined,
-				{ headers: { "X-Custom": "1" } },
-			);
-			const resolved = await resolveProviderConfig(
-				core,
-				{ providerId, modelId: "claude-sonnet" },
-				llms,
+			const resolved = await resolve(
 				{
-					sessionId: "sess_42",
-					client: desktopClient,
+					providerId,
+					modelId: "claude-sonnet",
+					apiKey: "tok",
+					headers: { "X-Custom": "1" },
 				},
+				"sess_42",
 			);
 			expect(resolved?.headers).toEqual({
 				"X-Custom": "1",
@@ -197,12 +210,9 @@ describe("the planner's provider", () => {
 			JSON.stringify({ chatgpt_account_id: "acct_jwt" }),
 		).toString("base64url");
 		const jwt = `eyJhbGciOiJub25lIn0.${jwtPayload}.sig`;
-		const codex = await resolveProviderConfig(
-			fakeCore({ providerId: "openai-codex", modelId: "gpt-5", apiKey: jwt })
-				.core,
-			{ providerId: "openai-codex", modelId: "gpt-5" },
-			llms,
-			{ sessionId: "sess_codex", client: desktopClient },
+		const codex = await resolve(
+			{ providerId: "openai-codex", modelId: "gpt-5", apiKey: jwt },
+			"sess_codex",
 		);
 		expect(codex?.headers).toMatchObject({
 			originator: "cline",
@@ -210,24 +220,20 @@ describe("the planner's provider", () => {
 			"ChatGPT-Account-Id": "acct_jwt",
 		});
 
-		const anthropic = await resolveProviderConfig(
-			fakeCore(
-				{ providerId: "anthropic", modelId: "claude", apiKey: "sk-ant" },
-				undefined,
-				{ headers: { "anthropic-beta": "prompt-caching" } },
-			).core,
-			{ providerId: "anthropic", modelId: "claude" },
-			llms,
-			{ sessionId: "sess_ant", client: desktopClient },
+		const anthropic = await resolve(
+			{
+				providerId: "anthropic",
+				modelId: "claude",
+				apiKey: "sk-ant",
+				headers: { "anthropic-beta": "prompt-caching" },
+			},
+			"sess_ant",
 		);
 		expect(anthropic?.headers).toEqual({ "anthropic-beta": "prompt-caching" });
 
-		const opencode = await resolveProviderConfig(
-			fakeCore({ providerId: "opencode-go", modelId: "go-1", apiKey: "oc-key" })
-				.core,
-			{ providerId: "opencode-go", modelId: "go-1" },
-			llms,
-			{ sessionId: "sess_oc", client: desktopClient },
+		const opencode = await resolve(
+			{ providerId: "opencode-go", modelId: "go-1", apiKey: "oc-key" },
+			"sess_oc",
 		);
 		expect(opencode?.headers).toEqual({
 			"x-opencode-session": "sess_oc",
@@ -273,7 +279,7 @@ describe("the planner's provider", () => {
 		).rejects.toThrow("overloaded");
 	});
 
-	test("the completer imports Cline on first use and calls with the planner's bounds", async () => {
+	test("the completer imports Cline on first use, only once a provider is known, and calls with the planner's bounds", async () => {
 		const configs: Record<string, unknown>[] = [];
 		const { core } = fakeCore({
 			providerId: "anthropic",
@@ -281,6 +287,7 @@ describe("the planner's provider", () => {
 			apiKey: "k",
 		});
 		const llms = {
+			...llmsHelpers,
 			createHandlerAsync: async (config: Record<string, unknown>) => {
 				configs.push(config);
 				return {
@@ -290,10 +297,16 @@ describe("the planner's provider", () => {
 				};
 			},
 		} as unknown as typeof import("@cline/llms");
-		const complete = clineCompleter(
-			() => ({ providerId: "anthropic", modelId: "m" }),
-			async () => ({ core, llms }),
-		);
+		let loads = 0;
+		const viewers = ["cline-cli", "cline-desktop"];
+		const complete = clineCompleter({
+			choice: () => ({ providerId: "anthropic", modelId: "m" }),
+			requestContext: () => ({ client: { name: viewers.shift() } }),
+			load: async () => {
+				loads += 1;
+				return { core, llms };
+			},
+		});
 		expect(await complete(input, new AbortController().signal)).toEqual({
 			text: answer,
 			providerId: "anthropic",
@@ -304,37 +317,46 @@ describe("the planner's provider", () => {
 			thinking: false,
 			maxOutputTokens: 600,
 		});
-		const none = clineCompleter(
-			() => ({}),
-			async () => ({ core: fakeCore(undefined).core, llms }),
-		);
+		await complete(input, new AbortController().signal);
+		expect(loads).toBe(1);
+		expect(viewers).toEqual([]);
+		const none = clineCompleter({
+			choice: () => ({}),
+			load: async () => {
+				loads += 1;
+				return { core: fakeCore(undefined).core, llms };
+			},
+		});
 		expect(await none(input, new AbortController().signal)).toBeNull();
+		expect(loads).toBe(1);
 	});
 
-	test("a call refused with reasoning off is asked once more with low reasoning; an aborted call is not", async () => {
-		const { core } = fakeCore({
-			providerId: "cline",
-			modelId: "m",
-			apiKey: "k",
-		});
+	test("a call refused with reasoning off is asked once more with low reasoning; an aborted, unauthorized or transient failure is not", async () => {
 		const configs: Record<string, unknown>[] = [];
-		const llms = (alwaysFail = false) =>
+		const llms = (failure?: () => Error) =>
 			({
+				...llmsHelpers,
 				createHandlerAsync: async (config: Record<string, unknown>) => {
 					configs.push(config);
 					return {
 						async *createMessage() {
-							if (alwaysFail || config.thinking === false)
+							if (failure) throw failure();
+							if (config.thinking === false)
 								throw new Error("400 from the provider");
 							yield { type: "text", text: answer };
 						},
 					};
 				},
 			}) as unknown as typeof import("@cline/llms");
-		const refusesOff = clineCompleter(
-			() => ({ providerId: "cline", modelId: "m" }),
-			async () => ({ core, llms: llms() }),
-		);
+		const completer = (modelId: string, failure?: () => Error) =>
+			clineCompleter({
+				choice: () => ({ providerId: "cline" }),
+				load: async () => ({
+					core: fakeCore({ providerId: "cline", modelId, apiKey: "k" }).core,
+					llms: llms(failure),
+				}),
+			});
+		const refusesOff = completer("m");
 		expect(await refusesOff(input, new AbortController().signal)).toEqual({
 			text: answer,
 			providerId: "cline",
@@ -353,15 +375,7 @@ describe("the planner's provider", () => {
 		});
 		expect(configs.map((config) => config.thinking)).toEqual([true]);
 		configs.length = 0;
-		const otherModel = fakeCore({
-			providerId: "cline",
-			modelId: "other",
-			apiKey: "k",
-		}).core;
-		const broken = clineCompleter(
-			() => ({ providerId: "cline" }),
-			async () => ({ core: otherModel, llms: llms(true) }),
-		);
+		const broken = completer("other", () => new Error("400 from the provider"));
 		await expect(broken(input, new AbortController().signal)).rejects.toThrow(
 			"400",
 		);
@@ -371,5 +385,24 @@ describe("the planner's provider", () => {
 		aborted.abort();
 		await expect(broken(input, aborted.signal)).rejects.toThrow("400");
 		expect(configs).toHaveLength(1);
+		configs.length = 0;
+		const unauthorized = completer("auth", () =>
+			Object.assign(new Error("unauthorized"), { status: 401 }),
+		);
+		await expect(
+			unauthorized(input, new AbortController().signal),
+		).rejects.toThrow("unauthorized");
+		expect(configs).toHaveLength(1);
+		configs.length = 0;
+		const busy = completer("busy", () =>
+			Object.assign(new Error("overloaded"), { status: 503 }),
+		);
+		await expect(busy(input, new AbortController().signal)).rejects.toThrow(
+			"overloaded",
+		);
+		await expect(busy(input, new AbortController().signal)).rejects.toThrow(
+			"overloaded",
+		);
+		expect(configs.map((config) => config.thinking)).toEqual([false, false]);
 	});
 });

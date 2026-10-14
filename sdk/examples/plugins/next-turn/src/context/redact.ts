@@ -1,8 +1,5 @@
-/**
- * Credential shapes that must never reach a provider. `test-fixtures/redaction.json`
- * holds these patterns to the outputs other Cline surfaces produce today.
- */
-export const SECRET_PATTERNS: readonly RegExp[] = [
+/** Credential shapes that must never reach a provider. */
+const SECRET_PATTERNS: readonly RegExp[] = [
 	/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/g,
 	/\bghp_[A-Za-z0-9]{20,}/g,
 	/\bgithub_pat_[A-Za-z0-9_]{20,}/g,

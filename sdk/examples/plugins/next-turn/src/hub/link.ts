@@ -1,25 +1,25 @@
+import type {
+	HubCommandName,
+	HubEventEnvelope,
+	HubEventName,
+} from "@cline/shared";
 import {
-	HUB_CLIENT_TYPE,
 	HUB_COMMAND_TIMEOUT_MS,
+	HUB_CONNECTION_POLL_MS,
 	HUB_RECONNECT_FACTOR,
 	HUB_RECONNECT_INITIAL_MS,
 	HUB_RECONNECT_MAX_MS,
 } from "../config";
+import type { SourceState } from "../context/source";
+
+/** The link's client type, as the hub's client list shows it. */
+const HUB_CLIENT_TYPE = "next-turn-engine";
 
 /** The fields of a hub event envelope Next Turn reads. */
-export type HubEvent = {
-	event: string;
-	sequence?: number;
-	sessionId?: string;
-	timestamp?: number;
-	payload?: unknown;
-};
-
-export type HubReply = {
-	ok: boolean;
-	payload?: Record<string, unknown>;
-	error?: { code?: string; message?: string };
-};
+export type HubEvent = Pick<
+	HubEventEnvelope,
+	"event" | "sequence" | "sessionId" | "timestamp" | "payload"
+>;
 
 export type HubResolvedEndpoint = {
 	url: string;
@@ -29,38 +29,28 @@ export type HubResolvedEndpoint = {
 /** The slice of upstream `NodeHubClient` the link uses; tests pass a fake. */
 export interface HubClientPort {
 	connect(): Promise<void>;
-	isConnected?(): boolean;
-	onStatus?(
-		listener: (status: "up" | "down", meta?: { resumed?: boolean }) => void,
-	): () => void;
+	isConnected(): boolean;
+	onStatus(listener: (connected: boolean) => void): () => void;
 	subscribe(listener: (event: HubEvent) => void): () => void;
+	/** Resolves the reply's payload; a hub error rejects as `HubCommandFailed`. */
 	command(
-		name: string,
+		name: HubCommandName,
 		payload?: Record<string, unknown>,
-		sessionId?: string,
-		options?: { timeoutMs?: number },
-	): Promise<HubReply>;
+	): Promise<Record<string, unknown>>;
 	dispose(): Promise<void>;
 }
 
 export type HubLinkScope = { workspaceRoot?: string; cwd?: string };
 
-export type HubLinkOptions = {
-	/** When false, opens a command-only socket with no event subscription. */
-	subscribe?: boolean;
-};
+/** How hub-backed sources report themselves in the manifest. */
+export type HubAvailability = Exclude<SourceState, "off">;
 
 export type HubLinkDeps = {
-	/** The running hub's URL, or undefined when none is running. Must never start one. */
-	resolveUrl(scope: HubLinkScope): Promise<string | undefined>;
-	/** Optional richer resolver returning `{ url, authToken }`, re-read on every reconnect. */
-	resolveEndpoint?(
-		scope: HubLinkScope,
-	): Promise<HubResolvedEndpoint | undefined>;
+	/** The running hub's endpoint, or undefined when none is running; re-read on every reconnect. Must never start one. */
+	resolveEndpoint(): Promise<HubResolvedEndpoint | undefined>;
 	createClient(
-		url: string,
+		endpoint: HubResolvedEndpoint,
 		scope: HubLinkScope,
-		authToken?: string,
 	): HubClientPort;
 	sleep(ms: number): Promise<void>;
 };
@@ -84,7 +74,7 @@ export type HubLinkStatus =
  * refusing is the only guard; capability replies belong to the client that
  * owns the session.
  */
-export const FORBIDDEN_HUB_COMMANDS: ReadonlySet<string> = new Set([
+const FORBIDDEN_HUB_COMMANDS: ReadonlySet<HubCommandName> = new Set([
 	"approval.respond",
 	"capability.respond",
 ]);
@@ -104,13 +94,16 @@ export class HubCommandFailed extends Error {
 }
 
 type Listener = {
-	names: ReadonlySet<string>;
+	names: ReadonlySet<HubEventName>;
 	listener: (event: HubEvent) => void;
 };
-type PendingCommand = {
-	reject: (error: Error) => void;
-	timer: ReturnType<typeof setTimeout>;
-};
+
+function sameEndpoint(
+	endpoint: HubResolvedEndpoint,
+	other: HubResolvedEndpoint | undefined,
+): boolean {
+	return endpoint.url === other?.url && endpoint.authToken === other.authToken;
+}
 
 /**
  * The engine's one connection to the hub. It never starts a hub,
@@ -121,48 +114,38 @@ type PendingCommand = {
 export class HubLink {
 	private state: HubLinkStatus = "idle";
 	private client: HubClientPort | undefined;
+	private endpoint: HubResolvedEndpoint | undefined;
 	private unsubscribe: (() => void) | undefined;
 	private unstatus: (() => void) | undefined;
 	private readonly listeners = new Set<Listener>();
-	private readonly statusListeners = new Set<
-		(status: HubLinkStatus, meta?: { resumed?: boolean }) => void
-	>();
-	private readonly pendingCommands = new Set<PendingCommand>();
+	private readonly statusListeners = new Set<(status: HubLinkStatus) => void>();
 	private startPromise: Promise<void> | undefined;
-	private reconnecting: Promise<void> | undefined;
+	private reconnecting = false;
 
 	constructor(
 		private readonly deps: HubLinkDeps,
 		private readonly scope: HubLinkScope = {},
-		private readonly options: HubLinkOptions = {},
 	) {}
 
-	status(): HubLinkStatus {
-		return this.state;
-	}
-
-	/** How hub-backed sources should report themselves in the manifest. */
-	availability(): "present" | "unknown" | "absent" {
+	availability(): HubAvailability {
 		if (this.state === "up") return "present";
 		if (this.state === "off" || this.state === "disposed") return "absent";
 		return "unknown";
 	}
 
-	onStatus(
-		listener: (status: HubLinkStatus, meta?: { resumed?: boolean }) => void,
-	): () => void {
+	onStatus(listener: (status: HubLinkStatus) => void): () => void {
 		this.statusListeners.add(listener);
 		return () => this.statusListeners.delete(listener);
 	}
 
 	/** Resolve and connect, retrying with backoff while a hub exists but refuses. Idempotent. */
 	start(): Promise<void> {
-		this.startPromise ??= this.run();
+		this.startPromise ??= this.connect("start");
 		return this.startPromise;
 	}
 
 	subscribe(
-		names: ReadonlySet<string>,
+		names: ReadonlySet<HubEventName>,
 		listener: (event: HubEvent) => void,
 	): () => void {
 		const entry: Listener = { names, listener };
@@ -171,66 +154,19 @@ export class HubLink {
 	}
 
 	async command(
-		name: string,
+		name: HubCommandName,
 		payload?: Record<string, unknown>,
-		sessionId?: string,
-		options?: { timeoutMs?: number },
 	): Promise<Record<string, unknown>> {
 		if (FORBIDDEN_HUB_COMMANDS.has(name))
 			throw new HubLinkRefusal(`Next Turn never sends ${name}`);
-		if (
-			this.state !== "up" ||
-			!this.client ||
-			this.client.isConnected?.() === false
-		) {
+		const client = this.state === "up" ? this.client : undefined;
+		if (!client?.isConnected())
 			throw new HubLinkUnavailable(`hub link is ${this.state}`);
-		}
-		const target = this.client;
-		const timeoutMs = options?.timeoutMs ?? HUB_COMMAND_TIMEOUT_MS;
-		const reply = await new Promise<HubReply>((resolve, reject) => {
-			const pending: PendingCommand = {
-				reject: (error) => {
-					clearTimeout(pending.timer);
-					this.pendingCommands.delete(pending);
-					reject(error);
-				},
-				timer: setTimeout(() => {
-					this.pendingCommands.delete(pending);
-					reject(
-						new HubCommandFailed(
-							name,
-							"hub_command_timeout",
-							`${name} timed out after ${timeoutMs}ms`,
-						),
-					);
-				}, timeoutMs),
-			};
-			this.pendingCommands.add(pending);
-			target.command(name, payload, sessionId, { timeoutMs }).then(
-				(res) => {
-					clearTimeout(pending.timer);
-					this.pendingCommands.delete(pending);
-					resolve(res);
-				},
-				(err) => {
-					clearTimeout(pending.timer);
-					this.pendingCommands.delete(pending);
-					reject(err);
-				},
-			);
-		});
-		if (!reply.ok)
-			throw new HubCommandFailed(
-				name,
-				reply.error?.code,
-				reply.error?.message ?? `${name} failed`,
-			);
-		return reply.payload ?? {};
+		return client.command(name, payload);
 	}
 
 	async dispose(): Promise<void> {
 		this.setState("disposed");
-		this.rejectPending(new HubLinkUnavailable("hub link disposed"));
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
 		this.unstatus?.();
@@ -241,111 +177,82 @@ export class HubLink {
 		await client?.dispose();
 	}
 
-	private rejectPending(error: Error): void {
-		for (const pending of [...this.pendingCommands]) {
-			pending.reject(error);
-		}
-	}
-
-	private async resolveTarget(): Promise<HubResolvedEndpoint | undefined> {
-		if (this.deps.resolveEndpoint) {
-			return this.deps.resolveEndpoint(this.scope).catch(() => undefined);
-		}
-		const url = await this.deps.resolveUrl(this.scope).catch(() => undefined);
-		return url ? { url } : undefined;
-	}
-
-	private bindClient(client: HubClientPort, resumed: boolean): void {
+	private bindClient(
+		client: HubClientPort,
+		endpoint: HubResolvedEndpoint,
+	): void {
 		this.unsubscribe?.();
 		this.unstatus?.();
 		this.client = client;
-		if (this.options.subscribe !== false) {
-			this.unsubscribe = client.subscribe((event) => this.dispatch(event));
-		}
-		this.unstatus = client.onStatus?.((status) => {
+		this.endpoint = endpoint;
+		this.unsubscribe = client.subscribe((event) => this.dispatch(event));
+		this.unstatus = client.onStatus((connected) => {
 			if (this.isDisposed() || this.client !== client) return;
-			if (status === "down") {
-				this.rejectPending(new HubLinkUnavailable("hub connection closed"));
+			if (!connected) {
 				this.setState("down");
-				void this.reconnectLoop();
+				this.reconnect();
+			} else if (this.state === "down") {
+				this.setState("up");
 			}
 		});
-		this.setState("up", { resumed });
+		this.setState("up");
 	}
 
-	private async reconnectLoop(): Promise<void> {
-		if (this.reconnecting || this.isDisposed()) return;
-		this.reconnecting = (async () => {
-			let delay = HUB_RECONNECT_INITIAL_MS;
-			while (!this.isDisposed() && this.state === "down") {
-				await this.deps.sleep(delay);
-				if (this.isDisposed() || this.state !== "down") return;
-				const endpoint = await this.resolveTarget();
-				if (this.isDisposed()) return;
-				if (endpoint) {
-					const previous = this.client;
-					const next = this.deps.createClient(
-						endpoint.url,
-						this.scope,
-						endpoint.authToken,
-					);
-					try {
-						await next.connect();
-						if (this.isDisposed()) {
-							await next.dispose();
-							return;
-						}
-						await previous?.dispose().catch(() => undefined);
-						this.bindClient(next, true);
-						return;
-					} catch {
-						await next.dispose().catch(() => undefined);
-					}
-				}
-				delay = Math.min(delay * HUB_RECONNECT_FACTOR, HUB_RECONNECT_MAX_MS);
-			}
-		})().finally(() => {
-			this.reconnecting = undefined;
+	private reconnect(): void {
+		if (this.reconnecting) return;
+		this.reconnecting = true;
+		void this.connect("reconnect").finally(() => {
+			this.reconnecting = false;
+			if (this.state === "down") this.reconnect();
 		});
-		await this.reconnecting;
 	}
 
-	private async run(): Promise<void> {
-		this.setState("connecting");
-		const initial = await this.resolveTarget();
-		if (this.isDisposed()) return;
-		if (!initial) {
-			this.setState("off");
-			return;
-		}
-		let endpoint: HubResolvedEndpoint | undefined = initial;
+	/**
+	 * At start, sleeps only between attempts and reports `off` when no hub is
+	 * running; on reconnect, sleeps before every attempt and stops once the link
+	 * is no longer down.
+	 */
+	private async connect(mode: "start" | "reconnect"): Promise<void> {
+		if (mode === "start") this.setState("connecting");
+		const superseded = () =>
+			this.isDisposed() || (mode === "reconnect" && this.state !== "down");
+		let endpoint: HubResolvedEndpoint | undefined;
 		let delay = HUB_RECONNECT_INITIAL_MS;
-		let attempt = 0;
-		while (!this.isDisposed()) {
-			if (attempt > 0) {
-				endpoint = (await this.resolveTarget()) ?? endpoint;
+		for (let attempt = 0; !this.isDisposed(); attempt += 1) {
+			if (attempt > 0 || mode === "reconnect") {
+				await this.deps.sleep(delay);
+				delay = Math.min(delay * HUB_RECONNECT_FACTOR, HUB_RECONNECT_MAX_MS);
+				if (superseded()) return;
 			}
-			attempt += 1;
-			const client = this.deps.createClient(
-				endpoint.url,
-				this.scope,
-				endpoint.authToken,
-			);
-			try {
-				await client.connect();
-				if (this.isDisposed()) {
-					await client.dispose();
+			endpoint =
+				(await this.deps.resolveEndpoint().catch(() => undefined)) ?? endpoint;
+			if (superseded()) return;
+			if (!endpoint) {
+				if (mode === "start") {
+					this.setState("off");
 					return;
 				}
-				this.bindClient(client, attempt > 1);
-				return;
+				continue;
+			}
+			// The bound client reconnects on its own and replays what it missed
+			// (`sinceSequence`), so only a hub at a new endpoint needs a new client.
+			if (mode === "reconnect" && sameEndpoint(endpoint, this.endpoint))
+				continue;
+			const client = this.deps.createClient(endpoint, this.scope);
+			try {
+				await client.connect();
 			} catch {
 				await client.dispose().catch(() => undefined);
-				if (this.isDisposed()) return;
-				this.setState("down");
-				await this.deps.sleep(delay);
-				delay = Math.min(delay * HUB_RECONNECT_FACTOR, HUB_RECONNECT_MAX_MS);
+				if (mode === "start" && !this.isDisposed()) this.setState("down");
+				continue;
 			}
+			if (superseded()) {
+				await client.dispose().catch(() => undefined);
+				return;
+			}
+			await this.client?.dispose().catch(() => undefined);
+			this.bindClient(client, endpoint);
+			return;
 		}
 	}
 
@@ -362,10 +269,10 @@ export class HubLink {
 		return this.state === "disposed";
 	}
 
-	private setState(next: HubLinkStatus, meta?: { resumed?: boolean }): void {
-		if (this.state === next && !meta?.resumed) return;
+	private setState(next: HubLinkStatus): void {
+		if (this.state === next) return;
 		this.state = next;
-		for (const listener of this.statusListeners) listener(next, meta);
+		for (const listener of this.statusListeners) listener(next);
 	}
 }
 
@@ -399,57 +306,40 @@ async function resolveDiscoveredHubEndpoint(): Promise<
  */
 export function nodeHubLinkDeps(): HubLinkDeps {
 	return {
-		async resolveUrl(scope) {
-			const endpoint = await this.resolveEndpoint?.(scope);
-			return endpoint?.url;
-		},
-		async resolveEndpoint() {
-			return resolveDiscoveredHubEndpoint();
-		},
-		createClient(url, scope, authToken) {
+		resolveEndpoint: resolveDiscoveredHubEndpoint,
+		createClient({ url, authToken }, scope) {
 			let client: import("@cline/core/hub").NodeHubClient | undefined;
-			const statusListeners = new Set<
-				(status: "up" | "down", meta?: { resumed?: boolean }) => void
-			>();
+			const statusListeners = new Set<(connected: boolean) => void>();
 			let pollTimer: ReturnType<typeof setInterval> | undefined;
 			let lastConnected = false;
-
-			const startMonitor = (
-				target: import("@cline/core/hub").NodeHubClient,
-			) => {
-				lastConnected = target.isConnected();
-				pollTimer = setInterval(() => {
-					const connected = target.isConnected();
-					if (connected !== lastConnected) {
-						lastConnected = connected;
-						for (const listener of statusListeners) {
-							listener(
-								connected ? "up" : "down",
-								connected ? { resumed: true } : undefined,
-							);
-						}
-					}
-				}, HUB_RECONNECT_INITIAL_MS);
-				pollTimer.unref?.();
+			const report = (connected: boolean) => {
+				if (connected === lastConnected) return;
+				lastConnected = connected;
+				for (const listener of statusListeners) listener(connected);
 			};
 
 			const ready = import("@cline/core/hub").then((hub) => {
 				client = new hub.NodeHubClient({
 					url,
-					...(authToken ? { authToken } : {}),
+					authToken,
 					clientType: HUB_CLIENT_TYPE,
 					displayName: "Next Turn",
 					workspaceRoot: scope.workspaceRoot,
 					cwd: scope.cwd,
 				});
-				return client;
+				return { hub, target: client };
 			});
 
 			return {
 				async connect() {
-					const target = await ready;
+					const { target } = await ready;
 					await target.connect();
-					startMonitor(target);
+					lastConnected = target.isConnected();
+					pollTimer = setInterval(
+						() => report(target.isConnected()),
+						HUB_CONNECTION_POLL_MS,
+					);
+					pollTimer.unref?.();
 				},
 				isConnected() {
 					return client?.isConnected() ?? false;
@@ -461,26 +351,19 @@ export function nodeHubLinkDeps(): HubLinkDeps {
 				subscribe(listener) {
 					if (!client)
 						throw new HubLinkUnavailable("hub client is not connected");
-					return client.subscribe((event) => listener(event));
+					return client.subscribe(listener);
 				},
-				async command(name, payload, sessionId, options) {
-					const target = await ready;
+				async command(name, payload) {
+					const { hub, target } = await ready;
 					try {
-						return await target.command(
-							name as Parameters<typeof target.command>[0],
-							payload,
-							sessionId,
-							options,
-						);
+						const reply = await target.command(name, payload, undefined, {
+							timeoutMs: HUB_COMMAND_TIMEOUT_MS,
+						});
+						return reply.payload ?? {};
 					} catch (error) {
-						if (error instanceof Error && error.name === "HubCommandError") {
-							const code = (error as { code?: string }).code;
-							return { ok: false, error: { code, message: error.message } };
-						}
-						if (lastConnected && !target.isConnected()) {
-							lastConnected = false;
-							for (const listener of statusListeners) listener("down");
-						}
+						if (error instanceof hub.HubCommandError)
+							throw new HubCommandFailed(name, error.code, error.message);
+						if (lastConnected && !target.isConnected()) report(false);
 						throw error;
 					}
 				},
@@ -488,7 +371,7 @@ export function nodeHubLinkDeps(): HubLinkDeps {
 					if (pollTimer) clearInterval(pollTimer);
 					pollTimer = undefined;
 					statusListeners.clear();
-					await (await ready.catch(() => undefined))?.dispose();
+					await (await ready.catch(() => undefined))?.target.dispose();
 				},
 			};
 		},

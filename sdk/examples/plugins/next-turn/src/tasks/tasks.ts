@@ -5,39 +5,34 @@ import type {
 	AgendaTaskPriority,
 	AgendaTaskRecord,
 	AgendaTaskType,
+	HubCommandName,
 } from "@cline/shared";
-import {
-	DEFAULT_TASK_PRIORITY,
-	TASK_PROPOSAL_TTL_MS,
-	TASK_SPEC_SUFFIX,
-} from "../config";
-import { HubCommandFailed } from "../hub/link";
+import { resolveWorkspaceTaskSpecsDir } from "@cline/shared/storage";
+import { DEFAULT_TASK_PRIORITY, TASK_PROPOSAL_TTL_MS } from "../config";
+import { HubCommandFailed, type HubLink } from "../hub/link";
+import { isRecord } from "../values";
+
+/** Upstream's spec file suffix: the file reconciler reads only files that end in it. */
+const TASK_SPEC_SUFFIX = ".task.md";
 
 /**
- * Tasks, done right, on upstream's Agenda. The hub is the store's
- * only writer: the plugin never opens `tasks.db`.
+ * Tasks on the hub's Agenda. The hub is the store's only writer: the plugin
+ * never opens `tasks.db`.
  *
  * - **Edits** go through `task.update` with the revision the person saw. A
  *   stale revision is answered with the newer task, never overwritten.
  * - **Proposals** are written as spec files in `<workspace>/.cline/tasks/`.
- *   At the pinned revision, the hub's `task.create` forces
- *   `requiresApproval: false` and records the caller as the user, so an agent
- *   proposal sent through it would be approved, and credited to the person,
- *   without them seeing it. A spec file is reconciled as
- *   `pending_approval`, created by the file reconciler, and `task.created`
- *   fires (upstream ask U7).
+ *   The hub's `task.create` forces `requiresApproval: false` and records the
+ *   caller as the user, so an agent proposal sent through it would be
+ *   approved, and credited to the person, without them seeing it. A spec file
+ *   is reconciled as `pending_approval`, created by the file reconciler, and
+ *   `task.created` fires.
  */
 
-/** What the task functions need from the hub link. */
-export type TaskLink = {
-	command(
-		name: string,
-		payload?: Record<string, unknown>,
-	): Promise<Record<string, unknown>>;
-};
+export type TaskLink = Pick<HubLink, "command">;
 
-/** The hub's `AgendaTaskRevisionConflictError` message; the reply's code is the generic `task_command_failed` (upstream ask U7). */
-export const STALE_REVISION_TEXT = "the requested revision is stale";
+/** The hub's `AgendaTaskRevisionConflictError` message: the reply's code is the generic `task_command_failed`, so the text is all that tells a conflict apart. */
+const STALE_REVISION_TEXT = "the requested revision is stale";
 
 export function isRevisionConflict(error: unknown): boolean {
 	return (
@@ -46,9 +41,7 @@ export function isRevisionConflict(error: unknown): boolean {
 	);
 }
 
-export type TaskWrite =
-	| { kind: "saved"; task: AgendaTaskRecord }
-	| { kind: "conflict"; task: AgendaTaskRecord };
+export type TaskWrite = { kind: "saved" | "conflict"; task: AgendaTaskRecord };
 
 export type TaskEdit = {
 	title?: string;
@@ -59,20 +52,15 @@ export type TaskEdit = {
 type Revisioned = Pick<AgendaTaskRecord, "taskId" | "revision">;
 
 function taskOf(reply: Record<string, unknown>): AgendaTaskRecord {
-	const task = reply.task;
-	if (
-		typeof task !== "object" ||
-		task === null ||
-		typeof (task as { taskId?: unknown }).taskId !== "string"
-	) {
+	const { task } = reply;
+	if (!isRecord(task) || typeof task.taskId !== "string")
 		throw new Error("the hub's reply carried no task");
-	}
-	return task as AgendaTaskRecord;
+	return task as unknown as AgendaTaskRecord;
 }
 
 async function guarded(
 	link: TaskLink,
-	command: string,
+	command: HubCommandName,
 	task: Revisioned,
 	payload: Record<string, unknown>,
 ): Promise<TaskWrite> {
@@ -117,15 +105,12 @@ export function cancelTask(
 	task: Revisioned,
 	reason?: string,
 ): Promise<TaskWrite> {
-	return guarded(link, "task.cancel", task, reason ? { reason } : {});
+	return guarded(link, "task.cancel", task, { reason });
 }
 
-/** `<workspace>/.cline/tasks`, from upstream's own resolver; imported on first use to keep the plugin's load inside its budget. */
-export async function workspaceTaskSpecsDir(
-	workspaceRoot: string,
-): Promise<string> {
-	const storage = await import("@cline/shared/storage");
-	return storage.resolveWorkspaceTaskSpecsDir(workspaceRoot);
+/** `<workspace>/.cline/tasks`, from upstream's own resolver. */
+export function workspaceTaskSpecsDir(workspaceRoot: string): string {
+	return resolveWorkspaceTaskSpecsDir(workspaceRoot);
 }
 
 function within(dir: string, path: string): boolean {

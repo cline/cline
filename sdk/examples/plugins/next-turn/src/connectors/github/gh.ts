@@ -1,24 +1,28 @@
-import { join, sep } from "node:path";
 import {
 	GH_AVAILABILITY_CACHE_MS,
-	GH_EXIT_AUTH,
-	GH_FALLBACK_BIN_DIRS,
 	GH_PR_LIST_LIMIT,
 	GH_REVIEW_THREADS_MAX,
 	GH_RUN_LIST_LIMIT,
 } from "../../config";
-import { errorCode, type RunCommand, runCommand } from "../run";
+import { errorCode, type RunCommand, runCommand } from "../../run";
+import { isRecord } from "../../values";
 
 /**
  * GitHub through `gh`, the connection Cline desktop's PR bar already uses
- * (`apps/examples/desktop-app/sidecar/pull-request.ts` upstream). The PR,
- * its checks and the "gh is not available" memory follow the PR bar exactly,
- * so Next Turn and the PR bar never disagree. Review threads and default-branch
- * CI are read the same way: `gh`, read-only, no bodies.
+ * (`apps/examples/desktop-app/sidecar/pull-request.ts` upstream). The PR and
+ * its checks are read the way the PR bar reads them, and gh is remembered as
+ * unavailable the way it remembers. Review threads and default-branch CI are
+ * read the same way: `gh`, read-only, no bodies.
  */
 
-export type CheckState = "success" | "failure" | "pending" | "skipped";
-export type Check = { name: string; state: CheckState };
+/** `gh`'s exit code for missing or invalid authentication; 1 is its general failure. */
+const GH_EXIT_AUTH = 4;
+
+/** `gh` on PATH, then the Homebrew installs a Finder-launched app cannot see on its PATH. */
+const GH_CANDIDATES = ["gh", "/opt/homebrew/bin/gh", "/usr/local/bin/gh"];
+
+type CheckState = "success" | "failure" | "pending" | "skipped";
+type Check = { name: string; state: CheckState };
 
 export type PullRequestFact = {
 	number: number;
@@ -96,15 +100,15 @@ export function githubRepository(remote: string): string | null {
 	return owner && name ? `${owner}/${name.replace(/\.git$/, "")}` : null;
 }
 
-export type GhStatus = "signed-in" | "signed-out" | "not-found";
-
 function isAuthenticationFailure(error: unknown): boolean {
 	if (errorCode(error) === GH_EXIT_AUTH) return true;
-	const stderr =
-		error && typeof error === "object" && "stderr" in error
-			? String((error as { stderr?: unknown }).stderr)
-			: "";
+	const stderr = isRecord(error) ? String(error.stderr ?? "") : "";
 	return /HTTP 401|Bad credentials/i.test(stderr);
+}
+
+function ownerAndName(repository: string): { owner: string; name: string } {
+	const [owner = "", name = ""] = repository.split("/");
+	return { owner, name };
 }
 
 const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $first: Int!) {
@@ -119,7 +123,6 @@ const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: In
 
 export class GhReader {
 	private available: boolean | undefined;
-	private state: GhStatus | undefined;
 	private binary = "gh";
 	private expiresAt = 0;
 	private readonly defaultBranches = new Map<string, string | null>();
@@ -129,19 +132,11 @@ export class GhReader {
 		private readonly now: () => number = Date.now,
 	) {}
 
-	/** Last probed `gh` status (`signed-in`, `signed-out`, or `not-found`). */
-	status(): GhStatus | undefined {
-		return this.state;
-	}
-
-	/** `gh auth status --active`, remembered for five minutes either way, with macOS PATH fallbacks when launched from Finder. */
+	/** `gh auth status --active`, remembered for `GH_AVAILABILITY_CACHE_MS` either way, with macOS PATH fallbacks when launched from Finder. */
 	async isAvailable(cwd: string): Promise<boolean> {
 		if (this.available !== undefined && this.now() < this.expiresAt)
 			return this.available;
-		for (const candidate of [
-			"gh",
-			...GH_FALLBACK_BIN_DIRS.map((parts) => `${sep}${join(...parts, "gh")}`),
-		]) {
+		for (const candidate of GH_CANDIDATES) {
 			try {
 				await this.run(
 					candidate,
@@ -149,7 +144,6 @@ export class GhReader {
 					cwd,
 				);
 				this.binary = candidate;
-				this.state = "signed-in";
 				this.remember(true);
 				return true;
 			} catch (error) {
@@ -157,29 +151,27 @@ export class GhReader {
 				if (code === "ENOENT") continue;
 				if (code !== 1 && code !== GH_EXIT_AUTH) throw error;
 				this.binary = candidate;
-				this.state = "signed-out";
 				this.remember(false);
 				return false;
 			}
 		}
-		this.state = "not-found";
 		this.remember(false);
 		return false;
 	}
 
-	/** Runs a `gh` read; a sign-in that expired since the last check marks gh unavailable and reads as null. */
-	private async json<T>(
-		args: readonly string[],
-		cwd: string,
-	): Promise<T | null> {
+	/**
+	 * Runs a `gh` read. A sign-in that expired, or a `gh` that went missing,
+	 * rejects rather than reading as "nothing", so the last facts stay; gh is
+	 * then not run again until the memory lapses.
+	 */
+	private async json<T>(args: readonly string[], cwd: string): Promise<T> {
+		if (this.available === false && this.now() < this.expiresAt)
+			throw new Error("gh is not available");
 		try {
 			return JSON.parse(await this.run(this.binary, args, cwd)) as T;
 		} catch (error) {
-			if (errorCode(error) === "ENOENT" || isAuthenticationFailure(error)) {
-				this.state = errorCode(error) === "ENOENT" ? "not-found" : "signed-out";
+			if (errorCode(error) === "ENOENT" || isAuthenticationFailure(error))
 				this.remember(false);
-				return null;
-			}
 			throw error;
 		}
 	}
@@ -196,8 +188,8 @@ export class GhReader {
 			["repo", "view", repository, "--json", "defaultBranchRef"],
 			cwd,
 		);
-		const name = repo?.defaultBranchRef?.name ?? null;
-		if (repo) this.defaultBranches.set(repository, name);
+		const name = repo.defaultBranchRef?.name ?? null;
+		this.defaultBranches.set(repository, name);
 		return name;
 	}
 
@@ -230,8 +222,8 @@ export class GhReader {
 			],
 			cwd,
 		);
-		const [owner = "", name = ""] = repository.split("/");
-		const candidates = (listed ?? []).filter(
+		const { owner, name } = ownerAndName(repository);
+		const candidates = listed.filter(
 			(pr) =>
 				pr.headRepositoryOwner?.login.toLowerCase() === owner.toLowerCase() &&
 				pr.headRepository?.name.toLowerCase() === name.toLowerCase(),
@@ -260,7 +252,6 @@ export class GhReader {
 			],
 			cwd,
 		);
-		if (!pr) return null;
 		return {
 			number: pr.number,
 			title: pr.title,
@@ -277,8 +268,8 @@ export class GhReader {
 		repository: string,
 		number: number,
 		cwd: string,
-	): Promise<ReviewFact | null> {
-		const [owner = "", name = ""] = repository.split("/");
+	): Promise<ReviewFact> {
+		const { owner, name } = ownerAndName(repository);
 		type Thread = {
 			isResolved: boolean;
 			isOutdated: boolean;
@@ -306,7 +297,6 @@ export class GhReader {
 			],
 			cwd,
 		);
-		if (!reply) return null;
 		const open = (
 			reply.data?.repository?.pullRequest?.reviewThreads?.nodes ?? []
 		).filter((thread) => !thread.isResolved && !thread.isOutdated);
@@ -329,7 +319,7 @@ export class GhReader {
 		repository: string,
 		branch: string,
 		cwd: string,
-	): Promise<DefaultCiFact | null> {
+	): Promise<DefaultCiFact> {
 		type Run = {
 			workflowName?: string;
 			name?: string;
@@ -351,7 +341,6 @@ export class GhReader {
 			],
 			cwd,
 		);
-		if (!runs) return null;
 		const latest = new Map<string, Run>();
 		for (const run of runs) {
 			const workflow = run.workflowName || run.name || "workflow";

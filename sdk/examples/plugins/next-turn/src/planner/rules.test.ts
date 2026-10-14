@@ -7,6 +7,7 @@ import {
 	type Backlog,
 	EMPTY_BACKLOG,
 	splitReports,
+	type TaskRow,
 	tasksFromFold,
 } from "./backlog";
 import {
@@ -15,24 +16,9 @@ import {
 	PLAN_PROMPT,
 	type TurnFacts,
 } from "./candidates";
-import { hasCapability, isOutward, offerableKinds } from "./kinds";
+import { CORE_KINDS, hasCapability, isOutward, offerableKinds } from "./kinds";
 import { checkCiRow, pageSet, type RuleInput, rulePool } from "./rules";
 
-type SidecarTask = {
-	taskId: string;
-	title: string;
-	status: string;
-	priority: number;
-	createdAt: string;
-};
-type SidecarBacklog = {
-	statusRows: { subject: string; state: string; headline: string }[];
-	otherStatusRows: never[];
-	tasks: SidecarTask[];
-	bank: { nowTitle?: string; nextTitle?: string } | null;
-	plan: never[];
-	unread: never[];
-};
 type Row = { id: string; kind: string; prompt: string; why: string };
 
 const shape = (rows: readonly Row[]) =>
@@ -40,20 +26,27 @@ const shape = (rows: readonly Row[]) =>
 
 /**
  * Golden rows from the hosts' own rule sets, frozen in
- * `test-fixtures/host-rules.json`. `b` indexes BACKLOGS, `turn` indexes
+ * `test-fixtures/host-rules.json`: each distinct row once under `rows`, and
+ * each case naming its rows by key. `b` indexes BACKLOGS, `turn` indexes
  * turnsToTry(), `x` is 1 when the first row of the plugin's pool was excluded
  * before paging.
  */
-type FixtureRow = { id: string; kind: string; prompt: string; why: string };
 const hostRules = JSON.parse(
 	readFileSync(
 		new URL("../../test-fixtures/host-rules.json", import.meta.url),
 		"utf8",
 	),
 ) as {
-	desktop: { b: number; turn: number; x: number; set: FixtureRow[] }[];
-	cli: { turn: number; repo: { files: number } | null; pool: FixtureRow[] }[];
+	rows: Record<string, Row>;
+	desktop: { b: number; turn: number; x: number; set: string[] }[];
+	cli: { turn: number; repo: { files: number } | null; pool: string[] }[];
 };
+const hostRows = (keys: readonly string[]) =>
+	keys.map((key) => {
+		const row = hostRules.rows[key];
+		if (!row) throw new Error(`host-rules.json names no row ${key}`);
+		return row;
+	});
 
 function manifest(
 	sources: Record<string, SourceState>,
@@ -81,55 +74,42 @@ function turnsToTry(): TurnFacts[] {
 	return out;
 }
 
-const TASKS: SidecarTask[] = [
+const TASKS: TaskRow[] = [
 	{
 		taskId: "t1",
 		title: "Wire the planner",
 		status: "approved",
 		priority: 2,
-		createdAt: "2026-10-01T00:00:00Z",
+		updatedAt: Date.parse("2026-10-01T00:00:00Z"),
 	},
 	{
 		taskId: "t2",
 		title: "Ship the tray",
 		status: "in_progress",
 		priority: 3,
-		createdAt: "2026-10-02T00:00:00Z",
+		updatedAt: Date.parse("2026-10-02T00:00:00Z"),
 	},
 	{
 		taskId: "t3",
 		title: "Proposal",
 		status: "pending_approval",
 		priority: 1,
-		createdAt: "2026-10-03T00:00:00Z",
+		updatedAt: Date.parse("2026-10-03T00:00:00Z"),
 	},
 	{
 		taskId: "t4",
 		title: "Done already",
 		status: "completed",
 		priority: 1,
-		createdAt: "2026-10-03T00:00:00Z",
+		updatedAt: Date.parse("2026-10-03T00:00:00Z"),
 	},
 ];
 
-const BACKLOGS: SidecarBacklog[] = [
+const BACKLOGS: Backlog[] = [
+	EMPTY_BACKLOG,
+	{ ...EMPTY_BACKLOG, tasks: TASKS },
 	{
-		statusRows: [],
-		otherStatusRows: [],
-		tasks: [],
-		bank: null,
-		plan: [],
-		unread: [],
-	},
-	{
-		statusRows: [],
-		otherStatusRows: [],
-		tasks: TASKS,
-		bank: null,
-		plan: [],
-		unread: [],
-	},
-	{
+		...EMPTY_BACKLOG,
 		statusRows: [
 			{
 				subject: "migration/auth",
@@ -137,48 +117,30 @@ const BACKLOGS: SidecarBacklog[] = [
 				headline: "needs a schema decision",
 			},
 		],
-		otherStatusRows: [],
 		tasks: TASKS.slice(0, 1),
-		bank: null,
-		plan: [],
-		unread: [],
 	},
 	{
+		...EMPTY_BACKLOG,
 		statusRows: [{ subject: "build", state: "running", headline: "compiling" }],
-		otherStatusRows: [],
-		tasks: [],
 		bank: { nowTitle: "Move the rules", nextTitle: "Move the labels" },
-		plan: [],
-		unread: [],
 	},
 ];
-
-function pluginBacklog(backlog: SidecarBacklog): Backlog {
-	return {
-		...EMPTY_BACKLOG,
-		statusRows: backlog.statusRows,
-		tasks: backlog.tasks.map((task) => ({
-			...task,
-			updatedAt: Date.parse(task.createdAt),
-		})),
-		bank: backlog.bank,
-	};
-}
 
 describe("parity with the hosts' rule sets (golden fixtures)", () => {
 	test("the desktop host's set is a prefix of the plugin's page, row for row", () => {
 		const turns = turnsToTry();
 		for (const fixture of hostRules.desktop) {
-			const backlog = BACKLOGS[fixture.b] as SidecarBacklog;
 			const turn = turns[fixture.turn] as TurnFacts;
 			const pool = rulePool({
-				backlog: pluginBacklog(backlog),
+				backlog: BACKLOGS[fixture.b],
 				turn,
 				manifest: DESKTOP,
 			});
 			const excluded = fixture.x ? [pool[0]?.prompt ?? ""] : [];
 			const actual = pageSet(pool, excluded);
-			expect(shape(actual.slice(0, fixture.set.length))).toEqual(fixture.set);
+			expect(shape(actual.slice(0, fixture.set.length))).toEqual(
+				hostRows(fixture.set),
+			);
 			if (fixture.set.length === SET_SIZE) expect(actual.length).toBe(SET_SIZE);
 		}
 	});
@@ -200,7 +162,7 @@ describe("parity with the hosts' rule sets (golden fixtures)", () => {
 				}),
 				dirtyFiles: repo?.files,
 			});
-			expect(shape(pool)).toEqual(fixture.pool);
+			expect(shape(pool)).toEqual(hostRows(fixture.pool));
 		}
 	});
 });
@@ -213,9 +175,8 @@ describe("the merged rule set", () => {
 	};
 
 	test("absent sources contribute nothing, even when the backlog has rows", () => {
-		const backlog = pluginBacklog(BACKLOGS[2] as SidecarBacklog);
 		const stock = rulePool({
-			backlog,
+			backlog: BACKLOGS[2],
 			turn: clean,
 			manifest: manifest({
 				status: "absent",
@@ -328,6 +289,18 @@ describe("the merged rule set", () => {
 			"update_issue",
 		);
 		expect(hasCapability(["composio:slack"], "slack")).toBe(true);
+		expect(
+			offerableKinds({
+				capabilities: [
+					"skill:slack",
+					"workflow:/github",
+					"plugin-command:/linear",
+					"script:github",
+					"make:jira",
+					"remote:github",
+				],
+			}),
+		).toEqual([...CORE_KINDS]);
 		expect(isOutward("post_update")).toBe(true);
 		expect(isOutward("check_ci")).toBe(false);
 	});
@@ -350,7 +323,6 @@ describe("the backlog", () => {
 			sessions: {},
 			schedules: {},
 			teams: {},
-			pendingIndex: {},
 			tasks: {
 				a: {
 					taskId: "a",

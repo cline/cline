@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+	createInMemoryHubOwnerContext,
+	createLocalHubScheduleRuntimeHandlers,
+	startHubWebSocketServer,
+} from "@cline/core/hub";
+import { setClineDir } from "@cline/shared/storage";
+import { useTempDirs } from "../test-support";
+import {
 	type HubClientPort,
 	HubCommandFailed,
 	type HubEvent,
@@ -8,24 +15,35 @@ import {
 	HubLinkRefusal,
 	type HubLinkStatus,
 	HubLinkUnavailable,
-	type HubReply,
+	nodeHubLinkDeps,
 } from "./link";
+
+const tempDir = useTempDirs("next-turn-link-", { restoreClineDir: true });
 
 type FakeClient = HubClientPort & {
 	emit(event: HubEvent): void;
+	setConnected(next: boolean): void;
 	disposed: boolean;
 	commands: string[];
 };
 
 function fakeClient(
-	options: { failConnect?: boolean; reply?: HubReply } = {},
+	options: { failConnect?: boolean; failWith?: HubCommandFailed } = {},
 ): FakeClient {
 	const listeners = new Set<(event: HubEvent) => void>();
+	const statusListeners = new Set<(connected: boolean) => void>();
+	let connected = false;
 	const client: FakeClient = {
 		disposed: false,
 		commands: [],
 		async connect() {
 			if (options.failConnect) throw new Error("refused");
+			connected = true;
+		},
+		isConnected: () => connected,
+		onStatus(listener) {
+			statusListeners.add(listener);
+			return () => statusListeners.delete(listener);
 		},
 		subscribe(listener) {
 			listeners.add(listener);
@@ -33,13 +51,18 @@ function fakeClient(
 		},
 		async command(name) {
 			client.commands.push(name);
-			return options.reply ?? { ok: true, payload: { name } };
+			if (options.failWith) throw options.failWith;
+			return { name };
 		},
 		async dispose() {
 			client.disposed = true;
 		},
 		emit(event) {
 			for (const listener of listeners) listener(event);
+		},
+		setConnected(next) {
+			connected = next;
+			for (const listener of statusListeners) listener(next);
 		},
 	};
 	return client;
@@ -54,7 +77,7 @@ function deps(
 	return {
 		created,
 		sleeps,
-		resolveUrl: async () => url,
+		resolveEndpoint: async () => (url ? { url } : undefined),
 		createClient() {
 			const client = clients.shift() ?? fakeClient();
 			created.push(client);
@@ -66,12 +89,21 @@ function deps(
 	};
 }
 
+function nextStatus(link: HubLink, status: HubLinkStatus): Promise<void> {
+	return new Promise((resolve) => {
+		const stop = link.onStatus((next) => {
+			if (next !== status) return;
+			stop();
+			resolve();
+		});
+	});
+}
+
 describe("HubLink", () => {
 	test("no running hub: off, hub-backed sources absent, nothing started", async () => {
 		const d = deps(undefined, []);
 		const link = new HubLink(d);
 		await link.start();
-		expect(link.status()).toBe("off");
 		expect(link.availability()).toBe("absent");
 		expect(d.created).toHaveLength(0);
 	});
@@ -122,7 +154,8 @@ describe("HubLink", () => {
 		const statuses: HubLinkStatus[] = [];
 		link.onStatus((status) => statuses.push(status));
 		await link.start();
-		expect(link.status()).toBe("up");
+		expect(link.availability()).toBe("present");
+		expect(statuses.at(-1)).toBe("up");
 		expect(d.sleeps).toHaveLength(2);
 		expect(d.sleeps[1]).toBeGreaterThan(d.sleeps[0] ?? 0);
 		expect(statuses).toContain("down");
@@ -150,10 +183,11 @@ describe("HubLink", () => {
 		const link = new HubLink(
 			deps("ws://hub", [
 				fakeClient({
-					reply: {
-						ok: false,
-						error: { code: "task_command_failed", message: "no workspace" },
-					},
+					failWith: new HubCommandFailed(
+						"task.list",
+						"task_command_failed",
+						"no workspace",
+					),
 				}),
 			]),
 		);
@@ -178,80 +212,98 @@ describe("HubLink", () => {
 		expect(link.availability()).toBe("absent");
 	});
 
-	test("reports down on disconnect, reconnects with a rotated token, and reseeds on up; command-only mode never subscribes", async () => {
+	test("a drop at an unchanged endpoint keeps the client, and the link is up again once it reconnects", async () => {
+		const client = fakeClient();
+		const d = deps("ws://hub", [client]);
+		const link = new HubLink({
+			...d,
+			sleep: () => new Promise((resolve) => setTimeout(resolve, 0)),
+		});
+		const statuses: HubLinkStatus[] = [];
+		link.onStatus((status) => statuses.push(status));
+		await link.start();
+		client.setConnected(false);
+		expect(link.availability()).toBe("unknown");
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		expect(d.created).toEqual([client]);
+		client.setConnected(true);
+		expect(link.availability()).toBe("present");
+		expect(statuses).toEqual(["connecting", "up", "down", "up"]);
+		expect(client.disposed).toBe(false);
+		await link.dispose();
+	});
+
+	test("a drop with a rotated token reconnects through a new client, which carries every listener", async () => {
 		let currentToken = "tok-1";
-		const statusListeners1 = new Set<(s: "up" | "down") => void>();
-		const c1: FakeClient = {
-			...fakeClient(),
-			onStatus(listener) {
-				statusListeners1.add(listener);
-				return () => statusListeners1.delete(listener);
-			},
-		};
+		const c1 = fakeClient();
 		const c2 = fakeClient();
 		const usedTokens: Array<string | undefined> = [];
-		let subscribedCount = 0;
-
-		const linkDeps: HubLinkDeps = {
-			resolveUrl: async () => "ws://hub",
+		const link = new HubLink({
 			resolveEndpoint: async () => ({
 				url: "ws://hub",
 				authToken: currentToken,
 			}),
-			createClient(_url, _scope, authToken) {
-				usedTokens.push(authToken);
-				const next = usedTokens.length === 1 ? c1 : c2;
-				const origSub = next.subscribe.bind(next);
-				next.subscribe = (listener) => {
-					subscribedCount += 1;
-					return origSub(listener);
-				};
-				return next;
+			createClient(endpoint) {
+				usedTokens.push(endpoint.authToken);
+				return usedTokens.length === 1 ? c1 : c2;
 			},
 			sleep: async () => {},
-		};
-
-		const events: Array<{ status: HubLinkStatus; resumed?: boolean }> = [];
-		const link = new HubLink(linkDeps);
-		link.onStatus((status, meta) =>
-			events.push({
-				status,
-				...(meta?.resumed !== undefined ? { resumed: meta.resumed } : {}),
-			}),
+		});
+		const statuses: HubLinkStatus[] = [];
+		link.onStatus((status) => statuses.push(status));
+		const seen: string[] = [];
+		link.subscribe(new Set(["run.started"]), (event) =>
+			seen.push(event.sessionId ?? ""),
 		);
 		await link.start();
 		expect(usedTokens).toEqual(["tok-1"]);
-		expect(subscribedCount).toBe(1);
 
 		currentToken = "tok-2";
-		for (const listener of statusListeners1) listener("down");
-		await new Promise((r) => setTimeout(r, 20));
+		const up = nextStatus(link, "up");
+		c1.setConnected(false);
+		await up;
 		expect(usedTokens).toEqual(["tok-1", "tok-2"]);
-		expect(events.map((e) => e.status)).toEqual([
-			"connecting",
-			"up",
-			"down",
-			"up",
-		]);
-		expect(events.at(-1)?.resumed).toBe(true);
-
-		let cmdOnlySubscribed = false;
-		const cmdOnly = new HubLink(
-			{
-				...linkDeps,
-				createClient() {
-					const fc = fakeClient();
-					fc.subscribe = () => {
-						cmdOnlySubscribed = true;
-						return () => {};
-					};
-					return fc;
-				},
-			},
-			{},
-			{ subscribe: false },
-		);
-		await cmdOnly.start();
-		expect(cmdOnlySubscribed).toBe(false);
+		expect(statuses).toEqual(["connecting", "up", "down", "up"]);
+		expect(c1.disposed).toBe(true);
+		c1.emit({ event: "run.started", sessionId: "old" });
+		c2.emit({ event: "run.started", sessionId: "new" });
+		expect(seen).toEqual(["new"]);
 	});
+});
+
+describe("the real link against a @cline/core hub", () => {
+	test("a reply resolves to its payload, and a hub error rejects as HubCommandFailed with its code", async () => {
+		const workspaceRoot = tempDir("workspace-");
+		setClineDir(tempDir("cline-"));
+		const server = await startHubWebSocketServer({
+			host: "127.0.0.1",
+			port: 0,
+			workspaceRoot,
+			owner: createInMemoryHubOwnerContext("next-turn-link-test"),
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		const link = new HubLink(
+			{
+				...nodeHubLinkDeps(),
+				resolveEndpoint: async () => ({
+					url: server.url,
+					authToken: server.authToken,
+				}),
+			},
+			{ workspaceRoot, cwd: workspaceRoot },
+		);
+		try {
+			await link.start();
+			expect(link.availability()).toBe("present");
+			expect(await link.command("task.list", {})).toEqual({ tasks: [] });
+			const failure = await link
+				.command("task.get", { taskId: "task_missing" })
+				.catch((error: unknown) => error);
+			expect(failure).toBeInstanceOf(HubCommandFailed);
+			expect((failure as HubCommandFailed).code).toBe("task_command_failed");
+		} finally {
+			await link.dispose().catch(() => {});
+			await Promise.race([server.close().catch(() => {}), Bun.sleep(1_000)]);
+		}
+	}, 15_000);
 });

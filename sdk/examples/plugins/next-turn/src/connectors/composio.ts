@@ -1,53 +1,41 @@
-import type { PinnedRead } from "../settings/settings";
 import type { ClineConnections } from "./cline-connections";
-import type { Access, Route } from "./connector";
-import { PinnedReadConnector, type ToolRunner } from "./pinned";
+import { composioConnectorId, type Route } from "./connector";
+import { PinnedReadConnector, type PinnedReadDeps } from "./pinned";
 
 /**
- * Composio toolkits on the Cline account, other than GitHub, which
- * the GitHub connector covers. Their tools are already in the agent's list,
- * so Mention works today: a suggestion may ask the agent to use Linear.
- * Read runs the person's pinned reads through Cline's own Composio tools once
- * upstream exports them (U4).
+ * Composio toolkits on the Cline account, other than GitHub, which the GitHub
+ * connector covers. The agent reaches them through Cline's Composio tools, so
+ * Mention works: a suggestion may ask the agent to use Linear. Read needs
+ * Cline to expose per-tool execution to plugins; until it does, Read says so.
  */
+
+export const GITHUB_TOOLKIT = "github";
+
+export const COMPOSIO_READ_UNAVAILABLE =
+	"Reading through Composio needs a Cline update that exposes its connector tools to plugins";
 
 export const COMPOSIO_ROUTE: Route = {
 	id: "composio",
 	label: "Composio, through your Cline account",
-	mention: true,
-	read: true,
+	read: { reason: COMPOSIO_READ_UNAVAILABLE },
 };
 
 export function composioToolkits(connections: ClineConnections): string[] {
 	return connections.composio
-		.filter((entry) => entry.connected && entry.toolkit !== "github")
+		.filter((entry) => entry.connected && entry.toolkit !== GITHUB_TOOLKIT)
 		.map((entry) => entry.toolkit);
 }
 
 export function composioConnector(
 	toolkit: string,
-	deps: {
-		connected: () => boolean | undefined;
-		access: () => Access;
-		reads: () => readonly PinnedRead[];
-		runner: () => Promise<ToolRunner | { reason: string }>;
-		now?: () => number;
-	},
+	deps: Omit<PinnedReadDeps, "runner">,
 ): PinnedReadConnector {
 	return new PinnedReadConnector({
-		id: `composio:${toolkit}`,
-		kind: "composio",
+		...deps,
+		id: composioConnectorId(toolkit),
 		label: toolkit,
 		namespace: toolkit,
 		route: COMPOSIO_ROUTE,
-		runner: deps.runner,
-		reads: deps.reads,
-		access: deps.access,
-		present: () => {
-			const connected = deps.connected();
-			if (connected === undefined) return "unknown";
-			return connected && deps.access().role !== "off" ? "present" : "absent";
-		},
-		now: deps.now,
+		runner: async () => ({ reason: COMPOSIO_READ_UNAVAILABLE }),
 	});
 }

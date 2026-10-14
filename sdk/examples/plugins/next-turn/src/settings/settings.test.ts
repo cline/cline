@@ -1,60 +1,25 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import {
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	statSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { nextTurnPaths, resolveClineDataDir } from "../store/data-dir";
+import { nextTurnPaths, writeFileAtomic } from "../store/data-dir";
+import { useTempDirs } from "../test-support";
+import { modelChoices } from "./models";
 import {
-	connectorRole,
-	type DirectoryWatch,
 	defaultSettings,
 	defaultSettingsFile,
 	effectiveSettings,
 	loadSettingsFile,
 	parseSettingsFile,
-	type SettingsFile,
-	saveSettingsFile,
-	watchSettingsFile,
 } from "./settings";
 
-const temps: string[] = [];
-function tempDir(): string {
-	const dir = mkdtempSync(join(tmpdir(), "next-turn-settings-"));
-	temps.push(dir);
-	return dir;
-}
-afterEach(() => {
-	for (const dir of temps.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
+const tempDir = useTempDirs("next-turn-settings-");
 
 describe("data directory", () => {
-	test("follows Cline's resolution: CLINE_DATA_DIR, then CLINE_DIR/data, then ~/.cline/data", () => {
-		expect(
-			resolveClineDataDir(
-				{ CLINE_DATA_DIR: "/x/data", CLINE_DIR: "/y" },
-				"/home/me",
-			),
-		).toBe("/x/data");
-		expect(resolveClineDataDir({ CLINE_DIR: "/y" }, "/home/me")).toBe(
-			"/y/data",
-		);
-		expect(resolveClineDataDir({ CLINE_DIR: "  " }, "/home/me")).toBe(
-			"/home/me/.cline/data",
-		);
-		expect(resolveClineDataDir({}, "/home/me")).toBe("/home/me/.cline/data");
-	});
-
 	test("keeps everything under plugins/next-turn", () => {
 		const paths = nextTurnPaths("/d");
 		expect(paths.root).toBe("/d/plugins/next-turn");
 		expect(paths.settings).toBe("/d/plugins/next-turn/settings.json");
-		expect(paths.statusDb).toBe("/d/plugins/next-turn/status.db");
+		expect(paths.labels).toBe("/d/plugins/next-turn/labels.jsonl");
 	});
 });
 
@@ -102,6 +67,40 @@ describe("parsing", () => {
 			defaultSettings().planner.callsPerHour,
 		);
 	});
+
+	test("pinned reads parse leniently: ids unique, a tool required, arguments an object", () => {
+		const file = parseSettingsFile({
+			version: 1,
+			everywhere: {
+				connectors: {
+					"mcp:linear": {
+						role: "read",
+						scopes: ["a"],
+						reads: [
+							{
+								id: "a",
+								tool: "list_issues",
+								arguments: { team: "core" },
+								label: " Mine ",
+							},
+							{ id: "a", tool: "list_other" },
+							{ id: "b" },
+							{ id: "c", tool: "search", arguments: "nope" },
+						],
+					},
+				},
+			},
+		});
+		expect(file.everywhere.connectors["mcp:linear"]?.reads).toEqual([
+			{
+				id: "a",
+				tool: "list_issues",
+				arguments: { team: "core" },
+				label: "Mine",
+			},
+			{ id: "c", tool: "search", arguments: {} },
+		]);
+	});
 });
 
 describe("workspace overrides", () => {
@@ -134,12 +133,6 @@ describe("workspace overrides", () => {
 		expect(effectiveSettings(file, "/work/other")).toEqual(file.everywhere);
 		expect(file.workspaces["/work/empty"]).toBeUndefined();
 	});
-
-	test("a connector with no explicit choice takes its own default", () => {
-		const current = effectiveSettings(file);
-		expect(connectorRole(current, "gh", "mention")).toBe("read");
-		expect(connectorRole(current, "gmail", "off")).toBe("off");
-	});
 });
 
 describe("on disk", () => {
@@ -147,7 +140,7 @@ describe("on disk", () => {
 		const path = join(tempDir(), "nested", "settings.json");
 		const file = defaultSettingsFile();
 		file.everywhere.features.status = false;
-		saveSettingsFile(path, file);
+		writeFileAtomic(path, JSON.stringify(file));
 		expect(loadSettingsFile(path)).toEqual(file);
 		expect(statSync(path).mode & 0o777).toBe(0o600);
 	});
@@ -162,54 +155,32 @@ describe("on disk", () => {
 			defaultSettingsFile(),
 		);
 	});
+});
 
-	test("another process's atomic rewrite reaches the watcher", async () => {
-		const path = join(tempDir(), "settings.json");
-		saveSettingsFile(path, defaultSettingsFile());
-		const seen = new Promise<boolean>((resolve) => {
-			const stop = watchSettingsFile(path, (file) => {
-				if (file.everywhere.features.next === false) {
-					stop();
-					resolve(true);
-				}
-			});
-		});
-		const changed = defaultSettingsFile();
-		changed.everywhere.features.next = false;
-		saveSettingsFile(path, changed);
-		expect(await seen).toBe(true);
-		expect(
-			JSON.parse(readFileSync(path, "utf8")).everywhere.features.next,
-		).toBe(false);
-	});
-
-	/**
-	 * Bun before 1.4 on Linux names a merged inotify batch after its first
-	 * entry, so a rewrite can arrive under another file's name in the shared
-	 * data directory. That first event alone must deliver the change, and the
-	 * events that follow for the same text must not deliver it again.
-	 */
-	test("a rewrite reported under another file's name reaches the watcher once", () => {
-		const path = join(tempDir(), "settings.json");
-		saveSettingsFile(path, defaultSettingsFile());
-		let listener: Parameters<DirectoryWatch>[1] = () => {};
-		const seen: SettingsFile[] = [];
-		watchSettingsFile(
-			path,
-			(file) => seen.push(file),
-			(_directory, capture) => {
-				listener = capture;
-				return { close() {} };
+describe("model choices", () => {
+	test("provider and model ids only, last used first; keys never leave", () => {
+		const stored = {
+			version: 1,
+			lastUsedProvider: "openai",
+			providers: {
+				anthropic: {
+					settings: {
+						provider: "anthropic",
+						model: "claude-sonnet",
+						apiKey: "SECRET",
+					},
+				},
+				openai: {
+					settings: { provider: "openai", auth: { accessToken: "SECRET" } },
+				},
 			},
-		);
-		const changed = defaultSettingsFile();
-		changed.everywhere.features.next = false;
-		saveSettingsFile(path, changed);
-		listener("rename", "status.db");
-		expect(seen.map((file) => file.everywhere.features.next)).toEqual([false]);
-		listener("rename", "settings.json.4242.1.tmp");
-		listener("change", "settings.json");
-		listener("rename", null);
-		expect(seen.map((file) => file.everywhere.features.next)).toEqual([false]);
+		};
+		const choices = modelChoices(stored);
+		expect(choices).toEqual([
+			{ providerId: "openai", modelId: undefined, lastUsed: true },
+			{ providerId: "anthropic", modelId: "claude-sonnet", lastUsed: false },
+		]);
+		expect(JSON.stringify(choices)).not.toContain("SECRET");
+		expect(modelChoices(null)).toEqual([]);
 	});
 });

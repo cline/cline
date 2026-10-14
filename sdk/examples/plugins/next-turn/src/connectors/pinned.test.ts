@@ -1,29 +1,23 @@
 import { describe, expect, test } from "bun:test";
+import type { McpServerRegistration } from "@cline/core";
 import type { SourceEnv } from "../context/source";
 import {
 	defaultSettings,
 	type PinnedRead,
-	parseSettingsFile,
 	type Settings,
 } from "../settings/settings";
 import { connectorAccess } from "./access";
-import { GhReader } from "./github/gh";
-import { Connectors } from "./index";
+import { composioConnector } from "./composio";
 import { mcpConnector } from "./mcp";
 import {
-	bareToolName,
 	missingArguments,
 	pinnableTools,
+	type ResolveRunner,
 	readOnlyToolName,
 	summarizeResult,
-	toolWords,
+	type ToolRunner,
 } from "./pinned";
-import {
-	COMPOSIO_READ_NEEDS_U4,
-	composioRunner,
-	type McpClientPort,
-	mcpRunner,
-} from "./runners";
+import { type McpClientPort, mcpRunner } from "./runners";
 
 const env: SourceEnv = {
 	providerId: "anthropic",
@@ -57,8 +51,8 @@ describe("which tools a pin may run", () => {
 			expect([name, readOnlyToolName(name)]).toEqual([name, false]);
 		expect(readOnlyToolName("linear_list_issues", "linear")).toBe(true);
 		expect(readOnlyToolName("linear_create_issue", "linear")).toBe(false);
-		expect(bareToolName("LINEAR_LIST_ISSUES", "linear")).toBe("LIST_ISSUES");
-		expect(toolWords("getPRStatus_v2")).toEqual(["get", "prstatus", "v2"]);
+		expect(readOnlyToolName("LINEAR_LIST_ISSUES", "linear")).toBe(true);
+		expect(readOnlyToolName("getPRStatus_v2")).toBe(true);
 	});
 
 	test("the settings page's tool list says why a tool cannot be pinned; pins name their missing arguments", () => {
@@ -124,6 +118,17 @@ describe("results become one bounded line", () => {
 	});
 });
 
+const LINEAR: McpServerRegistration = {
+	name: "linear",
+	transport: { type: "streamableHttp", url: "https://mcp.linear.app/mcp" },
+};
+
+async function runnable(resolve: ResolveRunner): Promise<ToolRunner> {
+	const runner = await resolve();
+	if (typeof runner !== "function") throw new Error(runner.reason);
+	return runner;
+}
+
 describe("running a pin through Cline's MCP client", () => {
 	function client(log: string[], fail?: "connect" | "call"): McpClientPort {
 		return {
@@ -144,21 +149,22 @@ describe("running a pin through Cline's MCP client", () => {
 
 	test("connects, calls one tool with the pinned arguments, and always disconnects", async () => {
 		const log: string[] = [];
-		const runner = await mcpRunner("linear", {
-			registration: async () => ({ name: "linear" }),
-			client: async () => client(log),
-		})();
-		expect(typeof runner).toBe("function");
-		if (typeof runner !== "function") return;
+		const runner = await runnable(
+			mcpRunner("linear", {
+				registration: async () => LINEAR,
+				client: async () => client(log),
+			}),
+		);
 		expect(await runner("list_issues", { team: "core" })).toEqual({
 			content: [{ type: "text", text: "[]" }],
 		});
-		const failing = await mcpRunner("linear", {
-			registration: async () => ({}),
-			client: async () => client(log, "call"),
-		})();
-		if (typeof failing === "function")
-			await expect(failing("list_issues", {})).rejects.toThrow("boom");
+		const failing = await runnable(
+			mcpRunner("linear", {
+				registration: async () => LINEAR,
+				client: async () => client(log, "call"),
+			}),
+		);
+		await expect(failing("list_issues", {})).rejects.toThrow("boom");
 		expect(log).toEqual([
 			"connect",
 			'call list_issues {"team":"core"}',
@@ -183,62 +189,15 @@ describe("running a pin through Cline's MCP client", () => {
 			disconnect: async () => undefined,
 			callTool: () => new Promise(() => undefined),
 		};
-		const runner = await mcpRunner(
-			"slow",
-			{ registration: async () => ({}), client: async () => slow },
-			5,
-		)();
-		if (typeof runner === "function")
-			await expect(runner("list_x", {})).rejects.toThrow(
-				"slow/list_x took longer than 5 ms",
-			);
-	});
-});
-
-describe("running a pin through Cline's Composio tools", () => {
-	test("until Cline exports its Composio tools, Read says why", async () => {
-		expect(await composioRunner(async () => ({}))()).toEqual({
-			reason: COMPOSIO_READ_NEEDS_U4,
-		});
-		expect(
-			await composioRunner(async () => ({
-				createComposioToolsExtension: async () => undefined,
-			}))(),
-		).toEqual({
-			reason:
-				"Composio connectors are off for this Cline account, or none is connected",
-		});
-	});
-
-	test("once exported, its own tools run with the pinned arguments", async () => {
-		const calls: unknown[] = [];
-		const core = {
-			createComposioToolsExtension: async () => ({
-				setup(api: {
-					registerTool(tool: unknown): void;
-					registerRule(): void;
-				}) {
-					api.registerRule();
-					api.registerTool({
-						name: "linear_list_issues",
-						execute: (input: unknown) => {
-							calls.push(input);
-							return { successful: true, data: [{ title: "A" }] };
-						},
-					});
-				},
-			}),
-		};
-		const runner = await composioRunner(async () => core)();
-		expect(typeof runner).toBe("function");
-		if (typeof runner !== "function") return;
-		expect(await runner("linear_list_issues", { assignee: "me" })).toEqual({
-			successful: true,
-			data: [{ title: "A" }],
-		});
-		expect(calls).toEqual([{ assignee: "me" }]);
-		await expect(runner("linear_create_issue", {})).rejects.toThrow(
-			'Cline has no Composio tool "linear_create_issue" in this account',
+		const runner = await runnable(
+			mcpRunner(
+				"slow",
+				{ registration: async () => LINEAR, client: async () => slow },
+				5,
+			),
+		);
+		await expect(runner("list_x", {})).rejects.toThrow(
+			"slow/list_x took longer than 5 ms",
 		);
 	});
 });
@@ -273,7 +232,6 @@ describe("an MCP server's pinned reads", () => {
 				target: "mcp.linear.app/mcp",
 			},
 			{
-				enabled: () => true,
 				access: () =>
 					connectorAccess(settings(), "mcp:linear", true, "anthropic"),
 				reads: () => settings().connectors["mcp:linear"]?.reads ?? [],
@@ -326,135 +284,26 @@ describe("an MCP server's pinned reads", () => {
 		expect(connector.facts(env)).toEqual({
 			heading: 'MCP server "linear" (as of 2m ago)',
 			lines: ["My started issues: 2 items: Fix 405; Docs"],
-			fetchedAt: 0,
-			provenance: { connector: "mcp:linear", route: "mcp:linear" },
 		});
 	});
 });
 
-describe("settings", () => {
-	test("pinned reads parse leniently: ids unique, a tool required, arguments an object", () => {
-		const file = parseSettingsFile({
-			version: 1,
-			everywhere: {
-				connectors: {
-					"mcp:linear": {
-						role: "read",
-						scopes: ["a"],
-						reads: [
-							{
-								id: "a",
-								tool: "list_issues",
-								arguments: { team: "core" },
-								label: " Mine ",
-							},
-							{ id: "a", tool: "list_other" },
-							{ id: "b" },
-							{ id: "c", tool: "search", arguments: "nope" },
-						],
-					},
-				},
-			},
+describe("a Composio toolkit's connector", () => {
+	test("Mention names it and the route the agent can use; Off makes it absent", () => {
+		const settings = defaultSettings();
+		const notion = composioConnector("notion", {
+			access: () =>
+				connectorAccess(settings, "composio:notion", true, "anthropic"),
+			reads: () => [],
 		});
-		expect(file.everywhere.connectors["mcp:linear"]?.reads).toEqual([
-			{
-				id: "a",
-				tool: "list_issues",
-				arguments: { team: "core" },
-				label: "Mine",
-			},
-			{ id: "c", tool: "search", arguments: {} },
-		]);
-	});
-});
-
-describe("Connected to Next Turn, with MCP and Composio reads", () => {
-	test("MCP servers get rows; Read opens once a pin exists; the refresher runs pinned reads", async () => {
-		const settings = withReads(
-			"read",
-			[{ id: "mine", tool: "list_my_issues", arguments: {} }],
-			["mine"],
-		);
-		settings.connectors["composio:notion"] = { role: "mention", scopes: [] };
-		const ran: string[] = [];
-		const connectors = new Connectors({
-			loaders: {
-				composio: async () => ({
-					toolkits: { notion: { connectedAccountId: "x" } },
-				}),
-				mcp: async () => ({
-					mcpServers: {
-						linear: {
-							transport: {
-								type: "streamableHttp",
-								url: "https://mcp.linear.app/mcp",
-							},
-						},
-						sentry: {
-							transport: {
-								type: "stdio",
-								command: "npx",
-								args: ["sentry-mcp"],
-							},
-						},
-						off: { transport: { type: "stdio", command: "x" }, disabled: true },
-					},
-				}),
-				channels: async () => ({ configured: [] }),
-			},
-			gh: new GhReader(async () => {
-				throw Object.assign(new Error("no gh"), { code: "ENOENT" });
-			}),
-			composio: composioRunner(async () => ({})),
-			mcp: {
-				registration: async (name) => ({ name }),
-				client: async () => ({
-					connect: async () => undefined,
-					disconnect: async () => undefined,
-					callTool: async ({ name }) => {
-						ran.push(name);
-						return { content: [{ type: "text", text: "[]" }] };
-					},
-				}),
-			},
-			settings: () => settings,
-			env: () => env,
+		expect(notion.probe()).toBe("present");
+		expect(notion.facts(env)).toEqual({
+			heading: "notion (connected; no data read)",
+			lines: [
+				"Suggestions may ask the agent to use its tools, through Composio, through your Cline account.",
+			],
 		});
-		await connectors.detect();
-		expect(connectors.all().map((connector) => connector.id)).toEqual([
-			"github",
-			"composio:notion",
-			"mcp:linear",
-			"mcp:sentry",
-		]);
-		const rows = connectors.rows();
-		const byId = Object.fromEntries(rows.map((row) => [row.id, row]));
-		expect(byId["mcp:linear"]?.status).toBe("In Cline's MCP settings · HTTP");
-		expect(
-			byId["mcp:linear"]?.roles.find((option) => option.role === "read"),
-		).toEqual({ role: "read", enabled: true });
-		expect(byId["mcp:linear"]?.scopes).toEqual([
-			{
-				id: "mine",
-				label: "list_my_issues",
-				everyMinutes: 15,
-				checked: true,
-				cadence: "every 15 min",
-			},
-		]);
-		expect(byId["mcp:sentry"]?.status).toBe(
-			"In Cline's MCP settings · stdio; each read starts the server",
-		);
-		expect(
-			byId["mcp:sentry"]?.roles.find((option) => option.role === "read")
-				?.reason,
-		).toBe("Pin a read-only tool, with its arguments, to read through it");
-		expect(byId["mcp:off"]?.detected).toBe(false);
-		expect(
-			byId["composio:notion"]?.roles.find((option) => option.role === "read")
-				?.reason,
-		).toBe(COMPOSIO_READ_NEEDS_U4);
-		await connectors.refresher.refreshAll("test");
-		expect(ran).toEqual(["list_my_issues"]);
+		settings.connectors["composio:notion"] = { role: "off", scopes: [] };
+		expect(notion.probe()).toBe("absent");
 	});
 });

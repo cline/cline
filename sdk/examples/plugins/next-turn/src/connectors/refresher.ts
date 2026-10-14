@@ -1,5 +1,6 @@
 import { MINUTE_MS } from "../config";
 import type { SourceEnv } from "../context/source";
+import type { Log } from "../log";
 import type { Access, Connector, ReadScope } from "./connector";
 
 /**
@@ -14,58 +15,42 @@ import type { Access, Connector, ReadScope } from "./connector";
  * last facts, which state their age.
  */
 
-const PUSH = /\bgit\s+push\b|\bgh\s+pr\s+(?:create|merge|ready)\b/;
-
-/** True when a finished tool call pushed or opened a PR, from its input; nothing of the input is kept. */
-export function isPushCommand(input: unknown): boolean {
-	try {
-		return PUSH.test(
-			typeof input === "string" ? input : JSON.stringify(input ?? ""),
-		);
-	} catch {
-		return false;
-	}
-}
-
-export type RefresherOptions = {
+type RefresherOptions = {
 	/** Read on every refresh, so connectors found after start are included. */
 	connectors: () => readonly Connector[];
 	access: (connectorId: string) => Access;
 	env: () => SourceEnv;
-	/** How often due scopes are looked for. */
-	tickMs: number;
-	log?: (message: string, error?: unknown) => void;
+	log?: Log;
 	now?: () => number;
-	setTimer?: (run: () => void, ms: number) => unknown;
-	clearTimer?: (timer: unknown) => void;
+	/** Runs `tick` every minute until the returned function is called. */
+	startTicking?: (tick: () => void) => () => void;
 };
+
+function tickEveryMinute(tick: () => void): () => void {
+	const timer = setInterval(tick, MINUTE_MS).unref();
+	return () => clearInterval(timer);
+}
 
 export class Refresher {
 	private readonly inFlight = new Set<string>();
 	private readonly lastRefreshed = new Map<string, number>();
-	private timer: unknown;
+	private stopTicking: (() => void) | undefined;
 	private branch: string | undefined;
 
 	constructor(private readonly options: RefresherOptions) {}
 
 	start(): Promise<void> {
-		const setTimer =
-			this.options.setTimer ?? ((run, ms) => setInterval(run, ms));
-		this.timer = setTimer(
+		this.stop();
+		this.stopTicking = (this.options.startTicking ?? tickEveryMinute)(
 			() => void this.refresh("due", (scope, key) => this.due(scope, key)),
-			this.options.tickMs,
 		);
 		this.branch = this.options.env().git?.branch;
 		return this.refreshAll("start");
 	}
 
 	stop(): void {
-		if (this.timer !== undefined)
-			(
-				this.options.clearTimer ??
-				((timer) => clearInterval(timer as ReturnType<typeof setInterval>))
-			)(this.timer);
-		this.timer = undefined;
+		this.stopTicking?.();
+		this.stopTicking = undefined;
 	}
 
 	/** Call on each turn; refreshes when the branch moved since the last one, or when the turn pushed. */
@@ -80,14 +65,7 @@ export class Refresher {
 			await this.refresh("push", (scope) => scope.onPush === true);
 	}
 
-	/** Call from `afterTool`; refreshes the push-sensitive scopes after a push or a new PR. */
-	onToolFinished(input: unknown): Promise<void> {
-		return isPushCommand(input)
-			? this.refresh("push", (scope) => scope.onPush === true)
-			: Promise.resolve();
-	}
-
-	refreshAll(reason: string): Promise<void> {
+	private refreshAll(reason: string): Promise<void> {
 		return this.refresh(reason, () => true);
 	}
 
@@ -110,8 +88,7 @@ export class Refresher {
 		const work: Promise<void>[] = [];
 		for (const connector of this.options.connectors()) {
 			const access = this.options.access(connector.id);
-			if (!connector.refresh || access.role !== "read" || !access.readAllowed)
-				continue;
+			if (!access.readAllowed) continue;
 			for (const scope of connector.scopes) {
 				const key = `${connector.id}/${scope.id}`;
 				if (

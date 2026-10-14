@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildManifest, manifestTags, nameableSources } from "./manifest";
+import { buildManifest, collectFacts, manifestTags } from "./manifest";
 import type { ContextSource, SourceEnv } from "./source";
 import { hubBackedSource } from "./sources/hub";
 import { gitSource, remoteTags, turnSource } from "./sources/workspace";
@@ -29,7 +29,6 @@ describe("environment manifest", () => {
 		const manifest = await buildManifest([turnSource, gitSource], bare);
 		expect(manifest.sources.git).toBe("absent");
 		expect(manifest.capabilities).toEqual([]);
-		expect(nameableSources(manifest)).toEqual(["turn"]);
 	});
 
 	test("a source the person turned off is recorded as off and never probed", async () => {
@@ -43,7 +42,7 @@ describe("environment manifest", () => {
 			},
 		};
 		const manifest = await buildManifest([history], repo, {
-			isOff: (id) => id === "history",
+			isOff: (source) => source.id === "history",
 		});
 		expect(manifest.sources.history).toBe("off");
 		expect(probed).toBe(false);
@@ -69,7 +68,6 @@ describe("environment manifest", () => {
 		});
 		expect(manifest.sources).toEqual({ slow: "unknown", broken: "unknown" });
 		expect(manifest.capabilities).toEqual([]);
-		expect(nameableSources(manifest)).toEqual(["broken", "slow"]);
 	});
 
 	test("hub-backed sources follow the link: absent with no hub, unknown while unreachable", async () => {
@@ -83,6 +81,43 @@ describe("environment manifest", () => {
 		);
 		expect(absent.sources.tasks).toBe("absent");
 		expect(unknown.sources.tasks).toBe("unknown");
+	});
+
+	test("off and absent sources give no facts; a slow one reads unknown", async () => {
+		const reading = (
+			id: string,
+			state: "present" | "absent",
+		): ContextSource => ({
+			id,
+			tier: "T2",
+			probe: () => state,
+			facts: () => ({ heading: "h", lines: ["x"] }),
+		});
+		const slow: ContextSource = {
+			id: "slow",
+			tier: "T2",
+			probe: () => "present",
+			facts: () =>
+				new Promise((resolve) =>
+					setTimeout(() => resolve({ heading: "late", lines: [] }), 50),
+				),
+		};
+		const sources = [
+			reading("history", "present"),
+			reading("tasks", "absent"),
+			slow,
+		];
+		const manifest = await buildManifest(sources, repo, {
+			isOff: (source) => source.id === "history",
+		});
+		expect(manifest.sources).toEqual({
+			history: "off",
+			tasks: "absent",
+			slow: "present",
+		});
+		expect(
+			await collectFacts(sources, manifest, repo, { budgetMs: () => 5 }),
+		).toEqual({ slow: "unknown" });
 	});
 
 	test("tags carry ids and states only, sorted, for the offer record", async () => {

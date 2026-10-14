@@ -1,21 +1,17 @@
-import { existsSync, readFileSync, watch } from "node:fs";
-import { dirname } from "node:path";
-import { DEFAULT_PLANNER_CALLS_PER_HOUR, SETTINGS_VERSION } from "../config";
-import { isRecord } from "../hub/fold";
-import { writeFileAtomic } from "../store/data-dir";
+import { DEFAULT_PLANNER_CALLS_PER_HOUR } from "../config";
+import { readJsonFile } from "../store/data-dir";
+import { isRecord } from "../values";
+
+/** The settings file's schema version; a file with another version is read as defaults. */
+const SETTINGS_VERSION = 1;
 
 /**
  * What a connector may do for Next Turn: nothing, be named as a
  * capability, have bounded facts read in the background, or receive "Needs
  * you" items.
  */
-export type ConnectorRole = "off" | "mention" | "read" | "notify";
-export const CONNECTOR_ROLES: readonly ConnectorRole[] = [
-	"off",
-	"mention",
-	"read",
-	"notify",
-];
+export const CONNECTOR_ROLES = ["off", "mention", "read", "notify"] as const;
+export type ConnectorRole = (typeof CONNECTOR_ROLES)[number];
 
 /**
  * A read the person pinned on an MCP server or a Composio toolkit: one read-only tool with fixed arguments. Its id is the scope id that
@@ -28,13 +24,13 @@ export type PinnedRead = {
 	label?: string;
 };
 
-export type ConnectorSetting = {
+type ConnectorSetting = {
 	role: ConnectorRole;
 	scopes: string[];
 	reads?: PinnedRead[];
 };
 
-export type PlannerModel =
+type PlannerModel =
 	| { kind: "chat" }
 	| { kind: "model"; providerId: string; modelId: string };
 
@@ -52,7 +48,7 @@ export type Settings = {
 	notify: { needsYou: boolean };
 };
 
-export type WorkspaceOverride = {
+type WorkspaceOverride = {
 	features?: Partial<Settings["features"]>;
 	context?: Partial<Settings["context"]>;
 	connectors?: Record<string, ConnectorSetting>;
@@ -93,8 +89,11 @@ export function defaultSettingsFile(): SettingsFile {
 	};
 }
 
-function flags<T extends Record<string, boolean>>(raw: unknown, base: T): T {
-	const out = { ...base };
+function partialFlags<T extends Record<string, boolean>>(
+	raw: unknown,
+	base: T,
+): Partial<T> {
+	const out: Partial<T> = {};
 	if (!isRecord(raw)) return out;
 	for (const key of Object.keys(base) as Array<keyof T>) {
 		const value = raw[key as string];
@@ -103,17 +102,8 @@ function flags<T extends Record<string, boolean>>(raw: unknown, base: T): T {
 	return out;
 }
 
-function partialFlags<T extends Record<string, boolean>>(
-	raw: unknown,
-	keys: T,
-): Partial<T> | undefined {
-	if (!isRecord(raw)) return undefined;
-	const out: Partial<T> = {};
-	for (const key of Object.keys(keys) as Array<keyof T>) {
-		const value = raw[key as string];
-		if (typeof value === "boolean") out[key] = value as T[keyof T];
-	}
-	return Object.keys(out).length > 0 ? out : undefined;
+function flags<T extends Record<string, boolean>>(raw: unknown, base: T): T {
+	return { ...base, ...partialFlags(raw, base) };
 }
 
 function connectorSetting(raw: unknown): ConnectorSetting | undefined {
@@ -211,9 +201,9 @@ function workspaceOverride(raw: unknown): WorkspaceOverride | undefined {
 	const context = partialFlags(raw.context, base.context);
 	const notify = partialFlags(raw.notify, base.notify);
 	const connectorOverrides = connectors(raw.connectors);
-	if (features) override.features = features;
-	if (context) override.context = context;
-	if (notify) override.notify = notify;
+	if (Object.keys(features).length > 0) override.features = features;
+	if (Object.keys(context).length > 0) override.context = context;
+	if (Object.keys(notify).length > 0) override.notify = notify;
 	if (Object.keys(connectorOverrides).length > 0)
 		override.connectors = connectorOverrides;
 	return Object.keys(override).length > 0 ? override : undefined;
@@ -258,72 +248,6 @@ export function effectiveSettings(
 	};
 }
 
-/**
- * A connector's role: the person's explicit choice, else the connector's own
- * default (Mention when detected; Off for personal or outward ones).
- */
-export function connectorRole(
-	current: Settings,
-	connectorId: string,
-	fallback: ConnectorRole,
-): ConnectorRole {
-	return current.connectors[connectorId]?.role ?? fallback;
-}
-
 export function loadSettingsFile(path: string): SettingsFile {
-	if (!existsSync(path)) return defaultSettingsFile();
-	try {
-		return parseSettingsFile(JSON.parse(readFileSync(path, "utf8")));
-	} catch {
-		return defaultSettingsFile();
-	}
-}
-
-export function saveSettingsFile(path: string, file: SettingsFile): void {
-	writeFileAtomic(path, `${JSON.stringify(file, null, "\t")}\n`);
-}
-
-function readSettingsText(path: string): string | undefined {
-	try {
-		return readFileSync(path, "utf8");
-	} catch {
-		return undefined;
-	}
-}
-
-/** How `watchSettingsFile` listens to a directory: `fs.watch`, unless a test passes its own. */
-export type DirectoryWatch = (
-	directory: string,
-	listener: (event: string, changed: string | null) => void,
-) => { close(): void };
-
-/**
- * Call `onChange` with the re-read file whenever another process (the desktop,
- * the CLI) rewrites it. Watches the directory, because an atomic write
- * replaces the file and a watch on the old inode would go quiet.
- *
- * Every event re-reads the file, whatever name it carries, and only a change
- * in its text is reported. An event's name cannot be trusted: Bun before 1.4
- * on Linux merges every inotify event of one read into a single callback named
- * after its first entry, so an atomic rewrite can arrive as its temp sibling,
- * or as any other file in this directory, which it shares with the status
- * database, the cursor, labels, the cache and the planner ledger. The
- * settings file is small, so the re-read is cheap.
- */
-export function watchSettingsFile(
-	path: string,
-	onChange: (file: SettingsFile) => void,
-	watchDirectory: DirectoryWatch = (directory, listener) =>
-		watch(directory, listener),
-): () => void {
-	const directory = dirname(path);
-	if (!existsSync(directory)) return () => {};
-	let last = readSettingsText(path);
-	const watcher = watchDirectory(directory, () => {
-		const text = readSettingsText(path);
-		if (text === last) return;
-		last = text;
-		onChange(loadSettingsFile(path));
-	});
-	return () => watcher.close();
+	return parseSettingsFile(readJsonFile(path));
 }

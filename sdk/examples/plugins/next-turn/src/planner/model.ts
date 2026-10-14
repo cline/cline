@@ -1,4 +1,9 @@
-import type { ApiHandler, ApiStreamChunk, ProviderConfig } from "@cline/llms";
+import type {
+	ApiHandler,
+	ApiStreamChunk,
+	ProviderConfig,
+	ResolveProviderRequestHeadersInput,
+} from "@cline/llms";
 import {
 	PLANNER_MAX_OUTPUT_TOKENS,
 	PLANNER_RETRY_MAX_OUTPUT_TOKENS,
@@ -7,9 +12,12 @@ import {
 	PLANNER_TIMEOUT_MS,
 	POOL_CACHE_LIMIT,
 } from "../config";
+import { TIMED_OUT, withDeadline } from "../deadline";
 import type { Settings } from "../settings/settings";
-import type { Suggestion, SuggestionKind } from "./candidates";
+import { errorMessage } from "../values";
+import type { Suggestion } from "./candidates";
 import type { PlannerInput } from "./input";
+import type { SuggestionKind } from "./kinds";
 import { parsePlannerOutput } from "./output";
 
 /**
@@ -23,14 +31,14 @@ import { parsePlannerOutput } from "./output";
  * chat refreshes it. The key never leaves this module.
  */
 
-export type Completion = {
+type Completion = {
 	text: string;
 	costUsd?: number;
 	providerId?: string;
 	modelId?: string;
 };
 
-/** One tool-less call; null when no provider can be resolved. Tests supply a fake. */
+/** One tool-less call; null when no provider can be resolved. */
 export type Complete = (
 	input: PlannerInput,
 	signal: AbortSignal,
@@ -40,8 +48,6 @@ export type Complete = (
 export class PoolCache {
 	private readonly pools = new Map<string, readonly Suggestion[]>();
 
-	constructor(private readonly limit: number = POOL_CACHE_LIMIT) {}
-
 	get(key: string): readonly Suggestion[] | undefined {
 		return this.pools.get(key);
 	}
@@ -50,28 +56,16 @@ export class PoolCache {
 		this.pools.delete(key);
 		this.pools.set(key, pool);
 		for (const oldest of this.pools.keys()) {
-			if (this.pools.size <= this.limit) break;
+			if (this.pools.size <= POOL_CACHE_LIMIT) break;
 			this.pools.delete(oldest);
 		}
 	}
 }
 
-export type PoolFailure = "no_provider" | "timeout" | "unparseable" | "error";
+type PoolFailure = "no_provider" | "timeout" | "unparseable" | "error";
 
-export type PoolAttempt =
-	| {
-			pool: Suggestion[];
-			costUsd?: number;
-			providerId?: string;
-			modelId?: string;
-	  }
-	| {
-			reason: PoolFailure;
-			error?: string;
-			costUsd?: number;
-			providerId?: string;
-			modelId?: string;
-	  };
+type PoolAttempt = Omit<Completion, "text"> &
+	({ pool: Suggestion[] } | { reason: PoolFailure; error?: string });
 
 /** Races the call against the deadline; a call that loses is aborted and its late failure ignored. */
 export async function generatePool(
@@ -80,50 +74,28 @@ export async function generatePool(
 	kinds: readonly SuggestionKind[],
 	timeoutMs: number = PLANNER_TIMEOUT_MS,
 ): Promise<PoolAttempt> {
-	const controller = new AbortController();
-	const timedOut = new Promise<"timeout">((resolve) => {
-		controller.signal.addEventListener("abort", () => resolve("timeout"), {
-			once: true,
-		});
-	});
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	const pending = complete(input, controller.signal);
-	pending.catch(() => undefined);
 	try {
-		const answer = await Promise.race([pending, timedOut]);
-		if (answer === "timeout") return { reason: "timeout" };
+		const answer = await withDeadline(
+			(signal) => complete(input, signal),
+			timeoutMs,
+		);
+		if (answer === TIMED_OUT) return { reason: "timeout" };
 		if (answer === null) return { reason: "no_provider" };
-		const meta = {
-			...(answer.costUsd === undefined ? {} : { costUsd: answer.costUsd }),
-			...(answer.providerId ? { providerId: answer.providerId } : {}),
-			...(answer.modelId ? { modelId: answer.modelId } : {}),
-		};
-		const pool = parsePlannerOutput(answer.text, kinds);
+		const { text, ...meta } = answer;
+		const pool = parsePlannerOutput(text, kinds);
 		return pool ? { pool, ...meta } : { reason: "unparseable", ...meta };
 	} catch (error) {
-		return {
-			reason: "error",
-			error: error instanceof Error ? error.message : String(error),
-		};
-	} finally {
-		clearTimeout(timer);
-		controller.abort();
+		return { reason: "error", error: errorMessage(error) };
 	}
 }
 
 /** Which provider and model the planner asks; an absent `providerId` means no provider is known for this chat yet. */
-export type ProviderChoice = { providerId?: string; modelId?: string };
+type ProviderChoice = { providerId?: string; modelId?: string };
 
-export type PlannerRequestContext = {
-	sessionId?: string;
-	client?: {
-		name?: string;
-		version?: string;
-		platform?: string;
-		platformVersion?: string;
-		isMultiRoot?: boolean;
-	};
-};
+type PlannerRequestContext = Pick<
+	ResolveProviderRequestHeadersInput,
+	"sessionId" | "client"
+>;
 
 /** The settings' choice, else the chat's own provider and model. */
 export function plannerProvider(
@@ -140,71 +112,58 @@ type CoreModule = typeof import("@cline/core");
 type LlmsModule = typeof import("@cline/llms");
 
 /**
- * The provider config the planner calls with, with its key and request headers
- * resolved the way `local-runtime-bootstrap.ts` resolves a chat's; undefined
- * when none is usable or when no provider id is known (under `kind: "chat"`,
- * the planner never borrows another provider from `getLastUsedProviderConfig`).
+ * Resolves the provider config the planner calls with, its key and request
+ * headers resolved the way `local-runtime-bootstrap.ts` resolves a chat's;
+ * undefined when the provider is not usable. Under `kind: "chat"` the planner
+ * never borrows another provider from `getLastUsedProviderConfig`. One
+ * resolver serves every call, so concurrent calls share an OAuth refresh; the
+ * settings file is still read on each call.
  */
-export async function resolveProviderConfig(
+export function providerResolver(
 	core: CoreModule,
-	choice: ProviderChoice,
-	llms?: Pick<LlmsModule, "resolveProviderRequestHeaders">,
+	llms: Pick<LlmsModule, "resolveProviderRequestHeaders">,
+): (
+	choice: ProviderChoice & { providerId: string },
 	requestContext?: PlannerRequestContext,
-): Promise<ProviderConfig | undefined> {
-	if (!choice.providerId) return undefined;
+) => Promise<ProviderConfig | undefined> {
 	const manager = new core.ProviderSettingsManager();
-	const config = manager.getProviderConfig(choice.providerId, {
-		includeKnownModels: false,
-	});
-	if (!config) return undefined;
-	const providerId = config.providerId;
-	const stored =
-		typeof manager.getProviderSettings === "function"
-			? manager.getProviderSettings(providerId)
-			: undefined;
-	const oauth = await new core.RuntimeOAuthTokenManager({
+	const oauth = new core.RuntimeOAuthTokenManager({
 		providerSettingsManager: manager,
-	}).resolveProviderApiKey({ providerId });
-	const apiKey = (
-		oauth?.apiKey ||
-		core.resolveProviderApiKeyFromSettings(manager, providerId) ||
-		config.apiKey ||
-		""
-	).trim();
-	if (!apiKey && !config.baseUrl) return undefined;
-	const coreVersion =
-		typeof core.CORE_BUILD_VERSION === "string" && core.CORE_BUILD_VERSION
-			? core.CORE_BUILD_VERSION
-			: "unknown";
-	const headers = llms?.resolveProviderRequestHeaders
-		? llms.resolveProviderRequestHeaders({
-				providerId,
-				sessionId: requestContext?.sessionId,
-				defaultSource: "cli",
-				client: {
-					name: requestContext?.client?.name,
-					version: requestContext?.client?.version,
-					versionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
-					platform: requestContext?.client?.platform,
-					platformVersion: requestContext?.client?.platformVersion,
-					isMultiRoot: requestContext?.client?.isMultiRoot,
-				},
-				coreVersion,
-				openAiCodex: {
-					accountId: config.accountId ?? stored?.auth?.accountId,
-					accessToken: apiKey || stored?.auth?.accessToken || stored?.apiKey,
-				},
-				headers: {
-					stored: stored?.headers,
-					config: config.headers,
-				},
-			})
-		: config.headers;
-	return {
-		...config,
-		...(choice.modelId ? { modelId: choice.modelId } : {}),
-		...(apiKey ? { apiKey, accessToken: apiKey } : {}),
-		...(headers ? { headers } : {}),
+	});
+	return async (choice, requestContext) => {
+		const stored = manager.getProviderSettings(choice.providerId);
+		if (!stored) return undefined;
+		const config = core.toProviderConfig(stored, { includeKnownModels: false });
+		const providerId = config.providerId;
+		const resolved = await oauth.resolveProviderApiKey({ providerId });
+		const apiKey = (
+			resolved?.apiKey ||
+			core.resolveProviderApiKeyFromSettings(manager, providerId) ||
+			config.apiKey ||
+			""
+		).trim();
+		if (!apiKey && !config.baseUrl) return undefined;
+		const headers = llms.resolveProviderRequestHeaders({
+			providerId,
+			sessionId: requestContext?.sessionId,
+			defaultSource: "cli",
+			client: {
+				...requestContext?.client,
+				versionHeaderFallback: config.headers?.["X-CLIENT-VERSION"],
+			},
+			coreVersion: core.CORE_BUILD_VERSION || "unknown",
+			openAiCodex: {
+				accountId: config.accountId ?? stored.auth?.accountId,
+				accessToken: apiKey || stored.auth?.accessToken || stored.apiKey,
+			},
+			headers: { stored: stored.headers, config: config.headers },
+		});
+		return {
+			...config,
+			...(choice.modelId ? { modelId: choice.modelId } : {}),
+			...(apiKey ? { apiKey, accessToken: apiKey } : {}),
+			...(headers ? { headers } : {}),
+		};
 	};
 }
 
@@ -226,66 +185,98 @@ export async function streamCompletion(
 		else if (chunk.type === "done" && !chunk.success)
 			throw new Error(chunk.error ?? "the model stream failed");
 	}
-	return { text, ...(costUsd === undefined ? {} : { costUsd }) };
+	return { text, costUsd };
 }
+
+/** The first call's bounds: reasoning off, so the answer fits the planner's deadline. */
+const REASONING_OFF = {
+	maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
+	reasoningEffort: undefined,
+	thinkingBudgetTokens: undefined,
+	thinking: false,
+} as const;
+
+/** The retry's bounds, for a model that refuses reasoning off. */
+const LOW_REASONING = {
+	maxOutputTokens: PLANNER_RETRY_MAX_OUTPUT_TOKENS,
+	reasoningEffort: PLANNER_RETRY_REASONING_EFFORT,
+	thinking: true,
+} as const;
 
 /** Models whose low-reasoning retry answered after reasoning-off failed; later calls skip the doomed first try. */
 const reasoningRequired = new Set<string>();
 
+type CompleterOptions = {
+	choice: () => ProviderChoice;
+	/** Read on every call, so the request headers name the client viewing the chat now. */
+	requestContext?: () => PlannerRequestContext;
+	load?: () => Promise<{ core: CoreModule; llms: LlmsModule }>;
+};
+
+const loadCline = async () => ({
+	core: await import("@cline/core"),
+	llms: await import("@cline/llms"),
+});
+
 /**
  * The real completer: `@cline/core` and `@cline/llms` are imported on the
- * first call, so loading the plugin stays inside the sandbox's import budget.
+ * first call that has a provider to ask, so loading the plugin stays inside
+ * the sandbox's import budget.
  */
-export function clineCompleter(
-	choice: () => ProviderChoice,
-	load: () => Promise<{ core: CoreModule; llms: LlmsModule }> = async () => ({
-		core: await import("@cline/core"),
-		llms: await import("@cline/llms"),
-	}),
-	requestContext?: PlannerRequestContext,
-): Complete {
+export function clineCompleter({
+	choice,
+	requestContext,
+	load = loadCline,
+}: CompleterOptions): Complete {
+	let ready:
+		| Promise<{
+				llms: LlmsModule;
+				resolve: ReturnType<typeof providerResolver>;
+		  }>
+		| undefined;
 	return async (input, signal) => {
-		const { core, llms } = await load();
-		const config = await resolveProviderConfig(
-			core,
-			choice(),
-			llms,
-			requestContext,
+		const picked = choice();
+		if (!picked.providerId) return null;
+		ready ??= load()
+			.then(({ core, llms }) => ({
+				llms,
+				resolve: providerResolver(core, llms),
+			}))
+			.catch((error: unknown) => {
+				ready = undefined;
+				throw error;
+			});
+		const { llms, resolve } = await ready;
+		const config = await resolve(
+			{ ...picked, providerId: picked.providerId },
+			requestContext?.(),
 		);
 		if (!config) return null;
 		const modelKey = `${config.providerId}:${config.modelId ?? ""}`;
-		const meta = {
-			providerId: config.providerId,
-			...(config.modelId ? { modelId: config.modelId } : {}),
-		};
-		const call = async (reasoningOff: boolean): Promise<Completion> => {
+		const meta = { providerId: config.providerId, modelId: config.modelId };
+		const call = async (
+			bounds: typeof REASONING_OFF | typeof LOW_REASONING,
+		): Promise<Completion> => {
 			const handler = await llms.createHandlerAsync({
 				...config,
 				temperature: PLANNER_TEMPERATURE,
-				...(reasoningOff
-					? {
-							maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
-							reasoningEffort: undefined,
-							thinkingBudgetTokens: undefined,
-							thinking: false,
-						}
-					: {
-							maxOutputTokens: PLANNER_RETRY_MAX_OUTPUT_TOKENS,
-							reasoningEffort: PLANNER_RETRY_REASONING_EFFORT,
-							thinking: true,
-						}),
+				...bounds,
 				abortSignal: signal,
 			});
 			handler.setAbortSignal?.(signal);
-			const result = await streamCompletion(handler, input);
-			return { ...result, ...meta };
+			return { ...(await streamCompletion(handler, input)), ...meta };
 		};
-		if (reasoningRequired.has(modelKey)) return call(false);
+		if (reasoningRequired.has(modelKey)) return call(LOW_REASONING);
 		try {
-			return await call(true);
+			return await call(REASONING_OFF);
 		} catch (error) {
-			if (signal.aborted) throw error;
-			const answer = await call(false);
+			if (
+				signal.aborted ||
+				llms.classifyProviderError(error) === "auth" ||
+				llms.isRetryableProviderError(error)
+			)
+				throw error;
+			const answer = await call(LOW_REASONING);
 			reasoningRequired.add(modelKey);
 			return answer;
 		}

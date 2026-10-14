@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
-import { isRecord } from "../hub/fold";
+import type { McpServerTransportConfig, McpSettingsFile } from "@cline/core";
+import type { HubLink } from "../hub/link";
+import { isRecord } from "../values";
 
 /**
  * What the person already connected to Cline. Next Turn reads these
  * through Cline's own stores and never writes to them:
  *
  * - **Composio toolkits** on the Cline account: the state file the desktop
- *   writes at `resolveComposioToolsStatePath(accountId)`. Its tools run
- *   through Cline's connector proxy and are already in the agent's tool list.
+ *   writes at `resolveComposioConnectionStatePath(accountId)`.
  * - **MCP servers** in Cline's MCP settings (`loadMcpSettingsFile`).
  * - **Chat channels** from `cline connect` (`connector.channels`).
  *
@@ -15,14 +16,10 @@ import { isRecord } from "../hub/fold";
  * leaves this module.
  */
 
-export type ComposioToolkit = {
-	toolkit: string;
-	connected: boolean;
-	tools: number;
-};
+type ComposioToolkit = { toolkit: string; connected: boolean };
 export type McpServer = {
 	name: string;
-	transport: "stdio" | "sse" | "streamableHttp";
+	transport: McpServerTransportConfig["type"];
 	disabled: boolean;
 	target: string;
 };
@@ -35,8 +32,7 @@ export type ClineConnections = {
 export type ConnectionLoaders = {
 	/** The Composio state file's parsed contents, or nothing when signed out or not connected. */
 	composio(): Promise<unknown>;
-	/** `loadMcpSettingsFile()`'s result. */
-	mcp(): Promise<unknown>;
+	mcp(): Promise<McpSettingsFile>;
 	/** The `connector.channels` reply payload. */
 	channels(): Promise<unknown>;
 };
@@ -50,49 +46,31 @@ export function parseComposio(state: unknown): ComposioToolkit[] {
 				isRecord(entry) &&
 				typeof entry.connectedAccountId === "string" &&
 				entry.connectedAccountId.length > 0,
-			tools:
-				isRecord(entry) && Array.isArray(entry.tools) ? entry.tools.length : 0,
 		}))
 		.sort((a, b) => a.toolkit.localeCompare(b.toolkit));
 }
 
 /** Where a server runs, for recognising it: the command and its arguments, or the URL's host and path. Never env or headers. */
-function targetOf(transport: Record<string, unknown>): string {
-	if (typeof transport.url === "string") {
-		try {
-			const url = new URL(transport.url);
-			return `${url.host}${url.pathname}`;
-		} catch {
-			return "";
-		}
+function targetOf(transport: McpServerTransportConfig): string {
+	if (transport.type === "stdio")
+		return [transport.command, ...(transport.args ?? [])].join(" ").trim();
+	try {
+		const url = new URL(transport.url);
+		return `${url.host}${url.pathname}`;
+	} catch {
+		return "";
 	}
-	const args = Array.isArray(transport.args)
-		? transport.args.filter((arg): arg is string => typeof arg === "string")
-		: [];
-	return [
-		typeof transport.command === "string" ? transport.command : "",
-		...args,
-	]
-		.join(" ")
-		.trim();
 }
 
-export function parseMcp(settings: unknown): McpServer[] {
-	if (!isRecord(settings) || !isRecord(settings.mcpServers)) return [];
-	const servers: McpServer[] = [];
-	for (const [name, entry] of Object.entries(settings.mcpServers)) {
-		if (!isRecord(entry) || !isRecord(entry.transport)) continue;
-		const type = entry.transport.type;
-		if (type !== "stdio" && type !== "sse" && type !== "streamableHttp")
-			continue;
-		servers.push({
+function parseMcp(settings: McpSettingsFile | undefined): McpServer[] {
+	return Object.entries(settings?.mcpServers ?? {})
+		.map(([name, entry]) => ({
 			name,
-			transport: type,
+			transport: entry.transport.type,
 			disabled: entry.disabled === true,
 			target: targetOf(entry.transport),
-		});
-	}
-	return servers.sort((a, b) => a.name.localeCompare(b.name));
+		}))
+		.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function parseChannels(reply: unknown): string[] {
@@ -120,35 +98,38 @@ export async function readClineConnections(
 	};
 }
 
+/** The host's `@cline/core`: before 0.0.93 it exported the Composio state resolver as `resolveComposioToolsStatePath`. */
+type HostCore = Omit<
+	typeof import("@cline/core"),
+	"resolveComposioConnectionStatePath"
+> & {
+	resolveComposioConnectionStatePath?: (accountId: string) => string;
+	resolveComposioToolsStatePath?: (accountId: string) => string;
+};
+
 /**
  * The real stores. `@cline/core` is imported on first use. The Composio file
  * belongs to the signed-in Cline account; with no account there is none.
  */
-export function clineConnectionLoaders(hub?: {
-	command(name: string): Promise<Record<string, unknown>>;
-}): ConnectionLoaders {
+export function clineConnectionLoaders(
+	hub?: Pick<HubLink, "command">,
+	loadCore: () => Promise<HostCore> = () => import("@cline/core"),
+): ConnectionLoaders {
 	return {
 		async composio() {
-			const core = (await import(
-				"@cline/core"
-			)) as typeof import("@cline/core") & {
-				resolveComposioConnectionStatePath?: (accountId: string) => string;
-				resolveComposioToolsStatePath?: (accountId: string) => string;
-			};
+			const core = await loadCore();
 			const accountId = new core.ProviderSettingsManager()
 				.getProviderSettings("cline")
 				?.auth?.accountId?.trim();
 			if (!accountId) return undefined;
-			const resolvePath =
+			const statePath =
 				core.resolveComposioConnectionStatePath ??
 				core.resolveComposioToolsStatePath;
-			if (!resolvePath) return undefined;
-			return JSON.parse(
-				readFileSync(resolvePath(accountId), "utf8"),
-			) as unknown;
+			if (!statePath) return undefined;
+			return JSON.parse(readFileSync(statePath(accountId), "utf8")) as unknown;
 		},
 		async mcp() {
-			const core = await import("@cline/core");
+			const core = await loadCore();
 			return core.loadMcpSettingsFile();
 		},
 		async channels() {

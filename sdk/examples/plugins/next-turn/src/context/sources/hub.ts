@@ -1,17 +1,19 @@
 import type { HubLink } from "../../hub/link";
-import type { ContextSource, SourceState, SourceTier } from "../source";
+import type { ContextSource, SourceState } from "../source";
+
+type Described = Pick<ContextSource, "displayName" | "settingsToggle">;
 
 /**
- * A source whose facts come from the hub fold (tasks, status, schedules,
- * teams). Its presence is the link's: absent when no hub runs here, unknown
- * while a hub exists but is unreachable.
+ * A source whose facts come from the hub fold, as the tasks do. Its presence
+ * is the link's: absent when no hub runs here, unknown while a hub exists but
+ * is unreachable.
  */
 export function hubBackedSource(
 	id: string,
 	link: Pick<HubLink, "availability">,
-	tier: SourceTier = "T2",
+	described: Described = {},
 ): ContextSource {
-	return { id, tier, probe: () => link.availability() };
+	return { id, tier: "T2", ...described, probe: () => link.availability() };
 }
 
 /**
@@ -22,8 +24,13 @@ export function hubBackedSource(
 export function suppliedSource(
 	id: string,
 	supplied: boolean,
+	described: Described = {},
 	availability: () => SourceState = () => "present",
-	tier: SourceTier = "T2",
 ): ContextSource {
-	return { id, tier, probe: () => (supplied ? availability() : "absent") };
+	return {
+		id,
+		tier: "T2",
+		...described,
+		probe: () => (supplied ? availability() : "absent"),
+	};
 }

@@ -1,31 +1,17 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
 import {
 	createInMemoryHubOwnerContext,
 	createLocalHubScheduleRuntimeHandlers,
 	NodeHubClient,
 	startHubWebSocketServer,
 } from "@cline/core/hub";
-import { resolveClineDir, setClineDir } from "@cline/shared/storage";
+import { setClineDir } from "@cline/shared/storage";
+import { useTempDirs } from "../test-support";
 import { proposeTask, workspaceTaskSpecsDir } from "./tasks";
 
-const originalClineDir = resolveClineDir();
-const temps: string[] = [];
-function tempDir(prefix = "next-turn-r5-"): string {
-	const dir = mkdtempSync(join(tmpdir(), prefix));
-	temps.push(dir);
-	return dir;
-}
+const tempDir = useTempDirs("next-turn-r5-", { restoreClineDir: true });
 
-afterEach(() => {
-	setClineDir(originalClineDir);
-	for (const dir of temps.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
-
-describe("R5: proposeTask against a real @cline/core hub (T-spike-7)", () => {
+describe("proposeTask against a real @cline/core hub", () => {
 	test("writing a proposal spec file reconciles into a pending_approval task created by file_reconciler, emits task.created to subscribers, and approves with its revision", async () => {
 		const clineDir = tempDir("cline-");
 		const workspaceRoot = tempDir("workspace-");
@@ -60,25 +46,17 @@ describe("R5: proposeTask against a real @cline/core hub (T-spike-7)", () => {
 			await clientA.connect();
 			await clientB.connect();
 
-			const createdEvents: Array<Record<string, unknown>> = [];
-			let resolveCreated: ((task: Record<string, unknown>) => void) | undefined;
-			const createdPromise = new Promise<Record<string, unknown>>((resolve) => {
-				resolveCreated = resolve;
-			});
-
+			const created = Promise.withResolvers<Record<string, unknown>>();
 			const unsubscribe = clientB.subscribe((event) => {
 				if (event.event === "task.created") {
 					const payload = (event.payload ?? {}) as {
 						task?: Record<string, unknown>;
 					};
-					if (payload.task) {
-						createdEvents.push(payload.task);
-						resolveCreated?.(payload.task);
-					}
+					if (payload.task) created.resolve(payload.task);
 				}
 			});
 
-			const specsDir = await workspaceTaskSpecsDir(workspaceRoot);
+			const specsDir = workspaceTaskSpecsDir(workspaceRoot);
 			const linkA = {
 				async command(name: string, payload?: Record<string, unknown>) {
 					const reply = await clientA.command(
@@ -96,7 +74,7 @@ describe("R5: proposeTask against a real @cline/core hub (T-spike-7)", () => {
 			});
 
 			const reconciledTask = await Promise.race([
-				createdPromise,
+				created.promise,
 				new Promise<never>((_, reject) =>
 					setTimeout(
 						() => reject(new Error("timed out waiting for task.created")),
@@ -126,7 +104,7 @@ describe("R5: proposeTask against a real @cline/core hub (T-spike-7)", () => {
 		} finally {
 			await clientA.dispose().catch(() => {});
 			await clientB.dispose().catch(() => {});
-			await server.close().catch(() => {});
+			await Promise.race([server.close().catch(() => {}), Bun.sleep(1_000)]);
 		}
 	});
 });

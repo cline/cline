@@ -1,40 +1,23 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import {
-	cpSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	installPlugin,
 	loadAgentPluginFromPath,
 	resolveAndLoadAgentPlugins,
 } from "@cline/core";
-import { resolveClineDir, setClineDir } from "@cline/shared/storage";
+import { setClineDir } from "@cline/shared/storage";
 import {
 	buildPlugin,
 	collectStaticModuleSpecifiers,
 	forbiddenBareSpecifiers,
+	PLUGIN_DIST_DIR,
+	PLUGIN_DIST_ENTRY,
 	PLUGIN_ROOT,
 } from "../scripts/build";
-import { PLUGIN_DIST_DIR, PLUGIN_DIST_ENTRY } from "./config";
+import { useTempDirs } from "./test-support";
 
-const originalClineDir = resolveClineDir();
-const temps: string[] = [];
-function tempDir(prefix = "next-turn-dist-"): string {
-	const dir = mkdtempSync(join(tmpdir(), prefix));
-	temps.push(dir);
-	return dir;
-}
-
-afterEach(() => {
-	setClineDir(originalClineDir);
-	for (const dir of temps.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
+const tempDir = useTempDirs("next-turn-dist-", { restoreClineDir: true });
 
 describe("dist/index.js bundle", () => {
 	test("bundles into a single entry with only host-aliased bare specifiers, and refuses unknown ones", async () => {
@@ -43,6 +26,7 @@ describe("dist/index.js bundle", () => {
 		expect(bytes).toBeGreaterThan(1_000);
 		const source = readFileSync(entryPath, "utf8");
 		expect(forbiddenBareSpecifiers(source)).toEqual([]);
+		expect(source).not.toContain("NextTurnLabelRecord");
 		const specifiers = collectStaticModuleSpecifiers(source);
 		expect(specifiers).toEqual(
 			expect.arrayContaining(["@cline/core", "@cline/core/hub", "@cline/llms"]),
@@ -61,7 +45,9 @@ describe("dist/index.js bundle", () => {
 		await buildPlugin({ outDir });
 		const pkg = JSON.parse(
 			readFileSync(join(PLUGIN_ROOT, "package.json"), "utf8"),
-		) as Record<string, unknown>;
+		) as Record<string, unknown> & {
+			cline: { plugins: Record<string, unknown>[] };
+		};
 		expect(pkg.type).toBeUndefined();
 		writeFileSync(
 			join(stage, "package.json"),
@@ -71,12 +57,10 @@ describe("dist/index.js bundle", () => {
 					version: pkg.version,
 					private: true,
 					cline: {
-						plugins: [
-							{
-								paths: [`./${PLUGIN_DIST_DIR}/${PLUGIN_DIST_ENTRY}`],
-								capabilities: ["hooks"],
-							},
-						],
+						plugins: pkg.cline.plugins.map((entry) => ({
+							...entry,
+							paths: [`./${PLUGIN_DIST_DIR}/${PLUGIN_DIST_ENTRY}`],
+						})),
 					},
 					peerDependencies: pkg.peerDependencies,
 					peerDependenciesMeta: pkg.peerDependenciesMeta,

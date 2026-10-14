@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import {
+	SEED_EXECUTION_LIMIT,
+	SEED_SESSION_LIMIT,
+	SEED_TASK_LIMIT,
+	SEED_UPCOMING_LIMIT,
+} from "../config";
+import { ASK_QUESTION_CAPABILITY, emptyFold, foldEvent } from "../hub/fold";
 import type { HubEvent, HubLinkStatus } from "../hub/link";
 import { type EngineLink, NextTurnEngine } from "./engine";
-import { NotifyGate } from "./notify";
+import { NotifyGate, waitingOn } from "./notify";
 
 type Sent = { name: string; payload?: Record<string, unknown> };
 
@@ -15,6 +22,7 @@ function fakeLink(
 	const link: EngineLink & {
 		emit(event: HubEvent): void;
 		up(): void;
+		down(): void;
 		sent: Sent[];
 		disposed(): boolean;
 	} = {
@@ -47,6 +55,9 @@ function fakeLink(
 		up() {
 			for (const listener of statusListeners) listener("up");
 		},
+		down() {
+			for (const listener of statusListeners) listener("down");
+		},
 	};
 	return link;
 }
@@ -76,7 +87,7 @@ describe("NextTurnEngine", () => {
 		});
 	});
 
-	test("seeds from session.list and task.list each time the link comes up, with allWorkspaces on schedules", async () => {
+	test("seeds from session.list and task.list when the link comes up, with allWorkspaces on schedules", async () => {
 		const link = fakeLink({
 			"session.list": {
 				sessions: [{ sessionId: "s1", status: "failed", workspaceRoot: "/w" }],
@@ -102,11 +113,179 @@ describe("NextTurnEngine", () => {
 			"schedule.upcoming",
 			"schedule.list_executions",
 		]);
-		expect(link.sent[1]?.payload).toEqual({ limit: 200 });
-		expect(link.sent[2]?.payload).toEqual({ allWorkspaces: true, limit: 50 });
-		expect(link.sent[3]?.payload).toEqual({ allWorkspaces: true, limit: 100 });
+		expect(link.sent.map((command) => command.payload)).toEqual([
+			{ rootOnly: true, limit: SEED_SESSION_LIMIT },
+			{ limit: SEED_TASK_LIMIT },
+			{ allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
+			{ allWorkspaces: true, limit: SEED_EXECUTION_LIMIT },
+		]);
 		expect(engine.board().sessions[0]?.state).toBe("failed");
 		expect(engine.needsYou().map((item) => item.key)).toEqual(["task:t1"]);
+	});
+
+	test("after a reconnect, the seed replaces sessions and tasks no event touched since the drop", async () => {
+		const replies: Record<string, Record<string, unknown>> = {};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		link.emit({ event: "run.started", sequence: 1, sessionId: "s1" });
+		link.emit({
+			event: "approval.requested",
+			sequence: 2,
+			payload: { approvalId: "a1", sessionId: "s1", toolName: "bash" },
+		});
+		link.emit({ event: "run.started", sequence: 3, sessionId: "s2" });
+		link.emit({
+			event: "approval.requested",
+			sequence: 4,
+			payload: { approvalId: "a2", sessionId: "s2", toolName: "bash" },
+		});
+		link.emit({ event: "run.started", sequence: 5, sessionId: "s3" });
+		link.emit({
+			event: "capability.requested",
+			sequence: 6,
+			sessionId: "s3",
+			payload: {
+				requestId: "q1",
+				capabilityName: "tool_executor.askQuestion",
+			},
+		});
+		link.emit({
+			event: "task.created",
+			sequence: 7,
+			payload: { task: { taskId: "t1", status: "pending_approval" } },
+		});
+		link.down();
+		replies["session.list"] = {
+			sessions: [
+				{ sessionId: "s1", status: "completed" },
+				{ sessionId: "s2", status: "completed" },
+				{ sessionId: "s3", status: "running" },
+			],
+		};
+		replies["task.list"] = { tasks: [{ taskId: "t1", status: "completed" }] };
+		link.up();
+		link.emit({
+			event: "approval.requested",
+			payload: { approvalId: "a2", sessionId: "s2", toolName: "bash" },
+		});
+		await settle();
+		const { sessions } = engine.fold();
+		expect(sessions.s1).toMatchObject({
+			run: "completed",
+			pendingApprovals: {},
+		});
+		expect(sessions.s2?.run).toBe("running");
+		expect(Object.keys(sessions.s2?.pendingApprovals ?? {})).toEqual(["a2"]);
+		expect(Object.keys(sessions.s3?.pendingQuestions ?? {})).toEqual(["q1"]);
+		expect(engine.fold().tasks.t1?.status).toBe("completed");
+		expect(engine.needsYou().map((item) => item.key)).toEqual([
+			"approval:a2",
+			"question:q1",
+		]);
+	});
+
+	test("after a reconnect, an approval the hub did not re-issue goes, even from a session that saw other events", async () => {
+		const replies: Record<string, Record<string, unknown>> = {};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		link.emit({ event: "run.started", sequence: 1, sessionId: "s1" });
+		for (const [sequence, approvalId] of [
+			[2, "a1"],
+			[3, "a2"],
+		] as const) {
+			link.emit({
+				event: "approval.requested",
+				sequence,
+				payload: { approvalId, sessionId: "s1", toolName: "bash" },
+			});
+		}
+		link.down();
+		replies["session.list"] = {
+			sessions: [{ sessionId: "s1", status: "running" }],
+		};
+		link.up();
+		link.emit({
+			event: "approval.requested",
+			payload: { approvalId: "a2", sessionId: "s1", toolName: "bash" },
+		});
+		await settle();
+		expect(
+			Object.keys(engine.fold().sessions.s1?.pendingApprovals ?? {}),
+		).toEqual(["a2"]);
+		expect(engine.needsYou().map((item) => item.key)).toEqual(["approval:a2"]);
+		link.emit({ event: "approval.resolved", payload: { approvalId: "a2" } });
+		expect(engine.fold().sessions.s1?.pendingApprovals).toEqual({});
+	});
+
+	test("after a reconnect, the hub's latest execution replaces an untouched one, and a deleted task goes", async () => {
+		const replies: Record<string, Record<string, unknown>> = {
+			"task.list": {
+				tasks: [
+					{ taskId: "t1", status: "pending_approval" },
+					{ taskId: "t2", status: "pending_approval" },
+				],
+			},
+			"schedule.list_executions": {
+				executions: [
+					{ scheduleId: "x", executionId: "e1", status: "failed", endedAt: 1 },
+				],
+			},
+		};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		expect(engine.fold().schedules.x?.executionId).toBe("e1");
+		link.down();
+		replies["task.list"] = {
+			tasks: [{ taskId: "t2", status: "pending_approval" }],
+		};
+		replies["schedule.list_executions"] = {
+			executions: [
+				{
+					scheduleId: "x",
+					executionId: "e2",
+					status: "completed",
+					endedAt: 2,
+				},
+			],
+		};
+		link.up();
+		await settle();
+		expect(engine.fold().schedules.x).toMatchObject({
+			executionId: "e2",
+			status: "completed",
+		});
+		expect(Object.keys(engine.fold().tasks)).toEqual(["t2"]);
+	});
+
+	test("a seed answered after the link dropped again is discarded", async () => {
+		let answer: () => void = () => {};
+		const answered = new Promise<void>((resolve) => {
+			answer = resolve;
+		});
+		const link = fakeLink({
+			"session.list": { sessions: [{ sessionId: "s1", status: "completed" }] },
+		});
+		const reply = link.command;
+		link.command = async (name, payload) => {
+			await answered;
+			return reply(name, payload);
+		};
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		link.down();
+		answer();
+		await settle();
+		expect(engine.fold().sessions.s1).toBeUndefined();
 	});
 
 	test("a refused task.list still seeds the rest, and says why", async () => {
@@ -134,7 +313,7 @@ describe("NextTurnEngine", () => {
 		const engine = new NextTurnEngine({
 			link,
 			sessionId: "mine",
-			notify: { enabled: () => true, gate: new NotifyGate(0) },
+			notify: new NotifyGate({ enabled: () => true, minIntervalMs: 0 }),
 		});
 		await engine.start();
 		link.emit({
@@ -170,7 +349,7 @@ describe("NextTurnEngine", () => {
 		const engine = new NextTurnEngine({
 			link,
 			sessionId: "mine",
-			notify: { enabled: () => false, gate: new NotifyGate(0) },
+			notify: new NotifyGate({ enabled: () => false, minIntervalMs: 0 }),
 		});
 		await engine.start();
 		link.emit({
@@ -194,18 +373,16 @@ describe("NextTurnEngine", () => {
 });
 
 describe("NotifyGate", () => {
+	const approval = (id: string) =>
+		({ key: `approval:${id}`, kind: "approval", sessionId: "s" }) as const;
+
 	test("one notification per interval; held items are not sent later", () => {
 		let now = 0;
-		const gate = new NotifyGate(60, () => now);
-		const approval = (id: string) =>
-			({
-				kind: "approval",
-				key: `approval:${id}`,
-				approvalId: id,
-				sessionId: "s",
-				urgency: "critical",
-				opens: { kind: "chat", sessionId: "s" },
-			}) as const;
+		const gate = new NotifyGate({
+			enabled: () => true,
+			minIntervalMs: 60,
+			now: () => now,
+		});
 		expect(gate.take([approval("a")])?.title).toBe(
 			"Cline is waiting for your approval",
 		);
@@ -216,5 +393,46 @@ describe("NotifyGate", () => {
 		expect(gate.take([approval("c"), approval("d")])?.body).toBe(
 			"2 approvals or questions in this chat. Open it to answer.",
 		);
+	});
+
+	test("an item offered while notifications are off is not sent once they are on", () => {
+		let enabled = false;
+		const gate = new NotifyGate({ enabled: () => enabled, minIntervalMs: 0 });
+		expect(gate.take([approval("a")])).toBeUndefined();
+		enabled = true;
+		expect(gate.take([approval("a")])).toBeUndefined();
+		expect(gate.take([approval("a"), approval("b")])?.title).toBe(
+			"Cline is waiting for your approval",
+		);
+	});
+
+	test("a session's approvals and questions are what it waits on", () => {
+		const events: HubEvent[] = [
+			{
+				event: "approval.requested",
+				payload: { approvalId: "a1", sessionId: "s", toolName: "bash" },
+			},
+			{
+				event: "capability.requested",
+				sessionId: "s",
+				payload: { requestId: "q1", capabilityName: ASK_QUESTION_CAPABILITY },
+			},
+		];
+		const session = events.reduce(foldEvent, emptyFold()).sessions.s;
+		if (!session) throw new Error("the session was not folded");
+		expect(waitingOn(session)).toEqual([
+			{
+				key: "approval:a1",
+				kind: "approval",
+				sessionId: "s",
+				toolName: "bash",
+			},
+			{ key: "question:q1", kind: "question", sessionId: "s" },
+		]);
+		const gate = new NotifyGate({ enabled: () => true, minIntervalMs: 0 });
+		expect(gate.take(waitingOn(session).slice(1))).toMatchObject({
+			title: "Cline asked you a question",
+			sessionId: "s",
+		});
 	});
 });

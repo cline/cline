@@ -1,24 +1,40 @@
 /**
  * Bundle Next Turn's sandbox entry into `dist/index.js`, leaving only the bare
- * specifiers the plugin loader aliases to the host runtime (`HOST_PROVIDED_SDK_SPECIFIERS`
- * in `sdk/packages/core/src/extensions/plugin/plugin-module-import.ts:13-28`)
- * and Node builtins.
+ * specifiers the plugin loader aliases to the host runtime and Node builtins.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { builtinModules } from "node:module";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-	HOST_PROVIDED_SDK_SPECIFIERS,
-	PLUGIN_DIST_DIR,
-	PLUGIN_DIST_ENTRY,
-	PLUGIN_SRC_DIR,
-	PLUGIN_SRC_ENTRY,
-} from "../src/config";
+import { join } from "node:path";
 
-export const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+export const PLUGIN_ROOT = join(import.meta.dir, "..");
+export const PLUGIN_DIST_DIR = "dist";
+export const PLUGIN_DIST_ENTRY = "index.js";
 
-export const BUILTIN_SPECIFIERS: ReadonlySet<string> = new Set(
+const PLUGIN_SRC_ENTRY = join("src", "index.ts");
+
+/**
+ * Specifiers the plugin sandbox loader aliases to the host runtime: a copy of
+ * `HOST_PROVIDED_SDK_SPECIFIERS` in `@cline/core`'s `plugin-module-import.ts`,
+ * which core does not export. Every other bare dependency is bundled.
+ */
+const HOST_PROVIDED_SDK_SPECIFIERS = [
+	"@cline/sdk",
+	"@cline/agents",
+	"@cline/core",
+	"@cline/core/hub",
+	"@cline/core/hub/daemon-entry",
+	"@cline/core/telemetry",
+	"@cline/llms",
+	"@cline/llms/browser",
+	"@cline/shared",
+	"@cline/shared/automation",
+	"@cline/shared/browser",
+	"@cline/shared/storage",
+	"@cline/shared/db",
+	"@cline/shared/types",
+];
+
+const BUILTIN_SPECIFIERS: ReadonlySet<string> = new Set(
 	builtinModules.flatMap((id) => [
 		id,
 		id.replace(/^node:/, ""),
@@ -26,14 +42,14 @@ export const BUILTIN_SPECIFIERS: ReadonlySet<string> = new Set(
 	]),
 );
 
-export const ALLOWED_BARE_SPECIFIERS: ReadonlySet<string> = new Set([
+const ALLOWED_BARE_SPECIFIERS: ReadonlySet<string> = new Set([
 	...HOST_PROVIDED_SDK_SPECIFIERS,
 	...BUILTIN_SPECIFIERS,
 ]);
 
 /**
- * Upstream's static module specifier scanner
- * (`collectStaticModuleSpecifiers` in `plugin-module-import.ts:409-426`).
+ * A copy of upstream's static module specifier scanner,
+ * `collectStaticModuleSpecifiers` in `@cline/core`'s `plugin-module-import.ts`.
  */
 export function collectStaticModuleSpecifiers(source: string): string[] {
 	const specifiers = new Set<string>();
@@ -52,7 +68,7 @@ export function collectStaticModuleSpecifiers(source: string): string[] {
 	return [...specifiers];
 }
 
-export function isBareSpecifier(specifier: string): boolean {
+function isBareSpecifier(specifier: string): boolean {
 	return (
 		!specifier.startsWith(".") &&
 		!specifier.startsWith("/") &&
@@ -68,7 +84,7 @@ export function forbiddenBareSpecifiers(source: string): string[] {
 	);
 }
 
-export type BuildPluginOptions = {
+type BuildPluginOptions = {
 	root?: string;
 	outDir?: string;
 };
@@ -79,19 +95,16 @@ export async function buildPlugin(
 	const root = options.root ?? PLUGIN_ROOT;
 	const outDir = options.outDir ?? join(root, PLUGIN_DIST_DIR);
 	const result = await Bun.build({
-		entrypoints: [join(root, PLUGIN_SRC_DIR, PLUGIN_SRC_ENTRY)],
+		entrypoints: [join(root, PLUGIN_SRC_ENTRY)],
 		target: "node",
 		format: "esm",
-		minify: false,
-		sourcemap: "none",
-		external: [...HOST_PROVIDED_SDK_SPECIFIERS, ...BUILTIN_SPECIFIERS],
+		external: HOST_PROVIDED_SDK_SPECIFIERS,
 	});
-	if (!result.success || result.outputs.length !== 1) {
+	const [output] = result.outputs;
+	if (!result.success || result.outputs.length !== 1 || !output) {
 		const logs = result.logs.map((log) => String(log)).join("\n");
 		throw new Error(`next-turn bundle failed${logs ? `:\n${logs}` : ""}`);
 	}
-	const output = result.outputs[0];
-	if (!output) throw new Error("next-turn bundle produced no output");
 	const code = await output.text();
 	const forbidden = forbiddenBareSpecifiers(code);
 	if (forbidden.length > 0) {

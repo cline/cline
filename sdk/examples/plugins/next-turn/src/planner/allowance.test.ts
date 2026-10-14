@@ -1,28 +1,25 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { appendFileSync, mkdtempSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { appendFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { allowance, PlannerLedger, parseLedger, spendByDay } from "./allowance";
+import { useTempDirs } from "../test-support";
+import {
+	PlannerLedger,
+	parseLedger,
+	pausedUntil,
+	readLedgerTail,
+} from "./allowance";
 
 const HOUR = 3_600_000;
-const temps: string[] = [];
-afterEach(() => {
-	for (const dir of temps.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
+const tempDir = useTempDirs("next-turn-ledger-");
 
 describe("the planner allowance", () => {
-	test("counts only this chat's calls in the rolling hour", () => {
+	test("counts only calls in the rolling hour", () => {
 		const now = 10 * HOUR;
 		const calls = [
 			{ sessionId: "a", at: now - HOUR - 1 },
 			{ sessionId: "a", at: now - 30 * 60_000 },
-			{ sessionId: "b", at: now - 1000 },
 		];
-		expect(allowance(calls, "a", 2, now)).toEqual({
-			kind: "available",
-			remaining: 1,
-		});
+		expect(pausedUntil(calls, 2, now)).toBeUndefined();
 	});
 
 	test("used up: resets when the oldest counted call leaves the window", () => {
@@ -32,40 +29,23 @@ describe("the planner allowance", () => {
 			{ sessionId: "a", at: now - 20 * 60_000 },
 			{ sessionId: "a", at: now - 10 * 60_000 },
 		];
-		expect(allowance(calls, "a", 2, now)).toEqual({
-			kind: "used",
-			resetsAt: now - 20 * 60_000 + HOUR,
-		});
-	});
-
-	test("spend groups by UTC day, overall or for one chat", () => {
-		const day = Date.parse("2026-10-08T12:00:00.000Z");
-		const calls = [
-			{ sessionId: "a", at: day, costUsd: 0.01 },
-			{ sessionId: "b", at: day + 1000, costUsd: 0.02 },
-			{ sessionId: "a", at: day + 86_400_000 },
-		];
-		expect(spendByDay(calls)["2026-10-08"]).toEqual({
-			calls: 2,
-			costUsd: 0.03,
-		});
-		expect(spendByDay(calls, "a")).toEqual({
-			"2026-10-08": { calls: 1, costUsd: 0.01 },
-			"2026-10-09": { calls: 1, costUsd: 0 },
-		});
+		expect(pausedUntil(calls, 2, now)).toBe(now - 20 * 60_000 + HOUR);
 	});
 });
 
 describe("the ledger", () => {
 	test("appends owner-only lines and skips torn or foreign ones", () => {
-		const dir = mkdtempSync(join(tmpdir(), "next-turn-ledger-"));
-		temps.push(dir);
+		const dir = tempDir();
 		const path = join(dir, "nested", "planner.jsonl");
 		const ledger = new PlannerLedger(path, () => 42);
-		ledger.record("a", 0.5, { providerId: "cline", modelId: "claude-sonnet" });
+		ledger.record("a", {
+			costUsd: 0.5,
+			providerId: "cline",
+			modelId: "claude-sonnet",
+		});
 		appendFileSync(path, '{"sessionId":"b","at":\n{"note":"not a call"}\n');
 		ledger.record("b");
-		expect(ledger.calls()).toEqual([
+		expect(readLedgerTail(path)).toEqual([
 			{
 				sessionId: "a",
 				at: 42,
@@ -76,15 +56,14 @@ describe("the ledger", () => {
 			{ sessionId: "b", at: 42 },
 		]);
 		expect(statSync(path).mode & 0o777).toBe(0o600);
-		expect(new PlannerLedger(join(dir, "none.jsonl")).calls()).toEqual([]);
+		expect(readLedgerTail(join(dir, "none.jsonl"))).toEqual([]);
 		expect(parseLedger('{"sessionId":"x","at":1,"costUsd":"free"}')).toEqual(
 			[],
 		);
 	});
 
 	test("callsForSession reads a bounded tail once and keeps new calls in memory", () => {
-		const dir = mkdtempSync(join(tmpdir(), "next-turn-ledger-tail-"));
-		temps.push(dir);
+		const dir = tempDir("tail-");
 		const path = join(dir, "planner.jsonl");
 		const now = 10 * HOUR;
 		const lines: string[] = [];
@@ -100,8 +79,8 @@ describe("the ledger", () => {
 		const ledger = new PlannerLedger(path, () => now, 4_096);
 		const recent = ledger.callsForSession("mine");
 		expect(recent).toHaveLength(20);
-		expect(allowance(recent, "mine", 20, now).kind).toBe("used");
-		ledger.record("mine", 0.01);
+		expect(pausedUntil(recent, 20, now)).toBe(now - 20_000 + HOUR);
+		ledger.record("mine", { costUsd: 0.01 });
 		expect(ledger.callsForSession("mine")).toHaveLength(21);
 	});
 });

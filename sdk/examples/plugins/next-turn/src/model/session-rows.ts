@@ -1,5 +1,10 @@
 import type { HubFold, RunState, SessionFold } from "../hub/fold";
-import { lastRunFailed, type TeamSummary, teamSummary } from "./schedules";
+import {
+	lastRunFailed,
+	scheduleWorkspace,
+	type TeamSummary,
+	teamSummary,
+} from "./schedules";
 
 /**
  * Implicit status: one row per live session, derived from the fold
@@ -17,7 +22,7 @@ export type SessionRowState =
 	| "done";
 
 /** Attention order: what needs the person first, finished work last. */
-export const SESSION_ROW_ORDER: readonly SessionRowState[] = [
+const SESSION_ROW_ORDER: readonly SessionRowState[] = [
 	"waiting",
 	"failed",
 	"interrupted",
@@ -47,6 +52,11 @@ export type ExplicitStatus = {
 	createdAt: string;
 	supersededAt: string | null;
 };
+
+/** Current until superseded; a missing or empty `supersededAt` reads as current. */
+export function isLive(report: ExplicitStatus): boolean {
+	return !report.supersededAt;
+}
 
 export type SessionRow = {
 	kind: "session";
@@ -88,7 +98,7 @@ export type StatusBoard = {
 
 export type BoardScope = { workspaceRoot?: string };
 
-function inScope(
+export function inScope(
 	workspaceRoot: string | undefined,
 	scope: BoardScope,
 ): boolean {
@@ -146,8 +156,7 @@ export function statusBoard(
 	}
 	const standalone: ExplicitStatus[] = [];
 	for (const report of reports) {
-		if (report.supersededAt !== null || !inScope(report.workspaceRoot, scope))
-			continue;
+		if (!isLive(report) || !inScope(report.workspaceRoot, scope)) continue;
 		const row = report.sessionId ? rows.get(report.sessionId) : undefined;
 		if (row) row.reports.push(report);
 		else standalone.push(report);
@@ -159,12 +168,7 @@ export function statusBoard(
 			row.schedule = { scheduleId: schedule.scheduleId, name: schedule.name };
 		else if (
 			lastRunFailed(schedule) &&
-			inScope(
-				schedule.sessionId
-					? fold.sessions[schedule.sessionId]?.workspaceRoot
-					: undefined,
-				scope,
-			)
+			inScope(scheduleWorkspace(fold, schedule), scope)
 		) {
 			schedules.push({
 				kind: "schedule",
@@ -194,7 +198,6 @@ export function statusBoard(
 	};
 }
 
-/** The row the side panel's "This chat" section shows first, if the chat has one. */
 export function sessionRowFor(
 	board: StatusBoard,
 	sessionId: string,

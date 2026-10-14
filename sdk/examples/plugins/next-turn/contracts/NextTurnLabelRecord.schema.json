@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://cline.bot/next-turn/NextTurnLabelRecord.schema.json",
 	"title": "NextTurnLabelRecord",
-	"description": "One line of the label log (schema v3: v2 plus manifest tags). Ids, kinds and numbers only, never prose",
+	"description": "One line of the label log (schema v3). Ids, kinds and numbers only, never prose",
 	"type": "object",
 	"required": ["v", "at", "sessionId", "event"],
 	"properties": {

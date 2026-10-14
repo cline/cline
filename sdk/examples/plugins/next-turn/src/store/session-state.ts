@@ -1,25 +1,15 @@
-import { createHash } from "node:crypto";
-import {
-	existsSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	statSync,
-} from "node:fs";
+import { rmSync } from "node:fs";
+import { readdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { SESSION_STATE_TTL_MS, SESSION_STATE_VERSION } from "../config";
-import type { Suggestion } from "../planner/candidates";
-import type { OfferedSet, TrayPush } from "../planner/next";
+import { SESSION_STATE_TTL_MS } from "../config";
+import type { TurnSnapshot } from "../planner/next";
+import type { TrayPush } from "../planner/tray";
 import type { Turn } from "../planner/turn";
-import { writeFileAtomic } from "./data-dir";
+import { readJsonFile, sha256Hex, writeFileAtomic } from "./data-dir";
 
-/**
- * Per-session state persisted to `<data>/plugins/next-turn/sessions/<hash>.json`
- * so a 30-minute sandbox idle reclaim and respawn preserves the active offerId,
- * the rules/model offers, the pool, the exclusions and the viewer mark.
- */
+const SESSION_STATE_VERSION = 1;
 
-export type PersistedSessionState = {
+type PersistedSessionState = {
 	v: typeof SESSION_STATE_VERSION;
 	sessionId: string;
 	updatedAt: number;
@@ -29,102 +19,131 @@ export type PersistedSessionState = {
 	lastPush?: TrayPush;
 	lastTurn?: Turn;
 	lastChat?: Turn["chat"];
-	shown?: OfferedSet;
-	turnState?: {
-		turn: Turn;
-		rules: Suggestion[];
-		pool?: readonly Suggestion[];
-		excluded: string[];
-		excludedIds: Array<readonly [string, string]>;
-		rerollsUsed: number;
-		offers: OfferedSet[];
-		exposedOffers: string[];
-		endedAt: number;
-	};
+	turnState?: TurnSnapshot;
 };
+
+type SessionStateFields = Omit<
+	PersistedSessionState,
+	"v" | "sessionId" | "updatedAt"
+>;
 
 export interface SessionStateStore {
 	read(): PersistedSessionState | undefined;
-	write(
-		state: Omit<PersistedSessionState, "v" | "sessionId" | "updatedAt">,
-	): void;
-	clear(): void;
+	write(state: SessionStateFields): void;
 }
 
-function sessionFileName(sessionId: string): string {
-	return `${createHash("sha256").update(sessionId).digest("hex")}.json`;
+/** Writes `patch` over what is stored, keeping every field it does not name; an explicit undefined clears one. */
+export function updateSessionState(
+	store: SessionStateStore,
+	patch: Partial<SessionStateFields>,
+): void {
+	const {
+		v: _version,
+		sessionId: _sessionId,
+		updatedAt: _updatedAt,
+		...stored
+	} = store.read() ?? {
+		v: SESSION_STATE_VERSION,
+		sessionId: "",
+		updatedAt: 0,
+		seq: 0,
+	};
+	store.write({ ...stored, ...patch });
 }
 
+/**
+ * One chat's tray state in `<data>/plugins/next-turn/sessions/<hash>.json`, so
+ * a respawn after a sandbox idle reclaim keeps the set on screen, the turn's
+ * offers, manifest, pool and exclusions, the sequence, and the viewer mark.
+ */
 export class FileSessionStateStore implements SessionStateStore {
 	private readonly filePath: string;
+	/**
+	 * What this store last read or wrote (`null`: nothing), as the file holds
+	 * it: a copy, never the caller's live objects. This chat's worker is the
+	 * file's only writer, so the file is read once.
+	 */
+	private cached: PersistedSessionState | null | undefined;
 
 	constructor(
 		dir: string,
 		private readonly sessionId: string,
 		private readonly now: () => number = Date.now,
 	) {
-		this.filePath = join(dir, sessionFileName(sessionId));
+		this.filePath = join(dir, `${sha256Hex(sessionId)}.json`);
 	}
 
 	read(): PersistedSessionState | undefined {
-		if (!existsSync(this.filePath)) return undefined;
-		try {
-			const parsed = JSON.parse(
-				readFileSync(this.filePath, "utf8"),
-			) as Partial<PersistedSessionState>;
-			if (
-				parsed?.v !== SESSION_STATE_VERSION ||
-				parsed.sessionId !== this.sessionId
-			)
-				return undefined;
-			if (
-				typeof parsed.updatedAt === "number" &&
-				this.now() - parsed.updatedAt > SESSION_STATE_TTL_MS
-			) {
-				this.clear();
-				return undefined;
-			}
-			return parsed as PersistedSessionState;
-		} catch {
+		if (this.cached === undefined) this.cached = this.readFile() ?? null;
+		const record = this.cached;
+		if (!record) return undefined;
+		if (
+			typeof record.updatedAt === "number" &&
+			this.now() - record.updatedAt > SESSION_STATE_TTL_MS
+		) {
+			this.clear();
 			return undefined;
 		}
+		return record;
 	}
 
-	write(
-		state: Omit<PersistedSessionState, "v" | "sessionId" | "updatedAt">,
-	): void {
+	write(state: SessionStateFields): void {
+		const record: PersistedSessionState = {
+			...state,
+			v: SESSION_STATE_VERSION,
+			sessionId: this.sessionId,
+			updatedAt: this.now(),
+		};
+		const text = JSON.stringify(record);
+		this.cached = JSON.parse(text) as PersistedSessionState;
 		try {
-			const record: PersistedSessionState = {
-				v: SESSION_STATE_VERSION,
-				sessionId: this.sessionId,
-				updatedAt: this.now(),
-				...state,
-			};
-			writeFileAtomic(this.filePath, `${JSON.stringify(record)}\n`);
+			writeFileAtomic(this.filePath, `${text}\n`);
 		} catch {}
 	}
 
-	clear(): void {
+	private clear(): void {
+		this.cached = null;
 		try {
 			rmSync(this.filePath, { force: true });
 		} catch {}
 	}
+
+	private readFile(): PersistedSessionState | undefined {
+		const parsed = readJsonFile(this.filePath) as
+			| Partial<PersistedSessionState>
+			| null
+			| undefined;
+		return parsed?.v === SESSION_STATE_VERSION &&
+			parsed.sessionId === this.sessionId
+			? (parsed as PersistedSessionState)
+			: undefined;
+	}
 }
 
-/** Prunes session state files older than `ttlMs` (14 days by default). */
-export function pruneSessionStates(
+/**
+ * Removes every chat's state file, and any temporary file a worker left
+ * mid-write, last written longer than the TTL ago. A chat's own store also
+ * expires its file on read, so this only keeps the directory from growing.
+ */
+export async function pruneSessionStates(
 	dir: string,
 	now: number = Date.now(),
-	ttlMs: number = SESSION_STATE_TTL_MS,
-): void {
-	if (!existsSync(dir)) return;
+): Promise<void> {
+	let names: string[];
 	try {
-		for (const name of readdirSync(dir)) {
-			if (!name.endsWith(".json")) continue;
-			const path = join(dir, name);
-			try {
-				if (now - statSync(path).mtimeMs > ttlMs) rmSync(path, { force: true });
-			} catch {}
-		}
-	} catch {}
+		names = await readdir(dir);
+	} catch {
+		return;
+	}
+	await Promise.all(
+		names
+			.filter((name) => name.endsWith(".json") || name.endsWith(".tmp"))
+			.map(async (name) => {
+				const path = join(dir, name);
+				try {
+					if (now - (await stat(path)).mtimeMs > SESSION_STATE_TTL_MS)
+						await rm(path, { force: true });
+				} catch {}
+			}),
+	);
 }

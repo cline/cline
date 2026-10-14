@@ -1,17 +1,14 @@
 import { URGENT_TASK_PRIORITY_MAX } from "../config";
 import type { HubFold } from "../hub/fold";
-import { lastRunFailed } from "./schedules";
-import type { BoardScope, ExplicitStatus } from "./session-rows";
+import { lastRunFailed, scheduleWorkspace } from "./schedules";
+import {
+	type BoardScope,
+	type ExplicitStatus,
+	inScope,
+	isLive,
+} from "./session-rows";
 
 /**
- * Needs you: everything waiting on the person, in one ranked list.
- *
- * 1. pending tool approvals;
- * 2. open questions (ask-question capability requests);
- * 3. tasks awaiting approval;
- * 4. scheduled runs whose latest execution failed;
- * 5. explicit status rows that are blocked, high or critical.
- *
  * Every item opens where it is answered; none is answered from the list. An
  * approval's input and policy belong in its conversation, and the hub would
  * accept a reply from any client.
@@ -20,7 +17,7 @@ import type { BoardScope, ExplicitStatus } from "./session-rows";
 export type Urgency = "critical" | "high" | "normal";
 
 /** Most urgent first. Approvals and questions stop an agent, which is what `critical` means in the protocol. */
-export const URGENCY_ORDER: readonly Urgency[] = ["critical", "high", "normal"];
+const URGENCY_ORDER: readonly Urgency[] = ["critical", "high", "normal"];
 
 export type Opens =
 	| { kind: "chat"; sessionId: string }
@@ -29,7 +26,7 @@ export type Opens =
 	| { kind: "status"; subject: string };
 
 type ItemBase = {
-	/** Unique across kinds; notifications dedupe on it. */
+	/** Unique across kinds; `newItems` compares on it. */
 	key: string;
 	urgency: Urgency;
 	/** When it started waiting, in epoch milliseconds, if known. */
@@ -68,17 +65,6 @@ export type NeedsYouItem =
 			priority: ExplicitStatus["priority"];
 			sessionId?: string;
 	  });
-
-function inScope(
-	workspaceRoot: string | undefined,
-	scope: BoardScope,
-): boolean {
-	return (
-		!scope.workspaceRoot ||
-		!workspaceRoot ||
-		workspaceRoot === scope.workspaceRoot
-	);
-}
 
 function statusUrgency(report: ExplicitStatus): Urgency | undefined {
 	if (report.priority === "critical") return "critical";
@@ -163,9 +149,7 @@ function fromTasks(fold: HubFold, scope: BoardScope): NeedsYouItem[] {
 function fromSchedules(fold: HubFold, scope: BoardScope): NeedsYouItem[] {
 	const items: NeedsYouItem[] = [];
 	for (const schedule of Object.values(fold.schedules)) {
-		const workspaceRoot = schedule.sessionId
-			? fold.sessions[schedule.sessionId]?.workspaceRoot
-			: undefined;
+		const workspaceRoot = scheduleWorkspace(fold, schedule);
 		if (!lastRunFailed(schedule) || !inScope(workspaceRoot, scope)) continue;
 		items.push({
 			kind: "schedule",
@@ -192,11 +176,7 @@ function fromReports(
 	const items: NeedsYouItem[] = [];
 	for (const report of reports) {
 		const urgency = statusUrgency(report);
-		if (
-			!urgency ||
-			report.supersededAt !== null ||
-			!inScope(report.workspaceRoot, scope)
-		)
+		if (!urgency || !isLive(report) || !inScope(report.workspaceRoot, scope))
 			continue;
 		const created = Date.parse(report.createdAt);
 		items.push({

@@ -1,13 +1,7 @@
-import { TEAM_COMPLETE_PCT } from "../config";
 import type { HubFold, ScheduleFold, TeamFold } from "../hub/fold";
 
-/**
- * Schedules and teams as the Status Hub and the Tasks page read them
- *.
- */
-
 /** Execution statuses that mean a scheduled run needs the person. `aborted` is someone stopping it. */
-export const FAILED_EXECUTION_STATUSES: ReadonlySet<string> = new Set([
+const FAILED_EXECUTION_STATUSES: ReadonlySet<string> = new Set([
 	"failed",
 	"timeout",
 ]);
@@ -19,13 +13,23 @@ export function lastRunFailed(schedule: ScheduleFold): boolean {
 	);
 }
 
+/** A schedule's workspace is its latest run's session's. */
+export function scheduleWorkspace(
+	fold: HubFold,
+	schedule: ScheduleFold,
+): string | undefined {
+	return schedule.sessionId
+		? fold.sessions[schedule.sessionId]?.workspaceRoot
+		: undefined;
+}
+
 export type UpcomingRun = {
 	scheduleId: string;
 	name: string;
 	nextRunAt: string;
 };
 
-/** The Tasks page's Upcoming lane: schedules with a next run, soonest first. */
+/** The Upcoming lane: schedules with a next run, soonest first. */
 export function upcomingRuns(fold: HubFold): UpcomingRun[] {
 	const runs: UpcomingRun[] = [];
 	for (const schedule of Object.values(fold.schedules)) {
@@ -61,7 +65,7 @@ export function teamSummary(team: TeamFold): TeamSummary {
 	const state: TeamState =
 		team.blockedTasks > 0
 			? "blocked"
-			: (team.completionPct ?? 0) >= TEAM_COMPLETE_PCT
+			: (team.completionPct ?? 0) >= 100
 				? "done"
 				: "running";
 	return {

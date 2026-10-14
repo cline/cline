@@ -1,32 +1,28 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { CURSOR_SAVE_EVERY_EVENTS } from "../config";
-import { writeFileAtomic } from "../store/data-dir";
+import { readJsonFile, writeFileAtomic } from "../store/data-dir";
+import { isRecord } from "../values";
 
 export type Cursor = { sequence: number; savedAt: number };
 
 export function readCursor(path: string): Cursor | undefined {
-	if (!existsSync(path)) return undefined;
-	try {
-		const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
-		if (typeof raw !== "object" || raw === null) return undefined;
-		const { sequence, savedAt } = raw as Record<string, unknown>;
-		if (
-			typeof sequence !== "number" ||
-			!Number.isInteger(sequence) ||
-			sequence < 0
-		)
-			return undefined;
-		return { sequence, savedAt: typeof savedAt === "number" ? savedAt : 0 };
-	} catch {
+	const raw = readJsonFile(path);
+	if (!isRecord(raw)) return undefined;
+	const { sequence, savedAt } = raw;
+	if (
+		typeof sequence !== "number" ||
+		!Number.isInteger(sequence) ||
+		sequence < 0
+	)
 		return undefined;
-	}
+	return { sequence, savedAt: typeof savedAt === "number" ? savedAt : 0 };
 }
 
 /**
  * Persists the fold's last durable-log sequence: every
- * `CURSOR_SAVE_EVERY_EVENTS` advances and on `flush`. Resuming from it needs
- * upstream ask U1 (`sinceSequence` on `NodeHubClient.subscribe`); until then
- * it records how far the fold got, and a cold start rebuilds from commands.
+ * `CURSOR_SAVE_EVERY_EVENTS` advances and on `flush`. A new `NodeHubClient`
+ * cannot subscribe from a past sequence, so nothing resumes from it yet: it
+ * records how far the fold got, and a cold start rebuilds from commands.
  */
 export class CursorWriter {
 	private pending = 0;
@@ -53,10 +49,12 @@ export class CursorWriter {
 
 	flush(): void {
 		if (this.pending === 0 && existsSync(this.path)) return;
-		writeFileAtomic(
-			this.path,
-			`${JSON.stringify({ sequence: this.sequence, savedAt: this.now() } satisfies Cursor)}\n`,
-		);
+		try {
+			writeFileAtomic(
+				this.path,
+				`${JSON.stringify({ sequence: this.sequence, savedAt: this.now() } satisfies Cursor)}\n`,
+			);
+		} catch {}
 		this.pending = 0;
 	}
 }

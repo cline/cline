@@ -12,7 +12,8 @@
 					"const": "current"
 				},
 				"client": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"runCount": {
 					"type": "integer",
@@ -29,10 +30,12 @@
 					"const": "skip"
 				},
 				"candidateId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"input": {
 					"type": "string",
@@ -52,10 +55,12 @@
 					"const": "unskip"
 				},
 				"candidateId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"input": {
 					"type": "string",
@@ -72,10 +77,12 @@
 					"const": "use"
 				},
 				"candidateId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"input": {
 					"type": "string",
@@ -95,10 +102,12 @@
 					"const": "send"
 				},
 				"candidateId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"input": {
 					"type": "string",
@@ -118,7 +127,8 @@
 					"const": "reroll"
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"input": {
 					"type": "string",
@@ -139,10 +149,12 @@
 					"const": "exposed"
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"candidateId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				}
 			},
 			"additionalProperties": false
@@ -180,7 +192,8 @@
 					]
 				},
 				"offerId": {
-					"type": "string"
+					"type": "string",
+					"minLength": 1
 				},
 				"fields": {
 					"type": "object"

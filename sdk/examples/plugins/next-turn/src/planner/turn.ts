@@ -5,26 +5,24 @@ import {
 	TURN_TEXT_LIMIT,
 	TURN_TOOL_LIMIT,
 } from "../config";
-import { isPushCommand } from "../connectors/refresher";
-import { isRecord } from "../hub/fold";
+import { redactSecrets } from "../context/redact";
+import { isRecord } from "../values";
 import { fnv1a32, type TurnFacts, type TurnStatus } from "./candidates";
 
 /**
- * The turn that just ended, from the run result `afterRun` hands the plugin
- *. The desktop and the CLI each derived this from their own
- * transcript; the plugin reads it from the run itself, so `runId` comes with
- * it and the turn ledger is not needed.
+ * The turn that just ended, from the run result `afterRun` hands the plugin,
+ * or from the hub's transcript when no run is in memory.
  *
  * The turn's identity is core's run count: hosts and
  * checkpoints all number runs with `@cline/core`'s `getUserRunSpan`, so the
  * plugin counts the same way and its turn key names the same turn theirs
  * does. Only the messages after the person's last message count toward the
  * facts. Nothing here judges prose: the request and reply are carried,
- * bounded, for the model to read; the facts are tool names, errors and edited
- * paths.
+ * redacted and then bounded, for the model to read; the facts are tool names,
+ * errors and edited paths.
  */
 
-export type ToolFact = { name: string; failed: boolean; error?: string };
+type ToolFact = { name: string; failed: boolean; error?: string };
 
 /** What the planner reads of the turn, bounded here because a transcript is a trust boundary. */
 export type TurnContext = {
@@ -40,7 +38,7 @@ export type Turn = {
 	userMessageId: string;
 	/** The chat's runs, counted the way core counts them: the turn key's ordinal. */
 	runCount: number;
-	/** `<sessionId>:<runCount>`, the turn a set follows (ADR-0021). */
+	/** `<sessionId>:<runCount>`, the turn a set follows. */
 	turnKey: string;
 	/**
 	 * The turn key, hashed: names this chat position, so a set computed for it
@@ -58,9 +56,11 @@ export type Turn = {
 
 /** A message as core's run count reads it: a live `AgentMessage`, or a stored one whose content may be a string. */
 export type MessageLike = {
+	id?: unknown;
 	role?: unknown;
 	content?: unknown;
 	metadata?: unknown;
+	modelInfo?: unknown;
 };
 
 /** The tool names that write files: `editor` today, the legacy names on old transcripts, and patches. */
@@ -71,16 +71,11 @@ const WRITE_FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
 	"apply_patch",
 ]);
 
+const PUSH = /\bgit\s+push\b|\bgh\s+pr\s+(?:create|merge|ready)\b/;
 const PATCH_FILE_LINE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
 
 /** Messages the runtime injects as the user's, which the person never typed: `<hook_context>`, with or without attributes. */
 const HOOK_CONTEXT = /^\s*<hook_context\b/;
-
-const RUN_STATUSES: Readonly<Record<AgentRunResult["status"], TurnStatus>> = {
-	completed: "completed",
-	aborted: "cancelled",
-	failed: "failed",
-};
 
 /** Compaction messages: a stored span is the runs they fold, and one stands in when it is missing. */
 const COMPACTION_KINDS: ReadonlySet<string> = new Set([
@@ -108,7 +103,10 @@ const ACT_MODE_APPROVAL_PROMPT =
 const UNSEEN_CONTENT_TEXT = "unknown";
 
 /** The wrappers a host puts around the person's input, removed before the text is read. */
-const USER_INPUT_TAGS = ["user_input", "user_command"] as const;
+const USER_INPUT_PATTERNS = ["user_input", "user_command"].map((tag) => ({
+	element: new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, "g"),
+	strayOpening: new RegExp(`<${tag}[^>]*>`, "g"),
+}));
 const MODE_NOTICE_TAG = "mode_notice";
 const COMMAND_ENVELOPE = /^<user_command\b([^>]*)>([\s\S]*?)<\/user_command>$/i;
 const SLASH_ATTRIBUTE = /slash="([^"]+)"/i;
@@ -168,16 +166,11 @@ function removeTagElements(input: string, tag: string): string {
 /** The person's input without its `<user_input>` and `<user_command>` wrappers, or a stray opening tag of either. */
 function unwrapUserInput(input: string): string {
 	let next = input.trim();
-	for (const tag of USER_INPUT_TAGS) {
+	for (const { element, strayOpening } of USER_INPUT_PATTERNS) {
 		if (!next) return "";
-		const unwrapped = next.replace(
-			new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, "g"),
-			"$1",
-		);
+		const unwrapped = next.replace(element, "$1");
 		next = (
-			unwrapped !== next
-				? unwrapped
-				: next.replace(new RegExp(`<${tag}[^>]*>`, "g"), "")
+			unwrapped !== next ? unwrapped : next.replace(strayOpening, "")
 		).trim();
 	}
 	return next;
@@ -209,8 +202,8 @@ function shownText(input: string): string {
 /**
  * How many runs a message opens, as core counts them: `@cline/core`'s
  * `getUserRunSpan` at 0.0.92, vendored so loading the plugin pulls in neither
- * `@cline/core` nor `@cline/shared`, the way `store/data-dir.ts` mirrors
- * `resolveClineDataDir`. turn.test.ts holds it to core's own answers.
+ * `@cline/core` nor `@cline/shared`. turn.test.ts holds it to core's own
+ * answers.
  *
  * A compaction summary carries the runs it folded. A tool result, a steer, a
  * reminder, a resumption prompt and anything else the runtime writes as the
@@ -262,9 +255,26 @@ export function editedPaths(input: unknown): string[] {
 	return [];
 }
 
-function textOf(message: AgentMessage): string {
+/** True when a tool call pushed or opened a PR, from its input; nothing of the input is kept. */
+function isPushCommand(input: unknown): boolean {
+	try {
+		return PUSH.test(
+			typeof input === "string" ? input : JSON.stringify(input ?? ""),
+		);
+	} catch {
+		return false;
+	}
+}
+
+function textOf(message: MessageLike): string {
+	if (typeof message.content === "string") return message.content.trim();
+	if (!Array.isArray(message.content)) return "";
 	return message.content
-		.flatMap((part) => (part.type === "text" ? [part.text] : []))
+		.flatMap((part) =>
+			isRecord(part) && part.type === "text" && typeof part.text === "string"
+				? [part.text]
+				: [],
+		)
 		.join("\n")
 		.trim();
 }
@@ -279,8 +289,9 @@ function errorText(output: unknown): string {
 	}
 }
 
-function clamp(text: string, limit: number): string {
-	return text.trim().slice(0, limit);
+/** Redacted before it is cut, so a secret across the limit cannot leave a prefix the patterns no longer match. */
+function clampRedacted(text: string, limit: number): string {
+	return redactSecrets(text).trim().slice(0, limit);
 }
 
 /**
@@ -289,7 +300,7 @@ function clamp(text: string, limit: number): string {
  * hook context. Core marks the hook context it injects with span 0; the text
  * guard covers transcripts written before it did.
  */
-export function isPersonMessage(message: AgentMessage): boolean {
+function isPersonMessage(message: MessageLike): boolean {
 	return getUserRunSpan(message) === 1 && !HOOK_CONTEXT.test(textOf(message));
 }
 
@@ -301,12 +312,27 @@ export function lastPersonMessage(
 	return last ? { id: last.id, text: textOf(last) } : undefined;
 }
 
+function chatOf(message: MessageLike): Turn["chat"] {
+	const { modelInfo } = message;
+	return isRecord(modelInfo) &&
+		typeof modelInfo.provider === "string" &&
+		typeof modelInfo.id === "string"
+		? { providerId: modelInfo.provider, modelId: modelInfo.id }
+		: undefined;
+}
+
+function turnStatus(status: string): TurnStatus {
+	if (status === "failed") return "failed";
+	if (status === "aborted" || status === "cancelled") return "cancelled";
+	return "completed";
+}
+
 /** The turn, or null when the transcript holds no message from the person. */
-export function deriveTurn(
+function turnFrom(
 	sessionId: string,
-	result: AgentRunResult,
+	messages: readonly MessageLike[],
+	run: { status: string; runId?: string; reply?: string },
 ): Turn | null {
-	const messages = result.messages;
 	const lastUser = messages.findLastIndex(isPersonMessage);
 	const user = messages[lastUser];
 	if (!user) return null;
@@ -316,21 +342,26 @@ export function deriveTurn(
 	const tools = new Map<string, ToolFact>();
 	let pushed = false;
 	let chat: Turn["chat"];
+	let lastAssistantText = "";
 	for (const message of messages.slice(lastUser + 1)) {
-		if (message.modelInfo)
-			chat = {
-				providerId: message.modelInfo.provider,
-				modelId: message.modelInfo.id,
-			};
+		chat = chatOf(message) ?? chat;
+		if (message.role === "assistant")
+			lastAssistantText = textOf(message) || lastAssistantText;
+		if (!Array.isArray(message.content)) continue;
 		for (const part of message.content) {
-			if (part.type === "tool-call") {
+			if (!isRecord(part)) continue;
+			if (part.type === "tool-call" && typeof part.toolName === "string") {
 				if (WRITE_FILE_TOOL_NAMES.has(part.toolName))
 					for (const path of editedPaths(part.input)) paths.add(path);
-				if (isPushCommand(part.input)) pushed = true;
-			} else if (part.type === "tool-result") {
+				else if (isPushCommand(part.input)) pushed = true;
+			} else if (
+				part.type === "tool-result" &&
+				typeof part.toolCallId === "string" &&
+				typeof part.toolName === "string"
+			) {
 				const failed = part.isError === true;
 				const error = failed
-					? clamp(errorText(part.output), TURN_ERROR_LIMIT)
+					? clampRedacted(errorText(part.output), TURN_ERROR_LIMIT)
 					: "";
 				tools.set(part.toolCallId, {
 					name: part.toolName,
@@ -341,20 +372,29 @@ export function deriveTurn(
 		}
 	}
 	const toolFacts = [...tools.values()];
+	const userMessageId =
+		typeof user.id === "string" && user.id.trim().length > 0
+			? user.id.trim()
+			: `msg_${runCount}`;
+	const runId =
+		run.runId ??
+		(isRecord(user.metadata) && typeof user.metadata.runId === "string"
+			? user.metadata.runId
+			: undefined);
 	return {
-		runId: result.runId,
-		userMessageId: user.id,
+		...(runId ? { runId } : {}),
+		userMessageId,
 		runCount,
 		turnKey,
 		revision: fnv1a32(turnKey),
 		facts: {
-			status: RUN_STATUSES[result.status],
+			status: turnStatus(run.status),
 			filesEdited: paths.size,
 			toolErrored: toolFacts.some((tool) => tool.failed),
 		},
 		context: {
-			request: clamp(textOf(user), TURN_TEXT_LIMIT),
-			reply: clamp(result.outputText, TURN_TEXT_LIMIT),
+			request: clampRedacted(textOf(user), TURN_TEXT_LIMIT),
+			reply: clampRedacted(run.reply ?? lastAssistantText, TURN_TEXT_LIMIT),
 			tools: toolFacts.slice(-TURN_TOOL_LIMIT),
 			editedPaths: [...paths].slice(0, TURN_PATH_LIMIT),
 		},
@@ -363,24 +403,15 @@ export function deriveTurn(
 	};
 }
 
-function textOfMessageLike(message: MessageLike): string {
-	if (typeof message.content === "string") return message.content.trim();
-	if (!Array.isArray(message.content)) return "";
-	return message.content
-		.flatMap((part) =>
-			isRecord(part) && part.type === "text" && typeof part.text === "string"
-				? [part.text]
-				: [],
-		)
-		.join("\n")
-		.trim();
-}
-
-function isPersonMessageLike(message: MessageLike): boolean {
-	return (
-		getUserRunSpan(message) === 1 &&
-		!HOOK_CONTEXT.test(textOfMessageLike(message))
-	);
+export function deriveTurn(
+	sessionId: string,
+	result: AgentRunResult,
+): Turn | null {
+	return turnFrom(sessionId, result.messages, {
+		status: result.status,
+		runId: result.runId,
+		reply: result.outputText,
+	});
 }
 
 /**
@@ -393,91 +424,5 @@ export function deriveTurnFromTranscript(
 	messages: readonly MessageLike[],
 	sessionStatus = "completed",
 ): Turn | null {
-	const lastUser = messages.findLastIndex(isPersonMessageLike);
-	const user = messages[lastUser];
-	if (!user) return null;
-	const runCount = countUserRunMessages(messages);
-	const turnKey = `${sessionId}:${runCount}`;
-	const paths = new Set<string>();
-	const tools = new Map<string, ToolFact>();
-	let pushed = false;
-	let chat: Turn["chat"];
-	let lastAssistantText = "";
-
-	for (const message of messages.slice(lastUser + 1)) {
-		const raw = message as Record<string, unknown>;
-		if (isRecord(raw.modelInfo)) {
-			const provider = raw.modelInfo.provider;
-			const id = raw.modelInfo.id;
-			if (typeof provider === "string" && typeof id === "string") {
-				chat = { providerId: provider, modelId: id };
-			}
-		}
-		if (message.role === "assistant") {
-			const text = textOfMessageLike(message);
-			if (text) lastAssistantText = text;
-		}
-		if (!Array.isArray(message.content)) continue;
-		for (const part of message.content) {
-			if (!isRecord(part)) continue;
-			if (part.type === "tool-call" && typeof part.toolName === "string") {
-				if (WRITE_FILE_TOOL_NAMES.has(part.toolName)) {
-					for (const path of editedPaths(part.input)) paths.add(path);
-				}
-				if (isPushCommand(part.input)) pushed = true;
-			} else if (
-				part.type === "tool-result" &&
-				typeof part.toolCallId === "string" &&
-				typeof part.toolName === "string"
-			) {
-				const failed = part.isError === true;
-				const error = failed
-					? clamp(errorText(part.output), TURN_ERROR_LIMIT)
-					: "";
-				tools.set(part.toolCallId, {
-					name: part.toolName,
-					failed,
-					...(error ? { error } : {}),
-				});
-			}
-		}
-	}
-
-	const toolFacts = [...tools.values()];
-	const status: TurnStatus =
-		sessionStatus === "failed"
-			? "failed"
-			: sessionStatus === "aborted" || sessionStatus === "cancelled"
-				? "cancelled"
-				: "completed";
-	const rawUser = user as Record<string, unknown>;
-	const userMessageId =
-		typeof rawUser.id === "string" && rawUser.id.trim().length > 0
-			? rawUser.id.trim()
-			: `msg_${runCount}`;
-	const metaRunId =
-		isRecord(user.metadata) && typeof user.metadata.runId === "string"
-			? user.metadata.runId
-			: undefined;
-
-	return {
-		...(metaRunId ? { runId: metaRunId } : {}),
-		userMessageId,
-		runCount,
-		turnKey,
-		revision: fnv1a32(turnKey),
-		facts: {
-			status,
-			filesEdited: paths.size,
-			toolErrored: toolFacts.some((tool) => tool.failed),
-		},
-		context: {
-			request: clamp(textOfMessageLike(user), TURN_TEXT_LIMIT),
-			reply: clamp(lastAssistantText, TURN_TEXT_LIMIT),
-			tools: toolFacts.slice(-TURN_TOOL_LIMIT),
-			editedPaths: [...paths].slice(0, TURN_PATH_LIMIT),
-		},
-		pushed,
-		...(chat ? { chat } : {}),
-	};
+	return turnFrom(sessionId, messages, { status: sessionStatus });
 }

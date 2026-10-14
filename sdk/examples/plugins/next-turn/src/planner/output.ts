@@ -6,29 +6,28 @@ import {
 	SET_SIZE,
 	WHY_MAX_CHARS,
 } from "../config";
+import { isRecord } from "../values";
 import {
-	cueCode,
-	FAILURE_CUES,
 	type Suggestion,
-	type SuggestionKind,
 	type SuggestionSource,
 	suggestion,
 	type TurnFacts,
 	turnLead,
+	uniqueByPrompt,
 } from "./candidates";
-import { isOutward } from "./kinds";
+import type { SuggestionKind } from "./kinds";
 
 /**
- * What of the model's answer may reach the tray (
- * `next-action-planner.ts`, moved). The model writes the suggestions; the code
- * keeps every rule that must hold whatever it says: blocked and failed reports
- * lead, a failed turn's fix comes next, exclusions are honoured, only kinds
- * this environment offers survive, outward kinds are Use-only, the set is at
- * most three, and a bad or missing answer falls back to the rules.
+ * What of the model's answer may reach the tray. The model writes the
+ * suggestions; the code keeps every rule that must hold whatever it says:
+ * blocked and failed reports lead, a failed turn's fix comes next, exclusions
+ * are honoured, only kinds this environment offers survive, outward kinds are
+ * Use-only, the set is at most three, and a bad or missing answer falls back
+ * to the rules.
  */
 
 /** The planner's `source` field onto the tray's chips; `plan` reads as the plan bank's chip. */
-const PLANNER_SOURCES: Readonly<Record<string, SuggestionSource>> = {
+export const PLANNER_SOURCES: Readonly<Record<string, SuggestionSource>> = {
 	status: "status",
 	tasks: "tasks",
 	plan: "bank",
@@ -53,6 +52,27 @@ function jsonObjectIn(text: string): unknown {
 	}
 }
 
+function poolRow(
+	row: unknown,
+	allowed: ReadonlySet<string>,
+): Suggestion | null {
+	if (!isRecord(row)) return null;
+	const kind = typeof row.kind === "string" ? row.kind : "";
+	const prompt = oneLine(row.prompt, PROMPT_MAX_CHARS);
+	if (!allowed.has(kind) || prompt.length < PROMPT_MIN_CHARS) return null;
+	const source =
+		PLANNER_SOURCES[typeof row.source === "string" ? row.source : ""] ??
+		"model";
+	const ref = source === "model" ? "" : oneLine(row.ref, REF_MAX_CHARS);
+	return suggestion(
+		kind as SuggestionKind,
+		source,
+		prompt,
+		oneLine(row.why, WHY_MAX_CHARS),
+		{ ref },
+	);
+}
+
 /**
  * The model's pool, or null when its answer is not a usable one. A partly bad
  * answer keeps its good rows; an answer with none is a failure, not an empty
@@ -64,41 +84,17 @@ export function parsePlannerOutput(
 	kinds: readonly SuggestionKind[],
 ): Suggestion[] | null {
 	const parsed = jsonObjectIn(text);
-	if (typeof parsed !== "object" || parsed === null) return null;
-	const rows = (parsed as { suggestions?: unknown }).suggestions;
-	if (!Array.isArray(rows)) return null;
+	if (!isRecord(parsed) || !Array.isArray(parsed.suggestions)) return null;
 	const allowed = new Set<string>(kinds);
-	const seen = new Set<string>();
-	const pool: Suggestion[] = [];
-	for (const row of rows) {
-		if (typeof row !== "object" || row === null) continue;
-		const record = row as Record<string, unknown>;
-		const kind = typeof record.kind === "string" ? record.kind : "";
-		const prompt = oneLine(record.prompt, PROMPT_MAX_CHARS);
-		if (
-			!allowed.has(kind) ||
-			prompt.length < PROMPT_MIN_CHARS ||
-			seen.has(prompt)
-		)
-			continue;
-		seen.add(prompt);
-		const source =
-			PLANNER_SOURCES[typeof record.source === "string" ? record.source : ""] ??
-			"model";
-		const ref = source === "model" ? "" : oneLine(record.ref, REF_MAX_CHARS);
-		const typed = kind as SuggestionKind;
-		pool.push(
-			suggestion(typed, source, prompt, oneLine(record.why, WHY_MAX_CHARS), {
-				ref,
-				outward: isOutward(typed),
-			}),
-		);
-		if (pool.length === POOL_SIZE) break;
-	}
+	const pool = uniqueByPrompt(
+		parsed.suggestions.map((row) => poolRow(row, allowed)),
+		undefined,
+		POOL_SIZE,
+	);
 	return pool.length > 0 ? pool : null;
 }
 
-export type ModelSetArgs = {
+type ModelSetArgs = {
 	pool: readonly Suggestion[];
 	/** The rule pool for the same turn: its blocking rows lead, and it tops up what exclusions left short. */
 	rules: readonly Suggestion[];
@@ -114,27 +110,15 @@ export type ModelSetArgs = {
  * skipped or rerolled, they have seen it. De-duplicated by prompt, capped.
  */
 export function buildModelSet(args: ModelSetArgs): Suggestion[] {
-	const excluded = new Set(args.excluded);
 	const blocking = args.rules.filter((item) => item.source === "status");
-	const failing =
-		args.excluded.length === 0 && FAILURE_CUES.has(cueCode(args.turn));
-	const fix = failing
-		? (args.pool.find(
-				(item) => item.kind === "fix_failure" && !excluded.has(item.prompt),
-			) ?? turnLead(args.turn))
-		: null;
-	const seen = new Set<string>();
-	const out: Suggestion[] = [];
-	for (const item of [
-		...blocking,
-		...(fix ? [fix] : []),
-		...args.pool,
-		...args.rules,
-	]) {
-		if (excluded.has(item.prompt) || seen.has(item.prompt)) continue;
-		seen.add(item.prompt);
-		out.push(item);
-		if (out.length === SET_SIZE) break;
-	}
-	return out;
+	const lead = args.excluded.length === 0 ? turnLead(args.turn) : null;
+	const fix =
+		lead?.kind === "fix_failure"
+			? (args.pool.find((item) => item.kind === "fix_failure") ?? lead)
+			: null;
+	return uniqueByPrompt(
+		[...blocking, fix, ...args.pool, ...args.rules],
+		new Set(args.excluded),
+		SET_SIZE,
+	);
 }

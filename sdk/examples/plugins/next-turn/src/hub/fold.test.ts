@@ -1,30 +1,18 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { CURSOR_SAVE_EVERY_EVENTS } from "../config";
+import { useTempDirs } from "../test-support";
 import { CursorWriter, readCursor } from "./cursor";
-import {
-	ASK_QUESTION_CAPABILITY,
-	emptyFold,
-	foldEvent,
-	foldEvents,
-} from "./fold";
-import type { HubEvent } from "./link";
+import { eventLog } from "./event-log.fixture";
+import { ASK_QUESTION_CAPABILITY, emptyFold, foldEvent } from "./fold";
+import { seedExecutions, seedSessions, seedTasks, seedUpcoming } from "./seed";
 
-let seq = 0;
-function ev(
-	event: string,
-	payload: Record<string, unknown> = {},
-	sessionId?: string,
-): HubEvent {
-	seq += 1;
-	return { event, sequence: seq, sessionId, timestamp: seq * 1000, payload };
-}
+const ev = eventLog();
 
 describe("runs and tools", () => {
 	test("a run goes running → failed, and the workspace comes from the snapshot", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev("run.started", {}, "s1"),
 			ev(
 				"run.failed",
@@ -34,21 +22,21 @@ describe("runs and tools", () => {
 				},
 				"s1",
 			),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(fold.sessions.s1?.run).toBe("failed");
 		expect(fold.sessions.s1?.workspaceRoot).toBe("/repo");
 	});
 
 	test("a hub restart reads as interrupted, not running forever", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev("run.started", {}, "s1"),
 			ev("run.interrupted", { runId: "r", reason: "hub_restart" }, "s1"),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(fold.sessions.s1?.run).toBe("interrupted");
 	});
 
 	test("failed tool calls are deduped by id; hook-path copies without an id are ignored", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev("run.started", {}, "s1"),
 			ev(
 				"tool.finished",
@@ -71,30 +59,43 @@ describe("runs and tools", () => {
 				{ toolCallId: "c2", toolName: "read", output: "ok" },
 				"s1",
 			),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(fold.sessions.s1?.failedToolCalls).toEqual(["c1"]);
 		expect(JSON.stringify(fold)).not.toContain("SECRET");
 	});
 
 	test("a new run clears the last run's tool failures", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev("tool.finished", { toolCallId: "c1", error: "x" }, "s1"),
 			ev("run.started", {}, "s1"),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(fold.sessions.s1?.failedToolCalls).toEqual([]);
 	});
 });
 
 describe("waiting on the person", () => {
+	test("a finished run leaves no open question behind", () => {
+		const fold = [
+			ev("run.started", {}, "s1"),
+			ev(
+				"capability.requested",
+				{ requestId: "q1", capabilityName: ASK_QUESTION_CAPABILITY },
+				"s1",
+			),
+			ev("run.aborted", {}, "s1"),
+		].reduce(foldEvent, emptyFold());
+		expect(fold.sessions.s1?.pendingQuestions).toEqual({});
+	});
+
 	test("an approval is pending until resolved; the resolution carries only its id", () => {
-		const requested = foldEvents(emptyFold(), [
+		const requested = [
 			ev("approval.requested", {
 				approvalId: "a1",
 				sessionId: "s1",
 				toolName: "bash",
 				inputJson: '{"cmd":"rm"}',
 			}),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(requested.sessions.s1?.pendingApprovals.a1?.toolName).toBe("bash");
 		expect(JSON.stringify(requested)).not.toContain("rm");
 		const resolved = foldEvent(
@@ -102,7 +103,27 @@ describe("waiting on the person", () => {
 			ev("approval.resolved", { approvalId: "a1", approved: true }),
 		);
 		expect(resolved.sessions.s1?.pendingApprovals).toEqual({});
-		expect(resolved.pendingIndex).toEqual({});
+	});
+
+	test("a resolution that names its session resolves there", () => {
+		const requested = [
+			ev("approval.requested", { approvalId: "a1", sessionId: "s1" }),
+			ev(
+				"capability.requested",
+				{ requestId: "q1", capabilityName: ASK_QUESTION_CAPABILITY },
+				"s2",
+			),
+		].reduce(foldEvent, emptyFold());
+		const resolved = [
+			ev("approval.resolved", { approvalId: "a1" }, "s1"),
+			ev(
+				"capability.resolved",
+				{ requestId: "q1", capabilityName: ASK_QUESTION_CAPABILITY },
+				"s2",
+			),
+		].reduce(foldEvent, requested);
+		expect(resolved.sessions.s1?.pendingApprovals).toEqual({});
+		expect(resolved.sessions.s2?.pendingQuestions).toEqual({});
 	});
 
 	test("re-issued pending approvals without a sequence fold idempotently", () => {
@@ -120,7 +141,7 @@ describe("waiting on the person", () => {
 	});
 
 	test("only ask-question capability requests count as open questions", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev(
 				"capability.requested",
 				{
@@ -135,7 +156,7 @@ describe("waiting on the person", () => {
 				{ requestId: "x1", capabilityName: "checkpoint.create" },
 				"s1",
 			),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(Object.keys(fold.sessions.s1?.pendingQuestions ?? {})).toEqual([
 			"q1",
 		]);
@@ -154,7 +175,7 @@ describe("waiting on the person", () => {
 
 describe("tasks, schedules, teams, usage, sessions", () => {
 	test("task events keep the record's facts and drop its instructions", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev("task.created", {
 				task: {
 					taskId: "t1",
@@ -174,10 +195,10 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 					revision: 2,
 				},
 			}),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(fold.tasks.t1).toMatchObject({
 			status: "approved",
-			revision: 2,
+			title: "Return 405",
 			priority: 2,
 		});
 		expect(JSON.stringify(fold)).not.toContain("PRIVATE");
@@ -187,7 +208,7 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 	});
 
 	test("task.run.started, task.run.completed and task.run.failed move task rows out of approved", () => {
-		const started = foldEvents(emptyFold(), [
+		const started = [
 			ev("task.created", {
 				task: {
 					taskId: "t1",
@@ -213,12 +234,8 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 					sessionId: "s_run",
 				},
 			}),
-		]);
-		expect(started.tasks.t1).toMatchObject({
-			status: "in_progress",
-			revision: 2,
-			lastSessionId: "s_run",
-		});
+		].reduce(foldEvent, emptyFold());
+		expect(started.tasks.t1?.status).toBe("in_progress");
 
 		const completed = foldEvent(
 			started,
@@ -239,10 +256,7 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 				},
 			}),
 		);
-		expect(completed.tasks.t1).toMatchObject({
-			status: "completed",
-			revision: 3,
-		});
+		expect(completed.tasks.t1?.status).toBe("completed");
 
 		const failed = foldEvent(
 			started,
@@ -263,7 +277,7 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 				},
 			}),
 		);
-		expect(failed.tasks.t1).toMatchObject({ status: "failed", revision: 3 });
+		expect(failed.tasks.t1?.status).toBe("failed");
 	});
 
 	test("a failed scheduled run is kept with its session, and schedule.deleted removes it", () => {
@@ -291,7 +305,7 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 	});
 
 	test("session records supply the workspace from session or snapshot, parse ISO updatedAt, and drop prompt/metadata", () => {
-		const fold = foldEvents(emptyFold(), [
+		const fold = [
 			ev("session.created", {
 				session: {
 					sessionId: "s2",
@@ -309,7 +323,7 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 					prompt: "SECRET2",
 				},
 			}),
-		]);
+		].reduce(foldEvent, emptyFold());
 		expect(fold.sessions.s2).toMatchObject({
 			workspaceRoot: "/w",
 			updatedAt: 7,
@@ -321,6 +335,171 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 			run: "idle",
 		});
 		expect(JSON.stringify(fold)).not.toContain("SECRET");
+	});
+});
+
+describe("seed", () => {
+	test("fills sessions and tasks from command replies, without instructions", () => {
+		const fold = seedTasks(
+			seedSessions(emptyFold(), {
+				sessions: [
+					{
+						sessionId: "s1",
+						workspaceRoot: "/w",
+						status: "running",
+						updatedAt: 9,
+						aggregateUsage: { totalCost: 1.5 },
+					},
+					{ sessionId: "s2", workspaceRoot: "/w", status: "pending" },
+					{ status: "running" },
+				],
+			}),
+			{
+				tasks: [
+					{
+						taskId: "t1",
+						status: "pending_approval",
+						title: "Ship",
+						priority: 1,
+						instructions: "PRIVATE",
+						updatedAt: "2026-10-08T10:00:00.000Z",
+					},
+				],
+			},
+		);
+		expect(fold.sessions.s1).toMatchObject({
+			run: "running",
+			workspaceRoot: "/w",
+			updatedAt: 9,
+			totalCost: 1.5,
+		});
+		expect(fold.sessions.s2?.run).toBe("idle");
+		expect(Object.keys(fold.sessions)).toEqual(["s1", "s2"]);
+		expect(fold.tasks.t1).toMatchObject({
+			status: "pending_approval",
+			priority: 1,
+			updatedAt: Date.parse("2026-10-08T10:00:00.000Z"),
+		});
+		expect(JSON.stringify(fold)).not.toContain("PRIVATE");
+	});
+
+	test("never overwrites what live events already folded", () => {
+		const live = [
+			ev("run.started", {}, "s1"),
+			ev("run.completed", {}, "s1"),
+		].reduce(foldEvent, emptyFold());
+		const seeded = seedSessions(live, {
+			sessions: [{ sessionId: "s1", status: "running" }],
+		});
+		expect(seeded.sessions.s1?.run).toBe("completed");
+		expect(seedTasks(live, { tasks: "not a list" })).toBe(live);
+	});
+
+	test("upcoming runs refresh their name and next run on every seed", () => {
+		const once = seedUpcoming(emptyFold(), {
+			runs: [
+				{
+					scheduleId: "soon",
+					name: "Nightly checks",
+					nextRunAt: "2026-10-09T02:00:00.000Z",
+				},
+			],
+		});
+		const moved = seedUpcoming(once, {
+			runs: [
+				{
+					scheduleId: "soon",
+					name: "Nightly checks",
+					nextRunAt: "2026-10-10T02:00:00.000Z",
+				},
+			],
+		});
+		expect(moved.schedules.soon?.nextRunAt).toBe("2026-10-10T02:00:00.000Z");
+	});
+
+	test("keeps each schedule's latest execution, and live events win", () => {
+		const seeded = seedExecutions(emptyFold(), {
+			executions: [
+				{
+					executionId: "e1",
+					scheduleId: "nightly",
+					status: "failed",
+					triggeredAt: 1,
+					endedAt: 2,
+					errorMessage: "SECRET",
+				},
+				{
+					executionId: "e2",
+					scheduleId: "nightly",
+					status: "success",
+					triggeredAt: 3,
+					endedAt: 4,
+				},
+				{
+					executionId: "e3",
+					scheduleId: "weekly",
+					status: "timeout",
+					triggeredAt: 5,
+					endedAt: 6,
+					sessionId: "s3",
+				},
+			],
+		});
+		expect(seeded.schedules.nightly).toMatchObject({
+			executionId: "e2",
+			status: "success",
+		});
+		expect(seeded.schedules.weekly).toMatchObject({
+			executionId: "e3",
+			status: "timeout",
+			sessionId: "s3",
+		});
+		expect(JSON.stringify(seeded)).not.toContain("SECRET");
+		const live = foldEvent(
+			emptyFold(),
+			ev("schedule.execution_failed", {
+				scheduleId: "nightly",
+				executionId: "e9",
+				status: "failed",
+			}),
+		);
+		expect(
+			seedExecutions(live, {
+				executions: [
+					{
+						executionId: "e2",
+						scheduleId: "nightly",
+						status: "success",
+						endedAt: 4,
+					},
+				],
+			}).schedules.nightly?.executionId,
+		).toBe("e9");
+	});
+
+	test("a live execution keeps the schedule's name and next run", () => {
+		const named = seedUpcoming(emptyFold(), {
+			runs: [
+				{
+					scheduleId: "nightly",
+					name: "Nightly checks",
+					nextRunAt: "2026-10-09T02:00:00.000Z",
+				},
+			],
+		});
+		const failed = foldEvent(
+			named,
+			ev("schedule.execution_failed", {
+				scheduleId: "nightly",
+				executionId: "e1",
+				sessionId: "s1",
+			}),
+		);
+		expect(failed.schedules.nightly).toMatchObject({
+			name: "Nightly checks",
+			status: "failed",
+			sessionId: "s1",
+		});
 	});
 });
 
@@ -355,22 +534,14 @@ describe("replay safety", () => {
 			ev("approval.requested", { approvalId: "a", sessionId: "s1" }),
 			ev("run.completed", {}, "s1"),
 		];
-		const live = foldEvents(emptyFold(), log);
-		expect(foldEvents(live, log)).toEqual(live);
+		const live = log.reduce(foldEvent, emptyFold());
+		expect(log.reduce(foldEvent, live)).toEqual(live);
 	});
 });
 
 describe("cursor", () => {
-	const temps: string[] = [];
-	afterEach(() => {
-		for (const dir of temps.splice(0))
-			rmSync(dir, { recursive: true, force: true });
-	});
-	function path(): string {
-		const dir = mkdtempSync(join(tmpdir(), "next-turn-cursor-"));
-		temps.push(dir);
-		return join(dir, "cursor.json");
-	}
+	const tempDir = useTempDirs("next-turn-cursor-");
+	const path = () => join(tempDir(), "cursor.json");
 
 	test("writes every N advances and on flush, never moving backwards", () => {
 		const file = path();
@@ -386,6 +557,16 @@ describe("cursor", () => {
 		writer.advance(CURSOR_SAVE_EVERY_EVENTS + 1);
 		writer.flush();
 		expect(readCursor(file)?.sequence).toBe(CURSOR_SAVE_EVERY_EVENTS + 1);
+	});
+
+	test("a write that keeps failing leaves no temp files and waits another N advances to retry", () => {
+		const file = path();
+		mkdirSync(file);
+		const writer = new CursorWriter(file);
+		for (let i = 1; i <= CURSOR_SAVE_EVERY_EVENTS + 1; i += 1)
+			writer.advance(i);
+		expect(readdirSync(dirname(file))).toEqual(["cursor.json"]);
+		expect(writer.current()).toBe(CURSOR_SAVE_EVERY_EVENTS + 1);
 	});
 
 	test("a missing or malformed cursor starts from zero", () => {

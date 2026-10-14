@@ -9,7 +9,7 @@
 			"name": "NextTurnLabelRecord",
 			"file": "NextTurnLabelRecord.schema.json",
 			"io": "output",
-			"about": "One line of the label log (schema v3: v2 plus manifest tags). Ids, kinds and numbers only, never prose"
+			"about": "One line of the label log (schema v3). Ids, kinds and numbers only, never prose"
 		},
 		{
 			"name": "NextTurnManifest",

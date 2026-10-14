@@ -4,18 +4,20 @@ import {
 	TRACKED_LIMIT,
 	WHY_MAX_CHARS,
 } from "../config";
-import type { Manifest } from "../context/manifest";
+import { isPresent, type Manifest } from "../context/manifest";
 import { redactSecrets } from "../context/redact";
 import type { Facts } from "../context/source";
 import {
 	type Backlog,
 	type PlanItem,
+	type RankedTask,
 	rankTasks,
 	type StatusRow,
-	type TaskRow,
+	TASK_STATUSES,
 } from "./backlog";
-import type { SuggestionKind, TurnFacts } from "./candidates";
-import { isGated, isOutward, KIND_GATES } from "./kinds";
+import type { TurnFacts } from "./candidates";
+import { isGated, isOutward, KIND_GATES, type SuggestionKind } from "./kinds";
+import { PLANNER_SOURCES } from "./output";
 import type { TurnContext } from "./turn";
 
 /**
@@ -32,39 +34,18 @@ import type { TurnContext } from "./turn";
 
 export type PlannerInput = { system: string; user: string };
 
-export type PlannerInputArgs = {
+type PlannerInputArgs = {
 	turn: TurnFacts;
 	context: TurnContext;
 	backlog: Backlog;
 	manifest: Manifest;
-	/** Facts of present sources other than the ones the backlog renders, from `collectFacts`. */
+	/** Facts of present sources, from `collectFacts`; the backlog's sources and the turn have none. */
 	facts: Readonly<Record<string, Facts | "unknown">>;
+	/** How "Could not read just now" names each source; a source not named here reads as its id. */
+	names: Readonly<Record<string, string>>;
 	kinds: readonly SuggestionKind[];
 	excluded: readonly string[];
 };
-
-/** Sources the backlog renders itself, and the turn, which is always the first section. */
-const BACKLOG_SOURCES: ReadonlySet<string> = new Set([
-	"turn",
-	"status",
-	"tasks",
-	"plan",
-]);
-
-/** How "Could not read just now" names a source; a connector falls back to its id. */
-const SOURCE_NAMES: Readonly<Record<string, string>> = {
-	status: "The Status Hub for this chat",
-	tasks: "The task agenda",
-	plan: "The plan and the plan bank",
-	git: "This folder's git state",
-	repo: "This repository's commands",
-	"cline-setup": "Your Cline setup",
-	history: "Your other chats",
-	github: "GitHub",
-};
-
-const SOURCE_FIELD =
-	"source is one of: turn, status, tasks, plan, repo, connector — where the fact behind the suggestion comes from.";
 
 /** The system prompt for this environment, with the kinds and mode the manifest allows. */
 export function plannerSystemPrompt(
@@ -100,7 +81,7 @@ export function plannerSystemPrompt(
 		`Reply with JSON only, no prose and no code fence: {"suggestions":[{"kind":"<kind>","source":"<source>","prompt":"<message>","why":"<one short line naming the fact behind it, e.g. Status Hub: migration/auth is blocked>","ref":"<the task title, Status subject or plan item label exactly as given, when source is not turn>"}]}`,
 		`Write up to ${POOL_SIZE} suggestions, best first. Each prompt is one sentence of at most ${PROMPT_MAX_CHARS} characters; each why is at most ${WHY_MAX_CHARS}.`,
 		`kind is one of: ${kinds.join(", ")}.`,
-		SOURCE_FIELD,
+		`source is one of: turn, ${Object.keys(PLANNER_SOURCES).join(", ")} — where the fact behind the suggestion comes from.`,
 		"ref names the one tracked item the suggestion is about, copied exactly from the material, so the person can open it beside the chat; leave it out when source is turn or no single item applies.",
 	].join("\n");
 }
@@ -133,15 +114,9 @@ function otherStatusLine(row: StatusRow): string {
 	);
 }
 
-const TASK_STATES: Readonly<Record<string, string>> = {
-	in_progress: "in progress",
-	approved: "approved, not started",
-	pending_approval: "waiting on you: approve or cancel",
-};
-
-function taskLine(task: TaskRow): string {
+function taskLine(task: RankedTask): string {
 	return redactSecrets(
-		`- [${TASK_STATES[task.status] ?? task.status}] ${task.title}`,
+		`- [${TASK_STATUSES[task.status].planner}] ${task.title}`,
 	);
 }
 
@@ -179,7 +154,7 @@ function whenPresent(
 	lines: readonly string[],
 	empty: string,
 ): readonly string[] {
-	return manifest.sources[sourceId] === "present" ? orEmpty(lines, empty) : [];
+	return isPresent(manifest, sourceId) ? orEmpty(lines, empty) : [];
 }
 
 function turnSection(turn: TurnFacts, context: TurnContext): string {
@@ -215,19 +190,19 @@ export function unreadSources(
 	manifest: Manifest,
 	facts: PlannerInputArgs["facts"],
 ): string[] {
-	const unknown = Object.entries(manifest.sources)
+	return Object.entries(manifest.sources)
 		.filter(([id, state]) => state === "unknown" || facts[id] === "unknown")
-		.map(([id]) => id);
-	return [...new Set(unknown)].sort();
+		.map(([id]) => id)
+		.sort();
 }
 
 export function buildPlannerInput(args: PlannerInputArgs): PlannerInput {
 	const { backlog, manifest, facts } = args;
-	const plan = manifest.sources.plan === "present";
+	const plan = isPresent(manifest, "plan");
 	const tasks = rankTasks(backlog.tasks).slice(0, TRACKED_LIMIT).map(taskLine);
-	const sourceSections = Object.entries(facts)
-		.filter(([id, value]) => !BACKLOG_SOURCES.has(id) && value !== "unknown")
-		.map(([, value]) => factsSection(value as Facts));
+	const sourceSections = Object.values(facts)
+		.filter((value): value is Facts => value !== "unknown")
+		.map(factsSection);
 	const capabilities = manifest.capabilities.filter(
 		(tag) => !tag.startsWith("remote:"),
 	);
@@ -244,7 +219,7 @@ export function buildPlannerInput(args: PlannerInputArgs): PlannerInput {
 		),
 		section(
 			"Other agents on the Status Hub",
-			manifest.sources.status === "present"
+			isPresent(manifest, "status")
 				? backlog.otherStatusRows.map(otherStatusLine)
 				: [],
 		),
@@ -273,7 +248,7 @@ export function buildPlannerInput(args: PlannerInputArgs): PlannerInput {
 		section(
 			"Could not read just now",
 			unreadSources(manifest, facts).map(
-				(id) => `- ${SOURCE_NAMES[id] ?? id} — treat as unknown, not empty.`,
+				(id) => `- ${args.names[id] ?? id} — treat as unknown, not empty.`,
 			),
 		),
 		section(

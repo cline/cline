@@ -1,4 +1,5 @@
 import type { ITelemetryService, TelemetryProperties } from "@cline/shared";
+import { DESKTOP_CLIENT_NAME } from "../config";
 import type { LabelEvent, LabelRecord } from "./labels";
 
 /**
@@ -6,21 +7,19 @@ import type { LabelEvent, LabelRecord } from "./labels";
  * telemetry service, which the plugin context hands over as `ctx.telemetry`
  * (feature-detected; absent when the host has none). It only sees what the
  * writer already sanitized and drops the one hashed field too, so no prompt,
- * why, cue or typed text, nor a hash of it, leaves the machine (ADR-0008).
- * Export follows the host: nothing is sent when the person opted out
- * (`isEnabled()`), and a failing provider never breaks suggestions.
- *
- * The event names use this plugin's prefix.
+ * why, cue or typed text, nor a hash of it, leaves the machine. The host
+ * drops these events when the person opted out, and a failing provider never
+ * breaks suggestions.
  */
 
-export const TELEMETRY_PREFIX = "next_turn";
-export const EVENTS_COUNTER = `${TELEMETRY_PREFIX}.events`;
-export const DECISION_HISTOGRAM = `${TELEMETRY_PREFIX}.decision_ms`;
-export const SET_LATENCY_HISTOGRAM = `${TELEMETRY_PREFIX}.set_latency_ms`;
-export const READY_HISTOGRAM = `${TELEMETRY_PREFIX}.ready_ms`;
+const TELEMETRY_PREFIX = "next_turn";
+const EVENTS_COUNTER = `${TELEMETRY_PREFIX}.events`;
+const DECISION_HISTOGRAM = `${TELEMETRY_PREFIX}.decision_ms`;
+const SET_LATENCY_HISTOGRAM = `${TELEMETRY_PREFIX}.set_latency_ms`;
+const READY_HISTOGRAM = `${TELEMETRY_PREFIX}.ready_ms`;
 
-/** Each label under the name of what the person did: the log keeps 03's names, telemetry says Send and Use as the tray does. */
-export const TELEMETRY_ACTIONS: Record<LabelEvent, string> = {
+/** Each label under the name of what the person did: the log keeps the host writers' names, telemetry says Send and Use as the tray does. */
+const TELEMETRY_ACTIONS: Record<LabelEvent, string> = {
 	offer: "set_served",
 	lineage: "lineage",
 	set_ready: "set_ready",
@@ -44,10 +43,10 @@ export const TELEMETRY_ACTIONS: Record<LabelEvent, string> = {
 	hidden_by_user: "hidden",
 };
 
-const DECISION_ACTIONS: ReadonlySet<string> = new Set([
-	"sent",
-	"used",
-	"skipped",
+const DECISION_EVENTS: ReadonlySet<LabelEvent> = new Set([
+	"do",
+	"adjust",
+	"skip",
 ]);
 
 /** Fields the label record carries that telemetry never repeats. */
@@ -59,21 +58,23 @@ const DROPPED_FIELDS: ReadonlySet<string> = new Set([
 	"excluded",
 ]);
 
+const TRAY_SURFACES: ReadonlyMap<string | undefined, string> = new Map([
+	[DESKTOP_CLIENT_NAME, "desktop-tray"],
+	["cline-cli", "terminal-tray"],
+]);
+
 /** `desktop-tray`, `terminal-tray`, or `plugin` for a host this plugin does not know. */
 export function surfaceOf(client: string | undefined): string {
-	const name = client?.toLowerCase() ?? "";
-	if (name.includes("desktop")) return "desktop-tray";
-	if (name.includes("cli")) return "terminal-tray";
-	return "plugin";
+	return TRAY_SURFACES.get(client) ?? "plugin";
 }
 
-export function telemetryProperties(
+function telemetryProperties(
 	record: LabelRecord,
 	surface: string,
 ): TelemetryProperties {
 	const properties: TelemetryProperties = {
-		labelEvent: typeof record.event === "string" ? record.event : null,
-		schemaVersion: typeof record.v === "number" ? record.v : null,
+		labelEvent: record.event,
+		schemaVersion: record.v,
 		surface,
 	};
 	for (const [key, value] of Object.entries(record)) {
@@ -97,10 +98,9 @@ export function captureLabel(
 	surface: string,
 	record: LabelRecord,
 ): void {
-	const action = TELEMETRY_ACTIONS[record.event as LabelEvent];
-	if (!action || !telemetry) return;
+	if (!telemetry) return;
+	const action = TELEMETRY_ACTIONS[record.event];
 	try {
-		if (!telemetry.isEnabled()) return;
 		telemetry.capture({
 			event: `${TELEMETRY_PREFIX}.${action}`,
 			properties: telemetryProperties(record, surface),
@@ -115,7 +115,7 @@ export function captureLabel(
 			"Suggestion events by action",
 		);
 		if (
-			DECISION_ACTIONS.has(action) &&
+			DECISION_EVENTS.has(record.event) &&
 			typeof record.msSinceExposed === "number"
 		) {
 			telemetry.recordHistogram(
@@ -125,7 +125,7 @@ export function captureLabel(
 				"Time from a suggestion being readable to the person acting on it",
 			);
 		}
-		if (action === "set_served" && typeof record.latencyMs === "number") {
+		if (record.event === "offer" && typeof record.latencyMs === "number") {
 			telemetry.recordHistogram(
 				SET_LATENCY_HISTOGRAM,
 				record.latencyMs,
@@ -139,7 +139,10 @@ export function captureLabel(
 				"Time to build one suggestion set",
 			);
 		}
-		if (action === "set_ready" && typeof record.msSinceTurnEnd === "number") {
+		if (
+			record.event === "set_ready" &&
+			typeof record.msSinceTurnEnd === "number"
+		) {
 			telemetry.recordHistogram(
 				READY_HISTOGRAM,
 				record.msSinceTurnEnd,

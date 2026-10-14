@@ -23,9 +23,12 @@ debug log, and for the set's records in
 settings.
 
 Nothing submits a chat message on its own: Next's rule set needs no Status
-store, and when the host provides a UI slot (`registerUiHandler` and
-`ctx.ui.push`), sets stream to the tray slot; on hosts without slots,
-served sets go to the session's debug log as ids and kinds.
+store. No shipped host provides UI slots (`registerUiHandler` and
+`ctx.ui.push`) yet, so on every host, the `cline` CLI and the desktop app
+included, served sets go to the session's debug log as ids and kinds. On a
+host that provides them, sets stream to the tray slot: the desktop client's
+chats start Next at once, and another slot client's chat records only its
+last turn until a tray first asks for `current`.
 
 ## How it runs
 
@@ -33,10 +36,10 @@ When a chat starts, the plugin's `setup` builds that chat's runtime:
 
 - the engine joins a hub that is already running (never starting one), folds
   hub events (`NodeHubClient` replays missed events with `sinceSequence` across
-  socket reconnects in memory), and publishes `ui.notify` for the CLI when this
-  chat starts waiting on an approval or a question;
+  socket reconnects in memory), and publishes `ui.notify` (rendered today by
+  the menubar app) when this chat starts waiting on an approval or a question;
 - with Next on, the Cline-first sources and the person's connectors join it,
-  and so does Next itself.
+  and so does Next itself, once the chat is active (see Install).
 
 After each completed root run, `afterRun` serves the **rule-based set** at
 once: one rule set for every host. The planner call then runs detached, on
@@ -45,38 +48,29 @@ The person's next message is labelled against the set on screen from the
 first `beforeModel` of the next run. Every served set and label goes to
 `labels.jsonl` (schema v3) and the host's telemetry.
 
-## Modules
+## Layout
 
-| Module | What it does |
+| Directory | What it holds |
 |---|---|
-| [`src/config.ts`](src/config.ts) | Every lever: timeouts, budgets, cadences, file names |
-| [`src/store/data-dir.ts`](src/store/data-dir.ts) | `<Cline data dir>/plugins/next-turn/`, resolved as Cline does (`CLINE_DATA_DIR`, `CLINE_DIR`, `~/.cline`); atomic, owner-only writes |
-| [`src/settings/settings.ts`](src/settings/settings.ts) | The settings file: features, context sources, connector roles (Off · Mention · Read · Notify), planner model and allowance, per-workspace overrides |
-| [`src/hub/link.ts`](src/hub/link.ts) | The engine's single hub connection. It never starts a hub, never advertises a capability, and refuses to send `approval.respond` or `capability.respond`. `@cline/core/hub` is imported on first use |
-| [`src/hub/fold.ts`](src/hub/fold.ts) | A pure reducer over an allowlist of hub events: runs, failed tool calls, pending approvals and questions, tasks, schedule runs, team progress, cost. It keeps ids, states and counts, never content |
-| [`src/hub/cursor.ts`](src/hub/cursor.ts) | The fold's last event-log sequence, saved on disk |
-| [`src/context/`](src/context/source.ts) | The source interface, the environment manifest (each source present, unknown, absent or off, plus capability tags), facts collected under per-tier budgets, source policy, and redaction |
-| [`src/context/sources/`](src/context/sources/index.ts) | The Cline-first sources: the turn, git, repository commands, the person's Cline setup (names only), their other chats in this workspace, and the hub's tasks and status |
-| [`src/connectors/`](src/connectors/index.ts) | Connectors over the connections the person already gave Cline. Next Turn never signs in to anything. GitHub reads through `gh`; Composio toolkits and MCP servers read only through pinned reads, each result reduced to one redacted line |
-| [`src/settings/models.ts`](src/settings/models.ts) | The planner's model choices: configured provider and model ids, never keys |
-| [`src/hub/seed.ts`](src/hub/seed.ts) | The cold start: `session.list` and `task.list` fill what live events have not |
-| [`src/model/session-rows.ts`](src/model/session-rows.ts) | Implicit status: one row per live session, with its `report_status` rows nested under it |
-| [`src/model/needs-you.ts`](src/model/needs-you.ts) | Needs you: approvals, questions, tasks awaiting approval, and blocked or urgent status rows, ranked |
-| [`src/model/schedules.ts`](src/model/schedules.ts) | Schedules and teams: the Upcoming lane, failed scheduled runs, and team rows |
-| [`src/engine/allowance.ts`](src/engine/allowance.ts) | The planner's spend, appended to `planner.jsonl`, and the per-chat allowance over a rolling hour |
-| [`src/tasks/tasks.ts`](src/tasks/tasks.ts) | Tasks on the hub's agenda: edits, approve and cancel with the revision the person saw, and proposals written as spec files so they wait for approval |
-| [`src/engine/`](src/engine/engine.ts) | The engine: one subscription, the live fold, seeding on connect, and Needs-you notifications for its own chat |
-| [`src/planner/`](src/planner/next.ts) | Next: the rule set ([`rules.ts`](src/planner/rules.ts)), the planner prompt and output invariants, one bounded model call through `@cline/core` and `@cline/llms`, the label log and its telemetry mirror, and one chat's sets and tray actions ([`next.ts`](src/planner/next.ts)). A host may supply a plan through the `PlanAdapter` in [`backlog.ts`](src/planner/backlog.ts); without one the `plan` source is absent |
-| [`src/contracts.ts`](src/contracts.ts) | The published JSON Schemas: the label record, the manifest, and the tray slot's set, state push and actions |
-| [`src/store/session-state.ts`](src/store/session-state.ts) | Per-session offer and pool state persisted across 30-minute sandbox idle reclaims |
-| [`src/lifecycle.ts`](src/lifecycle.ts) | Fast disable/uninstall check against `global-settings.json` and the package root |
-| [`src/runtime.ts`](src/runtime.ts) | One chat's runtime: hub link and engine, sources, connectors and their refresher, Next |
-| [`src/plugin.ts`](src/plugin.ts) | The plugin: `setup` builds the runtime and registers the `next` UI handler; `beforeModel` and `afterRun` feed it, and none can fail the person's run |
+| [`src/hub/`](src/hub/link.ts) | The engine's single hub connection (it never starts a hub, never advertises a capability, and refuses to send `approval.respond` or `capability.respond`), the pure fold over an allowlist of hub events (ids, states and counts, never content), the seed commands run on every connect, and the fold's saved sequence |
+| [`src/engine/`](src/engine/engine.ts) | One subscription, the live fold, seeding on connect, and Needs-you notifications for its own chat |
+| [`src/model/`](src/model/needs-you.ts) | The Status Hub model a host UI can render: session rows with their `report_status` rows, Needs you (approvals, questions, tasks awaiting approval, blocked or urgent status rows, and scheduled runs whose latest execution failed), schedules and teams |
+| [`src/context/`](src/context/source.ts) | The source interface, the environment manifest, facts under per-tier budgets, source policy and redaction, and the Cline-first sources: the turn, git, repository commands, the person's Cline setup (names only), their other chats in this workspace, and the hub's tasks |
+| [`src/connectors/`](src/connectors/index.ts) | Connectors over the connections the person already gave Cline; Next Turn never signs in to anything. GitHub reads through `gh`; MCP servers read only through pinned reads; Composio toolkits are Mention only until Cline exposes its Composio tools to plugins |
+| [`src/planner/`](src/planner/next.ts) | Next: the rule set, the planner prompt, output invariants and its one bounded model call, the allowance, the label log and its telemetry mirror, one chat's sets and tray actions, and the tray protocol. The `plan` and `status` inputs have no host entry point yet, so both sources are absent outside tests |
+| [`src/settings/`](src/settings/settings.ts), [`src/store/`](src/store/data-dir.ts) | The settings file and the planner's model choices; `<Cline data dir>/plugins/next-turn/` with atomic, owner-only writes, and each chat's tray state kept across sandbox idle reclaims |
+| [`src/tasks/`](src/tasks/tasks.ts) | Tasks on the hub's agenda: edits, approve and cancel with the revision the person saw, and proposals written as spec files so they wait for approval |
+| [`src/plugin.ts`](src/plugin.ts), [`src/runtime.ts`](src/runtime.ts), [`src/lifecycle.ts`](src/lifecycle.ts) | The plugin's hooks and `next` UI handler, none of which can fail the person's run; one chat's runtime; and the disable and uninstall check |
+| [`src/contracts.ts`](src/contracts.ts), [`scripts/`](scripts/build.ts) | The published JSON Schemas, and the scripts that bundle the plugin and generate `contracts/` |
+
+Tuning levers (timeouts, budgets, cadences, limits) live in
+[`src/config.ts`](src/config.ts).
 
 ## Contracts
 
-`contracts/` holds the 5 generated JSON Schemas (`bun run contracts`;
-`bun run check:contracts` fails on drift). A host that renders the tray
+`contracts/` holds the generated JSON Schemas (`bun run contracts`;
+`bun run check:contracts` fails on drift or on a file the generator would not
+write). A host that renders the tray
 natively codes against them; the wire between the plugin and a tray is
 JSON, never an import.
 
@@ -89,7 +83,13 @@ bun run build # bundle dist/index.js with host-aliased externals
 bun run check # typecheck, contracts drift, and the full test suite
 ```
 
-The tests need no hub, key or network:
+`cline plugin install` loads `src/index.ts`. `dist/index.js` is the
+single-file bundle for a host that vendors the plugin; the dist test installs
+that bundle into a clean Cline directory and holds its sandbox load to the
+budget.
+
+The tests need no running hub, key or network (one test starts an in-process
+hub on 127.0.0.1):
 
 - the hub link and the engine run against fake clients;
 - the fold runs against recorded event shapes;

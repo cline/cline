@@ -1,11 +1,18 @@
+import type { AgendaTaskStatus } from "@cline/shared";
 import {
 	DEFAULT_TASK_PRIORITY,
 	FACTS_BUDGET_MS,
 	OTHER_STATUS_SHOWN,
 } from "../config";
-import { type Manifest, withinBudget } from "../context/manifest";
+import { isPresent, type Manifest } from "../context/manifest";
+import { withinBudget } from "../deadline";
 import type { HubFold } from "../hub/fold";
-import type { BoardScope, ExplicitStatus } from "../model/session-rows";
+import {
+	type BoardScope,
+	type ExplicitStatus,
+	inScope,
+	isLive,
+} from "../model/session-rows";
 
 /**
  * The tracked work around a turn. Tasks come from the engine's fold,
@@ -32,7 +39,7 @@ export type TaskRow = {
 	updatedAt: number;
 };
 
-export type Bank = { nowTitle?: string; nextTitle?: string };
+type Bank = { nowTitle?: string; nextTitle?: string };
 
 /** One work-graph item near this chat's work, in the planner's words. */
 export type PlanItem = {
@@ -67,12 +74,33 @@ export const EMPTY_BACKLOG: Backlog = {
 	plan: [],
 };
 
-/** The task statuses a suggestion can act on, most actionable first. */
-const RANKED_TASK_STATUSES = [
-	"in_progress",
-	"approved",
-	"pending_approval",
-] as const;
+/**
+ * The task statuses a suggestion can act on, most actionable first: how the
+ * planner reads each, and the row the rules offer for it.
+ */
+export const TASK_STATUSES = {
+	in_progress: {
+		planner: "in progress",
+		prompt: "Do the next task",
+		why: "Task in progress on the agenda.",
+	},
+	approved: {
+		planner: "approved, not started",
+		prompt: "Do the next task",
+		why: "Approved task waiting on the agenda.",
+	},
+	pending_approval: {
+		planner: "waiting on you: approve or cancel",
+		prompt: "Approve and start",
+		why: "Proposed on the agenda, waiting for your approval.",
+	},
+} satisfies Partial<
+	Record<AgendaTaskStatus, { planner: string; prompt: string; why: string }>
+>;
+
+type RankedStatus = keyof typeof TASK_STATUSES;
+const RANKED_STATUSES = Object.keys(TASK_STATUSES) as RankedStatus[];
+export type RankedTask = TaskRow & { status: RankedStatus };
 
 /** Another chat's report is worth the planner's attention only while it is open. */
 const OPEN_STATUS_STATES: ReadonlySet<string> = new Set([
@@ -82,19 +110,21 @@ const OPEN_STATUS_STATES: ReadonlySet<string> = new Set([
 	"queued",
 ]);
 
-function taskRank(status: string): number {
-	return RANKED_TASK_STATUSES.indexOf(
-		status as (typeof RANKED_TASK_STATUSES)[number],
-	);
+function isRanked(task: TaskRow): task is RankedTask {
+	return Object.hasOwn(TASK_STATUSES, task.status);
+}
+
+function taskRank(task: RankedTask): number {
+	return RANKED_STATUSES.indexOf(task.status);
 }
 
 /** In progress, approved, then the agent's proposals awaiting approval; priority, then age, inside each. */
-export function rankTasks(tasks: readonly TaskRow[]): TaskRow[] {
+export function rankTasks(tasks: readonly TaskRow[]): RankedTask[] {
 	return tasks
-		.filter((task) => taskRank(task.status) !== -1)
+		.filter(isRanked)
 		.sort(
 			(a, b) =>
-				taskRank(a.status) - taskRank(b.status) ||
+				taskRank(a) - taskRank(b) ||
 				a.priority - b.priority ||
 				a.updatedAt - b.updatedAt,
 		);
@@ -103,12 +133,7 @@ export function rankTasks(tasks: readonly TaskRow[]): TaskRow[] {
 /** The fold's tasks in this workspace, as ranking rows. */
 export function tasksFromFold(fold: HubFold, scope: BoardScope): TaskRow[] {
 	return Object.values(fold.tasks)
-		.filter(
-			(task) =>
-				!scope.workspaceRoot ||
-				!task.workspaceRoot ||
-				task.workspaceRoot === scope.workspaceRoot,
-		)
+		.filter((task) => inScope(task.workspaceRoot, scope))
 		.map((task) => ({
 			taskId: task.taskId,
 			title: task.title,
@@ -137,7 +162,7 @@ export function splitReports(
 	reports: readonly ExplicitStatus[],
 	sessionId: string,
 ): Pick<Backlog, "statusRows" | "otherStatusRows"> {
-	const live = reports.filter((report) => !report.supersededAt);
+	const live = reports.filter(isLive);
 	const own = live
 		.filter((report) => report.sessionId === sessionId)
 		.map(statusRow);
@@ -154,14 +179,13 @@ export function splitReports(
 	return { statusRows: own, otherStatusRows: others };
 }
 
-export type BacklogDeps = {
+type BacklogDeps = {
 	sessionId: string;
 	fold: () => HubFold;
 	scope: BoardScope;
 	/** The Status store's reports; without one the status source is absent. */
 	reports?: () => Promise<readonly ExplicitStatus[]>;
 	plan?: PlanAdapter;
-	budgetMs?: number;
 };
 
 /**
@@ -173,30 +197,30 @@ export type BacklogDeps = {
 export function backlogReader(
 	deps: BacklogDeps,
 ): (manifest: Pick<Manifest, "sources">) => Promise<Backlog> {
-	const budget = deps.budgetMs ?? FACTS_BUDGET_MS.T2;
+	const budget = FACTS_BUDGET_MS.T2;
 	return async (manifest) => {
-		const present = (id: string) => manifest.sources[id] === "present";
-		const [reports, bank] = await Promise.all([
-			present("status") && deps.reports
-				? withinBudget(deps.reports, budget, [] as readonly ExplicitStatus[])
+		const reports = isPresent(manifest, "status") ? deps.reports : undefined;
+		const adapter = isPresent(manifest, "plan") ? deps.plan : undefined;
+		const [reported, bank] = await Promise.all([
+			reports
+				? withinBudget(reports, budget, [] as readonly ExplicitStatus[])
 				: [],
-			present("plan") && deps.plan
-				? withinBudget(() => deps.plan?.bank() ?? null, budget, null)
-				: null,
+			adapter ? withinBudget(() => adapter.bank(), budget, null) : null,
 		]);
-		const split = splitReports(reports, deps.sessionId);
+		const split = splitReports(reported, deps.sessionId);
 		const subjects = split.statusRows.map((row) => row.subject);
-		const plan =
-			present("plan") && deps.plan
-				? await withinBudget(
-						() => deps.plan?.plan(deps.sessionId, subjects) ?? [],
-						budget,
-						[] as PlanItem[],
-					)
-				: [];
+		const plan = adapter
+			? await withinBudget(
+					() => adapter.plan(deps.sessionId, subjects),
+					budget,
+					[] as PlanItem[],
+				)
+			: [];
 		return {
 			...split,
-			tasks: present("tasks") ? tasksFromFold(deps.fold(), deps.scope) : [],
+			tasks: isPresent(manifest, "tasks")
+				? tasksFromFold(deps.fold(), deps.scope)
+				: [],
 			bank,
 			plan,
 		};

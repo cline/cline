@@ -1,64 +1,83 @@
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import {
-	CACHE_DIR,
-	CURSOR_FILE,
-	DATA_DIR_SEGMENTS,
-	DATA_SUBDIR,
-	DEFAULT_CLINE_HOME,
-	LABELS_FILE,
-	PLANNER_LEDGER_FILE,
-	PRIVATE_FILE_MODE,
-	SESSIONS_DIR,
-	SETTINGS_FILE,
-	STATUS_DB_FILE,
-} from "../config";
+	appendFileSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+import { resolveClineDataDir } from "@cline/shared/storage";
+import { PLUGIN_NAME } from "../config";
 
-export type NextTurnPaths = {
+/** Owner read/write only: settings and caches can name repositories and accounts. */
+export const PRIVATE_FILE_MODE = 0o600;
+
+type NextTurnPaths = {
 	root: string;
 	settings: string;
 	cursor: string;
 	labels: string;
-	statusDb: string;
-	cache: string;
 	sessions: string;
 	plannerLedger: string;
 };
 
-type Env = Readonly<Record<string, string | undefined>>;
-
-/**
- * Cline's data directory, resolved the way `@cline/shared/storage`'s
- * `resolveClineDataDir` does: `CLINE_DATA_DIR`, else `CLINE_DIR` (or
- * `~/.cline`) plus `data`. Mirrored rather than imported so loading the plugin
- * does not pull `@cline/core` into the sandbox before the first hook needs it.
- */
-export function resolveClineDataDir(
-	env: Env = process.env,
-	home: string = homedir(),
-): string {
-	const dataDir = env.CLINE_DATA_DIR?.trim();
-	if (dataDir) return dataDir;
-	const clineDir = env.CLINE_DIR?.trim() || join(home, DEFAULT_CLINE_HOME);
-	return join(clineDir, DATA_SUBDIR);
-}
-
-/** Where Next Turn keeps its state. Nothing is created until written. */
+/** Where Next Turn keeps its state, beside other plugins' under Cline's data dir. Nothing is created until written. */
 export function nextTurnPaths(
 	dataDir: string = resolveClineDataDir(),
 ): NextTurnPaths {
-	const root = join(dataDir, ...DATA_DIR_SEGMENTS);
+	const root = join(dataDir, "plugins", PLUGIN_NAME);
 	return {
 		root,
-		settings: join(root, SETTINGS_FILE),
-		cursor: join(root, CURSOR_FILE),
-		labels: join(root, LABELS_FILE),
-		statusDb: join(root, STATUS_DB_FILE),
-		cache: join(root, CACHE_DIR),
-		sessions: join(root, SESSIONS_DIR),
-		plannerLedger: join(root, PLANNER_LEDGER_FILE),
+		settings: join(root, "settings.json"),
+		cursor: join(root, "cursor.json"),
+		labels: join(root, "labels.jsonl"),
+		sessions: join(root, "sessions"),
+		plannerLedger: join(root, "planner.jsonl"),
 	};
+}
+
+function fileVersion(path: string): string {
+	try {
+		const stat = statSync(path, { throwIfNoEntry: false });
+		return stat ? `${stat.mtimeMs}:${stat.size}` : "absent";
+	} catch {
+		return "unreadable";
+	}
+}
+
+/**
+ * `read`'s value, read again only when the file at `path` changes (its mtime
+ * or size), so a change another process makes applies to the next call.
+ * `read` gets the value it last returned.
+ */
+export function cachedByFile<T>(
+	path: string,
+	read: (previous: T | undefined) => T,
+): () => T {
+	let cached: { version: string; value: T } | undefined;
+	return () => {
+		const version = fileVersion(path);
+		if (cached?.version !== version)
+			cached = { version, value: read(cached?.value) };
+		return cached.value;
+	};
+}
+
+/**
+ * Run a write into `path`'s directory, creating the directory only when the
+ * write finds it missing: the person may remove the data dir while a chat runs.
+ */
+function inParentDirectory(path: string, write: () => void): void {
+	try {
+		write();
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		mkdirSync(dirname(path), { recursive: true });
+		write();
+	}
 }
 
 /**
@@ -66,8 +85,35 @@ export function nextTurnPaths(
  * rename over the target. The desktop and the CLI read the same settings file.
  */
 export function writeFileAtomic(path: string, contents: string): void {
-	mkdirSync(dirname(path), { recursive: true });
-	const temp = `${path}.${process.pid}.${Date.now()}.tmp`;
-	writeFileSync(temp, contents, { mode: PRIVATE_FILE_MODE });
-	renameSync(temp, path);
+	const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
+	try {
+		inParentDirectory(path, () =>
+			writeFileSync(temp, contents, { mode: PRIVATE_FILE_MODE }),
+		);
+		renameSync(temp, path);
+	} catch (error) {
+		rmSync(temp, { force: true });
+		throw error;
+	}
+}
+
+/** Append one record as a JSON line, owner-only like every file here. */
+export function appendJsonLine(path: string, record: unknown): void {
+	const line = `${JSON.stringify(record)}\n`;
+	inParentDirectory(path, () =>
+		appendFileSync(path, line, { mode: PRIVATE_FILE_MODE }),
+	);
+}
+
+/** The JSON at `path`, or undefined when it is missing or does not parse. */
+export function readJsonFile(path: string): unknown {
+	try {
+		return JSON.parse(readFileSync(path, "utf8"));
+	} catch {
+		return undefined;
+	}
+}
+
+export function sha256Hex(text: string): string {
+	return createHash("sha256").update(text).digest("hex");
 }

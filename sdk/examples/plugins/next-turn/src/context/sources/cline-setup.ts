@@ -1,64 +1,64 @@
+import type { HubEventName } from "@cline/shared";
 import { SETUP_NAMES_MAX } from "../../config";
-import { isRecord } from "../../hub/fold";
-import type { HubEvent, HubLinkStatus } from "../../hub/link";
+import type { HubLink, HubLinkScope } from "../../hub/link";
+import type { Log } from "../../log";
+import { isRecord, listOf } from "../../values";
 import type { ContextSource, Facts, SourceState } from "../source";
 
 /**
- * The person's Cline setup: workflows, skills, MCP servers and
- * plugin commands, so a suggestion can name the person's own tools ("Run
- * /release-notes for this change"). A suggestion that names one is offered
- * only when its capability tag is present.
+ * The person's Cline setup: workflows, skills, plugin commands and the MCP
+ * servers portable Agent Plugins bring, so a suggestion can name the person's
+ * own tools ("Run /release-notes for this change"). MCP servers from the
+ * settings file are left to their own connectors, so a server the person set
+ * to Off is never named; an Agent Plugin's servers have no connector, so only
+ * the setup names them.
  *
  * - **Read:** `settings.list { workspaceRoot, cwd, includePluginTools: false }`,
  *   whose reply is `{ snapshot: CoreSettingsSnapshot }`. Plugin slash
  *   commands appear only as `contributions.commands` on plugin items;
- *   `prompt_commands.list` is not handled at the pin.
+ *   `prompt_commands.list` has no hub handler.
  * - **Names only:** a workflow item's `description` is its instructions, so
  *   descriptions are never read.
  * - **Freshness:** read when the link comes up and again on `settings.changed`.
  *   The probe answers from that cache, so it costs nothing on a turn.
- * - **Tier:** T2, local Cline read through the hub.
  */
 
-export type SetupInventory = {
+type SetupInventory = {
 	workflows: string[];
 	skills: string[];
 	mcp: string[];
 	pluginCommands: string[];
 };
 
-export type SetupLink = {
-	availability(): "present" | "unknown" | "absent";
-	onStatus(listener: (status: HubLinkStatus) => void): () => void;
-	subscribe(
-		names: ReadonlySet<string>,
-		listener: (event: HubEvent) => void,
-	): () => void;
-	command(
-		name: string,
-		payload?: Record<string, unknown>,
-	): Promise<Record<string, unknown>>;
-};
+type SetupLink = Pick<
+	HubLink,
+	"availability" | "onStatus" | "subscribe" | "command"
+>;
 
-const SETTINGS_CHANGED: ReadonlySet<string> = new Set(["settings.changed"]);
+const SETTINGS_CHANGED: ReadonlySet<HubEventName> = new Set([
+	"settings.changed",
+]);
 
 function usable(item: Record<string, unknown>): boolean {
 	return item.enabled !== false && !item.loadError;
 }
 
-function names(items: unknown): string[] {
-	if (!Array.isArray(items)) return [];
-	const out = new Set<string>();
-	for (const item of items) {
-		if (
-			isRecord(item) &&
-			usable(item) &&
-			typeof item.name === "string" &&
-			item.name.trim()
-		)
-			out.add(item.name.trim());
-	}
-	return [...out].sort().slice(0, SETUP_NAMES_MAX);
+function capped(values: Iterable<string>): string[] {
+	return [...new Set(values)].sort().slice(0, SETUP_NAMES_MAX);
+}
+
+function usableNames(
+	snapshot: unknown,
+	key: string,
+	keep: (item: Record<string, unknown>) => boolean = () => true,
+): string[] {
+	return listOf(snapshot, key)
+		.filter((item) => usable(item) && keep(item))
+		.flatMap((item) =>
+			typeof item.name === "string" && item.name.trim()
+				? [item.name.trim()]
+				: [],
+		);
 }
 
 function slash(name: string): string {
@@ -68,28 +68,30 @@ function slash(name: string): string {
 
 /** The inventory from a `settings.list` reply; anything unexpected reads as empty. */
 export function parseSetup(reply: Record<string, unknown>): SetupInventory {
-	const snapshot = isRecord(reply.snapshot) ? reply.snapshot : {};
-	const commands = new Set<string>();
-	for (const plugin of Array.isArray(snapshot.plugins)
-		? snapshot.plugins
-		: []) {
-		if (!isRecord(plugin) || !usable(plugin) || !isRecord(plugin.contributions))
-			continue;
-		const contributed = plugin.contributions.commands;
-		for (const command of Array.isArray(contributed) ? contributed : []) {
-			if (typeof command === "string" && command.trim())
-				commands.add(slash(command.trim()));
-		}
-	}
+	const pluginCommands = listOf(reply.snapshot, "plugins")
+		.filter(usable)
+		.flatMap((plugin) =>
+			isRecord(plugin.contributions) &&
+			Array.isArray(plugin.contributions.commands)
+				? plugin.contributions.commands
+				: [],
+		)
+		.filter(
+			(command): command is string =>
+				typeof command === "string" && command.trim() !== "",
+		)
+		.map((command) => slash(command.trim()));
 	return {
-		workflows: names(snapshot.workflows).map(slash),
-		skills: names(snapshot.skills),
-		mcp: names(snapshot.mcp),
-		pluginCommands: [...commands].sort().slice(0, SETUP_NAMES_MAX),
+		workflows: capped(usableNames(reply.snapshot, "workflows").map(slash)),
+		skills: capped(usableNames(reply.snapshot, "skills")),
+		mcp: capped(
+			usableNames(reply.snapshot, "mcp", (item) => item.agentPlugin === true),
+		),
+		pluginCommands: capped(pluginCommands),
 	};
 }
 
-export function setupTags(inventory: SetupInventory): string[] {
+function setupTags(inventory: SetupInventory): string[] {
 	return [
 		...inventory.workflows.map((name) => `workflow:${name}`),
 		...inventory.skills.map((name) => `skill:${name}`),
@@ -98,7 +100,7 @@ export function setupTags(inventory: SetupInventory): string[] {
 	];
 }
 
-export function setupFacts(inventory: SetupInventory): Facts {
+function setupFacts(inventory: SetupInventory): Facts {
 	const line = (label: string, list: string[]) =>
 		list.length > 0 ? `${label}: ${list.join(", ")}` : "";
 	return {
@@ -115,16 +117,18 @@ export function setupFacts(inventory: SetupInventory): Facts {
 export class ClineSetupSource implements ContextSource {
 	readonly id = "cline-setup";
 	readonly tier = "T2" as const;
+	readonly displayName = "Your Cline setup";
+	readonly settingsToggle = "clineSetup" as const;
 	private inventory: SetupInventory | undefined;
 	private readonly teardown: Array<() => void> = [];
 
 	constructor(
 		private readonly link: SetupLink,
-		private readonly scope: { workspaceRoot?: string; cwd?: string } = {},
-		private readonly log?: (message: string, error?: unknown) => void,
+		private readonly scope: HubLinkScope = {},
+		private readonly log?: Log,
 	) {}
 
-	/** Read on every connect and every `settings.changed`. */
+	/** Read now if the link is already up, then on every connect and every `settings.changed`. */
 	start(): void {
 		this.teardown.push(
 			this.link.onStatus((status) => {
@@ -134,13 +138,14 @@ export class ClineSetupSource implements ContextSource {
 		this.teardown.push(
 			this.link.subscribe(SETTINGS_CHANGED, () => void this.refresh()),
 		);
+		if (this.link.availability() === "present") void this.refresh();
 	}
 
 	stop(): void {
 		for (const stop of this.teardown.splice(0)) stop();
 	}
 
-	async refresh(): Promise<void> {
+	private async refresh(): Promise<void> {
 		try {
 			const reply = await this.link.command("settings.list", {
 				workspaceRoot: this.scope.workspaceRoot,
@@ -154,10 +159,6 @@ export class ClineSetupSource implements ContextSource {
 				error,
 			);
 		}
-	}
-
-	current(): SetupInventory | undefined {
-		return this.inventory;
 	}
 
 	probe(): SourceState {

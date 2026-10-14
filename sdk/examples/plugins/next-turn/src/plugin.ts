@@ -1,13 +1,13 @@
-import { homedir } from "node:os";
 import type { AgentPlugin } from "@cline/core";
 import type { AgentRuntimeStateSnapshot } from "@cline/shared";
 import { DESKTOP_CLIENT_NAME, PLUGIN_NAME } from "./config";
 import { PluginLifecycle } from "./lifecycle";
+import { type Log, pluginLog } from "./log";
 import {
 	type OfferedSet,
 	parseTrayAction,
 	type TrayPush,
-} from "./planner/next";
+} from "./planner/tray";
 import {
 	type SessionRuntime,
 	type SetupContext,
@@ -18,19 +18,18 @@ import {
 	loadSettingsFile,
 	type Settings,
 } from "./settings/settings";
-import { nextTurnPaths, resolveClineDataDir } from "./store/data-dir";
-
-export type { SetupContext };
+import { cachedByFile, nextTurnPaths } from "./store/data-dir";
+import { errorMessage } from "./values";
 
 /** Structural slice of the `ui-slots` API (`registerUiHandler` on `api`, `ui.push` on `context`). */
-export type UiSlotPluginApi = {
+type UiSlotPluginApi = {
 	registerUiHandler?: (
 		name: string,
 		handler: (input: unknown) => Promise<unknown> | unknown,
 	) => void;
 };
 
-export type UiSlotSetupContext = SetupContext & {
+type UiSlotSetupContext = SetupContext & {
 	ui?: {
 		push: (event: string, payload: unknown) => void;
 	};
@@ -40,31 +39,23 @@ export type NextTurnPluginOptions = {
 	/** Starts this session's runtime, or returns nothing when no feature needs it. Tests replace it. */
 	startRuntime?: (
 		context: SetupContext,
-		options?: { active?: boolean },
+		options: { active: boolean },
 	) => SessionRuntime | undefined;
-	/** Where served sets go until the UI slot gives them a tray; by default, the session's debug log. */
-	onSet?: (context: SetupContext) => (set: OfferedSet | undefined) => void;
-	/** Overrides the viewer gate (`registerUiHandler` present and `client.name === "cline-desktop"`). */
-	isNextActive?: (api: UiSlotPluginApi, context: UiSlotSetupContext) => boolean;
 	/** Checks whether the plugin is still enabled and installed. */
 	lifecycle?: { active(): boolean };
 };
 
-/** Reads the settings file each call, so a change from the desktop or the CLI applies to the next decision. */
-export function settingsReader(
-	context: SetupContext,
-	env: NodeJS.ProcessEnv = process.env,
-	home: string = homedir(),
-): () => Settings {
-	const path = nextTurnPaths(resolveClineDataDir(env, home)).settings;
+/** Re-reads the settings file whenever it changes, so a change from the desktop or the CLI applies to the next decision. */
+function settingsReader(context: SetupContext): () => Settings {
+	const path = nextTurnPaths().settings;
 	const workspaceRoot = context.workspaceInfo?.rootPath;
-	return () => effectiveSettings(loadSettingsFile(path), workspaceRoot);
+	return cachedByFile(path, () =>
+		effectiveSettings(loadSettingsFile(path), workspaceRoot),
+	);
 }
 
 /** The set's shape, never its text, in the session's debug log. */
-export function logSet(
-	context: SetupContext,
-): (set: OfferedSet | undefined) => void {
+function logSet(context: SetupContext): (set: OfferedSet | undefined) => void {
 	return (set) => {
 		if (!set) return;
 		context.logger?.debug(`[${PLUGIN_NAME}] suggestions`, {
@@ -81,13 +72,17 @@ function isRootRun(snapshot: AgentRuntimeStateSnapshot): boolean {
 	return !snapshot.parentAgentId;
 }
 
-/** Default viewer gate: active at setup only when the host provides UI slots and the client is the desktop app. */
+/**
+ * Default viewer gate. A host without UI slots serves every set to the debug
+ * log, so Next starts at once; with slots, the desktop app starts at once and
+ * any other client waits until a viewer asks for `current`.
+ */
 export function defaultIsNextActive(
 	api: UiSlotPluginApi,
 	context: UiSlotSetupContext,
 ): boolean {
 	return (
-		typeof api?.registerUiHandler === "function" &&
+		typeof api?.registerUiHandler !== "function" ||
 		context.client?.name === DESKTOP_CLIENT_NAME
 	);
 }
@@ -98,8 +93,9 @@ export function defaultIsNextActive(
  * - `beforeModel` records the agent's tools, a capability source, and labels
  *   the person's new message against the set on screen once per `runId`.
  *   `beforeRun` cannot: its snapshot predates the new message;
- * - `afterRun` derives the turn, serves the rule-based set, starts the planner
- *   and tells the connector refresher whether the turn pushed.
+ * - `afterRun` derives the turn and returns; the rule-based set, the planner
+ *   and the connector refresher's check of whether the turn pushed follow
+ *   without holding up the run.
  *
  * No hook can fail the person's run: each catches its own errors.
  */
@@ -110,39 +106,44 @@ export function createNextTurnPlugin(
 	let startError: string | undefined;
 	let lastBeforeModelRunId: string | undefined;
 	let wasActive = true;
-	let pushOff: (() => void) | undefined;
-	let log: (message: string, error?: unknown) => void = () => {};
+	let log: Log = () => {};
 	const lifecycle = options.lifecycle ?? new PluginLifecycle();
-	const isActive = options.isNextActive ?? defaultIsNextActive;
 	const checkActive = (): boolean => {
 		const nowActive = lifecycle.active();
 		if (!nowActive && wasActive) {
 			wasActive = false;
 			runtime?.connectors?.refresher.stop();
-			pushOff?.();
+			runtime?.next?.off();
 		} else if (nowActive && !wasActive) {
 			wasActive = true;
-			void runtime?.connectors?.refresher.start().catch(() => {});
+			void runtime?.connectors?.refresher
+				.start()
+				.catch((error: unknown) => log("the refresher stopped", error));
 		}
 		return nowActive;
 	};
 	const start =
 		options.startRuntime ??
-		((context: SetupContext, runtimeOpts?: { active?: boolean }) =>
+		((context: SetupContext, { active }: { active: boolean }) =>
 			startSessionRuntime(context, {
 				settings: settingsReader(context),
-				onSet: (options.onSet ?? logSet)(context),
-				active: runtimeOpts?.active,
+				active,
+				pluginActive: () => lifecycle.active(),
 			}));
+	const stopRuntime = (stopping: SessionRuntime | undefined) =>
+		Promise.resolve()
+			.then(() => stopping?.stop())
+			.catch((error: unknown) => log("the runtime did not stop", error));
 	return {
 		name: PLUGIN_NAME,
 		manifest: { capabilities: ["hooks"] },
 		hooks: {
 			beforeModel(context) {
 				try {
-					if (!checkActive() || !isRootRun(context.snapshot)) return undefined;
+					if (!isRootRun(context.snapshot)) return undefined;
 					const runId = context.snapshot.runId;
 					if (runId && runId === lastBeforeModelRunId) return undefined;
+					if (!checkActive()) return undefined;
 					if (runId) lastBeforeModelRunId = runId;
 					runtime?.setTools(context.request.tools.map((tool) => tool.name));
 					runtime?.next?.outgoing(context.request.messages);
@@ -152,23 +153,22 @@ export function createNextTurnPlugin(
 				return undefined;
 			},
 			async afterRun(context) {
-				if (!checkActive() || !runtime || !isRootRun(context.snapshot)) return;
+				if (!runtime || !isRootRun(context.snapshot) || !checkActive()) return;
 				if (!runtime.next) {
 					try {
-						runtime.recordDormantTurn?.(context.result);
+						runtime.recordDormantTurn(context.result);
 					} catch (error) {
 						log("afterRun dormant turn failed", error);
 					}
 					return;
 				}
-				try {
-					await runtime.next.afterRun(context.result);
-				} catch (error) {
-					log("afterRun failed", error);
-				}
+				const served = runtime.next
+					.afterRun(context.result)
+					.catch((error: unknown) => log("afterRun failed", error));
 				const pushed = runtime.next.turn()?.pushed ?? false;
-				runtime.connectors?.refresher
-					.onTurn({ pushed })
+				const refresher = runtime.connectors?.refresher;
+				served
+					.then(() => refresher?.onTurn({ pushed }))
 					.catch((error: unknown) => log("a refresh failed", error));
 			},
 		},
@@ -176,15 +176,11 @@ export function createNextTurnPlugin(
 			const api = (rawApi ?? {}) as UiSlotPluginApi;
 			const context = (rawContext ?? {}) as UiSlotSetupContext;
 			const sessionId = context.session?.sessionId ?? "";
-			log = (message, error) =>
-				context.logger?.debug(`[${PLUGIN_NAME}] ${message}`, { error });
+			log = pluginLog(context);
 			startError = undefined;
 			lastBeforeModelRunId = undefined;
 			wasActive = lifecycle.active();
-			const active =
-				options.startRuntime && !options.isNextActive
-					? true
-					: isActive(api, context);
+			const active = defaultIsNextActive(api, context);
 			const pushToSlot = (payload: TrayPush) => {
 				try {
 					context.ui?.push("next.state", payload);
@@ -192,39 +188,31 @@ export function createNextTurnPlugin(
 					log("ui.push failed", error);
 				}
 			};
-			let offSeq = 0;
-			pushOff = () => {
-				offSeq += 1;
-				pushToSlot({
-					sessionId,
-					seq: (runtime?.next?.currentPush().seq ?? 0) + offSeq,
-					state: "off",
-				});
-			};
 			let subscribedNext: unknown;
 			const bindNext = () => {
 				const next = runtime?.next;
 				if (!next || next === subscribedNext) return;
 				subscribedNext = next;
-				if (options.startRuntime && options.onSet)
-					next.onSet(options.onSet(context));
-				else if (options.startRuntime) next.onSet(logSet(context));
+				next.onSet(logSet(context));
 				next.onPush(pushToSlot);
 			};
+			void stopRuntime(runtime);
+			runtime = undefined;
 			try {
-				runtime = start(context, { active });
+				const started = start(context, { active });
+				runtime = started;
+				context.onDispose?.(() => stopRuntime(started));
 				bindNext();
 			} catch (error) {
-				startError = error instanceof Error ? error.message : String(error);
+				startError = errorMessage(error);
 				log("the runtime did not start", error);
 			}
 			if (typeof api.registerUiHandler === "function") {
+				const off: TrayPush = { sessionId, seq: 0, state: "off" };
 				api.registerUiHandler("next", async (rawInput: unknown) => {
 					const action = parseTrayAction(rawInput);
 					if (!action) throw new Error("invalid NextTurnTrayAction");
-					if (!checkActive()) {
-						return { sessionId, seq: 0, state: "off" } satisfies TrayPush;
-					}
+					if (!checkActive()) return runtime?.next?.off() ?? off;
 					if (startError) {
 						return {
 							sessionId,
@@ -233,25 +221,17 @@ export function createNextTurnPlugin(
 							error: startError,
 						} satisfies TrayPush;
 					}
-					if (!runtime || !sessionId) {
-						return { sessionId, seq: 0, state: "off" } satisfies TrayPush;
-					}
+					if (!runtime || !sessionId) return off;
 					if (action.type === "current") {
 						if (!runtime.next) {
-							runtime.activateNext?.(action.client);
+							runtime.activateNext(action.client);
 							bindNext();
 						}
-						if (!runtime.next)
-							return { sessionId, seq: 0, state: "off" } satisfies TrayPush;
-						if (typeof runtime.next.ensureCurrent === "function") {
-							return await runtime.next.ensureCurrent(action.runCount);
-						}
-						return runtime.next.currentPush();
+						if (!runtime.next) return off;
+						return await runtime.next.ensureCurrent(action.runCount);
 					}
-					if (!runtime.next)
-						return { sessionId, seq: 0, state: "off" } satisfies TrayPush;
-					await runtime.next.invoke(action);
-					return runtime.next.currentPush();
+					if (!runtime.next) return off;
+					return runtime.next.invoke(action);
 				});
 			}
 		},

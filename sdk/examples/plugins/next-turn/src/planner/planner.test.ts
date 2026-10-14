@@ -1,148 +1,29 @@
 import { describe, expect, test } from "bun:test";
-import type { AgentMessage, AgentRunResult } from "@cline/shared";
 import type { Manifest } from "../context/manifest";
+import { clineSources } from "../context/sources/index";
+import { emptyFold } from "../hub/fold";
+import { HubLink } from "../hub/link";
 import { EMPTY_BACKLOG } from "./backlog";
 import { REVIEW_PROMPT, suggestion, type TurnFacts } from "./candidates";
 import { buildPlannerInput, plannerSystemPrompt, unreadSources } from "./input";
 import { CORE_KINDS, offerableKinds } from "./kinds";
 import { buildModelSet, parsePlannerOutput } from "./output";
-import { deriveTurn, editedPaths, lastPersonMessage } from "./turn";
 
-let ids = 0;
-function message(
-	role: AgentMessage["role"],
-	content: AgentMessage["content"],
-	extra: Partial<AgentMessage> = {},
-): AgentMessage {
-	ids += 1;
-	return { id: `m${ids}`, role, content, createdAt: ids, ...extra };
-}
-
-function run(
-	messages: AgentMessage[],
-	status: AgentRunResult["status"] = "completed",
-	outputText = "Done: fixed the test.",
-): AgentRunResult {
-	return {
-		agentId: "a",
-		runId: "run_si9HsPkJ",
-		status,
-		iterations: 1,
-		outputText,
-		messages,
-		usage: {
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheReadTokens: 0,
-			cacheWriteTokens: 0,
+/** How the Cline-first sources name themselves, as `NextSession` hands them to the planner. */
+function clineSourceNames(): Record<string, string> {
+	const link = new HubLink({
+		resolveEndpoint: async () => undefined,
+		createClient: () => {
+			throw new Error("never connects");
 		},
-	};
+		sleep: async () => {},
+	});
+	const cline = clineSources(link, emptyFold, {}, undefined, { plan: true });
+	cline.stop();
+	return Object.fromEntries(
+		cline.sources.map((source) => [source.id, source.displayName ?? source.id]),
+	);
 }
-
-describe("the turn, from the run result", () => {
-	const earlier = [
-		message("user", [{ type: "text", text: "First request" }]),
-		message("assistant", [{ type: "text", text: "ok" }]),
-	];
-
-	test("facts and context come only from after the person's last message", () => {
-		const user = message("user", [
-			{ type: "text", text: "Fix the failing test in users.test.ts" },
-		]);
-		const messages = [
-			...earlier,
-			message("assistant", [
-				{
-					type: "tool-call",
-					toolCallId: "old",
-					toolName: "editor",
-					input: { path: "old.ts" },
-				},
-			]),
-			user,
-			message(
-				"user",
-				[{ type: "text", text: "<hook_context>injected</hook_context>" }],
-				{ metadata: { userRunSpan: 0, displayRole: "system" } },
-			),
-			message(
-				"assistant",
-				[
-					{
-						type: "tool-call",
-						toolCallId: "c1",
-						toolName: "editor",
-						input: { path: "src/users.ts" },
-					},
-					{
-						type: "tool-call",
-						toolCallId: "c2",
-						toolName: "apply_patch",
-						input: { input: "*** Update File: a.ts\n*** Add File: b.ts\n" },
-					},
-					{
-						type: "tool-call",
-						toolCallId: "c3",
-						toolName: "run_commands",
-						input: { command: "git push -u origin feature" },
-					},
-				],
-				{ modelInfo: { id: "claude-sonnet-5-5", provider: "anthropic" } },
-			),
-			message("tool", [
-				{
-					type: "tool-result",
-					toolCallId: "c1",
-					toolName: "editor",
-					output: "ok",
-				},
-				{
-					type: "tool-result",
-					toolCallId: "c3",
-					toolName: "run_commands",
-					output: { error: "token=abcdefghijklmnopqr rejected" },
-					isError: true,
-				},
-			]),
-		];
-		const turn = deriveTurn("s1", run(messages));
-		expect(turn).toMatchObject({
-			runId: "run_si9HsPkJ",
-			userMessageId: user.id,
-			runCount: 2,
-			turnKey: "s1:2",
-			facts: { status: "completed", filesEdited: 3, toolErrored: true },
-			pushed: true,
-			chat: { providerId: "anthropic", modelId: "claude-sonnet-5-5" },
-		});
-		expect(turn?.context.request).toBe("Fix the failing test in users.test.ts");
-		expect(turn?.context.editedPaths).toEqual(["src/users.ts", "a.ts", "b.ts"]);
-		expect(turn?.context.tools).toEqual([
-			{ name: "editor", failed: false },
-			{
-				name: "run_commands",
-				failed: true,
-				error: "token=abcdefghijklmnopqr rejected",
-			},
-		]);
-	});
-
-	test("an aborted run is a stopped turn, a failed run a failed one; no message is no turn", () => {
-		const user = message("user", [{ type: "text", text: "Go" }]);
-		expect(deriveTurn("s", run([user], "aborted"))?.facts.status).toBe(
-			"cancelled",
-		);
-		expect(deriveTurn("s", run([user], "failed"))?.facts.status).toBe("failed");
-		expect(deriveTurn("s", run([]))).toBeNull();
-		expect(
-			lastPersonMessage([
-				user,
-				message("user", [{ type: "text", text: "<hook_context>x" }]),
-			]),
-		).toEqual({ id: user.id, text: "Go" });
-		expect(editedPaths({ filePath: " x.ts " })).toEqual(["x.ts"]);
-	});
-});
 
 function manifestOf(
 	sources: Manifest["sources"],
@@ -180,6 +61,7 @@ describe("the planner's input", () => {
 			backlog: EMPTY_BACKLOG,
 			manifest,
 			facts: {},
+			names: {},
 			kinds: CORE_KINDS,
 			excluded: [],
 		});
@@ -215,6 +97,7 @@ describe("the planner's input", () => {
 			backlog: EMPTY_BACKLOG,
 			manifest,
 			facts,
+			names: clineSourceNames(),
 			kinds: offerableKinds(manifest),
 			excluded: ["Run the tests."],
 		});
@@ -249,6 +132,9 @@ describe("the planner's input", () => {
 			"The chat is in plan mode",
 		);
 		expect(plannerSystemPrompt(CORE_KINDS, "act")).not.toContain("plan mode");
+		expect(plannerSystemPrompt(CORE_KINDS, "act")).toContain(
+			"source is one of: turn, status, tasks, plan, repo, connector — ",
+		);
 	});
 });
 

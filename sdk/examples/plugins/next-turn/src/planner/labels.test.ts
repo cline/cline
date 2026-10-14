@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { ITelemetryService } from "@cline/shared";
-import { LABEL_SCHEMA_VERSION, PRIVATE_FILE_MODE } from "../config";
+import { LABEL_SCHEMA_VERSION, TYPED_TEXT_LIMIT } from "../config";
+import { PRIVATE_FILE_MODE } from "../store/data-dir";
+import { useTempDirs } from "../test-support";
 import { suggestion } from "./candidates";
 import {
 	buildLabelRecord,
@@ -13,15 +13,8 @@ import {
 	type Offer,
 	offerRecord,
 } from "./labels";
-import {
-	captureLabel,
-	surfaceOf,
-	TELEMETRY_ACTIONS,
-	telemetryProperties,
-} from "./telemetry";
 
-type Captured = { event: string; properties?: Record<string, unknown> };
-type Recorded = { name: string; value: number };
+const tempDir = useTempDirs("next-turn-labels-");
 
 /**
  * Golden records from the label writer this plugin's schema v3 extends,
@@ -90,6 +83,48 @@ describe("the label record", () => {
 		expect(() => buildLabelRecord({ ...base, v: 2, event: "offer" })).toThrow(
 			`v must be ${LABEL_SCHEMA_VERSION}`,
 		);
+		const long = buildLabelRecord({
+			...base,
+			event: "typed_instead",
+			typedText: "x".repeat(TYPED_TEXT_LIMIT + 5),
+		});
+		expect(long.chars).toBe(TYPED_TEXT_LIMIT);
+		expect(long.messageHash).toBe(
+			buildLabelRecord({
+				...base,
+				event: "typed_instead",
+				typedText: "x".repeat(TYPED_TEXT_LIMIT),
+			}).messageHash,
+		);
+	});
+
+	test("a named field left undefined is not written; an unknown key is refused even when undefined", () => {
+		const record = buildLabelRecord({
+			...base,
+			event: "skip",
+			input: undefined,
+			candidateId: "c1",
+		});
+		expect(record).toEqual({ ...base, event: "skip", candidateId: "c1" });
+		expect("input" in record).toBe(false);
+		expect(() =>
+			buildLabelRecord({ ...base, event: "skip", why: undefined }),
+		).toThrow("why is not a field the label schema names");
+	});
+
+	test("the writer refuses what the published schema refuses", () => {
+		expect(() =>
+			buildLabelRecord({ ...base, event: "offer", trigger: "foo" }),
+		).toThrow("trigger must be one of after_run, on_demand");
+		expect(() =>
+			buildLabelRecord({ ...base, at: "yesterday", event: "offer" }),
+		).toThrow("at must be a timestamp string");
+		expect(() =>
+			buildLabelRecord({ ...base, event: "adjust", bucket: "medium" }),
+		).toThrow("bucket must be one of same, small, large");
+		expect(() =>
+			buildLabelRecord({ ...base, event: "skip", constructor: "prose" }),
+		).toThrow("constructor is not a field the label schema names");
 	});
 
 	test("the offer record carries shape and manifest tags, never text", () => {
@@ -111,7 +146,6 @@ describe("the label record", () => {
 			offerRecord(offer, {
 				turn: { status: "completed", filesEdited: 1, toolErrored: false },
 				latencyMs: 12,
-				fallback: false,
 				tags: ["source:tasks:present", "cap:mcp:my server", "client:cline-cli"],
 				at: new Date(0),
 			}),
@@ -124,6 +158,31 @@ describe("the label record", () => {
 			planner: "rules",
 		});
 		expect(JSON.stringify(record)).not.toContain("Run the checks");
+		expect(Object.keys(record)).toEqual([
+			"v",
+			"at",
+			"sessionId",
+			"event",
+			"candidateIds",
+			"kinds",
+			"sources",
+			"tags",
+			"setId",
+			"turnKey",
+			"offerId",
+			"runId",
+			"cueCode",
+			"turnStatus",
+			"planner",
+			"runCount",
+			"candidateCount",
+			"filesEdited",
+			"latencyMs",
+			"excludedCount",
+			"toolErrored",
+			"fallback",
+			"reroll",
+		]);
 
 		const onDemandOffer: Offer = {
 			...offer,
@@ -134,7 +193,6 @@ describe("the label record", () => {
 			offerRecord(onDemandOffer, {
 				turn: { status: "completed", filesEdited: 1, toolErrored: false },
 				latencyMs: 8,
-				fallback: false,
 				tags: [],
 				at: new Date(0),
 			}),
@@ -144,10 +202,7 @@ describe("the label record", () => {
 	});
 
 	test("the log appends owner-only lines and mirrors each accepted record", () => {
-		const path = join(
-			mkdtempSync(join(tmpdir(), "next-turn-labels-")),
-			"labels.jsonl",
-		);
+		const path = join(tempDir(), "labels.jsonl");
 		const mirrored: unknown[] = [];
 		const log = new LabelLog(path, (record) => mirrored.push(record));
 		log.append({ ...base, event: "exposed" });
@@ -170,89 +225,5 @@ describe("the label record", () => {
 		expect(editBucket("Run the tests.", "Deploy to staging now please")).toBe(
 			"large",
 		);
-	});
-});
-
-describe("the telemetry mirror", () => {
-	function service(enabled = true, fail = false) {
-		const captured: Captured[] = [];
-		const histograms: Recorded[] = [];
-		const telemetry = {
-			isEnabled: () => enabled,
-			capture: (event: Captured) => {
-				if (fail) throw new Error("exporter down");
-				captured.push(event);
-			},
-			recordCounter: () => undefined,
-			recordHistogram: (name: string, value: number) =>
-				histograms.push({ name, value }),
-		} as unknown as ITelemetryService;
-		return { telemetry, captured, histograms };
-	}
-
-	test("names each label by what the person did and drops the hash", () => {
-		const { telemetry, captured, histograms } = service();
-		const record = buildLabelRecord({
-			...base,
-			event: "typed_instead",
-			typedText: "x",
-		});
-		captureLabel(telemetry, "terminal-tray", record);
-		captureLabel(
-			telemetry,
-			"terminal-tray",
-			buildLabelRecord({
-				...base,
-				event: "offer",
-				latencyMs: 30,
-				planner: "model",
-			}),
-		);
-		expect(captured.map((event) => event.event)).toEqual([
-			"next_turn.typed_instead",
-			"next_turn.set_served",
-		]);
-		expect(captured[0]?.properties?.messageHash).toBeUndefined();
-		expect(captured[0]?.properties?.surface).toBe("terminal-tray");
-		expect(histograms).toEqual([
-			{ name: "next_turn.set_latency_ms", value: 30 },
-		]);
-		expect(Object.keys(TELEMETRY_ACTIONS).sort()).toEqual(
-			[...LABEL_EVENTS].sort(),
-		);
-		expect(
-			telemetryProperties({ ...base, event: "skip", excluded: ["a"] }, "plugin")
-				.excludedCount,
-		).toBe(1);
-	});
-
-	test("an opted-out or failing service changes nothing", () => {
-		const off = service(false);
-		captureLabel(
-			off.telemetry,
-			"plugin",
-			buildLabelRecord({ ...base, event: "exposed" }),
-		);
-		expect(off.captured).toEqual([]);
-		expect(() =>
-			captureLabel(
-				service(true, true).telemetry,
-				"plugin",
-				buildLabelRecord({ ...base, event: "exposed" }),
-			),
-		).not.toThrow();
-		expect(() =>
-			captureLabel(
-				undefined,
-				"plugin",
-				buildLabelRecord({ ...base, event: "exposed" }),
-			),
-		).not.toThrow();
-	});
-
-	test("the surface follows the client", () => {
-		expect(surfaceOf("cline-desktop")).toBe("desktop-tray");
-		expect(surfaceOf("cline-cli")).toBe("terminal-tray");
-		expect(surfaceOf(undefined)).toBe("plugin");
 	});
 });

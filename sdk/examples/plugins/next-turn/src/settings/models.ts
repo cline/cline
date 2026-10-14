@@ -1,12 +1,12 @@
 /**
- * The planner's model choices. `catalog.list` is not handled at the
- * pin, so the settings page lists the person's configured providers from
+ * The planner's model choices. The hub does not handle `catalog.list`, so
+ * the settings page lists the person's configured providers from
  * `@cline/core`'s `ProviderSettingsManager`, the same store the planner
  * resolves its model from. Provider and model ids only: no key, token or
  * account field leaves this module.
  */
 
-import { isRecord } from "../hub/fold";
+import { isRecord } from "../values";
 
 export type ModelChoice = {
 	providerId: string;

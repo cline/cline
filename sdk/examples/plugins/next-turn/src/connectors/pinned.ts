@@ -4,19 +4,12 @@ import {
 	PINNED_SUMMARY_ITEMS,
 	PINNED_SUMMARY_MAX,
 } from "../config";
+import { type DatedLine, datedFacts, mentionOnlyFacts } from "../context/facts";
 import { clip } from "../context/redact";
 import type { Facts, SourceEnv, SourceState } from "../context/source";
-import { ageLabel } from "../context/sources/history";
-import { isRecord } from "../hub/fold";
 import type { PinnedRead } from "../settings/settings";
-import type {
-	Access,
-	Connector,
-	ConnectorKind,
-	Detection,
-	ReadScope,
-	Route,
-} from "./connector";
+import { isRecord } from "../values";
+import type { Access, Connector, ReadScope, Route } from "./connector";
 
 /**
  * Pinned reads: Read on an MCP server or a Composio toolkit
@@ -86,7 +79,7 @@ const WRITE_VERBS: ReadonlySet<string> = new Set([
 ]);
 
 /** `listIssues`, `list_issues` and `list-issues` all read as ["list", "issues"]. */
-export function toolWords(name: string): string[] {
+function toolWords(name: string): string[] {
 	return name
 		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
 		.split(/[\s_\-.:/]+/)
@@ -95,7 +88,7 @@ export function toolWords(name: string): string[] {
 }
 
 /** A tool's name without its namespace (`linear_list_issues` → `list_issues` for toolkit `linear`). */
-export function bareToolName(tool: string, namespace?: string): string {
+function bareToolName(tool: string, namespace?: string): string {
 	const prefix = namespace ? `${namespace.toLowerCase()}_` : "";
 	return prefix && tool.toLowerCase().startsWith(prefix)
 		? tool.slice(prefix.length)
@@ -241,31 +234,31 @@ export type ToolRunner = (
 	args: Record<string, unknown>,
 ) => Promise<unknown>;
 
-export type PinnedReadConnectorOptions = {
-	id: string;
-	kind: ConnectorKind;
-	label: string;
-	namespace?: string;
-	route: Route;
-	/** The runner, or why reading is not possible here (an upstream ask, a missing server). */
-	runner: () => Promise<ToolRunner | { reason: string }>;
+/** The runner, or why reading is not possible here: a missing server, or a connection Cline does not expose to plugins. */
+export type ResolveRunner = () => Promise<ToolRunner | { reason: string }>;
+
+/** What a pinned-read connector needs from the chat. */
+export type PinnedReadDeps = {
+	runner: ResolveRunner;
 	reads: () => readonly PinnedRead[];
 	access: () => Access;
-	present: () => SourceState;
 	now?: () => number;
 };
 
-type Cached = { fetchedAt: number; line: string };
+type PinnedReadConnectorOptions = PinnedReadDeps & {
+	id: string;
+	label: string;
+	namespace?: string;
+	route: Pick<Route, "id" | "label">;
+};
 
 export class PinnedReadConnector implements Connector {
 	readonly id: string;
-	readonly kind: ConnectorKind;
 	readonly tier = "T3" as const;
-	private readonly cache = new Map<string, Cached>();
+	private readonly cache = new Map<string, DatedLine>();
 
 	constructor(private readonly options: PinnedReadConnectorOptions) {
 		this.id = options.id;
-		this.kind = options.kind;
 	}
 
 	private now(): number {
@@ -273,7 +266,7 @@ export class PinnedReadConnector implements Connector {
 	}
 
 	/** The pins that may run: read-only names, at most `PINNED_READS_MAX`. */
-	pins(): PinnedRead[] {
+	private pins(): PinnedRead[] {
 		return this.options
 			.reads()
 			.filter((read) => readOnlyToolName(read.tool, this.options.namespace))
@@ -288,15 +281,8 @@ export class PinnedReadConnector implements Connector {
 		}));
 	}
 
-	async detect(): Promise<Detection> {
-		return {
-			routes: this.options.present() === "present" ? [this.options.route] : [],
-			detectedAt: this.now(),
-		};
-	}
-
 	probe(): SourceState {
-		return this.options.present();
+		return this.options.access().role === "off" ? "absent" : "present";
 	}
 
 	capabilities(): string[] {
@@ -306,13 +292,7 @@ export class PinnedReadConnector implements Connector {
 	async refresh(scope: string): Promise<void> {
 		const access = this.options.access();
 		const read = this.pins().find((pin) => pin.id === scope);
-		if (
-			access.role !== "read" ||
-			!access.readAllowed ||
-			!access.scopes.includes(scope) ||
-			!read
-		)
-			return;
+		if (!access.readAllowed || !access.scopes.includes(scope) || !read) return;
 		const runner = await this.options.runner();
 		if (typeof runner !== "function") return;
 		const fetchedAt = this.now();
@@ -324,27 +304,14 @@ export class PinnedReadConnector implements Connector {
 	}
 
 	facts(_env: SourceEnv): Facts | "unknown" {
+		const { label, route } = this.options;
 		const access = this.options.access();
-		if (access.role !== "read" || !access.readAllowed) {
-			return {
-				heading: `${this.options.label} (connected; no data read)`,
-				lines: [
-					`Suggestions may ask the agent to use its tools, through ${this.options.route.label}.`,
-				],
-				provenance: { connector: this.id, route: this.options.route.id },
-			};
-		}
-		const now = this.now();
-		const entries = access.scopes
-			.map((scope) => this.cache.get(scope))
-			.filter((entry): entry is Cached => entry !== undefined);
-		if (entries.length === 0) return "unknown";
-		const oldest = Math.min(...entries.map((entry) => entry.fetchedAt));
-		return {
-			heading: `${this.options.label} (as of ${ageLabel(oldest, now)})`,
-			lines: entries.map((entry) => entry.line),
-			fetchedAt: oldest,
-			provenance: { connector: this.id, route: this.options.route.id },
-		};
+		return access.readAllowed
+			? datedFacts(
+					label,
+					access.scopes.flatMap((scope) => this.cache.get(scope) ?? []),
+					this.now(),
+				)
+			: mentionOnlyFacts(label, "its tools", route.label);
 	}
 }

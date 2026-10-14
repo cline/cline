@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { HubCommandFailed } from "../hub/link";
+import { useTempDirs } from "../test-support";
 import {
 	approveTask,
 	editTask,
@@ -14,16 +14,7 @@ import {
 	workspaceTaskSpecsDir,
 } from "./tasks";
 
-const temps: string[] = [];
-function tempDir(): string {
-	const dir = mkdtempSync(join(tmpdir(), "next-turn-tasks-"));
-	temps.push(dir);
-	return dir;
-}
-afterEach(() => {
-	for (const dir of temps.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
+const tempDir = useTempDirs("next-turn-tasks-");
 
 type Call = { name: string; payload?: Record<string, unknown> };
 
@@ -153,7 +144,7 @@ describe("proposals", () => {
 	});
 
 	test("the specs directory is upstream's", async () => {
-		expect(await workspaceTaskSpecsDir("/repo")).toBe("/repo/.cline/tasks");
+		expect(workspaceTaskSpecsDir("/repo")).toBe("/repo/.cline/tasks");
 	});
 });
 

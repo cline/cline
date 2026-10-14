@@ -1,4 +1,5 @@
 import { FACTS_BUDGET_MS, PROBE_BUDGET_MS } from "../config";
+import { withinBudget } from "../deadline";
 import type { ContextSource, Facts, SourceEnv, SourceState } from "./source";
 
 /**
@@ -8,53 +9,35 @@ import type { ContextSource, Facts, SourceEnv, SourceState } from "./source";
  * offered and, as tags on each offer record, how pick rate is compared across
  * environments.
  */
-export type Manifest = {
-	client?: string;
-	mode?: "act" | "plan";
+export type Manifest = Pick<SourceEnv, "client" | "mode"> & {
 	sources: Record<string, SourceState>;
 	capabilities: string[];
 };
 
-export type ManifestOptions = {
-	/** Sources the person turned off; they are recorded as `off` and never probed. */
-	isOff?: (sourceId: string) => boolean;
-	/** Overrides the per-tier probe budget, for tests. */
-	budgetMs?: (source: ContextSource) => number;
-};
-
-const UNKNOWN: SourceState = "unknown";
-
-/** Resolves with `onTimeout` when the work throws or outlasts the budget. */
-export function withinBudget<T>(
-	work: () => Promise<T> | T,
-	budgetMs: number,
-	onTimeout: T,
-): Promise<T> {
-	return new Promise<T>((resolve) => {
-		const timer = setTimeout(() => resolve(onTimeout), budgetMs);
-		Promise.resolve()
-			.then(work)
-			.then(
-				(value) => {
-					clearTimeout(timer);
-					resolve(value);
-				},
-				() => {
-					clearTimeout(timer);
-					resolve(onTimeout);
-				},
-			);
-	});
+export function isPresent(
+	manifest: Pick<Manifest, "sources">,
+	sourceId: string,
+): boolean {
+	return manifest.sources[sourceId] === "present";
 }
+
+/** Overrides the per-tier budget of a probe or a facts read, for tests. */
+type BudgetOverride = (source: ContextSource) => number;
+
+type ManifestOptions = {
+	/** Sources the person turned off; they are recorded as `off` and never probed. */
+	isOff?: (source: ContextSource) => boolean;
+	budgetMs?: BudgetOverride;
+};
 
 async function probe(
 	source: ContextSource,
 	env: SourceEnv,
 	options: ManifestOptions,
 ): Promise<SourceState> {
-	if (options.isOff?.(source.id)) return "off";
+	if (options.isOff?.(source)) return "off";
 	const budget = options.budgetMs?.(source) ?? PROBE_BUDGET_MS[source.tier];
-	return withinBudget(() => source.probe(env), budget, UNKNOWN);
+	return withinBudget<SourceState>(() => source.probe(env), budget, "unknown");
 }
 
 function capabilitiesOf(source: ContextSource, env: SourceEnv): string[] {
@@ -71,38 +54,32 @@ export async function buildManifest(
 	env: SourceEnv,
 	options: ManifestOptions = {},
 ): Promise<Manifest> {
-	const states = await Promise.all(
-		sources.map((source) => probe(source, env, options)),
+	const probed = await Promise.all(
+		sources.map(async (source) => ({
+			source,
+			state: await probe(source, env, options),
+		})),
 	);
-	const manifest: Manifest = {
+	return {
 		client: env.client,
 		mode: env.mode,
-		sources: {},
-		capabilities: [],
+		sources: Object.fromEntries(
+			probed.map(({ source, state }) => [source.id, state]),
+		),
+		capabilities: [
+			...new Set(
+				probed.flatMap(({ source, state }) =>
+					state === "present" ? capabilitiesOf(source, env) : [],
+				),
+			),
+		].sort(),
 	};
-	const capabilities = new Set<string>();
-	sources.forEach((source, index) => {
-		const state = states[index] ?? UNKNOWN;
-		manifest.sources[source.id] = state;
-		if (state === "present")
-			for (const tag of capabilitiesOf(source, env)) capabilities.add(tag);
-	});
-	manifest.capabilities = [...capabilities].sort();
-	return manifest;
-}
-
-/** The sources the planner may mention: present or unknown. Absent and off ones are never named. */
-export function nameableSources(manifest: Manifest): string[] {
-	return Object.entries(manifest.sources)
-		.filter(([, state]) => state === "present" || state === "unknown")
-		.map(([id]) => id)
-		.sort();
 }
 
 /**
- * The manifest as flat tags for the offer record (ADR-0021), each a label
- * token (`source:tasks:present`, `cap:github`). Ids and states only, never content, so pick rate can be sliced by environment and each
- * source ablated in replay.
+ * The manifest as flat tags for the offer record, each a label token
+ * (`source:tasks:present`, `cap:github`). Ids and states only, never content,
+ * so pick rate can be sliced by environment and each source ablated in replay.
  */
 export function manifestTags(manifest: Manifest): string[] {
 	const tags = Object.entries(manifest.sources)
@@ -115,39 +92,35 @@ export function manifestTags(manifest: Manifest): string[] {
 	return tags;
 }
 
-export type FactsOptions = {
-	/** Overrides the per-tier facts budget, for tests. */
-	budgetMs?: (source: ContextSource) => number;
-};
+type FactsSource = ContextSource & Required<Pick<ContextSource, "facts">>;
 
 /**
  * The facts of every present source, each under its tier's budget, in
  * parallel. Absent and off sources are not asked and leave no entry, so the
- * planner says nothing about them. A throw or a timeout reads as `unknown`
- *.
+ * planner says nothing about them. A throw or a timeout reads as `unknown`.
  */
 export async function collectFacts(
 	sources: readonly ContextSource[],
 	manifest: Manifest,
 	env: SourceEnv,
-	options: FactsOptions = {},
+	options: { budgetMs?: BudgetOverride } = {},
 ): Promise<Record<string, Facts | "unknown">> {
 	const asked = sources.filter(
-		(source) => source.facts && manifest.sources[source.id] === "present",
+		(source): source is FactsSource =>
+			source.facts !== undefined && isPresent(manifest, source.id),
 	);
-	const results = await Promise.all(
-		asked.map((source) => {
-			const budget = options.budgetMs?.(source) ?? FACTS_BUDGET_MS[source.tier];
-			return withinBudget<Facts | "unknown">(
-				() => source.facts?.(env, budget) ?? "unknown",
-				budget,
-				"unknown",
-			);
-		}),
+	return Object.fromEntries(
+		await Promise.all(
+			asked.map(async (source) => {
+				const budget =
+					options.budgetMs?.(source) ?? FACTS_BUDGET_MS[source.tier];
+				const facts = await withinBudget<Facts | "unknown">(
+					() => source.facts(env, budget),
+					budget,
+					"unknown",
+				);
+				return [source.id, facts] as const;
+			}),
+		),
 	);
-	const facts: Record<string, Facts | "unknown"> = {};
-	asked.forEach((source, index) => {
-		facts[source.id] = results[index] ?? "unknown";
-	});
-	return facts;
 }

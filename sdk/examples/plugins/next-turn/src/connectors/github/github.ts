@@ -5,17 +5,24 @@ import {
 	GITHUB_REVIEWS_EVERY_MINUTES,
 	GITHUB_TITLE_MAX,
 } from "../../config";
+import {
+	type DatedLine,
+	datedFacts,
+	mentionOnlyFacts,
+} from "../../context/facts";
 import { clip } from "../../context/redact";
 import type { Facts, SourceEnv, SourceState } from "../../context/source";
-import { ageLabel } from "../../context/sources/history";
+import type { GitHubEvidence } from "../../planner/rules";
 import type { ClineConnections, McpServer } from "../cline-connections";
-import type {
-	Access,
-	Connector,
-	Detection,
-	ReadScope,
-	Route,
+import { COMPOSIO_ROUTE, GITHUB_TOOLKIT } from "../composio";
+import {
+	type Access,
+	type Connector,
+	mcpConnectorId,
+	type ReadScope,
+	type Route,
 } from "../connector";
+import { mcpServerLabel } from "../mcp";
 import {
 	type DefaultCiFact,
 	type GhReader,
@@ -30,8 +37,8 @@ import {
  * | Route | Mention | Read |
  * |---|---|---|
  * | `gh`, the sign-in Cline desktop's PR bar uses | yes | yes |
- * | Composio's GitHub toolkit on the Cline account | yes | after upstream ask U4 |
- * | A GitHub MCP server in Cline's settings | yes | through its own MCP row's pinned reads (K3) |
+ * | Composio's GitHub toolkit on the Cline account | yes | not yet: Cline does not expose its Composio tools to plugins |
+ * | A GitHub MCP server in Cline's settings | yes | through its own MCP connector's pinned reads |
  * | GitHub tools the agent has in this chat | yes | only the agent calls them |
  *
  * Mention gives the planner no GitHub data: suggestions may ask the agent to
@@ -59,22 +66,29 @@ export const GITHUB_SCOPES: readonly ReadScope[] = [
 	},
 ];
 
-const MCP_GITHUB = /github/i;
-const AGENT_GITHUB_TOOL = /github/i;
+const GITHUB = /github/i;
 
-export function githubMcpServers(servers: readonly McpServer[]): McpServer[] {
+const GH_ROUTE: Route = {
+	id: "gh",
+	label: "gh, signed in (the sign-in Cline's PR bar uses)",
+	read: true,
+};
+
+const AGENT_TOOLS_ROUTE: Route = {
+	id: "agent-tools",
+	label: "GitHub tools in this chat",
+	read: { reason: "Only the agent calls these" },
+};
+
+function githubMcpServers(servers: readonly McpServer[]): McpServer[] {
 	return servers.filter(
 		(server) =>
 			!server.disabled &&
-			(MCP_GITHUB.test(server.name) || MCP_GITHUB.test(server.target)),
+			(GITHUB.test(server.name) || GITHUB.test(server.target)),
 	);
 }
 
-export function agentHasGitHubTools(tools: readonly string[]): boolean {
-	return tools.some((tool) => AGENT_GITHUB_TOOL.test(tool));
-}
-
-export function repositoryOf(env: SourceEnv): string | null {
+function repositoryOf(env: SourceEnv): string | null {
 	for (const remote of env.git?.remotes ?? []) {
 		const repository = githubRepository(remote);
 		if (repository) return repository;
@@ -82,53 +96,52 @@ export function repositoryOf(env: SourceEnv): string | null {
 	return null;
 }
 
+/** The repository and branch this workspace is on: what a snapshot of reads belongs to. */
+type Target = { repository: string; branch: string; key: string };
+
+function targetOf(env: SourceEnv): Target | undefined {
+	const repository = repositoryOf(env);
+	const branch = env.git?.branch;
+	return repository && branch
+		? { repository, branch, key: `${repository}#${branch}` }
+		: undefined;
+}
+
 /** The Cline connections GitHub can go through here, before this turn's tools are known. */
 export function githubRoutes(
 	ghSignedIn: boolean,
 	connections: ClineConnections,
 ): Route[] {
-	const routes: Route[] = [];
-	if (ghSignedIn)
-		routes.push({
-			id: "gh",
-			label: "gh, signed in (the sign-in Cline's PR bar uses)",
-			mention: true,
-			read: true,
-		});
+	const routes: Route[] = ghSignedIn ? [GH_ROUTE] : [];
 	if (
 		connections.composio.some(
-			(toolkit) => toolkit.toolkit === "github" && toolkit.connected,
+			(toolkit) => toolkit.toolkit === GITHUB_TOOLKIT && toolkit.connected,
 		)
-	) {
-		routes.push({
-			id: "composio",
-			label: "Composio, through your Cline account",
-			mention: true,
-			read: {
-				reason:
-					"Reading through Composio needs Cline to export its connector tool runner (upstream ask U4)",
-			},
-		});
-	}
+	)
+		routes.push(COMPOSIO_ROUTE);
 	for (const server of githubMcpServers(connections.mcp)) {
+		const label = mcpServerLabel(server.name);
 		routes.push({
-			id: `mcp:${server.name}`,
-			label: `MCP server "${server.name}"`,
-			mention: true,
-			read: {
-				reason: `Pin read-only tools on MCP server "${server.name}" to read through it`,
-			},
+			id: mcpConnectorId(server.name),
+			label,
+			read: { reason: `Pin read-only tools on ${label} to read through it` },
 		});
 	}
 	return routes;
 }
 
+/** One repository and branch's reads: the pull request itself, which reviews and CI evidence reuse, and each scope's rendered line. */
 type Snapshot = {
 	key: string;
 	pr?: { fetchedAt: number; value: PullRequestFact | null };
-	reviews?: { fetchedAt: number; value: ReviewFact | null };
-	defaultCi?: { fetchedAt: number; value: DefaultCiFact | null };
+	lines: Map<string, DatedLine>;
 };
+
+function failingCheckNames(pr: PullRequestFact): string[] {
+	return pr.checks
+		.filter((check) => check.state === "failure")
+		.map((check) => check.name);
+}
 
 function named(names: readonly string[]): string {
 	const shown = names.slice(0, GITHUB_NAMES_MAX).join(", ");
@@ -139,9 +152,7 @@ function named(names: readonly string[]): string {
 
 export function prLine(pr: PullRequestFact | null, branch: string): string {
 	if (!pr) return `No pull request for ${branch} yet.`;
-	const failing = pr.checks
-		.filter((check) => check.state === "failure")
-		.map((check) => check.name);
+	const failing = failingCheckNames(pr);
 	const pending = pr.checks.filter((check) => check.state === "pending").length;
 	const passing = pr.checks.filter((check) => check.state === "success").length;
 	const checks =
@@ -185,20 +196,23 @@ export function defaultCiLine(ci: DefaultCiFact | null): string {
 	return `Default branch (${ci.branch}) CI: passing.`;
 }
 
-export type GitHubConnectorDeps = {
+type GitHubConnectorDeps = {
 	gh: GhReader;
-	connections: () => Promise<ClineConnections>;
 	access: () => Access;
 	now?: () => number;
 };
 
 export class GitHubConnector implements Connector {
 	readonly id = "github";
-	readonly kind = "github" as const;
+	readonly displayName = "GitHub";
 	readonly tier = "T3" as const;
 	readonly scopes = GITHUB_SCOPES;
-	private detection: Detection | undefined;
+	private detectedRoutes: Route[] | undefined;
 	private snapshot: Snapshot | undefined;
+	private latestKey: string | undefined;
+	private pendingPr:
+		| { key: string; value: Promise<PullRequestFact | null> }
+		| undefined;
 
 	constructor(private readonly deps: GitHubConnectorDeps) {}
 
@@ -207,159 +221,121 @@ export class GitHubConnector implements Connector {
 	}
 
 	/** Background: which Cline routes exist. The probe answers from the last detection. */
-	async detect(env: SourceEnv): Promise<Detection> {
-		const cwd = env.workspaceRoot ?? env.cwd ?? ".";
-		const [signedIn, connections] = await Promise.all([
-			this.deps.gh.isAvailable(cwd).catch(() => false),
-			this.deps.connections(),
-		]);
-		this.detection = {
-			routes: githubRoutes(signedIn, connections),
-			detectedAt: this.now(),
-		};
-		return this.detection;
+	async detect(env: SourceEnv, connections: ClineConnections): Promise<void> {
+		const signedIn = await this.deps.gh
+			.isAvailable(env.workspaceRoot ?? ".")
+			.catch(() => false);
+		this.detectedRoutes = githubRoutes(signedIn, connections);
 	}
 
 	/** The routes, plus GitHub tools the agent has this turn. */
 	routes(env: SourceEnv): Route[] {
-		const routes = [...(this.detection?.routes ?? [])];
-		if (agentHasGitHubTools(env.tools)) {
-			routes.push({
-				id: "agent-tools",
-				label: "GitHub tools in this chat",
-				mention: true,
-				read: { reason: "Only the agent calls these" },
-			});
-		}
-		return routes;
+		const detected = this.detectedRoutes ?? [];
+		return env.tools.some((tool) => GITHUB.test(tool))
+			? [...detected, AGENT_TOOLS_ROUTE]
+			: [...detected];
 	}
 
 	probe(env: SourceEnv): SourceState {
 		if (!repositoryOf(env)) return "absent";
 		if (this.routes(env).length > 0) return "present";
-		return this.detection ? "absent" : "unknown";
+		return this.detectedRoutes ? "absent" : "unknown";
 	}
 
 	capabilities(env: SourceEnv): string[] {
 		return [
-			"github",
-			...this.routes(env).map((route) => `github:${route.id.split(":")[0]}`),
-		].filter((tag, index, all) => all.indexOf(tag) === index);
+			...new Set([
+				"github",
+				...this.routes(env).map((route) => `github:${route.id.split(":")[0]}`),
+			]),
+		];
+	}
+
+	private snapshotFor(target: Target | undefined): Snapshot | undefined {
+		return target && this.snapshot?.key === target.key
+			? this.snapshot
+			: undefined;
 	}
 
 	async refresh(scope: string, env: SourceEnv): Promise<void> {
 		const access = this.deps.access();
-		const repository = repositoryOf(env);
-		const branch = env.git?.branch;
-		const cwd = env.workspaceRoot ?? env.cwd;
+		const target = targetOf(env);
+		const cwd = env.workspaceRoot;
 		if (
-			access.role !== "read" ||
 			!access.readAllowed ||
 			!access.scopes.includes(scope) ||
-			!repository ||
-			!branch ||
+			!target ||
 			!cwd
 		)
 			return;
-		if (!this.detection?.routes.some((route) => route.id === "gh")) return;
-		const key = `${repository}#${branch}`;
-		const snapshot: Snapshot =
-			this.snapshot?.key === key ? this.snapshot : { key };
+		if (!this.detectedRoutes?.some((route) => route.id === GH_ROUTE.id)) return;
+		const { repository, branch, key } = target;
+		this.latestKey = key;
 		const gh = this.deps.gh;
 		const fetchedAt = this.now();
-		if (scope === "pr" || scope === "reviews") {
-			const pr =
-				scope === "pr" || !snapshot.pr
-					? await gh.pullRequest(repository, branch, cwd)
-					: snapshot.pr.value;
-			if (scope === "pr") snapshot.pr = { fetchedAt, value: pr };
-			else
-				snapshot.reviews = {
-					fetchedAt,
-					value: pr ? await gh.reviewThreads(repository, pr.number, cwd) : null,
-				};
+		let pr: Snapshot["pr"];
+		let line: string;
+		if (scope === "pr") {
+			const value = gh.pullRequest(repository, branch, cwd).finally(() => {
+				if (this.pendingPr?.value === value) this.pendingPr = undefined;
+			});
+			this.pendingPr = { key, value };
+			pr = { fetchedAt, value: await value };
+			line = prLine(pr.value, branch);
+		} else if (scope === "reviews") {
+			const pending =
+				this.pendingPr?.key === key ? this.pendingPr.value : undefined;
+			const known = this.snapshotFor(target)?.pr;
+			const current = pending
+				? await pending
+				: known
+					? known.value
+					: await gh.pullRequest(repository, branch, cwd);
+			line = reviewLine(
+				current
+					? await gh.reviewThreads(repository, current.number, cwd)
+					: null,
+			);
 		} else if (scope === "default-ci") {
 			const base = await gh.defaultBranch(repository, cwd);
-			snapshot.defaultCi = {
-				fetchedAt,
-				value: base ? await gh.defaultBranchCi(repository, base, cwd) : null,
-			};
-		}
-		this.snapshot = snapshot;
+			line = defaultCiLine(
+				base ? await gh.defaultBranchCi(repository, base, cwd) : null,
+			);
+		} else return;
+		if (key !== this.latestKey) return;
+		if (this.snapshot?.key !== key) this.snapshot = { key, lines: new Map() };
+		if (pr) this.snapshot.pr = pr;
+		this.snapshot.lines.set(scope, { fetchedAt, line });
 	}
 
 	facts(env: SourceEnv): Facts | "unknown" {
 		const access = this.deps.access();
-		const routes = this.routes(env);
-		if (access.role !== "read" || !access.readAllowed) {
-			return {
-				heading: "GitHub (connected; no data read)",
-				lines: [
-					`Suggestions may ask the agent to use it, through ${routes.map((route) => route.label).join("; ")}.`,
-				],
-				provenance: { connector: this.id, route: routes[0]?.id ?? "none" },
-			};
-		}
-		const repository = repositoryOf(env);
-		const branch = env.git?.branch;
-		const snapshot = this.snapshot;
-		if (!repository || !branch || snapshot?.key !== `${repository}#${branch}`)
-			return "unknown";
-		const now = this.now();
-		const lines: string[] = [];
-		let oldest = now;
-		const add = (
-			entry: { fetchedAt: number } | undefined,
-			line: () => string,
-		) => {
-			if (!entry) return;
-			lines.push(line());
-			oldest = Math.min(oldest, entry.fetchedAt);
-		};
-		if (access.scopes.includes("pr"))
-			add(snapshot.pr, () => prLine(snapshot.pr?.value ?? null, branch));
-		if (access.scopes.includes("reviews"))
-			add(snapshot.reviews, () => reviewLine(snapshot.reviews?.value ?? null));
-		if (access.scopes.includes("default-ci"))
-			add(snapshot.defaultCi, () =>
-				defaultCiLine(snapshot.defaultCi?.value ?? null),
+		if (!access.readAllowed)
+			return mentionOnlyFacts(
+				this.displayName,
+				"it",
+				this.routes(env)
+					.map((route) => route.label)
+					.join("; "),
 			);
-		if (lines.length === 0) return "unknown";
-		return {
-			heading: `GitHub · ${repository} (as of ${ageLabel(oldest, now)})`,
-			lines,
-			fetchedAt: oldest,
-			provenance: {
-				connector: this.id,
-				route: "gh",
-				url: snapshot.pr?.value?.url,
-			},
-		};
+		const target = targetOf(env);
+		const snapshot = this.snapshotFor(target);
+		if (!target || !snapshot) return "unknown";
+		return datedFacts(
+			`${this.displayName} · ${target.repository}`,
+			GITHUB_SCOPES.filter((scope) => access.scopes.includes(scope.id)).flatMap(
+				(scope) => snapshot.lines.get(scope.id) ?? [],
+			),
+			this.now(),
+		);
 	}
 
-	/** This branch's failing checks, when Read has them: the Check CI row's evidence (11 item 2). */
-	ciEvidence(
-		env: SourceEnv,
-	): { failingChecks: string[]; url?: string } | undefined {
+	/** This branch's failing checks, when Read has them: the Check CI row's evidence. */
+	ciEvidence(env: SourceEnv): Omit<GitHubEvidence, "pushed"> | undefined {
 		const access = this.deps.access();
-		const repository = repositoryOf(env);
-		const pr = this.snapshot?.pr?.value;
-		if (
-			access.role !== "read" ||
-			!access.readAllowed ||
-			!access.scopes.includes("pr") ||
-			!pr
-		)
+		const pr = this.snapshotFor(targetOf(env))?.pr?.value;
+		if (!access.readAllowed || !access.scopes.includes("pr") || !pr)
 			return undefined;
-		if (this.snapshot?.key !== `${repository}#${env.git?.branch}`)
-			return undefined;
-		const failingChecks = pr.checks
-			.filter((check) => check.state === "failure")
-			.map((check) => check.name);
-		return { failingChecks, url: pr.url };
-	}
-
-	preview(env: SourceEnv): Facts | "unknown" {
-		return this.facts(env);
+		return { failingChecks: failingCheckNames(pr), url: pr.url };
 	}
 }

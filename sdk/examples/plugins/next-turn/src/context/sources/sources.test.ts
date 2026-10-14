@@ -1,24 +1,14 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import {
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	utimesSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { emptyFold, foldEvents } from "../../hub/fold";
+import { emptyFold, foldEvent } from "../../hub/fold";
 import type { HubEvent, HubLinkStatus } from "../../hub/link";
-import { modelChoices } from "../../settings/models";
-import { defaultSettings } from "../../settings/settings";
-import { buildManifest, collectFacts } from "../manifest";
-import { sourceOff } from "../policy";
-import { clip, redactSecrets } from "../redact";
-import type { ContextSource, SourceEnv } from "../source";
+import { useTempDirs } from "../../test-support";
+import { ageLabel } from "../facts";
+import { redactSecrets } from "../redact";
+import type { Facts, SourceEnv } from "../source";
 import { ClineSetupSource, parseSetup } from "./cline-setup";
-import { ageLabel, historySource, rankHistory, searchTerms } from "./history";
+import { historySource, rankHistory, searchTerms } from "./history";
 import {
 	documentedCommands,
 	makeTargets,
@@ -29,26 +19,7 @@ import {
 } from "./repo";
 import { dirtyFileCounter, parseGitStatusV2 } from "./workspace";
 
-const temps: string[] = [];
-function tempDir(): string {
-	const dir = mkdtempSync(join(tmpdir(), "next-turn-sources-"));
-	temps.push(dir);
-	return dir;
-}
-afterEach(() => {
-	for (const dir of temps.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
-
-/** Golden redaction outputs, frozen in `test-fixtures/redaction.json`. */
-const redactionFixture = JSON.parse(
-	readFileSync(
-		new URL("../../../test-fixtures/redaction.json", import.meta.url),
-		"utf8",
-	),
-) as {
-	cases: { sample: string; expected: string }[];
-};
+const tempDir = useTempDirs("next-turn-sources-");
 
 const env: SourceEnv = {
 	client: "cline-desktop",
@@ -56,18 +27,6 @@ const env: SourceEnv = {
 	workspaceRoot: "/repo",
 	tools: [],
 };
-
-describe("redaction", () => {
-	test("matches the frozen redaction outputs", () => {
-		for (const fixture of redactionFixture.cases)
-			expect(redactSecrets(fixture.sample)).toBe(fixture.expected);
-	});
-
-	test("clip redacts, collapses whitespace and bounds the length", () => {
-		expect(clip("a  sk-abcdefghijklmnopqrstuv\n b", 80)).toBe("a [redacted] b");
-		expect(clip("x".repeat(20), 10)).toBe(`${"x".repeat(9)}…`);
-	});
-});
 
 describe("history", () => {
 	test("search terms: edited files' names first, then the request's most repeated words, without stopwords", () => {
@@ -78,6 +37,14 @@ describe("history", () => {
 					"Return 405 for wrong methods on users; methods should be listed",
 			}),
 		).toEqual(["users", "methods", "listed", "return"]);
+		expect(
+			searchTerms({
+				editedPaths: [],
+				request: redactSecrets(
+					"Rotate the deploy key: api_key=AAAAAAAAAAAA and token=BBBBBBBBBBBB then rerun the deploy pipeline migration",
+				),
+			}),
+		).toEqual(["deploy", "api_key", "migration", "pipeline"]);
 		expect(searchTerms(undefined)).toEqual([]);
 	});
 
@@ -127,13 +94,48 @@ describe("history", () => {
 		expect(
 			rankHistory(listed, [], env).map((entry) => entry.sessionId),
 		).toEqual(["s7", "s6", "s5", "s4", "s3"]);
+		expect(
+			rankHistory(listed, [undefined, undefined], env).map(
+				(entry) => entry.sessionId,
+			),
+		).toEqual(["s7", "s6", "s5", "s4", "s3"]);
+	});
+
+	test("when every search fails, the recent chats stand in under their own heading", async () => {
+		const link = {
+			availability: () => "present" as const,
+			async command(name: string) {
+				if (name !== "session.list") throw new Error("search failed");
+				return {
+					sessions: [
+						{
+							sessionId: "old",
+							workspaceRoot: "/repo",
+							updatedAt: 0,
+							metadata: { title: "Ship it" },
+						},
+					],
+				};
+			},
+		};
+		const facts = await historySource(
+			link,
+			emptyFold,
+			() => 3 * 3_600_000,
+		).facts?.({ ...env, turn: { editedPaths: ["deploy.ts"] } }, 100);
+		expect(facts).toEqual({
+			heading: "Recent chats in this workspace",
+			lines: ['"Ship it" · 3h ago · idle'],
+		});
 	});
 
 	test("facts carry title, age, state and a redacted snippet; never more", async () => {
-		const fold = foldEvents(emptyFold(), [
-			{ event: "run.started", sequence: 1, sessionId: "old" },
-			{ event: "run.failed", sequence: 2, sessionId: "old" },
-		]);
+		const fold = (
+			[
+				{ event: "run.started", sequence: 1, sessionId: "old" },
+				{ event: "run.failed", sequence: 2, sessionId: "old" },
+			] satisfies HubEvent[]
+		).reduce(foldEvent, emptyFold());
 		const link = {
 			availability: () => "present" as const,
 			async command(name: string) {
@@ -196,7 +198,11 @@ describe("Cline setup", () => {
 				{ name: "off.md", enabled: false },
 			],
 			skills: [{ name: "clickhouse" }, { name: "broken", loadError: "bad" }],
-			mcp: [{ name: "sentry", enabled: true }],
+			mcp: [
+				{ name: "sentry", enabled: true },
+				{ name: "linear", enabled: true, agentPlugin: true },
+				{ name: "jira", enabled: false, agentPlugin: true },
+			],
 			plugins: [
 				{
 					name: "goals",
@@ -208,23 +214,33 @@ describe("Cline setup", () => {
 		},
 	};
 
-	test("names only, enabled and loadable, as capability tags", () => {
+	test("names only, enabled and loadable; only an Agent Plugin's MCP servers, since the rest are left to their connectors", () => {
 		const inventory = parseSetup(reply);
 		expect(inventory).toEqual({
 			workflows: ["/release-notes"],
 			skills: ["clickhouse"],
-			mcp: ["sentry"],
+			mcp: ["linear"],
 			pluginCommands: ["/goal", "/plan"],
 		});
 		expect(JSON.stringify(inventory)).not.toContain("PRIVATE");
+		expect(JSON.stringify(inventory)).not.toContain("sentry");
+	});
+
+	test("a workflow named with and without its extension is listed once", () => {
+		expect(
+			parseSetup({
+				snapshot: { workflows: [{ name: "a.md" }, { name: "a" }] },
+			}).workflows,
+		).toEqual(["/a"]);
 	});
 
 	test("reads on connect and on settings.changed; the probe answers from cache", async () => {
 		const statusListeners = new Set<(status: HubLinkStatus) => void>();
 		const eventListeners = new Set<(event: HubEvent) => void>();
 		let reads = 0;
+		let availability: "present" | "unknown" = "unknown";
 		const link = {
-			availability: () => "present" as const,
+			availability: () => availability,
 			onStatus: (listener: (status: HubLinkStatus) => void) => {
 				statusListeners.add(listener);
 				return () => statusListeners.delete(listener);
@@ -250,16 +266,46 @@ describe("Cline setup", () => {
 		const source = new ClineSetupSource(link, { workspaceRoot: "/repo" });
 		expect(source.probe()).toBe("unknown");
 		source.start();
+		await Bun.sleep(0);
+		expect(reads).toBe(0);
+		availability = "present";
 		for (const listener of statusListeners) listener("up");
 		await Bun.sleep(0);
 		expect(source.probe()).toBe("present");
 		expect(source.capabilities()).toContain("workflow:/release-notes");
+		expect(source.capabilities()).toContain("mcp:linear");
+		expect(source.capabilities()).not.toContain("mcp:sentry");
+		expect((source.facts() as Facts).lines).toEqual(
+			expect.arrayContaining([
+				"Workflows: /release-notes",
+				"MCP servers: linear",
+			]),
+		);
 		for (const listener of eventListeners)
 			listener({ event: "settings.changed" });
 		await Bun.sleep(0);
 		expect(reads).toBe(2);
 		source.stop();
 		expect(statusListeners.size + eventListeners.size).toBe(0);
+	});
+
+	test("reads at start when the link is already up", async () => {
+		let reads = 0;
+		const link = {
+			availability: () => "present" as const,
+			onStatus: () => () => {},
+			subscribe: () => () => {},
+			async command() {
+				reads += 1;
+				return reply;
+			},
+		};
+		const source = new ClineSetupSource(link, { workspaceRoot: "/repo" });
+		source.start();
+		await Bun.sleep(0);
+		expect(reads).toBe(1);
+		expect(source.capabilities()).toContain("skill:clickhouse");
+		source.stop();
 	});
 });
 
@@ -299,6 +345,20 @@ describe("repository conventions", () => {
 			"bun run check",
 		]);
 		expect(
+			documentedCommands(
+				[
+					"##\tCommands",
+					"```",
+					"bun test",
+					"```",
+					"##\tRules",
+					"```",
+					"rm -rf /",
+					"```",
+				].join("\n"),
+			),
+		).toEqual(["bun test"]);
+		expect(
 			makeTargets("test:\n\tgo test\nbuild: deps\nVAR := 1\nrelease:\n"),
 		).toEqual(["build", "test"]);
 	});
@@ -334,14 +394,16 @@ describe("repository conventions", () => {
 		expect(readConventions(root, reader)?.scripts).toEqual(["test"]);
 	});
 
-	test("absent with no workspace or none of its files", async () => {
+	test("absent with no workspace or none of its files", () => {
 		const source = repoSource();
 		expect(source.probe({ tools: [] })).toBe("absent");
 		expect(source.probe({ tools: [], workspaceRoot: tempDir() })).toBe(
 			"absent",
 		);
 	});
+});
 
+describe("git status", () => {
 	test("git status --porcelain=v2 --branch parses branch, oid and dirty count in one call", async () => {
 		const output = [
 			"# branch.oid 0123456789abcdef",
@@ -355,100 +417,27 @@ describe("repository conventions", () => {
 			dirtyFiles: 2,
 		});
 		let seen: unknown;
+		let argv: readonly string[] = [];
 		const count = await dirtyFileCounter(
-			async () => output,
+			async (_file, args) => {
+				argv = args;
+				return output;
+			},
 			(snap) => {
 				seen = snap;
 			},
 		)("/repo");
 		expect(count).toBe(2);
+		expect(argv).toEqual([
+			"--no-optional-locks",
+			"status",
+			"--porcelain=v2",
+			"--branch",
+		]);
 		expect(seen).toEqual({
 			branch: "feat/slot-api",
 			commit: "0123456789abcdef",
 			dirtyFiles: 2,
 		});
-	});
-});
-
-describe("the M3 manifest and facts", () => {
-	const hubFake = (state: "present" | "absent"): ContextSource => ({
-		id: "history",
-		tier: "T2",
-		probe: () => state,
-		facts: () => ({ heading: "h", lines: ["x"] }),
-	});
-
-	test("off and absent sources give no facts; a slow one reads unknown", async () => {
-		const slow: ContextSource = {
-			id: "slow",
-			tier: "T2",
-			probe: () => "present",
-			facts: () =>
-				new Promise((resolve) =>
-					setTimeout(() => resolve({ heading: "late", lines: [] }), 50),
-				),
-		};
-		const absent: ContextSource = { ...hubFake("absent"), id: "tasks" };
-		const sources = [hubFake("present"), absent, slow];
-		const manifest = await buildManifest(sources, env, {
-			isOff: (id) => id === "history",
-		});
-		expect(manifest.sources).toEqual({
-			history: "off",
-			tasks: "absent",
-			slow: "present",
-		});
-		expect(
-			await collectFacts(sources, manifest, env, { budgetMs: () => 5 }),
-		).toEqual({ slow: "unknown" });
-	});
-
-	test("history is off when the planner would send it to another provider, or when the person turned it off", () => {
-		const settings = defaultSettings();
-		expect(sourceOff(settings, { providerId: "anthropic" })("history")).toBe(
-			false,
-		);
-		settings.planner.model = {
-			kind: "model",
-			providerId: "openai",
-			modelId: "fast",
-		};
-		expect(sourceOff(settings, { providerId: "anthropic" })("history")).toBe(
-			true,
-		);
-		expect(sourceOff(settings, { providerId: "openai" })("history")).toBe(
-			false,
-		);
-		settings.context.clineSetup = false;
-		expect(sourceOff(settings, {})("cline-setup")).toBe(true);
-		expect(sourceOff(settings, {})("git")).toBe(false);
-	});
-});
-
-describe("model choices", () => {
-	test("provider and model ids only, last used first; keys never leave", () => {
-		const stored = {
-			version: 1,
-			lastUsedProvider: "openai",
-			providers: {
-				anthropic: {
-					settings: {
-						provider: "anthropic",
-						model: "claude-sonnet",
-						apiKey: "SECRET",
-					},
-				},
-				openai: {
-					settings: { provider: "openai", auth: { accessToken: "SECRET" } },
-				},
-			},
-		};
-		const choices = modelChoices(stored);
-		expect(choices).toEqual([
-			{ providerId: "openai", modelId: undefined, lastUsed: true },
-			{ providerId: "anthropic", modelId: "claude-sonnet", lastUsed: false },
-		]);
-		expect(JSON.stringify(choices)).not.toContain("SECRET");
-		expect(modelChoices(null)).toEqual([]);
 	});
 });

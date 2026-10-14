@@ -1,6 +1,6 @@
 import { SET_SIZE } from "../config";
-import type { Manifest } from "../context/manifest";
-import { type Backlog, rankTasks } from "./backlog";
+import { isPresent, type Manifest } from "../context/manifest";
+import { type Backlog, rankTasks, TASK_STATUSES } from "./backlog";
 import {
 	cleanEditReview,
 	commitRow,
@@ -10,8 +10,9 @@ import {
 	type TurnFacts,
 	turnLead,
 	turnTail,
+	uniqueByPrompt,
 } from "./candidates";
-import { offerableKinds } from "./kinds";
+import { offersKind } from "./kinds";
 
 /**
  * The rule-based set: one rule set for every host, merged from the
@@ -54,15 +55,11 @@ const BLOCKING_STATUS_STATES: ReadonlySet<string> = new Set([
 	"failed",
 ]);
 
-function present(manifest: RuleInput["manifest"], sourceId: string): boolean {
-	return manifest.sources[sourceId] === "present";
-}
-
 /** Blocked and failed reports for this chat, in the board's attention order. */
-export function blockingRows(
+function blockingRows(
 	input: Pick<RuleInput, "backlog" | "manifest">,
 ): Suggestion[] {
-	if (!present(input.manifest, "status")) return [];
+	if (!isPresent(input.manifest, "status")) return [];
 	return input.backlog.statusRows
 		.filter((row) => BLOCKING_STATUS_STATES.has(row.state))
 		.map((row) =>
@@ -80,36 +77,21 @@ export function blockingRows(
 
 function trackedRows(input: RuleInput): Suggestion[] {
 	const out: Suggestion[] = [];
-	if (present(input.manifest, "tasks")) {
+	if (isPresent(input.manifest, "tasks")) {
 		for (const task of rankTasks(input.backlog.tasks)) {
-			if (task.status === "pending_approval") {
-				out.push(
-					suggestion(
-						"continue",
-						"tasks",
-						`Approve and start: ${task.title}`,
-						"Proposed on the agenda, waiting for your approval.",
-						{
-							ref: task.taskId,
-						},
-					),
-				);
-			} else {
-				out.push(
-					suggestion(
-						"continue",
-						"tasks",
-						`Do the next task: ${task.title}`,
-						task.status === "in_progress"
-							? "Task in progress on the agenda."
-							: "Approved task waiting on the agenda.",
-						{ ref: task.taskId },
-					),
-				);
-			}
+			const status = TASK_STATUSES[task.status];
+			out.push(
+				suggestion(
+					"continue",
+					"tasks",
+					`${status.prompt}: ${task.title}`,
+					status.why,
+					{ ref: task.taskId },
+				),
+			);
 		}
 	}
-	const bank = present(input.manifest, "plan") ? input.backlog.bank : null;
+	const bank = isPresent(input.manifest, "plan") ? input.backlog.bank : null;
 	if (bank?.nowTitle) {
 		out.push(
 			suggestion(
@@ -140,7 +122,7 @@ export function checkCiRow(input: RuleInput): Suggestion | null {
 	const { github, manifest } = input;
 	if (
 		!github ||
-		!offerableKinds(manifest).includes("check_ci") ||
+		!offersKind(manifest, "check_ci") ||
 		!manifest.capabilities.includes("remote:github")
 	)
 		return null;
@@ -168,9 +150,9 @@ export function checkCiRow(input: RuleInput): Suggestion | null {
 export function rulePool(input: RuleInput): Suggestion[] {
 	const tracked = trackedRows(input);
 	const tracks =
-		present(input.manifest, "tasks") || present(input.manifest, "plan");
+		isPresent(input.manifest, "tasks") || isPresent(input.manifest, "plan");
 	const plan = tracked.length === 0 ? planRow() : null;
-	const ordered: (Suggestion | null)[] = [
+	return uniqueByPrompt([
 		...blockingRows(input),
 		turnLead(input.turn),
 		...tracked,
@@ -178,19 +160,11 @@ export function rulePool(input: RuleInput): Suggestion[] {
 		checkCiRow(input),
 		turnTail(input.turn),
 		cleanEditReview(input.turn),
-		input.manifest.mode === "plan" || !present(input.manifest, "git")
+		input.manifest.mode === "plan" || !isPresent(input.manifest, "git")
 			? null
 			: commitRow(input.turn, input.dirtyFiles),
 		tracks ? null : plan,
-	];
-	const seen = new Set<string>();
-	const out: Suggestion[] = [];
-	for (const item of ordered) {
-		if (!item || seen.has(item.prompt)) continue;
-		seen.add(item.prompt);
-		out.push(item);
-	}
-	return out;
+	]);
 }
 
 /** The next page of a pool: what was not offered or skipped yet, capped at the set size. */
@@ -198,6 +172,5 @@ export function pageSet(
 	pool: readonly Suggestion[],
 	excluded: readonly string[],
 ): Suggestion[] {
-	const skip = new Set(excluded);
-	return pool.filter((item) => !skip.has(item.prompt)).slice(0, SET_SIZE);
+	return uniqueByPrompt(pool, new Set(excluded), SET_SIZE);
 }

@@ -1,15 +1,15 @@
 import type { HubFold } from "../../hub/fold";
-import type { HubLink } from "../../hub/link";
+import type { HubLink, HubLinkScope } from "../../hub/link";
+import type { Log } from "../../log";
 import type { ContextSource } from "../source";
 import { ClineSetupSource } from "./cline-setup";
 import { historySource } from "./history";
 import { hubBackedSource, suppliedSource } from "./hub";
-import { RepoReader, repoSource } from "./repo";
+import { repoSource } from "./repo";
 import { gitSource, turnSource } from "./workspace";
 
 export type ClineSources = {
 	sources: ContextSource[];
-	setup: ClineSetupSource;
 	stop(): void;
 };
 
@@ -22,8 +22,8 @@ export type ClineSources = {
 export function clineSources(
 	link: HubLink,
 	fold: () => HubFold,
-	scope: { workspaceRoot?: string; cwd?: string },
-	log?: (message: string, error?: unknown) => void,
+	scope: HubLinkScope,
+	log?: Log,
 	supplied: {
 		status?: boolean;
 		plan?: boolean;
@@ -33,18 +33,29 @@ export function clineSources(
 	const setup = new ClineSetupSource(link, scope, log);
 	setup.start();
 	return {
-		setup,
 		sources: [
 			turnSource,
 			gitSource,
-			repoSource(new RepoReader()),
+			repoSource(),
 			setup,
 			historySource(link, fold),
-			hubBackedSource("tasks", link),
-			suppliedSource("status", supplied.status === true, () =>
-				link.availability(),
+			hubBackedSource("tasks", link, {
+				displayName: "The task agenda",
+				settingsToggle: "tasks",
+			}),
+			suppliedSource(
+				"status",
+				supplied.status === true,
+				{
+					displayName: "The Status Hub for this chat",
+					settingsToggle: "status",
+				},
+				() => link.availability(),
 			),
-			supplied.planSource ?? suppliedSource("plan", supplied.plan === true),
+			supplied.planSource ??
+				suppliedSource("plan", supplied.plan === true, {
+					displayName: "The plan and the plan bank",
+				}),
 		],
 		stop: () => setup.stop(),
 	};

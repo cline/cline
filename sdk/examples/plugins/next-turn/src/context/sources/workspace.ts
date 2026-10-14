@@ -1,4 +1,4 @@
-import type { RunCommand } from "../../connectors/run";
+import type { RunCommand } from "../../run";
 import type { ContextSource, SourceEnv } from "../source";
 
 /** T0: the turn the hook was handed. Always present while Next is on. */
@@ -32,12 +32,13 @@ export function remoteTags(remotes: readonly string[]): string[] {
 export const gitSource: ContextSource = {
 	id: "git",
 	tier: "T1",
+	displayName: "This folder's git state",
 	probe: (env: SourceEnv) =>
 		env.git && (env.git.branch || env.git.commit) ? "present" : "absent",
 	capabilities: (env: SourceEnv) => remoteTags(env.git?.remotes ?? []),
 };
 
-export type GitStatusSnapshot = {
+type GitStatusSnapshot = {
 	branch?: string;
 	commit?: string;
 	dirtyFiles: number;
@@ -61,35 +62,28 @@ export function parseGitStatusV2(output: string): GitStatusSnapshot {
 			dirtyFiles += 1;
 		}
 	}
-	return {
-		...(branch ? { branch } : {}),
-		...(commit ? { commit } : {}),
-		dirtyFiles,
-	};
+	return { branch, commit, dirtyFiles };
 }
 
 /**
  * Reads branch, commit oid and dirty-file count in one `git status --porcelain=v2 --branch`
- * call, updating `onGit` when provided. Undefined when git fails.
+ * call, handing the branch and commit to `onGit`. Undefined when git fails.
  */
 export function dirtyFileCounter(
 	run: RunCommand,
-	onGit?: (snapshot: GitStatusSnapshot) => void,
+	onGit: (snapshot: GitStatusSnapshot) => void,
 ): (cwd: string) => Promise<number | undefined> {
 	return async (cwd) => {
 		try {
-			const out = await run(
-				"git",
-				["status", "--porcelain=v2", "--branch"],
-				cwd,
+			const parsed = parseGitStatusV2(
+				await run(
+					"git",
+					["--no-optional-locks", "status", "--porcelain=v2", "--branch"],
+					cwd,
+				),
 			);
-			if (out.includes("# branch.") || out === "") {
-				const parsed = parseGitStatusV2(out);
-				onGit?.(parsed);
-				return parsed.dirtyFiles;
-			}
-			const dirtyFiles = out.split("\n").filter((line) => line.trim()).length;
-			return dirtyFiles;
+			onGit(parsed);
+			return parsed.dirtyFiles;
 		} catch {
 			return undefined;
 		}

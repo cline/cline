@@ -1,55 +1,35 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Agent, createTool, loadAgentPluginFromPath } from "@cline/core";
+import {
+	Agent,
+	countUserRunMessages as coreCount,
+	loadAgentPluginFromPath,
+} from "@cline/core";
 import type { ContextSource } from "./context/source";
 import { EMPTY_BACKLOG } from "./planner/backlog";
 import { LabelLog } from "./planner/labels";
-import { NextSession, type OfferedSet } from "./planner/next";
-import { createNextTurnPlugin, type SetupContext } from "./plugin";
+import { NextSession } from "./planner/next";
+import type { OfferedSet } from "./planner/tray";
+import { deriveTurn } from "./planner/turn";
+import { createNextTurnPlugin, defaultIsNextActive } from "./plugin";
 import {
 	type SessionRuntime,
+	type SetupContext,
 	sessionEnv,
 	startSessionRuntime,
 } from "./runtime";
 import { defaultSettings } from "./settings/settings";
+import {
+	alwaysActive,
+	editingModel,
+	editorTool,
+	editRun,
+	fakeRuntime,
+	useTempDirs,
+} from "./test-support";
 
-type RuntimeConfig = ConstructorParameters<typeof Agent>[0];
-type Model = Extract<RuntimeConfig, { model: unknown }>["model"];
-
-/** Edits one file through a tool on the first call, then answers in text. */
-function editingModel(): Model {
-	let iteration = 0;
-	return {
-		async *stream() {
-			if (iteration++ === 0) {
-				yield {
-					type: "tool-call-delta",
-					index: 0,
-					toolCallId: `call-${iteration}`,
-					toolName: "editor",
-					input: { path: "src/retry.ts" },
-				};
-				yield { type: "finish", reason: "tool-calls" };
-			} else {
-				yield { type: "text-delta", text: "Added the retry." };
-				yield { type: "finish", reason: "stop" };
-			}
-		},
-	};
-}
-
-const editor = createTool({
-	name: "editor",
-	description: "A deterministic test fixture; writes nothing.",
-	inputSchema: {
-		type: "object",
-		properties: { path: { type: "string" } },
-		additionalProperties: false,
-	},
-	execute: async () => "ok",
-});
+const tempDir = useTempDirs("next-turn-plugin-");
 
 const context: SetupContext = {
 	session: { sessionId: "sess_1" },
@@ -74,10 +54,7 @@ describe("Next Turn as a plugin", () => {
 	});
 
 	test("a real agent run serves a set, and the next message is labelled against it", async () => {
-		const labelsPath = join(
-			mkdtempSync(join(tmpdir(), "next-turn-plugin-")),
-			"labels.jsonl",
-		);
+		const labelsPath = join(tempDir(), "labels.jsonl");
 		const sets: (OfferedSet | undefined)[] = [];
 		let tools: readonly string[] = [];
 		const sources: ContextSource[] = [
@@ -87,31 +64,32 @@ describe("Next Turn as a plugin", () => {
 		const next = new NextSession({
 			sessionId: "sess_1",
 			settings: defaultSettings,
-			env: sessionEnv(context, () => tools),
+			env: sessionEnv(context, { tools: () => tools }),
 			sources: () => sources,
 			backlog: async () => EMPTY_BACKLOG,
 			labels: new LabelLog(labelsPath),
 		});
 		next.onSet((set) => sets.push(set));
-		const runtime: SessionRuntime = {
-			engine: undefined as never,
-			next,
+		const runtime = fakeRuntime(next, {
 			setTools: (names) => {
 				tools = names;
 			},
-			stop: () => undefined,
-		};
-		const plugin = createNextTurnPlugin({ startRuntime: () => runtime });
+		});
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => runtime,
+			lifecycle: alwaysActive,
+		});
 		await plugin.setup?.(
 			{} as Parameters<NonNullable<typeof plugin.setup>>[0],
 			context,
 		);
 		const agent = new Agent({
-			model: editingModel(),
-			tools: [editor],
+			model: editingModel().model,
+			tools: [editorTool],
 			hooks: plugin.hooks,
 		});
 		await agent.run("Add a retry to the client");
+		await next.settled();
 		expect(tools).toEqual(["editor"]);
 		const served = sets[0];
 		expect(served?.cueCode).toBe("completed_edits");
@@ -121,6 +99,7 @@ describe("Next Turn as a plugin", () => {
 			"review_diff",
 		]);
 		await agent.run(served?.candidates[1]?.prompt ?? "");
+		await next.settled();
 		const events = readFileSync(labelsPath, "utf8")
 			.trim()
 			.split("\n")
@@ -128,11 +107,55 @@ describe("Next Turn as a plugin", () => {
 		expect(events.slice(0, 3)).toEqual(["offer", "do", "superseded"]);
 	});
 
+	test("a non-root run counts its own transcript, so the plugin serves only the root's", async () => {
+		const sets: (OfferedSet | undefined)[] = [];
+		const next = new NextSession({
+			sessionId: "sess_1",
+			settings: defaultSettings,
+			env: sessionEnv(context, { tools: () => [] }),
+			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+			backlog: async () => EMPTY_BACKLOG,
+			labels: new LabelLog(join(tempDir(), "labels.jsonl")),
+		});
+		next.onSet((set) => sets.push(set));
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => fakeRuntime(next),
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(
+			{} as Parameters<NonNullable<typeof plugin.setup>>[0],
+			context,
+		);
+		const root = new Agent({
+			model: editingModel().model,
+			tools: [editorTool],
+			hooks: plugin.hooks,
+		});
+		await root.run("Add a retry to the client");
+		await next.settled();
+		expect(sets.map((set) => set?.turnKey)).toEqual(["sess_1:1"]);
+		const sub = new Agent({
+			model: editingModel().model,
+			tools: [editorTool],
+			hooks: plugin.hooks,
+			parentAgentId: "agent_root",
+		});
+		const delegated = await sub.run("Investigate the parser");
+		await next.settled();
+		expect(coreCount(delegated.messages)).toBe(1);
+		expect(deriveTurn("sess_1", delegated)).toMatchObject({
+			runCount: 1,
+			turnKey: "sess_1:1",
+		});
+		expect(sets.map((set) => set?.turnKey)).toEqual(["sess_1:1"]);
+	});
+
 	test("a starter that throws cannot fail setup, and no runtime starts without a session or a feature", async () => {
 		const throwing = createNextTurnPlugin({
 			startRuntime: () => {
 				throw new Error("boom");
 			},
+			lifecycle: alwaysActive,
 		});
 		expect(() =>
 			throwing.setup?.(
@@ -144,19 +167,18 @@ describe("Next Turn as a plugin", () => {
 		off.features.next = false;
 		off.notify.needsYou = false;
 		expect(
-			startSessionRuntime({}, { settings: defaultSettings }),
+			startSessionRuntime({}, { settings: defaultSettings, active: true }),
 		).toBeUndefined();
 		expect(
-			startSessionRuntime(context, { settings: () => off }),
+			startSessionRuntime(context, { settings: () => off, active: true }),
 		).toBeUndefined();
 	});
 
 	test("the session's environment comes from the setup context", () => {
-		expect(sessionEnv(context, () => ["editor"])()).toEqual({
+		expect(sessionEnv(context, { tools: () => ["editor"] })()).toEqual({
 			client: "cline-cli",
 			sessionId: "sess_1",
 			workspaceRoot: "/w",
-			cwd: "/w",
 			git: {
 				branch: "main",
 				commit: undefined,
@@ -164,14 +186,23 @@ describe("Next Turn as a plugin", () => {
 			},
 			tools: ["editor"],
 		});
-		expect(sessionEnv({}, () => [])().git).toBeUndefined();
+		expect(sessionEnv({}, { tools: () => [] })().git).toBeUndefined();
+		expect(
+			sessionEnv(context, {
+				tools: () => [],
+				viewerClient: () => "cline-desktop",
+				git: () => ({ branch: "feature", commit: "abc" }),
+				chatProviderId: () => "anthropic",
+			})(),
+		).toMatchObject({
+			client: "cline-desktop",
+			providerId: "anthropic",
+			git: { branch: "feature", commit: "abc" },
+		});
 	});
 
-	test("registers the next UI handler, pushes computing → ready (rules) → ready (model), and stays dormant until viewed when the gate is closed", async () => {
-		const labelsPath = join(
-			mkdtempSync(join(tmpdir(), "next-turn-slot-")),
-			"labels.jsonl",
-		);
+	test("registers the next UI handler and pushes computing → ready (rules) → ready (model)", async () => {
+		const labelsPath = join(tempDir(), "labels.jsonl");
 		const pushes: Array<{ event: string; payload: unknown }> = [];
 		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
 		const api = {
@@ -194,7 +225,7 @@ describe("Next Turn as a plugin", () => {
 		const next = new NextSession({
 			sessionId: "sess_1",
 			settings: defaultSettings,
-			env: sessionEnv(slotContext, () => []),
+			env: sessionEnv(slotContext, { tools: () => [] }),
 			sources: () => [
 				{ id: "turn", tier: "T0", probe: () => "present" },
 				{ id: "tasks", tier: "T2", probe: () => "present" },
@@ -208,19 +239,16 @@ describe("Next Turn as a plugin", () => {
 			}),
 			labels: new LabelLog(labelsPath),
 		});
-		const runtime: SessionRuntime = {
-			engine: undefined as never,
-			next,
-			setTools: () => undefined,
-			stop: () => undefined,
-		};
-		const plugin = createNextTurnPlugin({ startRuntime: () => runtime });
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => fakeRuntime(next),
+			lifecycle: alwaysActive,
+		});
 		await plugin.setup?.(api as never, slotContext as never);
 		expect(handler).toBeDefined();
 
 		const agent = new Agent({
-			model: editingModel(),
-			tools: [editor],
+			model: editingModel().model,
+			tools: [editorTool],
 			hooks: plugin.hooks,
 		});
 		await agent.run("Add a retry to the client");
@@ -266,7 +294,7 @@ describe("Next Turn as a plugin", () => {
 		).rejects.toThrow("invalid NextTurnTrayAction");
 	});
 
-	test("dormant gate: without registerUiHandler or on a non-desktop client, Next stays dormant until current is invoked", async () => {
+	test("dormant gate: a client the gate holds back stays dormant until current is invoked", async () => {
 		let activated = 0;
 		let dormantRecorded = 0;
 		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
@@ -281,12 +309,11 @@ describe("Next Turn as a plugin", () => {
 		const next = new NextSession({
 			sessionId: "sess_1",
 			settings: defaultSettings,
-			env: sessionEnv(context, () => []),
+			env: sessionEnv(context, { tools: () => [] }),
 			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
 			backlog: async () => EMPTY_BACKLOG,
 		});
-		const runtime: SessionRuntime = {
-			engine: undefined as never,
+		const runtime: SessionRuntime = fakeRuntime(undefined, {
 			activateNext: () => {
 				activated += 1;
 				runtime.next = next;
@@ -295,23 +322,19 @@ describe("Next Turn as a plugin", () => {
 			recordDormantTurn: () => {
 				dormantRecorded += 1;
 			},
-			setTools: () => undefined,
-			stop: () => undefined,
-		};
+		});
 		const plugin = createNextTurnPlugin({
-			startRuntime: (_ctx, opts) => {
-				if (opts?.active) runtime.activateNext?.();
+			startRuntime: (_ctx, { active }) => {
+				if (active) runtime.activateNext();
 				return runtime;
 			},
-			isNextActive: (a, c) =>
-				typeof a?.registerUiHandler === "function" &&
-				c.client?.name === "cline-desktop",
+			lifecycle: alwaysActive,
 		});
 		await plugin.setup?.(api as never, context as never);
 		expect(activated).toBe(0);
 		const agent = new Agent({
-			model: editingModel(),
-			tools: [editor],
+			model: editingModel().model,
+			tools: [editorTool],
 			hooks: plugin.hooks,
 		});
 		await agent.run("First turn while dormant");
@@ -326,6 +349,168 @@ describe("Next Turn as a plugin", () => {
 		expect(activated).toBe(1);
 
 		await agent.run("Second turn after viewer attached");
+		await next.settled();
 		expect(next.current()?.candidates.length).toBeGreaterThan(0);
+	});
+
+	test("a viewer's current on a chat with no turn in memory serves a set from the hub's transcript", async () => {
+		const { messages } = editRun("Forked chat turn");
+		let transcriptReads = 0;
+		const next = new NextSession({
+			sessionId: "sess_fresh_hub",
+			settings: defaultSettings,
+			env: sessionEnv(context, { tools: () => [] }),
+			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+			backlog: async () => EMPTY_BACKLOG,
+			readTranscript: async () => {
+				transcriptReads += 1;
+				return { messages, status: "completed" };
+			},
+		});
+		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => fakeRuntime(next),
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(
+			{
+				registerUiHandler(
+					name: string,
+					fn: (input: unknown) => Promise<unknown> | unknown,
+				) {
+					if (name === "next") handler = fn;
+				},
+			} as never,
+			{
+				session: { sessionId: "sess_fresh_hub" },
+				client: { name: "cline-desktop" },
+				workspaceInfo: { rootPath: "/w" },
+			} as never,
+		);
+		const push = (await handler?.({ type: "current", runCount: 1 })) as {
+			state: string;
+			set?: OfferedSet;
+		};
+		expect(push.state).toBe("ready");
+		expect(push.set?.trigger).toBe("on_demand");
+		expect(push.set?.runId).toBeUndefined();
+		expect(transcriptReads).toBe(1);
+	});
+
+	test("the default gate starts Next at once without UI slots or on the desktop, and holds back other slot clients", () => {
+		const slots = { registerUiHandler: () => undefined };
+		expect(defaultIsNextActive({}, { client: { name: "cline-cli" } })).toBe(
+			true,
+		);
+		expect(
+			defaultIsNextActive(slots, { client: { name: "cline-desktop" } }),
+		).toBe(true);
+		expect(defaultIsNextActive(slots, { client: { name: "cline-cli" } })).toBe(
+			false,
+		);
+	});
+
+	test("the afterRun hook returns before the set is served, and the connector refresh follows the serve", async () => {
+		const sets: (OfferedSet | undefined)[] = [];
+		const next = new NextSession({
+			sessionId: "sess_1",
+			settings: defaultSettings,
+			env: sessionEnv(context, { tools: () => [] }),
+			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+			backlog: async () => EMPTY_BACKLOG,
+		});
+		next.onSet((set) => sets.push(set));
+		let refreshed: (setsServed: number) => void = () => {};
+		const setsServedAtRefresh = new Promise<number>((resolve) => {
+			refreshed = resolve;
+		});
+		const connectors = {
+			refresher: { onTurn: async () => refreshed(sets.length) },
+		} as unknown as SessionRuntime["connectors"];
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => fakeRuntime(next, { connectors }),
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(
+			{} as Parameters<NonNullable<typeof plugin.setup>>[0],
+			context,
+		);
+		const agent = new Agent({
+			model: editingModel().model,
+			tools: [editorTool],
+			hooks: plugin.hooks,
+		});
+		await agent.run("Add a retry to the client");
+		expect(sets).toEqual([]);
+		await next.settled();
+		expect(sets).toHaveLength(1);
+		expect(await setsServedAtRefresh).toBe(1);
+	});
+
+	test("setup registers teardown that stops the runtime, and a second setup stops the first runtime", async () => {
+		const stopped: string[] = [];
+		const disposers: Array<() => unknown> = [];
+		const runtimeNamed = (name: string) =>
+			fakeRuntime(undefined, {
+				stop: () => {
+					stopped.push(name);
+				},
+			});
+		const runtimes = [runtimeNamed("first"), runtimeNamed("second")];
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => runtimes.shift(),
+			lifecycle: alwaysActive,
+		});
+		const disposing = {
+			...context,
+			onDispose: (cleanup: () => unknown) => disposers.push(cleanup),
+		};
+		await plugin.setup?.(
+			{} as Parameters<NonNullable<typeof plugin.setup>>[0],
+			disposing,
+		);
+		await plugin.setup?.(
+			{} as Parameters<NonNullable<typeof plugin.setup>>[0],
+			disposing,
+		);
+		await Promise.resolve();
+		expect(stopped).toEqual(["first"]);
+		await Promise.all(disposers.map((dispose) => dispose()));
+		expect(stopped).toEqual(["first", "first", "second"]);
+	});
+
+	test("a runtime whose stop throws is logged, and the next setup still starts", async () => {
+		const logged: string[] = [];
+		const runtimes = [
+			fakeRuntime(undefined, {
+				stop: () => {
+					throw new Error("boom");
+				},
+			}),
+			fakeRuntime(),
+		];
+		let started = 0;
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => {
+				started += 1;
+				return runtimes.shift();
+			},
+			lifecycle: alwaysActive,
+		});
+		const logging: SetupContext = {
+			...context,
+			logger: {
+				debug: (message) => {
+					logged.push(message);
+				},
+				log: () => {},
+			},
+		};
+		const api = {} as Parameters<NonNullable<typeof plugin.setup>>[0];
+		await plugin.setup?.(api, logging);
+		await plugin.setup?.(api, logging);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(started).toBe(2);
+		expect(logged).toContain("[next-turn] the runtime did not stop");
 	});
 });

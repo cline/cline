@@ -1,7 +1,4 @@
-import { fileURLToPath } from "node:url";
 import {
-	CONTRACT_ID_BASE,
-	CONTRACT_SCHEMA_DIALECT,
 	EXCLUDED_LIMIT,
 	LABEL_SCHEMA_VERSION,
 	PROMPT_MAX_CHARS,
@@ -10,79 +7,76 @@ import {
 	SET_SIZE,
 	WHY_MAX_CHARS,
 } from "./config";
-import { SOURCE_STATES } from "./context/source";
+import type { Manifest } from "./context/manifest";
+import { CHAT_MODES, SOURCE_STATES } from "./context/source";
 import {
-	CORE_KINDS,
 	CUE_CODES,
-	GATED_KINDS,
 	SUGGESTION_SOURCES,
+	type Suggestion,
 } from "./planner/candidates";
+import { CORE_KINDS, GATED_KINDS } from "./planner/kinds";
 import {
-	BOOLEAN_FIELDS,
-	BUCKETS,
+	type FieldSpec,
+	HEX64_PATTERN,
 	LABEL_EVENTS,
-	NUMBER_FIELDS,
-	TOKEN_FIELDS,
-	TOKEN_LIST_FIELDS,
+	LABEL_FIELDS,
+	PLANNERS,
 	TOKEN_PATTERN,
 	TRIGGERS,
 } from "./planner/labels";
+import {
+	MODEL_STATUSES,
+	type OfferedSet,
+	TRAY_STATES,
+	type TrayPush,
+	trayActionSchema,
+} from "./planner/tray";
 
 /**
  * What Next Turn publishes as JSON Schema (generated into `contracts/` by
  * `scripts/build-contracts.ts` in this package): the label record, the
  * environment manifest, and the UI slot's payloads (the set a tray shows, the
  * sequenced state push, and the actions it sends back through `plugin.invoke`).
- * Built from the same constants the writer and the engine use, so the schema
- * and the code cannot disagree. A host that renders the tray natively codes
- * against these.
+ * Built from the constants the writer and the engine use, and each object's
+ * `properties` names exactly its type's keys. A host that renders the tray
+ * natively codes against these.
  */
 
-export { CONTRACT_ID_BASE, CONTRACT_SCHEMA_DIALECT };
-
-/** This module, so the generated index can say where the schemas come from. */
-export const CONTRACTS_MODULE = fileURLToPath(import.meta.url);
-
-export type ContractSchema = {
+type ContractSchema = {
 	name: string;
 	io: "input" | "output";
 	about: string;
 	schema: Record<string, unknown>;
 };
 
-export const TRAY_STATES = [
-	"computing",
-	"ready",
-	"empty",
-	"exhausted",
-	"unavailable",
-	"off",
-] as const;
-export type TrayState = (typeof TRAY_STATES)[number];
-
-export const MODEL_STATUSES = [
-	"pending",
-	"no_provider",
-	"error",
-	"paused",
-] as const;
-export type ModelStatus = (typeof MODEL_STATUSES)[number];
-
-export const TRAY_PASSTHROUGH_LABEL_EVENTS = [
-	"set_ready",
-	"highlight_move",
-	"key_inert",
-	"refused_stale",
-	"undo_adjust",
-	"undo_turn",
-	"lineage",
-	"ignored",
-] as const;
-export type TrayPassthroughLabelEvent =
-	(typeof TRAY_PASSTHROUGH_LABEL_EVENTS)[number];
+/** The keys `T` cannot leave out: what a schema's `required` may list. */
+type RequiredKeys<T> = {
+	[Key in keyof T]-?: object extends Pick<T, Key> ? never : Key;
+}[keyof T];
 
 const token = { type: "string", pattern: TOKEN_PATTERN.source };
 const count = { type: "integer", minimum: 0 };
+const rerollsLeft = { type: "integer", minimum: 0, maximum: REROLL_LIMIT };
+
+function fieldSchema(spec: FieldSpec): Record<string, unknown> {
+	switch (spec.kind) {
+		case "token":
+			return token;
+		case "enum":
+			return { enum: [...spec.values] };
+		case "number":
+		case "boolean":
+			return { type: spec.kind };
+		case "tokens":
+			return { type: "array", items: token, maxItems: spec.maxItems };
+		case "hex64":
+			return {
+				type: "string",
+				pattern: HEX64_PATTERN.source,
+				description: spec.description,
+			};
+	}
+}
 
 function labelRecordSchema(): Record<string, unknown> {
 	const properties: Record<string, unknown> = {
@@ -90,20 +84,9 @@ function labelRecordSchema(): Record<string, unknown> {
 		at: { type: "string", format: "date-time" },
 		sessionId: token,
 		event: { enum: [...LABEL_EVENTS] },
-		messageHash: {
-			type: "string",
-			pattern: "^[0-9a-f]{64}$",
-			description:
-				"sha256 of what the person typed; the text itself is never written",
-		},
-		bucket: { enum: [...BUCKETS] },
 	};
-	for (const field of TOKEN_FIELDS)
-		properties[field] = field === "trigger" ? { enum: [...TRIGGERS] } : token;
-	for (const field of NUMBER_FIELDS) properties[field] = { type: "number" };
-	for (const field of BOOLEAN_FIELDS) properties[field] = { type: "boolean" };
-	for (const [field, bound] of Object.entries(TOKEN_LIST_FIELDS))
-		properties[field] = { type: "array", items: token, maxItems: bound };
+	for (const [field, spec] of Object.entries(LABEL_FIELDS))
+		properties[field] = fieldSchema(spec);
 	return {
 		type: "object",
 		required: ["v", "at", "sessionId", "event"],
@@ -114,7 +97,13 @@ function labelRecordSchema(): Record<string, unknown> {
 
 const suggestionSchema = {
 	type: "object",
-	required: ["id", "kind", "source", "prompt", "why"],
+	required: [
+		"id",
+		"kind",
+		"source",
+		"prompt",
+		"why",
+	] satisfies readonly RequiredKeys<Suggestion>[],
 	properties: {
 		id: { type: "string", pattern: "^[0-9a-f]{8}$" },
 		kind: { enum: [...CORE_KINDS, ...GATED_KINDS] },
@@ -128,7 +117,7 @@ const suggestionSchema = {
 			description:
 				"Posts or comments outside the machine: offer Use only, never Send",
 		},
-	},
+	} satisfies Record<keyof Suggestion, unknown>,
 	additionalProperties: false,
 };
 
@@ -145,7 +134,7 @@ const setSchema = {
 		"excluded",
 		"planner",
 		"revision",
-	],
+	] satisfies readonly RequiredKeys<OfferedSet>[],
 	properties: {
 		sessionId: { type: "string" },
 		offerId: { type: "string" },
@@ -161,9 +150,9 @@ const setSchema = {
 			items: { type: "string" },
 			maxItems: EXCLUDED_LIMIT,
 		},
-		planner: { enum: ["rules", "model"] },
+		planner: { enum: [...PLANNERS] },
 		revision: { type: "string" },
-		rerollsLeft: { type: "integer", minimum: 0, maximum: REROLL_LIMIT },
+		rerollsLeft,
 		paused: {
 			type: "object",
 			required: ["resetsAt"],
@@ -179,23 +168,15 @@ const setSchema = {
 			},
 			additionalProperties: false,
 		},
-	},
+	} satisfies Record<keyof OfferedSet, unknown>,
 	additionalProperties: false,
-};
-
-const candidateVerbProperties = {
-	candidateId: { type: "string" },
-	offerId: { type: "string" },
-	input: token,
-	msSinceExposed: { type: "number" },
 };
 
 export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 	{
 		name: "NextTurnLabelRecord",
 		io: "output",
-		about:
-			"One line of the label log (schema v3: v2 plus manifest tags). Ids, kinds and numbers only, never prose",
+		about: `One line of the label log (schema v${LABEL_SCHEMA_VERSION}). Ids, kinds and numbers only, never prose`,
 		schema: labelRecordSchema(),
 	},
 	{
@@ -205,16 +186,19 @@ export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 			"The environment manifest: each source's state and the capabilities the planner may name",
 		schema: {
 			type: "object",
-			required: ["sources", "capabilities"],
+			required: [
+				"sources",
+				"capabilities",
+			] satisfies readonly RequiredKeys<Manifest>[],
 			properties: {
 				client: { type: "string" },
-				mode: { enum: ["act", "plan"] },
+				mode: { enum: [...CHAT_MODES] },
 				sources: {
 					type: "object",
 					additionalProperties: { enum: [...SOURCE_STATES] },
 				},
 				capabilities: { type: "array", items: { type: "string" } },
-			},
+			} satisfies Record<keyof Manifest, unknown>,
 			additionalProperties: false,
 		},
 	},
@@ -232,16 +216,20 @@ export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 			"A sequenced tray state update pushed on next.state or returned from current",
 		schema: {
 			type: "object",
-			required: ["sessionId", "seq", "state"],
+			required: [
+				"sessionId",
+				"seq",
+				"state",
+			] satisfies readonly RequiredKeys<TrayPush>[],
 			properties: {
 				sessionId: { type: "string" },
 				seq: count,
 				state: { enum: [...TRAY_STATES] },
 				turnKey: { type: "string" },
-				rerollsLeft: { type: "integer", minimum: 0, maximum: REROLL_LIMIT },
+				rerollsLeft,
 				set: setSchema,
 				error: { type: "string" },
-			},
+			} satisfies Record<keyof TrayPush, unknown>,
 			additionalProperties: false,
 		},
 	},
@@ -249,86 +237,6 @@ export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 		name: "NextTurnTrayAction",
 		io: "input",
 		about: "What the tray slot sends back through plugin.invoke",
-		schema: {
-			oneOf: [
-				{
-					type: "object",
-					required: ["type"],
-					properties: {
-						type: { const: "current" },
-						client: { type: "string" },
-						runCount: count,
-					},
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type", "candidateId"],
-					properties: { type: { const: "skip" }, ...candidateVerbProperties },
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type", "candidateId"],
-					properties: {
-						type: { const: "unskip" },
-						candidateId: { type: "string" },
-						offerId: { type: "string" },
-						input: token,
-					},
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type", "candidateId"],
-					properties: { type: { const: "use" }, ...candidateVerbProperties },
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type", "candidateId"],
-					properties: { type: { const: "send" }, ...candidateVerbProperties },
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type"],
-					properties: {
-						type: { const: "reroll" },
-						offerId: { type: "string" },
-						input: token,
-						cause: token,
-					},
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type"],
-					properties: {
-						type: { const: "exposed" },
-						offerId: { type: "string" },
-						candidateId: { type: "string" },
-					},
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type"],
-					properties: { type: { const: "hide" }, scope: { const: "chat" } },
-					additionalProperties: false,
-				},
-				{
-					type: "object",
-					required: ["type", "event"],
-					properties: {
-						type: { const: "label" },
-						event: { enum: [...TRAY_PASSTHROUGH_LABEL_EVENTS] },
-						offerId: { type: "string" },
-						fields: { type: "object" },
-					},
-					additionalProperties: false,
-				},
-			],
-		},
+		schema: trayActionSchema(),
 	},
 ];

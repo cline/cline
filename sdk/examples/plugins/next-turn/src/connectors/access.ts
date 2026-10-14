@@ -1,11 +1,11 @@
 import { PERSONAL_TOOLKITS } from "../config";
 import { plannerSharesChatProvider } from "../context/policy";
-import {
-	type ConnectorRole,
-	connectorRole,
-	type Settings,
-} from "../settings/settings";
-import type { Access } from "./connector";
+import type { ConnectorRole, Settings } from "../settings/settings";
+import { type Access, composioConnectorId } from "./connector";
+
+const PERSONAL_CONNECTORS: ReadonlySet<string> = new Set(
+	[...PERSONAL_TOOLKITS].map(composioConnectorId),
+);
 
 /**
  * A connector's effective access:
@@ -17,27 +17,18 @@ import type { Access } from "./connector";
  *   another model for suggestions turns Read off; the role is kept, so it
  *   comes back when the model does.
  */
-export function defaultRole(
-	connectorId: string,
-	detected: boolean,
-): ConnectorRole {
-	if (!detected) return "off";
-	const toolkit = connectorId.startsWith("composio:")
-		? connectorId.slice("composio:".length)
-		: undefined;
-	return toolkit && PERSONAL_TOOLKITS.has(toolkit) ? "off" : "mention";
-}
-
 export function connectorAccess(
 	settings: Settings,
 	connectorId: string,
 	detected: boolean,
 	chatProviderId: string | undefined,
 ): Access {
-	const role = detected
-		? connectorRole(settings, connectorId, defaultRole(connectorId, true))
-		: "off";
-	const scopes = settings.connectors[connectorId]?.scopes ?? [];
+	const setting = settings.connectors[connectorId];
+	const role: ConnectorRole = !detected
+		? "off"
+		: (setting?.role ??
+			(PERSONAL_CONNECTORS.has(connectorId) ? "off" : "mention"));
+	const scopes = setting?.scopes ?? [];
 	return {
 		role,
 		scopes,

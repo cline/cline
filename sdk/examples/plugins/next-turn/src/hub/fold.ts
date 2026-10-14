@@ -1,35 +1,6 @@
+import type { HubEventName } from "@cline/shared";
+import { isoMillis, isRecord, num, text } from "../values";
 import type { HubEvent } from "./link";
-
-/**
- * The hub events Next Turn folds. Never `assistant.delta` or
- * `reasoning.delta`: the fold keeps ids, states, counts and sequences, never
- * what an agent or a person wrote (ADR-0008).
- */
-export const FOLDED_EVENTS: ReadonlySet<string> = new Set([
-	"run.started",
-	"run.completed",
-	"run.failed",
-	"run.aborted",
-	"run.interrupted",
-	"tool.finished",
-	"approval.requested",
-	"approval.resolved",
-	"capability.requested",
-	"capability.resolved",
-	"task.created",
-	"task.updated",
-	"task.deleted",
-	"task.run.started",
-	"task.run.completed",
-	"task.run.failed",
-	"schedule.deleted",
-	"schedule.execution_completed",
-	"schedule.execution_failed",
-	"team.progress",
-	"usage.updated",
-	"session.created",
-	"session.updated",
-]);
 
 /** The capability request that is an agent asking the person a question. */
 export const ASK_QUESTION_CAPABILITY = "tool_executor.askQuestion";
@@ -56,14 +27,14 @@ export type SessionFold = {
 	totalCost?: number;
 };
 
+type PendingField = "pendingApprovals" | "pendingQuestions";
+
 export type TaskFold = {
 	taskId: string;
 	status: string;
 	title: string;
 	priority?: number;
-	revision?: number;
 	workspaceRoot?: string;
-	lastSessionId?: string;
 	updatedAt?: number;
 };
 
@@ -95,8 +66,6 @@ export type HubFold = {
 	tasks: Record<string, TaskFold>;
 	schedules: Record<string, ScheduleFold>;
 	teams: Record<string, TeamFold>;
-	/** Which session an open approval or question belongs to; resolutions carry only the id. */
-	pendingIndex: Record<string, string>;
 };
 
 export function emptyFold(): HubFold {
@@ -106,28 +75,7 @@ export function emptyFold(): HubFold {
 		tasks: {},
 		schedules: {},
 		teams: {},
-		pendingIndex: {},
 	};
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function text(value: unknown): string | undefined {
-	return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function num(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
-		: undefined;
-}
-
-export function isoMillis(value: unknown): number | undefined {
-	if (typeof value === "number" && Number.isFinite(value)) return value;
-	const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
-	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function payloadOf(event: HubEvent): Record<string, unknown> {
@@ -160,39 +108,48 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
 	return rest;
 }
 
-const TERMINAL_RUN: Readonly<Record<string, RunState>> = {
-	"run.completed": "completed",
-	"run.failed": "failed",
-	"run.aborted": "aborted",
-	"run.interrupted": "interrupted",
-};
+type FoldStep = (fold: HubFold, event: HubEvent) => HubFold;
 
-function foldRun(fold: HubFold, event: HubEvent, sessionId: string): HubFold {
-	const current = session(fold, sessionId);
-	if (event.event === "run.started") {
-		return withSession(fold, sessionId, {
-			...current,
-			run: "running",
-			failedToolCalls: [],
-			updatedAt: event.timestamp,
-		});
-	}
-	const terminal = TERMINAL_RUN[event.event];
-	if (!terminal) return fold;
-	const snapshot = payloadOf(event).snapshot;
-	const workspace =
-		isRecord(snapshot) && isRecord(snapshot.workspace)
-			? text(snapshot.workspace.root)
-			: undefined;
+function forSession(
+	step: (fold: HubFold, event: HubEvent, sessionId: string) => HubFold,
+): FoldStep {
+	return (fold, event) =>
+		event.sessionId ? step(fold, event, event.sessionId) : fold;
+}
+
+function runStarted(
+	fold: HubFold,
+	event: HubEvent,
+	sessionId: string,
+): HubFold {
 	return withSession(fold, sessionId, {
-		...current,
-		run: terminal,
-		workspaceRoot: workspace ?? current.workspaceRoot,
+		...session(fold, sessionId),
+		run: "running",
+		failedToolCalls: [],
 		updatedAt: event.timestamp,
 	});
 }
 
-function foldToolFinished(
+function runEnded(run: RunState): FoldStep {
+	return forSession((fold, event, sessionId) => {
+		const current = session(fold, sessionId);
+		const snapshot = payloadOf(event).snapshot;
+		const workspace =
+			isRecord(snapshot) && isRecord(snapshot.workspace)
+				? text(snapshot.workspace.root)
+				: undefined;
+		return withSession(fold, sessionId, {
+			...current,
+			run,
+			workspaceRoot: workspace ?? current.workspaceRoot,
+			updatedAt: event.timestamp,
+			// A question is asked inside a run, so it cannot outlive it.
+			pendingQuestions: {},
+		});
+	});
+}
+
+function toolFinished(
 	fold: HubFold,
 	event: HubEvent,
 	sessionId: string,
@@ -208,121 +165,141 @@ function foldToolFinished(
 	});
 }
 
-function foldApproval(fold: HubFold, event: HubEvent): HubFold {
+function approvalRequested(fold: HubFold, event: HubEvent): HubFold {
 	const payload = payloadOf(event);
 	const approvalId = text(payload.approvalId);
-	if (!approvalId) return fold;
-	if (event.event === "approval.requested") {
-		const sessionId = text(payload.sessionId) ?? event.sessionId;
-		if (!sessionId) return fold;
-		const current = session(fold, sessionId);
-		const item: PendingItem = {
-			at: event.timestamp,
-			toolName: text(payload.toolName),
-		};
-		return {
-			...withSession(fold, sessionId, {
-				...current,
-				pendingApprovals: { ...current.pendingApprovals, [approvalId]: item },
-			}),
-			pendingIndex: { ...fold.pendingIndex, [approvalId]: sessionId },
-		};
-	}
-	return resolvePending(fold, approvalId, "pendingApprovals");
+	const sessionId = text(payload.sessionId) ?? event.sessionId;
+	if (!approvalId || !sessionId) return fold;
+	const current = session(fold, sessionId);
+	const item: PendingItem = {
+		at: event.timestamp,
+		toolName: text(payload.toolName),
+	};
+	return withSession(fold, sessionId, {
+		...current,
+		pendingApprovals: { ...current.pendingApprovals, [approvalId]: item },
+	});
 }
 
-function foldCapability(fold: HubFold, event: HubEvent): HubFold {
+function approvalResolved(fold: HubFold, event: HubEvent): HubFold {
+	const approvalId = text(payloadOf(event).approvalId);
+	return approvalId
+		? resolvePending(fold, event, approvalId, "pendingApprovals")
+		: fold;
+}
+
+function questionId(event: HubEvent): string | undefined {
 	const payload = payloadOf(event);
-	const requestId = text(payload.requestId);
-	if (!requestId || payload.capabilityName !== ASK_QUESTION_CAPABILITY)
-		return fold;
-	if (event.event === "capability.requested") {
-		const sessionId = event.sessionId;
-		if (!sessionId) return fold;
-		const current = session(fold, sessionId);
-		return {
-			...withSession(fold, sessionId, {
-				...current,
-				pendingQuestions: {
-					...current.pendingQuestions,
-					[requestId]: { at: event.timestamp },
-				},
-			}),
-			pendingIndex: { ...fold.pendingIndex, [requestId]: sessionId },
-		};
-	}
-	return resolvePending(fold, requestId, "pendingQuestions");
+	return payload.capabilityName === ASK_QUESTION_CAPABILITY
+		? text(payload.requestId)
+		: undefined;
 }
 
+function questionAsked(
+	fold: HubFold,
+	event: HubEvent,
+	sessionId: string,
+): HubFold {
+	const requestId = questionId(event);
+	if (!requestId) return fold;
+	const current = session(fold, sessionId);
+	return withSession(fold, sessionId, {
+		...current,
+		pendingQuestions: {
+			...current.pendingQuestions,
+			[requestId]: { at: event.timestamp },
+		},
+	});
+}
+
+function questionResolved(fold: HubFold, event: HubEvent): HubFold {
+	const requestId = questionId(event);
+	return requestId
+		? resolvePending(fold, event, requestId, "pendingQuestions")
+		: fold;
+}
+
+/** Hub resolutions name their session; one without it resolves wherever the id is pending. */
 function resolvePending(
 	fold: HubFold,
+	event: HubEvent,
 	id: string,
-	field: "pendingApprovals" | "pendingQuestions",
+	field: PendingField,
 ): HubFold {
-	const sessionId = fold.pendingIndex[id];
-	if (!sessionId) return fold;
-	const current = session(fold, sessionId);
-	return {
-		...withSession(fold, sessionId, {
-			...current,
-			[field]: without(current[field], id),
-		}),
-		pendingIndex: without(fold.pendingIndex, id),
-	};
+	const named = event.sessionId ? fold.sessions[event.sessionId] : undefined;
+	const owner =
+		named && Object.hasOwn(named[field], id)
+			? named
+			: Object.values(fold.sessions).find((candidate) =>
+					Object.hasOwn(candidate[field], id),
+				);
+	if (!owner) return fold;
+	return withSession(fold, owner.sessionId, {
+		...owner,
+		[field]: without(owner[field], id),
+	});
 }
 
-function foldTask(fold: HubFold, event: HubEvent): HubFold {
+function taskChanged(fold: HubFold, event: HubEvent): HubFold {
 	const task = payloadOf(event).task;
-	if (!isRecord(task)) return fold;
-	const taskId = text(task.taskId);
-	if (!taskId) return fold;
-	if (event.event === "task.deleted")
-		return { ...fold, tasks: without(fold.tasks, taskId) };
-	const status = text(task.status);
-	if (!status) return fold;
+	const folded = isRecord(task)
+		? taskFromRecord(task, event.timestamp)
+		: undefined;
+	return folded
+		? { ...fold, tasks: { ...fold.tasks, [folded.taskId]: folded } }
+		: fold;
+}
+
+function taskDeleted(fold: HubFold, event: HubEvent): HubFold {
+	const task = payloadOf(event).task;
+	const taskId = isRecord(task) ? text(task.taskId) : undefined;
+	return taskId ? { ...fold, tasks: without(fold.tasks, taskId) } : fold;
+}
+
+/** A hub `AgendaTaskRecord` as the fold keeps it; instructions are never read. */
+export function taskFromRecord(
+	record: Record<string, unknown>,
+	updatedAt: number | undefined,
+): TaskFold | undefined {
+	const taskId = text(record.taskId);
+	const status = text(record.status);
+	if (!taskId || !status) return undefined;
 	return {
-		...fold,
-		tasks: {
-			...fold.tasks,
-			[taskId]: {
-				taskId,
-				status,
-				title: text(task.title) ?? "",
-				priority: num(task.priority),
-				revision: num(task.revision),
-				workspaceRoot: text(task.workspaceRoot),
-				lastSessionId: text(task.lastSessionId),
-				updatedAt: event.timestamp,
-			},
-		},
+		taskId,
+		status,
+		title: text(record.title) ?? "",
+		priority: num(record.priority),
+		workspaceRoot: text(record.workspaceRoot),
+		updatedAt,
 	};
 }
 
-function foldSchedule(fold: HubFold, event: HubEvent): HubFold {
-	const payload = payloadOf(event);
-	const scheduleId = text(payload.scheduleId);
-	if (!scheduleId) return fold;
-	if (event.event === "schedule.deleted") {
-		return scheduleId in fold.schedules
-			? { ...fold, schedules: without(fold.schedules, scheduleId) }
-			: fold;
-	}
-	const status =
-		text(payload.status) ??
-		(event.event === "schedule.execution_failed" ? "failed" : "completed");
-	return {
-		...fold,
-		schedules: {
-			...fold.schedules,
-			[scheduleId]: {
-				...fold.schedules[scheduleId],
-				scheduleId,
-				status,
-				executionId: text(payload.executionId),
-				sessionId: text(payload.sessionId),
-				endedAt: num(payload.endedAt),
+function scheduleDeleted(fold: HubFold, event: HubEvent): HubFold {
+	const scheduleId = text(payloadOf(event).scheduleId);
+	return scheduleId && scheduleId in fold.schedules
+		? { ...fold, schedules: without(fold.schedules, scheduleId) }
+		: fold;
+}
+
+function scheduleExecution(defaultStatus: "completed" | "failed"): FoldStep {
+	return (fold, event) => {
+		const payload = payloadOf(event);
+		const scheduleId = text(payload.scheduleId);
+		if (!scheduleId) return fold;
+		return {
+			...fold,
+			schedules: {
+				...fold.schedules,
+				[scheduleId]: {
+					...fold.schedules[scheduleId],
+					scheduleId,
+					status: text(payload.status) ?? defaultStatus,
+					executionId: text(payload.executionId),
+					sessionId: text(payload.sessionId),
+					endedAt: num(payload.endedAt),
+				},
 			},
-		},
+		};
 	};
 }
 
@@ -330,7 +307,7 @@ function idCount(value: unknown): number {
 	return Array.isArray(value) ? value.length : 0;
 }
 
-function foldTeam(fold: HubFold, event: HubEvent): HubFold {
+function teamProgress(fold: HubFold, event: HubEvent): HubFold {
 	const payload = payloadOf(event);
 	const sessionId = text(payload.sessionId) ?? event.sessionId;
 	const summary = payload.summary;
@@ -352,7 +329,7 @@ function foldTeam(fold: HubFold, event: HubEvent): HubFold {
 	};
 }
 
-function foldUsage(fold: HubFold, event: HubEvent): HubFold {
+function usageUpdated(fold: HubFold, event: HubEvent): HubFold {
 	const payload = payloadOf(event);
 	const sessionId = text(payload.sessionId) ?? event.sessionId;
 	const totals = payload.totals;
@@ -365,7 +342,7 @@ function foldUsage(fold: HubFold, event: HubEvent): HubFold {
 	});
 }
 
-function foldSessionRecord(fold: HubFold, event: HubEvent): HubFold {
+function sessionRecord(fold: HubFold, event: HubEvent): HubFold {
 	const payload = payloadOf(event);
 	const record = isRecord(payload.session)
 		? payload.session
@@ -384,23 +361,40 @@ function foldSessionRecord(fold: HubFold, event: HubEvent): HubFold {
 	});
 }
 
-function foldBody(fold: HubFold, event: HubEvent): HubFold {
-	const name = event.event;
-	if (name.startsWith("run."))
-		return event.sessionId ? foldRun(fold, event, event.sessionId) : fold;
-	if (name === "tool.finished")
-		return event.sessionId
-			? foldToolFinished(fold, event, event.sessionId)
-			: fold;
-	if (name.startsWith("approval.")) return foldApproval(fold, event);
-	if (name.startsWith("capability.")) return foldCapability(fold, event);
-	if (name.startsWith("task.")) return foldTask(fold, event);
-	if (name.startsWith("schedule.")) return foldSchedule(fold, event);
-	if (name === "team.progress") return foldTeam(fold, event);
-	if (name === "usage.updated") return foldUsage(fold, event);
-	if (name.startsWith("session.")) return foldSessionRecord(fold, event);
-	return fold;
-}
+/**
+ * The hub events Next Turn folds, and how. Never `assistant.delta` or
+ * `reasoning.delta`: the fold keeps ids, states, counts and sequences, never
+ * what an agent or a person wrote.
+ */
+const FOLD_STEPS = new Map<HubEventName, FoldStep>([
+	["run.started", forSession(runStarted)],
+	["run.completed", runEnded("completed")],
+	["run.failed", runEnded("failed")],
+	["run.aborted", runEnded("aborted")],
+	["run.interrupted", runEnded("interrupted")],
+	["tool.finished", forSession(toolFinished)],
+	["approval.requested", approvalRequested],
+	["approval.resolved", approvalResolved],
+	["capability.requested", forSession(questionAsked)],
+	["capability.resolved", questionResolved],
+	["task.created", taskChanged],
+	["task.updated", taskChanged],
+	["task.run.started", taskChanged],
+	["task.run.completed", taskChanged],
+	["task.run.failed", taskChanged],
+	["task.deleted", taskDeleted],
+	["schedule.deleted", scheduleDeleted],
+	["schedule.execution_completed", scheduleExecution("completed")],
+	["schedule.execution_failed", scheduleExecution("failed")],
+	["team.progress", teamProgress],
+	["usage.updated", usageUpdated],
+	["session.created", sessionRecord],
+	["session.updated", sessionRecord],
+]);
+
+export const FOLDED_EVENTS: ReadonlySet<HubEventName> = new Set(
+	FOLD_STEPS.keys(),
+);
 
 /**
  * Fold one event. Events outside `FOLDED_EVENTS` and events already folded
@@ -409,17 +403,12 @@ function foldBody(fold: HubFold, event: HubEvent): HubFold {
  * pending approvals) fold idempotently by their id.
  */
 export function foldEvent(fold: HubFold, event: HubEvent): HubFold {
-	if (!FOLDED_EVENTS.has(event.event)) return fold;
+	const step = FOLD_STEPS.get(event.event);
+	if (!step) return fold;
 	if (event.sequence !== undefined && event.sequence <= fold.sequence)
 		return fold;
-	const next = foldBody(fold, event);
+	const next = step(fold, event);
 	return event.sequence !== undefined
 		? { ...next, sequence: event.sequence }
 		: next;
-}
-
-export function foldEvents(fold: HubFold, events: Iterable<HubEvent>): HubFold {
-	let current = fold;
-	for (const event of events) current = foldEvent(current, event);
-	return current;
 }

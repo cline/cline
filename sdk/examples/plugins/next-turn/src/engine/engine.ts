@@ -1,19 +1,15 @@
-import {
-	SEED_EXECUTION_LIMIT,
-	SEED_SESSION_LIMIT,
-	SEED_TASK_LIMIT,
-	SEED_UPCOMING_LIMIT,
-} from "../config";
 import type { CursorWriter } from "../hub/cursor";
-import { emptyFold, FOLDED_EVENTS, foldEvent, type HubFold } from "../hub/fold";
-import type { HubEvent, HubLinkStatus } from "../hub/link";
 import {
-	seedExecutions,
-	seedSessions,
-	seedTasks,
-	seedUpcoming,
-} from "../hub/seed";
-import { type NeedsYouItem, needsYou, newItems } from "../model/needs-you";
+	emptyFold,
+	FOLDED_EVENTS,
+	foldEvent,
+	type HubFold,
+	type SessionFold,
+} from "../hub/fold";
+import type { HubLink } from "../hub/link";
+import { HUB_SEEDS } from "../hub/seed";
+import type { Log } from "../log";
+import { type NeedsYouItem, needsYou } from "../model/needs-you";
 import { type UpcomingRun, upcomingRuns } from "../model/schedules";
 import {
 	type BoardScope,
@@ -21,48 +17,40 @@ import {
 	type StatusBoard,
 	statusBoard,
 } from "../model/session-rows";
-import type { NotifyGate } from "./notify";
+import { type NotifyGate, waitingOn } from "./notify";
 
-/** What the engine needs from `HubLink`; tests pass a fake. */
-export interface EngineLink {
-	onStatus(listener: (status: HubLinkStatus) => void): () => void;
-	start(): Promise<void>;
-	subscribe(
-		names: ReadonlySet<string>,
-		listener: (event: HubEvent) => void,
-	): () => void;
-	command(
-		name: string,
-		payload?: Record<string, unknown>,
-		sessionId?: string,
-	): Promise<Record<string, unknown>>;
-	dispose(): Promise<void>;
-}
+export type EngineLink = Pick<
+	HubLink,
+	"onStatus" | "start" | "subscribe" | "command" | "dispose"
+>;
 
-export type EngineOptions = {
+type EngineOptions = {
 	link: EngineLink;
 	cursor?: CursorWriter;
 	scope?: BoardScope;
 	/** This sandbox's session: the only one it sends notifications for. */
 	sessionId?: string;
-	notify?: { enabled: () => boolean; gate: NotifyGate };
-	log?: (message: string, error?: unknown) => void;
+	notify?: NotifyGate;
+	log?: Log;
 };
 
 /**
  * The engine's live view of the hub. One subscription folds the
  * allowlisted events; each time the link comes up, session, task and
- * schedule commands seed what live events have not supplied. Planner
+ * schedule commands seed what live events have not supplied, and after a
+ * reconnect, replace what went stale while the link was down. Planner
  * backlogs, the Status Hub's session rows and Needs you all read this fold
  * instead of querying the hub per offer.
  */
 export class NextTurnEngine {
 	private current: HubFold = emptyFold();
-	private needs: NeedsYouItem[] = [];
 	private readonly listeners = new Set<(fold: HubFold) => void>();
 	private readonly teardown: Array<() => void> = [];
 	private started?: Promise<void>;
 	private disposed = false;
+	private linkUp = false;
+	private linkUps = 0;
+	private foldAtDrop?: HubFold;
 
 	constructor(private readonly options: EngineOptions) {}
 
@@ -97,7 +85,15 @@ export class NextTurnEngine {
 		);
 		this.teardown.push(
 			link.onStatus((status) => {
-				if (status === "up") void this.seed();
+				if (status === "up") {
+					this.linkUp = true;
+					this.linkUps += 1;
+					void this.seed(this.foldAtDrop);
+					this.foldAtDrop = undefined;
+				} else if (this.linkUp) {
+					this.linkUp = false;
+					this.foldAtDrop = this.current;
+				}
 			}),
 		);
 		this.started = link.start();
@@ -105,45 +101,25 @@ export class NextTurnEngine {
 	}
 
 	/**
-	 * Seeds sessions, tasks and schedules from the hub. `task.list` scopes workspace
-	 * tasks from the connection's registered authority and ignores a payload `workspaceRoot`.
+	 * Seeds sessions, tasks and schedules from the hub; `stale` is the fold as it stood
+	 * when the link dropped. A seed whose link dropped again before it answered is
+	 * discarded, so the next drop's `stale` holds no half-applied seed.
 	 */
-	async seed(): Promise<void> {
+	private async seed(stale?: HubFold): Promise<void> {
 		const { link } = this.options;
-		const seeds = [
-			{
-				command: "session.list",
-				payload: { rootOnly: true, limit: SEED_SESSION_LIMIT },
-				seed: seedSessions,
-			},
-			{
-				command: "task.list",
-				payload: { limit: SEED_TASK_LIMIT },
-				seed: seedTasks,
-			},
-			{
-				command: "schedule.upcoming",
-				payload: { allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
-				seed: seedUpcoming,
-			},
-			{
-				command: "schedule.list_executions",
-				payload: { allWorkspaces: true, limit: SEED_EXECUTION_LIMIT },
-				seed: seedExecutions,
-			},
-		] as const;
+		const up = this.linkUps;
 		const replies = await Promise.allSettled(
-			seeds.map(({ command, payload }) => link.command(command, payload)),
+			HUB_SEEDS.map(({ command, payload }) => link.command(command, payload)),
 		);
-		if (this.disposed) return;
+		if (this.disposed || up !== this.linkUps || !this.linkUp) return;
 		let next = this.current;
-		replies.forEach((reply, index) => {
-			const { command, seed } = seeds[index] as (typeof seeds)[number];
-			if (reply.status === "fulfilled") next = seed(next, reply.value);
+		HUB_SEEDS.forEach(({ command, seed }, index) => {
+			const reply = replies[index];
+			if (reply?.status === "fulfilled") next = seed(next, reply.value, stale);
 			else
 				this.options.log?.(
 					`${command} failed; it fills from live events`,
-					reply.reason,
+					reply?.reason,
 				);
 		});
 		this.apply(next);
@@ -160,6 +136,7 @@ export class NextTurnEngine {
 
 	private apply(next: HubFold, sequence?: number): void {
 		if (this.disposed || next === this.current) return;
+		const previous = this.current;
 		this.current = next;
 		if (sequence !== undefined) this.options.cursor?.advance(sequence);
 		for (const listener of this.listeners) {
@@ -169,23 +146,15 @@ export class NextTurnEngine {
 				this.options.log?.("a fold listener threw", error);
 			}
 		}
-		this.notify();
+		const { sessionId } = this.options;
+		if (sessionId && previous.sessions[sessionId] !== next.sessions[sessionId])
+			this.notify(next.sessions[sessionId]);
 	}
 
-	private notify(): void {
-		const { notify, sessionId, link } = this.options;
-		if (!notify || !sessionId) return;
-		const own = this.needsYou().filter(
-			(item) =>
-				(item.kind === "approval" || item.kind === "question") &&
-				item.sessionId === sessionId,
-		);
-		const fresh = newItems(this.needs, own);
-		this.needs = own;
-		if (fresh.length === 0 || !notify.enabled()) return;
-		const payload = notify.gate.take(fresh);
+	private notify(session: SessionFold | undefined): void {
+		const payload = session && this.options.notify?.take(waitingOn(session));
 		if (!payload) return;
-		link
+		this.options.link
 			.command("ui.notify", payload)
 			.catch((error: unknown) => this.options.log?.("ui.notify failed", error));
 	}
