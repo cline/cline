@@ -2778,6 +2778,37 @@ describe("sdk-gateway", () => {
 		}
 	});
 
+	it("uses three SDK stream retries without allowing another whole-turn retry", async () => {
+		const error = {
+			message: "upstream timeout",
+			code: "504",
+			isRetryable: true,
+		};
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error });
+				return { fullStream: makeStreamParts([{ type: "error", error }]) };
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+		expect(streamTextSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+			streamRetries: 3,
+		});
+		expect(events.at(-1)).toMatchObject({
+			reason: "error",
+			errorRetryable: false,
+		});
+	});
+
 	it("records the extracted provider message for AI SDK stream errors", async () => {
 		const rawError = Object.assign(new Error("Stream error occurred"), {
 			statusCode: 400,

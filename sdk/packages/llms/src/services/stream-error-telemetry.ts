@@ -5,6 +5,7 @@ import type { AiSdkTelemetryDecision } from "./langfuse-telemetry";
 export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 	telemetry: AiSdkTelemetryDecision;
 	recordError: (error: unknown) => Promise<void>;
+	captureError: (error: unknown) => void;
 	getCallId: () => string | undefined;
 } {
 	const integrations = decision.integrations
@@ -14,6 +15,7 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 		: [];
 	let callId: string | undefined;
 	let failed = false;
+	let pendingError: unknown;
 	const lifecycle: Telemetry = {
 		onStart(event) {
 			callId = event.callId;
@@ -21,7 +23,18 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 		onError() {
 			failed = true;
 		},
-		onEnd() {
+		onLanguageModelCallStart() {
+			// A new provider attempt can recover a previously reported error part.
+			pendingError = undefined;
+		},
+		async onEnd(event) {
+			if (
+				"finishReason" in event &&
+				event.finishReason === "error" &&
+				pendingError !== undefined
+			) {
+				await recordError(pendingError);
+			}
 			callId = undefined;
 		},
 		async onAbort(event) {
@@ -45,6 +58,9 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 				: decision,
 		// Error stream parts do not always notify tracing integrations.
 		recordError,
+		captureError: (error) => {
+			pendingError = error;
+		},
 		getCallId: () => callId,
 	};
 }

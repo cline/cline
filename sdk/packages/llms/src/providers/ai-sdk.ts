@@ -1095,6 +1095,7 @@ function getNestedUsageValue(
  * mid-stream provider errors belong to the turn-level retry alone.
  */
 const MODEL_REQUEST_MAX_RETRIES = 5;
+const MODEL_STREAM_MAX_RETRIES = 3;
 
 type UsagePath = readonly [string] | readonly [string, string];
 
@@ -1474,9 +1475,9 @@ interface CapturedStreamError {
 	 * while the structured error is still in hand and forwarded as
 	 * `errorRetryable` on the `finish` event (the flattened message the agent
 	 * loop receives cannot carry it). Transient by the AI SDK's own typed
-	 * `isRetryable` flag, except that a `RetryError` is terminal: the SDK
-	 * already spent its request-start retries, and the turn-level retry must
-	 * not multiply them.
+	 * `isRetryable` flag, except that request-start RetryErrors and terminal
+	 * stream error parts have already spent the SDK's retry budget. The
+	 * turn-level retry must not multiply those attempts.
 	 */
 	retryable: boolean;
 	/**
@@ -1496,7 +1497,12 @@ function captureStreamError(
 		phase,
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
-		retryable: isRetryableBeyondSdkRetries(error),
+		// Error parts reaching the consumer have exhausted AI SDK stream recovery.
+		// Do not multiply its retry budget in the agent's whole-turn retry loop.
+		retryable:
+			phase !== "stream_callback" &&
+			phase !== "stream_part" &&
+			isRetryableBeyondSdkRetries(error),
 	};
 }
 
@@ -2461,11 +2467,15 @@ function createAiSdkProvider(
 								? { stopWhen: stepCountIs(8) }
 								: {}),
 							...requestConfig,
+							streamRetries: MODEL_STREAM_MAX_RETRIES,
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),
-							onError: async ({ error: streamError }) => {
+							onLanguageModelCallStart: () => {
+								capturedError.current = undefined;
+							},
+							onError: ({ error: streamError }) => {
 								const captured = captureStreamError(streamError);
 								capturedError.current = captured;
-								await reportError(captured);
+								streamTelemetry.captureError(streamError);
 							},
 							onAbort: async ({ reason }) => {
 								if (!isTimeoutReason(reason)) return;

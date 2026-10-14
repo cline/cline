@@ -566,7 +566,11 @@ is recorded separately as `aiSdkCallId` on errors.
 
 Terminal stream failures notify both application error reporting and tracing
 integrations. Native timeout aborts are failures; explicit caller cancellation
-does not emit a provider `sdk.error`. This reporting does not enable retries.
+does not emit a provider `sdk.error`. AI SDK stream recovery permits three retries
+per model step. Recovered attempts do not produce terminal `sdk.error` reports or
+mark the operation as failed. Exhausted stream recovery disables the agent's
+whole-turn retry so the two retry budgets do not multiply. Previously streamed
+text and reasoning follow AI SDK's append semantics and may repeat on recovery.
 
 ### 7. Storage Adapters
 

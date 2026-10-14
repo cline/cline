@@ -202,6 +202,99 @@ it.each([
 	expect(errorExporter?.getFinishedSpans()).toHaveLength(count);
 });
 
+it.each([
+	2, 4,
+])("handles %s failed stream attempts without marking a recovered operation as failed", async (failures) => {
+	let calls = 0;
+	const streamTelemetry = createStreamErrorTelemetry(
+		await resolveAiSdkTelemetry("cline", "retry-test"),
+	);
+	const result = streamText({
+		model: new MockLanguageModelV4({
+			provider: "cline",
+			modelId: "retry-test",
+			doStream: async () => {
+				const fail = calls++ < failures;
+				return {
+					stream: new ReadableStream({
+						start(controller) {
+							controller.enqueue({ type: "stream-start", warnings: [] });
+							if (fail)
+								controller.enqueue({
+									type: "error",
+									error: {
+										message: "upstream timeout",
+										type: "timeout_error",
+										code: "504",
+									},
+								});
+							else {
+								controller.enqueue({ type: "text-start", id: "text" });
+								controller.enqueue({
+									type: "text-delta",
+									id: "text",
+									delta: "recovered",
+								});
+								controller.enqueue({ type: "text-end", id: "text" });
+							}
+							controller.enqueue({
+								type: "finish",
+								finishReason: {
+									unified: fail ? "error" : "stop",
+									raw: undefined,
+								},
+								usage: {
+									inputTokens: {
+										total: 1,
+										noCache: 1,
+										cacheRead: 0,
+										cacheWrite: 0,
+									},
+									outputTokens: { total: 1, text: 1, reasoning: 0 },
+								},
+							});
+							controller.close();
+						},
+					}),
+				};
+			},
+		}),
+		prompt: "test",
+		streamRetries: 3,
+		maxRetries: 0,
+		telemetry: streamTelemetry.telemetry,
+		onError: ({ error }) => {
+			streamTelemetry.captureError(error);
+		},
+	});
+	for (const promise of [
+		result.usage,
+		result.totalUsage,
+		result.finishReason,
+		result.steps,
+		result.text,
+		result.response,
+	])
+		promise.catch(() => {});
+	const errors: unknown[] = [];
+	for await (const part of result.fullStream) {
+		if (part.type === "error") {
+			errors.push(part.error);
+			await streamTelemetry.recordError(part.error);
+		}
+	}
+	await provider.forceFlush();
+	expect(calls).toBe(failures === 2 ? 3 : 4);
+	expect(errors).toHaveLength(failures === 2 ? 0 : 1);
+	const roots = exporter
+		.getFinishedSpans()
+		.filter((span) => !span.parentSpanContext);
+	expect(roots).toHaveLength(1);
+	expect(roots[0]?.status.code).toBe(
+		failures === 2 ? SpanStatusCode.UNSET : SpanStatusCode.ERROR,
+	);
+});
+
 async function runStream(
 	telemetry = { isEnabled: true } as Awaited<
 		ReturnType<typeof resolveAiSdkTelemetry>
