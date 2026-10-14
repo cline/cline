@@ -135,7 +135,11 @@ function processCommandLine(pid: number): string | undefined {
 
 async function runStartupScenario(
 	extraEnv: Record<string, string>,
-	options: { hubAlreadyRunning: boolean; discoveryContents?: string },
+	options: {
+		hubAlreadyRunning: boolean;
+		discoveryContents?: string;
+		pluginCommands?: boolean;
+	},
 ): Promise<void> {
 	const root = mkdtempSync(join(tmpdir(), "cline-desktop-startup-"));
 	const discoveryPath = join(root, "hub.json");
@@ -148,6 +152,13 @@ async function runStartupScenario(
 	try {
 		if (options.discoveryContents !== undefined) {
 			writeFileSync(discoveryPath, options.discoveryContents);
+		}
+		if (options.pluginCommands) {
+			mkdirSync(join(root, "plugins"), { recursive: true });
+			writeFileSync(
+				join(root, "plugins", "hub-command.ts"),
+				`export default { name: "hub-command", manifest: { capabilities: ["commands"] }, setup(api) { api.registerCommand({ name: "hub_only", description: String(process.pid), handler: () => "hub reply" }); } };`,
+			);
 		}
 		const cli = await resolveCliBinary();
 		const bundle = resolveBackendBundle();
@@ -246,6 +257,45 @@ async function runStartupScenario(
 		} else {
 			expect(hub.port).toBe(Number(env.CLINE_HUB_PORT));
 		}
+		if (options.pluginCommands) {
+			const wsUrl = new URL(`${endpoint}/transport`);
+			wsUrl.protocol = "ws:";
+			const socket = new WebSocket(wsUrl);
+			try {
+				const commands = await new Promise<unknown>((resolve, reject) => {
+					const timer = setTimeout(
+						() => reject(new Error("Plugin command discovery timed out")),
+						15_000,
+					);
+					socket.onopen = () =>
+						socket.send(
+							JSON.stringify({
+								type: "request",
+								id: "plugins",
+								command: "list_plugin_commands",
+								args: { workspacePath: root },
+							}),
+						);
+					socket.onerror = () => {
+						clearTimeout(timer);
+						reject(new Error("Desktop transport failed"));
+					};
+					socket.onmessage = (event) => {
+						const message = JSON.parse(String(event.data));
+						if (message.id !== "plugins") return;
+						clearTimeout(timer);
+						if (message.ok) resolve(message.result);
+						else reject(new Error(message.error));
+					};
+				});
+				expect(commands).toContainEqual({
+					name: "hub_only",
+					description: String(hub.pid),
+				});
+			} finally {
+				socket.close();
+			}
+		}
 		// Either way the Hub daemon is the bundled CLI, not the backend.
 		expect(hub.pid).not.toBe(child.pid);
 		const hubCommand = processCommandLine(hub.pid);
@@ -303,6 +353,13 @@ async function runStartupScenario(
 
 test("desktop backend has the bundled CLI start the Hub when none is running", async () => {
 	await runStartupScenario({}, { hubAlreadyRunning: false });
+}, 180_000);
+
+test("Desktop discovers plugin commands in the compiled Hub, not its backend", async () => {
+	await runStartupScenario(
+		{ CLINE_PLUGIN_MODE: "worker" },
+		{ hubAlreadyRunning: false, pluginCommands: true },
+	);
 }, 180_000);
 
 test("desktop backend reuses a compatible Hub the CLI already started", async () => {

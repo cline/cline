@@ -1658,9 +1658,8 @@ async function handleSend(
 	const workspacePath =
 		readWorkspacePath(session?.config ?? request.config) ??
 		ctx.localWorkspaceRoot;
-	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
-	// as in the CLI: the handler's reply goes to the webview as a toast and
-	// only its `submitPrompt` (if any) reaches the model.
+	// Plugin slash commands run in the selected Hub. Replies go to the
+	// webview as a toast; only submitPrompt (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
 	if (commandName === "compact") {
 		let text: string;
@@ -1686,10 +1685,8 @@ async function handleSend(
 		return { sessionId, ok: true, commandHandled: true };
 	}
 	const pluginCommand =
-		commandName &&
-		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
-		binding.kind !== "ssh"
-			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
+		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
+			? await runPluginSlashCommand({ workspacePath, prompt, binding })
 			: undefined;
 	if (pluginCommand) {
 		if (pluginCommand.reply) {

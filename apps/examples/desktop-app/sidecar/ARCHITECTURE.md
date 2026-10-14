@@ -88,10 +88,10 @@ Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
 
-Before connecting, the sidecar runs `cline-cli --plugin-runtime-dir` and sets
-`CLINE_PLUGIN_RUNTIME_DIR` to the returned Core-owned bootstrap and SDK directory.
-The CLI embeds and extracts that complete artifact; Desktop does not ship an
-independent bootstrap or SDK copy.
+Plugin slash-command discovery and execution use `HubPluginClient` against the
+selected local or SSH Hub. Marketplace plugin installation also runs through the
+local Hub because discovery of MCP contributions executes plugin code. Desktop
+does not load plugin modules or request a plugin runtime directory from the CLI.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards

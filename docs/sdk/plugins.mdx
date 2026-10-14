@@ -65,7 +65,6 @@ const myPlugin: AgentPlugin = {
 
 Hooks are defined inside the `hooks` object, not directly on the extension. The available lifecycle hooks are `beforeRun`, `afterRun`, `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, and `onEvent`.
 
-
 ## Next Steps
 
 Register with `ClineCore`:
@@ -113,7 +112,6 @@ Plugin code never runs on the host's main thread. One other mode is available as
 - **`sandbox`**: the previous per-session subprocess sandbox. A compiled Cline CLI uses its embedded Bun runtime; other hosts need `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself, and this mode does not apply the per-session plugin policy or report plugin status.
 
 Both modes need Core's complete plugin runtime. An SDK host that bundles `@cline/core` should ship `dist/plugin-runtime` beside its bundle, or point `CLINE_PLUGIN_RUNTIME_DIR` at that directory. It includes the bootstrap and SDK package exports used by plugins. Compiled CLI binaries embed and materialize this artifact automatically, without installing SDK packages into each plugin directory. Hosts without a bootstrap fail closed with `PluginBootstrapMissingError`; plugin code never falls back to the host's main thread.
-
 
 Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Every new session imports the plugin fresh, so any change is picked up; `cline hub plugins --reload <plugin>` re-checks it and clears a failed status.
 

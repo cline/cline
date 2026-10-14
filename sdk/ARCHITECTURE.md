@@ -775,7 +775,6 @@ Compiled Bun executables can also run subprocess plugins themselves, using
 `BUN_BE_BUN=1` when no separate Node or Bun runtime is available. Resource
 packaging is independent of execution-mode policy.
 
-
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
 through `PluginSandboxOptions.idleTimeoutMs` or
@@ -1048,7 +1047,6 @@ session requires the current claim token. Terminal status is persisted before
 writing the optional report, so a report filesystem failure cannot replay a
 completed turn. Report and cleanup failures are logged separately.
 
-
 ## Navigating the Codebase
 
 ### Starting Points by Task
@@ -1236,3 +1234,14 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Hub-owned plugin commands
+
+`plugins.commands.list` and `plugins.commands.run` load and execute slash-command
+contributions inside the Hub, using one command service per resolved workspace.
+`plugins.install` installs a plugin and discovers its MCP contributions on the
+Hub host. The Hub waits for in-flight requests and shuts down command services
+when stopping. `HubPluginClient` exposes these operations to clients without
+loading plugin modules. Desktop routes local and SSH command menus/execution to
+the corresponding runtime binding; its marketplace installs target the local Hub.
+Desktop no longer requests an extracted runtime directory from the CLI.

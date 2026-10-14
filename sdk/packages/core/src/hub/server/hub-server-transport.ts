@@ -118,6 +118,7 @@ import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
+import { HubPluginCommandService } from "./plugin-command-service";
 import {
 	HubAgendaTaskCommandService,
 	isAgendaTaskCommand,
@@ -278,6 +279,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionTools: AgentTool[] = [];
 	private readonly sessionExtensions: AgentExtension[] = [];
 	private readonly settings: CoreSettingsService;
+	private readonly pluginCommands: HubPluginCommandService;
 	private readonly sessionSearch: SessionHistorySearchService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
@@ -295,6 +297,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private unsubscribePluginStatus?: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.pluginCommands = new HubPluginCommandService(options);
 		this.plugins.setLogger(hubPluginLogger);
 		this.unsubscribePluginStatus = this.plugins.subscribe((status) => {
 			this.publish(
@@ -758,6 +761,7 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		await this.pluginCommands.dispose();
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
@@ -926,6 +930,10 @@ export class HubServerTransport implements NativeHubTransport {
 			case "plugins.list":
 			case "plugins.status":
 				return okReply(envelope, { plugins: this.plugins.list() });
+			case "plugins.commands.list":
+			case "plugins.commands.run":
+			case "plugins.install":
+				return await this.pluginCommands.handleCommand(envelope);
 			case "plugins.reload":
 				return await this.handlePluginsReload(envelope);
 			case "run.abort":

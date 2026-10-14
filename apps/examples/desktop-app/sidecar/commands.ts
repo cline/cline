@@ -167,7 +167,7 @@ import {
 	sharedSessionDataDir,
 } from "./paths";
 import {
-	getPluginCommandService,
+	getPluginCommandClient,
 	warmPluginCommandService,
 } from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
@@ -3573,18 +3573,18 @@ export async function handleCommand(
 		// plugin sandbox is loaded before the slash menu first needs it.
 		const binding = getCommandRuntimeBinding(ctx, args);
 		const workspacePath = String(args?.workspacePath ?? "").trim();
-		if (binding.kind === "local" && workspacePath) {
-			warmPluginCommandService(ctx, workspacePath);
+		if (workspacePath) {
+			warmPluginCommandService(ctx, workspacePath, binding);
 		}
 		return { environmentId: binding.environmentId };
 	}
 	if (command === "list_plugin_commands") {
-		// Same workspace the session will execute in (handleSend), so the menu
-		// only offers commands that can actually run there.
+		const binding = getCommandRuntimeBinding(ctx, args);
 		const workspacePath =
-			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
-		return await getPluginCommandService(ctx, workspacePath).listCommands();
+			String(args?.workspacePath ?? "").trim() || binding.workspaceRoot;
+		return await getPluginCommandClient(binding).listCommands(workspacePath);
 	}
+
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
@@ -3592,13 +3592,21 @@ export async function handleCommand(
 		);
 	}
 	if (command === "install_marketplace_entry") {
-		const result = await installMarketplaceEntryForDesktopCommand(args);
+		const result = await installMarketplaceEntryForDesktopCommand(args, {
+			pluginInstaller: (options) =>
+				getPluginCommandClient(
+					getRuntimeBinding(ctx, LOCAL_ENVIRONMENT_ID),
+				).install({
+					source: options.source,
+					force: options.force,
+				}),
+		});
 		return result;
 	}
 	if (command === "uninstall_marketplace_entry") {
-		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
-		return result;
+		return await uninstallMarketplaceEntryForDesktopCommand(args);
 	}
+
 	if (command === "uninstall_local_primitive") {
 		const result = await uninstallLocalPrimitive(args, {
 			workspaceRoot: ctx.localWorkspaceRoot,
