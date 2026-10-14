@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { markOtlpTraceRelayProvider } from "@cline/shared";
-import { context, trace } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import {
 	InMemorySpanExporter,
 	NodeTracerProvider,
@@ -16,6 +16,7 @@ import {
 	resetLangfuseTelemetryForTests,
 	resolveAiSdkTelemetry,
 } from "./langfuse-telemetry";
+import { createStreamErrorTelemetry } from "./stream-error-telemetry";
 
 const { settingsPath, directExporters } = vi.hoisted(() => ({
 	settingsPath: { current: "" },
@@ -74,6 +75,106 @@ afterEach(async () => {
 	context.disable();
 	resetLangfuseTelemetryForTests();
 	vi.unstubAllEnvs();
+});
+
+it.each([
+	["relay", "error part"],
+	["relay", "reader rejection"],
+	["direct", "error part"],
+	["direct", "reader rejection"],
+])("exports %s socket %s as failed Langfuse observations", async (route, failure) => {
+	if (route === "direct") {
+		trace.disable();
+		context.disable();
+		vi.stubEnv("LANGFUSE_BASE_URL", "https://langfuse.example");
+		vi.stubEnv("LANGFUSE_PUBLIC_KEY", "public-key");
+		vi.stubEnv("LANGFUSE_SECRET_KEY", "secret-key");
+	}
+	const error = Object.assign(
+		new Error("The socket connection was closed unexpectedly"),
+		{
+			code: "ConnectionClosed",
+		},
+	);
+	const { telemetry, recordError } = createStreamErrorTelemetry(
+		await resolveAiSdkTelemetry("cline", "socket-test"),
+	);
+	let index = 0;
+	const result = streamText({
+		model: new MockLanguageModelV4({
+			provider: "cline",
+			modelId: "socket-test",
+			doStream: async () => ({
+				stream: new ReadableStream({
+					pull(controller) {
+						switch (index++) {
+							case 0:
+								controller.enqueue({ type: "stream-start", warnings: [] });
+								break;
+							case 1:
+								controller.enqueue({ type: "text-start", id: "text" });
+								break;
+							case 2:
+								controller.enqueue({
+									type: "text-delta",
+									id: "text",
+									delta: "partial output",
+								});
+								break;
+							default:
+								if (failure === "reader rejection") controller.error(error);
+								else {
+									controller.enqueue({ type: "error", error });
+									controller.close();
+								}
+						}
+					},
+				}),
+			}),
+		}),
+		prompt: "test",
+		telemetry,
+		onError: ({ error }) => recordError(error),
+	});
+	// A failed stream also rejects its result promises.
+	for (const promise of [
+		result.usage,
+		result.totalUsage,
+		result.finishReason,
+		result.steps,
+		result.text,
+		result.response,
+	]) {
+		promise.catch(() => {});
+	}
+	try {
+		for await (const part of result.fullStream) {
+			if (part.type === "error") await recordError(part.error);
+		}
+	} catch (error) {
+		await recordError(error);
+	}
+	await provider.forceFlush();
+	const errorExporter = route === "direct" ? directExporters[0] : exporter;
+	expect(errorExporter).toBeDefined();
+	const spans = errorExporter?.getFinishedSpans() ?? [];
+	expect(spans.length).toBeGreaterThan(0);
+	expect(spans.every((span) => span.status.code === SpanStatusCode.ERROR)).toBe(
+		true,
+	);
+	expect(
+		spans.some((span) =>
+			span.events.some(
+				(event) =>
+					event.name === "exception" &&
+					event.attributes?.["exception.message"] === error.message,
+			),
+		),
+	).toBe(true);
+	const count = spans.length;
+	await recordError(error);
+	await provider.forceFlush();
+	expect(errorExporter?.getFinishedSpans()).toHaveLength(count);
 });
 
 async function runStream(

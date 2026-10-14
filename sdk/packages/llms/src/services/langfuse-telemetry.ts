@@ -173,7 +173,7 @@ function isClineProviderId(providerId: string): boolean {
 
 export type AiSdkTelemetryDecision = {
 	isEnabled: boolean;
-	integrations?: Telemetry;
+	integrations?: Telemetry | Telemetry[];
 	recordInputs?: boolean;
 	recordOutputs?: boolean;
 };

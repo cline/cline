@@ -44,6 +44,7 @@ import {
 } from "ai";
 import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
+import { createStreamErrorTelemetry } from "../services/stream-error-telemetry";
 import {
 	classifyProviderError,
 	isRetryableBeyondSdkRetries,
@@ -1449,6 +1450,7 @@ function extractGoogleThoughtMetadata(
  * `extractErrorMessage`.
  */
 interface CapturedStreamError {
+	error: unknown;
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
@@ -1471,6 +1473,7 @@ interface CapturedStreamError {
 
 function captureStreamError(error: unknown): CapturedStreamError {
 	return {
+		error,
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
@@ -1484,6 +1487,7 @@ async function* emitAiSdkEvents(
 	pricingValue?: unknown,
 	capturedError?: { current: CapturedStreamError | undefined },
 	modelToolAdapters?: BuiltModelTools,
+	reportError?: (error: CapturedStreamError) => Promise<void>,
 ): AsyncIterable<AgentModelEvent> {
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
@@ -1994,6 +1998,8 @@ async function* emitAiSdkEvents(
 		};
 	}
 
+	if (streamError) await reportError?.(streamError);
+
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason),
@@ -2134,6 +2140,41 @@ function createAiSdkProvider(
 			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
+			let recordTraceError: ((error: unknown) => Promise<void>) | undefined;
+			let reportedError: CapturedStreamError | undefined;
+			const reportError = async (
+				captured: CapturedStreamError,
+				operation = "provider.stream",
+			) => {
+				if (reportedError === captured) return;
+				reportedError = captured;
+				if (log?.error) {
+					log.error("[ai-sdk] provider error", {
+						providerId: request.providerId,
+						error: captured.error,
+						severity: "error",
+					});
+				} else {
+					log?.log(`[ai-sdk] provider error: ${captured.message}`, {
+						providerId: request.providerId,
+						severity: "error",
+					});
+				}
+				captured.reported = captureSdkError(context.telemetry, {
+					component: "llms",
+					operation,
+					error: captured.error,
+					errorMessage: captured.message,
+					severity: "error",
+					handled: true,
+					context: {
+						providerId: request.providerId,
+						modelId: request.modelId,
+						providerKind: kind,
+					},
+				});
+				await recordTraceError?.(captured.error);
+			};
 			try {
 				const provider = await createProviderModule(
 					kind,
@@ -2261,10 +2302,11 @@ function createAiSdkProvider(
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
-				const aiSdkTelemetry = await resolveGatewayAiSdkTelemetry(
-					config.providerId,
-					request,
+				const streamTelemetry = createStreamErrorTelemetry(
+					await resolveGatewayAiSdkTelemetry(config.providerId, request),
 				);
+				const aiSdkTelemetry = streamTelemetry.telemetry;
+				recordTraceError = streamTelemetry.recordError;
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
@@ -2361,35 +2403,10 @@ function createAiSdkProvider(
 								: {}),
 							...requestConfig,
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),
-							onError: ({ error: streamError }) => {
+							onError: async ({ error: streamError }) => {
 								const captured = captureStreamError(streamError);
-								const msg = captured.message;
 								capturedError.current = captured;
-								if (log?.error) {
-									log.error("[ai-sdk] stream error", {
-										providerId: request.providerId,
-										error: streamError,
-										severity: "error",
-									});
-								} else if (log) {
-									log.log(`[ai-sdk] stream error: ${msg}`, {
-										providerId: request.providerId,
-										severity: "error",
-									});
-								}
-								captured.reported = captureSdkError(context.telemetry, {
-									component: "llms",
-									operation: "provider.stream",
-									error: streamError,
-									errorMessage: msg,
-									severity: "error",
-									handled: true,
-									context: {
-										providerId: request.providerId,
-										modelId: request.modelId,
-										providerKind: kind,
-									},
-								});
+								await reportError(captured);
 							},
 						}) as unknown as AiSdkStreamResult,
 				);
@@ -2407,45 +2424,21 @@ function createAiSdkProvider(
 					context.model.metadata?.pricing,
 					capturedError,
 					modelToolAdapters,
+					reportError,
 				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
 				const captured = capturedError.current ?? captureStreamError(error);
-				const msg = captured.message;
-				if (log?.error) {
-					log.error("[ai-sdk] provider error", {
-						providerId: request.providerId,
-						error,
-						severity: "error",
-					});
-				} else if (log) {
-					log.log(`[ai-sdk] provider error: ${msg}`, {
-						providerId: request.providerId,
-						severity: "error",
-					});
-				}
-				const reported = captureSdkError(context.telemetry, {
-					component: "llms",
-					operation: "provider.create_or_stream",
-					error,
-					errorMessage: msg,
-					severity: "error",
-					handled: true,
-					context: {
-						providerId: request.providerId,
-						modelId: request.modelId,
-						providerKind: kind,
-					},
-				});
+				await reportError(captured, "provider.create_or_stream");
 				yield {
 					type: "finish",
 					reason: "error",
-					error: msg,
+					error: captured.message,
 					errorClass: captured.errorClass,
 					errorRetryable: captured.retryable,
-					errorReported: reported || captured.reported,
+					errorReported: captured.reported,
 				};
 			}
 		},

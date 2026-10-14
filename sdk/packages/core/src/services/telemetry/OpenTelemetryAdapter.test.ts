@@ -1,9 +1,32 @@
+import { SeverityNumber } from "@opentelemetry/api-logs";
 import type { LoggerProvider } from "@opentelemetry/sdk-logs";
 import type { MeterProvider } from "@opentelemetry/sdk-metrics";
 import { describe, expect, it, vi } from "vitest";
 import { OpenTelemetryAdapter } from "./OpenTelemetryAdapter";
 
 describe("OpenTelemetryAdapter", () => {
+	it.each([
+		["error", "ERROR", SeverityNumber.ERROR],
+		["warn", "WARN", SeverityNumber.WARN],
+		["debug", "DEBUG", SeverityNumber.DEBUG],
+	])("exports %s severity in the OTLP record", (severity, severityText, severityNumber) => {
+		const emit = vi.fn();
+		const adapter = new OpenTelemetryAdapter({
+			metadata: makeMetadata(),
+			loggerProvider: {
+				getLogger: () => ({ emit }),
+			} as unknown as LoggerProvider,
+		});
+		adapter.emit("sdk.error", { severity, error_message: "ConnectionClosed" });
+		expect(emit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				body: "sdk.error",
+				severityText,
+				severityNumber,
+				attributes: expect.objectContaining({ severity }),
+			}),
+		);
+	});
 	it("emits events in the telemetry service log format", () => {
 		const emit = vi.fn();
 		const adapter = new OpenTelemetryAdapter({
@@ -28,6 +51,7 @@ describe("OpenTelemetryAdapter", () => {
 
 		expect(emit).toHaveBeenCalledWith({
 			severityText: "INFO",
+			severityNumber: SeverityNumber.INFO,
 			body: "task.created",
 			attributes: expect.objectContaining({
 				ulid: "01HXYZ",
@@ -57,6 +81,7 @@ describe("OpenTelemetryAdapter", () => {
 
 		expect(emit).toHaveBeenCalledWith({
 			severityText: "INFO",
+			severityNumber: SeverityNumber.INFO,
 			body: "user.opt_out",
 			attributes: expect.objectContaining({
 				_required: true,
