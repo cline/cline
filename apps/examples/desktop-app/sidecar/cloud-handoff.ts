@@ -616,6 +616,7 @@ async function handleHandoffOnce(
 		throw error;
 	};
 	const readSeedMessages = async (): Promise<MessageWithMetadata[]> => {
+		await cloud.waitUntilReady(outerSessionId);
 		await assertHandoffIdle(ctx, manager, sourceSessionId);
 		emitProgress(
 			"connecting",
@@ -702,7 +703,6 @@ async function handleHandoffOnce(
 			outerSessionId,
 		);
 		try {
-			await cloud.waitUntilReady(outerSessionId);
 			const seed = await readSeedMessages();
 			const resumed = await cloud
 				.seedHandoff(outerSessionId, {

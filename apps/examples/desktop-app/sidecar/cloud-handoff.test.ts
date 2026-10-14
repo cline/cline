@@ -449,7 +449,7 @@ describe("cloud handoff gates", () => {
 		);
 	});
 
-	it("detects repository drift after cloud provisioning", () => {
+	it("compares repository fingerprints ignoring commit hash case", () => {
 		const fingerprint = {
 			repoUrl: "https://github.com/cline/cline",
 			branch: "main",
@@ -962,6 +962,7 @@ describe("cloud handoff transaction", () => {
 		});
 		Object.assign(cloud, {
 			prepareHandoffRepository: vi.fn(async () => ({})),
+			waitUntilReady: vi.fn(async () => {}),
 			create,
 			verifyHandoffTranscript,
 			send: cloudSend,
@@ -994,6 +995,32 @@ describe("cloud handoff transaction", () => {
 			create,
 		};
 	}
+
+	it.each([
+		true,
+		false,
+	])("rejects Git drift during provisioning (new target: %s)", async (created) => {
+		const f = createHandoffFixture(created);
+		vi.spyOn(f.cloud, "waitUntilReady").mockImplementation(async () => {
+			vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
+				...f.request.fingerprint,
+				headSha: "b".repeat(40),
+			});
+		});
+		const remove = vi.spyOn(f.cloud, "delete").mockResolvedValue(undefined);
+		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
+			"repository branch changed",
+		);
+		expect(f.getPersistedMetadata()).toEqual(
+			created
+				? {}
+				: expect.objectContaining({
+						handoff: expect.objectContaining({ status: "pending" }),
+					}),
+		);
+		expect(remove.mock.calls).toEqual(created ? [["ses-cloud"]] : []);
+		expect(f.verifyHandoffTranscript).not.toHaveBeenCalled();
+	});
 
 	it.each([
 		["idle", "/workspace/project/subdirectory"],
