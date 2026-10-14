@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, join, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -61,7 +61,11 @@ import {
 	sendEvent,
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
-import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import {
+	readSessionManifest,
+	resolveWorkspaceRoot,
+	sharedSessionDataDir,
+} from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
@@ -123,10 +127,19 @@ function readWorkspacePath(
 }
 
 function workspacePathKey(
+	ctx: SidecarContext,
 	source: WorkspacePathSource | undefined,
 ): string | undefined {
 	const workspacePath = readWorkspacePath(source);
-	return workspacePath ? resolve(workspacePath) : undefined;
+	if (!workspacePath) return undefined;
+	if (ctx.activeEnvironmentId === "local") {
+		try {
+			return realpathSync(workspacePath);
+		} catch {
+			return resolve(workspacePath);
+		}
+	}
+	return resolve(workspacePath);
 }
 
 function workspaceIsWithin(path: string | undefined, root: string): boolean {
@@ -364,12 +377,31 @@ async function withWorkspaceRestoreLock<T>(
 	workspacePath: string,
 	work: () => Promise<T>,
 ): Promise<T> {
-	const key = resolve(workspacePath);
+	const binding = getSessionRuntimeBinding(ctx);
+	let key: string;
+	if (binding.kind === "ssh") {
+		if (!ctx.remoteEnvironments) {
+			throw new Error("Remote environment service is unavailable");
+		}
+		const result = await ctx.remoteEnvironments.run(binding.environmentId, {
+			command: "git",
+			args: ["rev-parse", "--show-toplevel"],
+			cwd: workspacePath,
+		});
+		if (result.exitCode !== 0 || !result.stdout.trim()) {
+			throw new Error(
+				"Cannot resolve the Git working tree before restoring it",
+			);
+		}
+		key = resolve(result.stdout.trim());
+	} else {
+		key = resolveWorkspaceRoot(workspacePath);
+	}
 	if (isWorkspaceRestoring(ctx, key)) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	for (const session of ctx.liveSessions.values()) {
-		const sessionWorkspace = workspacePathKey(session.config);
+		const sessionWorkspace = workspacePathKey(ctx, session.config);
 		if (
 			sessionWorkspace &&
 			(workspaceIsWithin(sessionWorkspace, key) ||
@@ -1077,7 +1109,7 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const workspace = workspacePathKey(request.config);
+	const workspace = workspacePathKey(ctx, request.config);
 	if (isWorkspaceRestoring(ctx, workspace)) {
 		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
 	}
@@ -1678,6 +1710,7 @@ async function handleSend(
 	);
 	const manager = binding.sessionManager;
 	const lockedWorkspaceKey = workspacePathKey(
+		ctx,
 		session?.config ?? request.config,
 	);
 	if (isWorkspaceRestoring(ctx, lockedWorkspaceKey)) {
