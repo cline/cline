@@ -27,7 +27,11 @@ declare const CLINE_PLUGIN_WORKER_PATH: string | undefined;
 // Compiled executables run plugins in their embedded worker, which serves the
 // SDK from this build. Override any bootstrap a parent process configured: the
 // Hub daemon and SSH remotes run this binary with no plugin files beside it.
-if (typeof CLINE_PLUGIN_WORKER_PATH === "string") {
+// The subprocess sandbox spawns a separate runtime that cannot read it.
+if (
+	typeof CLINE_PLUGIN_WORKER_PATH === "string" &&
+	process.env.CLINE_PLUGIN_MODE !== "sandbox"
+) {
 	process.env.CLINE_PLUGIN_BOOTSTRAP_PATH = CLINE_PLUGIN_WORKER_PATH;
 }
 
