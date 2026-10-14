@@ -44,7 +44,6 @@ async function resolveCliBinary(): Promise<string> {
 				`bun-${process.platform === "win32" ? "windows" : process.platform}-${process.arch}` as Bun.Build.CompileTarget,
 			outfile,
 			autoloadLaunchDirectoryConfig: false,
-			execArgv: ["--use-system-ca"],
 		});
 		compiledCli = outfile;
 	}
@@ -96,7 +95,13 @@ test("the shipped CLI and backend report telemetry without starting a hub", asyn
 	const bundle = resolveBackendBundle();
 	for (const args of [
 		["--telemetry-selfcheck"],
-		["run", "--no-env-file", bundle, "--telemetry-selfcheck"],
+		[
+			"run",
+			"--use-system-ca",
+			"--no-env-file",
+			bundle,
+			"--telemetry-selfcheck",
+		],
 	]) {
 		const result = spawnSync(cli, args, {
 			encoding: "utf8",
@@ -203,18 +208,21 @@ async function runStartupScenario(
 
 		// The backend bundle on the CLI's runtime, started outside the
 		// workspace like the packaged app does.
-		child = Bun.spawn([cli, "run", "--no-env-file", bundle], {
-			cwd: dirname(bundle),
-			env: {
-				...env,
-				BUN_BE_BUN: "1",
-				CLINE_DESKTOP_CLI_PATH: cli,
-				CLINE_DESKTOP_WORKSPACE_ROOT: root,
+		child = Bun.spawn(
+			[cli, "run", "--use-system-ca", "--no-env-file", bundle],
+			{
+				cwd: dirname(bundle),
+				env: {
+					...env,
+					BUN_BE_BUN: "1",
+					CLINE_DESKTOP_CLI_PATH: cli,
+					CLINE_DESKTOP_WORKSPACE_ROOT: root,
+				},
+				stdin: "ignore",
+				stdout,
+				stderr,
 			},
-			stdin: "ignore",
-			stdout,
-			stderr,
-		});
+		);
 		let endpoint: string | undefined;
 		const deadline = Date.now() + 30_000;
 		while (Date.now() < deadline) {

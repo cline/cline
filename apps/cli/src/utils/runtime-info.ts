@@ -30,6 +30,7 @@ export function getCliRuntimeInfo() {
 			: CLINE_CLI_COMPILE_TARGET;
 	return {
 		cliVersion: version,
+		execArgv: process.execArgv,
 		...resolveHubBuildIdentity(),
 		executablePath: process.execPath,
 		compiled: resolveCliLaunchSpec()?.mode === "compiled",

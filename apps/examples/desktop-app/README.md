@@ -157,7 +157,7 @@ there, which reuses a compatible healthy remote Hub or starts one bound to
 remote loopback. The desktop forwards it to a random local loopback port.
 macOS/Linux Desktop reuses its compatible installed CLI for a matching SSH
 target, or downloads that target from its pinned `cli-v…` release into
-`~/.cline/remote-runtimes/<target>/`. Linux x64 requires a baseline CPU build.
+`~/.cline/remote-runtimes/<release>/<target>/`. Linux x64 requires a baseline CPU build.
 Windows retains bundled Linux helpers; explicit local helper overrides take
 priority. 32-bit Linux and musl/Alpine hosts are unsupported. The CLI embeds its
 plugin runtime/SDK and dashboard, so the remote host needs no Node/Bun, package

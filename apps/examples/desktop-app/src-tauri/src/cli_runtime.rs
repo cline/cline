@@ -132,7 +132,7 @@ pub fn release_tag(installer_dir: &Path) -> Result<String, String> {
 
 // Installed commands may be npm wrappers. Ask the CLI for its real executable
 // and SDK identity rather than guessing its package layout or version.
-fn probe(command: &Path) -> Option<RuntimeInfo> {
+fn probe(command: &Path, launch_env: &HashMap<String, String>) -> Option<RuntimeInfo> {
     let mut process = if cfg!(windows)
         && command
             .extension()
@@ -144,7 +144,7 @@ fn probe(command: &Path) -> Option<RuntimeInfo> {
     } else {
         Command::new(command)
     };
-    process.arg("--runtime-info");
+    process.arg("--runtime-info").envs(launch_env);
     let text = bounded_output(&mut process)?;
     serde_json::from_str(text.trim()).ok()
 }
@@ -179,43 +179,83 @@ fn bounded_output(command: &mut Command) -> Option<String> {
     }
 }
 
-fn installed_candidates(shared_dir: &Path) -> Result<Vec<PathBuf>, String> {
+#[derive(Debug)]
+struct InstalledCandidate {
+    path: PathBuf,
+    launch_env: HashMap<String, String>,
+}
+
+impl InstalledCandidate {
+    fn direct(path: PathBuf) -> Self {
+        Self {
+            path,
+            launch_env: HashMap::new(),
+        }
+    }
+}
+
+#[cfg(unix)]
+fn login_shell_candidate(shell: &mut Command) -> Result<Option<InstalledCandidate>, String> {
+    // NUL-delimited fields isolate the result from shell startup banners. Carry
+    // the resolved PATH into the probe: npm/nvm wrappers need /usr/bin/env node.
+    let output = bounded_output(shell.args(["-ilc", r#"printf '\0CLINE_RUNTIME\0'; command -v cline || true; printf '\0'; /usr/bin/printenv PATH; printf '\0'; /usr/bin/printenv NODE_EXTRA_CA_CERTS; printf '\0'"#]))
+        .ok_or("Could not inspect your interactive shell for an installed CLI. Check its startup configuration before retrying; no second CLI was installed.")?;
+    let (_, fields) = output
+        .rsplit_once("\0CLINE_RUNTIME\0")
+        .ok_or("Interactive shell did not report its CLI environment")?;
+    let mut fields = fields.split('\0');
+    let path = PathBuf::from(fields.next().unwrap_or_default().trim());
+    let mut launch_env = HashMap::new();
+    let path_env = fields.next().unwrap_or_default();
+    launch_env.insert(
+        "PATH".into(),
+        path_env.strip_suffix('\n').unwrap_or(path_env).into(),
+    );
+    if let Some(certificates) = fields
+        .next()
+        .map(|value| value.strip_suffix('\n').unwrap_or(value))
+        .filter(|value| !value.is_empty())
+    {
+        launch_env.insert("NODE_EXTRA_CA_CERTS".into(), certificates.into());
+    }
+    Ok((path.is_absolute() && path.is_file()).then_some(InstalledCandidate { path, launch_env }))
+}
+
+fn installed_candidates(shared_dir: &Path) -> Result<Vec<InstalledCandidate>, String> {
     let names: &[&str] = if cfg!(windows) {
         &["cline.exe", "cline.cmd", "cline.bat"]
     } else {
         &["cline"]
     };
     let mut candidates = Vec::new();
-    if let Some(path) = std::env::var_os("PATH") {
-        for directory in std::env::split_paths(&path).filter(|p| p.is_absolute()) {
-            for name in names {
-                candidates.push(directory.join(name));
-            }
-        }
-    }
-    // Finder/Dock launches often don't inherit the user's terminal PATH.
+    // Prefer the terminal's selected CLI and preserve its launch environment.
     #[cfg(unix)]
     {
         let shell = std::env::var_os("SHELL").unwrap_or_else(|| "/bin/sh".into());
-        let output = bounded_output(Command::new(shell).args(["-ilc", "command -v cline || true"]))
-            .ok_or("Could not inspect your interactive shell for an installed CLI. Check its startup configuration before retrying; no second CLI was installed.")?;
-        if let Some(path) = output
-            .lines()
-            .rev()
-            .map(|line| PathBuf::from(line.trim()))
-            .find(|path| path.is_absolute() && path.is_file())
-        {
-            candidates.push(path);
+        if let Some(candidate) = login_shell_candidate(&mut Command::new(shell))? {
+            candidates.push(candidate);
         }
     }
-    candidates.push(shared_dir.join(if cfg!(windows) { "cline.cmd" } else { "cline" }));
-    candidates.retain(|path| path.is_file());
-    candidates.dedup();
+    if let Some(path) = std::env::var_os("PATH") {
+        for directory in std::env::split_paths(&path).filter(|p| p.is_absolute()) {
+            for name in names {
+                candidates.push(InstalledCandidate::direct(directory.join(name)));
+            }
+        }
+    }
+    candidates.push(InstalledCandidate::direct(
+        shared_dir.join(if cfg!(windows) { "cline.cmd" } else { "cline" }),
+    ));
+    candidates.retain(|candidate| candidate.path.is_file());
     Ok(candidates)
 }
 
-fn compatible_path(path: &Path, identity: &RuntimeIdentity) -> Result<InstalledRuntime, String> {
-    let info = probe(path).ok_or_else(|| format!("Installed CLI at {} cannot report its SDK identity. Update or remove that installation before launching desktop; no second CLI was installed.", path.display()))?;
+fn compatible_path(
+    candidate: &InstalledCandidate,
+    identity: &RuntimeIdentity,
+) -> Result<InstalledRuntime, String> {
+    let path = &candidate.path;
+    let info = probe(path, &candidate.launch_env).ok_or_else(|| format!("Installed CLI at {} cannot report its SDK identity. Update or remove that installation before launching desktop; no second CLI was installed.", path.display()))?;
     if !info.compiled
         || info.identity.build_id != identity.build_id
         || info.identity.core_version != identity.core_version
@@ -225,13 +265,15 @@ fn compatible_path(path: &Path, identity: &RuntimeIdentity) -> Result<InstalledR
     if !info.executable_path.is_absolute() || !info.executable_path.is_file() {
         return Err("Installed CLI reported an invalid executable path".into());
     }
+    let mut launch_env = candidate.launch_env.clone();
+    launch_env.extend(
+        info.launch_env
+            .into_iter()
+            .filter(|(key, _)| key == "NODE_EXTRA_CA_CERTS" || key == "CLINE_WRAPPER_PATH"),
+    );
     Ok(InstalledRuntime {
         executable_path: info.executable_path,
-        launch_env: info
-            .launch_env
-            .into_iter()
-            .filter(|(key, _)| key == "NODE_EXTRA_CA_CERTS" || key == "CLINE_WRAPPER_PATH")
-            .collect(),
+        launch_env,
     })
 }
 
@@ -254,7 +296,7 @@ fn install_with_candidates(
     installer_dir: &Path,
     shared_dir: &Path,
     release: &str,
-    candidates: Vec<PathBuf>,
+    candidates: Vec<InstalledCandidate>,
     cancelled: &InstallationControl,
 ) -> Result<InstalledRuntime, String> {
     let identity: RuntimeIdentity = serde_json::from_slice(
@@ -265,15 +307,20 @@ fn install_with_candidates(
     let cli = shared_dir.join(if cfg!(windows) { "cline.cmd" } else { "cline" });
     // One shared standalone command selects a versioned release. An external install
     // remains owned by its package manager: reuse it or surface incompatibility.
+    let mut shared_candidate = None;
     for candidate in candidates {
-        let actual = std::fs::canonicalize(&candidate).unwrap_or_else(|_| candidate.clone());
+        let actual =
+            std::fs::canonicalize(&candidate.path).unwrap_or_else(|_| candidate.path.clone());
         let shared = std::fs::canonicalize(&cli).unwrap_or_else(|_| cli.clone());
         if actual != shared {
             return compatible_path(&candidate, &identity);
         }
+        shared_candidate.get_or_insert(candidate);
     }
+    let shared_candidate =
+        shared_candidate.unwrap_or_else(|| InstalledCandidate::direct(cli.clone()));
     if cli.is_file() {
-        if let Ok(path) = compatible_path(&cli, &identity) {
+        if let Ok(path) = compatible_path(&shared_candidate, &identity) {
             return Ok(path);
         }
     }
@@ -333,7 +380,7 @@ fn install_with_candidates(
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    compatible_path(&cli, &identity)
+    compatible_path(&shared_candidate, &identity)
 }
 
 #[cfg(all(test, unix))]
@@ -363,14 +410,15 @@ mod tests {
             build_id: "sdk-build".into(),
             core_version: "3.0.0".into(),
         };
-        let launch = compatible_path(&wrapper, &identity).unwrap();
+        let launch =
+            compatible_path(&InstalledCandidate::direct(wrapper.clone()), &identity).unwrap();
         assert_eq!(
             launch.launch_env.get("NODE_EXTRA_CA_CERTS").unwrap(),
             "/certificates/company.pem"
         );
         assert!(!launch.launch_env.contains_key("UNRELATED"));
         assert_eq!(
-            compatible_path(&wrapper, &identity)
+            compatible_path(&InstalledCandidate::direct(wrapper.clone()), &identity)
                 .unwrap()
                 .executable_path,
             native
@@ -379,13 +427,17 @@ mod tests {
             build_id: "other-build".into(),
             core_version: "3.0.0".into(),
         };
-        assert!(compatible_path(&wrapper, &mismatch)
-            .unwrap_err()
-            .contains("no second CLI"));
+        assert!(
+            compatible_path(&InstalledCandidate::direct(wrapper.clone()), &mismatch)
+                .unwrap_err()
+                .contains("no second CLI")
+        );
         std::fs::write(&wrapper, "#!/bin/sh\nexit 1").unwrap();
-        assert!(compatible_path(&wrapper, &identity)
-            .unwrap_err()
-            .contains("cannot report"));
+        assert!(
+            compatible_path(&InstalledCandidate::direct(wrapper.clone()), &identity)
+                .unwrap_err()
+                .contains("cannot report")
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
     #[cfg(target_os = "macos")]
@@ -399,16 +451,41 @@ mod tests {
         std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
         std::fs::write(
             root.join(".zshrc"),
-            format!("export PATH='{}':$PATH\n", commands.display()),
+            format!("echo startup-banner\nexport PATH='{}':$PATH\nexport NODE_EXTRA_CA_CERTS=/certificates/company.pem\n", commands.display()),
         )
         .unwrap();
-        let output = bounded_output(
+        let native = root.join("native");
+        std::fs::write(&native, "binary").unwrap();
+        let report = serde_json::json!({"buildId":"sdk-build", "coreVersion":"3.0.0", "compiled":true, "executablePath":native});
+        // A fake node outside Finder's PATH demonstrates an env-node wrapper.
+        let node = commands.join("node");
+        std::fs::write(&node, format!("#!/bin/sh\nprintf '%s\\n' '{}'\n", report)).unwrap();
+        std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(&cli, "#!/usr/bin/env node\n").unwrap();
+        let candidate = login_shell_candidate(
             Command::new("/bin/zsh")
-                .args(["-ilc", "command -v cline || true"])
+                .env("PATH", "/usr/bin:/bin")
                 .env("ZDOTDIR", &root),
         )
+        .unwrap()
         .unwrap();
-        assert_eq!(PathBuf::from(output.trim()), cli);
+        assert_eq!(candidate.path, cli);
+        let identity = RuntimeIdentity {
+            build_id: "sdk-build".into(),
+            core_version: "3.0.0".into(),
+        };
+        assert!(probe(
+            &cli,
+            &HashMap::from([("PATH".into(), "/usr/bin:/bin".into())])
+        )
+        .is_none());
+        let runtime = compatible_path(&candidate, &identity).unwrap();
+        assert_eq!(runtime.executable_path, native);
+        assert!(runtime.launch_env["PATH"].contains(commands.to_str().unwrap()));
+        assert_eq!(
+            runtime.launch_env["NODE_EXTRA_CA_CERTS"],
+            "/certificates/company.pem"
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
