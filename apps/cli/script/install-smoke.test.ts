@@ -48,7 +48,16 @@ test.skipIf(process.platform === "win32")(
 					binary,
 					"--no-modify-path",
 				],
-				{ env, encoding: "utf8", timeout: 15000 },
+				{
+					env: {
+						...env,
+						BUN_BE_BUN: "1",
+						CLINE_HUB_BUILD_ID: "parent-hub",
+						CLINE_HUB_BUILD_EPOCH_MS: "1",
+					},
+					encoding: "utf8",
+					timeout: 15000,
+				},
 			);
 			expect(install.status, install.stderr).toBe(0);
 			const entry = join(root, ".local/bin/cline");
