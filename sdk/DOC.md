@@ -49,6 +49,10 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
+could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
+hosts should direct users to their session list instead of offering a blind retry.
+
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
