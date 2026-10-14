@@ -491,17 +491,18 @@ describe("plugin-config-loader", () => {
 		}
 	});
 
-	it("runs plugins in workers by default and keeps the other modes opt-in", () => {
+	it("runs plugins in workers by default and keeps the sandbox opt-in", () => {
 		delete process.env.CLINE_PLUGIN_MODE;
 		expect(resolvePluginExecutionMode()).toBe("worker");
 		expect(resolvePluginExecutionMode("sandbox")).toBe("sandbox");
 		process.env.CLINE_PLUGIN_MODE = "sandbox";
 		expect(resolvePluginExecutionMode()).toBe("sandbox");
+		// The removed in-process mode is not honoured: plugin code never runs
+		// on the host's main thread.
 		process.env.CLINE_PLUGIN_MODE = "in_process";
-		expect(resolvePluginExecutionMode()).toBe("in_process");
+		expect(resolvePluginExecutionMode()).toBe("worker");
 		process.env.CLINE_PLUGIN_MODE = "unknown";
 		expect(resolvePluginExecutionMode()).toBe("worker");
-		expect(resolvePluginExecutionMode("in_process")).toBe("in_process");
 	});
 
 	it("applies the session plugin policy", async () => {
