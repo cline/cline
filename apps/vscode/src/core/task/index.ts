@@ -2643,7 +2643,8 @@ export class Task {
 						!isEntitlementError &&
 						!isOrgClinePassRestrictionError &&
 						!isClinePassLimitError &&
-						!isClineFreeModelLimitError;
+						!isClineFreeModelLimitError &&
+						!(error instanceof NonRetriableStreamError);
 					if (showRetry) {
 						await this.say(
 							"error_retry",

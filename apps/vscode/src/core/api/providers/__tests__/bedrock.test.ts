@@ -491,7 +491,7 @@ describe("AwsBedrockHandler", () => {
 
 		it("task-level retry gates recognise NonRetriableStreamError", () => {
 			const src = require("fs").readFileSync(require("path").join(__dirname, "../../../task/index.ts"), "utf8")
-			;(src.match(/instanceof NonRetriableStreamError/g) || []).length.should.equal(2)
+			;(src.match(/instanceof NonRetriableStreamError/g) || []).length.should.equal(3)
 		})
 	})
 
