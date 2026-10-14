@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../../sdk/packages/core/scripts/runtime-build-id";
 import { buildDashboardRuntimeResources } from "./dashboard-runtime";
 
 const cliDir = resolve(import.meta.dir, "..");
@@ -145,6 +146,10 @@ export async function compileCliBinary(
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
+				__CLINE_CORE_RUNTIME_BUILD_ID__: JSON.stringify(
+					resolveSdkRuntimeBuildId(rootDir),
+				),
+				__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: JSON.stringify(Date.now()),
 				__CLINE_PLUGIN_RUNTIME_RESOURCES__: JSON.stringify(pluginResources),
 				__CLINE_DASHBOARD_RUNTIME_RESOURCES__:
 					JSON.stringify(dashboardResources),

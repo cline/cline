@@ -10,18 +10,38 @@ export class HubPluginClient {
 	constructor(private readonly client: Pick<NodeHubClient, "command">) {}
 
 	async listCommands(workspaceRoot: string): Promise<PluginSlashCommand[]> {
-		const reply = await this.client.command(
-			"plugins.commands.list",
-			{
-				workspaceRoot,
-			},
-			undefined,
-			{ timeoutMs: null },
-		);
-		if (!reply.ok)
+		let reply: Awaited<ReturnType<typeof this.client.command>>;
+		try {
+			reply = await this.client.command(
+				"plugins.commands.list",
+				{
+					workspaceRoot,
+				},
+				undefined,
+				{ timeoutMs: null },
+			);
+		} catch (error) {
+			if (
+				error &&
+				typeof error === "object" &&
+				"code" in error &&
+				error.code === "unsupported_command"
+			) {
+				return [];
+			}
+			throw error;
+		}
+		if (!reply) {
+			return [];
+		}
+		if (!reply.ok) {
+			if (reply.error?.code === "unsupported_command") {
+				return [];
+			}
 			throw new Error(
 				reply.error?.message ?? "Plugin command discovery failed",
 			);
+		}
 		return reply.payload?.commands as PluginSlashCommand[];
 	}
 
@@ -32,20 +52,40 @@ export class HubPluginClient {
 	): Promise<PluginCommandResult | undefined> {
 		// The plugin runtime bounds loading and execution. A transport deadline
 		// must not abandon a valid handler while it is still running.
-		const reply = await this.client.command(
-			"plugins.commands.run",
-			{
-				workspaceRoot,
-				name,
-				input,
-			},
-			undefined,
-			{ timeoutMs: null },
-		);
-		if (!reply.ok)
+		let reply: Awaited<ReturnType<typeof this.client.command>>;
+		try {
+			reply = await this.client.command(
+				"plugins.commands.run",
+				{
+					workspaceRoot,
+					name,
+					input,
+				},
+				undefined,
+				{ timeoutMs: null },
+			);
+		} catch (error) {
+			if (
+				error &&
+				typeof error === "object" &&
+				"code" in error &&
+				error.code === "unsupported_command"
+			) {
+				return undefined;
+			}
+			throw error;
+		}
+		if (!reply) {
+			return undefined;
+		}
+		if (!reply.ok) {
+			if (reply.error?.code === "unsupported_command") {
+				return undefined;
+			}
 			throw new Error(
 				reply.error?.message ?? "Plugin command execution failed",
 			);
+		}
 		return reply.payload?.handled
 			? (reply.payload.result as PluginCommandResult)
 			: undefined;

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import {
 	compileCliBinary,
 	installOpenTuiNativeVariants,
@@ -94,7 +95,13 @@ const bundleDesktopBackend = async (): Promise<void> => {
 	// from Finder/the Dock has no OTEL_* env at runtime, so without this the
 	// backend silently ships with telemetry disabled. Verify with
 	// `BUN_BE_BUN=1 cline-cli run <bundle> --telemetry-selfcheck`.
-	const defines = telemetryDefineArgs();
+	const defines = [
+		...telemetryDefineArgs(),
+		"--define",
+		`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(resolveSdkRuntimeBuildId(REPO_ROOT))}`,
+		"--define",
+		`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${JSON.stringify(Date.now())}`,
+	];
 	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE}`;
 };
 

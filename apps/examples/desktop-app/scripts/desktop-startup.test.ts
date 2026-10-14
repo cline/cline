@@ -15,6 +15,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import { compileCliBinary } from "../../../cli/script/compile-binary";
 
 // Exercise the shipped runtime artifacts: the compiled Cline CLI that starts
@@ -58,6 +59,7 @@ function resolveBackendBundle(): string {
 	}
 	if (!bundledBackend) {
 		const outdir = join(ensureBuildDir(), "desktop-backend");
+		const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 		const build = spawnSync(
 			process.execPath,
 			[
@@ -65,6 +67,10 @@ function resolveBackendBundle(): string {
 				fileURLToPath(new URL("../sidecar/index.ts", import.meta.url)),
 				"--target",
 				"bun",
+				"--define",
+				`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(resolveSdkRuntimeBuildId(repoRoot))}`,
+				"--define",
+				`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${JSON.stringify(Date.now())}`,
 				"--outdir",
 				outdir,
 			],

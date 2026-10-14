@@ -135,6 +135,7 @@ it("finishes an active command before shutting down its plugin service", async (
 	);
 });
 
+<<<<<<< HEAD
 it("reports sessionless plugin work as busy until the request finishes", async () => {
 	const directory = await workspace("busy");
 	const source = join(directory, ".cline/plugins/command.ts");
@@ -222,4 +223,22 @@ it("closes the Hub-owned session database before removing its directory", async 
 	} finally {
 		opened.mockRestore();
 	}
+});
+
+it("degrades gracefully when connected to an older Hub that does not support plugin commands", async () => {
+	const legacyClient = new HubPluginClient({
+		command: async (command) => ({
+			version: "v1",
+			requestId: "legacy",
+			ok: false,
+			error: {
+				code: "unsupported_command",
+				message: `Unsupported hub schedule command: ${command}`,
+			},
+		}),
+	});
+	await expect(legacyClient.listCommands(root)).resolves.toEqual([]);
+	await expect(
+		legacyClient.runCommand(root, "/hello", "world"),
+	).resolves.toBeUndefined();
 });

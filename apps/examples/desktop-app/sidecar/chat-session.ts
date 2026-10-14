@@ -1657,7 +1657,7 @@ async function handleSend(
 	}
 	const workspacePath =
 		readWorkspacePath(session?.config ?? request.config) ??
-		ctx.localWorkspaceRoot;
+		(binding.kind === "ssh" ? binding.workspaceRoot : ctx.localWorkspaceRoot);
 	// Plugin slash commands run in the selected Hub. Replies go to the
 	// webview as a toast; only submitPrompt (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();

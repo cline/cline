@@ -1,5 +1,6 @@
 /// <reference types="@types/bun" />
-import { dirname } from "node:path";
+import { rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	resolveRepoRootFromCorePackage,
@@ -85,6 +86,8 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		...buildConfig,
 	},
 ];
+
+rmSync(join(corePackageRoot, "dist"), { recursive: true, force: true });
 
 for (const config of builds) {
 	const result = await Bun.build(config as Parameters<typeof Bun.build>[0]);

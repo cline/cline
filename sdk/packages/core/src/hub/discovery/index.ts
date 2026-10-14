@@ -267,6 +267,11 @@ export function compareHubBuilds(
 	}
 
 	if (buildIdA && buildIdB && buildIdA !== buildIdB) {
+		const isSourceA = buildIdA.startsWith("source-");
+		const isSourceB = buildIdB.startsWith("source-");
+		if (isSourceA !== isSourceB) {
+			return isSourceA ? -1 : 1;
+		}
 		return buildIdA < buildIdB ? -1 : 1;
 	}
 
