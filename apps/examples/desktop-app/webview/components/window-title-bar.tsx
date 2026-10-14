@@ -7,6 +7,7 @@ import {
 	type ReactNode,
 	useContext,
 	useEffect,
+	useLayoutEffect,
 	useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 type WindowTitleBarContextValue = {
 	contentEnabled: boolean;
 	portalTarget: HTMLDivElement | null;
+	setProjectedContentMounted: (mounted: boolean) => void;
 	setPortalTarget: (target: HTMLDivElement | null) => void;
 };
 
@@ -34,13 +36,21 @@ export function WindowTitleBarProvider({
 	contentEnabled?: boolean;
 }) {
 	const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
+	const [projectedContentMounted, setProjectedContentMounted] = useState(false);
 
 	return (
 		<WindowTitleBarContext.Provider
-			value={{ contentEnabled, portalTarget, setPortalTarget }}
+			value={{
+				contentEnabled,
+				portalTarget,
+				setProjectedContentMounted,
+				setPortalTarget,
+			}}
 		>
 			{children}
-			<WindowControls />
+			<WindowControls
+				showSeparator={contentEnabled && projectedContentMounted}
+			/>
 		</WindowTitleBarContext.Provider>
 	);
 }
@@ -54,7 +64,7 @@ function isWindowsDesktop(): boolean {
 }
 
 /** Native window actions for the borderless Windows frame. */
-export function WindowControls() {
+export function WindowControls({ showSeparator }: { showSeparator: boolean }) {
 	const [isWindows, setIsWindows] = useState(false);
 	const [isMaximized, setIsMaximized] = useState(false);
 
@@ -81,48 +91,57 @@ export function WindowControls() {
 
 	const appWindow = getCurrentWindow();
 	return (
-		<div
-			className="pointer-events-auto fixed top-0 right-0 z-[110] flex h-(--window-title-bar-height) bg-background"
-			data-slot="window-controls"
-			onPointerDownCapture={(event) => {
-				// Caption actions stay above app overlays, even when a modal disables
-				// body pointer events. Keep its focus and outside-click state unchanged.
-				event.preventDefault();
-				event.stopPropagation();
-			}}
-		>
-			<button
-				aria-label="Minimize"
-				className="flex w-12 items-center justify-center text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-				onClick={() => void appWindow.minimize()}
-				type="button"
+		<>
+			{showSeparator ? (
+				<div
+					aria-hidden="true"
+					className="pointer-events-none fixed top-[calc(var(--window-title-bar-height)-1px)] right-0 left-0 z-[111] border-b border-border/70"
+					data-slot="window-title-bar-separator"
+				/>
+			) : null}
+			<div
+				className="pointer-events-auto fixed top-0 right-0 z-[110] flex h-(--window-title-bar-height) bg-background"
+				data-slot="window-controls"
+				onPointerDownCapture={(event) => {
+					// Caption actions stay above app overlays, even when a modal disables
+					// body pointer events. Keep its focus and outside-click state unchanged.
+					event.preventDefault();
+					event.stopPropagation();
+				}}
 			>
-				<Minus aria-hidden="true" className="size-4" strokeWidth={1.5} />
-			</button>
-			<button
-				aria-label={isMaximized ? "Restore" : "Maximize"}
-				className="flex w-12 items-center justify-center text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-				onClick={() => void appWindow.toggleMaximize()}
-				type="button"
-			>
-				{isMaximized ? (
-					<span aria-hidden="true" className="relative size-3.5">
-						<span className="absolute top-0 right-0 size-2.5 border border-current" />
-						<span className="absolute bottom-0 left-0 size-2.5 border border-current bg-background" />
-					</span>
-				) : (
-					<Square aria-hidden="true" className="size-3.5" strokeWidth={1.5} />
-				)}
-			</button>
-			<button
-				aria-label="Close"
-				className="flex w-12 items-center justify-center text-foreground hover:bg-red-600 hover:text-white focus-visible:bg-red-600 focus-visible:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
-				onClick={() => void appWindow.close()}
-				type="button"
-			>
-				<X aria-hidden="true" className="size-4" strokeWidth={1.5} />
-			</button>
-		</div>
+				<button
+					aria-label="Minimize"
+					className="flex w-12 items-center justify-center text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+					onClick={() => void appWindow.minimize()}
+					type="button"
+				>
+					<Minus aria-hidden="true" className="size-4" strokeWidth={1.5} />
+				</button>
+				<button
+					aria-label={isMaximized ? "Restore" : "Maximize"}
+					className="flex w-12 items-center justify-center text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+					onClick={() => void appWindow.toggleMaximize()}
+					type="button"
+				>
+					{isMaximized ? (
+						<span aria-hidden="true" className="relative size-3.5">
+							<span className="absolute top-0 right-0 size-2.5 border border-current" />
+							<span className="absolute bottom-0 left-0 size-2.5 border border-current bg-background" />
+						</span>
+					) : (
+						<Square aria-hidden="true" className="size-3.5" strokeWidth={1.5} />
+					)}
+				</button>
+				<button
+					aria-label="Close"
+					className="flex w-12 items-center justify-center text-foreground hover:bg-red-600 hover:text-white focus-visible:bg-red-600 focus-visible:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+					onClick={() => void appWindow.close()}
+					type="button"
+				>
+					<X aria-hidden="true" className="size-4" strokeWidth={1.5} />
+				</button>
+			</div>
+		</>
 	);
 }
 
@@ -171,6 +190,14 @@ export function WindowTitleBar({
 /** Projects page-owned controls into the persistent shell title bar. */
 export function WindowTitleBarContent({ children }: { children: ReactNode }) {
 	const context = useContext(WindowTitleBarContext);
+	const setProjectedContentMounted = context?.setProjectedContentMounted;
+	useLayoutEffect(() => {
+		if (!setProjectedContentMounted) {
+			return;
+		}
+		setProjectedContentMounted(true);
+		return () => setProjectedContentMounted(false);
+	}, [setProjectedContentMounted]);
 	if (!context) {
 		throw new Error(
 			"WindowTitleBarContent must be used within WindowTitleBarProvider.",

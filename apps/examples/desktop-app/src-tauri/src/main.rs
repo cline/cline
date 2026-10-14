@@ -43,6 +43,48 @@ const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_RESET_MENU_ID: &str = "view-zoom-reset";
 
+#[cfg(any(target_os = "windows", test))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct WindowBounds {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn clamp_window_bounds(
+    window: WindowBounds,
+    work_area: WindowBounds,
+) -> Result<WindowBounds, &'static str> {
+    let work_width = i64::from(work_area.right) - i64::from(work_area.left);
+    let work_height = i64::from(work_area.bottom) - i64::from(work_area.top);
+    if work_width <= 0 || work_height <= 0 {
+        return Err("monitor work area is empty");
+    }
+    let width = (i64::from(window.right) - i64::from(window.left))
+        .max(1)
+        .min(work_width);
+    let height = (i64::from(window.bottom) - i64::from(window.top))
+        .max(1)
+        .min(work_height);
+    let left = i64::from(window.left).clamp(
+        i64::from(work_area.left),
+        i64::from(work_area.right) - width,
+    );
+    let top = i64::from(window.top).clamp(
+        i64::from(work_area.top),
+        i64::from(work_area.bottom) - height,
+    );
+
+    Ok(WindowBounds {
+        left: left as i32,
+        top: top as i32,
+        right: (left + width) as i32,
+        bottom: (top + height) as i32,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 enum DesktopAction {
@@ -970,6 +1012,70 @@ fn handle_check_for_updates_menu(app: &tauri::AppHandle) {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn fit_windows_main_window_to_work_area(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use std::mem::size_of;
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+    };
+
+    let hwnd = window
+        .hwnd()
+        .map_err(|error| format!("failed resolving the main window handle: {error}"))?;
+    let mut window_rect = RECT::default();
+    // SAFETY: hwnd belongs to the live Tauri window and window_rect is writable.
+    unsafe { GetWindowRect(hwnd, &mut window_rect) }
+        .map_err(|error| format!("failed reading the main window bounds: {error}"))?;
+    // SAFETY: hwnd is valid and the nearest-monitor fallback always returns a monitor.
+    let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
+    let mut monitor_info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: monitor identifies the nearest monitor and monitor_info has the required size.
+    if !unsafe { GetMonitorInfoW(monitor, &mut monitor_info) }.as_bool() {
+        return Err(format!(
+            "failed reading monitor work area: {}",
+            windows::core::Error::from_win32()
+        ));
+    }
+
+    let fitted = clamp_window_bounds(
+        WindowBounds {
+            left: window_rect.left,
+            top: window_rect.top,
+            right: window_rect.right,
+            bottom: window_rect.bottom,
+        },
+        WindowBounds {
+            left: monitor_info.rcWork.left,
+            top: monitor_info.rcWork.top,
+            right: monitor_info.rcWork.right,
+            bottom: monitor_info.rcWork.bottom,
+        },
+    )
+    .map_err(str::to_string)?;
+    // SAFETY: fitted uses the same monitor's physical coordinate space and
+    // preserves positive width and height.
+    unsafe {
+        SetWindowPos(
+            hwnd,
+            None,
+            fitted.left,
+            fitted.top,
+            fitted.right - fitted.left,
+            fitted.bottom - fitted.top,
+            SWP_NOACTIVATE | SWP_NOZORDER,
+        )
+    }
+    .map_err(|error| format!("failed fitting the main window to the work area: {error}"))?;
+    Ok(())
+}
+
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
 /// webview/lib/app-icon.ts. Every id has a matching bundled resource at
 /// icons/app/<id>.png, plus a macOS variant at icons/app/macos/<id>.png with
@@ -978,10 +1084,8 @@ const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
 
 #[cfg(target_os = "macos")]
 const APP_ICON_RESOURCE_DIR: &str = "icons/app/macos";
-#[cfg(target_os = "windows")]
-const APP_ICON_RESOURCE_DIR: &str = "icons/app";
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, String> {
     let icon_path = app
         .path()
@@ -1036,20 +1140,7 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             .map_err(|_| "app icon update ended before AppKit completed".to_string())??;
         Ok(true)
     }
-    #[cfg(target_os = "windows")]
-    {
-        let icon_path = resolve_app_icon(&app, &icon)?;
-        let image = tauri::image::Image::from_path(&icon_path)
-            .map_err(|e| format!("failed loading app icon image: {e}"))?;
-        let window = app
-            .get_webview_window(MAIN_WINDOW_LABEL)
-            .ok_or_else(|| "main window is unavailable".to_string())?;
-        window
-            .set_icon(image)
-            .map_err(|e| format!("failed switching taskbar icon: {e}"))?;
-        Ok(true)
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(not(target_os = "macos"))]
     {
         let _ = app;
         Ok(false)
@@ -1510,6 +1601,15 @@ fn main() {
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
         .setup(|app| {
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                if let Err(error) = fit_windows_main_window_to_work_area(&window) {
+                    eprintln!("[window] {error}");
+                }
+                // The window starts hidden so users never see the oversized
+                // configured bounds. A native setup failure must still reveal it.
+                window.show()?;
+            }
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),
@@ -1601,7 +1701,13 @@ fn main() {
                 has_visible_windows: false,
                 ..
             } => show_main_window(app_handle),
-            RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+            RunEvent::ExitRequested { .. } => {
+                app_handle
+                    .state::<Arc<DesktopBackendState>>()
+                    .inner()
+                    .stop();
+            }
+            RunEvent::Exit => {
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
@@ -1609,6 +1715,150 @@ fn main() {
             }
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod window_bounds_tests {
+    use super::*;
+
+    #[test]
+    fn shrinks_oversized_window_to_work_area() {
+        assert_eq!(
+            clamp_window_bounds(
+                WindowBounds {
+                    left: 0,
+                    top: 39,
+                    right: 1382,
+                    bottom: 768,
+                },
+                WindowBounds {
+                    left: 0,
+                    top: 0,
+                    right: 1366,
+                    bottom: 720,
+                },
+            )
+            .unwrap(),
+            WindowBounds {
+                left: 0,
+                top: 0,
+                right: 1366,
+                bottom: 720,
+            }
+        );
+    }
+
+    #[test]
+    fn moves_fitting_window_inside_negative_coordinate_work_area() {
+        assert_eq!(
+            clamp_window_bounds(
+                WindowBounds {
+                    left: -2100,
+                    top: -100,
+                    right: -1100,
+                    bottom: 600,
+                },
+                WindowBounds {
+                    left: -1920,
+                    top: 0,
+                    right: 0,
+                    bottom: 1040,
+                },
+            )
+            .unwrap(),
+            WindowBounds {
+                left: -1920,
+                top: 0,
+                right: -920,
+                bottom: 700,
+            }
+        );
+    }
+
+    #[test]
+    fn preserves_window_already_inside_work_area() {
+        let window = WindowBounds {
+            left: 100,
+            top: 80,
+            right: 1300,
+            bottom: 780,
+        };
+        assert_eq!(
+            clamp_window_bounds(
+                window,
+                WindowBounds {
+                    left: 0,
+                    top: 0,
+                    right: 1920,
+                    bottom: 1040,
+                },
+            )
+            .unwrap(),
+            window
+        );
+    }
+
+    #[test]
+    fn rejects_empty_or_inverted_work_areas() {
+        let window = WindowBounds {
+            left: 0,
+            top: 0,
+            right: 100,
+            bottom: 100,
+        };
+        for work_area in [
+            WindowBounds {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 100,
+            },
+            WindowBounds {
+                left: 100,
+                top: 0,
+                right: 0,
+                bottom: 100,
+            },
+            WindowBounds {
+                left: 0,
+                top: 100,
+                right: 100,
+                bottom: 0,
+            },
+        ] {
+            assert_eq!(
+                clamp_window_bounds(window, work_area),
+                Err("monitor work area is empty")
+            );
+        }
+    }
+
+    #[test]
+    fn handles_extreme_coordinates_without_overflowing() {
+        assert_eq!(
+            clamp_window_bounds(
+                WindowBounds {
+                    left: i32::MIN,
+                    top: i32::MIN,
+                    right: i32::MAX,
+                    bottom: i32::MAX,
+                },
+                WindowBounds {
+                    left: i32::MIN,
+                    top: i32::MIN,
+                    right: i32::MAX,
+                    bottom: i32::MAX,
+                },
+            )
+            .unwrap(),
+            WindowBounds {
+                left: i32::MIN,
+                top: i32::MIN,
+                right: i32::MAX,
+                bottom: i32::MAX,
+            }
+        );
+    }
 }
 
 #[cfg(all(test, unix))]

@@ -71,7 +71,8 @@ does not block interactions, and failures do not interrupt the feature.
 transparent margin, with the artwork filling 824 of the 1024 canvas, so the
 committed `icons/icon.icns` is built from a padded copy of the source, and the
 selectable runtime icons in `icons/app/macos/` are padded copies of the
-Windows ones in `icons/app/`. To regenerate the macOS icon after changing the
+edge-to-edge PNGs in `icons/app/`. Windows always uses the bundled app icon;
+the icon picker is hidden and saved selections are ignored. To regenerate the macOS icon after changing the
 artwork:
 
 ```bash
