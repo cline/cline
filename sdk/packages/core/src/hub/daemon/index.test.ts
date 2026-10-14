@@ -36,6 +36,7 @@ const {
 	queryHubSessionActivity: vi.fn(async () => ({
 		activeSessionCount: 0,
 		participantClientCount: 0,
+		activePluginRequests: 0,
 	})),
 	requestHubDrain: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
@@ -193,6 +194,7 @@ describe("ensureDetachedHubServer", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -500,6 +502,7 @@ describe("ensureDetachedHubServer", () => {
 			queryHubSessionActivity.mockResolvedValue({
 				activeSessionCount: 1,
 				participantClientCount: 1,
+				activePluginRequests: 0,
 			});
 			readHubDiscovery.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
@@ -935,6 +938,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -961,6 +965,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 2,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery
 			.mockResolvedValueOnce({
@@ -1022,6 +1027,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 3,
 			participantClientCount: 2,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1156,7 +1162,11 @@ describe("upgradeManagedHub", () => {
 	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {
 		queryHubSessionActivity
 			.mockRejectedValueOnce(new Error("session.list timed out"))
-			.mockResolvedValue({ activeSessionCount: 2, participantClientCount: 1 });
+			.mockResolvedValue({
+				activeSessionCount: 2,
+				participantClientCount: 1,
+				activePluginRequests: 0,
+			});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "old-token",
@@ -1262,6 +1272,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
