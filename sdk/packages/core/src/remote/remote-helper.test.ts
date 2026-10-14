@@ -57,6 +57,26 @@ describe("remote helper entrypoint", () => {
 		expect(result.trim()).toBe("imported");
 	});
 
+	it("hands the uploaded plugin bootstrap to the Hub it starts", async () => {
+		const { dependencies } = createDependencies();
+		const bootstrap =
+			"/home/pi/.cline/remote/helper-extensions/plugin-sandbox-bootstrap.js";
+
+		await runRemoteHelperEntrypoint(
+			[
+				"code-sidecar",
+				"--remote-hub-ensure",
+				"--discovery-path",
+				"/home/pi/.cline/data/remote/desktop-hub.json",
+				"--plugin-bootstrap",
+				bootstrap,
+			],
+			dependencies,
+		);
+
+		expect(dependencies.env.CLINE_PLUGIN_BOOTSTRAP_PATH).toBe(bootstrap);
+	});
+
 	it("starts only the explicitly owned desktop Hub discovery record", async () => {
 		const { dependencies, output } = createDependencies();
 		const discoveryPath = "/home/pi/.cline/data/remote/desktop-hub.json";

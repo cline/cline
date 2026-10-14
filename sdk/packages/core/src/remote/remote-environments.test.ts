@@ -625,6 +625,79 @@ describe("RemoteEnvironmentService", () => {
 		);
 	});
 
+	it("mirrors the plugin bootstrap directory next to the helper once", async () => {
+		const invocations: Invocation[] = [];
+		let uploaded = false;
+		const service = createService(
+			{
+				runProcess: async (executable, args, options) => {
+					invocations.push({ executable, args, options });
+					const command = args.at(-1) ?? "";
+					if (command.includes("uname -s")) {
+						return inspection("Linux", "x86_64", "/home/dev");
+					}
+					if (command.includes("'test' '-f'")) {
+						return { stdout: "", stderr: "", exitCode: uploaded ? 0 : 1 };
+					}
+					if (command.includes("tar -xzf -")) {
+						uploaded = true;
+					}
+					if (command.includes("--remote-hub-ensure")) {
+						return success(
+							'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}\n',
+						);
+					}
+					return success();
+				},
+				resolveHelperBinary: async () => "/opt/cline/helper",
+				fileReadable: async () => true,
+				hashFile: async () => "0123456789abcdef",
+				reservePort: async () => 40000,
+				spawnTunnel: () => new FakeTunnel(),
+				waitForTunnel: async () => undefined,
+			},
+			{
+				pluginBootstrapPath:
+					"/opt/cline/extensions/plugin-sandbox-bootstrap.js",
+			},
+		);
+		const profile = await service.upsert({ name: "Dev", host: "dev" });
+		await service.connect(profile.id);
+
+		const pack = invocations.find(({ executable }) => executable === "tar");
+		expect(pack?.args).toEqual([
+			"-czf",
+			expect.stringMatching(/\.tgz$/),
+			"-C",
+			"/opt/cline/extensions",
+			".",
+		]);
+		const upload = invocations.find(({ args }) =>
+			args.at(-1)?.includes("tar -xzf -"),
+		);
+		expect(upload?.options.inputFile).toBe(pack?.args[1]);
+		const remoteBootstrap =
+			"/home/dev/.cline/remote/cline-remote-helper-linux-x64-0123456789abcdef-extensions/plugin-sandbox-bootstrap.js";
+		const ensure = invocations.find(({ args }) =>
+			args.at(-1)?.includes("--remote-hub-ensure"),
+		);
+		expect(ensure?.args.at(-1)).toContain(
+			`'--plugin-bootstrap' '${remoteBootstrap}'`,
+		);
+
+		await service.disconnect(profile.id);
+		invocations.length = 0;
+		await service.connect(profile.id);
+		expect(invocations.some(({ executable }) => executable === "tar")).toBe(
+			false,
+		);
+		expect(
+			invocations
+				.find(({ args }) => args.at(-1)?.includes("--remote-hub-ensure"))
+				?.args.at(-1),
+		).toContain(`'--plugin-bootstrap' '${remoteBootstrap}'`);
+	});
+
 	it("allows renaming but keeps a profile's SSH destination immutable", async () => {
 		const tunnel = new FakeTunnel();
 		const spawnTunnel = vi.fn(() => tunnel);

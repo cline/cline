@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { claimHubDaemonProcess } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
+import { CLINE_PLUGIN_BOOTSTRAP_PATH_ENV } from "../extensions/plugin/plugin-sandbox";
 import { requestHubShutdown } from "../hub/client";
 import { ensureDetachedHubServer } from "../hub/daemon";
 import { clearHubDiscoveryIfOwned, readHubDiscovery } from "../hub/discovery";
@@ -68,6 +69,10 @@ export async function runRemoteHubEnsure(
 	await dependencies.ensureLoginShellPath();
 	const cwd = readArgument(argv, "--cwd") ?? dependencies.cwd();
 	configureDedicatedDiscovery(argv, dependencies);
+	const pluginBootstrap = readArgument(argv, "--plugin-bootstrap");
+	if (pluginBootstrap) {
+		dependencies.env[CLINE_PLUGIN_BOOTSTRAP_PATH_ENV] = pluginBootstrap;
+	}
 	const result = await dependencies.ensureDetachedHubServer(cwd, {
 		host: "127.0.0.1",
 		port: 0,
