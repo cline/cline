@@ -344,14 +344,32 @@ export function createInMemoryHubOwnerContext(
 	return resolveHubOwnerContext(label);
 }
 
+/**
+ * Reads a usable discovery record. Startup and connection discovery ignore
+ * unreadable/invalid records so endpoint probing and recovery can continue.
+ * Shutdown must use onError: "throw": only a missing record proves absence.
+ */
 export async function readHubDiscovery(
 	discoveryPath: string,
+	options: { onError?: "ignore" | "throw" } = {},
 ): Promise<HubServerDiscoveryRecord | undefined> {
 	try {
-		const parsed = JSON.parse(
-			await readFile(discoveryPath, "utf8"),
-		) as Partial<HubServerDiscoveryRecord>;
+		let raw: string;
+		try {
+			raw = await readFile(discoveryPath, "utf8");
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+			throw error;
+		}
+		let parsed: Partial<HubServerDiscoveryRecord>;
+		try {
+			parsed = JSON.parse(raw) as Partial<HubServerDiscoveryRecord>;
+		} catch {
+			// JSON parser errors may quote record contents, including the auth token.
+			throw new Error(`Invalid JSON in Hub discovery record: ${discoveryPath}`);
+		}
 		if (
+			!parsed ||
 			typeof parsed.hubId !== "string" ||
 			typeof parsed.protocolVersion !== "string" ||
 			typeof parsed.authToken !== "string" ||
@@ -361,7 +379,7 @@ export async function readHubDiscovery(
 			typeof parsed.startedAt !== "string" ||
 			typeof parsed.updatedAt !== "string"
 		) {
-			return undefined;
+			throw new Error(`Invalid Hub discovery record: ${discoveryPath}`);
 		}
 		return {
 			hubId: parsed.hubId,
@@ -395,7 +413,8 @@ export async function readHubDiscovery(
 			startedAt: parsed.startedAt,
 			updatedAt: parsed.updatedAt,
 		};
-	} catch {
+	} catch (error) {
+		if (options.onError === "throw") throw error;
 		return undefined;
 	}
 }

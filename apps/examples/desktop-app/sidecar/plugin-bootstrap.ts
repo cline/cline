@@ -7,9 +7,8 @@ const BUNDLED_BOOTSTRAP = join("bin", "extensions", "plugin-sandbox-bootstrap.js
 
 /**
  * Finds the plugin worker bootstrap the app bundle ships as a Tauri resource.
- * The compiled sidecar cannot locate it from its own module path (that points
- * inside the binary), so the Hub daemon it runs would otherwise fall back to
- * loading plugins in-process.
+ * The backend and CLI-managed Hub need an on-disk bootstrap to run plugins
+ * in workers; without it they would fall back to loading plugins in-process.
  */
 export function resolveDesktopPluginBootstrap(
 	options: { execPath?: string; cwd?: string } = {},
