@@ -203,6 +203,9 @@ describe("desktopAppReducer", () => {
 		});
 		const reopened = desktopAppReducer(state, open);
 		expect(reopened.navigation.current.view).toBe("chat");
+		expect(reopened.navigation.back).toHaveLength(
+			state.navigation.back.length + (view === "chat" ? 0 : 1),
+		);
 		expect(
 			reopened.threads.find((thread) => thread.id === threadId),
 		).toMatchObject({
