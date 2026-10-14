@@ -13,9 +13,10 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { CLINE_PLUGIN_BOOTSTRAP_PATH_ENV } from "../extensions/plugin/plugin-sandbox";
 import { requestHubShutdown } from "../hub/client";
 
 export interface RemoteEnvironmentProfile {
@@ -142,6 +143,11 @@ export interface RemoteEnvironmentServiceOptions {
 	hubShutdownTimeoutMs?: number;
 	helperBinaryPath?: string;
 	helperBinaryDirectory?: string;
+	/**
+	 * The host's plugin worker bootstrap. Its directory (the bootstrap plus the
+	 * SDK packages plugins import) is mirrored to the remote next to the helper.
+	 */
+	pluginBootstrapPath?: string;
 	env?: NodeJS.ProcessEnv;
 	onStatusChange?: (status: RemoteEnvironmentStatus) => void;
 	onConnectionLost?: (status: RemoteEnvironmentStatus) => void;
@@ -185,6 +191,7 @@ export class RemoteEnvironmentService {
 	private readonly uploadTimeoutMs: number;
 	private readonly tunnelTimeoutMs: number;
 	private readonly hubShutdownTimeoutMs: number;
+	private readonly pluginBootstrapPath?: string;
 	private readonly dependencies: RemoteEnvironmentDependencies;
 	private readonly onStatusChange?: (status: RemoteEnvironmentStatus) => void;
 	private readonly onConnectionLost?: (status: RemoteEnvironmentStatus) => void;
@@ -218,6 +225,8 @@ export class RemoteEnvironmentService {
 		this.tunnelTimeoutMs = options.tunnelTimeoutMs ?? DEFAULT_TUNNEL_TIMEOUT_MS;
 		this.hubShutdownTimeoutMs =
 			options.hubShutdownTimeoutMs ?? DEFAULT_HUB_SHUTDOWN_TIMEOUT_MS;
+		this.pluginBootstrapPath =
+			options.pluginBootstrapPath ?? env[CLINE_PLUGIN_BOOTSTRAP_PATH_ENV];
 		this.onStatusChange = options.onStatusChange;
 		this.onConnectionLost = options.onConnectionLost;
 		this.dependencies = { ...defaults, ...options.dependencies };
@@ -337,6 +346,10 @@ export class RemoteEnvironmentService {
 			const inspection = await this.inspectRemote(profile);
 			await this.validateDirectory(profile, inspection.home);
 			const remoteHelper = await this.ensureHelper(profile, inspection);
+			const pluginBootstrap = await this.ensurePluginBootstrap(
+				profile,
+				remoteHelper,
+			);
 
 			const discoveryPath = joinRemote(
 				inspection.home,
@@ -351,6 +364,7 @@ export class RemoteEnvironmentService {
 					inspection.home,
 					"--discovery-path",
 					discoveryPath,
+					...(pluginBootstrap ? ["--plugin-bootstrap", pluginBootstrap] : []),
 				],
 			});
 			const hub = parseRemoteHubResult(ensureResult.stdout);
@@ -607,6 +621,71 @@ export class RemoteEnvironmentService {
 				args: ["-f", temporaryPath],
 			});
 			throw error;
+		}
+	}
+
+	/**
+	 * Plugins are optional, so a failure here (no `tar` on either side, a
+	 * failed upload) leaves the remote Hub without them instead of failing the
+	 * connection.
+	 */
+	private async ensurePluginBootstrap(
+		profile: RemoteEnvironmentProfile,
+		remoteHelper: string,
+	): Promise<string | undefined> {
+		const localBootstrap = this.pluginBootstrapPath;
+		if (
+			!localBootstrap ||
+			!(await this.dependencies.fileReadable(localBootstrap))
+		) {
+			return undefined;
+		}
+		// The helper path is content-addressed, so this directory is too.
+		const remoteDirectory = `${remoteHelper}-extensions`;
+		const remoteBootstrap = `${remoteDirectory}/${basename(localBootstrap)}`;
+		const existing = await this.execRemoteAllowFailure(profile, {
+			command: "test",
+			args: ["-f", remoteBootstrap],
+		});
+		if (existing.exitCode === 0) {
+			return remoteBootstrap;
+		}
+
+		const archive = join(
+			tmpdir(),
+			`cline-plugin-bootstrap-${this.dependencies.randomId()}.tgz`,
+		);
+		const temporaryPath = `${remoteDirectory}.upload-${this.dependencies.randomId()}`;
+		try {
+			const packed = await this.dependencies.runProcess(
+				"tar",
+				["-czf", archive, "-C", dirname(localBootstrap), "."],
+				{ timeoutMs: this.uploadTimeoutMs },
+			);
+			if (packed.exitCode !== 0) {
+				return undefined;
+			}
+			const upload = await this.dependencies.runProcess(
+				this.sshPath,
+				[
+					...this.buildSshArgs(profile),
+					this.destination(profile),
+					`umask 077; mkdir -p ${shellQuote(temporaryPath)} && tar -xzf - -C ${shellQuote(temporaryPath)} && rm -rf ${shellQuote(remoteDirectory)} && mv ${shellQuote(temporaryPath)} ${shellQuote(remoteDirectory)}`,
+				],
+				{ timeoutMs: this.uploadTimeoutMs, inputFile: archive },
+			);
+			if (upload.exitCode !== 0) {
+				await this.execRemoteAllowFailure(profile, {
+					command: "rm",
+					args: ["-rf", temporaryPath],
+				});
+				return undefined;
+			}
+			return remoteBootstrap;
+		} catch {
+			return undefined;
+		} finally {
+			await rm(archive, { force: true }).catch(() => undefined);
 		}
 	}
 
