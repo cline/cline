@@ -691,6 +691,8 @@ export type HubCommandName =
 	| "task.run"
 	| "task.automation.get"
 	| "task.automation.set"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
 	| "settings.list"
 	| "settings.get"
 	| "settings.patch"
@@ -716,6 +718,7 @@ export function getDefaultHubCommandTimeoutMs(
 	switch (command) {
 		case "run.start":
 		case "session.send_input":
+		case "plugins.commands.run":
 			return null;
 		default:
 			return HUB_DEFAULT_COMMAND_TIMEOUT_MS;
@@ -810,6 +813,7 @@ export type HubEventName =
 	| "task.run.completed"
 	| "task.run.failed"
 	| "task.automation.updated"
+	| "plugins.commands.changed"
 	| "settings.changed"
 	| "plugin.status_changed"
 	| "ui.notify"

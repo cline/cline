@@ -321,6 +321,7 @@ export interface LocalRuntimeBootstrap {
 	pluginSandboxShutdown?: () => Promise<void>;
 	/** Plugins the session asked for but does not have (failed or disabled). */
 	pluginIssues: SessionPluginIssue[];
+	pluginCommandError?: string;
 	runtimeBuilderInput: RuntimeBuilderInput;
 }
 
@@ -453,6 +454,7 @@ export async function prepareLocalRuntimeBootstrap(
 			});
 	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
 
+	let pluginCommandError: string | undefined;
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
@@ -478,6 +480,9 @@ export async function prepareLocalRuntimeBootstrap(
 				onIssue: onPluginIssue,
 			});
 			pluginIssues.push(...(loadedPlugins.issues ?? []));
+			pluginCommandError = loadedPlugins.failures.length
+				? loadedPlugins.failures.map((f) => f.message).join("; ")
+				: undefined;
 			logPluginDiagnostics(
 				loadedPlugins.failures,
 				loadedPlugins.warnings,
@@ -492,6 +497,7 @@ export async function prepareLocalRuntimeBootstrap(
 				`Plugin loading failed; the session has no plugins: ${message}`,
 				{ severity: "error", sessionId },
 			);
+			pluginCommandError = message;
 			pluginIssues.push({
 				name: "plugins",
 				pluginPath: workspacePath,
@@ -627,6 +633,7 @@ export async function prepareLocalRuntimeBootstrap(
 		requestToolApproval,
 		pluginSandboxShutdown: loadedPlugins?.shutdown,
 		pluginIssues,
+		pluginCommandError,
 		runtimeBuilderInput: {
 			config,
 			hooks,

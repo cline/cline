@@ -297,7 +297,10 @@ export async function hubHasLiveSessions(
 			record.url,
 			record.authToken,
 		);
-		return activity.activeSessionCount > 0;
+		return (
+			activity.activeSessionCount > 0 ||
+			(activity.activePluginRequests ?? 0) > 0
+		);
 	} catch {
 		return false;
 	}
@@ -946,12 +949,16 @@ export async function upgradeManagedHub(
 	// Only an observed-zero reading ends the window before the deadline.
 	// (Checks at least once so waitForIdleMs: 0 still observes an idle hub.)
 	let observedSessionCount: number | undefined;
+	let observedPluginRequests: number | undefined;
 	for (;;) {
 		try {
-			observedSessionCount = (
-				await queryHubSessionActivity(record.url, record.authToken)
-			).activeSessionCount;
-			if (observedSessionCount === 0) {
+			const activity = await queryHubSessionActivity(
+				record.url,
+				record.authToken,
+			);
+			observedSessionCount = activity.activeSessionCount;
+			observedPluginRequests = activity.activePluginRequests ?? 0;
+			if (observedSessionCount === 0 && observedPluginRequests === 0) {
 				break;
 			}
 		} catch {
@@ -964,7 +971,8 @@ export async function upgradeManagedHub(
 			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
 		);
 	}
-	const confirmedIdle = observedSessionCount === 0;
+	const confirmedIdle =
+		observedSessionCount === 0 && observedPluginRequests === 0;
 	// Without force, only a positively idle hub may be replaced: a busy or
 	// unanswerable hub is handed back un-drained. With force, the user has
 	// already consented to interrupting the sessions the prompt showed them,

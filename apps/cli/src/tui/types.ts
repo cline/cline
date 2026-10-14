@@ -157,6 +157,9 @@ export interface TuiProps {
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
+	subscribeAdditionalSlashCommands?: (
+		listener: () => void,
+	) => Promise<() => void>;
 	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadClineAccount: () => Promise<ClineAccountSnapshot>;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;

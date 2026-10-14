@@ -52,6 +52,8 @@ export interface ManagedHubBuildMismatchEvent {
 	activeSessionCount?: number;
 	/** Distinct clients attached to those sessions (best-effort, `outdated_hub` only). */
 	participantClientCount?: number;
+	/** Active plugin commands or catalog requests on the running Hub. */
+	activePluginRequests?: number;
 }
 
 /**
@@ -70,6 +72,7 @@ async function withHubSessionActivity(
 			...event,
 			activeSessionCount: activity.activeSessionCount,
 			participantClientCount: activity.participantClientCount,
+			activePluginRequests: activity.activePluginRequests,
 		};
 	} catch {
 		return event;

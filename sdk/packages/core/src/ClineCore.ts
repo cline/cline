@@ -8,6 +8,7 @@ import {
 } from "./cline-core/automation";
 import {
 	createClineCorePendingPromptsApi,
+	createClineCorePluginCommandsApi,
 	createClineCoreSettingsApi,
 	type RuntimeHostServiceExtensions,
 } from "./cline-core/runtime-services";
@@ -29,7 +30,6 @@ import type {
 	RestoreResult,
 	StartSessionBootstrap,
 } from "./cline-core/types";
-
 import { CronService } from "./cron/service/cron-service";
 import type { RuntimeCapabilities } from "./runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
@@ -49,6 +49,7 @@ import {
 	FeatureFlagsService,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
+import type { PluginCommandsApi } from "./services/plugin-command-api";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
 import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import {
@@ -101,6 +102,7 @@ export class ClineCore {
 	readonly runtimeAddress: string | undefined;
 	readonly automation: ClineCoreAutomationApi;
 	readonly settings: ClineCoreSettingsApi;
+	readonly pluginCommands: PluginCommandsApi;
 	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly host: RuntimeHost;
@@ -140,6 +142,7 @@ export class ClineCore {
 		this.distinctId = distinctId;
 		this.featureFlags = featureFlags;
 		this.settings = createClineCoreSettingsApi(host);
+		this.pluginCommands = createClineCorePluginCommandsApi(host);
 		this.pendingPrompts = createClineCorePendingPromptsApi(host);
 		this.automation = new ClineCoreAutomationController(() => {
 			if (!this.automationService) {

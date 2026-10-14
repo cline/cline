@@ -769,6 +769,37 @@ today: since #14792 it is the bundled Cline CLI uploaded as a single file
 with no bootstrap beside it, so plugins fail on remotes until the remote
 runtime carries one.
 
+`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution.
+Hub RPC (`plugins.commands.list` / `plugins.commands.run`) and
+`plugins.commands.changed` expose the same service to every client. The desktop
+sidecar, CLI, and connectors reuse their existing hub connections. Workspace
+catalogs are initialized when a composer first requests them and refreshed by
+runtime-owned plugin/settings watchers, including for non-Git folders. Failed
+initialization retries in the background and publishes explicit error/recovery
+state. Workspace catalogs use their own worker registry so catalog failures do not disable resident session instances. Partial retries reload only failed plugin paths and retain
+healthy instances; source/settings changes reload the workspace catalog. Git
+queries and individual UI mounts do not own plugin lifetimes.
+
+A workspace catalog owns a discovery sandbox; a resident session instead lists
+and executes its own contribution registry, retaining the same plugin instance
+and context as its hooks. Existing session registrations remain fixed for that
+session, while changed workspace catalogs apply to new sessions. Reload and
+disposal wait for command handlers before terminating their workers. Hub status and replacement checks count active command requests even without a chat participant; draining refuses new catalog and command requests.
+
+The shared command executor records `task.tool_used` once per matched handler,
+including failures, for both direct runtime and Hub calls. Resident execution
+uses session/provider/model and agent identity; workspace execution uses an
+action correlation ID without inventing a session. Catalog reads and unmatched
+commands do not count as tool use. CLI interactive initialization shares one
+pending core across catalog discovery and session startup and waits for it
+during cleanup. CLI fallback checks command ownership before execution:
+discovery failures leave skills/workflows available, while errors from owned
+plugin handlers remain visible to the caller.
+Telemetry failures cannot replace a command's result or original error. The
+CLI suggestion hook preserves its last successful catalog while refresh or
+subscription initialization retries with capped exponential backoff, and
+unmount cancels retries and releases subscriptions that finish late.
+
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
 through `PluginSandboxOptions.idleTimeoutMs` or

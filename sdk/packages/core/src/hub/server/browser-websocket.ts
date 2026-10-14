@@ -141,6 +141,21 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
+			if (
+				envelope.event === "plugins.commands.changed" &&
+				!authority?.crossWorkspace
+			) {
+				const catalog = envelope.payload?.catalog as
+					| { workspacePath?: unknown }
+					| undefined;
+				const root = authority?.workspaceContext?.workspaceRoot;
+				if (
+					!root ||
+					typeof catalog?.workspacePath !== "string" ||
+					resolve(catalog.workspacePath) !== resolve(root)
+				)
+					return;
+			}
 			sendFrame({ kind: "event", envelope });
 		};
 

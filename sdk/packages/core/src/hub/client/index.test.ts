@@ -1521,6 +1521,21 @@ describe("resolveCompatibleLocalHubUrl", () => {
 });
 
 describe("hasActiveHubSessions", () => {
+	it("counts active plugin requests without attached sessions", async () => {
+		const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+			"."
+		);
+		expect(
+			hasActiveHubSessions({ sessions: [], activePluginRequests: 1 }),
+		).toBe(true);
+		expect(
+			summarizeHubSessionActivity({ sessions: [], activePluginRequests: 2 }),
+		).toMatchObject({ activeSessionCount: 0, activePluginRequests: 2 });
+		expect(
+			hasActiveHubSessions({ sessions: [], activePluginRequests: 0 }),
+		).toBe(false);
+	});
+
 	const payload = (sessions: unknown[]) => ({ sessions });
 
 	it("is idle for an empty or malformed list", async () => {

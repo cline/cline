@@ -1,3 +1,4 @@
+import { hasActiveHubSessions } from "@cline/core/hub";
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import {
@@ -381,6 +382,7 @@ async function otherCliClientsAttached(): Promise<boolean> {
 			undefined,
 			{ timeoutMs: CLIENT_COUNT_EXIT_TIMEOUT_MS },
 		);
+		if (hasActiveHubSessions(sessions.payload)) return true;
 		const sessionRecords =
 			(sessions.payload as { sessions?: Array<{ participants?: unknown }> })
 				.sessions ?? [];
