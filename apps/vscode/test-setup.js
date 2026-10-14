@@ -236,6 +236,21 @@ Module.prototype.require = function (id) {
 		}
 	}
 
+	if (id === "@cline/core/cloud") {
+		class CloudSessionError extends Error {}
+		class CloudCreationUnconfirmedError extends CloudSessionError {}
+		return {
+			buildCloudSessionSystemPrompt: () => "",
+			CloudCreationUnconfirmedError,
+			CloudSessionApi: class {
+				constructor() {
+					throw new Error("Cloud sessions are not available in VS Code integration tests")
+				}
+			},
+			CloudSessionError,
+		}
+	}
+
 	if (id === "@cline/shared") {
 		// Mirrors USER_REJECTED_TOOL_REASON / TOOL_REJECTION_SUFFIX in
 		// sdk/packages/shared/src/llms/tools.ts (the ESM-only real package

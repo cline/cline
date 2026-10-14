@@ -93,6 +93,27 @@ describe("CloudSessionHost status", () => {
 		expect(runtime.runTurn).toHaveBeenCalledOnce()
 	})
 
+	it("restores the runtime on the next send after a turn finds it missing", async () => {
+		const missing = Object.assign(new Error("session not found: inner-session"), { code: "session_not_found" })
+		runtime.readSessionMessages.mockResolvedValue([{ role: "user", content: "first prompt" }])
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model" }) as never,
+		})
+		runtime.runTurn.mockRejectedValueOnce(missing)
+		await expect(host.send({ sessionId: "ses-outer", prompt: "follow-up" })).rejects.toThrow(missing.message)
+		expect(runtime.startSession).not.toHaveBeenCalled()
+
+		runtime.updateSessionConnection.mockRejectedValueOnce(missing)
+		runtime.runTurn.mockResolvedValue({ finishReason: "completed" })
+		await host.send({ sessionId: "ses-outer", prompt: "retry" })
+		expect(runtime.startSession).toHaveBeenCalledOnce()
+		expect(runtime.runTurn).toHaveBeenCalledTimes(2)
+	})
+
 	it.each([
 		["completed", "completed"],
 		["aborted", "cancelled"],

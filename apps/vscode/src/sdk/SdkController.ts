@@ -2664,6 +2664,7 @@ export class Controller {
 				}
 				throw new Error("Task changed while building webview state")
 			}
+			const currentCloudTask = this.cloud.getCurrentTaskInfo()
 			return {
 				...state,
 				currentTaskItem: snapshotTask?.taskId
@@ -2675,8 +2676,8 @@ export class Controller {
 				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
-				currentCloudTask: this.cloud.getCurrentTaskInfo(),
-				cloudModelId: isCloudSessionsFeatureEnabled() ? this.cloud.getCloudModelId() : undefined,
+				currentCloudTask,
+				cloudModelId: isCloudSessionsFeatureEnabled() || currentCloudTask ? this.cloud.getCloudModelId() : undefined,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

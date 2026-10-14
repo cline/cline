@@ -350,6 +350,9 @@ export class CloudSessionHost implements SdkSessionHost {
 				userFiles: undefined,
 			})
 		} catch (error) {
+			// The Hub can restart under this connection when another client resumes
+			// the sandbox; let the next send restore the runtime.
+			if (isMissingSessionError(error, sessionId)) this.innerSessionLive = false
 			// A rejected RPC proves only that this client stopped observing the turn;
 			// the sandbox may still be running after a transport loss.
 			if (!this.disposed && (this.agentStatus === "running" || this.agentStatus === "idle")) {
