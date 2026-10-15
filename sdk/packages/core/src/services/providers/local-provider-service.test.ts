@@ -3334,10 +3334,12 @@ describe("refreshProviderModelsFromSource", () => {
 
 	it("migrates a stale built-in modelsSourceUrl from the local registry", async () => {
 		const builtIn = LlmsModels.getBuiltInProviderCollectionSync("aimlapi");
-		expect(builtIn).toBeDefined();
+		if (!builtIn) {
+			throw new Error("aimlapi is missing from the built-in provider catalog");
+		}
 		LlmsModels.registerProvider({
 			provider: {
-				...builtIn!.provider,
+				...builtIn.provider,
 				modelsSourceUrl: "https://api.aimlapi.com/v1/models",
 				source: "file",
 			},
@@ -3367,7 +3369,10 @@ describe("refreshProviderModelsFromSource", () => {
 		});
 		expect(fetchMock).toHaveBeenCalledWith(
 			"https://api.aimlapi.com/v1/models?type=openai%2Fchat-completions",
-			{ method: "GET" },
+			{
+				method: "GET",
+				signal: expect.any(AbortSignal),
+			},
 		);
 		const modelsState = await readModelsFile(
 			resolveModelsRegistryPath(manager),
