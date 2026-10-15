@@ -99,20 +99,32 @@ export const AgentComposerField = forwardRef<
 
 export type AgentComposerTextareaProps = ComponentPropsWithoutRef<"textarea"> &
 	VariantProps & {
-		/** `[start, end)` range of `value` drawn as an inline token, e.g. a slash command. */
-		highlight?: { start: number; end: number };
+		/**
+		 * Sorted, non-overlapping `[start, end)` ranges of `value` drawn as inline
+		 * tokens (slash commands, file mentions). Backspace at a token's end or
+		 * Delete at its start removes the whole token.
+		 */
+		highlights?: { start: number; end: number }[];
 	};
 
 export const AgentComposerTextarea = forwardRef<
 	HTMLTextAreaElement,
 	AgentComposerTextareaProps
 >(function AgentComposerTextarea(
-	{ variant: variantProp, className, highlight, onScroll, ...props },
+	{
+		variant: variantProp,
+		className,
+		highlights,
+		onKeyDown,
+		onScroll,
+		...props
+	},
 	ref,
 ) {
 	const variant = useAgentComposerVariant(variantProp);
 	const [scrollTop, setScrollTop] = useState(0);
 	const value = typeof props.value === "string" ? props.value : "";
+	let renderedUpTo = 0;
 	// The wrapper is always rendered so toggling the highlight never remounts
 	// (and blurs) the textarea mid-typing.
 	return (
@@ -122,22 +134,53 @@ export const AgentComposerTextarea = forwardRef<
 				variant === "welcome" && "self-start",
 			)}
 		>
-			{highlight && (
+			{highlights && highlights.length > 0 && (
 				<div
 					aria-hidden
 					className="pointer-events-none absolute inset-0 overflow-y-clip whitespace-pre-wrap break-words text-cline-ui-sm leading-5 text-transparent"
 				>
 					<div style={{ transform: `translateY(${-scrollTop}px)` }}>
-						{value.slice(0, highlight.start)}
-						<span className="-mx-0.5 rounded-cline-ui-sm bg-cline-ui-primary/15 px-0.5 py-0.5 inset-ring inset-ring-cline-ui-primary/30">
-							{value.slice(highlight.start, highlight.end)}
-						</span>
+						{highlights.map(({ start, end }) => {
+							const before = value.slice(renderedUpTo, start);
+							renderedUpTo = end;
+							return [
+								before,
+								<span
+									className="-mx-0.5 rounded-cline-ui-md bg-cline-ui-primary/25 px-0.5 py-0.5 inset-ring inset-ring-cline-ui-primary/50"
+									key={start}
+								>
+									{value.slice(start, end)}
+								</span>,
+							];
+						})}
 					</div>
 				</div>
 			)}
 			<textarea
 				{...props}
 				ref={ref}
+				onKeyDown={(event) => {
+					onKeyDown?.(event);
+					const textarea = event.currentTarget;
+					if (
+						event.defaultPrevented ||
+						event.nativeEvent.isComposing ||
+						event.altKey ||
+						event.ctrlKey ||
+						event.metaKey ||
+						textarea.selectionStart !== textarea.selectionEnd
+					) {
+						return;
+					}
+					const caret = textarea.selectionStart;
+					const token = highlights?.find((range) =>
+						event.key === "Backspace"
+							? range.end === caret
+							: event.key === "Delete" && range.start === caret,
+					);
+					// Selecting the token lets the native delete remove it, keeping undo intact.
+					if (token) textarea.setSelectionRange(token.start, token.end);
+				}}
 				onScroll={(event) => {
 					setScrollTop(event.currentTarget.scrollTop);
 					onScroll?.(event);
