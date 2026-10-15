@@ -314,7 +314,11 @@ export function useComposerSuggestions(
 		[environmentId],
 	);
 
-	/** Invokes on the bound session; the reply reaches the reducer only while that bind lasts. Undefined once it has ended. */
+	/**
+	 * Invokes on the bound session, or resolves undefined while unbound. The
+	 * reply reaches the reducer only while that bind lasts; the caller always
+	 * gets the plugin's verdict, so a refusal still stops a Send whose pane left.
+	 */
 	const invoke = useCallback(
 		async (
 			action: ComposerSuggestionsAction,
@@ -324,8 +328,7 @@ export function useComposerSuggestions(
 			const generation = generationRef.current;
 			if (!targetSessionId) return undefined;
 			const result = await invokeFor(targetSessionId, action);
-			if (generation !== generationRef.current) return undefined;
-			if (applyReply) {
+			if (applyReply && generation === generationRef.current) {
 				dispatch({
 					type: "reply",
 					sessionId: targetSessionId,
@@ -541,6 +544,7 @@ export function useComposerSuggestions(
 			composer.setDraft(item.prompt);
 			composer.focus();
 			dispatch({ type: "used", itemId: item.id });
+			const boundSessionId = boundRef.current;
 			void invoke({
 				verb: "use",
 				revision,
@@ -549,6 +553,7 @@ export function useComposerSuggestions(
 				...msSinceExposed(current),
 			}).then((result) => {
 				if (result?.outcome !== "refused") return;
+				if (boundRef.current !== boundSessionId) return;
 				const used = localRef.current.used;
 				if (used?.itemId === item.id && used.revision === revision) {
 					dispatch({ type: "draft_cleared" });

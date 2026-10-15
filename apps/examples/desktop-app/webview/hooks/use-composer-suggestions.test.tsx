@@ -503,6 +503,97 @@ describe("useComposerSuggestions", () => {
 		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
 	});
 
+	it("sends nothing when the plugin refuses a one-key Send after its pane left", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const onSend = vi.fn();
+		const tray = await mountTray({ onSend });
+		await settle(400);
+		await press(tray.composer(), SEND_KEYS);
+		await tray.unmount();
+
+		await act(async () =>
+			verdict.resolve({ outcome: "refused", reason: "stale" }),
+		);
+		await settle(300);
+
+		expect(invokedActions("send")).toHaveLength(1);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("sends nothing when the plugin refuses a one-key Send that waited across a transport reconnect", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const onSend = vi.fn();
+		const tray = await mountTray({ onSend });
+		await settle(400);
+		await press(tray.composer(), SEND_KEYS);
+
+		await act(async () => fakeDesktop.setTransportState("reconnecting"));
+		await act(async () => fakeDesktop.setTransportState("connected"));
+		await act(async () =>
+			verdict.resolve({ outcome: "refused", reason: "stale" }),
+		);
+		await settle(300);
+
+		expect(invokedActions("attach")).toHaveLength(2);
+		expect(invokedActions("send")).toHaveLength(1);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("leaves the box alone when a Use refusal lands after the pane switched sessions", async () => {
+		const useReply = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "use" ? useReply.promise : undefined,
+		});
+		const tray = await mountTray();
+
+		await press(tray.composer(), USE_KEYS);
+		await tray.update({ sessionId: OLDER_SESSION_ID });
+		await act(async () =>
+			useReply.resolve({ outcome: "refused", reason: "stale" }),
+		);
+		await settle();
+
+		expect(tray.composer().value).toBe(ITEMS[0]?.prompt);
+		expect(invokedActions("clear")).toEqual([]);
+	});
+
+	it("empties the box when a Use refusal lands after a transport reconnect on the same chat", async () => {
+		const useReply = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "use" ? useReply.promise : undefined,
+		});
+		const tray = await mountTray();
+
+		await press(tray.composer(), USE_KEYS);
+		await act(async () => fakeDesktop.setTransportState("reconnecting"));
+		await act(async () => fakeDesktop.setTransportState("connected"));
+		await settle();
+		expect(tray.composer().value).toBe(ITEMS[0]?.prompt);
+		await act(async () =>
+			useReply.resolve({ outcome: "refused", reason: "stale" }),
+		);
+		await settle();
+
+		expect(invokedActions("attach")).toHaveLength(2);
+		expect(tray.composer().value).toBe("");
+		expect(options(tray.container)).toHaveLength(3);
+		expect(invokedActions("clear")).toEqual([]);
+	});
+
 	it("drops a one-key Send whose pane switched to another session while it waited for the verdict", async () => {
 		const verdict = deferred<unknown>();
 		scriptHub({
