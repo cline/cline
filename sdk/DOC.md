@@ -378,3 +378,9 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## Explicit MCP OAuth authorization
+
+`authorizeMcpServerOAuth` starts the SDK authorization flow before checking the MCP connection. Anonymous `initialize` and `tools/list` success does not establish account authorization. A redirect keeps the native callback listener open until the code arrives; state validation, PKCE exchange and reconnection stay in the existing flow. Saved credentials use the SDK refresh path without another consent when possible. A server without OAuth metadata reports an authorization error rather than treating public discovery as authorization.
+
+Interactive OAuth fetches use the server's request timeout and caller cancellation signal, including discovery and client registration. Ordinary MCP discovery and protected tool calls keep their existing behavior.

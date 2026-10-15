@@ -8,6 +8,22 @@ const clientState = vi.hoisted(() => ({
 	listToolsOptions: [] as unknown[],
 }));
 
+vi.mock("@modelcontextprotocol/sdk/client/auth.js", async (importOriginal) => ({
+	...(await importOriginal<
+		typeof import("@modelcontextprotocol/sdk/client/auth.js")
+	>()),
+	auth: async (
+		provider: import("@modelcontextprotocol/sdk/client/auth.js").OAuthClientProvider,
+	) => {
+		await provider.saveClientInformation?.({ client_id: "fixture-client" });
+		await provider.saveTokens({
+			access_token: "fixture-token",
+			token_type: "Bearer",
+		});
+		return "AUTHORIZED";
+	},
+}));
+
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	Client: class {
 		async connect(_transport: unknown, options: unknown): Promise<void> {
@@ -39,7 +55,7 @@ describe("interactive MCP OAuth timeout", () => {
 		tempRoots.length = 0;
 	});
 
-	it("uses the registration timeout for the authorization probe", async () => {
+	it("uses the registration timeout when verifying existing authorization", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-oauth-timeout-"));
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");

@@ -3,7 +3,10 @@ import type {
 	OAuthClientProvider,
 	OAuthDiscoveryState,
 } from "@modelcontextprotocol/sdk/client/auth.js";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import {
+	auth,
+	UnauthorizedError,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
 	SSEClientTransport,
@@ -649,6 +652,17 @@ export async function authorizeMcpServerOAuth(
 		registration.timeoutSeconds,
 	);
 
+	const authFetch: FetchLike = (input, init) => {
+		const signals = [AbortSignal.timeout(requestTimeoutMs)];
+		if (options.signal) signals.push(options.signal);
+		if (init?.signal) signals.push(init.signal);
+		if (input instanceof Request) signals.push(input.signal);
+		return (options.fetch ?? fetch)(input, {
+			...init,
+			signal: AbortSignal.any(signals),
+		});
+	};
+
 	const callbackServer = await startLocalOAuthServer({
 		host: options.callbackHost,
 		ports: options.callbackPorts?.length
@@ -688,9 +702,13 @@ export async function authorizeMcpServerOAuth(
 		const transport = createMcpSdkTransport({
 			registration,
 			oauthProvider: oauthContext.provider,
-			fetch: options.fetch,
+			fetch: authFetch,
 		});
-		try {
+		const authResult = await auth(oauthContext.provider, {
+			serverUrl: registration.transport.url,
+			fetchFn: authFetch,
+		});
+		if (authResult === "AUTHORIZED") {
 			await client.connect(transport, {
 				timeout: requestTimeoutMs,
 				signal: options.signal,
@@ -699,76 +717,70 @@ export async function authorizeMcpServerOAuth(
 				timeout: requestTimeoutMs,
 				signal: options.signal,
 			});
+			if (!(await oauthContext.provider.tokens())) {
+				throw new Error("OAuth authorization completed without saved tokens.");
+			}
 			await oauthContext.clearError();
 			return {
 				serverName,
 				authorized: true,
 				message: `MCP server "${serverName}" is already authorized.`,
 			};
-		} catch (error) {
-			if (!isMcpUnauthorizedError(error)) {
-				throw error;
-			}
-			await oauthContext.markAuthorizationRequired(
-				`MCP server "${serverName}" requires OAuth authorization.`,
-			);
-			const authUrl = oauthContext.getLastAuthorizationUrl();
-			if (!authUrl) {
-				throw new Error(
-					`MCP server "${serverName}" did not provide an authorization URL.`,
-				);
-			}
-			const callback = await callbackServer.waitForCallback();
-			if (!callback) {
-				if (options.signal?.aborted) {
-					throw new Error(
-						`MCP server "${serverName}" OAuth authorization was cancelled.`,
-					);
-				}
-				throw new Error(
-					"Timed out waiting for MCP OAuth authorization callback.",
-				);
-			}
-			if (callback.error) {
-				throw new Error(`OAuth authorization failed: ${callback.error}`);
-			}
-			if (!callback.code) {
-				throw new Error(
-					"OAuth callback did not include an authorization code.",
-				);
-			}
-			const expectedState = oauthContext.getLastOAuthState();
-			if (!expectedState) {
-				throw new Error(
-					`MCP server "${serverName}" did not start an OAuth stateful authorization flow.`,
-				);
-			}
-			if (callback.state !== expectedState) {
-				throw new Error("OAuth authorization failed: state mismatch.");
-			}
-
-			await transport.finishAuth(callback.code);
-			retryClient = buildClient(options);
-			const retryTransport = createMcpSdkTransport({
-				registration,
-				oauthProvider: oauthContext.provider,
-				fetch: options.fetch,
-			});
-			await retryClient.connect(retryTransport, {
-				timeout: requestTimeoutMs,
-				signal: options.signal,
-			});
-			await retryClient.listTools(undefined, {
-				timeout: requestTimeoutMs,
-				signal: options.signal,
-			});
-			await oauthContext.clearError();
-			return {
-				serverName,
-				authorized: true,
-				message: `MCP server "${serverName}" OAuth authorization completed.`,
-			};
 		}
+		const authUrl = oauthContext.getLastAuthorizationUrl();
+		if (!authUrl) {
+			throw new Error(
+				`MCP server "${serverName}" did not provide an authorization URL.`,
+			);
+		}
+		const callback = await callbackServer.waitForCallback();
+		if (!callback) {
+			if (options.signal?.aborted) {
+				throw new Error(
+					`MCP server "${serverName}" OAuth authorization was cancelled.`,
+				);
+			}
+			throw new Error(
+				"Timed out waiting for MCP OAuth authorization callback.",
+			);
+		}
+		if (callback.error) {
+			throw new Error(`OAuth authorization failed: ${callback.error}`);
+		}
+		if (!callback.code) {
+			throw new Error("OAuth callback did not include an authorization code.");
+		}
+		const expectedState = oauthContext.getLastOAuthState();
+		if (!expectedState) {
+			throw new Error(
+				`MCP server "${serverName}" did not start an OAuth stateful authorization flow.`,
+			);
+		}
+		if (callback.state !== expectedState) {
+			throw new Error("OAuth authorization failed: state mismatch.");
+		}
+
+		await transport.finishAuth(callback.code);
+		retryClient = buildClient(options);
+		const retryTransport = createMcpSdkTransport({
+			registration,
+			oauthProvider: oauthContext.provider,
+			fetch: authFetch,
+		});
+		await retryClient.connect(retryTransport, {
+			timeout: requestTimeoutMs,
+			signal: options.signal,
+		});
+		await retryClient.listTools(undefined, {
+			timeout: requestTimeoutMs,
+			signal: options.signal,
+		});
+		await oauthContext.clearError();
+		return {
+			serverName,
+			authorized: true,
+			message: `MCP server "${serverName}" OAuth authorization completed.`,
+		};
 	} catch (error) {
 		const cancelled = options.signal?.aborted === true;
 		const message = cancelled
