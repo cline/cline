@@ -85,7 +85,9 @@ manifest, and Next's internal tray state (`NextTurnSet`, `NextTurnTrayPush`,
 state and its verbs, belongs to Cline (`@cline/shared`'s `ui-slots.ts`);
 [`src/planner/tray-view.ts`](src/planner/tray-view.ts) projects Next's tray
 state into it and maps its verbs onto Next's actions. The plugin imports
-those types only, never values, so it still loads on an older host.
+that contract as types only, so declaring the slot adds no runtime
+dependency. It does import path helpers from `@cline/shared/storage` at
+runtime, so it loads only on a host that provides the Cline SDK to plugins.
 
 ## Verify
 
