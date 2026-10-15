@@ -286,19 +286,32 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	return { slashIndex, query };
 }
 
-// The sidecar only runs a command when the trimmed prompt starts with it.
-export function getSlashCommandHighlight(
+// Mirrors the sidecar's mention parsing, which drops trailing punctuation.
+const MENTION_TRAILING_PUNCTUATION = /[),.:;!?`'"]+$/;
+
+// The sidecar runs a command only when the trimmed prompt starts with it, and
+// attaches an `@path` mention only when it names a real workspace file.
+export function getComposerHighlights(
 	input: string,
 	commands: SlashCommand[],
-): { start: number; end: number } | undefined {
-	const match = /^(\s*)\/(\S+)(?=\s|$)/.exec(input);
-	if (!match) return undefined;
-	const [token, leading, name] = match;
-	const lowerName = name.toLowerCase();
-	if (!commands.some((command) => command.name.toLowerCase() === lowerName)) {
-		return undefined;
+	mentionPaths: ReadonlySet<string>,
+): { start: number; end: number }[] {
+	const highlights: { start: number; end: number }[] = [];
+	const command = /^(\s*)\/(\S+)(?=\s|$)/.exec(input);
+	if (command) {
+		const [token, leading, name] = command;
+		const lowerName = name.toLowerCase();
+		if (commands.some((c) => c.name.toLowerCase() === lowerName)) {
+			highlights.push({ start: leading.length, end: token.length });
+		}
 	}
-	return { start: leading.length, end: token.length };
+	for (const match of input.matchAll(/(^|\s)@(\S+)/g)) {
+		const path = match[2].replace(MENTION_TRAILING_PUNCTUATION, "");
+		if (!mentionPaths.has(path)) continue;
+		const start = match.index + match[1].length;
+		highlights.push({ start, end: start + 1 + path.length });
+	}
+	return highlights;
 }
 
 /**
@@ -652,6 +665,11 @@ function ChatInputBarImpl({
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
+	// Workspace files seen in mention search results; only these are chipped,
+	// since the sidecar attaches a mention only when it names a real file.
+	const [knownMentionPaths, setKnownMentionPaths] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
 
 	// ---- Slash command state ----
 	const activeSlash = useMemo(
@@ -675,12 +693,12 @@ function ChatInputBarImpl({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-	const slashCommandHighlight = useMemo(
+	const composerHighlights = useMemo(
 		() =>
 			executionTarget === "local"
-				? getSlashCommandHighlight(promptInput, slashCommands)
+				? getComposerHighlights(promptInput, slashCommands, knownMentionPaths)
 				: undefined,
-		[executionTarget, promptInput, slashCommands],
+		[executionTarget, promptInput, slashCommands, knownMentionPaths],
 	);
 
 	useEffect(() => {
@@ -957,6 +975,7 @@ function ChatInputBarImpl({
 				const nextResults = Array.isArray(results) ? results : [];
 				mentionResultsCacheRef.current.set(requestKey, nextResults);
 				setMentionFiles(nextResults);
+				setKnownMentionPaths((prev) => new Set([...prev, ...nextResults]));
 				setMentionSelectedIndex(0);
 			} catch {
 				if (cancelled) {
@@ -1267,7 +1286,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							highlight={slashCommandHighlight}
+							highlights={composerHighlights}
 							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
