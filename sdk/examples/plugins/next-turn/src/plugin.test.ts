@@ -259,9 +259,9 @@ describe("Next Turn as a plugin", () => {
 				if (name === "next") handler = fn;
 			},
 		};
+		const desktopContext = { ...context, client: { name: "cline-desktop" } };
 		const slotContext = {
-			...context,
-			client: { name: "cline-desktop" },
+			...desktopContext,
 			ui: {
 				push(event: string, payload: unknown) {
 					pushes.push({ event, payload });
@@ -271,7 +271,7 @@ describe("Next Turn as a plugin", () => {
 		const next = new NextSession({
 			sessionId: "sess_1",
 			settings: defaultSettings,
-			env: sessionEnv(slotContext, { tools: () => [] }),
+			env: sessionEnv(desktopContext, { tools: () => [] }),
 			sources: () => [
 				{ id: "turn", tier: "T0", probe: () => "present" },
 				{ id: "tasks", tier: "T2", probe: () => "present" },

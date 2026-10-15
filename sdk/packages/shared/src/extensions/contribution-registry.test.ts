@@ -21,6 +21,7 @@ describe("ContributionRegistry automation event contributions", () => {
 			providers: [],
 			automationEventTypes: [],
 			mcpServers: [],
+			uiSlots: [],
 		});
 	});
 
@@ -185,6 +186,62 @@ describe("ContributionRegistry automation event contributions", () => {
 					plugin: "github-pack",
 				},
 			}),
+		]);
+	});
+});
+
+describe("ContributionRegistry UI slot contributions", () => {
+	it("registers a UI slot without any capability and stamps its plugin", async () => {
+		const onAction = vi.fn();
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "suggestions",
+					manifest: { capabilities: ["hooks"] },
+					setup(api) {
+						api.registerUiSlot?.({ slot: "composer.suggestions", onAction });
+					},
+				},
+			],
+		});
+
+		await registry.initialize();
+
+		expect(registry.getRegistrySnapshot().uiSlots).toEqual([
+			{ slot: "composer.suggestions", onAction, plugin: "suggestions" },
+		]);
+	});
+
+	it("leaves other extensions' contributions unaffected", async () => {
+		const command = { name: "lookup" };
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "commands-only",
+					manifest: { capabilities: ["commands"] },
+					setup(api) {
+						api.registerCommand(command);
+					},
+				},
+				{
+					name: "suggestions",
+					manifest: { capabilities: ["hooks"] },
+					setup(api) {
+						api.registerUiSlot?.({
+							slot: "composer.suggestions",
+							onAction: () => ({ outcome: "ok" }),
+						});
+					},
+				},
+			],
+		});
+
+		await registry.initialize();
+		const snapshot = registry.getRegistrySnapshot();
+
+		expect(snapshot.commands).toEqual([command]);
+		expect(snapshot.uiSlots?.map((slot) => slot.plugin)).toEqual([
+			"suggestions",
 		]);
 	});
 });

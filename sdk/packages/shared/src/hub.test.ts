@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import type { ComposerSuggestionsAction } from "./extensions/ui-slots";
 import type { HubCommandInput } from "./hub";
 import {
 	describeOutdatedHubSessions,
@@ -22,6 +23,14 @@ describe("HUB_CAPABILITIES", () => {
 				"task.automation.set",
 			]),
 		);
+	});
+
+	it("advertises plugin UI slots", () => {
+		expect(HUB_CAPABILITIES).toContain("plugins.ui");
+		expectTypeOf<HubCommandInput<"plugins.ui.invoke">>().toEqualTypeOf<{
+			slot: "composer.suggestions";
+			action: ComposerSuggestionsAction;
+		}>();
 	});
 
 	it("requires optimistic revisions on lifecycle commands", () => {
