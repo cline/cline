@@ -97,6 +97,7 @@
 	},
 	"files": [
 		"dist",
-		"!dist/**/*.d.ts.map"
+		"!dist/**/*.d.ts.map",
+		"!dist/plugin-runtime-resources.json"
 	]
 }
