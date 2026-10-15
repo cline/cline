@@ -1,13 +1,16 @@
 import { PostHog } from "posthog-node"
-import { StateManager } from "@/core/storage/StateManager"
-import { HostProvider } from "@/hosts/host-provider"
-import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { posthogConfig } from "../../../../shared/services/config/posthog-config"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
+import {
+	ensureTelemetryPolicyInitialized,
+	getHostTelemetryLevel,
+	isHostTelemetryEnabled,
+	isTelemetryExportAllowed,
+	isUserTelemetryOptedIn,
+} from "../../telemetry-policy"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 /**
  * PostHog implementation of the telemetry provider interface
@@ -15,7 +18,6 @@ import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from 
  */
 export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
-	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
 	private optInCache: boolean
 
@@ -38,32 +40,12 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			})
 		}
 
-		// Initialize telemetry settings
 		this.optInCache = true
-		this.telemetrySettings = {
-			hostEnabled: true,
-			level: "all",
-		}
 	}
 	public async initialize(): Promise<PostHogTelemetryProvider> {
-		// Listen for host telemetry changes
-		HostProvider.env.subscribeToTelemetrySettings(
-			{},
-			{
-				onResponse: (event: { isEnabled: Setting }) => {
-					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
-					this.telemetrySettings.hostEnabled = hostEnabled
-				},
-			},
-		)
-
-		// Check host-specific telemetry setting (e.g. VS Code setting)
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			this.telemetrySettings.hostEnabled = false
-		}
-
-		this.telemetrySettings.level = await this.getTelemetryLevel()
+		// Host telemetry state (and the settings subscription) live in the shared
+		// policy module, which is the single opt-out checkpoint for the process.
+		await ensureTelemetryPolicyInitialized()
 		return this
 	}
 
@@ -72,12 +54,13 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public log(event: string, properties?: TelemetryProperties): void {
-		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
+		const level = getHostTelemetryLevel()
+		if (!this.isEnabled() || level === "off") {
 			return
 		}
 
 		// Filter events based on telemetry level
-		if (this.telemetrySettings.level === "error") {
+		if (level === "error") {
 			if (!event.includes("error")) {
 				return
 			}
@@ -120,7 +103,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		const isOptedIn = StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
+		const isOptedIn = isUserTelemetryOptedIn()
 		const wasOptedIn = this.optInCache
 		try {
 			if (isOptedIn && !wasOptedIn) {
@@ -134,11 +117,14 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		}
 		this.optInCache = isOptedIn
 
-		return isOptedIn && this.telemetrySettings.hostEnabled
+		return isTelemetryExportAllowed(false)
 	}
 
 	public getSettings(): TelemetrySettings {
-		return { ...this.telemetrySettings }
+		return {
+			hostEnabled: isHostTelemetryEnabled(),
+			level: getHostTelemetryLevel(),
+		}
 	}
 
 	/**
@@ -210,16 +196,5 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 				Logger.error("Error shutting down PostHog client:", error)
 			}
 		}
-	}
-
-	/**
-	 * Get the current telemetry level from VS Code settings
-	 */
-	private async getTelemetryLevel(): Promise<TelemetrySettings["level"]> {
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			return "off"
-		}
-		return getErrorLevelFromString(hostSettings.errorLevel)
 	}
 }

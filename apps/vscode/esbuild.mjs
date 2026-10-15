@@ -109,37 +109,31 @@ if (process.env.ERROR_SERVICE_API_KEY) {
 	buildEnvVars["process.env.ERROR_SERVICE_API_KEY"] = JSON.stringify(process.env.ERROR_SERVICE_API_KEY)
 }
 
-// OpenTelemetry configuration (injected at build time from GitHub secrets)
-// These provide production defaults that can be overridden at runtime via environment variables
-if (process.env.OTEL_TELEMETRY_ENABLED) {
-	buildEnvVars["process.env.OTEL_TELEMETRY_ENABLED"] = JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED)
+// OpenTelemetry build-time configuration (injected from GitHub secrets in the
+// publish workflows). The OTEL_* family is strictly build-time: every variable
+// is ALWAYS inlined — as "" when unset — so dev and prod bundles have identical
+// semantics and a user's runtime OTEL_* environment can never leak into either
+// pipeline. Runtime overrides/debugging use the CLINE_OTEL_* family, which is
+// read live from the environment (see shared/services/config/otel-config.ts).
+for (const otelVar of [
+	"OTEL_TELEMETRY_ENABLED",
+	"OTEL_LOGS_EXPORTER",
+	"OTEL_METRICS_EXPORTER",
+	"OTEL_TRACES_EXPORTER",
+	"OTEL_EXPORTER_OTLP_PROTOCOL",
+	"OTEL_EXPORTER_OTLP_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_HEADERS",
+	"OTEL_METRIC_EXPORT_INTERVAL",
+]) {
+	buildEnvVars[`process.env.${otelVar}`] = JSON.stringify(process.env[otelVar] || "")
 }
-if (process.env.OTEL_LOGS_EXPORTER) {
-	buildEnvVars["process.env.OTEL_LOGS_EXPORTER"] = JSON.stringify(process.env.OTEL_LOGS_EXPORTER)
-}
-if (process.env.OTEL_METRICS_EXPORTER) {
-	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
-}
-if (process.env.OTEL_TRACES_EXPORTER) {
-	buildEnvVars["process.env.OTEL_TRACES_EXPORTER"] = JSON.stringify(process.env.OTEL_TRACES_EXPORTER)
-}
+// Trace sampling/content knobs are build-time defaults that the trace relay
+// reads via process.env; inlined only when set, as the CLI build does.
 if (process.env.CLINE_TRACE_SAMPLE_PERCENT) {
 	buildEnvVars["process.env.CLINE_TRACE_SAMPLE_PERCENT"] = JSON.stringify(process.env.CLINE_TRACE_SAMPLE_PERCENT)
 }
 if (process.env.CLINE_TRACE_RECORD_CONTENT) {
 	buildEnvVars["process.env.CLINE_TRACE_RECORD_CONTENT"] = JSON.stringify(process.env.CLINE_TRACE_RECORD_CONTENT)
-}
-if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
-	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)
-}
-if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
-	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_ENDPOINT"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_ENDPOINT)
-}
-if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {
-	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_HEADERS"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS)
-}
-if (process.env.OTEL_METRIC_EXPORT_INTERVAL) {
-	buildEnvVars["process.env.OTEL_METRIC_EXPORT_INTERVAL"] = JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL)
 }
 // Base configuration shared between extension and standalone builds
 const baseConfig = {
