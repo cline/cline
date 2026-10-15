@@ -18,14 +18,25 @@ describe("explicit MCP OAuth authorization", () => {
 		);
 	});
 
-	async function fixture() {
+	async function fixture(
+		config: {
+			headers?: Record<string, string>;
+			redirect?: "register" | "token";
+		} = {},
+	) {
 		const root = await mkdtemp(join(tmpdir(), "mcp-authorization-"));
 		roots.push(root);
 		const filePath = join(root, "settings.json");
 		await writeFile(
 			filePath,
 			JSON.stringify({
-				mcpServers: { remote: { type: "streamableHttp", url: resource } },
+				mcpServers: {
+					remote: {
+						type: "streamableHttp",
+						url: resource,
+						headers: config.headers,
+					},
+				},
 			}),
 		);
 		const portServer = createServer();
@@ -50,6 +61,8 @@ describe("explicit MCP OAuth authorization", () => {
 		let refreshes = 0;
 		let opened = 0;
 		let closed = 0;
+		let escaped = 0;
+		let gatewayRequests = 0;
 		const fetchFixture: FetchLike = async (input, init) => {
 			const url = new URL(
 				input instanceof Request ? input.url : input.toString(),
@@ -59,6 +72,35 @@ describe("explicit MCP OAuth authorization", () => {
 					status,
 					headers: { "content-type": "application/json" },
 				});
+			const headers = new Headers(
+				init?.headers ?? (input instanceof Request ? input.headers : undefined),
+			);
+			if (url.origin === "https://redirect.example.test") {
+				escaped++;
+				throw new Error("Cross-origin redirect reached destination");
+			}
+			if (config.headers) {
+				if (url.origin === new URL(resource).origin) {
+					expect(headers.get("x-tenant")).toBe("fixture-tenant");
+					gatewayRequests++;
+				} else {
+					expect(headers.has("x-tenant")).toBe(false);
+				}
+			}
+			if (url.pathname === "/register" || url.pathname === "/token") {
+				expect(headers.get("content-type")).toBe(
+					url.pathname === "/register"
+						? "application/json"
+						: "application/x-www-form-urlencoded",
+				);
+				if (url.pathname === `/${config.redirect}`) {
+					expect(init?.redirect).toBe("manual");
+					return new Response(null, {
+						status: 307,
+						headers: { location: "https://redirect.example.test/receive" },
+					});
+				}
+			}
 			if (url.pathname.includes("oauth-protected-resource"))
 				return json({ resource, authorization_servers: [issuer] });
 			if (url.origin === issuer && url.pathname.includes(".well-known")) {
@@ -137,6 +179,7 @@ describe("explicit MCP OAuth authorization", () => {
 			releaseMetadata,
 			metadataRequested,
 			counts: () => ({ tokenExchanges, refreshes, opened, closed }),
+			headerCounts: () => ({ escaped, gatewayRequests }),
 			options: {
 				serverName: "remote",
 				filePath,
@@ -196,6 +239,43 @@ describe("explicit MCP OAuth authorization", () => {
 			await result.catch(() => {});
 		}
 	});
+
+	it("requires configured gateway headers only on the MCP origin", async () => {
+		const f = await fixture({
+			headers: {
+				"X-Tenant": "fixture-tenant",
+				"Content-Type": "application/vnd.gateway+json",
+			},
+		});
+		f.releaseMetadata();
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.counts()).toMatchObject({
+			tokenExchanges: 1,
+			opened: 1,
+			closed: 1,
+		});
+		expect(f.headerCounts().gatewayRequests).toBeGreaterThan(1);
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.counts().refreshes).toBe(1);
+	});
+
+	it.each(["register", "token"] as const)(
+		"rejects cross-origin %s redirects without forwarding requests",
+		async (redirect) => {
+			const f = await fixture({
+				headers: { "X-Tenant": "fixture-tenant" },
+				redirect,
+			});
+			f.releaseMetadata();
+			await expect(authorizeMcpServerOAuth(f.options)).rejects.toThrow();
+			expect(f.headerCounts().escaped).toBe(0);
+			expect(f.counts().closed).toBe(1);
+		},
+	);
 
 	it("cancels delayed metadata discovery and closes the callback listener", async () => {
 		const f = await fixture();

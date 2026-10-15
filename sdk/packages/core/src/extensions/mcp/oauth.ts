@@ -652,13 +652,37 @@ export async function authorizeMcpServerOAuth(
 		registration.timeoutSeconds,
 	);
 
+	const configuredOrigin = new URL(registration.transport.url).origin;
+	const configuredHeaders = resolveConfiguredMcpHeaders({
+		headers: registration.transport.headers,
+		restrictConfiguredHeadersToOrigin: true,
+	});
+	// SDK transport base headers also reach OAuth endpoints; authFetch owns their origin scope.
+	const authorizationRegistration = {
+		...registration,
+		transport: { ...registration.transport, headers: undefined },
+	};
+
 	const authFetch: FetchLike = (input, init) => {
 		const signals = [AbortSignal.timeout(requestTimeoutMs)];
 		if (options.signal) signals.push(options.signal);
 		if (init?.signal) signals.push(init.signal);
 		if (input instanceof Request) signals.push(input.signal);
+		const requestUrl = new URL(
+			input instanceof Request ? input.url : input.toString(),
+		);
+		const headers = new Headers(
+			requestUrl.origin === configuredOrigin ? configuredHeaders : undefined,
+		);
+		const requestHeaders = new Headers(
+			init?.headers ?? (input instanceof Request ? input.headers : undefined),
+		);
+		requestHeaders.forEach((value, name) => {
+			headers.set(name, value);
+		});
 		return (options.fetch ?? fetch)(input, {
 			...init,
+			headers,
 			signal: AbortSignal.any(signals),
 		});
 	};
@@ -700,7 +724,7 @@ export async function authorizeMcpServerOAuth(
 	let retryClient: Client | undefined;
 	try {
 		const transport = createMcpSdkTransport({
-			registration,
+			registration: authorizationRegistration,
 			oauthProvider: oauthContext.provider,
 			fetch: authFetch,
 		});
@@ -763,7 +787,7 @@ export async function authorizeMcpServerOAuth(
 		await transport.finishAuth(callback.code);
 		retryClient = buildClient(options);
 		const retryTransport = createMcpSdkTransport({
-			registration,
+			registration: authorizationRegistration,
 			oauthProvider: oauthContext.provider,
 			fetch: authFetch,
 		});
