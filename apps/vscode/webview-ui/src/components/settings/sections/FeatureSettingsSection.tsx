@@ -155,6 +155,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled,
 		backgroundEditEnabled,
 		showFeatureTips,
+		cloudSessionsAvailable,
+		cloudSessionsEnabled,
 	} = useExtensionState()
 
 	// State lookup for mapped features
@@ -222,6 +224,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								description="Cline can still read files anywhere on your computer, but commands can only change files in this project. Recommended if you auto-approve commands or use local models."
 								label="Only allow edits in project directory"
 								onChange={(checked) => updateSetting("keepChangesInProject", checked)}
+							/>
+							<FeatureRow
+								checked={cloudSessionsEnabled}
+								description="Run Cline on your GitHub repositories in secure cloud sandboxes. Adds a Cloud option to the new task composer. Requires a Cline account with GitHub connected."
+								id="cloud-sessions"
+								isVisible={!!cloudSessionsAvailable}
+								label="Cloud"
+								onChange={(checked) => updateSetting("cloudSessionsEnabled", checked)}
 							/>
 						</div>
 					</div>

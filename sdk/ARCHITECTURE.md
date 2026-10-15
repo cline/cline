@@ -615,11 +615,12 @@ Design implications:
 
 #### Plugin execution
 
-Every plugin a session uses goes through one `PluginRegistry` per process
-(`getProcessPluginRegistry()`, `extensions/plugin/plugin-registry.ts`). The
-registry owns status, failure counting, timeouts, the session policy, and
-reload; the execution mode (`CLINE_PLUGIN_MODE`, `resolvePluginExecutionMode`)
-only decides where a session's copy of a plugin runs:
+Plugin code never runs on a host's main thread. Every plugin a session uses
+goes through one `PluginRegistry` per process (`getProcessPluginRegistry()`,
+`extensions/plugin/plugin-registry.ts`). The registry owns status, failure
+counting, timeouts, the session policy, and reload; the execution mode
+(`CLINE_PLUGIN_MODE`, `resolvePluginExecutionMode`) only decides which
+isolated transport a session's copy of a plugin runs in:
 
 - `worker` (default): each plugin runs in its own worker thread per session
   (`WorkerSandbox`), so the host never imports plugin code. The copy the
@@ -632,26 +633,22 @@ only decides where a session's copy of a plugin runs:
   terminates its worker, which stops synchronous loops; the next call starts a
   fresh worker. Released copies end their worker, which stops everything the
   plugin started.
-- `in_process`: the registry imports each copy into the host with jiti. The
-  first session claims the copy imported at startup, and later sessions
-  re-evaluate the module (reusing jiti's transform cache).
 - `sandbox`: the previous per-session `node`/`bun` subprocess. It bypasses the
   registry (no status, policy, or reload) and is kept as an escape hatch.
 
 Plugins written for the per-session sandbox keep state at module level, often
-one plugin object per import that refuses a second `setup()`, so every mode
-gives each session its own copy. The session bootstrap, plugin tool listing
+one plugin object per import that refuses a second `setup()`, so both modes
+give each session its own copy. The session bootstrap, plugin tool listing
 (`listPluginToolsWithDiagnostics`), plugin MCP settings sync, and plugin slash
-commands all load through the registry, so they see the same mode. Neither
-`worker` nor `in_process` starts a child process, so plugins work in the
-compiled CLI, the Hub it starts, the desktop app, and VS Code/Electron without
-a runtime on `PATH`, and plugins can use the host runtime's globals (`Bun`
-under the Bun-built Hub, including inside a Bun worker).
+commands all load through the registry, so they see the same mode. Worker mode
+starts no child process, so plugins work in the compiled CLI, the Hub it
+starts, the desktop app, the SSH remote host, and VS Code/Electron without a
+runtime on `PATH`, and plugins can use the host runtime's globals (`Bun` under
+the Bun-built Hub, including inside a Bun worker).
 
 In the Hub daemon the registry is Hub-owned: the daemon checks global and
-workspace plugins at startup (in throwaway workers in `worker` mode, by
-importing them in `in_process` mode) so status is known before any session
-exists.
+workspace plugins at startup in throwaway workers so status is known before
+any session exists.
 
 Each session gets its own guarded view of the plugins it enabled:
 
@@ -738,16 +735,9 @@ Status is surfaced, never only logged:
   cache is keyed on each plugin's registry status, so a plugin a running
   session turned off is never answered from an earlier clean inspection.
 
-In `in_process` mode the daemon's `uncaughtException` / `unhandledRejection`
-handlers first ask the registry to attribute the error: when its stack points
-into a known plugin root (the package directory for package plugins, the file
-itself for drop-in files), that plugin is marked `failed` and the Hub keeps
-running. Other errors still go to `shutdownFatal`, which is the accepted risk of
-that mode: `process.exit()` from a plugin, or a rejection raised by runtime
-internals with no plugin frame (an un-caught `fetch()`), ends the Hub. Plugins
-also share the process (globals, `process.env`, native resources), and a
-plugin stuck in a synchronous loop freezes the Hub until it returns. Worker
-mode exists to remove these risks.
+Because no plugin code runs on the daemon's thread, its `uncaughtException` /
+`unhandledRejection` handlers treat every error as the daemon's own and go to
+`shutdownFatal`; there is no stack attribution to plugins.
 
 #### Worker and subprocess transports
 
@@ -770,10 +760,14 @@ imports anything but Node builtins, because hosts ship it without
 
 Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
 or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop sidecar
-sets it to the copy shipped as a Tauri resource). A host that ships none
-cannot start workers, and `resolvePluginExecutionMode` falls back to
-`in_process`.
+(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop
+sidecar sets it to the copy shipped as a Tauri resource). A host that ships
+none cannot run plugins at all: every load fails with
+`PluginBootstrapMissingError`, which names the env var, rather than
+importing plugin code into the host. The SSH remote host is in that state
+today: since #14792 it is the bundled Cline CLI uploaded as a single file
+with no bootstrap beside it, so plugins fail on remotes until the remote
+runtime carries one.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -1055,7 +1049,7 @@ completed turn. Report and cleanup failures are logged separately.
 **I want to understand the agent loop and tool execution:**
 - Start: `packages/agents/src/agent.ts` — the stateless runtime loop
 - Then: `packages/agents/src/agent-step.ts` — individual iteration steps
-- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery, the in-process registry, and the opt-in sandbox
+- Extensions: `packages/core/src/extensions/plugin/` — plugin discovery, the registry, and the worker/subprocess transports
 
 **I want to understand session persistence and state:**
 - Start: `packages/core/src/runtime/host/local-runtime-host.ts` — local session lifecycle

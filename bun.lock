@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.70",
+      "version": "3.0.71",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "dependencies": {
         "@ai-sdk/gateway": "^4.0.98",
         "@ai-sdk/openai": "^4.0.79",
@@ -363,7 +363,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "4.1.23",
+      "version": "4.1.24",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@bufbuild/protobuf": "^2.2.5",
@@ -472,6 +472,7 @@
         "@types/sinon": "^21.0.0",
         "@types/turndown": "^5.0.5",
         "@types/vscode": "1.101.0",
+        "@types/ws": "^8.18.1",
         "@vscode/test-cli": "^0.0.12",
         "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^3.6.0",
@@ -498,6 +499,7 @@
         "tsconfig-paths": "^4.2.0",
         "typescript": "^5.4.5",
         "vitest": "^4.0.17",
+        "ws": "^8.20.0",
       },
     },
     "apps/vscode-rollout": {
@@ -643,7 +645,7 @@
     },
     "sdk/packages/agents": {
       "name": "@cline/agents",
-      "version": "0.0.92",
+      "version": "0.0.93",
       "dependencies": {
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
@@ -652,7 +654,7 @@
     },
     "sdk/packages/core": {
       "name": "@cline/core",
-      "version": "0.0.92",
+      "version": "0.0.93",
       "dependencies": {
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -669,9 +671,12 @@
         "@opentelemetry/sdk-trace-base": "^2.6.1",
         "@opentelemetry/sdk-trace-node": "^2.6.1",
         "@opentelemetry/semantic-conventions": "^1.40.0",
+        "http-proxy-agent": "^7.0.2",
+        "https-proxy-agent": "^7.0.6",
         "jiti": "^2.7.0",
         "nanoid": "^5.1.7",
         "node-machine-id": "^1.1.12",
+        "proxy-from-env": "^2.1.0",
         "simple-git": "3.36.0",
         "ws": "^8.20.0",
         "yaml": "^2.8.2",
@@ -679,6 +684,7 @@
       },
       "devDependencies": {
         "@microsoft/mxc-sdk": "^1.0.0",
+        "@types/proxy-from-env": "^1.0.4",
         "@types/ws": "^8.18.1",
         "posthog-node": "^5.8.0",
       },
@@ -693,7 +699,7 @@
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
-      "version": "0.0.92",
+      "version": "0.0.93",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^5.0.98",
         "@ai-sdk/anthropic": "^4.0.67",
@@ -742,14 +748,14 @@
     },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
-      "version": "0.0.92",
+      "version": "0.0.93",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
     "sdk/packages/shared": {
       "name": "@cline/shared",
-      "version": "0.0.92",
+      "version": "0.0.93",
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",
@@ -2689,6 +2695,8 @@
     "@types/picomatch": ["@types/picomatch@4.0.3", "", {}, "sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ=="],
 
     "@types/prop-types": ["@types/prop-types@15.7.15", "", {}, "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw=="],
+
+    "@types/proxy-from-env": ["@types/proxy-from-env@1.0.4", "", { "dependencies": { "@types/node": "*" } }, "sha512-TPR9/bCZAr3V1eHN4G3LD3OLicdJjqX1QRXWuNcCYgE66f/K8jO2ZRtHxI2D9MbnuUP6+qiKSS8eUHp6TFHGCw=="],
 
     "@types/react": ["@types/react@19.2.14", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w=="],
 

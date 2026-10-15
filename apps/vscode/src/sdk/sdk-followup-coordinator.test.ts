@@ -34,9 +34,13 @@ describe("SdkFollowupCoordinator", () => {
 		const { coordinator, options } = makeCoordinator()
 		options.interactions.resolvePendingAskQuestion.mockReturnValue(true)
 
-		await coordinator.askResponse("answer")
+		await coordinator.askResponse("answer", ["data:image/png;base64,abc"], ["/workspace/spec.md"])
 
-		expect(options.interactions.resolvePendingAskQuestion).toHaveBeenCalledWith("answer")
+		expect(options.interactions.resolvePendingAskQuestion).toHaveBeenCalledWith(
+			"answer",
+			["data:image/png;base64,abc"],
+			["/workspace/spec.md"],
+		)
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 

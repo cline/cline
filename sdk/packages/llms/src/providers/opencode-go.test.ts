@@ -243,7 +243,9 @@ describe("OpenCode Go HTTP integration", () => {
 				expect.objectContaining({ type: "finish", reason: "stop" }),
 			);
 			const [url, init] = fetchMock.mock.calls.at(-1) ?? [];
-			expect(String(url)).toBe(`https://opencode.ai/zen/go/v1/${endpoint}`);
+			expect(String(url)).toBe(
+				`https://opencode.ai/inference/go/v1/${endpoint}`,
+			);
 			const headers = new Headers(init?.headers);
 			expect(headers.get("x-opencode-session")).toBe(sessionId);
 			expect(headers.get("user-agent")).toContain("Cline/");
