@@ -124,6 +124,7 @@ import {
 	getEnvironmentContexts,
 	getRuntimeBinding,
 	getSharedHubClient,
+	getSidecarContextOwner,
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
@@ -1891,6 +1892,8 @@ export async function handleCommand(
 		void getBackendInitialization(ctx).start();
 		return getBackendInitialization(ctx).state;
 	}
+	if (command === "get_hub_build_mismatch")
+		return getSidecarContextOwner(ctx).hubBuildMismatch;
 	const explicitEnvironment = requestedEnvironmentId(args);
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);

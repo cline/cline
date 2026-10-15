@@ -95,7 +95,9 @@ startup diagnostics and Retry. The loader contains only a spinner and current
 status (or failure diagnostics), without workspace controls or an artificial delay.
 Previously mounted screens stay hidden and inert
 during recovery to preserve drafts and attachments. Remote connections happen
-on demand after this local readiness gate.
+on demand after this local readiness gate. Because app screens mount only after
+that gate, the Hub update dialog reads the cached mismatch with
+`get_hub_build_mismatch` instead of relying on the replay sent at connection.
 
 ## Directory Structure
 

@@ -33,6 +33,21 @@ beforeEach(() => {
 	upgradeManagedHubMock.mockReset();
 });
 
+describe("get_hub_build_mismatch command", () => {
+	it("returns the cached mismatch for webviews that subscribe after the replay", async () => {
+		const { handleCommand } = await import("./commands");
+		const ctx = createContext();
+
+		await expect(handleCommand(ctx, "get_hub_build_mismatch")).resolves.toBe(
+			ctx.hubBuildMismatch,
+		);
+		ctx.hubBuildMismatch = null;
+		await expect(
+			handleCommand(ctx, "get_hub_build_mismatch"),
+		).resolves.toBeNull();
+	});
+});
+
 describe("hub_upgrade command", () => {
 	it("rejects connections without the approval token, before touching the hub", async () => {
 		const { handleCommand } = await import("./commands");

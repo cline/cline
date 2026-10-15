@@ -100,7 +100,9 @@ export function HubUpdateRequiredDialog() {
 	const updateStatus = useAppUpdateStatus();
 
 	useEffect(() => {
-		return desktopClient.subscribe("hub_build_mismatch", (payload) => {
+		let cancelled = false;
+		let eventReceived = false;
+		const applyMismatch = (payload: unknown) => {
 			// A null broadcast means the mismatch was resolved (the Hub was
 			// upgraded, possibly from another window): close the dialog.
 			if (payload === null) {
@@ -124,7 +126,28 @@ export function HubUpdateRequiredDialog() {
 			setDismissedKey((previous) =>
 				retainDismissalForIncomingMismatch(previous, mismatchKeyOf(incoming)),
 			);
-		});
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"hub_build_mismatch",
+			(payload) => {
+				eventReceived = true;
+				applyMismatch(payload);
+			},
+		);
+		// This dialog mounts only after startup readiness, so the replay sent
+		// when the transport connected may already have been dropped.
+		void desktopClient
+			.invoke<HubBuildMismatchPayload | null>("get_hub_build_mismatch")
+			.then((cached) => {
+				if (!cancelled && !eventReceived && cached) applyMismatch(cached);
+			})
+			.catch(() => {
+				// Live broadcasts still apply if the cached read fails.
+			});
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, []);
 
 	const mismatchKey = mismatch ? mismatchKeyOf(mismatch) : null;
