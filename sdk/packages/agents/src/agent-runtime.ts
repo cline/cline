@@ -123,11 +123,16 @@ export const CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE =
 
 /** Thrown when overflow recovery cannot proceed; carries the terminal text. */
 class ContextWindowOverflowError extends Error {
-	constructor(message: string, providerError: string | undefined) {
+	constructor(
+		message: string,
+		providerError: string | undefined,
+		readonly modelFailure: AgentModelFailure | undefined,
+	) {
 		super(
 			providerError?.trim()
 				? `${message} (provider reported: ${providerError.trim()})`
 				: message,
+			{ cause: modelFailure?.cause },
 		);
 		this.name = "ContextWindowOverflowError";
 	}
@@ -1035,8 +1040,12 @@ export class AgentRuntime {
 						? this.state.lastErrorClass
 						: undefined;
 			// Retain provider details only when this is the failure that ended the run.
-			if (normalized.message !== this.state.lastError)
-				this.state.lastModelFailure = undefined;
+			this.state.lastModelFailure =
+				normalized instanceof ContextWindowOverflowError
+					? normalized.modelFailure
+					: normalized.message === this.state.lastError
+						? this.state.lastModelFailure
+						: undefined;
 			this.state.status = status;
 			this.state.lastError = normalized.message;
 			this.state.lastErrorClass = errorClass;
@@ -1370,6 +1379,7 @@ export class AgentRuntime {
 			throw new ContextWindowOverflowError(
 				CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE,
 				providerError,
+				this.state.lastModelFailure,
 			);
 		}
 		await this.emit({
@@ -1394,6 +1404,7 @@ export class AgentRuntime {
 			throw new ContextWindowOverflowError(
 				CONTEXT_WINDOW_OVERFLOW_RECOVERY_FAILED_MESSAGE,
 				this.state.lastError,
+				this.state.lastModelFailure,
 			);
 		}
 		return retry;
@@ -2266,6 +2277,7 @@ export class AgentRuntime {
 				throw new ContextWindowOverflowError(
 					CONTEXT_WINDOW_OVERFLOW_NOTHING_TO_COMPACT_MESSAGE,
 					this.state.lastError,
+					this.state.lastModelFailure,
 				);
 			}
 		}

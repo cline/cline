@@ -4612,6 +4612,102 @@ describe("AgentRuntime", () => {
 
 describe("AgentRuntime sdk.error reporting", () => {
 	it.each([
+		"disabled",
+		"nothing-to-compact",
+		"still-overflowing",
+	] as const)("preserves provider details when overflow recovery is %s", async (recovery) => {
+		const { telemetry, capture } = createTelemetryMock();
+		const causes = [1, 2].map((attempt) =>
+			Object.assign(new Error(`prompt is too long (attempt ${attempt})`), {
+				statusCode: 400,
+				code: "context_length_exceeded",
+				isRetryable: false,
+			}),
+		);
+		let calls = 0;
+		const gateway = createGateway({
+			builtins: false,
+			telemetry,
+			providers: [
+				{
+					manifest: {
+						id: "overflow",
+						name: "Overflow",
+						defaultModelId: "test",
+						models: [{ id: "test", name: "Test", providerId: "overflow" }],
+					},
+					createProvider: async () => ({
+						async *stream() {
+							const cause = causes[calls++];
+							yield {
+								type: "finish",
+								reason: "error",
+								failure: {
+									message: cause.message,
+									diagnosticMessage: cause.message,
+									cause,
+									classification: "context_window_exceeded",
+									retryable: false,
+									context: {
+										errorPhase: "stream_callback",
+										aiSdkCallId: `call-${calls}`,
+										requestId: `request-${calls}`,
+									},
+								},
+							} satisfies AgentModelEvent;
+						},
+					}),
+				},
+			],
+		});
+		const runtime = new AgentRuntime({
+			model: gateway.createAgentModel({
+				providerId: "overflow",
+				modelId: "test",
+			}),
+			telemetry,
+			...(recovery === "disabled"
+				? {}
+				: {
+						prepareTurn: async (context: { overflowRecovery?: boolean }) =>
+							recovery === "still-overflowing" && context.overflowRecovery
+								? {
+										messages: [
+											{
+												role: "user" as const,
+												content: [{ type: "text" as const, text: "compacted" }],
+											},
+										],
+									}
+								: undefined,
+					}),
+		});
+		const result = await runtime.run("long context ".repeat(100));
+		const expectedCalls = recovery === "still-overflowing" ? 2 : 1;
+		expect(calls).toBe(expectedCalls);
+		expect(result.status).toBe("failed");
+		expect(result.error?.name).toBe("ContextWindowOverflowError");
+		expect(result.error?.message).toContain("context window");
+		expect(result.error?.message).toContain(
+			`provider reported: ${causes[expectedCalls - 1].message}`,
+		);
+		expect(result.error?.cause).toBe(causes[expectedCalls - 1]);
+		const errors = sdkErrorEvents(capture);
+		expect(errors).toHaveLength(1);
+		expect(errors[0].properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			error_message: causes[expectedCalls - 1].message,
+			error_type: "Error",
+			error_status: 400,
+			error_code: "context_length_exceeded",
+			error_retryable: false,
+			errorPhase: "stream_callback",
+			aiSdkCallId: `call-${expectedCalls}`,
+			requestId: `request-${expectedCalls}`,
+		});
+	});
+	it.each([
 		"agent",
 		"standalone",
 	])("gives the %s operation sole ownership of gateway failures", async (owner) => {
