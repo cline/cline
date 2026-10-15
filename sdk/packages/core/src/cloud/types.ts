@@ -10,6 +10,9 @@ export type CloudCreationOptions = Pick<
 	CreateCloudSessionInput,
 	"autoApproveTools" | "thinking" | "reasoningEffort"
 >;
+export type CloudSendLifecycle = {
+	beforeDispatch?: () => void;
+};
 export type CloudHandoffSeed = {
 	sourceSessionId: string;
 	messages: MessageWithMetadata[];

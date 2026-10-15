@@ -57,6 +57,10 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+The optional sixth argument to `send` exposes `beforeDispatch` for durable host
+recovery. A failed `beforeDispatch` callback prevents submission. A successful
+return without `recoveredAfterDisconnect` confirms the send acknowledgement;
+`run.started` alone does not confirm admission.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
