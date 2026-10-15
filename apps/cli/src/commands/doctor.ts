@@ -8,7 +8,6 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	readSupersededHubDiscovery,
-	resolveClineDataDir,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
@@ -22,7 +21,7 @@ import {
 import { Command } from "commander";
 import { version as cliVersion } from "../../package.json";
 import { isProcessRunning } from "../connectors/common";
-import { getCliBuildInfo } from "../utils/common";
+import { resolveCliLogPath } from "../logging/log-path";
 import open from "../utils/open";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
@@ -201,11 +200,6 @@ function listMatchingProcesses(pattern: string): ProcessRecord[] {
 	return [...records.values()].sort((a, b) => a.pid - b.pid);
 }
 
-function resolveCliLogPath(): string {
-	const { name } = getCliBuildInfo();
-	return join(resolveClineDataDir(), "logs", `${name}.log`);
-}
-
 async function defaultOpenPath(target: string): Promise<void> {
 	await open(target, { wait: false });
 }
@@ -265,10 +259,13 @@ function listStaleSidecarPids(): number[] {
 	const patterns = [
 		"/apps/examples/desktop-app/sidecar/index.ts",
 		"/apps/examples/desktop-app/dist/sidecar/index.js",
+		// The packaged desktop backend runs on the bundled Cline CLI.
+		"/bin/desktop-backend/index.js",
 		// Keep the pre-example-reorg paths so `doctor --fix` can still clean up
 		// stale sidecars that were launched from older checkouts.
 		"/apps/code/sidecar/index.ts",
 		"/apps/code/dist/sidecar/index.js",
+		// Backend executable of earlier desktop releases.
 		"/src-tauri/bin/code-sidecar",
 		"/Resources/code-sidecar",
 		" code-sidecar",

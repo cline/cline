@@ -8,6 +8,7 @@ import {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -40,12 +41,17 @@ export interface TelemetryAgentIdentityProperties {
 }
 
 export const CORE_TELEMETRY_EVENTS = {
+	SCHEDULE: {
+		RUN_STARTED: "schedule.run_started",
+		RUN_FINISHED: "schedule.run_finished",
+	},
 	CLIENT: {
 		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
 	SESSION: {
 		STARTED: "session.started",
 		ENDED: "session.ended",
+		ERROR_RECORDED: "session.error_recorded",
 	},
 	AGENT: {
 		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
@@ -64,6 +70,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		CREATED: "task.created",
 		RESTARTED: "task.restarted",
 		COMPLETED: "task.completed",
+		GIT_SNAPSHOT: "task.git_snapshot",
 		CONVERSATION_TURN: "task.conversation_turn",
 		TOKEN_USAGE: "task.tokens",
 		MODE_SWITCH: "task.mode",
@@ -76,6 +83,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
 		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
 		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
+		MAX_TOKENS_RECOVERY: TASK_MAX_TOKENS_RECOVERY_EVENT,
 		CANCELLED: TASK_CANCELLED_EVENT,
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
@@ -90,6 +98,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
+		DETACHED_RUNTIME: "hooks.detached_runtime",
 	},
 	WORKSPACE: {
 		INITIALIZED: "workspace.initialized",
@@ -129,6 +138,53 @@ export {
 	type CaptureAgentUnexpectedReasoningTokensInput,
 	type CaptureTaskLifecycleEventInput,
 };
+
+export interface GitSnapshotProperties {
+	schema_version: 1;
+	/** Actual Core session ID; ulid duplicates it for existing export consumers. */
+	sessionId: string;
+	ulid: string;
+	providerId: string;
+	workspace_id: string;
+	/** VS Code workspace-folder count at observation start, not Git repo count; 0 with no folders, even outside Git. */
+	workspace_root_count: number;
+	observation_window_id: string;
+	observation_sequence: number;
+	/** ISO observation-start time, after the model response. Git reads are not atomic. */
+	observed_at: string;
+	/** Background observation triggered by this response; tools may execute during the read. */
+	boundary: "model_call";
+	runId?: string;
+	iteration?: number;
+	agentId?: string;
+	/** Surfaced response's backend ID, when available; never synthesized or inherited from an earlier request. */
+	request_id?: string;
+	request_id_status: "present" | "missing";
+	git: {
+		/** partial: status hit its timeout/output cap but separate reads recovered HEAD and/or branch. */
+		state: "ok" | "unborn" | "non_git" | "unavailable" | "partial";
+		head_sha?: string;
+		branch?: string;
+		/** Any staged/unstaged/untracked changes. All four flags are absent for partial/non_git/unavailable, not false. */
+		dirty?: boolean;
+		/** Index changes, including unmerged entries; does not imply commit readiness. */
+		staged?: boolean;
+		/** Worktree changes, including unmerged entries. */
+		unstaged?: boolean;
+		/** Non-ignored untracked files. */
+		untracked?: boolean;
+		remote_url?: string;
+		remote_state?: "ok" | "none" | "unsupported" | "unavailable";
+	};
+}
+
+/** Ordinary telemetry: use a consent-aware service, never captureRequired. */
+export function captureGitSnapshot(
+	telemetry: ITelemetryService | undefined,
+	properties: GitSnapshotProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT, { ...properties });
+}
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
@@ -391,12 +447,35 @@ export function identifyAccount(
 	});
 }
 
+/**
+ * Restore anonymous process identity after an account signs out.
+ *
+ * Account properties are explicitly set to undefined so they replace values
+ * previously merged into a long-lived telemetry service. Implementations
+ * remove undefined attributes before export.
+ */
+export function clearAccountTelemetryIdentity(
+	telemetry: ITelemetryService | undefined,
+	anonymousDistinctId?: string,
+): void {
+	telemetry?.setDistinctId(anonymousDistinctId?.trim() || undefined);
+	telemetry?.updateCommonProperties({
+		user_id: undefined,
+		account_id: undefined,
+		account_email: undefined,
+		provider: undefined,
+		organization_id: undefined,
+		organization_name: undefined,
+		member_id: undefined,
+	});
+}
+
 export function captureTaskCreated(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CREATED, properties);
@@ -406,8 +485,8 @@ export function captureTaskRestarted(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
@@ -431,7 +510,7 @@ export function captureTaskCompleted(
 	properties: {
 		ulid: string;
 		provider?: string;
-		modelId?: string;
+		model?: string;
 		mode?: string;
 		durationMs?: number;
 		source?: TaskCompletedSource;
@@ -462,11 +541,14 @@ export function captureTokenUsage(
 		ulid: string;
 		/** Uncached input tokens only — disjoint from the cache buckets. */
 		tokensIn: number;
+		/** Non-reasoning output tokens only — reasoningTokenCount is disjoint from this. */
 		tokensOut: number;
 		cacheWriteTokens?: number;
 		cacheReadTokens?: number;
 		/** This request's cost delta, not a running total. */
 		totalCost?: number;
+		/** Reasoning/thinking tokens for this request, reported separately since they're no longer folded into tokensOut. */
+		reasoningTokenCount?: number;
 		provider?: string;
 		model: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
@@ -726,6 +808,32 @@ export function captureSubagentExecution(
 	);
 }
 
+/**
+ * Records how long a fire-and-forget hook ran. Detached hooks are never
+ * awaited, so their runtime is otherwise invisible — this is the evidence for
+ * whether any of them could safely be made blocking. `exited: false` marks a
+ * censored observation: the hook was still running when the observation
+ * window closed, so treat `durationMs` as a lower bound and count these
+ * separately rather than averaging them in.
+ */
+export function captureDetachedHookRuntime(
+	telemetry: ITelemetryService | undefined,
+	event: {
+		hookName: string;
+		durationMs: number;
+		exitCode: number | null;
+		exited: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.HOOKS.DETACHED_RUNTIME, {
+		hookName: event.hookName,
+		durationMs: event.durationMs,
+		exitCode: event.exitCode ?? undefined,
+		exited: event.exited,
+		timestamp: new Date().toISOString(),
+	});
+}
+
 export function captureHookDiscovery(
 	telemetry: ITelemetryService | undefined,
 	hookName: string,
@@ -854,4 +962,53 @@ export function captureCompactionBudgetEmergency(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/** A terminal failure was recorded as a display-only transcript entry. */
+export function captureSessionErrorRecorded(
+	telemetry: ITelemetryService | undefined,
+	details: {
+		sessionId?: string;
+		provider: string;
+		model: string;
+		source: "result" | "thrown";
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.SESSION.ERROR_RECORDED, details);
+}
+
+/** Bounded scheduler diagnostics; never include prompts, paths, or raw errors. */
+export function captureScheduleRun(
+	telemetry: ITelemetryService | undefined,
+	input: {
+		triggerKind: "one_off" | "schedule" | "event" | "manual" | "retry";
+		attemptCount: number;
+		startDelayMs: number;
+	} & (
+		| { phase: "started" }
+		| {
+				phase: "finished";
+				outcome: "success" | "failed" | "timeout" | "superseded" | "cancelled";
+				durationMs: number;
+		  }
+	),
+): void {
+	try {
+		emit(
+			telemetry,
+			input.phase === "started"
+				? CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_STARTED
+				: CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_FINISHED,
+			{
+				triggerKind: input.triggerKind,
+				attemptCount: input.attemptCount,
+				startDelayMs: input.startDelayMs,
+				...(input.phase === "finished"
+					? { outcome: input.outcome, durationMs: input.durationMs }
+					: {}),
+			},
+		);
+	} catch {
+		// Observability must never prevent scheduled work from running or completing.
+	}
 }

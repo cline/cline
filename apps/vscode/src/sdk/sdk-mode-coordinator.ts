@@ -67,7 +67,6 @@ export interface SdkModeCoordinatorOptions {
 }
 
 export class SdkModeCoordinator {
-	private rebuildInFlight: Promise<void> | undefined
 	/**
 	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
 	 * next outbound message by SdkSessionLifecycle.fireAndForgetSend. Shares the
@@ -111,23 +110,6 @@ export class SdkModeCoordinator {
 		this.modeSwitchNoticeTracker.record(from, to)
 	}
 
-	/**
-	 * Resolves once no mode rebuild is in flight. While a rebuild runs, the
-	 * active session is torn down and replaced (and only marked running after
-	 * the continuation send), so concurrent message paths must wait on this
-	 * instead of treating the gap as "no session" and resuming a parallel
-	 * session that the rebuild would then kill.
-	 */
-	async waitForPendingRebuild(): Promise<void> {
-		while (this.rebuildInFlight) {
-			const current = this.rebuildInFlight
-			await current
-			if (this.rebuildInFlight === current) {
-				this.rebuildInFlight = undefined
-			}
-		}
-	}
-
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
 		if (currentMode === modeToSwitchTo) {
@@ -135,6 +117,11 @@ export class SdkModeCoordinator {
 		}
 
 		const activeSession = this.options.sessions.getActiveSession()
+		// Cloud sessions are Act-only; the webview disables the toggle, this
+		// guards the keyboard shortcut and any other caller.
+		if (activeSession?.sdkHost && "isCloud" in activeSession.sdkHost) {
+			return false
+		}
 		if (activeSession) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the
@@ -192,15 +179,7 @@ export class SdkModeCoordinator {
 			userFiles?: string[]
 		} = {},
 	): Promise<boolean> {
-		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
-		// Expose the full rebuild (teardown, replacement, continuation send) to
-		// waitForPendingRebuild. Errors are handled inside; the barrier only
-		// tracks completion.
-		this.rebuildInFlight = operation.then(
-			() => undefined,
-			() => undefined,
-		)
-		return operation
+		return this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
 	}
 
 	private async performRebuildSessionForMode(

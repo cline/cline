@@ -553,8 +553,15 @@ export const OpenAICompatibleProvider = ({
 
 			{modelConfigurationSelected && (
 				<>
+					{/* Render the in-flight pending override, not the stale resolved
+					    value: fast-foundation checkboxes re-emit programmatic checked
+					    re-syncs as change events, so re-applying the stale value during
+					    the commit round-trip would commit it right back (#13694). */}
 					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
+						checked={
+							selectedModelOverridesRef.current[currentMode].overrides.supportsVision ??
+							!!openAiModelInfo?.supportsImages
+						}
 						onChange={(e: any) => updateModelOverride("supportsVision", e.target.checked === true)}>
 						Supports Images
 					</VSCodeCheckbox>

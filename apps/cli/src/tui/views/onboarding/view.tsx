@@ -8,10 +8,10 @@ import { getOAuthProviderLabel, type OnboardingResult } from "./model";
 import {
 	OnboardingClineModelScreen,
 	OnboardingClinePassSubscriptionScreen,
-	OnboardingCodexCliScreen,
 	OnboardingCustomModelIdScreen,
 	OnboardingDeviceCodeScreen,
 	OnboardingDoneScreen,
+	OnboardingLocalCliScreen,
 	OnboardingMainMenuScreen,
 	OnboardingModelPickerScreen,
 	OnboardingOAuthPendingScreen,
@@ -85,6 +85,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	if (state.step === "byo_apikey") {
 		return (
 			<OnboardingProviderConfigScreen
+				saveError={state.providerSaveError}
 				activeProviderName={state.activeProviderName}
 				compact={compact}
 				contentWidth={contentWidth}
@@ -99,15 +100,17 @@ export function OnboardingView(props: OnboardingViewProps) {
 		);
 	}
 
-	if (state.step === "codex_cli_setup") {
+	if (state.step === "local_cli_setup" && state.localCli) {
 		return (
-			<OnboardingCodexCliScreen
+			<OnboardingLocalCliScreen
+				saveError={state.providerSaveError}
 				activeProviderName={state.activeProviderName}
-				checking={state.codexCliChecking}
+				checking={state.localCliChecking}
+				cli={state.localCli}
 				compact={compact}
 				contentWidth={contentWidth}
 				mouse={mouse}
-				status={state.codexCliStatus}
+				status={state.localCliStatus}
 			/>
 		);
 	}

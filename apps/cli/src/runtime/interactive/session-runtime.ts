@@ -2,6 +2,10 @@ import {
 	type AgentEvent,
 	type AgentHooks,
 	type CheckpointEntry,
+	type CoreSettingsListInput,
+	type CoreSettingsMutationResult,
+	type CoreSettingsSnapshot,
+	type CoreSettingsToggleInput,
 	createSessionCompactionState,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
@@ -24,6 +28,7 @@ import type {
 } from "../../utils/chat-commands";
 import { createRuntimeHooks } from "../../utils/hooks";
 import { setActiveCliSession } from "../../utils/output";
+import { formatPluginIssueWarnings } from "../../utils/plugin-issues";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
@@ -136,6 +141,14 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		for (const message of formatPluginIssueWarnings(started.pluginIssues)) {
+			input.onAgentEvent({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message,
+			});
+		}
 	};
 
 	const ensureSessionManager = async (): Promise<CliCore> => {
@@ -297,6 +310,19 @@ export function createInteractiveSessionRuntime(input: {
 			throw error;
 		});
 		return await startupPromise;
+	};
+
+	const listCoreSettings = async (
+		settingsInput: CoreSettingsListInput,
+	): Promise<CoreSettingsSnapshot> => {
+		const manager = await ensureSessionManager();
+		return await manager.settings.list(settingsInput);
+	};
+	const toggleCoreSettings = async (
+		settingsInput: CoreSettingsToggleInput,
+	): Promise<CoreSettingsMutationResult> => {
+		const manager = await ensureSessionManager();
+		return await manager.settings.toggle(settingsInput);
 	};
 
 	const readCurrentMessages = async (): Promise<CurrentMessagesRead> => {
@@ -883,6 +909,8 @@ export function createInteractiveSessionRuntime(input: {
 
 	return {
 		ensureReady,
+		listCoreSettings,
+		toggleCoreSettings,
 		sendCurrentTurn,
 		updatePendingPrompt,
 		getAccumulatedUsage,

@@ -18,6 +18,7 @@ import {
 	toHubHealthUrl,
 	writeHubDiscovery,
 } from "../discovery";
+import { HubInstanceLock } from "../discovery/instance-lock";
 import {
 	ensureHubWebSocketServer,
 	type HubWebSocketServer,
@@ -343,12 +344,13 @@ describe("hub server startup", () => {
 		}
 	});
 
-	it("releases the listener when discovery publication fails", async () => {
+	it("releases the listener and instance lock when discovery publication fails", async () => {
 		const root = await mkdtemp(join(tmpdir(), "cline-hub-publish-test-"));
 		const discoveryPath = join(root, "discovery.json");
 		// A directory at the destination makes atomic file replacement fail.
 		await mkdir(discoveryPath);
 		const port = await reservePort();
+		const acquireLock = vi.spyOn(HubInstanceLock, "acquire");
 		try {
 			await expect(
 				startHubWebSocketServer({
@@ -375,7 +377,19 @@ describe("hub server startup", () => {
 				});
 			});
 		} finally {
-			await rm(root, { recursive: true, force: true });
+			try {
+				// Startup rejection is bounded, but rollback can still be draining.
+				// Windows cannot unlink SQLite files until the instance lock closes.
+				const acquired = acquireLock.mock.results[0];
+				const lock = acquired?.type === "return" ? acquired.value : undefined;
+				expect(lock).toBeDefined();
+				await vi.waitFor(() => expect(lock?.held).toBe(false), {
+					timeout: 10_000,
+				});
+				await rm(root, { recursive: true, force: true });
+			} finally {
+				acquireLock.mockRestore();
+			}
 		}
 	});
 

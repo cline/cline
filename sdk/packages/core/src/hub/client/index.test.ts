@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import corePackage from "../../../package.json";
 import {
 	HubTransportError,
 	isHubReconnectableTransportError,
@@ -16,6 +17,7 @@ class MockWebSocket {
 	static readonly CLOSED = 3;
 	static instances: MockWebSocket[] = [];
 	static commandPayloads = new Map<string, unknown>();
+	static failNextOpen = false;
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -24,6 +26,11 @@ class MockWebSocket {
 	constructor(public readonly url: string) {
 		MockWebSocket.instances.push(this);
 		queueMicrotask(() => {
+			if (MockWebSocket.failNextOpen) {
+				MockWebSocket.failNextOpen = false;
+				this.emit("error", new Error("connection refused"));
+				return;
+			}
 			this.readyState = MockWebSocket.OPEN;
 			this.emit("open");
 		});
@@ -32,6 +39,7 @@ class MockWebSocket {
 	static reset(): void {
 		MockWebSocket.instances = [];
 		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.failNextOpen = false;
 	}
 
 	send(data: string): void {
@@ -154,6 +162,38 @@ describe("NodeHubClient", () => {
 			vi.unstubAllGlobals();
 		});
 
+		it.each([
+			undefined,
+			"1.2.3",
+		])("registers version %s and process ID", async (clientVersion) => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({
+				url: "ws://127.0.0.1:25463/hub",
+				clientVersion,
+				metadata: { connector: "telegram", version: "invalid", pid: -1 },
+			});
+			try {
+				await client.connect();
+				expect(MockWebSocket.instances[0].sentFrames).toContainEqual(
+					expect.objectContaining({
+						kind: "command",
+						envelope: expect.objectContaining({
+							command: "client.register",
+							payload: expect.objectContaining({
+								metadata: {
+									connector: "telegram",
+									version: clientVersion ?? corePackage.version,
+									pid: process.pid,
+								},
+							}),
+						}),
+					}),
+				);
+			} finally {
+				await client.dispose();
+			}
+		});
+
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 
@@ -219,6 +259,86 @@ describe("NodeHubClient", () => {
 				await client.dispose();
 			} finally {
 				vi.useRealTimers();
+			}
+		});
+
+		it("retries an initial connection failure with an active subscription", async () => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			MockWebSocket.failNextOpen = true;
+
+			try {
+				const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+				client.subscribe(() => {}, { sessionId: "session-1" });
+				await expect(client.connect()).rejects.toMatchObject({
+					code: "hub_connect_failed",
+				});
+
+				await vi.advanceTimersByTimeAsync(251);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				expect(MockWebSocket.instances).toHaveLength(2);
+				expect(client.isConnected()).toBe(true);
+				await client.dispose();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("checks cancellation after reconnect without allocating or sending a command", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			try {
+				await client.connect();
+				MockWebSocket.instances[0].emit("close", { code: 1006, reason: "" });
+				let cancelled = false;
+				const onDispatch = vi.fn();
+				const beforeDispatch = vi.fn(() => {
+					if (cancelled) throw new Error("cancelled");
+				});
+				const command = client.command(
+					"session.send_input",
+					{ prompt: "old" },
+					"task",
+					{
+						beforeDispatch,
+						onDispatch,
+					},
+				);
+				expect(beforeDispatch).not.toHaveBeenCalled();
+				cancelled = true;
+				await expect(command).rejects.toThrow("cancelled");
+				expect(onDispatch).not.toHaveBeenCalled();
+				expect(MockWebSocket.instances[1].sentFrames).not.toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							command: "session.send_input",
+						}),
+					}),
+				);
+				expect(
+					(client as unknown as { pendingReplies: Map<string, unknown> })
+						.pendingReplies.size,
+				).toBe(0);
+				cancelled = false;
+				await expect(
+					client.command("session.send_input", { prompt: "new" }, "task", {
+						beforeDispatch,
+						onDispatch,
+					}),
+				).resolves.toMatchObject({ ok: true });
+				expect(onDispatch).toHaveBeenCalledOnce();
+				expect(MockWebSocket.instances[1].sentFrames).toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							requestId: onDispatch.mock.calls[0][0],
+							command: "session.send_input",
+						}),
+					}),
+				);
+			} finally {
+				await client.dispose();
 			}
 		});
 
@@ -594,10 +714,14 @@ describe("NodeHubClient", () => {
 				cwd: "/tmp/project",
 			});
 
-			await expect(client.command("client.list")).resolves.toMatchObject({
+			const beforeDispatch = vi.fn();
+			await expect(
+				client.command("client.list", undefined, undefined, { beforeDispatch }),
+			).resolves.toMatchObject({
 				ok: true,
 				payload: { clients: [] },
 			});
+			expect(beforeDispatch).toHaveBeenCalledTimes(2);
 			expect(client.getUrl()).toBe(recoveredUrl);
 			await client.dispose();
 		} finally {
@@ -1264,11 +1388,18 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		});
 
 		const { ensureCompatibleLocalHubUrl } = await import(".");
+		const onStartupError = vi.fn();
 
 		await expect(
-			ensureCompatibleLocalHubUrl({ workspaceRoot: "/tmp/project" }),
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				onStartupError,
+			}),
 		).resolves.toBeUndefined();
 		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(onStartupError).toHaveBeenCalledWith(
+			new Error("could not retire stale hub"),
+		);
 	});
 
 	it("resolves managed shared discovery in development builds", async () => {
@@ -1431,5 +1562,44 @@ describe("hasActiveHubSessions", () => {
 				]),
 			),
 		).toBe(false);
+	});
+});
+
+describe("requestHubDrain", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("posts /drain with the reason and no off param by default", async () => {
+		const fetchMock = vi.fn(async (_input: unknown, _init?: unknown) => ({
+			ok: true,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+		const { requestHubDrain } = await import(".");
+
+		await expect(
+			requestHubDrain("ws://127.0.0.1:25463/hub", "token", "upgrade"),
+		).resolves.toBe(true);
+		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(requested.pathname).toBe("/drain");
+		expect(requested.searchParams.get("reason")).toBe("upgrade");
+		expect(requested.searchParams.get("off")).toBeNull();
+	});
+
+	it("sets the off param so a drain can be lifted", async () => {
+		const fetchMock = vi.fn(async (_input: unknown, _init?: unknown) => ({
+			ok: true,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+		const { requestHubDrain } = await import(".");
+
+		await expect(
+			requestHubDrain("ws://127.0.0.1:25463/hub", "token", "upgrade aborted", {
+				off: true,
+			}),
+		).resolves.toBe(true);
+		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(requested.pathname).toBe("/drain");
+		expect(requested.searchParams.get("off")).toBe("1");
 	});
 });

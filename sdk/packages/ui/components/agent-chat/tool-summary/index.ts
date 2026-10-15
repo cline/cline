@@ -14,6 +14,7 @@
 
 import { countDiffLines, makeUnifiedDiff } from "./diff.js";
 import {
+	extractOutputMedia,
 	extractOutputText,
 	isRecord,
 	normalizeValue,
@@ -26,6 +27,7 @@ import {
 	parseSearchInput,
 	parseSpawnAgentInput,
 	parseWebFetchInput,
+	type ToolOutputMedia,
 } from "./parsers.js";
 import { detectLanguage, displayFileName, shortenPath } from "./paths.js";
 import { pluralize, type ToolAggregate, teamSummary } from "./team.js";
@@ -42,6 +44,7 @@ export {
 	type AskQuestionInfo,
 	buildReadFilesKeys,
 	type EditorInfo,
+	extractOutputMedia,
 	extractOutputText,
 	parseApplyPatchInput,
 	parseAskQuestionInput,
@@ -56,6 +59,7 @@ export {
 	type RunCommandsInfo,
 	type SearchInfo,
 	type SpawnAgentInfo,
+	type ToolOutputMedia,
 	type WebFetchInfo,
 } from "./parsers.js";
 export { detectLanguage, displayFileName, shortenPath } from "./paths.js";
@@ -145,6 +149,8 @@ export type ToolSummary = {
 	diff?: { additions: number; deletions: number };
 	/** Human-readable text extracted from the result, when useful. */
 	outputText?: string;
+	/** Validated inline media extracted from the result. */
+	outputMedia: ToolOutputMedia[];
 	/** Error text when the call failed. */
 	errorText?: string;
 };
@@ -404,6 +410,7 @@ export function buildToolSummary(
 			: undefined,
 		items: [],
 		details: [],
+		outputMedia: extractOutputMedia(payload.result),
 	};
 	if (isError) {
 		base.errorText = extractErrorText(payload.result, opts.maxOutputChars);

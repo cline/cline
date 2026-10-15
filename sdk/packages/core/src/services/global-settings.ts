@@ -70,6 +70,7 @@ export const GlobalSettingsSchema = z
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		tools: ModelToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		disabledAgentPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
@@ -84,6 +85,7 @@ export const GlobalSettingsSchema = z
 			disabledTools?: string[];
 			tools?: ModelToolSettings;
 			disabledPlugins?: string[];
+			disabledAgentPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
@@ -112,6 +114,9 @@ export const GlobalSettingsSchema = z
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
 		}
+		if (settings.disabledAgentPlugins?.length) {
+			normalized.disabledAgentPlugins = settings.disabledAgentPlugins;
+		}
 		return normalized;
 	});
 
@@ -130,6 +135,7 @@ interface CachedSettings {
 	mtimeMs: number;
 	size: number;
 	value: GlobalSettings;
+	loadFailed: boolean;
 }
 
 let settingsCache: CachedSettings | undefined;
@@ -151,21 +157,29 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
 	}
+	if (value.disabledAgentPlugins) {
+		Object.freeze(value.disabledAgentPlugins);
+	}
 	return Object.freeze(value);
 }
 
-function loadSettingsFromDisk(filePath: string): GlobalSettings {
+function loadSettingsFromDisk(filePath: string): {
+	value: GlobalSettings;
+	loadFailed: boolean;
+} {
 	let raw: string;
 	try {
 		raw = readFileSync(filePath, "utf8");
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 	try {
 		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
-		return result.success ? result.data : defaultGlobalSettings();
+		return result.success
+			? { value: result.data, loadFailed: false }
+			: { value: defaultGlobalSettings(), loadFailed: true };
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 }
 
@@ -185,10 +199,17 @@ function getCachedSettings(): CachedSettings {
 		return cached;
 	}
 
-	const value = freezeSettings(
-		stats ? loadSettingsFromDisk(filePath) : defaultGlobalSettings(),
-	);
-	settingsCache = { path: filePath, mtimeMs, size, value };
+	const loaded = stats
+		? loadSettingsFromDisk(filePath)
+		: { value: defaultGlobalSettings(), loadFailed: false };
+	const value = freezeSettings(loaded.value);
+	settingsCache = {
+		path: filePath,
+		mtimeMs,
+		size,
+		value,
+		loadFailed: loaded.loadFailed,
+	};
 	return settingsCache;
 }
 
@@ -326,6 +347,14 @@ export function resolveDisabledPluginPaths(
 	);
 }
 
+export function resolveDisabledAgentPluginNames(
+	disabledPluginNames?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(
+		disabledPluginNames ?? readGlobalSettings().disabledAgentPlugins ?? [],
+	);
+}
+
 export function isToolDisabledGlobally(toolName: string): boolean {
 	if (isModelToolName(toolName)) {
 		return !isModelToolEnabledGlobally(toolName);
@@ -338,7 +367,11 @@ function isModelToolName(value: string): value is ConfigurableModelToolName {
 }
 
 export function resolveModelToolSettings(): ModelToolSettings {
-	return readGlobalSettings().tools ?? {};
+	const cached = getCachedSettings();
+	return {
+		web_search: { enabled: !cached.loadFailed },
+		...cached.value.tools,
+	};
 }
 
 export function isModelToolEnabledGlobally(
@@ -433,6 +466,34 @@ export function setDisabledPlugin(
 		disabled.delete(path);
 	}
 	writeGlobalSettings({ ...settings, disabledPlugins: [...disabled] });
+}
+
+export function isAgentPluginDisabledGlobally(pluginName: string): boolean {
+	return resolveDisabledAgentPluginNames().has(pluginName);
+}
+
+export function setDisabledAgentPlugin(
+	pluginName: string,
+	disabledValue: boolean,
+): void {
+	const name = pluginName.trim();
+	if (!name) {
+		return;
+	}
+
+	const settings = readGlobalSettings();
+	const disabled = resolveDisabledAgentPluginNames(
+		settings.disabledAgentPlugins,
+	);
+	if (disabledValue) {
+		disabled.add(name);
+	} else {
+		disabled.delete(name);
+	}
+	writeGlobalSettings({
+		...settings,
+		disabledAgentPlugins: [...disabled],
+	});
 }
 
 export function filterDisabledPluginPaths(

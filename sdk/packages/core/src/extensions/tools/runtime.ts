@@ -14,10 +14,22 @@ export interface ToolCatalogEntry {
 	description: string;
 	defaultEnabled: boolean;
 	headlessToolNames: string[];
+	unavailableClientTypes?: readonly ToolClientType[];
+}
+
+export type ToolClientType = "cli" | "vscode";
+
+export function resolveToolClientType(
+	source?: string,
+): ToolClientType | undefined {
+	if (source === "vscode") return "vscode";
+	if (source === "cli" || source?.startsWith("cline-cli")) return "cli";
+	return undefined;
 }
 
 export interface BuiltinToolAvailabilityContext {
 	mode?: CoreAgentMode;
+	clientType?: ToolClientType;
 	providerId?: string;
 	modelId?: string;
 	enableSpawnAgent?: boolean;
@@ -76,6 +88,13 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		description:
 			"Ask the user a single clarifying question with 2-5 selectable options.",
 		headlessToolNames: ["ask_question"],
+	},
+	{
+		id: "tasks",
+		description:
+			"Create and manage explicitly requested one-time and recurring agent schedules.",
+		headlessToolNames: ["tasks"],
+		unavailableClientTypes: ["cli", "vscode"],
 	},
 	{
 		id: "spawn_agent",
@@ -167,6 +186,19 @@ function resolvePresetFlags(context: BuiltinToolAvailabilityContext): {
 	};
 }
 
+export function isCoreBuiltinToolAvailable(
+	toolName: string,
+	clientType?: ToolClientType,
+): boolean {
+	if (!clientType) return true;
+	const entry = BASE_TOOL_CATALOG.find(
+		(candidate) =>
+			candidate.id === toolName ||
+			candidate.headlessToolNames.includes(toolName),
+	);
+	return !entry?.unavailableClientTypes?.includes(clientType);
+}
+
 function isEntryEnabledByDefault(
 	entryId: string,
 	context: BuiltinToolAvailabilityContext,
@@ -184,6 +216,9 @@ function isEntryEnabledByDefault(
 	}
 	if (entryId === "teams") {
 		return flags.enableAgentTeams === true;
+	}
+	if (entryId === "tasks") {
+		return true;
 	}
 	if (entryId === "editor") {
 		return flags.enableEditor === true || flags.enableApplyPatch === true;
@@ -219,12 +254,30 @@ export function getCoreBuiltinToolCatalog(
 ): ToolCatalogEntry[] {
 	return BASE_TOOL_CATALOG.filter(
 		(entry) =>
-			entry.id !== "web_search" ||
-			supportsModelTool(
-				{ providerId: context.providerId ?? "", modelId: context.modelId },
-				"web_search",
-			),
+			isCoreBuiltinToolAvailable(entry.id, context.clientType) &&
+			(entry.id !== "tasks" || resolveContextMode(context.mode) !== "yolo") &&
+			(entry.id !== "web_search" ||
+				supportsModelTool(
+					{ providerId: context.providerId ?? "", modelId: context.modelId },
+					"web_search",
+				)),
 	).map((entry) => buildCatalogEntry(entry, context));
+}
+
+/**
+ * Whether the `skills` tool is part of a session's default toolset for this
+ * availability context. Hosts consult this before dispatching a typed
+ * `/skill` command: when the tool is available the command passes through as
+ * typed and the model loads the instructions via the tool; when it is not
+ * (e.g. the yolo preset or a user toggle disables it), textual expansion is
+ * the only delivery path left.
+ */
+export function isSkillsToolAvailable(
+	context: BuiltinToolAvailabilityContext = {},
+): boolean {
+	return getCoreBuiltinToolCatalog(context).some(
+		(entry) => entry.id === "skills" && entry.defaultEnabled,
+	);
 }
 
 export function getCoreDefaultEnabledToolIds(

@@ -136,6 +136,7 @@ describe("handleAgentEvent task.tokens emission", () => {
 			usageEvent({
 				inputTokens: 6822,
 				outputTokens: 125,
+				reasoningTokenCount: 30,
 				cost: 0.007447,
 				totalInputTokens: 6822,
 				totalOutputTokens: 125,
@@ -149,6 +150,7 @@ describe("handleAgentEvent task.tokens emission", () => {
 				inputTokens: 11067,
 				outputTokens: 57,
 				cacheReadTokens: 6819,
+				reasoningTokenCount: 20,
 				cost: 0.0052149,
 				// Running totals ride along on the event but must never be
 				// what task.tokens reports.
@@ -166,6 +168,7 @@ describe("handleAgentEvent task.tokens emission", () => {
 			ulid: "sess-tokens",
 			tokensIn: 6822,
 			tokensOut: 125,
+			reasoningTokenCount: 30,
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
 			totalCost: 0.007447,
@@ -177,6 +180,7 @@ describe("handleAgentEvent task.tokens emission", () => {
 			tokensOut: 57,
 			cacheReadTokens: 6819,
 			cacheWriteTokens: 0,
+			reasoningTokenCount: 20,
 			totalCost: 0.0052149,
 		});
 	});

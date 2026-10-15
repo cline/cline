@@ -1,6 +1,7 @@
+import { USER_REJECTED_TOOL_REASON } from "@cline/shared"
 import { isEditTool } from "./sdk-tool-policies"
 
-export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = "User denied the tool execution"
+export const DEFAULT_TOOL_APPROVAL_DENIAL_REASON = USER_REJECTED_TOOL_REASON
 export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was cancelled because the user sent a follow-up message."
 export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
 	"The user denied this edit. The file was NOT modified and still contains its original content."
@@ -48,7 +49,7 @@ export function isKnownToolApprovalDenial(value: unknown): boolean {
 
 	return (
 		message.includes(USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON) ||
-		message.includes(DEFAULT_TOOL_APPROVAL_DENIAL_REASON) ||
+		message.includes(USER_REJECTED_TOOL_REASON) ||
 		message.includes(EDIT_TOOL_APPROVAL_DENIAL_REASON)
 	)
 }

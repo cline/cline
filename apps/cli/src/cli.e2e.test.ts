@@ -217,6 +217,31 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).not.toContain("interactive mode");
 	});
 
+	it("emits the same config JSON for either flag placement without a TTY", () => {
+		const env = createIsolatedEnv({
+			CLINE_NO_AUTO_UPDATE: "1",
+			CLINE_TELEMETRY_DISABLED: "1",
+		});
+		const options = { env, cwd: env.HOME, stdin: "" };
+		const local = runCli(["config", "--json"], options);
+		const global = runCli(["--json", "config"], options);
+
+		expect(local.status).toBe(0);
+		expect(global.status).toBe(0);
+		expect(asText(local.stderr)).toBe("");
+		expect(asText(global.stderr)).toBe("");
+		const inventory = JSON.parse(asText(local.stdout));
+		expect(inventory).toEqual(JSON.parse(asText(global.stdout)));
+		expect(inventory).toEqual(
+			expect.objectContaining({
+				rules: expect.any(Array),
+				skills: expect.any(Array),
+				mcp: expect.any(Array),
+				tools: expect.any(Array),
+			}),
+		);
+	});
+
 	it("returns an error for unknown config targets", () => {
 		const result = runCli(["config", "unknown-target"], {
 			env: createIsolatedEnv(),
@@ -231,6 +256,47 @@ describe("cli e2e", () => {
 		const result = runCli(["hub", "nonesuch"], { env: createIsolatedEnv() });
 		expect(result.status).toBe(1);
 		expect(asText(result.stderr)).toContain('unknown command "nonesuch"');
+	});
+
+	it("prints hub help when no subcommand is provided", () => {
+		const result = runCli(["hub"], {
+			env: createIsolatedEnv({ CLINE_RUN_AS_HUB_DAEMON: undefined }),
+		});
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).toContain("Usage: hub [options] [command]");
+		expect(asText(result.stdout)).toContain("status");
+		expect(asText(result.stdout)).toContain("dashboard");
+		expect(asText(result.stderr)).toBe("");
+	});
+
+	it("prints hub dashboard help without starting a server", () => {
+		const result = runCli(["hub", "dashboard", "--help"], {
+			env: createIsolatedEnv({ CLINE_RUN_AS_HUB_DAEMON: undefined }),
+		});
+		expect(result.status).toBe(0);
+		const output = asText(result.stdout);
+		expect(output).toContain("Usage: hub dashboard [options]");
+		for (const option of [
+			"--config",
+			"--cwd",
+			"--data-dir",
+			"--host",
+			"--port",
+			"--public-url",
+			"--room-secret",
+			"--no-open",
+		]) {
+			expect(output).toContain(option);
+		}
+		expect(output).not.toContain("listening at");
+		expect(asText(result.stderr)).toBe("");
+	});
+
+	it("does not advertise dashboard as a top-level command", () => {
+		const result = runCli(["--help"], { env: createIsolatedEnv() });
+		expect(result.status).toBe(0);
+		expect(asText(result.stdout)).toContain("hub");
+		expect(asText(result.stdout)).not.toContain("dashboard");
 	});
 
 	it("returns an error for interactive auth when no TTY is available", () => {

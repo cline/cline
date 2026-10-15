@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	type CronOneOffSpec,
 	type CronScheduleSpec,
@@ -290,6 +292,39 @@ describe("SqliteCronStore: runs", () => {
 		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
 	});
 
+	it("numbers a spec's runs by creation order regardless of status", () => {
+		const spec = seedOneOff();
+		const other = store.upsertSpec({
+			externalId: "other",
+			sourcePath: "other.md",
+			triggerKind: "one_off",
+			sourceHash: "hash-other",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "other",
+				title: "Other",
+				prompt: "p",
+				workspaceRoot: "/ws",
+				enabled: true,
+			},
+		}).record;
+		const enqueue = (specId: string) =>
+			store.enqueueRun({ specId, specRevision: 1, triggerKind: "manual" });
+		const first = enqueue(spec.specId);
+		const second = enqueue(spec.specId);
+		const otherFirst = enqueue(other.specId);
+		const third = enqueue(spec.specId);
+		// A cancelled run keeps its slot so later numbers never shift.
+		store.completeRun(second.runId, { status: "cancelled" });
+
+		expect(store.getRunOrdinal(first.runId)).toBe(1);
+		expect(store.getRunOrdinal(second.runId)).toBe(2);
+		expect(store.getRunOrdinal(third.runId)).toBe(3);
+		expect(store.getRunOrdinal(otherFirst.runId)).toBe(1);
+		expect(store.getRunOrdinal("crun_missing")).toBeUndefined();
+	});
+
 	it("treats failed one-off runs as satisfying the revision", () => {
 		const spec = seedOneOff();
 		const run = store.enqueueRun({
@@ -358,6 +393,28 @@ describe("SqliteCronStore: runs", () => {
 		expect(run?.reportPath).toBe("/tmp/report.md");
 	});
 
+	// The desktop hub runs on bun:sqlite, which binds parameters differently
+	// from the node:sqlite backend these tests otherwise exercise.
+	it("claims due runs within capacity under bun:sqlite", () => {
+		const storeModule = fileURLToPath(
+			new URL("./sqlite-cron-store.ts", import.meta.url),
+		);
+		const script = `
+			import { SqliteCronStore } from ${JSON.stringify(storeModule)};
+			const store = new SqliteCronStore({ dbPath: ${JSON.stringify(join(dir, "bun.db"))} });
+			const spec = store.createHubSchedule({
+				name: "s", cronPattern: "0 0 * * *", prompt: "p", workspaceRoot: "/ws", maxParallel: 1,
+			});
+			for (let i = 0; i < 2; i++) {
+				store.enqueueRun({ specId: spec.specId, specRevision: spec.revision, triggerKind: "manual" });
+			}
+			const claim = () => store.claimDueRuns({ nowIso: new Date().toISOString(), leaseMs: 30000 }).length;
+			console.log(JSON.stringify([claim(), claim()]));
+		`;
+		const output = execFileSync("bun", ["-e", script], { encoding: "utf8" });
+		expect(JSON.parse(output.trim())).toEqual([1, 0]);
+	});
+
 	it("reclaims expired running leases", () => {
 		const spec = seedOneOff();
 		store.enqueueRun({
@@ -392,7 +449,10 @@ describe("SqliteCronStore: runs", () => {
 		expect(runs[0]?.status).toBe("cancelled");
 	});
 
-	it("requeues a claimed run when ownership matches", () => {
+	it.each([
+		false,
+		true,
+	])("requeues a claimed run when ownership matches (release attempt: %s)", (releaseAttempt) => {
 		const spec = seedOneOff();
 		const queued = store.enqueueRun({
 			specId: spec.specId,
@@ -408,14 +468,27 @@ describe("SqliteCronStore: runs", () => {
 			store.requeueRun({
 				runId: claim?.run.runId,
 				claimToken: claim?.claimToken,
-				error: "retry later",
+				error: releaseAttempt ? undefined : "retry later",
+				releaseAttempt,
 			}),
 		).toBe(true);
 		const run = store.getRun(queued.runId);
 		expect(run?.status).toBe("queued");
 		expect(run?.claimToken).toBeUndefined();
 		expect(run?.startedAt).toBeUndefined();
-		expect(run?.error).toBe("retry later");
+		expect(run?.error).toBe(releaseAttempt ? undefined : "retry later");
+		expect(run?.attemptCount).toBe(releaseAttempt ? 0 : 1);
+		// A stale owner cannot decrement again after its claim has been released.
+		expect(
+			store.requeueRun({
+				runId: queued.runId,
+				claimToken: claim?.claimToken,
+				releaseAttempt: true,
+			}),
+		).toBe(false);
+		expect(store.getRun(queued.runId)?.attemptCount).toBe(
+			releaseAttempt ? 0 : 1,
+		);
 	});
 });
 

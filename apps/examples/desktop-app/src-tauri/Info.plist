@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Cline Code uses the microphone to transcribe speech into chat input.</string>
+	<string>Cline uses the microphone to transcribe speech into chat input.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Cline uses speech recognition to turn your voice into chat input.</string>
 </dict>
 </plist>

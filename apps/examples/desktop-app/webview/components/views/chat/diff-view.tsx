@@ -1,16 +1,9 @@
 "use client";
 
+import { AgentChangedFile, AgentChangesPanel } from "@cline/ui";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import {
-	AppWindow,
-	Check,
-	ChevronDown,
-	ChevronRight,
-	Copy,
-	ExternalLink,
-	X,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppWindow, ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -23,11 +16,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import type { SessionDiffHunk, SessionFileDiff } from "@/lib/session-diff";
-import { cn } from "@/lib/utils";
 import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
 import { EditorIcon } from "./editor-icons";
 
 type DiffViewProps = {
+	environmentId: string;
 	fileDiffs: SessionFileDiff[];
 	cwd?: string;
 	onClose: () => void;
@@ -38,7 +31,12 @@ type EditorOption = {
 	label: string;
 };
 
-export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
+export function DiffView({
+	environmentId,
+	fileDiffs,
+	cwd,
+	onClose,
+}: DiffViewProps) {
 	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 	const [editors, setEditors] = useState<EditorOption[]>([]);
 
@@ -58,92 +56,58 @@ export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 		};
 	}, []);
 
-	const _totals = useMemo(
-		() =>
-			fileDiffs.reduce(
-				(acc, file) => {
-					acc.additions += file.additions;
-					acc.deletions += file.deletions;
-					return acc;
-				},
-				{ additions: 0, deletions: 0 },
-			),
-		[fileDiffs],
-	);
-
-	const toggleFileCollapse = (filename: string) => {
-		setCollapsedFiles((prev) => {
-			const next = new Set(prev);
-			if (next.has(filename)) {
-				next.delete(filename);
-			} else {
-				next.add(filename);
-			}
-			return next;
-		});
-	};
-
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden">
-			<div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-				<div className="flex items-center gap-3">
-					<span className="text-xs font-medium text-foreground">
-						Uncommitted changes
-					</span>
-					<span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-						Files: {fileDiffs.length}
-					</span>
-				</div>
-
-				<div className="flex items-center gap-2 text-xs font-mono">
-					{" "}
-					<button
-						aria-label="Close diff view"
-						className="rounded-md p-1 text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
-						onClick={onClose}
-						type="button"
-					>
-						<X className="h-4 w-4" />
-					</button>
-				</div>
+		<AgentChangesPanel
+			title="Uncommitted changes"
+			fileCount={fileDiffs.length}
+			onClose={onClose}
+			renderScroll={(content) => (
+				<ScrollArea className="min-h-0 flex-1">{content}</ScrollArea>
+			)}
+			emptyMessage={
+				fileDiffs.length === 0
+					? "No file changes in this session yet."
+					: undefined
+			}
+		>
+			<div className="flex flex-col">
+				{fileDiffs.map((file) => (
+					<DiffFileSection
+						key={file.path}
+						cwd={cwd}
+						editors={editors}
+						environmentId={environmentId}
+						file={file}
+						collapsed={collapsedFiles.has(file.path)}
+						onToggle={() =>
+							setCollapsedFiles((previous) => {
+								const next = new Set(previous);
+								if (next.has(file.path)) next.delete(file.path);
+								else next.add(file.path);
+								return next;
+							})
+						}
+					/>
+				))}
 			</div>
-
-			<ScrollArea className="min-h-0 flex-1">
-				{fileDiffs.length === 0 ? (
-					<div className="flex h-full items-center justify-center px-4 py-16 text-sm text-muted-foreground">
-						No file changes in this session yet.
-					</div>
-				) : (
-					<div className="flex flex-col">
-						{fileDiffs.map((file) => (
-							<DiffFileSection
-								collapsed={collapsedFiles.has(file.path)}
-								cwd={cwd}
-								editors={editors}
-								file={file}
-								key={file.path}
-								onToggle={() => toggleFileCollapse(file.path)}
-							/>
-						))}
-					</div>
-				)}
-			</ScrollArea>
-		</div>
+		</AgentChangesPanel>
 	);
 }
 
 function DiffFileSection({
 	file,
 	collapsed,
+	onToggle,
 	cwd,
 	editors,
-	onToggle,
+	environmentId,
 }: {
 	file: SessionFileDiff;
 	collapsed: boolean;
+	onToggle: () => void;
 	cwd?: string;
 	editors: EditorOption[];
-	onToggle: () => void;
+	environmentId: string;
 }) {
 	const [copied, setCopied] = useState(false);
 	const [opening, setOpening] = useState(false);
@@ -175,6 +139,7 @@ function DiffFileSection({
 			setOpening(true);
 			try {
 				await desktopClient.invoke("open_file_in_editor", {
+					environmentId,
 					path: file.path,
 					...(cwd?.trim() ? { cwd } : {}),
 					...(editor ? { editor } : {}),
@@ -192,51 +157,19 @@ function DiffFileSection({
 				setOpening(false);
 			}
 		},
-		[file.path, cwd],
+		[cwd, environmentId, file.path],
 	);
 
 	return (
-		<div className="border-b border-border">
-			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-surface-hover-lighter transition-colors">
-				<button
-					className="flex min-w-0 shrink items-center gap-2 text-left"
-					onClick={onToggle}
-					type="button"
-				>
-					{collapsed ? (
-						<ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-					) : (
-						<ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-					)}
-					<span className="min-w-0 truncate font-mono text-xs text-foreground">
-						{file.path}
-					</span>
-				</button>
-				<button
-					aria-label={`Copy file path for ${file.path}`}
-					className={cn(
-						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
-						copied ? "opacity-100 text-primary" : "opacity-0",
-					)}
-					onClick={() => void handleCopyPath()}
-					title="Copy file path"
-					type="button"
-				>
-					{copied ? (
-						<Check className="h-3.5 w-3.5" />
-					) : (
-						<Copy className="h-3.5 w-3.5" />
-					)}
-				</button>
-				{/* Invisible flex spacer that keeps the dead space between the
-				    path and the right-aligned actions clickable as a toggle. */}
-				<button
-					aria-hidden
-					className="h-6 min-w-0 flex-1 cursor-pointer"
-					onClick={onToggle}
-					tabIndex={-1}
-					type="button"
-				/>
+		<AgentChangedFile
+			path={file.path}
+			expanded={!collapsed}
+			onExpandedChange={onToggle}
+			additions={file.additions}
+			deletions={file.deletions}
+			copied={copied}
+			onCopyPath={() => void handleCopyPath()}
+			actions={
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<button
@@ -269,35 +202,25 @@ function DiffFileSection({
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
-				<span className="shrink-0 font-mono text-[11px] text-primary">
-					+{file.additions}
-				</span>
-				<span className="shrink-0 font-mono text-[11px] text-destructive">
-					-{file.deletions}
-				</span>
-			</div>
-
-			{!collapsed && (
-				<div className="space-y-2 border-t border-border bg-card/40 px-4 py-3">
-					{file.hunks.length === 0 ? (
-						<p className="text-xs text-muted-foreground">
-							No hunk details available.
-						</p>
-					) : (
-						// The index disambiguates repeated same-shaped hunks (e.g.
-						// a file created twice with identical contents); hunks
-						// never reorder within a file, so it is a stable key.
-						file.hunks.map((hunk, index) => (
-							<DiffHunk
-								hunk={hunk}
-								key={`${file.path}-${index}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
-								path={file.path}
-							/>
-						))
-					)}
-				</div>
+			}
+		>
+			{file.hunks.length === 0 ? (
+				<p className="text-xs text-muted-foreground">
+					No hunk details available.
+				</p>
+			) : (
+				// The index disambiguates repeated same-shaped hunks (e.g.
+				// a file created twice with identical contents); hunks
+				// never reorder within a file, so it is a stable key.
+				file.hunks.map((hunk, index) => (
+					<DiffHunk
+						hunk={hunk}
+						key={`${file.path}-${index}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
+						path={file.path}
+					/>
+				))
 			)}
-		</div>
+		</AgentChangedFile>
 	);
 }
 

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 	stopConnectorsViaHub: vi.fn(async () => undefined as number | undefined),
 	disableConnectorAutostart: vi.fn(),
 	getPersistedConnectorConnection: vi.fn(),
+	getProcessStartToken: vi.fn(() => undefined),
 	getConnector: vi.fn(),
 	listActiveConnectors: vi.fn(),
 	listConnectors: vi.fn((): Array<{ name: string; description: string }> => []),
@@ -29,6 +30,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@cline/core", () => ({
 	disableConnectorAutostart: mocks.disableConnectorAutostart,
 	getPersistedConnectorConnection: mocks.getPersistedConnectorConnection,
+	getProcessStartToken: mocks.getProcessStartToken,
 	listActiveConnectors: mocks.listActiveConnectors,
 	persistConnectorConnection: mocks.persistConnectorConnection,
 	removePersistedConnectorConnection: mocks.removePersistedConnectorConnection,

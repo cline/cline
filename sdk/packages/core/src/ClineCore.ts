@@ -172,6 +172,7 @@ export class ClineCore {
 					}),
 					dbPath: automationOptions.dbPath,
 					logger: automationOptions.logger,
+					telemetry: this.telemetry,
 					pollIntervalMs: automationOptions.pollIntervalMs,
 					claimLeaseSeconds: automationOptions.claimLeaseSeconds,
 					globalMaxConcurrency: automationOptions.globalMaxConcurrency,
@@ -638,6 +639,17 @@ export class ClineCore {
 		options?: RuntimeHostSubscribeOptions,
 	): () => void {
 		return this.host.subscribe(listener, options);
+	}
+	/**
+	 * Whether this instance is subscribed to a session's live events.
+	 *
+	 * In hub mode ClineCore subscribes to a session when it starts, sends to,
+	 * or lists pending prompts for it, and unsubscribes on stop. A client that
+	 * also observes the hub directly can use this to render one copy of the
+	 * session's events instead of both.
+	 */
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.host.hasSessionSubscription?.(sessionId) ?? false;
 	}
 	/**
 	 * Updates the AI model used by an active session.

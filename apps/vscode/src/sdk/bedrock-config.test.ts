@@ -1,6 +1,6 @@
 import type { ApiConfiguration } from "@shared/api"
 import { describe, expect, it } from "vitest"
-import { buildBedrockProviderConfig, buildBedrockProviderSettings, resolveBedrockAuthentication } from "./bedrock-config"
+import { buildBedrockProviderConfig, resolveBedrockAuthentication } from "./bedrock-config"
 
 describe("resolveBedrockAuthentication", () => {
 	it("maps the webview 'apikey' radio value straight through", () => {
@@ -110,72 +110,5 @@ describe("buildBedrockProviderConfig", () => {
 	it("trims whitespace-only region to undefined", () => {
 		const result = buildBedrockProviderConfig({ awsAuthentication: "apikey", awsRegion: "   " }, "act")
 		expect(result.region).toBeUndefined()
-	})
-})
-
-describe("buildBedrockProviderSettings (providers.json persistence)", () => {
-	it("produces SDK ProviderSettings authoritative for the gateway (region + apikey)", () => {
-		// This is the fix for the second bug: core builds the gateway config from
-		// the providers.json `stored` entry, so the region + auth must be written
-		// there (top-level region AND aws.region) to override a stale entry.
-		const settings = buildBedrockProviderSettings(
-			{
-				awsAuthentication: "apikey",
-				awsRegion: "us-east-2",
-				awsBedrockApiKey: "bedrock-bearer-token",
-			},
-			"us.anthropic.claude-haiku-4-5-20251001-v1:0",
-			"act",
-		)
-
-		expect(settings.provider).toBe("bedrock")
-		expect(settings.model).toBe("us.anthropic.claude-haiku-4-5-20251001-v1:0")
-		expect(settings.apiKey).toBe("bedrock-bearer-token")
-		// Region must be present BOTH top-level and on aws (toProviderConfig reads
-		// `settings.region ?? settings.aws?.region`).
-		expect(settings.region).toBe("us-east-2")
-		expect(settings.aws?.region).toBe("us-east-2")
-		expect(settings.aws?.authentication).toBe("apikey")
-		// No stale SigV4 credentials for api-key auth.
-		expect(settings.aws?.accessKey).toBeUndefined()
-		expect(settings.aws?.secretKey).toBeUndefined()
-	})
-
-	it("omits apiKey/region when not configured", () => {
-		const settings = buildBedrockProviderSettings({ awsAuthentication: "profile", awsProfile: "dev" }, "model-x", "act")
-		expect(settings.apiKey).toBeUndefined()
-		expect(settings.region).toBeUndefined()
-		expect(settings.aws?.authentication).toBe("profile")
-		expect(settings.aws?.profile).toBe("dev")
-	})
-
-	it("does NOT persist a bearer apiKey for profile auth (keeps stored clean)", () => {
-		// A stale awsBedrockApiKey must not leak into providers.json when the user
-		// switched to profile auth — the SDK ignores it for SigV4, but persisting
-		// it is confusing/leaky.
-		const settings = buildBedrockProviderSettings(
-			{
-				awsAuthentication: "profile",
-				awsProfile: "default",
-				awsRegion: "us-east-1",
-				awsBedrockApiKey: "stale-bearer-token",
-			},
-			"us.anthropic.claude-haiku-4-5-20251001-v1:0",
-			"act",
-		)
-		expect(settings.apiKey).toBeUndefined()
-		expect(settings.aws?.authentication).toBe("profile")
-		expect(settings.aws?.profile).toBe("default")
-		expect(settings.aws?.region).toBe("us-east-1")
-	})
-
-	it("does NOT persist a bearer apiKey for iam/credentials auth", () => {
-		const settings = buildBedrockProviderSettings(
-			{ awsAuthentication: "credentials", awsRegion: "us-east-1", awsBedrockApiKey: "stale-bearer-token" },
-			"model-x",
-			"act",
-		)
-		expect(settings.apiKey).toBeUndefined()
-		expect(settings.aws?.authentication).toBe("iam")
 	})
 })

@@ -397,6 +397,26 @@ describe("@cline/ui theme contract", () => {
 		expect(componentCss).not.toContain("var(--chart-2)");
 	});
 
+	it("preserves the switch accent blend and semantic interaction colors", () => {
+		const css = readComponent("switch.css");
+		const states = block(css, "@media (forced-colors: none)");
+		const track = ".cline-ui-switch__track";
+		const input = ".cline-ui-switch__input";
+
+		expect(block(states, `${input}:checked + ${track}`)).toContain(
+			"background: color-mix(in srgb, var(--primary) 80%, var(--accent-8) 20%);",
+		);
+		expect(
+			block(states, `${input}:enabled:checked:hover + ${track}`),
+		).toContain("background: var(--primary-emphasis);");
+		expect(
+			block(states, `${input}:enabled:checked:active + ${track}`),
+		).toContain("background: var(--primary);");
+		expect(block(states, `${input}:focus-visible + ${track}`)).toContain(
+			"var(--ring)",
+		);
+	});
+
 	it("exports every documented CSS entry point", () => {
 		const manifest = JSON.parse(
 			readFileSync(join(packageRoot, "package.json"), "utf8"),

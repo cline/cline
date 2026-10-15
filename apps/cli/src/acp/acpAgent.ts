@@ -38,6 +38,7 @@ import { createCliCore } from "../session/session";
 import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
+import type { ResolvedCliReasoning } from "../utils/reasoning";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,
@@ -69,6 +70,10 @@ import {
 	sendCurrentModeUpdate,
 	sendSessionInfoUpdate,
 } from "./session-updates";
+
+const CHAT_MODEL_QUERY_OPTIONS = {
+	filter: "chat",
+} satisfies Llms.GetModelsForProviderOptions;
 
 interface SessionState {
 	id: string;
@@ -108,16 +113,18 @@ export class AcpAgent implements Agent {
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
 	private readonly defaultAutoApproveTools: boolean;
+	private readonly reasoning: ResolvedCliReasoning;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
 	constructor(
 		conn: AgentSideConnection,
-		options?: { autoApproveTools?: boolean },
+		options?: { autoApproveTools?: boolean; reasoning?: ResolvedCliReasoning },
 	) {
 		this.conn = conn;
 		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
+		this.reasoning = options?.reasoning ?? {};
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -185,7 +192,10 @@ export class AcpAgent implements Agent {
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
+		const providerModels = await Llms.getModelsForProvider(
+			providerId,
+			CHAT_MODEL_QUERY_OPTIONS,
+		);
 		// Model ids are provider-scoped, so the default must come from the
 		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
 		// nothing to `cline`, and vice versa.
@@ -256,7 +266,10 @@ export class AcpAgent implements Agent {
 				// provider's own catalog just like newSession.
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-				const providerModels = await Llms.getModelsForProvider(providerId);
+				const providerModels = await Llms.getModelsForProvider(
+					providerId,
+					CHAT_MODEL_QUERY_OPTIONS,
+				);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
@@ -289,6 +302,7 @@ export class AcpAgent implements Agent {
 
 		const providerModels = await Llms.getModelsForProvider(
 			session.currentProviderId,
+			CHAT_MODEL_QUERY_OPTIONS,
 		);
 		const availableModels = Object.entries(providerModels).map(
 			([availableModelId, info]) => ({
@@ -473,7 +487,10 @@ export class AcpAgent implements Agent {
 				// current one when it's offered there too, otherwise fall back to the
 				// provider's declared default rather than whichever model happens to
 				// be listed first (for cline-pass that is an unrelated free model).
-				const providerModels = await Llms.getModelsForProvider(value);
+				const providerModels = await Llms.getModelsForProvider(
+					value,
+					CHAT_MODEL_QUERY_OPTIONS,
+				);
 				session.currentModelId = await resolveDefaultModelId(
 					value,
 					session.currentModelId,
@@ -765,7 +782,10 @@ export class AcpAgent implements Agent {
 			execution: undefined,
 			verbose: false,
 			sandbox: false,
-			thinking: false,
+			// From `--thinking`; without the flag ACP sessions keep running without
+			// reasoning, as before.
+			thinking: this.reasoning.thinking ?? false,
+			reasoningEffort: this.reasoning.reasoningEffort,
 			outputMode: "text",
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
@@ -907,7 +927,10 @@ async function buildAllConfigOptions(
 ): Promise<SessionConfigOption[]> {
 	const [providerOption, providerModels] = await Promise.all([
 		buildProviderConfigOption(session.currentProviderId),
-		Llms.getModelsForProvider(session.currentProviderId),
+		Llms.getModelsForProvider(
+			session.currentProviderId,
+			CHAT_MODEL_QUERY_OPTIONS,
+		),
 	]);
 	return [
 		providerOption,

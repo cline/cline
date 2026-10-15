@@ -2,9 +2,13 @@
 
 import { isMainThread } from "node:worker_threads";
 import {
+	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
+	createClineTelemetryServiceConfig,
+	disableCurrentDirectoryExecutableSearch,
 	disposeAll,
+	ensureLoopbackProxyBypass,
 	initVcr,
 	setConnectorCliLaunchSpec,
 } from "@cline/shared";
@@ -14,6 +18,7 @@ import {
 	cleanupActiveRuntime,
 	isAbortInProgress,
 } from "./runtime/active-runtime";
+import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
 
@@ -21,13 +26,26 @@ import { writeErr } from "./utils/output";
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.
 initVcr(process.env.CLINE_VCR);
 
+// Before any personality below can spawn a child with the workspace as cwd.
+disableCurrentDirectoryExecutableSearch();
+
+// Before any personality probes the local hub over 127.0.0.1.
+ensureLoopbackProxyBypass();
+
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
+} else if (process.argv.includes("--telemetry-selfcheck")) {
+	// Inspect the config embedded in this executable without starting a hub,
+	// loading user settings, or initializing telemetry exporters.
+	process.stdout.write(
+		`${JSON.stringify(buildTelemetrySelfcheckReport(createClineTelemetryServiceConfig()))}\n`,
+	);
 } else if (claimHubDaemonProcess()) {
 	// Claim rather than read: the sentinel is consumed here so the processes a
 	// daemon-hosted session spawns do not inherit it and try to become daemons.
 	// The hub daemon owns its process-level abort handling. Installing the CLI's
 	// fatal rejection handler first would make expected abort rejections exit it.
+	registerClineClientIdentity("cline-cli");
 	void import("@cline/core/hub/daemon-entry");
 } else {
 	// Same reasoning as the daemon sentinel above: consume the supervised-connector

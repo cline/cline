@@ -14,14 +14,16 @@ const mocks = vi.hoisted(() => {
 		version: 1,
 		providers: {},
 	}
-	const saveProviderSettings = vi.fn((settings: Record<string, unknown>, _options?: { setLastUsed?: boolean }) => {
-		const provider = settings.provider
-		if (typeof provider !== "string") {
-			throw new Error("provider is required")
-		}
-		providerSettingsById[provider] = { ...settings }
-		return { version: 1, providers: {} }
-	})
+	const saveProviderSettings = vi.fn(
+		(settings: Record<string, unknown>, _options?: { setLastUsed?: boolean; tokenSource?: string }) => {
+			const provider = settings.provider
+			if (typeof provider !== "string") {
+				throw new Error("provider is required")
+			}
+			providerSettingsById[provider] = { ...settings }
+			return { version: 1, providers: {} }
+		},
+	)
 
 	return {
 		reset(): void {
@@ -182,6 +184,98 @@ describe("createProviderConfigStore", () => {
 
 		expect(mocks.getSavedProviderSettings("gemini")).toEqual({ provider: "gemini", apiKey: "existing-key" })
 		expect(store.read(providerId).baseUrl).toBeUndefined()
+	})
+
+	// Pasted API keys can carry invisible clipboard artifacts (surrounding
+	// whitespace, newlines, zero-width characters). The masked key field hides
+	// them from the user and the provider rejects the key with a 401 that
+	// looks identical to a genuinely wrong key, so the write boundary must
+	// strip them before the value reaches either backing store.
+	it("sanitizes pasted API keys before writing to both stores", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("mistral")
+
+		store.write(providerId, { apiKey: " \u200b\ufeffmistral-key\u200d \n" })
+
+		expect(mocks.getApiConfiguration().mistralApiKey).toBe("mistral-key")
+		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral", apiKey: "mistral-key" })
+		expect(store.read(providerId).apiKey).toBe("mistral-key")
+	})
+
+	it("treats a whitespace-only API key as a clear", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ mistral: { provider: "mistral", apiKey: "existing-key" } })
+		mocks.setApiConfiguration({ mistralApiKey: "existing-key" })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("mistral")
+
+		store.write(providerId, { apiKey: " \n " })
+
+		expect(mocks.getApiConfiguration().mistralApiKey).toBeUndefined()
+		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral" })
+		expect(store.read(providerId).apiKey).toBeUndefined()
+	})
+
+	// Credential edits in the settings UI must leave the migration label behind.
+	// The SDK manager inherits the previous entry's tokenSource when the caller
+	// passes none, so a migrated Bedrock entry stayed "migration" after every
+	// later GUI save even once the user had re-entered the AWS profile by hand.
+	it("marks the entry as manual when a GUI patch touches credentials", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, { aws: { profile: "my-profile" } })
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({ aws: { profile: "my-profile" } })
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
+	it("marks the entry as manual when a GUI patch edits custom headers", async () => {
+		// OpenAI-compatible endpoints often carry the credential in a header
+		// rather than apiKey, so a header edit is a credential edit.
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			"openai-compatible": { provider: "openai-compatible", baseUrl: "https://llm.example.com/v1" },
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, { headers: { Authorization: "Bearer manual-token" } })
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			headers: { Authorization: "Bearer manual-token" },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
+	it("keeps the inherited tokenSource when an AWS patch only changes non-credential settings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile", profile: "work" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, {
+			aws: { useCrossRegionInference: true, usePromptCache: false, endpoint: "https://vpce.example" },
+		})
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({
+			aws: { authentication: "profile", profile: "work", useCrossRegionInference: true },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
+	})
+
+	it("keeps the inherited tokenSource when a GUI patch has no credential fields", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, { contextWindow: 200_000 })
+
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
 	})
 
 	// Changing the regional API line in the settings UI goes through
@@ -490,7 +584,11 @@ describe("createProviderConfigStore", () => {
 			name: "Legacy Custom",
 			maxTokens: 4_096,
 			contextWindow: 64_000,
-			capabilities: ["prompt-cache"],
+			// "tools" must always ride along: legacy ModelInfo carries no
+			// tool-calling boolean, and a persisted capability list without
+			// "tools" reads as authoritative "cannot call tools" to the SDK
+			// runtime (#13463).
+			capabilities: ["tools", "prompt-cache"],
 			supportsVision: false,
 			supportsReasoning: true,
 			inputPrice: 1,

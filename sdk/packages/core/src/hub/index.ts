@@ -1,6 +1,14 @@
 export type { ITelemetryService } from "@cline/shared";
 export { HubScheduleCommandService } from "../cron/service/schedule-command-service";
 export { HubScheduleService } from "../cron/service/schedule-service";
+export {
+	type AgentScheduleServiceApi,
+	executeScheduleOperation,
+	type ScheduledTaskInput,
+	ScheduledTaskInputSchema,
+	type ScheduledTaskResult,
+	type ScheduleTaskOperationOptions,
+} from "../cron/service/schedule-tool";
 /**
  * Re-exported so detached hub daemon entry points (e.g. the VS Code
  * `hub-daemon.ts` companion process) can construct a telemetry service
@@ -21,6 +29,16 @@ export {
 	createConfiguredTelemetryHandle,
 	createConfiguredTelemetryService,
 } from "../services/telemetry/OpenTelemetryProvider";
+export {
+	type CreateTasksToolOptions,
+	createTasksPromptExtension,
+	createTasksTool,
+	TASKS_SYSTEM_PROMPT_RULE,
+	TASKS_TOOL_NAME,
+	type TasksToolInput,
+	TasksToolInputSchema,
+	type TasksToolResult,
+} from "../tasks/task-tool";
 export * from "./client";
 export * from "./client/connect";
 export * from "./client/managed-hub-build-watcher";
@@ -31,8 +49,11 @@ export * from "./daemon/runtime-handlers";
 export * from "./daemon/start-shared-server";
 export * from "./discovery";
 export * from "./discovery/defaults";
+export * from "./discovery/instance-lock";
 export * from "./discovery/workspace";
 export * from "./server";
 export * from "./server/browser-websocket";
 export * from "./server/command-transport";
+export * from "./server/hub-event-log";
+export * from "./server/hub-run-queue";
 export * from "./server/native-transport";

@@ -1,6 +1,9 @@
 "use client";
 
-import type { GeneratedMedia } from "@cline/shared/browser";
+import {
+	type GeneratedMedia,
+	USER_REJECTED_TOOL_REASON,
+} from "@cline/shared/browser";
 import { GeneratedMediaContent } from "@cline/ui";
 import {
 	CheckIcon,
@@ -1182,7 +1185,7 @@ export default function Chat({
 			type: "approval_response",
 			approvalId,
 			approved,
-			reason: approved ? "Approved in Cline Hub." : "Rejected in Cline Hub.",
+			reason: approved ? "Approved in Cline Hub." : USER_REJECTED_TOOL_REASON,
 		});
 		setStatus(approved ? "Approval sent." : "Rejection sent.");
 	};

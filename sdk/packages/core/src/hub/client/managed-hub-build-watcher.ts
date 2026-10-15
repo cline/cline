@@ -13,6 +13,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { queryHubSessionActivity } from "./index";
 
 const DEFAULT_WATCH_INTERVAL_MS = 10_000;
 const WATCH_INTERVAL_ENV = "CLINE_HUB_BUILD_WATCH_INTERVAL_MS";
@@ -43,6 +44,36 @@ export interface ManagedHubBuildMismatchEvent {
 	hubCoreVersion?: string;
 	/** Build identity this client expects a managed Hub to match. */
 	expectedBuildId: string;
+	/**
+	 * Sessions with live participants on the Hub (best-effort, `outdated_hub`
+	 * only): the work that replacing the Hub would interrupt. Unset when the
+	 * Hub cannot answer the query.
+	 */
+	activeSessionCount?: number;
+	/** Distinct clients attached to those sessions (best-effort, `outdated_hub` only). */
+	participantClientCount?: number;
+}
+
+/**
+ * Best-effort enrichment for the `outdated_hub` case: how much live work the
+ * older Hub is serving, so surfaces can say "updating now interrupts N
+ * sessions" instead of asking for blind consent. A Hub that cannot answer
+ * leaves the fields unset rather than failing the check.
+ */
+async function withHubSessionActivity(
+	event: ManagedHubBuildMismatchEvent,
+	authToken?: string,
+): Promise<ManagedHubBuildMismatchEvent> {
+	try {
+		const activity = await queryHubSessionActivity(event.url, authToken);
+		return {
+			...event,
+			activeSessionCount: activity.activeSessionCount,
+			participantClientCount: activity.participantClientCount,
+		};
+	} catch {
+		return event;
+	}
 }
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -112,13 +143,33 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (compatibility.reason === "unsupported_protocol") {
 		return report("unsupported_protocol");
 	}
+	// Two independently built artifacts of the same release never share a
+	// build fingerprint: a CLI and a desktop app cut from different commits
+	// at the same core version carry different buildIds and build epochs, so
+	// they disagree forever. That disagreement is not user-actionable in
+	// either direction - "update" would install nothing newer, and the
+	// prompt loops until the next release happens to align the fingerprints.
+	// Same core version therefore never prompts; the fingerprint keeps its
+	// role in the reuse/retire total order, where its antisymmetry matters,
+	// but it does not drive prompts on its own.
+	const self = resolveHubBuildIdentity();
+	if (
+		self.coreVersion &&
+		healthy.coreVersion &&
+		self.coreVersion === healthy.coreVersion
+	) {
+		return undefined;
+	}
 	// Only a Hub this client is strictly newer than gets the "older Hub" copy;
 	// that is the case the retire path defers while sessions are live. A newer
 	// Hub - or one that carries too little metadata to order, where updating
 	// this client is what supplies the missing ordering - is a client-update
 	// prompt as before.
-	if (compareHubBuilds(resolveHubBuildIdentity(), healthy) > 0) {
-		return report("outdated_hub");
+	if (compareHubBuilds(self, healthy) > 0) {
+		return await withHubSessionActivity(
+			report("outdated_hub"),
+			record.authToken,
+		);
 	}
 	return report("build_mismatch");
 }

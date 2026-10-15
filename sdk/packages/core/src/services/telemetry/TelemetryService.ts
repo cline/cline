@@ -137,12 +137,22 @@ export class TelemetryService implements ITelemetryService {
 	private buildAttributes(
 		properties?: TelemetryProperties,
 	): TelemetryProperties {
-		return {
+		const scopedDistinctId =
+			typeof properties?.distinct_id === "string" &&
+			properties.distinct_id.trim()
+				? properties.distinct_id.trim()
+				: this.distinctId;
+		const attributes = {
 			...this.commonProperties,
-			...properties,
 			...this.metadata,
-			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+			// Metadata is the host default. A scoped session may override client
+			// dimensions when execution happens in a shared Hub process.
+			...properties,
+			...(scopedDistinctId ? { distinct_id: scopedDistinctId } : {}),
 			device_id: this.deviceId,
 		};
+		return Object.fromEntries(
+			Object.entries(attributes).filter(([, value]) => value !== undefined),
+		);
 	}
 }

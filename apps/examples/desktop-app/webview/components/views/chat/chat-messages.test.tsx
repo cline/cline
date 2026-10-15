@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { MAX_LIVE_COMMAND_OUTPUT_CHARS } from "@/lib/command-output";
 import { ChatMessages } from "./chat-messages";
 
 // @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
@@ -50,6 +51,37 @@ async function renderMessages(
 		);
 	});
 }
+
+describe("ChatMessages error action", () => {
+	it("keeps the recovery action when the error is already in the transcript", async () => {
+		const onClick = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "github-error",
+					sessionId: "session-1",
+					role: "error",
+					content: "GitHub access expired",
+					createdAt: Date.now(),
+				},
+			],
+			{
+				error: "GitHub access expired",
+				errorAction: { label: "Connect GitHub", onClick },
+			},
+		);
+
+		const button = [...container.querySelectorAll("button")].find((candidate) =>
+			candidate.textContent?.includes("Connect GitHub"),
+		);
+		expect(button).toBeDefined();
+		expect(container.textContent?.match(/GitHub access expired/g)).toHaveLength(
+			1,
+		);
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+});
 
 describe("ChatMessages tool disclosures", () => {
 	it.each([
@@ -133,7 +165,7 @@ describe("ChatMessages tool disclosures", () => {
 			}),
 			createdAt: 1,
 		};
-		await renderMessages([pendingTool]);
+		await renderMessages([pendingTool], { status: "running" });
 
 		const pendingTitle = container.querySelector(
 			".cline-chat-tool-label > span",
@@ -159,6 +191,93 @@ describe("ChatMessages tool disclosures", () => {
 		expect(
 			completedTitle?.classList.contains("cline-chat-streaming-title"),
 		).toBe(false);
+	});
+
+	it.each([
+		"cancelled",
+		"failed",
+		"completed",
+		"idle",
+	] as const)("stops animating missing tool results when the run is %s, including on reopen", async (status) => {
+		const tool: ChatMessage = {
+			id: "unfinished",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "read_files", hookEventName: "tool_call_start" },
+		};
+		const snapshot = JSON.stringify(tool);
+		await renderMessages([tool], { status: "running" });
+		expect(
+			container.querySelector(".cline-chat-streaming-title"),
+		).not.toBeNull();
+		await renderMessages([tool], { status });
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		expect(JSON.stringify(tool)).toBe(snapshot);
+		await renderMessages(
+			[{ ...tool, meta: { ...tool.meta, hookEventName: "history_tool_use" } }],
+			{ status },
+		);
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		// A later turn must not reactivate the old unfinished tool.
+		await renderMessages(
+			[
+				tool,
+				{
+					id: "next-turn",
+					sessionId: "session-1",
+					role: "user",
+					content: "Continue",
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+	});
+
+	it("keeps late results renderable after an inactive status", async () => {
+		const tool: ChatMessage = {
+			id: "late-result",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "custom_tool",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "custom_tool", hookEventName: "history_tool_use" },
+		};
+		await renderMessages([tool], { status: "completed" });
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], { status: "running" });
+		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
+		await renderMessages(
+			[
+				{
+					...tool,
+					content: JSON.stringify({
+						toolName: "custom_tool",
+						input: { paths: ["pending.ts"] },
+						result: "Actual late result",
+					}),
+					meta: { ...tool.meta, hookEventName: "tool_call_end" },
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		const trigger = container.querySelector("button.cline-chat-tool-trigger");
+		await act(async () => (trigger as HTMLButtonElement).click());
+		expect(container.textContent).toContain("Actual late result");
 	});
 
 	it("exposes and toggles expandable tool details", async () => {
@@ -188,6 +307,201 @@ describe("ChatMessages tool disclosures", () => {
 		expect(document.getElementById(panelId ?? "")?.textContent).toContain(
 			"workspace selector",
 		);
+	});
+
+	it("renders image content returned by a tool instead of raw base64", async () => {
+		const screenshotData = "aGVsbG8=";
+		await renderMessages([
+			{
+				id: "tool-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{
+							type: "text",
+							text: "Screenshot captured at /tmp/screenshot.png",
+						},
+						{
+							type: "image",
+							data: screenshotData,
+							mimeType: "image/png",
+						},
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Computer use"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.textContent).toContain(
+			"Screenshot captured at /tmp/screenshot.png",
+		);
+		expect(container.textContent).not.toContain(screenshotData);
+
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.src).toBe(`data:image/png;base64,${screenshotData}`);
+
+		await act(async () => image?.closest("button")?.click());
+		expect(
+			container.querySelector(
+				'[role="dialog"][aria-label="Expanded attachment"]',
+			),
+		).not.toBeNull();
+	});
+
+	it("navigates multiple images returned by a single tool call", async () => {
+		await renderMessages([
+			{
+				id: "tool-multi-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{ type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+						{ type: "image", data: "c2Vjb25k", mimeType: "image/png" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+	});
+
+	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
+		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
+		await renderMessages([
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		// The final answer of the run is visible without a click…
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Scheduled task completed"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		// …rendered as markdown structure, not a monospace code block.
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		const markdown = panel?.querySelector(".cline-markdown");
+		expect(markdown?.querySelector("h2")?.textContent).toBe("Report");
+		expect(markdown?.textContent).toContain("3 feeds");
+		expect(markdown?.textContent).not.toContain("##");
+		expect(markdown?.textContent).not.toContain("**");
+		// The final answer renders in full foreground color, overriding the
+		// panel's muted tool-detail gray.
+		expect(markdown?.closest(".text-foreground")).not.toBeNull();
+	});
+
+	it("labels an errored submit_and_exit as failed", async () => {
+		await renderMessages([
+			{
+				id: "tool-submit-error",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary: "Attempted report.", verified: false },
+					isError: true,
+					result: { error: "submit_and_exit timed out after 15000ms" },
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Scheduled task failed");
+		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
+	it("keeps the scheduled-task report visible when the run collapses", async () => {
+		// A follow-up prompt settles the scheduled run's span and folds its
+		// working rows into the work summary; the submit_and_exit row is the
+		// run's final report and must stay visible below it.
+		const summary = "All feeds healthy.";
+		await renderMessages([
+			{
+				id: "user-schedule",
+				sessionId: "session-1",
+				role: "user",
+				content: "Check the feeds",
+				createdAt: 1_000,
+			},
+			{
+				id: "tool-read",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["feeds.json"] },
+					result: {},
+				}),
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 3_000,
+			},
+			{
+				id: "user-followup",
+				sessionId: "session-1",
+				role: "user",
+				content: "Thanks!",
+				createdAt: 9_000,
+			},
+		]);
+
+		// The working rows folded into a collapsed work summary…
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		);
+		expect(workTrigger?.getAttribute("aria-expanded")).toBe("false");
+		// …but the report row did not fold with them: it stays visible and
+		// expanded outside the summary.
+		expect(container.textContent).toContain("Scheduled task completed");
+		expect(container.textContent).toContain(summary);
 	});
 
 	it("renders consecutive tool calls as individual rows", async () => {
@@ -626,12 +940,15 @@ describe("ChatMessages tool disclosures", () => {
 		const message = container.querySelector(
 			'.cline-chat-message[data-role="assistant"]',
 		);
-		const messageList = message?.parentElement;
+		// This narration-then-tool tail renders inside a tight run group,
+		// which in turn sits in the gap-4 conversation list; the content column
+		// keeps the gap-2 spacing between blocks within one message.
+		const runGroup = message?.parentElement;
+		const messageList = runGroup?.parentElement;
 		const content = message?.querySelector(".cline-chat-message-content");
 
-		// The list owns conversation spacing via gap-8, while the content column
-		// keeps the tighter gap-2 spacing between blocks within one message.
-		expect(messageList?.classList.contains("gap-8")).toBe(true);
+		expect(runGroup?.classList.contains("gap-1")).toBe(true);
+		expect(messageList?.classList.contains("gap-4")).toBe(true);
 		expect(content?.classList.contains("flex")).toBe(true);
 		expect(content?.classList.contains("flex-col")).toBe(true);
 		expect(content?.classList.contains("gap-2")).toBe(true);
@@ -797,6 +1114,140 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("copies a user message without its transport envelope", async () => {
+		const writeText = vi.fn(async () => undefined);
+		Object.assign(navigator, { clipboard: { writeText } });
+		await renderMessages([
+			{
+				id: "copyable-user",
+				sessionId: "session-1",
+				role: "user",
+				content: '<user_input mode="act">Original prompt</user_input>',
+				createdAt: 1,
+			},
+		]);
+
+		const copyButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Copy user message"]',
+		);
+		vi.useFakeTimers();
+		try {
+			await act(async () => copyButton?.click());
+
+			expect(writeText).toHaveBeenCalledOnce();
+			expect(writeText).toHaveBeenCalledWith("Original prompt");
+			expect(copyButton?.getAttribute("aria-label")).toBe(
+				"Copied user message",
+			);
+
+			await act(async () => vi.runOnlyPendingTimers());
+			expect(copyButton?.getAttribute("aria-label")).toBe("Copy user message");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("hides runtime steering notes from the transcript", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "tell me the current time",
+				createdAt: 1,
+			},
+			{
+				id: "steer-1",
+				sessionId: "session-1",
+				role: "user",
+				content:
+					"[SYSTEM] This run is not complete until you call one of these terminal completion tools: submit_and_exit.",
+				createdAt: 2,
+				meta: { userRunSpan: 0 },
+			},
+		]);
+
+		// Steering nudges are machinery talking to the model — not rendered
+		// at all, and never as a user bubble.
+		expect(container.textContent).toContain("tell me the current time");
+		expect(container.textContent).not.toContain("[SYSTEM]");
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you call",
+		);
+	});
+
+	it("shows a genuine user prompt that happens to start with [SYSTEM]", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] is a prefix I typed myself, explain it",
+				createdAt: 1,
+			},
+		]);
+
+		// Only injected reminders (userRunSpan 0) are steering; a person's
+		// own prompt stays visible.
+		expect(container.textContent).toContain(
+			"is a prefix I typed myself, explain it",
+		);
+	});
+
+	it("keeps steering notes hidden inside the expanded work block", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "tell me the current time",
+				createdAt: 1,
+			},
+			{
+				id: "steer-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] This run is not complete until you finish.",
+				createdAt: 2,
+				meta: { userRunSpan: 0 },
+			},
+			{
+				id: "tool-1",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: {},
+					result: {},
+				}),
+				createdAt: 3,
+			},
+			{
+				id: "answer",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "It is 12:28 PM PT.",
+				createdAt: 4,
+			},
+		]);
+
+		// The steering note is working-rows machinery grouped with the run,
+		// and stays hidden even when the work block is expanded.
+		expect(container.textContent).toContain("It is 12:28 PM PT.");
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you finish.",
+		);
+
+		const trigger = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.includes("Worked"));
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you finish.",
+		);
+	});
+
 	it("counts folded system-displayed runs before an editable user message", async () => {
 		const onEditMessage = vi.fn(async () => undefined);
 		await renderMessages(
@@ -909,11 +1360,114 @@ describe("ChatMessages tool disclosures", () => {
 			},
 		]);
 
-		const content = container.querySelector(".cline-chat-conversation-content");
+		const content = container.querySelector(".cline-message-scroller-content");
 		const messageList = content?.querySelector(":scope > div");
 
 		expect(content?.classList.contains("overflow-x-hidden")).toBe(false);
 		expect(messageList?.classList.contains("overflow-x-hidden")).toBe(false);
+	});
+
+	it("renders live ANSI command output and offers proceed while running", async () => {
+		const onProceedWhileRunning = vi.fn(async () => undefined);
+		await renderMessages(
+			[
+				{
+					id: "tool-live-output",
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "run_commands",
+						input: { commands: ["bun test"] },
+						result: null,
+					}),
+					createdAt: 1,
+					meta: {
+						toolName: "run_commands",
+						toolCallId: "call-live",
+						toolOutput: "\u001b[31mfailed\u001b[0m\n",
+						toolDetachable: true,
+						hookEventName: "tool_call_start",
+					},
+				},
+			],
+			{ status: "running", onProceedWhileRunning },
+		);
+
+		const output = container.querySelector('[aria-label="Command output"]');
+		expect(output?.textContent).toContain("failed");
+		expect(output?.textContent).not.toContain("\u001b[31m");
+		expect(output?.querySelector("span")?.getAttribute("style")).toContain(
+			"color",
+		);
+		const proceedButton = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent?.includes("Proceed while running"),
+		);
+		expect(proceedButton).toBeDefined();
+		await act(async () => proceedButton?.click());
+		expect(onProceedWhileRunning).toHaveBeenCalledWith(
+			"session-1",
+			"call-live",
+		);
+	});
+
+	it("renders persisted run command output after completion", async () => {
+		await renderMessages([
+			{
+				id: "tool-final-output",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["bun test"] },
+					result: [
+						{ query: "bun test", result: "3 tests passed", success: true },
+					],
+				}),
+				createdAt: 1,
+				meta: {
+					toolName: "run_commands",
+					toolCallId: "call-final",
+					hookEventName: "tool_call_end",
+				},
+			},
+		]);
+
+		const trigger = container.querySelector<HTMLButtonElement>(
+			".cline-chat-tool-trigger",
+		);
+		await act(async () => trigger?.click());
+		expect(
+			container.querySelector('[aria-label="Command output"]')?.textContent,
+		).toContain("3 tests passed");
+	});
+
+	it("caps command output without dropping the newest tail", async () => {
+		const makeCommand = (id: string, output: string, createdAt: number) => ({
+			id,
+			sessionId: "session-1",
+			role: "tool" as const,
+			content: JSON.stringify({
+				toolName: "run_commands",
+				input: { commands: [`echo ${id}`] },
+				result: [{ query: `echo ${id}`, result: output, success: true }],
+			}),
+			createdAt,
+			meta: { toolName: "run_commands", hookEventName: "tool_call_end" },
+		});
+		await renderMessages([
+			makeCommand("command", `${"a".repeat(60_000)}newest-tail`, 1),
+		]);
+
+		const trigger = container.querySelector<HTMLButtonElement>(
+			".cline-chat-tool-trigger",
+		);
+		await act(async () => trigger?.click());
+		const output = container.querySelector('[aria-label="Command output"]');
+		expect(output?.textContent?.length).toBeLessThanOrEqual(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS,
+		);
+		expect(output?.textContent).toContain("newest-tail");
+		expect(output?.textContent).toContain("Earlier command output truncated");
 	});
 });
 
@@ -938,6 +1492,7 @@ describe("ChatMessages follow-up questions", () => {
 						options: ["Continue", "Stop"],
 						question: "Continue this task?",
 						requestId: "request-1",
+						sessionId: "session-1",
 					},
 				],
 			},
@@ -947,12 +1502,6 @@ describe("ChatMessages follow-up questions", () => {
 			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
-		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
-
-		const submit = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Submit",
-		);
-		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});
@@ -1163,10 +1712,8 @@ describe("ChatMessages reasoning disclosure", () => {
 			element.textContent?.includes("Thought for 7s"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-		expect(trigger?.querySelector(".lucide-brain")).not.toBeNull();
+		expect(trigger?.querySelector(".cline-chat-thinking-icon")).not.toBeNull();
 		expect(trigger?.querySelector(".cline-chat-disclosure-icon")).toBeNull();
-		expect(trigger?.classList.contains("text-sm")).toBe(true);
-		expect(trigger?.classList.contains("text-xs")).toBe(false);
 
 		await act(async () => trigger?.click());
 
@@ -1224,24 +1771,15 @@ describe("ChatMessages reasoning disclosure", () => {
 		);
 		expect(toolContent?.classList.contains("cline-chat-panel-rail")).toBe(true);
 
-		// Reasoning remains capped; tool output grows into the conversation scroller.
+		// Reasoning remains capped and scrolls internally (the shared
+		// cline-chat-thinking-content styling); tool output grows into the
+		// conversation scroller.
 		expect(
-			[...(reasoningContent?.classList ?? [])].some((name) =>
-				name.startsWith("max-h-"),
-			),
+			reasoningContent?.classList.contains("cline-chat-thinking-content"),
 		).toBe(true);
-		expect(
-			[...(toolContent?.classList ?? [])].some((name) =>
-				name.startsWith("max-h-"),
-			),
-		).toBe(false);
-
-		// Reasoning scrolls internally; tool output leaves scrolling to the conversation.
-		expect(reasoningContent?.classList.contains("overflow-y-auto")).toBe(true);
-		expect(reasoningContent?.classList.contains("overflow-x-hidden")).toBe(
-			true,
+		expect(toolContent?.classList.contains("cline-chat-thinking-content")).toBe(
+			false,
 		);
-		expect(reasoningContent?.classList.contains("overflow-auto")).toBe(false);
 		expect(toolContent?.classList.contains("overflow-auto")).toBe(false);
 
 		// Detail rows use the shared wrapping behavior instead of horizontal scrolling.
@@ -1374,6 +1912,14 @@ describe("ChatMessages reasoning disclosure", () => {
 			},
 		]);
 
+		// The completed run's working rows collapse; expand them so both
+		// disclosures render, proving they were never merged across the tool.
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		) as HTMLButtonElement | null;
+		expect(workTrigger).not.toBeNull();
+		await act(async () => workTrigger?.click());
+
 		expect(container.querySelectorAll(".cline-chat-reasoning")).toHaveLength(2);
 	});
 
@@ -1391,6 +1937,389 @@ describe("ChatMessages reasoning disclosure", () => {
 
 		expect(container.textContent).toContain("Thinking");
 		expect(container.textContent).not.toContain("Thought for");
+	});
+});
+
+describe("ChatMessages transcript navigation", () => {
+	const messages: ChatMessage[] = [
+		{
+			id: "user-1",
+			sessionId: "session-1",
+			role: "user",
+			content: "First prompt",
+			createdAt: 1,
+		},
+		{
+			id: "assistant-1",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "First answer",
+			createdAt: 2,
+		},
+		{
+			id: "user-2",
+			sessionId: "session-1",
+			role: "user",
+			content: "Second prompt",
+			createdAt: 3,
+		},
+		{
+			id: "assistant-2",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Second answer",
+			createdAt: 4,
+		},
+	];
+
+	function mockTranscriptLayout(layoutMessages = messages) {
+		vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400);
+		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+			1600,
+		);
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: HTMLElement) {
+				const viewport = this.closest(
+					'[data-slot="message-scroller-viewport"]',
+				);
+				const rowIndex = layoutMessages.findIndex(
+					(message) => message.id === this.dataset.messageId,
+				);
+				const top =
+					rowIndex >= 0 ? rowIndex * 400 - (viewport?.scrollTop ?? 0) : 0;
+				return {
+					top,
+					bottom: top + 400,
+					height: 400,
+					left: 0,
+					right: 800,
+					width: 800,
+					x: 0,
+					y: top,
+					toJSON() {},
+				};
+			},
+		);
+		HTMLElement.prototype.scrollTo = vi.fn(function (
+			this: HTMLElement,
+			options: ScrollToOptions,
+		) {
+			this.scrollTop = options.top ?? 0;
+		});
+		vi.stubGlobal(
+			"matchMedia",
+			vi.fn(() => ({ matches: false })),
+		);
+	}
+
+	afterEach(() => vi.unstubAllGlobals());
+
+	it("registers submitted prompts as anchors and excludes runtime steering from the outline", async () => {
+		await renderMessages([
+			...messages,
+			{
+				id: "steering",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] Continue",
+				createdAt: 5,
+				meta: { userRunSpan: 0 },
+			},
+		]);
+		const outline = container.querySelector(
+			'nav[aria-label="Transcript outline"]',
+		);
+		expect(outline?.querySelectorAll("button")).toHaveLength(2);
+		expect(outline?.textContent).not.toContain("Continue");
+		expect(
+			container
+				.querySelector('[data-message-id="user-1"]')
+				?.getAttribute("data-scroll-anchor"),
+		).toBe("true");
+		expect(
+			container
+				.querySelector('[data-message-id="assistant-1"]')
+				?.getAttribute("data-scroll-anchor"),
+		).toBe("false");
+	});
+
+	it("opens a saved session at the bottom, including after switching sessions", async () => {
+		mockTranscriptLayout();
+		await renderMessages(messages);
+		expect(
+			container.querySelector<HTMLElement>(
+				'[data-slot="message-scroller-viewport"]',
+			)?.scrollTop,
+		).toBe(1200);
+		await renderMessages(messages, { sessionId: "session-2" });
+		expect(
+			container.querySelector<HTMLElement>(
+				'[data-slot="message-scroller-viewport"]',
+			)?.scrollTop,
+		).toBe(1200);
+	});
+
+	it("shows the user prompt without its transport envelope in outline previews", async () => {
+		// The tooltip measures its trigger; jsdom has no ResizeObserver.
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
+		await renderMessages([
+			{
+				...messages[0],
+				content: '<user_input mode="act">Please fix the tests</user_input>',
+			},
+		]);
+		const button = container.querySelector<HTMLButtonElement>(
+			'nav[aria-label="Transcript outline"] button',
+		);
+		expect(button?.getAttribute("aria-label")).toBe(
+			"Go to message 1: Please fix the tests",
+		);
+		await act(async () => {
+			button?.focus();
+		});
+		const tooltip = document.querySelector('[role="tooltip"]');
+		expect(tooltip?.textContent).toBe("Please fix the tests");
+	});
+
+	it("jumps to a selected prompt and tracks the current turn after scrolling", async () => {
+		mockTranscriptLayout();
+		await renderMessages(messages);
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		if (!viewport) throw new Error("Transcript viewport missing");
+		const buttons = container.querySelectorAll<HTMLButtonElement>(
+			'nav[aria-label="Transcript outline"] button',
+		);
+		await act(async () => buttons[1].click());
+		expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith(
+			expect.objectContaining({ top: 776, behavior: "smooth" }),
+		);
+		await act(async () => {
+			viewport.dispatchEvent(new Event("scroll"));
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(buttons[1].getAttribute("aria-current")).toBe("location");
+		await act(async () => buttons[0].click());
+		await act(async () => {
+			viewport.dispatchEvent(new Event("scroll"));
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport.scrollTop).toBe(0);
+		expect(buttons[0].getAttribute("aria-current")).toBe("location");
+		expect(buttons[1].hasAttribute("aria-current")).toBe(false);
+	});
+
+	it("keeps the reader's position when assistant output arrives after navigating away", async () => {
+		mockTranscriptLayout();
+		// jsdom has no ResizeObserver; capture the scroller's observers so the
+		// test can deliver the resize that real content growth would trigger.
+		const resizeCallbacks: ResizeObserverCallback[] = [];
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				constructor(callback: ResizeObserverCallback) {
+					resizeCallbacks.push(callback);
+				}
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
+		await renderMessages(messages, { status: "running" });
+		// Let the initial scroll-to-end settle before simulating reader input.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		if (!viewport) throw new Error("Transcript viewport missing");
+		await act(async () => {
+			viewport.dispatchEvent(
+				new WheelEvent("wheel", { deltaY: -400, bubbles: true }),
+			);
+			viewport.scrollTop = 100;
+			viewport.dispatchEvent(new Event("scroll"));
+		});
+		await renderMessages(
+			[
+				...messages.slice(0, -1),
+				{ ...messages[3], content: "More streamed output" },
+			],
+			{ status: "running", streamingMessageId: "assistant-2" },
+		);
+		expect(viewport.scrollTop).toBe(100);
+		// The streamed answer grows the transcript; the scroller must not treat
+		// that resize as a reason to follow the end.
+		vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+			2000,
+		);
+		expect(resizeCallbacks.length).toBeGreaterThan(0);
+		await act(async () => {
+			for (const callback of resizeCallbacks) {
+				callback([], {} as ResizeObserver);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport.scrollTop).toBe(100);
+	});
+
+	it("anchors a newly submitted prompt near the top of the viewport", async () => {
+		const nextMessages = [
+			...messages,
+			{
+				id: "user-3",
+				sessionId: "session-1",
+				role: "user" as const,
+				content: "New prompt",
+				createdAt: 5,
+			},
+		];
+		mockTranscriptLayout(nextMessages);
+		await renderMessages(messages);
+		await renderMessages(nextMessages, { status: "running" });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		expect(viewport?.scrollTop).toBe(1512);
+	});
+
+	it("stays on the new prompt when the activity row is swapped for the first answer in a saved session", async () => {
+		const newPrompt: ChatMessage = {
+			id: "user-3",
+			sessionId: "session-1",
+			role: "user",
+			content: "New prompt",
+			createdAt: 5,
+		};
+		const firstAnswer: ChatMessage = {
+			id: "assistant-3",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Streaming answer",
+			createdAt: 6,
+		};
+		mockTranscriptLayout([...messages, newPrompt, firstAnswer]);
+		// Saved history arrives after the provider mounted on a loading row.
+		await renderMessages([], { isSessionSwitching: true });
+		await renderMessages(messages);
+		await renderMessages([...messages, newPrompt], { status: "running" });
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		const viewport = container.querySelector<HTMLElement>(
+			'[data-slot="message-scroller-viewport"]',
+		);
+		expect(viewport?.scrollTop).toBe(1512);
+		// The "Thinking..." row unmounts in the same commit the answer row mounts,
+		// so the transcript's child count is unchanged. The upstream heuristic for
+		// that case must not re-anchor to a history prompt the reader already saw.
+		await renderMessages([...messages, newPrompt, firstAnswer], {
+			status: "running",
+			streamingMessageId: firstAnswer.id,
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(viewport?.scrollTop).toBe(1512);
+	});
+
+	it("hides the outline for an empty chat", async () => {
+		await renderMessages([]);
+		expect(
+			container.querySelector('nav[aria-label="Transcript outline"]'),
+		).toBeNull();
+	});
+});
+
+describe("ChatMessages work collapse", () => {
+	const completedRun: ChatMessage[] = [
+		{
+			id: "user-run",
+			sessionId: "session-1",
+			role: "user",
+			content: "Fix the bug",
+			createdAt: 1_000,
+		},
+		{
+			id: "tool-run-1",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["bug.ts"] },
+				result: {},
+			}),
+			createdAt: 2_000,
+		},
+		{
+			id: "tool-run-2",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "editor",
+				input: { path: "bug.ts", old_text: "before", new_text: "after" },
+				result: {},
+			}),
+			createdAt: 3_000,
+		},
+		{
+			id: "assistant-run",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Fixed it.",
+			createdAt: 5_000,
+		},
+	];
+
+	it("folds a finished run into a work summary that expands back into rows", async () => {
+		await renderMessages(completedRun);
+
+		const trigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		) as HTMLButtonElement | null;
+		expect(trigger?.textContent).toContain(
+			"Worked for 4s and made 2 tool calls",
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		// Collapsed content is lazy: the tool rows do not render until opened.
+		expect(container.querySelector(".cline-chat-tool")).toBeNull();
+		expect(container.textContent).toContain("Fixed it.");
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
+
+	it("keeps the live run's rows visible while the session is active", async () => {
+		await renderMessages(completedRun, { status: "running" });
+
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
+
+	it.each([
+		"cancelled",
+		"failed",
+		"error",
+	] as const)("keeps an interrupted run's rows visible even with partial trailing text (%s)", async (status) => {
+		// Stop can land mid-answer, leaving partial assistant text after the
+		// tool calls; the run still must not fold into a summary.
+		await renderMessages(completedRun, { status });
+
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
 	});
 });
 
@@ -1559,5 +2488,148 @@ describe("ChatMessages tool approvals", () => {
 
 		await act(async () => reject?.click());
 		expect(onReject).toHaveBeenCalledWith("req-1");
+	});
+
+	it("leads an imported transcript with a notice naming the source tool", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "user-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "imported prompt",
+				createdAt: 1,
+			},
+		];
+		await renderMessages(messages, { importedFromTool: "claude-code" });
+
+		const notice = container.querySelector("output");
+		expect(notice?.textContent).toContain("Imported from Claude Code");
+		const transcript = notice?.closest(
+			'[data-slot="message-scroller-content"]',
+		);
+		expect(transcript?.firstElementChild?.contains(notice ?? null)).toBe(true);
+		expect(transcript?.textContent).toContain("imported prompt");
+
+		await renderMessages(messages);
+		expect(container.querySelector("output")).toBeNull();
+	});
+});
+
+describe("persisted run errors", () => {
+	it.each([
+		"openrouter",
+		"claude-code",
+	])("renders one complete %s failure before and after reopening", async (providerId) => {
+		const providerAuth = {
+			providerId,
+			...(providerId === "claude-code"
+				? { localCli: { command: "claude" } }
+				: {}),
+		};
+		const messages: ChatMessage[] = [
+			{
+				id: "expired-key",
+				sessionId: "session-1",
+				role: "error",
+				content: "API key expired.",
+				createdAt: 1,
+				meta: { providerId, providerAuth },
+			},
+		];
+		const fullError =
+			providerId === "claude-code"
+				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
+				: "The run failed: API key expired. Check your model connection in Settings → Providers (or sign in with Cline), then try again.";
+		await renderMessages(messages, { error: fullError, status: "failed" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+		await renderMessages(messages, { error: null, status: "idle" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+	});
+});
+
+describe("ChatMessages credential failures", () => {
+	const failure: ChatMessage = {
+		id: "error-1",
+		sessionId: "session-1",
+		role: "error",
+		content:
+			"The run failed: cline requires re-authentication. Sign in to Cline again in Settings → Account, then try again.",
+		createdAt: 2,
+		meta: { reason: "credentials", providerId: "cline" },
+	};
+
+	it("offers a sign-in action inside the failure bubble and shows the failure once", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages([failure], {
+			error: failure.content,
+			onFixCredentials,
+			status: "failed",
+		});
+
+		const bubble = container.querySelector(
+			'.cline-chat-message[data-role="error"]',
+		);
+		expect(bubble?.textContent).toContain("cline requires re-authentication");
+		// The hook's error state mirrors the bubble, so no second banner.
+		expect(
+			container.textContent?.split("requires re-authentication"),
+		).toHaveLength(2);
+
+		const action = [...(bubble?.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Sign in to Cline",
+		);
+		expect(action).toBeDefined();
+		await act(async () => action?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("account");
+	});
+
+	it("points known API providers at settings and skips local or unknown auth", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages(
+			[
+				{
+					...failure,
+					id: "error-anthropic",
+					meta: {
+						reason: "credentials",
+						providerId: "anthropic",
+						providerAuth: { providerId: "anthropic" },
+					},
+				},
+				{
+					...failure,
+					id: "error-restored-claude-code",
+					createdAt: 4,
+					meta: { reason: "credentials", providerId: "claude-code" },
+				},
+				{
+					...failure,
+					id: "error-claude-code",
+					createdAt: 3,
+					meta: {
+						reason: "credentials",
+						providerId: "claude-code",
+						providerAuth: {
+							providerId: "claude-code",
+							localCli: { command: "claude" },
+						},
+					},
+				},
+			],
+			{ onFixCredentials, status: "failed" },
+		);
+
+		const buttons = [...container.querySelectorAll("button")].filter(
+			(button) =>
+				button.textContent === "Open API providers" ||
+				button.textContent === "Sign in to Cline",
+		);
+		expect(buttons.map((button) => button.textContent)).toEqual([
+			"Open API providers",
+		]);
+		await act(async () => buttons[0]?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });

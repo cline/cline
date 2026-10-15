@@ -3,7 +3,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createGoogleProviderModule } from "./google";
+import { createGoogleProviderModule, normalizeGeminiBaseUrl } from "./google";
 
 const createGoogleGenerativeAIMock = vi.hoisted(() => vi.fn());
 const googleModelMock = vi.hoisted(() =>
@@ -13,6 +13,43 @@ const googleModelMock = vi.hoisted(() =>
 vi.mock("@ai-sdk/google", () => ({
 	createGoogleGenerativeAI: createGoogleGenerativeAIMock,
 }));
+
+describe("normalizeGeminiBaseUrl", () => {
+	it("returns undefined when no base URL is configured", () => {
+		expect(normalizeGeminiBaseUrl(undefined)).toBeUndefined();
+		expect(normalizeGeminiBaseUrl("")).toBeUndefined();
+		expect(normalizeGeminiBaseUrl("   ")).toBeUndefined();
+	});
+
+	it("appends /v1beta to host-root base URLs (legacy geminiBaseUrl semantics)", () => {
+		expect(
+			normalizeGeminiBaseUrl("https://generativelanguage.googleapis.com"),
+		).toBe("https://generativelanguage.googleapis.com/v1beta");
+		expect(normalizeGeminiBaseUrl("http://localhost:4000/gemini")).toBe(
+			"http://localhost:4000/gemini/v1beta",
+		);
+	});
+
+	it("strips trailing slashes before appending the version segment", () => {
+		expect(normalizeGeminiBaseUrl("https://proxy.example/gemini///")).toBe(
+			"https://proxy.example/gemini/v1beta",
+		);
+	});
+
+	it("keeps base URLs that already end with an API version segment", () => {
+		expect(
+			normalizeGeminiBaseUrl(
+				"https://generativelanguage.googleapis.com/v1beta",
+			),
+		).toBe("https://generativelanguage.googleapis.com/v1beta");
+		expect(
+			normalizeGeminiBaseUrl("https://proxy.example/gemini/v1alpha/"),
+		).toBe("https://proxy.example/gemini/v1alpha");
+		expect(normalizeGeminiBaseUrl("https://proxy.example/v1")).toBe(
+			"https://proxy.example/v1",
+		);
+	});
+});
 
 describe("createGoogleProviderModule", () => {
 	beforeEach(() => {
@@ -37,6 +74,19 @@ describe("createGoogleProviderModule", () => {
 			}),
 		);
 		expect(googleModelMock).toHaveBeenCalledWith("gemini-2.5-pro");
+	});
+
+	it("normalizes host-root base URLs before passing them to the Google provider", async () => {
+		await createGoogleProviderModule(
+			config({ baseUrl: "http://localhost:4000/gemini" }),
+			context(),
+		);
+
+		expect(createGoogleGenerativeAIMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				baseURL: "http://localhost:4000/gemini/v1beta",
+			}),
+		);
 	});
 
 	it("keeps the Google provider default when no base URL is configured", async () => {

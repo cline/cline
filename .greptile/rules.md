@@ -61,8 +61,9 @@ Emission ownership:
 
 - `user.extension_activated`: emitted **once per host process** by host-specific helpers
   (`captureCliExtensionActivated` for the CLI, `captureExtensionActivated` for VS Code).
-- `workspace.initialized` / `workspace.init_error`: emitted by a per-process de-duplicated
-  emitter in `prepareLocalRuntimeBootstrap`. Hosts must NOT re-emit these.
+- `workspace.initialized` / `workspace.init_error`: emitted by a de-duplicated emitter in
+  `prepareLocalRuntimeBootstrap`. A dedicated host emits once per workspace; a shared Hub emits
+  once per client surface and workspace. Hosts must NOT re-emit these.
 - `workspace.path_resolved`: emitted from default tool executors **only when**
   `WorkspaceManager` exposes more than one root.
 - `task.*`: emitted by core session lifecycle code in `sdk/packages/core/src/cline-core/` and
@@ -103,6 +104,19 @@ hub-backed session, so the daemon must own its own `ITelemetryService`. It build
 `createHubDaemonTelemetry()` (`sdk/packages/core/src/hub/daemon/telemetry.ts`), which
 identifies from the cached cline account (re-resolved periodically, since the daemon often
 starts before login) and flushes on every shutdown path, including startup failure.
+
+The Hub transport forwards the serializable `ExtensionContext.client` and
+`ExtensionContext.user` values with session create/restore requests. The daemon wraps its
+process-owned service with `createClientScopedTelemetryService()` so lifecycle events use the
+originating client's `cline_type`, platform/version, and current account/organization without
+mutating the singleton shared by concurrent clients. Keep canonical task fields named
+`provider` and `model`; do not reintroduce host-specific aliases such as `apiProvider` or
+`modelId` for `task.created`, `task.restarted`, or `task.completed`.
+
+`UserContext.distinctId` may be an anonymous machine ID. Set `UserContext.accountId` to the
+authenticated account ID (or `null` for an explicitly signed-out client) whenever a client
+forwards user context; this prevents machine IDs and stale daemon identity from becoming
+`user_id` / `organization_id` on task events.
 
 Flag changes that remove this wiring, construct runtime hosts inside the daemon without
 passing its telemetry handle, or add daemon exit paths that skip the flush — hub-backed

@@ -37,6 +37,19 @@ class MockAgentTeamsRuntime {
 		outcomes: [],
 		outcomeFragments: [],
 	}));
+	hasPendingStateDelta = vi.fn(() => false);
+	drainStateDelta = vi.fn(() => ({
+		teamId: "team_1",
+		teamName: "test",
+		reset: false,
+		members: [],
+		tasks: [],
+		mailbox: [],
+		missionLog: [],
+		runs: [],
+		outcomes: [],
+		outcomeFragments: [],
+	}));
 	markStaleRunsInterrupted = vi.fn();
 	recoverActiveRuns = vi.fn();
 	getTeammateIds = vi.fn(() => []);
@@ -108,6 +121,7 @@ class MockTeamStore {
 		interruptedRunIds: [],
 	}));
 	handleTeamEvent = vi.fn();
+	persistBatch = vi.fn();
 	persistRuntime = vi.fn();
 }
 
@@ -178,32 +192,44 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				maxIterations: 7,
 			},
 		});
-		expect(teamStoreInstance.handleTeamEvent).toHaveBeenCalledWith(
+		expect(teamStoreInstance.persistBatch).toHaveBeenLastCalledWith(
 			expect.any(String),
 			expect.objectContaining({
-				type: "teammate_spawned",
-				agentId: "python-poet",
+				events: [
+					expect.objectContaining({
+						type: "teammate_spawned",
+						payload: expect.objectContaining({ agentId: "python-poet" }),
+					}),
+				],
 			}),
 		);
-		expect(teamStoreInstance.persistRuntime).toHaveBeenCalled();
+		expect(teamStoreInstance.persistRuntime).not.toHaveBeenCalled();
+		const callsAfterSpawn = teamStoreInstance.persistBatch.mock.calls.length;
+		runtimeInstance.emit({
+			type: "agent_event",
+			agentId: "python-poet",
+			event: { type: "content_update" },
+		});
+		runtimeInstance.emit({
+			type: "run_progress",
+			run: { id: "run_1" },
+			message: "heartbeat",
+		});
+		expect(teamStoreInstance.persistBatch.mock.calls.length).toBe(
+			callsAfterSpawn,
+		);
 
 		runtimeInstance.emit({
 			type: "teammate_shutdown",
 			agentId: "python-poet",
 		});
-		expect(teamStoreInstance.handleTeamEvent).toHaveBeenCalledWith(
+		expect(teamStoreInstance.persistBatch).toHaveBeenLastCalledWith(
 			expect.any(String),
 			expect.objectContaining({
-				type: "teammate_shutdown",
-				agentId: "python-poet",
+				teammates: expect.arrayContaining([
+					expect.objectContaining({ agentId: "python-poet" }),
+				]),
 			}),
-		);
-		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
-			expect.any(String),
-			expect.any(Object),
-			expect.arrayContaining([
-				expect.objectContaining({ agentId: "python-poet" }),
-			]),
 		);
 
 		runtimeInstance.emit({
@@ -211,12 +237,13 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			agentId: "python-poet",
 			reason: "manual_restart",
 		});
-		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+		expect(teamStoreInstance.persistBatch).toHaveBeenLastCalledWith(
 			expect.any(String),
-			expect.any(Object),
-			expect.not.arrayContaining([
-				expect.objectContaining({ agentId: "python-poet" }),
-			]),
+			expect.objectContaining({
+				teammates: expect.not.arrayContaining([
+					expect.objectContaining({ agentId: "python-poet" }),
+				]),
+			}),
 		);
 
 		runtimeInstance.emit({
@@ -231,12 +258,13 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			agentId: "java-poet",
 			reason: "cli_run_shutdown",
 		});
-		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+		expect(teamStoreInstance.persistBatch).toHaveBeenLastCalledWith(
 			expect.any(String),
-			expect.any(Object),
-			expect.arrayContaining([
-				expect.objectContaining({ agentId: "java-poet" }),
-			]),
+			expect.objectContaining({
+				teammates: expect.arrayContaining([
+					expect.objectContaining({ agentId: "java-poet" }),
+				]),
+			}),
 		);
 	});
 

@@ -1,14 +1,16 @@
 export type SessionHistoryStatus =
 	| "running"
 	| "completed"
+	| "expired"
 	| "failed"
 	| "cancelled"
+	| "provisioning"
 	| "idle";
 
 export type SessionMetadata = {
 	title?: string;
 	/**
-	 * Favorited sessions. Stored in session metadata rather than desktop-local
+	 * Pinned sessions. Stored in session metadata rather than desktop-local
 	 * state so every client reading the session sees the same flag.
 	 */
 	pinned?: boolean;
@@ -21,24 +23,48 @@ export type SessionMetadata = {
 		version?: string;
 		trigger?: string;
 	};
+	/**
+	 * Provenance the cron runner stamps onto sessions it starts (see
+	 * `buildRunSessionMetadata` in @cline/core). The sidebar groups a
+	 * schedule's runs by `scheduleId` and labels each with `scheduleRunNumber`.
+	 */
+	scheduleId?: string;
+	scheduleName?: string;
+	scheduleExecutionId?: string;
+	scheduleRunNumber?: number;
 	[key: string]: unknown;
 };
+
+export interface SessionScheduleInfo {
+	scheduleId?: string;
+	scheduleName?: string;
+	runNumber?: number;
+}
 
 export const PINNED_METADATA_KEY = "pinned";
 
 export interface SessionHistoryItem {
 	sessionId: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	source?: string;
 	status: SessionHistoryStatus;
 	provider: string;
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	environmentId: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+	};
 	parentSessionId?: string;
 	isSubagent?: boolean;
 	prompt?: string;
 	startedAt: string;
 	endedAt?: string;
+	lastActivityAt?: string;
 	metadata?: SessionMetadata;
 }
 
@@ -119,6 +145,27 @@ export function getSessionMetadataIsScheduled(
 		typeof origin.trigger === "string" &&
 		origin.trigger.trim() === SCHEDULED_SESSION_SOURCE
 	);
+}
+
+export function getSessionMetadataSchedule(
+	metadata?: SessionMetadata,
+): SessionScheduleInfo {
+	const scheduleId =
+		typeof metadata?.scheduleId === "string" ? metadata.scheduleId.trim() : "";
+	const scheduleName =
+		typeof metadata?.scheduleName === "string"
+			? metadata.scheduleName.trim()
+			: "";
+	const runNumber = metadata?.scheduleRunNumber;
+	return {
+		...(scheduleId ? { scheduleId } : {}),
+		...(scheduleName ? { scheduleName } : {}),
+		...(typeof runNumber === "number" &&
+		Number.isInteger(runNumber) &&
+		runNumber > 0
+			? { runNumber }
+			: {}),
+	};
 }
 
 export function getSessionMetadataGitBranch(

@@ -1,5 +1,6 @@
 import {
 	isPrivateModelCatalogProvider,
+	type ProviderTokenSource,
 	readModelsFileSync,
 	resolveModelsRegistryPath,
 	type StoredModelEntry,
@@ -159,6 +160,21 @@ function patchValue<T>(value: T | null | undefined): T | undefined {
 function patchStringValue(value: string | null | undefined): string | undefined {
 	const patched = patchValue(value)
 	return patched === "" ? undefined : patched
+}
+
+/**
+ * API keys are opaque pasted tokens. Clipboards smuggle in control and
+ * invisible formatting characters (newlines, zero-width spaces, BOM,
+ * direction marks) that make the provider reject the key with a 401 that is
+ * indistinguishable from a genuinely wrong key — while the field's masked
+ * rendering hides the corruption from the user. Strip those characters and
+ * surrounding whitespace before the value reaches either backing store.
+ */
+function sanitizeApiKeyPatch(patch: ProviderConfigPatch): ProviderConfigPatch {
+	if (!("apiKey" in patch) || typeof patch.apiKey !== "string") {
+		return patch
+	}
+	return { ...patch, apiKey: patch.apiKey.replace(/[\p{Cc}\p{Cf}]/gu, "").trim() }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -565,9 +581,34 @@ function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
 	return isRecord(settings) ? settings : {}
 }
 
-function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord): void {
+function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord, tokenSource?: ProviderTokenSource): void {
 	const provider = providerSettingsProviderId(providerId)
-	getProviderSettingsManager().saveProviderSettings({ ...next, provider }, { setLastUsed: false })
+	getProviderSettingsManager().saveProviderSettings({ ...next, provider }, { setLastUsed: false, tokenSource })
+}
+
+// Credential-bearing fields. A GUI patch that touches any of these means the
+// user (re-)entered the provider's auth by hand, so the entry is no longer
+// purely "migration"/"oauth" sourced. Custom headers count too: for
+// OpenAI-compatible endpoints the credential often travels in a header
+// (Authorization, api-key) rather than the apiKey field.
+const CREDENTIAL_PATCH_KEYS = ["apiKey", "auth", "headers"] as const
+// Only the authentication part of the AWS block is a credential; region,
+// prompt caching, endpoint, base-model and inference-profile toggles are not.
+const AWS_CREDENTIAL_PATCH_KEYS = ["accessKey", "secretKey", "sessionToken", "authentication", "profile"] as const
+
+function patchTouchesCredentials(patch: ProviderConfigPatch): boolean {
+	if (CREDENTIAL_PATCH_KEYS.some((key) => key in patch)) {
+		return true
+	}
+	if (!("aws" in patch)) {
+		return false
+	}
+	const aws = patch.aws
+	// Clearing the whole block drops the credentials too.
+	if (aws === null || aws === undefined) {
+		return true
+	}
+	return AWS_CREDENTIAL_PATCH_KEYS.some((key) => key in aws)
 }
 
 function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConfigPatch): void {
@@ -659,7 +700,10 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 		}
 	}
 
-	saveProviderSettings(providerId, next)
+	// The manager inherits the previous entry's tokenSource when none is given,
+	// so without an explicit source a migrated entry stays labelled "migration"
+	// after every GUI save even though the user has since authored its auth.
+	saveProviderSettings(providerId, next, patchTouchesCredentials(patch) ? "manual" : undefined)
 }
 
 function getModelIdKey(providerId: ProviderId, mode: Mode): keyof ApiConfiguration & SettingsKey {
@@ -731,7 +775,13 @@ function legacyModelInfoToOverrides(modelInfo: ModelInfo, fallback: ModelInfo): 
 	if (Boolean(modelInfo.supportsReasoning) !== Boolean(fallback.supportsReasoning))
 		overrides.supportsReasoning = Boolean(modelInfo.supportsReasoning)
 	if (modelInfo.supportsPromptCache !== fallback.supportsPromptCache) {
-		const capabilities: string[] = []
+		// Legacy ModelInfo has no tool-calling boolean, so this projection
+		// carries no "no tools" signal. Persisting the list without "tools"
+		// would read as an authoritative tool-less capability list to the SDK
+		// runtime once stored in models.json, silently disabling tool calling
+		// (#13463). Match the providers.json migration, which always writes
+		// "tools" for OpenAI-compatible custom models.
+		const capabilities: string[] = ["tools"]
 		if (supportsVision) capabilities.push("images")
 		if (modelInfo.supportsPromptCache) capabilities.push("prompt-cache")
 		overrides.capabilities = capabilities
@@ -912,8 +962,9 @@ export function createProviderConfigStore(): ProviderConfigStore {
 		},
 
 		write(providerId: ProviderId, patch: ProviderConfigPatch): EffectiveProviderConfig {
-			writeStateFields(providerId, patch)
-			writeProviderSettingsFields(providerId, patch)
+			const sanitizedPatch = sanitizeApiKeyPatch(patch)
+			writeStateFields(providerId, sanitizedPatch)
+			writeProviderSettingsFields(providerId, sanitizedPatch)
 			const config = this.read(providerId)
 			emit({ kind: "fields", providerId, config })
 			return config

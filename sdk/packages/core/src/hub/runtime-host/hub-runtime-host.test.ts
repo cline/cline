@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
+import type { HubTransportContext } from "../server/handlers/context";
+import { projectSessionEvent } from "../server/handlers/session-event-projector";
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
@@ -99,11 +101,25 @@ describe("HubRuntimeHost", () => {
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		const started = await host.startSession({
-			config: createConfig(),
+			config: {
+				...createConfig(),
+				agentPluginPaths: ["./portable-plugin"],
+			},
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
-					client: { name: "cline-cli", version: "3.0.38" },
+					client: {
+						name: "cline-cli",
+						version: "3.0.38",
+						platform: "cli",
+						platformVersion: "3.0.38",
+						isMultiRoot: false,
+					},
+					user: {
+						distinctId: "account-1",
+						accountId: "account-1",
+						organizationId: "org-1",
+					},
 				},
 			},
 			prompt: "Hey",
@@ -126,6 +142,7 @@ describe("HubRuntimeHost", () => {
 				systemPrompt: "system",
 				mode: "act",
 				checkpoint: { enabled: true },
+				agentPluginPaths: ["./portable-plugin"],
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
@@ -151,9 +168,75 @@ describe("HubRuntimeHost", () => {
 					version: "3.0.38",
 				},
 			}),
-			runtimeOptions: {},
+			runtimeOptions: {
+				clientContext: {
+					name: "cline-cli",
+					version: "3.0.38",
+					platform: "cli",
+					platformVersion: "3.0.38",
+					isMultiRoot: false,
+				},
+				userContext: {
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				},
+			},
 			toolPolicies: undefined,
 			initialMessages: undefined,
+		});
+	});
+
+	it("reconstructs tool content updates from hub events", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: unknown[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "tool.updated",
+			sessionId: "sess-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				update: { stream: "stdout", chunk: "live output\n" },
+			},
+		});
+
+		expect(events).toContainEqual({
+			type: "agent_event",
+			payload: {
+				sessionId: "sess-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "live output\n" },
+				},
+			},
 		});
 	});
 
@@ -455,6 +538,27 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
+		// A snapshot-only session.updated reports the snapshot's status; it
+		// must not fabricate "running" for a session whose turn has finished.
+		const statusEvents = events.filter(
+			(event): event is { type: "status"; payload: { status: string } } =>
+				(event as { type?: unknown }).type === "status",
+		);
+		expect(statusEvents.at(-1)?.payload).toMatchObject({
+			status: "completed",
+		});
+
+		// A session.updated with neither session nor snapshot reports nothing.
+		onEvent?.({
+			version: "v1",
+			event: "session.updated",
+			sessionId: "sess-snapshot",
+			payload: {},
+		});
+		expect(
+			events.filter((event) => (event as { type?: unknown }).type === "status")
+				.length,
+		).toBe(statusEvents.length);
 
 		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
 		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({
@@ -644,6 +748,7 @@ describe("HubRuntimeHost", () => {
 				payload: {
 					args: ["Which approach?", ["Use the SDK", "Write custom code"]],
 					context: {
+						sessionId: "sess-1",
 						agentId: "agent-1",
 						conversationId: "conversation-1",
 						iteration: 1,
@@ -657,6 +762,7 @@ describe("HubRuntimeHost", () => {
 			"Which approach?",
 			["Use the SDK", "Write custom code"],
 			expect.objectContaining({
+				sessionId: "sess-1",
 				agentId: "agent-1",
 				conversationId: "conversation-1",
 				iteration: 1,
@@ -821,10 +927,12 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});
+		expect(host.hasSessionSubscription("sess-1")).toBe(true);
 
 		commandMock.mockResolvedValue({ ok: true, payload: {} });
 		await host.stopSession("sess-1");
 
+		expect(host.hasSessionSubscription("sess-1")).toBe(false);
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"session.detach",
@@ -984,7 +1092,11 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
-	it("maps hub usage updates back to agent usage events with identity", async () => {
+	it.each([
+		undefined,
+		0,
+		4,
+	])("round-trips projected usage with reasoning=%s and agent identity", async (reasoningTokenCount) => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
 			onEvent = listener;
@@ -1014,32 +1126,45 @@ describe("HubRuntimeHost", () => {
 			prompt: "Hey",
 		});
 
-		onEvent?.({
-			version: "v1",
-			event: "usage.updated",
-			sessionId: "sess-1",
+		const ctx = {
+			sessionHost: {
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+			},
+			buildEvent: vi.fn<HubTransportContext["buildEvent"]>(
+				(event, payload, sessionId) => ({
+					version: "v1",
+					event,
+					payload,
+					sessionId,
+				}),
+			),
+			publish: (event: HubEventEnvelope) => {
+				// Exercise the wire representation, including omitted optional fields.
+				onEvent?.(JSON.parse(JSON.stringify(event)));
+			},
+		} as unknown as HubTransportContext;
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
 			payload: {
-				delta: {
+				sessionId: "sess-1",
+				teamAgentId: "investigator",
+				teamRole: "teammate",
+				event: {
+					type: "usage",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
 					inputTokens: 7,
 					outputTokens: 5,
 					cacheReadTokens: 2,
 					cacheWriteTokens: 1,
-					totalCost: 0.12,
-				},
-				totals: {
-					inputTokens: 17,
-					outputTokens: 8,
-					cacheReadTokens: 3,
-					cacheWriteTokens: 3,
+					cost: 0.12,
+					reasoningTokenCount,
+					totalInputTokens: 17,
+					totalOutputTokens: 8,
+					totalCacheReadTokens: 3,
+					totalCacheWriteTokens: 3,
 					totalCost: 0.23,
-				},
-				agent: {
-					kind: "teammate",
-					agentId: "agent-teammate-1",
-					conversationId: "conv-teammate-1",
-					parentAgentId: "lead",
-					teamAgentId: "investigator",
-					teamRole: "teammate",
 				},
 			},
 		});
@@ -1062,6 +1187,7 @@ describe("HubRuntimeHost", () => {
 							cacheReadTokens: 2,
 							cacheWriteTokens: 1,
 							cost: 0.12,
+							reasoningTokenCount,
 							totalInputTokens: 17,
 							totalOutputTokens: 8,
 							totalCacheReadTokens: 3,
@@ -1635,6 +1761,34 @@ describe("HubRuntimeHost", () => {
 		expect(telemetry.capture).not.toHaveBeenCalled();
 	});
 
+	it("sends session title renames as an explicit title, not folded into metadata", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { updated: true } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.updateSession("sess-1", { title: "Renamed session" }),
+		).resolves.toEqual({ updated: true });
+		expect(commandMock).toHaveBeenCalledWith("session.update", {
+			sessionId: "sess-1",
+			title: "Renamed session",
+		});
+	});
+
+	it("encodes a metadata clear as an empty record so the hub does not drop it", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { updated: true } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.updateSession("sess-1", { metadata: null });
+		expect(commandMock).toHaveBeenCalledWith("session.update", {
+			sessionId: "sess-1",
+			metadata: {},
+		});
+	});
+
 	it("throws when the hub rejects settings list", async () => {
 		commandMock.mockResolvedValue({
 			ok: false,
@@ -1707,4 +1861,27 @@ describe("HubRuntimeHost", () => {
 		);
 		expect(disposeMock).toHaveBeenCalledTimes(1);
 	});
+});
+
+it("sends atomic first-prompt steering through the Hub without listing the queue", async () => {
+	const { HubRuntimeHost } = await import("./hub-runtime-host");
+	const result = {
+		sessionId: "session",
+		prompts: [{ id: "current-head", prompt: "current", delivery: "steer" }],
+		updated: true,
+	};
+	commandMock.mockResolvedValue({ payload: result });
+	const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+	try {
+		expect(
+			await host.pendingPrompts.steerFirst({ sessionId: "session" }),
+		).toMatchObject(result);
+		expect(commandMock).toHaveBeenCalledExactlyOnceWith(
+			"session.steer_first_pending_prompt",
+			{ sessionId: "session" },
+			"session",
+		);
+	} finally {
+		await host.dispose();
+	}
 });

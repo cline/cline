@@ -77,7 +77,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -186,6 +186,10 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
+	isChatCompatibleModel,
+	isTranscriptionModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -206,7 +210,9 @@ export {
 	ModelStatusSchema,
 	modelHasCapability,
 	modelProducesImages,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,
@@ -232,6 +238,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,
@@ -242,7 +250,12 @@ export type {
 	ToolCallRecord,
 	ToolPolicy,
 } from "./llms/tools";
-export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	TOOL_REJECTION_SUFFIX,
+	ToolCallRecordSchema,
+	USER_REJECTED_TOOL_REASON,
+} from "./llms/tools";
+export type { StreamingAudioTranscriptionSession } from "./llms/transcription";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
@@ -292,13 +305,23 @@ export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
 	formatModeSwitchNotice,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+	SESSION_SEARCH_TITLE_MAX_LENGTH,
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
+	resolveProviderLocalCli,
+} from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
@@ -378,6 +401,8 @@ export type {
 	ProviderConfigFieldType,
 	ProviderListItem,
 	ProviderModel,
+	ProviderModelFeatured,
+	ProviderModelFeaturedTier,
 	ProviderModelsResponse,
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
@@ -407,6 +432,11 @@ export {
 	TEAM_LIFECYCLE_EVENT_TYPE,
 	TEAM_PROGRESS_EVENT_TYPE,
 } from "./rpc/team-progress";
+export type { ClineClientIdentity } from "./runtime/cline-client-identity";
+export {
+	getClineClientIdentity,
+	setClineClientIdentity,
+} from "./runtime/cline-client-identity";
 export type {
 	ClineEnvironment,
 	ClineEnvironmentConfig,
@@ -446,6 +476,7 @@ export {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -455,6 +486,11 @@ export {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 } from "./services/telemetry-config";
+export type {
+	TelemetrySelfcheckConfig,
+	TelemetrySelfcheckReport,
+} from "./services/telemetry-selfcheck";
+export { buildTelemetrySelfcheckReport } from "./services/telemetry-selfcheck";
 export type {
 	HookSessionContext,
 	HookSessionContextLookup,
@@ -492,6 +528,7 @@ export {
 	CLINE_WORKSPACES_DIRECTORY_NAME,
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
+export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";

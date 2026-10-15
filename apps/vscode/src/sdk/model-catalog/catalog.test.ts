@@ -554,6 +554,30 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: true })
 	})
 
+	it("passes the SDK's subscription usage-cost display through to listings", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.listLocalProviders.mockResolvedValue({
+			providers: [
+				{
+					id: "openai-codex",
+					name: "OpenAI ChatGPT Subscription",
+					authDescription: "OpenAI ChatGPT subscription access uses an OAuth device code flow.",
+					protocol: "openai-responses",
+					client: "openai-codex",
+					defaultModelId: "gpt-5.4",
+					source: "system",
+				},
+			],
+		})
+		const providerId = parseProviderId("openai-codex")
+		const catalog = createProviderCatalog(makeReader({ providerId }))
+
+		const listings = await catalog.listProviders()
+
+		expect(listings).toHaveLength(1)
+		expect(listings[0].usageCostDisplay).toBe("subscription")
+	})
+
 	it("caches provider listings per catalog instance without reading provider config", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.listLocalProviders.mockResolvedValue({

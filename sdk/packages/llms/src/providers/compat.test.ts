@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	_testing,
 	createGatewayApiHandler,
+	createGatewayApiHandlerAsync,
 	toGatewayRequestMessages,
 } from "./compat";
 import { ClineNotSubscribedError } from "./errors";
-import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "./gateway";
+import { DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION } from "./gateway";
 import type { Message } from "./types";
 
 const streamTextSpy = vi.fn();
@@ -362,7 +363,35 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
-	it("uses the default maxOutputTokens without expanding to catalog maxTokens", async () => {
+	it.each([
+		["openai-responses", "openai"],
+		["anthropic", "anthropic"],
+	])("retains live model protocol %s through the handler", async (apiProtocol, family) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+		});
+		const handler = createGatewayApiHandler({
+			providerId: "opencode-go",
+			modelId: "new-live-model",
+			apiKey: "test-key",
+			knownModels: {
+				"new-live-model": { id: "new-live-model", metadata: { apiProtocol } },
+			},
+		});
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Exercise the live catalog -> handler -> gateway projection.
+		}
+		expect(streamTextSpy.mock.calls.at(-1)?.[0].model).toMatchObject({
+			modelId: "new-live-model",
+			family,
+		});
+	});
+
+	it("defaults maxOutputTokens to a fraction of the catalog maxTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -398,7 +427,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 			| undefined;
 		expect(call).toHaveProperty(
 			"maxOutputTokens",
-			DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+			Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION),
 		);
 	});
 
@@ -681,6 +710,44 @@ describe("createGatewayApiHandler.createMessage", () => {
 				method: "POST",
 			}),
 		).rejects.toBeInstanceOf(ClineNotSubscribedError);
+	});
+});
+
+describe("createGatewayApiHandlerAsync", () => {
+	beforeEach(() => {
+		streamTextSpy.mockReset();
+		openaiCompatibleFactorySpy.mockReset();
+		openaiCompatibleSpy.mockClear();
+	});
+
+	it("honors setAbortSignal on requests, not just the construction-time signal", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = await createGatewayApiHandlerAsync({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "custom-model",
+			apiKey: "test-key",
+		});
+
+		const controller = new AbortController();
+		handler.setAbortSignal?.(controller.signal);
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { abortSignal?: AbortSignal }
+			| undefined;
+		expect(call?.abortSignal).toBe(controller.signal);
 	});
 });
 

@@ -143,6 +143,7 @@ export function legacyTokenUsageFromUsageEvent(
 	cacheWriteTokens: number;
 	cacheReadTokens: number;
 	totalCost?: number;
+	reasoningTokenCount?: number;
 } {
 	const cacheWriteTokens = event.cacheWriteTokens ?? 0;
 	const cacheReadTokens = event.cacheReadTokens ?? 0;
@@ -151,10 +152,14 @@ export function legacyTokenUsageFromUsageEvent(
 			0,
 			event.inputTokens - cacheReadTokens - cacheWriteTokens,
 		),
+		// Non-reasoning output only; normalizeUsage() already subtracted
+		// reasoningTokenCount out of outputTokens, so report it separately
+		// here rather than silently dropping it from this event.
 		tokensOut: event.outputTokens,
 		cacheWriteTokens,
 		cacheReadTokens,
 		totalCost: event.cost,
+		reasoningTokenCount: event.reasoningTokenCount,
 	};
 }
 

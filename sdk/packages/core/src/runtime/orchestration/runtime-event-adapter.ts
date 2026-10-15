@@ -178,6 +178,7 @@ export class RuntimeEventAdapter {
 		cacheReadTokens: 0,
 		cacheWriteTokens: 0,
 		totalCost: 0,
+		reasoningTokenCount: 0,
 	};
 
 	private toolStartedAt = new Map<string, number>();
@@ -280,6 +281,7 @@ export class RuntimeEventAdapter {
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
 			totalCost: 0,
+			reasoningTokenCount: 0,
 		};
 		this.toolStartedAt.clear();
 	}
@@ -363,12 +365,16 @@ export class RuntimeEventAdapter {
 		const prevCost = this.lastUsage.totalCost ?? 0;
 		const nextCost = next.totalCost ?? 0;
 		const deltaCost = nextCost - prevCost;
+		const prevReasoning = this.lastUsage.reasoningTokenCount ?? 0;
+		const nextReasoning = next.reasoningTokenCount ?? 0;
+		const deltaReasoning = nextReasoning - prevReasoning;
 		this.lastUsage = {
 			inputTokens: next.inputTokens,
 			outputTokens: next.outputTokens,
 			cacheReadTokens: next.cacheReadTokens,
 			cacheWriteTokens: next.cacheWriteTokens,
 			totalCost: next.totalCost,
+			reasoningTokenCount: next.reasoningTokenCount,
 		};
 		return [
 			{
@@ -380,6 +386,8 @@ export class RuntimeEventAdapter {
 				cacheWriteTokens:
 					deltaCacheWrite === 0 ? undefined : Math.max(0, deltaCacheWrite),
 				cost: deltaCost === 0 ? undefined : deltaCost,
+				reasoningTokenCount:
+					deltaReasoning === 0 ? undefined : Math.max(0, deltaReasoning),
 				totalInputTokens: next.inputTokens,
 				totalOutputTokens: next.outputTokens,
 				totalCacheReadTokens:

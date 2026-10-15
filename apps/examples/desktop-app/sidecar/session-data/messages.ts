@@ -184,7 +184,10 @@ export function persistUsageInMessages(
 		if (!item || typeof item !== "object") {
 			continue;
 		}
-		if ((item as JsonRecord).role === "assistant") {
+		if (
+			(item as JsonRecord).role === "assistant" &&
+			readMessageMetadata(item as JsonRecord)?.displayOnly !== true
+		) {
 			assistantIndex = i;
 			break;
 		}
@@ -329,21 +332,27 @@ function readCheckpointEntriesByRunCount(
 	return entries;
 }
 
-export async function readSessionMessages(
+export function readSessionMessagesSync(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
-): Promise<unknown[]> {
-	const persisted =
-		readPersistedChatMessages(sessionId) ??
-		// A child agent's transcript is not stored under its own session
-		// directory — it lives beside the root session's artifacts — so opening a
-		// subagent session has to resolve the path recorded on its row.
-		readChildSessionMessages(sessionId);
+	/** Explicit authoritative source for remote sessions; bypasses local disk. */
+	sourceMessages?: unknown[],
+): unknown[] {
+	const isRemoteRead = sourceMessages !== undefined;
+	const persisted = isRemoteRead
+		? (sourceMessages as MessageWithMetadata[])
+		: (readPersistedChatMessages(sessionId) ??
+			// A child agent's transcript is not stored under its own session
+			// directory — it lives beside the root session's artifacts — so opening a
+			// subagent session has to resolve the path recorded on its row.
+			readChildSessionMessages(sessionId));
 	const messages =
 		persisted && persisted.length > 0
 			? persisted
-			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
+			: isRemoteRead
+				? []
+				: (ctx.liveSessions.get(sessionId)?.messages ?? []);
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(
@@ -354,7 +363,11 @@ export async function readSessionMessages(
 	}));
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
-	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
+	// Remote artifacts belong to the SSH host. Never decorate them with a
+	// same-id local session's live transcript or checkpoint metadata.
+	const checkpointsByRunCount = isRemoteRead
+		? new Map<number, StoredCheckpointEntry>()
+		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
@@ -465,6 +478,11 @@ export async function readSessionMessages(
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
+		let reasoningSegmentIndex = 0;
+		// The text row pushed since the last reasoning flush. Reasoning that
+		// streamed alongside it (the classic [thinking, text] shape) attaches
+		// there instead of becoming a separate row.
+		let reasoningTextTarget: JsonRecord | undefined;
 		const outStartIndex = out.length;
 		const flushTextParts = () => {
 			if (textParts.length === 0) {
@@ -475,7 +493,7 @@ export async function readSessionMessages(
 			if (!joined.trim()) {
 				return;
 			}
-			out.push({
+			const textRow: JsonRecord = {
 				id: `${messageIdBase}_text_${textSegmentIndex}`,
 				sessionId,
 				role,
@@ -486,8 +504,48 @@ export async function readSessionMessages(
 				// the run; later segments must not acquire a fallback ordinal in
 				// the webview.
 				meta: textMeta ?? (role === "user" ? { userRunSpan: 0 } : undefined),
-			});
+			};
+			out.push(textRow);
+			reasoningTextTarget = textRow;
 			textSegmentIndex += 1;
+			textMeta = undefined;
+		};
+		const flushReasoningParts = () => {
+			const reasoning = reasoningParts.join("\n").trim();
+			const redacted = reasoningRedacted;
+			reasoningParts.length = 0;
+			reasoningRedacted = false;
+			// Consumed per flush: reasoning must only attach to a text row from
+			// its own segment, never to one emitted before an earlier tool call.
+			const target = reasoningTextTarget;
+			reasoningTextTarget = undefined;
+			if (!reasoning && !redacted) {
+				return;
+			}
+			if (target) {
+				if (reasoning) {
+					const existing =
+						typeof target.reasoning === "string" && target.reasoning
+							? `${target.reasoning}\n`
+							: "";
+					target.reasoning = `${existing}${reasoning}`;
+				}
+				if (redacted) {
+					target.reasoningRedacted = true;
+				}
+				return;
+			}
+			out.push({
+				id: `${messageIdBase}_reasoning_${reasoningSegmentIndex}`,
+				sessionId,
+				role,
+				content: "",
+				reasoning: reasoning || undefined,
+				reasoningRedacted: redacted || undefined,
+				createdAt: nextPartCreatedAt(),
+				meta: textMeta,
+			});
+			reasoningSegmentIndex += 1;
 			textMeta = undefined;
 		};
 
@@ -504,6 +562,13 @@ export async function readSessionMessages(
 			const blockType = typeof record.type === "string" ? record.type : "";
 			if (blockType === "tool_use") {
 				flushTextParts();
+				// Everything the model emitted in this message — thinking
+				// included — happened before the tool executed. Flushing the
+				// reasoning here keeps the thinking row ahead of the tool row
+				// (matching the live-stream order) so the webview never attaches
+				// pre-tool reasoning to a later answer, which would drag the
+				// work summary's duration anchor back before the tool ran.
+				flushReasoningParts();
 				const toolName =
 					typeof record.name === "string" ? record.name : "tool_call";
 				const toolUseId = typeof record.id === "string" ? record.id : "";
@@ -517,6 +582,7 @@ export async function readSessionMessages(
 					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
+						...(toolUseId ? { toolCallId: toolUseId } : {}),
 						hookEventName: "history_tool_use",
 					},
 				});
@@ -547,6 +613,7 @@ export async function readSessionMessages(
 								? (target.meta as JsonRecord)
 								: {}),
 							toolName,
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						};
 					}
@@ -560,6 +627,7 @@ export async function readSessionMessages(
 						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						},
 					});
@@ -628,32 +696,7 @@ export async function readSessionMessages(
 				textMeta = undefined;
 			}
 		}
-		if (reasoningParts.length > 0 || reasoningRedacted) {
-			const reasoning = reasoningParts.join("\n").trim();
-			const target = out
-				.slice(outStartIndex)
-				.find((item) => item.role === role);
-			if (target) {
-				if (reasoning) {
-					target.reasoning = reasoning;
-				}
-				if (reasoningRedacted) {
-					target.reasoningRedacted = true;
-				}
-			} else {
-				out.push({
-					id: `${messageIdBase}_reasoning`,
-					sessionId,
-					role,
-					content: "",
-					reasoning: reasoning || undefined,
-					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt: nextPartCreatedAt(),
-					meta: textMeta,
-				});
-				textMeta = undefined;
-			}
-		}
+		flushReasoningParts();
 		if (textMeta && out[outStartIndex]) {
 			out[outStartIndex].meta = {
 				...(typeof out[outStartIndex].meta === "object"
@@ -684,4 +727,14 @@ export function persistSessionMessages(
 			2,
 		),
 	);
+}
+
+/** Async compatibility for existing sidecar callers. */
+export async function readSessionMessages(
+	ctx: Pick<SidecarContext, "liveSessions">,
+	sessionId: string,
+	maxMessages = 800,
+	sourceMessages?: unknown[],
+): Promise<unknown[]> {
+	return readSessionMessagesSync(ctx, sessionId, maxMessages, sourceMessages);
 }
