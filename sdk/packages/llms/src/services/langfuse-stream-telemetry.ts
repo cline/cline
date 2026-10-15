@@ -13,6 +13,10 @@ export class LangfuseStreamTelemetry
 	implements StreamAttemptTelemetry
 {
 	private readonly attempts = new Map<string, Span>();
+	private readonly completedAttempts = new Map<
+		string,
+		LanguageModelCallEndEvent<ToolSet>
+	>();
 	private startingCallId?: string;
 
 	constructor(tracer: Tracer) {
@@ -30,8 +34,7 @@ export class LangfuseStreamTelemetry
 
 	override onLanguageModelCallStart(event: LanguageModelCallStartEvent): void {
 		// A retry can cancel the failed stream before its finish event is read.
-		this.attempts.get(event.callId)?.end();
-		this.attempts.delete(event.callId);
+		this.endAttempt(event.callId);
 		this.startingCallId = event.callId;
 		try {
 			super.onLanguageModelCallStart(event);
@@ -43,8 +46,24 @@ export class LangfuseStreamTelemetry
 	override onLanguageModelCallEnd(
 		event: LanguageModelCallEndEvent<ToolSet>,
 	): void {
-		super.onLanguageModelCallEnd(event);
-		this.attempts.delete(event.callId);
+		// The SDK can read a finish event ahead of the application's error
+		// callback. Keep the real completion event until the attempt is classified.
+		this.completedAttempts.set(event.callId, event);
+	}
+
+	private endAttempt(callId: string): void {
+		const completed = this.completedAttempts.get(callId);
+		if (completed) super.onLanguageModelCallEnd(completed);
+		else this.attempts.get(callId)?.end();
+		this.completedAttempts.delete(callId);
+		this.attempts.delete(callId);
+	}
+
+	override onStepEnd(
+		event: Parameters<LangfuseVercelAiSdkIntegration["onStepEnd"]>[0],
+	): void {
+		this.endAttempt(event.callId);
+		super.onStepEnd(event);
 	}
 
 	onLanguageModelCallError({
@@ -70,28 +89,32 @@ export class LangfuseStreamTelemetry
 	}
 
 	override onError(error: unknown): void {
-		super.onError(error);
 		if (
 			typeof error === "object" &&
 			error !== null &&
 			"callId" in error &&
 			typeof error.callId === "string"
 		) {
-			this.attempts.delete(error.callId);
+			this.onLanguageModelCallError({
+				callId: error.callId,
+				error: "error" in error ? error.error : error,
+			});
+			this.endAttempt(error.callId);
 		}
+		super.onError(error);
 	}
 
 	override onEnd(
 		event: Parameters<LangfuseVercelAiSdkIntegration["onEnd"]>[0],
 	): void {
+		this.endAttempt(event.callId);
 		super.onEnd(event);
-		this.attempts.delete(event.callId);
 	}
 
 	override onAbort(
 		event: Parameters<LangfuseVercelAiSdkIntegration["onAbort"]>[0],
 	): void {
+		this.endAttempt(event.callId);
 		super.onAbort(event);
-		this.attempts.delete(event.callId);
 	}
 }

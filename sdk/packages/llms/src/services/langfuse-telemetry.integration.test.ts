@@ -207,6 +207,8 @@ it.each([
 	["relay", 4, true],
 	["relay", 2, false],
 	["relay", 4, false],
+	["direct", 2, true],
+	["direct", 4, true],
 	["direct", 2, false],
 	["direct", 4, false],
 ] as const)("exports %s attempts after %s failures (finish event: %s)", async (route, failures, hasFinish) => {
@@ -281,7 +283,9 @@ it.each([
 		streamRetries: 3,
 		maxRetries: 0,
 		telemetry: streamTelemetry.telemetry,
-		onError: ({ error }) => {
+		onError: async ({ error }) => {
+			// The SDK may read the finish event ahead of a slower error consumer.
+			await new Promise<void>((resolve) => setImmediate(resolve));
 			streamTelemetry.captureError(error);
 		},
 	});
