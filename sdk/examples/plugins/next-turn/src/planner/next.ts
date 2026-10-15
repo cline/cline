@@ -12,6 +12,8 @@ import {
 } from "../config";
 import {
 	buildManifest,
+	type CapabilitiesBySource,
+	capabilitiesBySource,
 	collectFacts,
 	type Manifest,
 	manifestTags,
@@ -91,6 +93,8 @@ type TurnState = {
 	trigger?: OfferTrigger;
 	env: SourceEnv;
 	manifest: Manifest;
+	/** What each source named when `manifest` was built, so a source turned off later takes its own capabilities with it. */
+	capabilitiesBySource: CapabilitiesBySource;
 	backlog: Backlog;
 	/** Rebuilt after a sandbox respawn, which keeps no backlog: the planner reads it again first. */
 	restored?: boolean;
@@ -133,6 +137,8 @@ export type TurnSnapshot = Pick<
 > & {
 	/** Missing from state files written before the manifest was persisted. */
 	manifest?: Manifest;
+	/** Missing from state files written before it was persisted: such a turn, respawned, names only what its sources name now. */
+	capabilitiesBySource?: CapabilitiesBySource;
 	excludedIds: [string, string][];
 	exposedOffers: string[];
 };
@@ -142,6 +148,7 @@ function snapshotOf(state: TurnState): TurnSnapshot {
 		turn: state.turn,
 		trigger: state.trigger,
 		manifest: state.manifest,
+		capabilitiesBySource: state.capabilitiesBySource,
 		rules: state.rules,
 		pool: state.pool,
 		excluded: state.excluded,
@@ -159,6 +166,7 @@ function restore(snapshot: TurnSnapshot, env: SourceEnv): TurnState {
 	return {
 		...snapshot,
 		manifest: snapshot.manifest ?? { sources: {}, capabilities: [] },
+		capabilitiesBySource: snapshot.capabilitiesBySource ?? {},
 		env,
 		backlog: EMPTY_BACKLOG,
 		restored: true,
@@ -203,6 +211,15 @@ function rowFields(item: Suggestion, index: number) {
 		rank: index + 1,
 		position: index,
 	};
+}
+
+/** The planner's status on a set the rules answered. */
+type PlannerStatus = NonNullable<OfferedSet["model"]>;
+
+function pausedOf(model: OfferedSet["model"]): OfferedSet["paused"] {
+	return model?.status === "paused" && model.resetsAt !== undefined
+		? { resetsAt: model.resetsAt }
+		: undefined;
 }
 
 function rowOf(
@@ -263,7 +280,7 @@ export class NextSession {
 			this.options.log?.("the saved turn did not restore", error);
 		}
 		if (this.state && this.lastPush?.state === "computing")
-			this.resumeComputing(this.state);
+			this.resumeComputing();
 	}
 
 	/**
@@ -273,14 +290,28 @@ export class NextSession {
 	 * demand instead, so the set the store holds, which is an older turn's,
 	 * is dropped.
 	 */
-	private resumeComputing(state: TurnState): void {
+	private resumeComputing(): void {
 		if (this.lastPush?.computingFor !== "reroll") {
 			this.state = undefined;
 			return;
 		}
-		const model = this.plannerModel(this.options.settings());
+		this.resumePlanner(this.options.settings());
+	}
+
+	/**
+	 * The planner answer the tray still waits for when nothing is asking for
+	 * it: one a detach held back, or one a respawn cut off. The planner is
+	 * asked now, or, when the allowance ran out meanwhile, the rules answer.
+	 */
+	private resumePlanner(settings: Settings): void {
+		const state = this.state;
+		if (!state || state.planning) return;
+		const awaitingReroll = this.awaitingReroll();
+		if (!awaitingReroll && this.shown?.model?.status !== "pending") return;
+		const model = this.plannerModel(settings);
 		if (model?.status === "pending") this.startPlanner(state, this.generation);
-		else this.serve(state, model);
+		else if (awaitingReroll) this.serve(state, model);
+		else if (model) this.reportPlannerStatus(state, model);
 	}
 
 	private persist(): void {
@@ -416,6 +447,11 @@ export class NextSession {
 		return settings.features.next && !this.hiddenForChat;
 	}
 
+	/** Whether a viewer is attached: planner calls and network reads wait for one. */
+	private isViewed(): boolean {
+		return this.options.viewed?.() ?? true;
+	}
+
 	/** Whether work started under `gen` (and for `state`) still owns the tray. */
 	private isCurrent(gen: number, state?: TurnState): boolean {
 		return (
@@ -528,10 +564,7 @@ export class NextSession {
 			});
 		}
 		const rerollsLeft = this.rerollsLeft(state);
-		const paused =
-			model?.status === "paused" && model.resetsAt !== undefined
-				? { resetsAt: model.resetsAt }
-				: undefined;
+		const paused = pausedOf(model);
 		const set: OfferedSet = {
 			sessionId: this.options.sessionId,
 			offerId: `offer_${randomUUID()}`,
@@ -582,7 +615,7 @@ export class NextSession {
 	 */
 	async afterRun(result: AgentRunResult): Promise<OfferedSet | undefined> {
 		this.runUnderway = false;
-		if (this.options.viewed?.() === false) {
+		if (!this.isViewed()) {
 			const turn = deriveTurn(this.options.sessionId, result);
 			if (turn) this.recordUnviewedTurn(turn);
 			return undefined;
@@ -654,12 +687,16 @@ export class NextSession {
 	 * chat has none (a forked chat after Undo, a reopened session) from the
 	 * last turn or the transcript `readTranscript` returns, whichever is newer.
 	 * A last turn from the store is served only once the hub says no run is
-	 * going.
+	 * going. A planner answer the set on screen still waits for, which a detach
+	 * or a respawn left unasked, is asked for again.
 	 */
 	async ensureCurrent(): Promise<TrayPush> {
 		const settings = this.options.settings();
 		if (!this.isOn(settings)) return this.off(this.whyOff());
-		if (this.shown || this.runUnderway) return this.currentPush();
+		if (this.shown || this.runUnderway) {
+			this.resumePlanner(settings);
+			return this.currentPush();
+		}
 		let turn = this.lastTurn;
 		const inFlight = this.serving;
 		if (
@@ -675,6 +712,7 @@ export class NextSession {
 			const loaded = await this.options.readTranscript().catch(() => undefined);
 			if (
 				!this.isCurrent(gen) ||
+				!this.isViewed() ||
 				!this.isOn(this.options.settings()) ||
 				UNFINISHED_SESSION_STATUSES.has(loaded?.status ?? "")
 			)
@@ -702,8 +740,9 @@ export class NextSession {
 		trigger: OfferTrigger,
 	): Promise<OfferedSet | undefined> {
 		const probeEnv = this.turnEnv(turn);
+		const sources = this.options.sources();
 		const [manifest, dirtyFiles] = await Promise.all([
-			buildManifest(this.options.sources(), probeEnv, {
+			buildManifest(sources, probeEnv, {
 				isOff: sourceOff(settings, probeEnv),
 			}),
 			this.readDirty(probeEnv),
@@ -719,6 +758,7 @@ export class NextSession {
 			trigger,
 			env,
 			manifest,
+			capabilitiesBySource: capabilitiesBySource(sources, manifest, probeEnv),
 			backlog,
 			rules: rulePool({
 				backlog,
@@ -746,7 +786,7 @@ export class NextSession {
 			this.planModel(state, gen).catch((error: unknown) => {
 				this.options.log?.("the planner failed", error);
 				if (this.isCurrent(gen, state) && this.awaitingReroll())
-					this.reportPlannerFailure(state, "error");
+					this.reportPlannerStatus(state, { status: "error" });
 			}),
 		);
 	}
@@ -776,7 +816,7 @@ export class NextSession {
 
 	private async requestModelSet(state: TurnState, gen: number): Promise<void> {
 		const complete = this.options.complete;
-		if (!complete || !this.isCurrent(gen, state)) return;
+		if (!complete || !this.isCurrent(gen, state) || !this.isViewed()) return;
 		if (state.restored) {
 			state.backlog = await this.options.backlog(state.manifest);
 			state.restored = false;
@@ -784,15 +824,13 @@ export class NextSession {
 		}
 		const settings = this.options.settings();
 		const sources = this.options.sources();
-		const current = withCurrentSources(
+		const manifest = withCurrentSources(
 			state.manifest,
 			sources,
 			state.env,
 			sourceOff(settings, state.env),
+			state.respawned ? state.capabilitiesBySource : undefined,
 		);
-		const manifest = state.respawned
-			? { ...current, capabilities: state.manifest.capabilities }
-			: current;
 		const facts = await collectFacts(sources, manifest, state.env);
 		if (!this.isCurrent(gen, state)) return;
 		const kinds = offerableKinds(manifest);
@@ -801,6 +839,7 @@ export class NextSession {
 			.get(key)
 			?.filter((item) => !state.excluded.includes(item.prompt));
 		if (!pool || pool.length === 0) {
+			if (!this.isViewed()) return;
 			const input = buildPlannerInput({
 				turn: state.turn.facts,
 				context: state.turn.context,
@@ -830,10 +869,9 @@ export class NextSession {
 					`model suggestions unavailable (${attempt.reason}); the rule-based set stays`,
 					attempt.error,
 				);
-				this.reportPlannerFailure(
-					state,
-					attempt.reason === "no_provider" ? "no_provider" : "error",
-				);
+				this.reportPlannerStatus(state, {
+					status: attempt.reason === "no_provider" ? "no_provider" : "error",
+				});
 				return;
 			}
 			pool = attempt.pool;
@@ -848,18 +886,20 @@ export class NextSession {
 	 * The rule-based set stays on screen; only its model status changes. A
 	 * reroll that was waiting on the planner gets the rules' next page instead.
 	 */
-	private reportPlannerFailure(
-		state: TurnState,
-		status: "no_provider" | "error",
-	): void {
+	private reportPlannerStatus(state: TurnState, model: PlannerStatus): void {
 		if (this.awaitingReroll()) {
-			this.serve(state, { status });
+			this.serve(state, model);
 			return;
 		}
 		const shown = this.shown;
 		if (shown?.turnKey !== state.turn.turnKey) return;
 		const { paused: _paused, ...rest } = shown;
-		const updated: OfferedSet = { ...rest, model: { status } };
+		const paused = pausedOf(model);
+		const updated: OfferedSet = {
+			...rest,
+			model,
+			...(paused ? { paused } : {}),
+		};
 		const index = state.offers.findIndex(
 			(offer) => offer.offerId === updated.offerId,
 		);
@@ -966,6 +1006,8 @@ export class NextSession {
 	 */
 	invoke(action: TrayAction): { push: TrayPush; refused?: TrayRefusal } {
 		if (action.type === "label") {
+			if (action.event === "undo_adjust")
+				this.forgetUse(action.offerId, action.fields?.candidateId);
 			this.label({
 				...action.fields,
 				...labelHeader(
@@ -1004,6 +1046,21 @@ export class NextSession {
 		}
 		const refused = this.apply(state, current, target, action);
 		return { push: this.currentPush(), ...(refused ? { refused } : {}) };
+	}
+
+	/** A Use the host cleared no longer explains the next message, which is then labelled from its text. */
+	private forgetUse(offerId: string | undefined, candidateId: unknown): void {
+		const state = this.state;
+		const intent = state?.pendingIntent;
+		if (
+			!state ||
+			intent?.verb !== "use" ||
+			intent.candidate.id !== candidateId ||
+			(offerId !== undefined && intent.offer.offerId !== offerId)
+		)
+			return;
+		state.pendingIntent = undefined;
+		this.persist();
 	}
 
 	private apply(

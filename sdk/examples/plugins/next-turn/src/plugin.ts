@@ -3,6 +3,7 @@ import type {
 	AgentExtensionApi,
 	AgentRuntimeStateSnapshot,
 	ComposerSuggestionsAction,
+	ComposerSuggestionsState,
 	PluginSetupContext,
 	PluginUiActionContext,
 	PluginUiActionReply,
@@ -14,7 +15,11 @@ import { PluginLifecycle } from "./lifecycle";
 import { type Log, pluginLog } from "./log";
 import type { NextSession } from "./planner/next";
 import type { OfferedSet, TrayPush } from "./planner/tray";
-import { toSuggestionsState, toTrayActions } from "./planner/tray-view";
+import {
+	dormantState,
+	toSuggestionsState,
+	toTrayActions,
+} from "./planner/tray-view";
 import {
 	type SessionRuntime,
 	type SetupContext,
@@ -39,6 +44,8 @@ export type NextTurnPluginOptions = {
 };
 
 const OK = { outcome: "ok" } as const;
+/** The set an action named is gone, so the host sends nothing. */
+const STALE = { outcome: "refused", reason: "stale" } as const;
 
 /** Re-reads the settings file whenever it changes, so a change from the desktop or the CLI applies to the next decision. */
 function settingsReader(context: SetupContext): () => Settings {
@@ -203,13 +210,13 @@ export function createNextTurnPlugin(
 				const served = next
 					.afterRun(context.result)
 					.catch((error: unknown) => log("afterRun failed", error));
-				if (current.viewed()) {
-					const pushed = next.turn()?.pushed ?? false;
-					const connectors = current.connectors;
-					served
-						.then(() => connectors?.onTurn({ pushed }))
-						.catch((error: unknown) => log("a refresh failed", error));
-				}
+				const pushed = next.turn()?.pushed ?? false;
+				const connectors = current.connectors;
+				served
+					.then(() =>
+						current.viewed() ? connectors?.onTurn({ pushed }) : undefined,
+					)
+					.catch((error: unknown) => log("a refresh failed", error));
 				await served;
 			},
 		},
@@ -230,20 +237,22 @@ export function createNextTurnPlugin(
 			let attachedSurface: PluginUiSurface | undefined;
 			/** The newest set published: the revision of a state with no set of its own. */
 			let lastRevision: string | undefined;
-			const publish = (push: TrayPush) => {
+			const publishState = (state: ComposerSuggestionsState) => {
 				if (!slotUi) return;
-				lastRevision = push.set?.offerId ?? lastRevision;
 				try {
-					slotUi.update(
-						"composer.suggestions",
-						toSuggestionsState(push, {
-							facts: runtime?.next?.turn()?.facts,
-							lastRevision,
-						}),
-					);
+					slotUi.update("composer.suggestions", state);
 				} catch (error) {
 					log("ui.update failed", error);
 				}
+			};
+			const publish = (push: TrayPush) => {
+				lastRevision = push.set?.offerId ?? lastRevision;
+				publishState(
+					toSuggestionsState(push, {
+						facts: runtime?.next?.turn()?.facts,
+						lastRevision,
+					}),
+				);
 			};
 			const disabledPush = (): TrayPush => ({
 				sessionId,
@@ -276,7 +285,8 @@ export function createNextTurnPlugin(
 					if (action.verb === "attach")
 						runtime?.setViewed(true, action.surface);
 					publish(runtime?.next?.off("disabled") ?? disabledPush());
-					return OK;
+					// Off withdrew the set, so Use and Send must not fill or submit its prompt.
+					return action.verb === "use" || action.verb === "send" ? STALE : OK;
 				}
 				ensureRuntime();
 				if (startError) {
@@ -303,7 +313,7 @@ export function createNextTurnPlugin(
 					return OK;
 				}
 				const next = runtime?.next;
-				if (!next) return { outcome: "refused", reason: "stale" };
+				if (!next) return STALE;
 				const refused = trayActions
 					.map((trayAction) => next.invoke(trayAction).refused)
 					.find(Boolean);
@@ -334,7 +344,8 @@ export function createNextTurnPlugin(
 				api.registerUiSlot?.({ slot: "composer.suggestions", onAction });
 			void stopRuntime(runtime);
 			runtime = undefined;
-			retryStart();
+			const started = ensureRuntime();
+			if (!started?.viewed()) publishState(dormantState());
 		},
 	};
 }

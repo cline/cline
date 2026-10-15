@@ -14,6 +14,7 @@ import { LabelLog } from "./labels";
 import { type Complete, plannerProvider } from "./model";
 import { type NextOptions, NextSession } from "./next";
 import type { OfferedSet, TrayPush } from "./tray";
+import { toTrayActions } from "./tray-view";
 import { deriveTurn } from "./turn";
 
 const sources: ContextSource[] = [
@@ -289,6 +290,60 @@ describe("Next, for one chat", () => {
 			typed.labels().find((record) => record.event === "typed_instead"),
 		).toMatchObject({ chars: "Deploy it to staging".length });
 		expect(JSON.stringify(typed.labels())).not.toContain("staging");
+	});
+
+	test("a Use the tray cleared no longer explains the next message, which is labelled from its text", async () => {
+		const { session, labels } = harness({ complete: undefined });
+		const run = editRun();
+		const set = await session.afterRun(run.result);
+		const [used, typed] = set?.candidates ?? [];
+		const offerId = set?.offerId ?? "";
+		session.invoke({ type: "exposed", offerId, candidateId: used?.id });
+		session.invoke({ type: "use", candidateId: used?.id ?? "", offerId });
+		for (const action of toTrayActions({
+			verb: "clear",
+			revision: offerId,
+			itemId: used?.id ?? "",
+		}) ?? [])
+			session.invoke(action);
+		session.outgoing([...run.messages, message("user", typed?.prompt ?? "")]);
+		expect(labels().map((record) => record.event)).toEqual([
+			"offer",
+			"exposed",
+			"adjust",
+			"undo_adjust",
+			"do",
+			"superseded",
+		]);
+		expect(labels().find((record) => record.event === "do")).toMatchObject({
+			candidateId: typed?.id,
+			input: "message",
+		});
+	});
+
+	test("a clear that names another row or another set keeps the Use it does not name", async () => {
+		for (const clear of ["another row", "another set"] as const) {
+			const { session, labels } = harness({ complete: undefined });
+			const run = editRun();
+			const set = await session.afterRun(run.result);
+			const [used, other] = set?.candidates ?? [];
+			const offerId = set?.offerId ?? "";
+			session.invoke({ type: "use", candidateId: used?.id ?? "", offerId });
+			for (const action of toTrayActions({
+				verb: "clear",
+				revision: clear === "another set" ? "offer_other" : offerId,
+				itemId: (clear === "another set" ? used : other)?.id ?? "",
+			}) ?? [])
+				session.invoke(action);
+			session.outgoing([
+				...run.messages,
+				message("user", `${used?.prompt} now`),
+			]);
+			expect([
+				clear,
+				labels().find((record) => record.event === "adjust_sent"),
+			]).toEqual([clear, expect.objectContaining({ candidateId: used?.id })]);
+		}
 	});
 
 	test("a row sent inside the runtime's input wrapper and mode notice is labelled as that row", async () => {
@@ -839,6 +894,132 @@ describe("Next under overlapping actions", () => {
 		respawned.session.invoke({ type: "reroll" });
 		await respawned.session.settled();
 		expect(respawned.calls[0]).toContain("mcp:linear");
+	});
+
+	test("a connector turned off after a respawn is no longer named to the planner or offered", async () => {
+		const store = new FileSessionStateStore(tempDir("respawn-off-"), "sess_1");
+		const linear: ContextSource = {
+			id: "mcp:linear",
+			tier: "T0",
+			probe: () => "present",
+			capabilities: () => ["mcp:linear"],
+		};
+		const systems: string[] = [];
+		const asked =
+			(users: string[]): Complete =>
+			async (input) => {
+				users.push(input.user);
+				systems.push(input.system);
+				return { text: MODEL_ANSWER };
+			};
+		const firstCalls: string[] = [];
+		const first = harness({
+			store,
+			sources: () => [...sources, linear],
+			complete: asked(firstCalls),
+		});
+		await first.session.afterRun(editRun().result);
+		await first.session.settled();
+		expect(firstCalls[0]).toContain("mcp:linear");
+		expect(systems[0]).toContain("update_issue");
+
+		const settings = defaultSettings();
+		settings.connectors["mcp:linear"] = { role: "off", scopes: [] };
+		const respawnedCalls: string[] = [];
+		const respawned = harness(
+			{
+				store,
+				sources: () => [...sources, linear],
+				complete: asked(respawnedCalls),
+			},
+			settings,
+		);
+		respawned.session.invoke({ type: "reroll" });
+		await respawned.session.settled();
+		expect(respawnedCalls).toHaveLength(1);
+		expect(respawnedCalls[0]).not.toContain("mcp:linear");
+		expect(systems[1]).not.toContain("update_issue");
+		const tags = respawned
+			.labels()
+			.filter((record) => record.event === "offer")
+			.at(-1)?.tags;
+		expect(tags).toContain("source:mcp:linear:off");
+		expect(tags).not.toContain("cap:mcp:linear");
+	});
+
+	test("a connector set to Off before the respawned worker detects it is no longer named to the planner or offered", async () => {
+		const store = new FileSessionStateStore(
+			tempDir("respawn-undetected-off-"),
+			"sess_1",
+		);
+		const linear: ContextSource = {
+			id: "mcp:linear",
+			tier: "T0",
+			probe: () => "present",
+			capabilities: () => ["mcp:linear"],
+		};
+		const first = harness({ store, sources: () => [...sources, linear] });
+		await first.session.afterRun(editRun().result);
+		await first.session.settled();
+		expect(first.calls[0]).toContain("mcp:linear");
+
+		const settings = defaultSettings();
+		settings.connectors["mcp:linear"] = { role: "off", scopes: [] };
+		const respawned = harness({ store }, settings);
+		respawned.session.invoke({ type: "reroll" });
+		await respawned.session.settled();
+		expect(respawned.calls).toHaveLength(1);
+		expect(respawned.calls[0]).not.toContain("mcp:linear");
+		const tags = respawned
+			.labels()
+			.filter((record) => record.event === "offer")
+			.at(-1)?.tags;
+		expect(tags).toContain("source:mcp:linear:off");
+		expect(tags).not.toContain("cap:mcp:linear");
+	});
+
+	test("a source turned off while its inventory still loads after a respawn takes what it named out of the planner's capabilities", async () => {
+		const store = new FileSessionStateStore(
+			tempDir("respawn-loading-off-"),
+			"sess_1",
+		);
+		let loaded = true;
+		const setup: ContextSource = {
+			id: "cline-setup",
+			tier: "T2",
+			settingsToggle: "clineSetup",
+			probe: () => (loaded ? "present" : "unknown"),
+			capabilities: () => (loaded ? ["workflow:/release", "mcp:sentry"] : []),
+		};
+		const linear: ContextSource = {
+			id: "pinned-linear",
+			tier: "T0",
+			probe: () => "present",
+			capabilities: () => (loaded ? ["mcp:linear"] : []),
+		};
+		const withSetup = () => [...sources, setup, linear];
+		const first = harness({ store, sources: withSetup });
+		await first.session.afterRun(editRun().result);
+		await first.session.settled();
+		expect(first.calls[0]).toContain("mcp:sentry");
+
+		loaded = false;
+		const settings = defaultSettings();
+		settings.context.clineSetup = false;
+		const respawned = harness({ store, sources: withSetup }, settings);
+		respawned.session.invoke({ type: "reroll" });
+		await respawned.session.settled();
+		expect(respawned.calls).toHaveLength(1);
+		expect(respawned.calls[0]).toContain("mcp:linear");
+		expect(respawned.calls[0]).not.toContain("mcp:sentry");
+		expect(respawned.calls[0]).not.toContain("workflow:/release");
+		const tags = respawned
+			.labels()
+			.filter((record) => record.event === "offer")
+			.at(-1)?.tags;
+		expect(tags).toContain("source:cline-setup:off");
+		expect(tags).not.toContain("cap:mcp:sentry");
+		expect(tags).not.toContain("cap:workflow:/release");
 	});
 
 	test("a reroll while the planner is still answering asks the model once", async () => {
@@ -1469,5 +1650,157 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 			set: { runCount: 2, trigger: "on_demand" },
 		});
 		expect(sets.at(-1)?.runCount).toBe(2);
+	});
+
+	test("a viewer who leaves while the transcript is read starts no serve or planner call, and the next attach serves the turn", async () => {
+		let viewed = true;
+		let release: () => void = () => {};
+		const read = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const { messages } = editRun("Forked chat turn");
+		const { session, sets, calls, ledgerCalls } = harness({
+			viewed: () => viewed,
+			readTranscript: async () => {
+				await read;
+				return { messages, status: "completed" };
+			},
+		});
+		const reply = session.ensureCurrent();
+		viewed = false;
+		release();
+		expect((await reply).state).toBe("off");
+		await session.settled();
+		expect([sets.filter(Boolean), calls, ledgerCalls()]).toEqual([[], [], []]);
+
+		viewed = true;
+		expect((await session.ensureCurrent()).state).toBe("ready");
+		await session.settled();
+		expect(calls).toHaveLength(1);
+		expect(session.current()?.planner).toBe("model");
+	});
+
+	test("a viewer who leaves while a turn's serve reads git gets the rule-based set, and the planner waits for the next attach", async () => {
+		let viewed = true;
+		let gitRead: () => void = () => {};
+		const reading = new Promise<void>((resolve) => {
+			gitRead = resolve;
+		});
+		let releaseGit: () => void = () => {};
+		const { session, calls, ledgerCalls } = harness({
+			viewed: () => viewed,
+			dirtyFiles: () => {
+				gitRead();
+				return new Promise((resolve) => {
+					releaseGit = () => resolve(2);
+				});
+			},
+		});
+		const served = session.afterRun(editRun().result);
+		await reading;
+		viewed = false;
+		releaseGit();
+		expect((await served)?.planner).toBe("rules");
+		await session.settled();
+		expect([calls, ledgerCalls()]).toEqual([[], []]);
+		expect(session.current()?.model?.status).toBe("pending");
+
+		viewed = true;
+		expect((await session.ensureCurrent()).set?.planner).toBe("rules");
+		await session.settled();
+		expect(calls).toHaveLength(1);
+		expect(session.current()?.planner).toBe("model");
+	});
+
+	test("a planner call held back for a chat nobody views reads neither the backlog nor any source's facts, in this worker or a respawned one, until a viewer attaches", async () => {
+		const store = new FileSessionStateStore(tempDir("held-planner-"), "sess_1");
+		let viewed = true;
+		const reads: string[] = [];
+		const counted: ContextSource[] = [
+			...sources,
+			{
+				id: "notes",
+				tier: "T1",
+				probe: () => "present",
+				facts: () => {
+					reads.push("facts");
+					return { heading: "Notes", lines: ["Ship on Friday"] };
+				},
+			},
+		];
+		const backlog = async () => {
+			reads.push("backlog");
+			return EMPTY_BACKLOG;
+		};
+		const first = harness({
+			store,
+			viewed: () => viewed,
+			sources: () => counted,
+			backlog,
+			dirtyFiles: async () => {
+				viewed = false;
+				return 2;
+			},
+		});
+		await first.session.afterRun(editRun().result);
+		await first.session.settled();
+		first.session.invoke({ type: "reroll" });
+		await first.session.settled();
+		expect(first.session.currentPush()).toMatchObject({
+			state: "computing",
+			computingFor: "reroll",
+		});
+
+		const respawned = harness({
+			store,
+			viewed: () => viewed,
+			sources: () => counted,
+			backlog,
+		});
+		await respawned.session.settled();
+		expect([reads, first.calls, respawned.calls]).toEqual([
+			["backlog"],
+			[],
+			[],
+		]);
+
+		viewed = true;
+		await respawned.session.ensureCurrent();
+		await respawned.session.settled();
+		expect(reads).toEqual(["backlog", "backlog", "facts"]);
+		expect(respawned.calls).toHaveLength(1);
+	});
+
+	test("a planner call a detach held back is answered from the rules at the next attach once the allowance ran out, and so is a held reroll", async () => {
+		const settings = defaultSettings();
+		const allowance = settings.planner.callsPerHour;
+		let viewed = true;
+		const { session, calls } = harness({ viewed: () => viewed }, settings);
+		const served = session.afterRun(editRun().result);
+		viewed = false;
+		await served;
+		await session.settled();
+		settings.planner.callsPerHour = 0;
+		viewed = true;
+		const resumed = await session.ensureCurrent();
+		expect(resumed).toMatchObject({
+			state: "ready",
+			set: { planner: "rules", model: { status: "paused" } },
+		});
+		expect(resumed.set?.paused?.resetsAt).toBeGreaterThan(0);
+
+		settings.planner.callsPerHour = allowance;
+		const shown = session.current();
+		expect(
+			session.invoke({ type: "reroll", offerId: shown?.offerId }).push,
+		).toMatchObject({ state: "computing", computingFor: "reroll" });
+		viewed = false;
+		await session.settled();
+		settings.planner.callsPerHour = 0;
+		viewed = true;
+		const page = await session.ensureCurrent();
+		expect(page.state).not.toBe("computing");
+		expect(page.set?.offerId).not.toBe(shown?.offerId);
+		expect(calls).toEqual([]);
 	});
 });

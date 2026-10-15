@@ -663,12 +663,7 @@ describe("access and the provider rule", () => {
 		expect(
 			connectorAccess(chosen, "composio:gmail", true, "anthropic").role,
 		).toBe("mention");
-		expect(
-			sourceOff(
-				settingsWith("off"),
-				{},
-			)({ id: "github", tier: "T3", probe: () => "present" }),
-		).toBe(true);
+		expect(sourceOff(settingsWith("off"), {})({ id: "github" })).toBe(true);
 	});
 });
 

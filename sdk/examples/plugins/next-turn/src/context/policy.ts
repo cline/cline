@@ -13,6 +13,12 @@ export function plannerSharesChatProvider(
 	);
 }
 
+/** What `sourceOff` reads of a source, so one not loaded yet can be judged by its id alone. */
+export type SourceSwitches = Pick<
+	ContextSource,
+	"id" | "settingsToggle" | "readsOtherChats"
+>;
+
 /**
  * Which sources are off for this run: a context toggle turned off, a
  * connector set to Off, or a source that reads other chats while the planner
@@ -22,7 +28,7 @@ export function plannerSharesChatProvider(
 export function sourceOff(
 	settings: Settings,
 	env: Pick<SourceEnv, "providerId">,
-): (source: ContextSource) => boolean {
+): (source: SourceSwitches) => boolean {
 	const sharesProvider = plannerSharesChatProvider(settings, env.providerId);
 	return (source) =>
 		(source.settingsToggle !== undefined &&

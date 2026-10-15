@@ -1,5 +1,6 @@
 import { FACTS_BUDGET_MS, PROBE_BUDGET_MS } from "../config";
 import { withinBudget } from "../deadline";
+import type { SourceSwitches } from "./policy";
 import type { ContextSource, Facts, SourceEnv, SourceState } from "./source";
 
 /**
@@ -48,17 +49,26 @@ function capabilitiesOf(source: ContextSource, env: SourceEnv): string[] {
 	}
 }
 
-function presentCapabilities(
+/** The capabilities each present source names, by source id; sources that name none are left out. */
+export type CapabilitiesBySource = Record<string, string[]>;
+
+export function capabilitiesBySource(
 	sources: readonly ContextSource[],
-	states: Record<string, SourceState>,
+	manifest: Pick<Manifest, "sources">,
 	env: SourceEnv,
-): string[] {
+): CapabilitiesBySource {
+	return Object.fromEntries(
+		sources.flatMap((source) => {
+			if (!isPresent(manifest, source.id)) return [];
+			const named = capabilitiesOf(source, env);
+			return named.length > 0 ? [[source.id, named]] : [];
+		}),
+	);
+}
+
+function namedCapabilities(...named: CapabilitiesBySource[]): string[] {
 	return [
-		...new Set(
-			sources.flatMap((source) =>
-				states[source.id] === "present" ? capabilitiesOf(source, env) : [],
-			),
-		),
+		...new Set(named.flatMap((bySource) => Object.values(bySource).flat())),
 	].sort();
 }
 
@@ -81,7 +91,9 @@ export async function buildManifest(
 		client: env.client,
 		mode: env.mode,
 		sources: states,
-		capabilities: presentCapabilities(sources, states, env),
+		capabilities: namedCapabilities(
+			capabilitiesBySource(sources, { sources: states }, env),
+		),
 	};
 }
 
@@ -89,24 +101,39 @@ export async function buildManifest(
  * The manifest as a later planner call on the same turn should see it: every
  * source `isOff` now refuses is marked off, and the capabilities are read
  * again from the sources still present, so a source turned off or a script
- * removed since the turn is neither read nor named.
+ * removed since the turn is neither read nor named. A source not loaded yet
+ * is judged by its id alone, so a connector set to Off is off before a
+ * respawned worker detects it.
+ *
+ * `saved` is what each source named when the turn's manifest was built, kept
+ * while a respawned worker's sources load and cannot name theirs yet. A
+ * source now off takes what it named out of it.
  */
 export function withCurrentSources(
 	manifest: Manifest,
 	sources: readonly ContextSource[],
 	env: SourceEnv,
-	isOff: (source: ContextSource) => boolean,
+	isOff: (source: SourceSwitches) => boolean,
+	saved: CapabilitiesBySource = {},
 ): Manifest {
+	const isOffNow = (id: string) =>
+		isOff(sources.find((source) => source.id === id) ?? { id });
 	const states: Record<string, SourceState> = Object.fromEntries(
-		Object.entries(manifest.sources).map(([id, state]) => {
-			const source = sources.find((candidate) => candidate.id === id);
-			return [id, source && isOff(source) ? "off" : state];
-		}),
+		Object.entries(manifest.sources).map(([id, state]) => [
+			id,
+			isOffNow(id) ? "off" : state,
+		]),
+	);
+	const kept = Object.fromEntries(
+		Object.entries(saved).filter(([id]) => !isOffNow(id)),
 	);
 	return {
 		...manifest,
 		sources: states,
-		capabilities: presentCapabilities(sources, states, env),
+		capabilities: namedCapabilities(
+			capabilitiesBySource(sources, { sources: states }, env),
+			kept,
+		),
 	};
 }
 

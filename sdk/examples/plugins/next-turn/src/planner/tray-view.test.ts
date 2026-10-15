@@ -24,7 +24,12 @@ import {
 	type TrayAction,
 	type TrayPush,
 } from "./tray";
-import { clampSlotText, toSuggestionsState, toTrayActions } from "./tray-view";
+import {
+	clampSlotText,
+	dormantState,
+	toSuggestionsState,
+	toTrayActions,
+} from "./tray-view";
 
 const OFFER_ID = "offer_6f1c2a7e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 
@@ -217,6 +222,19 @@ describe("Next's tray state as the composer.suggestions slot", () => {
 			["disabled", "hidden", "disabled"],
 			[undefined, "hidden", "disabled"],
 		]);
+	});
+
+	test("a chat no viewer attached to yet is hidden with no reason, which core keeps as it is", () => {
+		const dormant = dormantState();
+		expectNormal(dormant);
+		expect(dormant).toEqual({
+			status: "hidden",
+			title: "Next",
+			command: "next",
+			revision: "none",
+			items: [],
+			canRefresh: false,
+		});
 	});
 
 	test("a chat hidden for this chat projects as hidden by the person", async () => {

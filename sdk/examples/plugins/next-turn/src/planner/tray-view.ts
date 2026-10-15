@@ -241,18 +241,32 @@ export type SuggestionsProjection = {
 	lastRevision?: string;
 };
 
+function emptyState(revision: string) {
+	return {
+		title: TITLE,
+		command: COMMAND,
+		revision,
+		items: [],
+		canRefresh: false,
+	};
+}
+
+/**
+ * A chat no viewer attached to yet: hidden with no reason, so it neither
+ * ends a sent line nor says Next is off. Published at setup, it is the new
+ * copy's first state, which tells a renderer still bound to the chat that
+ * it restarted, so the renderer attaches again (the epoch re-attach rule).
+ */
+export function dormantState(): ComposerSuggestionsState {
+	return { ...emptyState(NO_REVISION), status: "hidden" };
+}
+
 /** One tray push as the `composer.suggestions` state, already in the form core stores. */
 export function toSuggestionsState(
 	push: TrayPush,
 	{ facts, lastRevision }: SuggestionsProjection = {},
 ): ComposerSuggestionsState {
-	const empty = {
-		title: TITLE,
-		command: COMMAND,
-		revision: push.set?.offerId ?? lastRevision ?? NO_REVISION,
-		items: [],
-		canRefresh: false,
-	};
+	const empty = emptyState(push.set?.offerId ?? lastRevision ?? NO_REVISION);
 	switch (push.state) {
 		case "computing":
 			return {

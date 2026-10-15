@@ -594,11 +594,14 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		});
 		await agentFor(plugin).run("Add a retry to the client");
 		await next.settled();
-		expect(host.states.map((state) => state?.status)).toEqual([
-			"hidden",
-			"loading",
-			"ready",
-			"ready",
+		expect(
+			host.states.map((state) => [state?.status, state?.hiddenReason]),
+		).toEqual([
+			["hidden", undefined],
+			["hidden", "superseded"],
+			["loading", undefined],
+			["ready", undefined],
+			["ready", undefined],
 		]);
 		const shown = host.latest();
 		expect(shown?.revision).toBe(next.current()?.offerId);
@@ -643,6 +646,100 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		expect(
 			host.invoke({ verb: "dance" } as unknown as ComposerSuggestionsAction),
 		).toEqual({ outcome: "refused" });
+	});
+
+	test("a chat nobody views yet publishes a plain hidden state at setup, and one that starts viewed publishes nothing", async () => {
+		const dormant = fakeSlotHost();
+		const waiting = createNextTurnPlugin({
+			startRuntime: presence().start,
+			lifecycle: alwaysActive,
+		});
+		await waiting.setup?.(dormant.api as never, slotContext(dormant));
+		expect(dormant.states).toEqual([
+			expect.objectContaining({
+				status: "hidden",
+				title: "Next",
+				command: "next",
+				revision: "none",
+				items: [],
+			}),
+		]);
+		expect(dormant.latest()?.hiddenReason).toBeUndefined();
+
+		const viewed = fakeSlotHost();
+		const reclaimed = createNextTurnPlugin({
+			startRuntime: () => fakeRuntime(),
+			lifecycle: alwaysActive,
+		});
+		await reclaimed.setup?.(viewed.api as never, slotContext(viewed));
+		expect(viewed.states).toEqual([]);
+	});
+
+	test("a chat restarted after its last viewer left announces the new copy at setup, so the renderer still bound to it attaches and is served", async () => {
+		const settings = defaultSettings();
+		settings.notify.needsYou = false;
+		settings.planner.callsPerHour = 0;
+		const workspaceRoot = tempDir();
+		const copy = () => {
+			const host = fakeSlotHost();
+			const disposers: Array<() => unknown> = [];
+			let started: SessionRuntime | undefined;
+			const plugin = createNextTurnPlugin({
+				startRuntime: (startContext, { active }) => {
+					started = startSessionRuntime(startContext, {
+						settings: () => settings,
+						active,
+						hubLink: offlineHub,
+						runCommand: noCommands,
+					});
+					return started;
+				},
+				lifecycle: alwaysActive,
+			});
+			const setup = () =>
+				plugin.setup?.(
+					host.api as never,
+					slotContext(host, {
+						session: { sessionId: "sess_restarted_unviewed" },
+						workspaceInfo: { rootPath: workspaceRoot },
+						onDispose: (cleanup) => {
+							disposers.push(cleanup);
+						},
+					}),
+				);
+			const dispose = () => Promise.all(disposers.map((cleanup) => cleanup()));
+			return { host, plugin, setup, dispose, runtime: () => started };
+		};
+
+		const before = copy();
+		await before.setup();
+		before.host.invoke({ verb: "attach", surface: "desktop" });
+		await agentFor(before.plugin).run("Add a retry to the client");
+		await before.runtime()?.next?.settled();
+		const shown = before.host.latest();
+		expect(shown?.status).toBe("ready");
+		before.host.invoke({ verb: "detach" });
+		await before.dispose();
+
+		const after = copy();
+		try {
+			await after.setup();
+			expect(after.host.states).toEqual([
+				expect.objectContaining({ status: "hidden", revision: "none" }),
+			]);
+			expect(after.host.latest()?.hiddenReason).toBeUndefined();
+			expect(after.host.invoke({ verb: "attach", surface: "desktop" })).toEqual(
+				{ outcome: "ok" },
+			);
+			await flushDetached();
+			await after.runtime()?.next?.settled();
+			expect(after.host.latest()).toMatchObject({
+				status: "ready",
+				revision: shown?.revision,
+			});
+		} finally {
+			await after.dispose();
+		}
 	});
 
 	test("an attach answers before its serve settles, so a verb behind it is not held", async () => {
@@ -791,6 +888,52 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		expect(host.latest()?.revision).toBe(served?.offerId);
 	});
 
+	test("a viewer who leaves while a turn is served gets no planner call or connector refresh for it", async () => {
+		let planned = 0;
+		let refreshed = 0;
+		const connectors = {
+			onTurn: async () => {
+				refreshed += 1;
+			},
+		} as unknown as SessionRuntime["connectors"];
+		let gitRead: () => void = () => {};
+		const reading = new Promise<void>((resolve) => {
+			gitRead = resolve;
+		});
+		let releaseGit: () => void = () => {};
+		const host = fakeSlotHost();
+		const { next, start } = presence(
+			{
+				dirtyFiles: () => {
+					gitRead();
+					return new Promise((resolve) => {
+						releaseGit = () => resolve(1);
+					});
+				},
+				complete: async () => {
+					planned += 1;
+					return { text: MODEL_ANSWER };
+				},
+			},
+			{ connectors },
+		);
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		host.invoke({ verb: "attach", surface: "desktop" });
+		const run = agentFor(plugin).run("Add a retry to the client");
+		await reading;
+		host.invoke({ verb: "detach" });
+		releaseGit();
+		await run;
+		await next.settled();
+		await flushDetached();
+		expect([planned, refreshed]).toEqual([0, 0]);
+		expect(next.current()?.planner).toBe("rules");
+	});
+
 	test("Send on a connector's row is refused as Use only", async () => {
 		const host = fakeSlotHost();
 		const { next, start } = presence({
@@ -852,7 +995,7 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		expect(next.current()?.trigger).toBe("on_demand");
 	});
 
-	test("a disabled plugin answers every verb by showing the tray as disabled, whether or not Next started", async () => {
+	test("a disabled plugin answers every verb by showing the tray as disabled and refuses Use and Send as stale, whether or not Next started", async () => {
 		let enabled = true;
 		const lifecycle = { active: () => enabled };
 		const host = fakeSlotHost();
@@ -863,9 +1006,13 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		});
 		await plugin.setup?.(host.api as never, slotContext(host));
 		enabled = false;
-		expect(
-			host.invoke({ verb: "use", revision: "r1", itemId: "a1", input: "key" }),
-		).toEqual({ outcome: "ok" });
+		const row = { revision: "r1", itemId: "a1", input: "key" } as const;
+		for (const verb of ["use", "send"] as const)
+			expect([verb, host.invoke({ verb, ...row })]).toEqual([
+				verb,
+				{ outcome: "refused", reason: "stale" },
+			]);
+		expect(host.invoke({ verb: "skip", ...row })).toEqual({ outcome: "ok" });
 		expect(host.latest()).toMatchObject({
 			status: "hidden",
 			hiddenReason: "disabled",
@@ -875,14 +1022,20 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 			sessionId: "sess_1",
 			settings: defaultSettings,
 			env: sessionEnv(context, { tools: () => [] }),
-			sources: () => [],
+			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
 			backlog: async () => EMPTY_BACKLOG,
 		});
+		const onScreen = await unbound.afterRun(editRun().result);
 		runtime.next = unbound;
 		host.states.splice(0);
-		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
-			outcome: "ok",
-		});
+		expect(
+			host.invoke({
+				verb: "send",
+				revision: onScreen?.offerId ?? "",
+				itemId: onScreen?.candidates[0]?.id ?? "",
+				input: "key",
+			}),
+		).toEqual({ outcome: "refused", reason: "stale" });
 		expect(unbound.currentPush()).toMatchObject({
 			state: "off",
 			offReason: "disabled",
@@ -890,6 +1043,10 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		expect(host.states).toEqual([
 			expect.objectContaining({ status: "hidden", hiddenReason: "disabled" }),
 		]);
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		expect(host.latest()?.hiddenReason).toBe("disabled");
 	});
 
 	test("re-enabling the plugin restarts the connector refresher only for a viewed chat", async () => {
