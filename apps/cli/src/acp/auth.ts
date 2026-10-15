@@ -72,7 +72,7 @@ async function performOAuthLogin(input: {
 }
 
 export interface AcpAuthResult {
-	providerId: AcpAuthMethodId;
+	providerId: string;
 	apiKey: string;
 }
 
