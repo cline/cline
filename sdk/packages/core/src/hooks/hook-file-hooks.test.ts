@@ -984,7 +984,10 @@ describe("createHookConfigFileHooks", () => {
 				reason?: string;
 			};
 			expect(payload.hookName).toBe("agent_abort");
-			expect(payload.reason).toBe("aborted");
+			// The abort decision is passed via the `aborted` context flag, not by
+			// encoding "aborted" into `reason` — so the payload keeps the reason
+			// SessionShutdown hooks saw before (undefined here, no error).
+			expect(payload.reason).toBeUndefined();
 		} finally {
 			await rm(workspace, {
 				recursive: true,
