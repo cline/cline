@@ -1085,19 +1085,13 @@ function getNestedUsageValue(
 }
 
 /**
- * AI SDK request-level retries for each model call (the SDK default is 2). The
- * SDK retries the *initial* request on transient failures — 429/5xx/network —
- * with exponential backoff that honors `retry-after` headers. It never sees an
- * error the provider emits *mid-stream* (OpenRouter's "Provider returned error"
- * arrives as a stream part after a 200), so the agent loop keeps its own
- * turn-level retry for those.
+ * AI SDK request-start retries (`maxRetries`) handle transient failures before
+ * streaming begins, with backoff that honors `retry-after` headers. Provider
+ * error parts received after streaming starts use `streamRetries` instead.
  *
- * Each failure class has exactly one retrying layer, so the counts never
- * multiply: request-start failures belong to this setting (a `RetryError` is
- * terminal for the turn-level retry, see `isRetryableBeyondSdkRetries`);
- * pre-output socket deaths and empty responses belong to
- * `withEmptyResponseRetry`, which never sees request-start rejections; and
- * mid-stream provider errors belong to the turn-level retry alone.
+ * Exhausted request-start retries (`RetryError`) and terminal stream error parts
+ * do not trigger the agent's whole-turn retry, so the retry budgets do not
+ * multiply. See `captureStreamError` and `isRetryableBeyondSdkRetries`.
  */
 const MODEL_REQUEST_MAX_RETRIES = 5;
 const MODEL_STREAM_MAX_RETRIES = 3;
