@@ -15,7 +15,10 @@ const DEFAULT_ENDPOINTS: AimlapiEndpoints = {
 };
 
 export const AIMLAPI_DEFAULT_MODEL = "anthropic/claude-sonnet-5";
-export const AIMLAPI_DEFAULT_PARTNER_ID = "part_Cline";
+// Minted by AI/ML API for Cline (2026-10-15). Partner ids are issued server-side
+// as random tokens; an id the gateway did not issue is accepted and silently
+// dropped, so a made-up value here would leave all traffic unattributed.
+export const AIMLAPI_DEFAULT_PARTNER_ID = "part_HSyUEqWOLXYAn56CBHNOMBlj";
 export const AIMLAPI_DEFAULT_PARTNER_NAME = "Cline";
 export const AIMLAPI_DEFAULT_INTEGRATION_REPO = "cline/cline";
 export const AIMLAPI_DEFAULT_INTEGRATION_VERSION = "cline";

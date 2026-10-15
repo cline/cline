@@ -169,11 +169,9 @@ describe("provider-ids", () => {
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "aimlapi",
 		);
-		expect(registration?.defaults?.headers).toEqual({
-			"X-AIMLAPI-Partner-ID": "part_Cline",
-			"X-AIMLAPI-Integration-Repo": "cline/cline",
-			"X-AIMLAPI-Integration-Version": "cline",
-		});
+		// No static attribution: it would leave with any baseUrl override. It is
+		// added per request for api.aimlapi.com only (aimlapi/attribution.ts).
+		expect(registration?.defaults?.headers).toBeUndefined();
 		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
 			createProvider: createOpenAICompatibleProvider,
 		});

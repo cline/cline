@@ -32,7 +32,7 @@ describe("AimlapiClient", () => {
 				return jsonResponse({
 					id: "checkout",
 					sessionToken: "session",
-					partnerId: "part_Cline",
+					partnerId: "part_HSyUEqWOLXYAn56CBHNOMBlj",
 					partnerName: "Cline",
 					status: "pending_auth",
 				});
@@ -41,13 +41,13 @@ describe("AimlapiClient", () => {
 
 		const client = new AimlapiClient(endpoints);
 		await client.createSession({
-			partnerId: "part_Cline",
+			partnerId: "part_HSyUEqWOLXYAn56CBHNOMBlj",
 			partnerName: "Cline",
 			returnUrl: "https://app.aimlapi.com",
 		});
 
 		expect(requestBody).toEqual({
-			partnerId: "part_Cline",
+			partnerId: "part_HSyUEqWOLXYAn56CBHNOMBlj",
 			partnerName: "Cline",
 			returnUrl: "https://app.aimlapi.com",
 		});

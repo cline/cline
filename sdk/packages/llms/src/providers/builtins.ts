@@ -31,11 +31,6 @@ import type {
 	ProviderFamily,
 } from "./builtin-types";
 import {
-	AIMLAPI_DEFAULT_INTEGRATION_REPO,
-	AIMLAPI_DEFAULT_INTEGRATION_VERSION,
-	AIMLAPI_DEFAULT_PARTNER_ID,
-} from "./aimlapi/config";
-import {
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
@@ -953,14 +948,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		capabilities: ["reasoning", "tools"],
 		defaultModelId: "anthropic/claude-sonnet-5",
 		apiKeyEnv: ["AIMLAPI_API_KEY"],
-		defaults: {
-			baseUrl: "https://api.aimlapi.com/v1",
-			headers: {
-				"X-AIMLAPI-Partner-ID": AIMLAPI_DEFAULT_PARTNER_ID,
-				"X-AIMLAPI-Integration-Repo": AIMLAPI_DEFAULT_INTEGRATION_REPO,
-				"X-AIMLAPI-Integration-Version": AIMLAPI_DEFAULT_INTEGRATION_VERSION,
-			},
-		},
+		// Attribution is NOT a static default header: those would be sent to
+		// whatever baseUrl the provider is pointed at. It is added per request,
+		// only for api.aimlapi.com, by wrapFetchForAimlapiAttribution.
+		defaults: { baseUrl: "https://api.aimlapi.com/v1" },
 		modelsSourceUrl:
 			"https://api.aimlapi.com/v1/models?type=openai%2Fchat-completions",
 	},
