@@ -265,10 +265,10 @@ export class AcpAgent implements Agent {
 				[];
 		} else {
 			if (!session) {
-				// Provider/model are not persisted per session. Fresh connections
-				// use the environment/restored provider and the same model precedence
-				// as newSession: CLINE_MODEL, that provider's saved model, then its
-				// provider-scoped catalog default.
+				// Fresh connections use configured defaults rather than recovering
+				// the session's provider/model selection: environment/restored provider,
+				// then model precedence CLINE_MODEL, that provider's saved model,
+				// and finally its provider-scoped catalog default.
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 				const providerModels = await Llms.getModelsForProvider(
