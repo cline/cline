@@ -200,7 +200,7 @@ export class E2ETestHelper {
 		}
 	}
 
-	public static async closeAppForTeardown(app: ElectronApplication): Promise<void> {
+	public static async closeAppForTeardown(app: ElectronApplication, userDataDir: string): Promise<void> {
 		const process = app.process()
 		const getProcessSummary = () =>
 			process
@@ -222,15 +222,30 @@ export class E2ETestHelper {
 			`[e2e teardown] app.close() exceeded ${E2ETestHelper.TEARDOWN_TIMEOUT_MS}ms; forcing VS Code/Electron shutdown (${getProcessSummary()}; windows: ${windowDiagnostics})`,
 		)
 
-		// Windows: SIGKILL only ends the root process; Code child processes survive and keep the
-		// Playwright worker from exiting ("Worker teardown timeout"). Kill the whole tree.
-		if (globalThis.process.platform === "win32" && process?.pid) {
+		// Windows: SIGKILL only ends the root process, and by the time app.close() times out the root has often
+		// already exited, orphaning its Code helpers (taskkill /T needs a live parent). Those helpers keep the
+		// Playwright worker from exiting ("Worker teardown timeout"), so also sweep by this run's unique
+		// --user-data-dir, which every helper carries on its command line.
+		if (globalThis.process.platform === "win32") {
+			if (process?.pid) {
+				try {
+					execFileSync("taskkill", ["/pid", String(process.pid), "/T", "/F"], { stdio: "ignore", timeout: 10_000 })
+				} catch {
+					// Root already gone; the sweep below handles orphaned helpers.
+				}
+			}
 			try {
-				execFileSync("taskkill", ["/pid", String(process.pid), "/T", "/F"], { stdio: "ignore", timeout: 10_000 })
-				return
+				execFileSync(
+					"powershell",
+					[
+						"-NoProfile",
+						"-Command",
+						"Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:E2E_USER_DATA_DIR) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+					],
+					{ stdio: "ignore", timeout: 30_000, env: { ...globalThis.process.env, E2E_USER_DATA_DIR: userDataDir } },
+				)
 			} catch (error) {
-				// taskkill failed or timed out; fall through to the process.kill() fallback below.
-				console.warn(`[e2e teardown] taskkill failed for VS Code/Electron process tree: ${error}`)
+				console.warn(`[e2e teardown] user-data-dir process sweep failed: ${error}`)
 			}
 		}
 
@@ -440,7 +455,7 @@ export const e2e = test
 			try {
 				await use(app)
 			} finally {
-				await E2ETestHelper.closeAppForTeardown(app)
+				await E2ETestHelper.closeAppForTeardown(app, userDataDir)
 				// Cleanup in parallel after the app process has been asked to exit.
 				const cleanupTasks = [
 					E2ETestHelper.rmForRetries(userDataDir, { recursive: true }),
