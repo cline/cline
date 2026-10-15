@@ -61,6 +61,11 @@ import {
 	wrapFetchForProviderRequestCapture,
 } from "./provider-request-capture";
 import {
+	appendRequestId,
+	extractResponseRequestId,
+	findRequestIdHeader,
+} from "./response-request-id";
+import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
@@ -68,7 +73,10 @@ import {
 	applyBedrockCachePointToLastUserMessage,
 	shouldApplyBedrockCachePoint,
 } from "./routing/bedrock-cache-point";
-import { resolvePortableReasoning } from "./routing/portable-reasoning";
+import {
+	reconcilePortableReasoning,
+	resolvePortableReasoning,
+} from "./routing/portable-reasoning";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -329,9 +337,9 @@ function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Partial<CallSettings> {
-	const reasoning = resolvePortableReasoning(request);
+	const reasoning = resolvePortableReasoning(request, { context });
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
@@ -1464,13 +1472,19 @@ interface CapturedStreamError {
 	 * does not report the same failure a second time.
 	 */
 	reported?: boolean;
+	requestId?: string;
+	baseMessage: string;
 }
 
 function captureStreamError(error: unknown): CapturedStreamError {
+	const requestId = extractResponseRequestId(error);
+	const baseMessage = extractErrorMessage(error);
 	return {
-		message: extractErrorMessage(error),
+		message: appendRequestId(baseMessage, requestId),
+		baseMessage,
 		errorClass: classifyProviderError(error),
 		retryable: isRetryableBeyondSdkRetries(error),
+		...(requestId ? { requestId } : {}),
 	};
 }
 
@@ -1514,9 +1528,7 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 				if (part.type === "finish-step") {
-					requestId = Object.entries(part.response?.headers ?? {}).find(
-						([name]) => name.toLowerCase() === "x-request-id",
-					)?.[1];
+					requestId = findRequestIdHeader(part.response?.headers);
 					continue;
 				}
 				if (part.type === "text-delta") {
@@ -1991,10 +2003,11 @@ async function* emitAiSdkEvents(
 		};
 	}
 
+	const finishRequestId = requestId ?? streamError?.requestId;
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason),
-		...(requestId ? { requestId } : {}),
+		...(finishRequestId ? { requestId: finishRequestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
 		errorRetryable: streamError?.retryable,
@@ -2295,13 +2308,15 @@ function createAiSdkProvider(
 					context,
 					messagesSystemPrompt,
 				);
-				const portableReasoning = resolvePortableReasoning(request, {
-					adapter: kind,
-					context,
-				});
-				const requestConfig = provider.buildStreamConfig
-					? provider.buildStreamConfig(request, context)
-					: buildAiSdkStreamConfig(request, context);
+				const portableReasoning = reconcilePortableReasoning(
+					resolvePortableReasoning(request, { adapter: kind, context }),
+					providerOptions,
+				);
+				// Reasoning is decided once above, after provider options are known.
+				const { reasoning: _configReasoning, ...requestConfig } =
+					provider.buildStreamConfig
+						? provider.buildStreamConfig(request, context)
+						: buildAiSdkStreamConfig(request, context);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
@@ -2376,13 +2391,14 @@ function createAiSdkProvider(
 									component: "llms",
 									operation: "provider.stream",
 									error: streamError,
-									errorMessage: msg,
+									errorMessage: captured.baseMessage,
 									severity: "error",
 									handled: true,
 									context: {
 										providerId: request.providerId,
 										modelId: request.modelId,
 										providerKind: kind,
+										requestId: captured.requestId,
 									},
 								});
 							},
@@ -2425,13 +2441,14 @@ function createAiSdkProvider(
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
-					errorMessage: msg,
+					errorMessage: captured.baseMessage,
 					severity: "error",
 					handled: true,
 					context: {
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
+						requestId: captured.requestId,
 					},
 				});
 				yield {

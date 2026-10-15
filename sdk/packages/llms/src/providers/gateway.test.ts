@@ -19,6 +19,7 @@ import {
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
 } from "@cline/shared";
+import { APICallError } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
 import { createOpenAICompatibleProvider } from "./ai-sdk";
@@ -96,22 +97,28 @@ function createFetchMock() {
 	};
 }
 
-vi.mock("ai", () => ({
-	jsonSchema: (schema: unknown, options: unknown) => ({
-		jsonSchema: schema,
-		...(options && typeof options === "object" ? options : {}),
-	}),
-	generateImage: (input: unknown) => generateImageSpy(input),
-	streamText: (input: unknown) => streamTextSpy(input),
-	// `wrapLanguageModel` is used by the openai-compatible and mistral
-	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
-	// is exercised by its own unit tests; here we just need an identity
-	// pass-through so the vendor factories' downstream `model:` callbacks
-	// keep returning the spy-produced mock objects unchanged. (The mock
-	// objects don't satisfy the real `LanguageModelV4` interface, so we
-	// can't call the real `wrapLanguageModel` either way.)
-	wrapLanguageModel: ({ model }: { model: unknown }) => model,
-}));
+vi.mock("ai", async (importOriginal) => {
+	const { APICallError, RetryError } =
+		await importOriginal<typeof import("ai")>();
+	return {
+		APICallError,
+		RetryError,
+		jsonSchema: (schema: unknown, options: unknown) => ({
+			jsonSchema: schema,
+			...(options && typeof options === "object" ? options : {}),
+		}),
+		generateImage: (input: unknown) => generateImageSpy(input),
+		streamText: (input: unknown) => streamTextSpy(input),
+		// `wrapLanguageModel` is used by the openai-compatible and mistral
+		// vendors to attach `splitToolImagesMiddleware`. The middleware itself
+		// is exercised by its own unit tests; here we just need an identity
+		// pass-through so the vendor factories' downstream `model:` callbacks
+		// keep returning the spy-produced mock objects unchanged. (The mock
+		// objects don't satisfy the real `LanguageModelV4` interface, so we
+		// can't call the real `wrapLanguageModel` either way.)
+		wrapLanguageModel: ({ model }: { model: unknown }) => model,
+	};
+});
 
 vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: () => ({
@@ -1401,6 +1408,44 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("includes the response x-request-id in stream error messages", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "error",
+					error: new APICallError({
+						message: "Unauthorized",
+						url: "https://api.cline.bot/api/v1/chat/completions",
+						requestBodyValues: {},
+						statusCode: 401,
+						responseHeaders: { "X-Request-ID": "req_abc123" },
+						responseBody: JSON.stringify({
+							error: { message: "Unauthorized: re-authenticate" },
+						}),
+					}),
+				},
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			requestId: "req_abc123",
+			error: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+		});
+	});
+
 	it("preserves valid mixed text when a generated image is rejected", async () => {
 		const oversized = "A".repeat(DEFAULT_MAX_IMAGE_ENCODED_BYTES + 4);
 		streamTextSpy.mockReturnValue({
@@ -2514,6 +2559,9 @@ describe("sdk-gateway", () => {
 								input: ["text", "image"],
 								output: ["text", "image"],
 							},
+							reasoningOptions: [
+								{ type: "budget_tokens", min: 128, max: 32_768 },
+							],
 						},
 					],
 				},
@@ -2797,6 +2845,47 @@ describe("sdk-gateway", () => {
 			([call]) => (call as { event: string }).event === "sdk.error",
 		);
 		expect(sdkErrors).toHaveLength(5);
+	});
+
+	it("rate-limits stream failures that differ only by request ID", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		for (let i = 0; i < 20; i++) {
+			const rawError = new APICallError({
+				message: "Unauthorized",
+				url: "https://api.cline.bot/api/v1/chat/completions",
+				requestBodyValues: {},
+				statusCode: 401,
+				responseHeaders: { "x-request-id": `req_${"abcdefghijklmnopqrst"[i]}` },
+			});
+			streamTextSpy.mockImplementation(
+				(input: { onError?: (event: { error: unknown }) => void }) => {
+					input.onError?.({ error: rawError });
+					return {
+						fullStream: makeStreamParts([{ type: "error", error: rawError }]),
+					};
+				},
+			);
+			await collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			);
+		}
+
+		const sdkErrors = capture.mock.calls.filter(
+			([call]) => (call as { event: string }).event === "sdk.error",
+		);
+		expect(sdkErrors).toHaveLength(5);
+		expect(sdkErrors[0]?.[0]).toMatchObject({
+			properties: { error_message: "Unauthorized", requestId: "req_a" },
+		});
 	});
 
 	it("records the extracted cause when provider creation fails through a generic wrapper", async () => {

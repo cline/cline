@@ -1,4 +1,3 @@
-import { statSync } from "node:fs";
 import {
 	type AgentExtensionCommand,
 	type AgentExtensionCommandResult,
@@ -11,6 +10,7 @@ import {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 } from "../extensions/plugin/plugin-config-loader";
+import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
 
 export interface PluginSlashCommand {
 	/** Normalized token: lowercase, no leading slash. */
@@ -102,13 +102,7 @@ export function createPluginCommandService(options: {
 	const ensureHost = (): Promise<LoadedHost | undefined> => {
 		const pluginPaths = resolveAgentPluginPaths(loadOptions);
 		const key = pluginPaths
-			.map((path) => {
-				try {
-					return `${path}:${statSync(path).mtimeMs}`;
-				} catch {
-					return path;
-				}
-			})
+			.map((path) => `${path}:${fingerprintPluginSources(path)}`)
 			.join("\n");
 		// Chain onto the previous host promise so concurrent callers serialize:
 		// a stale host is shut down and replaced exactly once.

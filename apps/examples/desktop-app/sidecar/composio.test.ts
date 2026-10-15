@@ -35,7 +35,6 @@ const proxy = vi.hoisted(() => ({
 	initiateConnection: vi.fn(),
 	listConnections: vi.fn(),
 	deleteConnection: vi.fn(),
-	listToolkitTools: vi.fn(),
 	waitForConnectionActive: vi.fn(),
 }));
 
@@ -49,7 +48,6 @@ vi.mock("./cline-connectors-api", async () => {
 		initiateConnection: proxy.initiateConnection,
 		listConnections: proxy.listConnections,
 		deleteConnection: proxy.deleteConnection,
-		listToolkitTools: proxy.listToolkitTools,
 		waitForConnectionActive: proxy.waitForConnectionActive,
 	};
 });
@@ -117,7 +115,6 @@ beforeEach(() => {
 	__resetComposioCachesForTesting();
 	// Sensible defaults; individual tests override.
 	proxy.listConnections.mockResolvedValue([]);
-	proxy.listToolkitTools.mockResolvedValue([]);
 	proxy.deleteConnection.mockResolvedValue(undefined);
 	proxy.fetchConnectableToolkits.mockResolvedValue([]);
 	// waitForConnectionActive resolves immediately by default (connection active).
@@ -202,11 +199,8 @@ describe("account isolation", () => {
 
 	it("keeps an abandoned connection's tombstone under its original account", async () => {
 		const dir = useTempDataDir();
-		proxy.initiateConnection.mockResolvedValue({
-			connectedAccountId: "a-pending",
-		});
-		let complete!: (items: unknown[]) => void;
-		proxy.listToolkitTools.mockImplementationOnce(
+		let complete!: (result: { connectedAccountId: string }) => void;
+		proxy.initiateConnection.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
 					complete = resolve;
@@ -226,7 +220,7 @@ describe("account isolation", () => {
 		proxy.deleteConnection.mockRejectedValue(
 			new ConnectorsApiError("account changed", 401),
 		);
-		complete([{ slug: "GITHUB_LIST_ISSUES" }]);
+		complete({ connectedAccountId: "a-pending" });
 		expect((await request).alreadyConnected).toBeUndefined();
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"b-github",
@@ -309,7 +303,6 @@ describe("getComposioStatus", () => {
 		expect(
 			status.integrations.find((entry) => entry.toolkit === "gmail")?.status,
 		).toBe("not_connected");
-		expect(proxy.listToolkitTools).not.toHaveBeenCalled();
 	});
 
 	it("preserves stored connectors when the complete remote list cannot be fetched", async () => {
@@ -359,69 +352,11 @@ describe("getComposioStatus", () => {
 		const status = await getComposioStatus();
 		const github = status.integrations.find((e) => e.toolkit === "github");
 		expect(github?.status).toBe("connected");
-		expect(github?.toolNames).toEqual(["Create issue"]);
-		expect(proxy.listToolkitTools).not.toHaveBeenCalled();
+		expect(github).not.toHaveProperty("toolNames");
 	});
 
-	it.each([
-		0, 20,
-	])("refreshes a connected toolkit cached with %i tools to all 47 tools", async (cachedCount) => {
+	it("refreshes connection metadata without persisting app schemas", async () => {
 		const dir = useTempDataDir();
-		makeAvailable([
-			{
-				id: "ca_wedged",
-				status: "ACTIVE",
-				toolkit: { slug: "googlecalendar" },
-			},
-		]);
-		const tools = Array.from({ length: 47 }, (_, i) => ({
-			slug: `GOOGLECALENDAR_TOOL_${i}`,
-			name: `Calendar tool ${i}`,
-		}));
-		proxy.listToolkitTools.mockResolvedValue(tools);
-		const connection = {
-			connectedAccountId: "ca_wedged",
-			connectedAt: "2026-08-28T00:00:00.000Z",
-			name: "Google Calendar",
-			logo: "https://logos/googlecalendar.png",
-		};
-		writeState(dir, {
-			toolkits: {
-				googlecalendar: {
-					...connection,
-					tools: tools.slice(0, cachedCount),
-				},
-			},
-		});
-		const before = await getComposioStatus();
-		const cached = before.integrations.find(
-			(e) => e.toolkit === "googlecalendar",
-		);
-		expect(cached?.toolNames).toHaveLength(cachedCount);
-		if (cachedCount === 0) {
-			expect(cached?.error).toMatch(/no tools were retrieved/);
-		}
-		expect(proxy.listToolkitTools).not.toHaveBeenCalled();
-		const status = await getComposioStatus({ refresh: true });
-		const healed = status.integrations.find(
-			(e) => e.toolkit === "googlecalendar",
-		);
-		expect(healed?.toolNames).toEqual(tools.map((tool) => tool.name));
-		expect(healed?.error).toBeUndefined();
-		expect(readStateFile(dir).toolkits?.googlecalendar).toEqual({
-			...connection,
-			tools,
-		});
-	});
-
-	it("preserves cached schemas after a failed refresh and retries on the next refresh", async () => {
-		const dir = useTempDataDir();
-		const stored = {
-			connectedAccountId: "ca_calendar",
-			connectedAt: "2026-08-28T00:00:00.000Z",
-			tools: [{ slug: "GOOGLECALENDAR_LIST_EVENTS" }],
-		};
-		writeState(dir, { toolkits: { googlecalendar: stored } });
 		makeAvailable([
 			{
 				id: "ca_calendar",
@@ -429,21 +364,23 @@ describe("getComposioStatus", () => {
 				toolkit: { slug: "googlecalendar" },
 			},
 		]);
-		const tools = [...stored.tools, { slug: "GOOGLECALENDAR_CREATE_EVENT" }];
-		proxy.listToolkitTools
-			.mockRejectedValueOnce(new ConnectorsApiError("later page failed", 502))
-			.mockResolvedValueOnce(tools);
-		await getComposioStatus({ refresh: true });
-		expect(readStateFile(dir).toolkits?.googlecalendar).toEqual(stored);
+		const connection = {
+			connectedAccountId: "ca_calendar",
+			connectedAt: "2026-08-28T00:00:00.000Z",
+			name: "Google Calendar",
+		};
+		writeState(dir, { toolkits: { googlecalendar: connection } });
 		const status = await getComposioStatus({ refresh: true });
-		expect(readStateFile(dir).toolkits?.googlecalendar?.tools).toEqual(tools);
-		expect(
-			status.integrations.find((e) => e.toolkit === "googlecalendar")
-				?.toolNames,
-		).toHaveLength(2);
+		const summary = status.integrations.find(
+			(e) => e.toolkit === "googlecalendar",
+		);
+		expect(summary?.status).toBe("connected");
+		expect(summary?.error).toBeUndefined();
+		expect(readStateFile(dir).toolkits?.googlecalendar).toEqual(connection);
+		expect(summary).not.toHaveProperty("toolNames");
 	});
 
-	it("does not restore a connector disconnected while its schemas are refreshing", async () => {
+	it("does not restore a connector disconnected while remote connections are refreshing", async () => {
 		const dir = useTempDataDir();
 		const tools = [{ slug: "GOOGLECALENDAR_LIST_EVENTS" }];
 		writeState(dir, {
@@ -458,8 +395,9 @@ describe("getComposioStatus", () => {
 				toolkit: { slug: "googlecalendar" },
 			},
 		]);
+		await getComposioStatus(); // Cache the availability probe before delaying refresh.
 		let complete!: (tools: unknown[]) => void;
-		proxy.listToolkitTools.mockImplementationOnce(
+		proxy.listConnections.mockResolvedValueOnce([]).mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
 					complete = resolve;
@@ -468,7 +406,13 @@ describe("getComposioStatus", () => {
 		const refresh = getComposioStatus({ refresh: true });
 		await vi.waitFor(() => expect(complete).toBeTypeOf("function"));
 		await disconnectComposioToolkit("googlecalendar");
-		complete(tools);
+		complete([
+			{
+				id: "ca_calendar",
+				status: "ACTIVE",
+				toolkit: { slug: "googlecalendar" },
+			},
+		]);
 		const status = await refresh;
 		expect(readStateFile(dir).toolkits?.googlecalendar).toBeUndefined();
 		expect(
@@ -520,27 +464,26 @@ describe("listComposioToolkits", () => {
 });
 
 describe("connectComposioToolkit", () => {
-	it("initiates through the proxy, waits, and finalizes with fetched tools", async () => {
+	it("initiates through the proxy, waits, and finalizes connection metadata", async () => {
 		const dir = useTempDataDir();
 		makeAvailable();
 		proxy.initiateConnection.mockResolvedValue({
 			connectedAccountId: "ca_new",
 			redirectUrl: "https://connect.example/ca_new",
 		});
-		proxy.listToolkitTools.mockResolvedValue([{ slug: "GMAIL_SEND_EMAIL" }]);
 		const result = await connectComposioToolkit("gmail");
 		expect(result.redirectUrl).toContain("ca_new");
 		expect(proxy.initiateConnection).toHaveBeenCalledWith(
 			"gmail",
 			expect.anything(),
 		);
-		// The background waiter resolved immediately; the finalize wrote tools.
+		// The background waiter resolved immediately; the finalize wrote connection metadata.
 		await vi.waitFor(() => {
 			expect(readStateFile(dir).toolkits?.gmail?.connectedAccountId).toBe(
 				"ca_new",
 			);
 		});
-		expect(readStateFile(dir).toolkits?.gmail?.tools).toHaveLength(1);
+		expect(readStateFile(dir).toolkits?.gmail).not.toHaveProperty("tools");
 	});
 
 	it("finalizes a redirect-less connection inline and reports alreadyConnected", async () => {
@@ -550,22 +493,12 @@ describe("connectComposioToolkit", () => {
 			connectedAccountId: "ca_direct",
 			// no redirectUrl → already authorized
 		});
-		const input_parameters = {
-			type: "object",
-			properties: { repo: { type: "string" } },
-			required: ["repo"],
-		};
-		proxy.listToolkitTools.mockResolvedValue([
-			{ slug: "GITHUB_LIST_ISSUES", version: "v1", input_parameters },
-		]);
 		const result = await connectComposioToolkit("github");
 		expect(result.alreadyConnected).toBe(true);
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"ca_direct",
 		);
-		expect(readStateFile(dir).toolkits?.github?.tools).toEqual([
-			{ slug: "GITHUB_LIST_ISSUES", version: "v1", input_parameters },
-		]);
+		expect(readStateFile(dir).toolkits?.github).not.toHaveProperty("tools");
 	});
 
 	it("overlapping connects are single-flight: only one initiate call is made", async () => {
@@ -776,7 +709,6 @@ describe("connector operation ordering", () => {
 		proxy.initiateConnection.mockResolvedValue({
 			connectedAccountId: "ca_new",
 		});
-		proxy.listToolkitTools.mockResolvedValue([{ slug: "GITHUB_LIST_ISSUES" }]);
 		const disconnect = disconnectComposioToolkit("github");
 		await vi.waitFor(() =>
 			expect(proxy.deleteConnection).toHaveBeenCalledOnce(),
@@ -805,25 +737,22 @@ describe("connector operation ordering", () => {
 		const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
 		const dir = useTempDataDir();
 		writeState(dir, storedGithub);
-		proxy.initiateConnection.mockResolvedValue({
-			connectedAccountId: "ca_new",
-		});
-		let releaseTools!: () => void;
-		proxy.listToolkitTools.mockImplementationOnce(
+		let releaseInitiation!: () => void;
+		proxy.initiateConnection.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
-					releaseTools = () => resolve([{ slug: "GITHUB_LIST_ISSUES" }]);
+					releaseInitiation = () => resolve({ connectedAccountId: "ca_new" });
 				}),
 		);
 		const connect = connectComposioToolkit("github");
 		await vi.waitFor(() =>
-			expect(proxy.listToolkitTools).toHaveBeenCalledOnce(),
+			expect(proxy.initiateConnection).toHaveBeenCalledOnce(),
 		);
 		clock.mockReturnValue(10_000 + clockDelta);
 		try {
 			await disconnectComposioToolkit("github");
 		} finally {
-			releaseTools();
+			releaseInitiation();
 		}
 		expect((await connect).alreadyConnected).toBeUndefined();
 		expect(readStateFile(dir).toolkits).toEqual({});

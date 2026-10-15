@@ -121,6 +121,17 @@ export class CloudSessionError extends Error {
 	}
 }
 
+export class CloudCreationUnconfirmedError extends CloudSessionError {
+	constructor(cause: unknown) {
+		super(
+			"request_failed",
+			"Cloud session creation had an ambiguous result. Check your cloud session list or dashboard before starting another task.",
+		);
+		this.name = "CloudCreationUnconfirmedError";
+		this.cause = cause;
+	}
+}
+
 /** The fresh handoff POST definitely did not create a workspace. Marker/list
  * failures and ambiguous transport outcomes deliberately never use this type. */
 export class CloudHandoffCreationRejectedError extends Error {
@@ -788,6 +799,8 @@ export class CloudSessionApi {
 						);
 				}
 
+				if (!input.handoff && !definitelyRejected && candidates.length !== 1)
+					throw new CloudCreationUnconfirmedError(error);
 				if (candidates.length > 1) {
 					throw new CloudSessionError(
 						"request_failed",

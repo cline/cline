@@ -1,9 +1,12 @@
+import { openRouterDefaultModelId } from "@shared/api"
 import { BANNER_DATA, BannerAction, BannerActionType, BannerCardData } from "@shared/cline/banner"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import RunningCloudTasks from "@/components/cloud/RunningCloudTasks"
+import { TaskTargetPanel } from "@/components/cloud/TaskTargetPanel"
 import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -30,6 +33,7 @@ const CLINE_PASS_PROMO_BANNER_ID = "cline-pass-home-promo-v2"
  * Includes info banner, announcements, home header, and history preview
  */
 export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
+	isVisible,
 	showAnnouncement,
 	hideAnnouncement,
 	showHistoryView,
@@ -72,6 +76,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		worktreesEnabled,
 		banners,
 		welcomeBanners,
+		cloudSessionsEnabled,
 	} = useExtensionState()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { isClinePassEnabled, isUsingClinePass, openSubscribePage, switchToClinePassProvider } = useClinePassPromo()
@@ -169,7 +174,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					break
 
 				case BannerActionType.SetModel: {
-					const modelId = action.arg || "anthropic/claude-sonnet-4.5"
+					const modelId = action.arg || openRouterDefaultModelId
 					const initialModelTab = action.tab || "recommended"
 					handleFieldsChange({
 						planModeOpenRouterModelId: modelId,
@@ -313,7 +318,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [bannerConfig, banners, clineUser, handleBannerAction, handleBannerDismiss, clinePassPromoBanner])
 
 	return (
-		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
+		<div className="flex flex-col flex-1 w-full min-h-0 p-0 m-0">
 			<WhatsNewModal
 				onBannerAction={handleBannerAction}
 				onClose={handleCloseWhatsNewModal}
@@ -326,6 +331,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				{!showWhatsNewModal && (
 					<>
 						<BannerCarousel banners={activeBanners} />
+						{cloudSessionsEnabled && <RunningCloudTasks />}
 						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 						{/* Quick launch worktree button */}
 						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
@@ -377,6 +383,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				)}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
+			{cloudSessionsEnabled && isVisible && (
+				<div className="mt-auto pt-2">
+					<TaskTargetPanel />
+				</div>
+			)}
 
 			{/* Quick launch worktree modal */}
 			<CreateWorktreeModal

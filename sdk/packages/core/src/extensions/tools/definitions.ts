@@ -817,7 +817,7 @@ export function createSkillsTool(
  */
 export function createAskQuestionTool(
 	executor: AskQuestionExecutor,
-): AgentTool<AskQuestionInput, string> {
+): AgentTool<AskQuestionInput, Awaited<ReturnType<AskQuestionExecutor>>> {
 	return {
 		name: "ask_question",
 		description:
