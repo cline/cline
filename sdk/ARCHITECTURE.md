@@ -788,6 +788,111 @@ Design implications:
   state belongs in persistent storage
 - a sandbox must never outlive its owning hub process
 
+#### Plugin UI slots
+
+A plugin can fill a Cline-owned UI slot (v1 has one, `composer.suggestions`)
+that each host renders with its own components. Plugins publish JSON state and
+receive typed verbs; no plugin code, markup, or styles run in a host. The
+contract (slot ids, state and verb types, the envelope, the zod normalizers,
+and the ordering helpers) lives in `@cline/shared` `extensions/ui-slots.ts`,
+and hosts share the pure view model in `extensions/ui-slots-view.ts`.
+
+**The session's slot catalog.** The client that starts a session declares the
+slots it renders: `StartSessionInput.uiSlots`, carried as `uiSlots` on
+`session.create` and `session.restore` through the Hub. Core keeps only the
+ids it knows (`readPluginUiSlotCatalog`) and fixes the catalog for the
+session's epoch. Only a non-empty catalog makes the bootstrap offer worker
+plugins `api.registerUiSlot` and `ctx.ui`; on every other session plugins run
+as they would without UI. A session started by a client that declares nothing
+shows no slot in any later viewer until a client that declares it starts the
+session again.
+
+**The slot flow.**
+
+1. In the worker, `ctx.ui.update(slot, state)` drops slots the plugin did not
+   register and values over 64 KiB, round-trips the value through JSON, and
+   posts the reserved `__cline_ui_state` event. Plugins cannot emit
+   `__cline_`-prefixed events themselves.
+2. The sandbox proxy holds pushes until `initialize` returns, stamps the owner
+   from the worker's descriptor rather than the payload, and drops slots the
+   descriptor did not register. The registry holds each worker copy's pushes
+   until the session selects that copy, so copies it discards never publish.
+3. `LocalRuntimeHost`'s `PluginUiService` stores each push in `PluginUiStore`:
+   normalized once (`normalizePluginUiState`), owned by the first plugin that
+   fills the slot, deduped, coalesced at 100 ms, and stamped with
+   `(epoch, seq)`. Nothing is emitted until the session is resident
+   (`activate`, right after `sessions.set`); after that each stored state is
+   emitted as a `plugin_ui_state` session event.
+4. Hosts read with `pluginUi.get` and act with `pluginUi.invoke`
+   (`ClineCore.pluginUi`, `HubRuntimeHost.pluginUi`, `HubSessionClient.pluginUi`;
+   none of them throw). An invoke is validated, rate limited (10 per second
+   per session, burst 20), checked against the session's residency and
+   catalog, and queued on a per-session UI chain kept apart from plugin
+   commands. It gets at most 10 s to reach `onAction` and 10 s inside it, so
+   every reply arrives within 20 s, below the Hub's 30 s command timeout.
+   `onAction` returns only a verdict; state changes travel through `update`,
+   and the reply carries the slot's current envelope and the session's epoch.
+
+**Epoch and ordering.** `begin` mints the epoch inside `startResolvedSession`
+as `max(now, the id's last epoch + 1)`, so a restart under the same id always
+supersedes the previous copy, even after the clock steps back. Core owns `seq`,
+so a worker reinitialized after idle reclaim cannot run it backwards.
+Renderers clear their slot state on every bind, apply `get` and live events
+through `applyPluginUiState` (the highest `(epoch, seq)` wins), and re-attach
+when they see a newer epoch for their session.
+
+**Ephemeral publish and re-issue.** The Hub projects `plugin_ui_state` as the
+`plugins.ui.state` event through `publishEphemeral`: live fan-out only, with
+no `sequence`, never appended to the durable event log, so cursor replay never
+resurrects a stale slot or one from a session that did not survive a Hub
+restart. Instead, a session-scoped subscribe re-issues each slot's current
+state from the runtime store, which also covers reconnects because
+`NodeHubClient` re-sends its subscriptions after re-registering. The Hub keeps
+no copy of slot state. `plugins.ui.get` and `plugins.ui.invoke` take
+`envelope.sessionId` and never fail for plugin reasons; a runtime without the
+service answers `plugin_ui_unavailable`, which is not captured as an error.
+
+**Presence and connection-scoped leases.** Renderers send `attach` when they
+bind or become visible and `detach` when they leave. The Hub stamps the viewer
+with the registered connection's `clientId` and `clientType` and ignores any
+viewer named in the payload; a socket that has not registered gets
+`unavailable`, because before registration the adapter accepts any envelope
+`clientId`. A client keeps its `clientId` across reconnects, so each lease
+records the connection that attached it: the browser adapter mints a
+`connectionId` per socket, stamps it on the registered
+`HubConnectionAuthority`, and names it in the `client.unregister` it sends when
+the socket closes. The Hub then synthesizes a `detach` only for leases still
+held through that connection, and the synthesized detach re-checks the
+connection when its turn on the chain comes, so a late unregister from an old
+socket cannot remove the lease a client re-attached on its new one. An
+unregister from a socket that never registered ends no leases. Clients restore
+their leases after a reconnect: `createHubPluginUiApi` remembers the last
+attach per session, whatever its reply, and re-sends it from
+`NodeHubClient.onRegistered` unless it is still in flight (its own command
+delivers that one). `HubRuntimeHost` forgets a session's attach when it drops
+that session's subscription, and every attach when it is disposed. Session
+teardown delivers a `detach` for every remaining viewer before the epoch ends,
+waiting up to 2 s for them. Synthesized detaches are system actions that skip
+the rate limit and the closing checks, so the close they belong to never
+cancels them.
+
+**Version skew.** No manifest capability is involved; both sides feature-detect
+optional members. An older Hub ignores `uiSlots`, so its sessions offer no slot
+API, and answers `plugins.ui.*` with `unsupported_command`, which the client
+API treats as "no slots" until the next registration. Unknown state keys are
+stripped, unknown enum values degrade, and unknown verbs are `rejected`.
+
+**Errors and telemetry.** A bad push is dropped and counted, never thrown into
+the plugin. A throwing handler replies `rejected` with no plugin text; the
+message stays in the session's debug log and the plugin's `lastError`. In
+worker mode, handler throws and handler timeouts count toward the plugin's
+failure threshold;
+validation failures, rate limits, refusals, invokes that time out before
+reaching the plugin, and calls cancelled by a close do not. Telemetry
+(`plugin_ui.state_dropped`, `plugin_ui.invoke` for gestures only,
+`plugin_ui.session_summary`, `plugin_ui.viewers_changed`) carries counts,
+verbs, and outcomes, never state text or plugin error messages.
+
 ## Architectural Constraints
 
 ### Keep `agents` Stateless

@@ -15,6 +15,12 @@ export interface HubConnectionAuthority {
 	 * cross-workspace schedule access (`allWorkspaces` command payloads).
 	 */
 	crossWorkspace?: boolean;
+	/**
+	 * Identifies the socket that registered. A client keeps its `clientId`
+	 * across reconnects, so state scoped to one connection (plugin UI viewer
+	 * leases) is keyed by this instead.
+	 */
+	connectionId?: string;
 }
 
 export interface HubCommandTransport {

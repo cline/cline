@@ -76,6 +76,15 @@ export async function projectSessionEvent(
 				),
 			);
 			return;
+		case "plugin_ui_state":
+			ctx.publishEphemeral?.(
+				ctx.buildEvent(
+					"plugins.ui.state",
+					event.payload as unknown as Record<string, unknown>,
+					event.payload.sessionId,
+				),
+			);
+			return;
 		case "pending_prompt_submitted": {
 			const prompt: SessionPendingPrompt = {
 				id: event.payload.id,

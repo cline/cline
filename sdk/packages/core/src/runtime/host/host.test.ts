@@ -18,6 +18,7 @@ vi.mock("../../hub/client", async () => {
 			connect = hubConnectMock;
 			command = vi.fn();
 			subscribe = vi.fn(() => () => {});
+			onRegistered = vi.fn(() => () => {});
 			close = vi.fn();
 		},
 		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,

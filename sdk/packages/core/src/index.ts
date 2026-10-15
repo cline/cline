@@ -1028,6 +1028,10 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export {
+	createHubPluginUiApi,
+	type HubPluginUiApi,
+} from "./hub/client/plugin-ui";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";

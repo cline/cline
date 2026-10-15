@@ -122,6 +122,53 @@ describe("HubSessionClient", () => {
 		client.close();
 	});
 
+	it("sends plugin UI commands through its own connection and re-attaches after reconnecting until disposed", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("plugins.ui.invoke", {
+			outcome: "ok",
+			epoch: 3,
+		});
+		MockWebSocket.commandPayloads.set("plugins.ui.get", { states: [] });
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		const attach = {
+			slot: "composer.suggestions",
+			action: { verb: "attach", surface: "desktop" },
+		} as const;
+		const invokes = () =>
+			MockWebSocket.sentCommands.filter(
+				(command) => command.command === "plugins.ui.invoke",
+			);
+		try {
+			await expect(
+				client.pluginUi.invoke({ sessionId: "session-1", ...attach }),
+			).resolves.toEqual({ outcome: "ok", epoch: 3 });
+			await expect(
+				client.pluginUi.get({ sessionId: "session-1" }),
+			).resolves.toEqual([]);
+			expect(invokes()).toEqual([
+				{ command: "plugins.ui.invoke", payload: attach },
+			]);
+
+			MockWebSocket.instances[0]?.close();
+			await client.connect();
+
+			await vi.waitFor(() => expect(invokes()).toHaveLength(2));
+			expect(invokes()[1]).toEqual({
+				command: "plugins.ui.invoke",
+				payload: attach,
+			});
+
+			await client.dispose();
+			await client.connect();
+			expect(invokes()).toHaveLength(2);
+		} finally {
+			client.close();
+		}
+	});
+
 	it("normalizes run.failed events to include a top-level error", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		const client = new HubSessionClient({

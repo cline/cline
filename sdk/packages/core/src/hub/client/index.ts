@@ -358,6 +358,7 @@ export class NodeHubClient {
 	private recoveryPromise: Promise<boolean> | undefined;
 	private readonly pendingReplies = new Map<string, PendingReply>();
 	private readonly listeners = new Set<SubscriptionEntry>();
+	private readonly registeredListeners = new Set<() => void>();
 	private readonly subscriptionCounts = new Map<string, number>();
 	/**
 	 * Highest durable event sequence observed per subscription key. Sent as
@@ -490,6 +491,13 @@ export class NodeHubClient {
 				);
 			}
 			this.reconnectAttempt = 0;
+			for (const listener of this.registeredListeners) {
+				try {
+					listener();
+				} catch {
+					// A listener's failure must not fail the registration.
+				}
+			}
 		});
 		const registrationPromise = this.connectPromise;
 		try {
@@ -695,6 +703,19 @@ export class NodeHubClient {
 
 		await opened;
 		return socket;
+	}
+
+	/**
+	 * Runs after every successful registration, the first included, once the
+	 * subscription frames have been re-sent. Hub state scoped to a connection
+	 * (plugin UI viewer leases) ends with the old socket, so this is where a
+	 * client re-establishes it.
+	 */
+	onRegistered(listener: () => void): () => void {
+		this.registeredListeners.add(listener);
+		return () => {
+			this.registeredListeners.delete(listener);
+		};
 	}
 
 	subscribe(

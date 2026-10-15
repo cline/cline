@@ -20,6 +20,7 @@ import type {
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
+import { createHubPluginUiApi, type HubPluginUiApi } from "./plugin-ui";
 
 type ScheduleClientRecord = Record<string, unknown> & {
 	metadata?: Record<string, unknown>;
@@ -285,6 +286,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
+	readonly pluginUi: HubPluginUiApi;
 
 	constructor(options: HubSessionClientOptions) {
 		this.client = new NodeHubClient({
@@ -297,6 +299,8 @@ export class HubSessionClient {
 			cwd: options.cwd,
 			metadata: options.metadata,
 		});
+		this.pluginUi = createHubPluginUiApi(this.client);
+		this.client.onRegistered(() => this.pluginUi.onRegistered());
 	}
 
 	async connect(): Promise<void> {
@@ -320,6 +324,7 @@ export class HubSessionClient {
 	}
 
 	async dispose(): Promise<void> {
+		this.pluginUi.forgetAll();
 		await this.client.dispose();
 	}
 
