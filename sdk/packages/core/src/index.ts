@@ -700,6 +700,12 @@ export {
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
 export type {
+	PluginUiApi,
+	PluginUiHostApi,
+	PluginUiHostRuntimeService,
+	PluginUiRuntimeService,
+} from "./services/plugin-ui-api";
+export type {
 	PluginUninstallOptions,
 	PluginUninstallResult,
 } from "./services/plugin-uninstall";

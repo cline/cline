@@ -12,6 +12,7 @@ import {
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	readPluginUiSlotCatalog,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
@@ -21,7 +22,10 @@ import {
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
-import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
+import {
+	formatSessionPluginIssue,
+	type PluginUiStatePush,
+} from "../../extensions/plugin/plugin-registry";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -33,6 +37,7 @@ import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
+import type { PluginUiHostApi } from "../../services/plugin-ui-api";
 import { nowIso } from "../../services/session-artifacts";
 import {
 	toSessionRecord,
@@ -113,6 +118,7 @@ import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
+import { PluginUiService } from "./local/plugin-ui-service";
 import {
 	type SessionBackend,
 	toActiveSessionRecord,
@@ -273,6 +279,7 @@ function isSessionDirectedPluginEvent(name: string): boolean {
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginUi: PluginUiHostApi;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
@@ -286,7 +293,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
 	private readonly connectorsRequest?: ConnectorsRequest;
-	private readonly events = new RuntimeHostEventBus();
+	private readonly events = new RuntimeHostEventBus((error, event) => {
+		this.defaultLogger?.log("Runtime host event listener threw", {
+			eventType: event.type,
+			error,
+			severity: "warn",
+		});
+	});
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
@@ -297,6 +310,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	>();
 	private readonly subAgentStarts: SubAgentStartTracker = new Map();
 	private readonly pendingPromptsController: PendingPromptsController;
+	private readonly pluginUiService: PluginUiService;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
 	private readonly runCommandExecutionController =
@@ -350,6 +364,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			update: async (input) => this.pendingPromptsController.update(input),
 			delete: async (input) => this.pendingPromptsController.delete(input),
 		};
+		this.pluginUiService = new PluginUiService({
+			sessions: (sid) => this.sessions.get(sid),
+			emit: (payload) => this.emit({ type: "plugin_ui_state", payload }),
+			telemetry: this.defaultTelemetry,
+			logger: this.defaultLogger,
+		});
+		this.pluginUi = this.pluginUiService;
 		this.eventBridge = new AgentEventBridge({
 			getSession: (sid) => this.sessions.get(sid),
 			usageBySession: this.usageBySession,
@@ -594,412 +615,440 @@ export class LocalRuntimeHost implements RuntimeHost {
 				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
 			}),
 		);
-		bootstrap = await prepareLocalRuntimeBootstrap({
-			input: startInput,
-			localRuntime: input.localRuntime,
-			sessionId,
-			sessionOrigin,
-			providerSettingsManager: this.providerSettingsManager,
-			defaultTelemetry: this.defaultTelemetry,
-			defaultLogger: this.defaultLogger,
-			defaultCapabilities: capabilities,
-			defaultToolPolicies: this.defaultToolPolicies,
-			defaultFetch: this.defaultFetch,
-			connectorsRequest: this.connectorsRequest,
-			onPluginEvent: (event) => {
-				if (event.name === "plugin_log") {
-					this.eventBridge.handlePluginLog(
-						sessionId,
-						event.payload,
-						pluginEventFallbackLogger,
-					);
-					return;
-				}
-				if (heldSessionEvents && isSessionDirectedPluginEvent(event.name)) {
-					heldSessionEvents.push(event);
-					return;
-				}
-				void this.eventBridge.handlePluginEvent(
-					sessionId,
-					event,
-					pluginEventFallbackAutomation,
-					pluginEventFallbackTelemetry,
-				);
-			},
-			onPluginIssue: (issue) => {
-				// Setup runs on the first turn, after the start result went out;
-				// surface later plugin failures as a status notice instead.
-				if (!bootstrap) return;
-				this.eventBridge.dispatchAgentEvent(sessionId, bootstrap.config, {
-					type: "notice",
-					noticeType: "status",
-					displayRole: "status",
-					message: formatSessionPluginIssue(issue),
-					metadata: { pluginIssue: issue },
-				});
-			},
-			onTeamEvent: (event: TeamEvent) => {
-				void this.eventBridge.handleTeamEvent(sessionId, event);
-				bootstrap.config.onTeamEvent?.(event);
-			},
-			createSpawnTool: () =>
-				createSessionSpawnTool(
-					subAgentDeps,
-					bootstrap.config,
-					sessionId,
-					sessionToolExecutors,
-				),
-			createSubAgentLifecycleCallbacks: (config) =>
-				createSessionSubAgentLifecycleCallbacks(
-					subAgentDeps,
-					config,
-					sessionId,
-				),
-			readSessionMetadata: async () =>
-				(await this.getSession(sessionId))?.metadata as
-					| Record<string, unknown>
-					| undefined,
-			writeSessionMetadata: async (metadata) => {
-				await this.persistSessionMetadata(sessionId, () => metadata);
-			},
-		});
-		const initialSessionMetadata = withSessionHistoryOriginMetadata(
-			withSessionGitMetadata(
-				{
-					...(resumedArtifacts?.manifest.metadata ?? {}),
-					...(startInput.sessionMetadata ?? {}),
-				},
-				bootstrap.gitState,
-			),
-			{
-				mode: sessionOrigin?.mode,
-				trigger: sessionOrigin?.trigger,
-				version: bootstrap.config.extensionContext?.client?.version,
-			},
-		);
-		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		let runtime: Awaited<ReturnType<typeof this.runtimeBuilder.build>>;
+		const pluginUiSlots = readPluginUiSlotCatalog(startInput.uiSlots);
+		const pluginUiEpoch = this.pluginUiService.begin(sessionId, pluginUiSlots);
+		let active!: ActiveSession;
 		try {
-			runtime = await this.runtimeBuilder.build({
-				...bootstrap.runtimeBuilderInput,
-				distinctId: this.distinctId,
-				runCommandExecutionController: this.runCommandExecutionController,
-			});
-		} catch (error) {
-			// The session never registers, so its stop/dispose paths will not
-			// run; release the plugin copies the bootstrap loaded for it.
-			await bootstrap.pluginSandboxShutdown?.().catch(() => undefined);
-			throw error;
-		}
-		const configWithProvider = bootstrap.config;
-		const providerConfig = bootstrap.providerConfig;
-		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
-			configWithProvider.teamName = runtime.teamRuntime.getTeamName();
-		}
-
-		// Auth-retry hook for every agent in the session (lead, teammates,
-		// subagents): refresh OAuth credentials and propagate the new key to
-		// all connections, then let the runtime retry the failed run. Without
-		// this, a token that expires while the lead is blocked (e.g. in
-		// team_await_runs) kills teammate runs with a raw provider 401.
-		const onAuthError = async (): Promise<boolean> => {
-			const liveSession = this.sessions.get(sessionId);
-			if (!liveSession || !isOAuthProvider(liveSession.config.providerId)) {
-				return false;
-			}
-			try {
-				await this.syncOAuthCredentials(liveSession, { forceRefresh: true });
-				return true;
-			} catch {
-				return false;
-			}
-		};
-		runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			onAuthError,
-		});
-
-		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
-		const extensions = runtime.extensions ?? bootstrap.extensions;
-		const explicitInitialCompactionState = startInput.initialCompactionState;
-		let activeSessionRef: ActiveSession | undefined;
-		const rawInitialCompactionState =
-			explicitInitialCompactionState ?? resumedCompactionState;
-		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
-		// Resuming an imported session summarizes the foreign transcript before
-		// the model sees it. The summary persists to the compaction sidecar and
-		// the policy stands down once that sidecar projects, so it applies once
-		// per session and again only if the sidecar has gone stale.
-		const importedFrom = isReadOnlyResumeStart
-			? readImportedFromMetadata(manifest.metadata)
-			: undefined;
-		const compact = importedFrom
-			? createImportedHistoryCompactionPrepareTurn({
-					config: configWithProvider,
-					importedFrom: importedFrom.tool,
-					next: autoCompact,
-				})
-			: autoCompact;
-		// A compaction sidecar must keep projecting into the working context even
-		// when auto-compaction is disabled (`compact` undefined): manual /compact
-		// persists a sidecar and promises the next turn will use it. The
-		// state-aware prepareTurn handles `compact: undefined` by projecting the
-		// existing state without re-compacting, and no-ops when no state exists.
-		const initialCompactionState = rawInitialCompactionState
-			? {
-					...rawInitialCompactionState,
-					conversation_id:
-						rawInitialCompactionState.conversation_id?.trim() || sessionId,
-				}
-			: undefined;
-		const prepareTurn = createCompactionStateAwarePrepareTurn({
-			compact,
-			getState: () => activeSessionRef?.compactionState,
-			saveState: async (state, sourceMessages) => {
-				const activeSession = activeSessionRef;
-				if (!activeSession) return;
-				const stateForSession = {
-					...state,
-					conversation_id: activeSession.sessionId,
-				};
-				try {
-					// Validate against the exact messages the state's hash was
-					// computed from. Mid-turn, `agent.getMessages()` (the
-					// conversation store) can legally differ from the runtime's
-					// working transcript, so validating against the store would
-					// spuriously reject the write.
-					const result = await this.persistActiveSessionCompactionState(
-						activeSession,
-						stateForSession,
-						sourceMessages,
-					);
-					if (!result.updated) {
-						configWithProvider.logger?.debug?.(
-							"Skipped stale session compaction state",
-							{
-								sessionId: activeSession.sessionId,
-								sourceMessageCount: stateForSession.source_message_count,
-							},
-						);
-					}
-				} catch (error) {
-					configWithProvider.logger?.error?.(
-						"Failed to persist session compaction state",
-						{ sessionId: activeSession.sessionId, error },
-					);
-					captureSdkError(configWithProvider.telemetry, {
-						component: "core",
-						operation: "session.persist_compaction_state",
-						severity: "warn",
-						handled: true,
-						error,
-						context: {
-							sessionId: activeSession.sessionId,
-							providerId: configWithProvider.providerId,
-							modelId: configWithProvider.modelId,
-						},
-					});
-				}
-			},
-		});
-
-		const agentConfig = {
-			distinctId: this.distinctId,
-			sessionId,
-			providerId: providerConfig.providerId,
-			modelId: providerConfig.modelId,
-			apiKey: providerConfig.apiKey,
-			baseUrl: providerConfig.baseUrl,
-			headers: providerConfig.headers,
-			onAuthError,
-			knownModels: providerConfig.knownModels,
-			providerConfig,
-			thinking: configWithProvider.thinking,
-			reasoningEffort:
-				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
-			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
-			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
-			temperature: configWithProvider.temperature,
-			systemPrompt: configWithProvider.systemPrompt,
-			maxIterations: configWithProvider.maxIterations,
-			execution: configWithProvider.execution,
-			prepareTurn,
-			tools,
-			modelTools: runtime.modelTools,
-			hooks: bootstrap.hooks,
-			extensions,
-			hookErrorMode: configWithProvider.hookErrorMode,
-			initialMessages: bootstrap.effectiveInput.initialMessages,
-			userFileContentLoader: loadUserFileContent,
-			toolPolicies: bootstrap.toolPolicies,
-			requestToolApproval: bootstrap.requestToolApproval
-				? async (request) => {
-						const requestToolApproval = bootstrap.requestToolApproval;
-						const liveSession = this.sessions.get(sessionId);
-						if (liveSession) {
-							await this.markTurnPending(liveSession);
-						}
-						try {
-							if (!requestToolApproval) {
-								return {
-									approved: false,
-									reason: "Tool approval callback is not configured.",
-								};
-							}
-							return await requestToolApproval(request);
-						} finally {
-							const currentSession = this.sessions.get(sessionId);
-							if (currentSession?.status === "pending") {
-								await this.markTurnRunning(currentSession);
-							}
-						}
-					}
-				: undefined,
-			telemetry: configWithProvider.telemetry,
-			onConsecutiveMistakeLimitReached:
-				configWithProvider.onConsecutiveMistakeLimitReached,
-			completionPolicy: runtime.completionPolicy,
-			consumePendingUserMessage: () => {
-				const entry = this.pendingPromptsController.consumeSteer(sessionId);
-				return entry
-					? formatModePrompt(
-							entry.prompt,
-							entry.mode ?? configWithProvider.mode,
-						)
-					: undefined;
-			},
-			logger: runtime.logger ?? configWithProvider.logger,
-			extensionContext: configWithProvider.extensionContext,
-			onEvent: (event: AgentEvent) =>
-				this.eventBridge.dispatchAgentEvent(
-					sessionId,
-					configWithProvider,
-					event,
-				),
-		} as AgentConfig;
-		agentConfig.hooks = {
-			...agentConfig.hooks,
-			onEvent: async (event) => {
-				await bootstrap.hooks?.onEvent?.(event);
-				if (event.type !== "assistant-message") return;
-				const liveSession = this.sessions.get(sessionId);
-				if (!liveSession) return;
-				const messages = liveSession.agent.getMessages();
-				try {
-					await this.invoke<void>(
-						"persistSessionMessages",
-						sessionId,
-						messages,
-						configWithProvider.systemPrompt,
-					);
-				} catch (error) {
-					configWithProvider.logger?.error?.(
-						"Failed to persist session messages after assistant response",
-						{ sessionId, error },
-					);
-					captureSdkError(configWithProvider.telemetry, {
-						component: "core",
-						operation: "session.persist_messages_after_assistant_response",
-						error,
-						severity: "warn",
-						handled: true,
-						context: {
+			bootstrap = await prepareLocalRuntimeBootstrap({
+				input: startInput,
+				localRuntime: input.localRuntime,
+				sessionId,
+				sessionOrigin,
+				providerSettingsManager: this.providerSettingsManager,
+				defaultTelemetry: this.defaultTelemetry,
+				defaultLogger: this.defaultLogger,
+				defaultCapabilities: capabilities,
+				defaultToolPolicies: this.defaultToolPolicies,
+				defaultFetch: this.defaultFetch,
+				connectorsRequest: this.connectorsRequest,
+				onPluginEvent: (event) => {
+					if (event.name === "plugin_log") {
+						this.eventBridge.handlePluginLog(
 							sessionId,
-							providerId: configWithProvider.providerId,
-							modelId: configWithProvider.modelId,
-						},
+							event.payload,
+							pluginEventFallbackLogger,
+						);
+						return;
+					}
+					if (heldSessionEvents && isSessionDirectedPluginEvent(event.name)) {
+						heldSessionEvents.push(event);
+						return;
+					}
+					void this.eventBridge.handlePluginEvent(
+						sessionId,
+						event,
+						pluginEventFallbackAutomation,
+						pluginEventFallbackTelemetry,
+					);
+				},
+				...(pluginUiSlots.length > 0
+					? {
+							pluginUiSlots,
+							onPluginUiState: (push: PluginUiStatePush) =>
+								this.pluginUiService.record(sessionId, pluginUiEpoch, push),
+						}
+					: {}),
+				onPluginIssue: (issue) => {
+					// Before the bootstrap guard: a plugin that pushed in setup and then
+					// failed while bootstrapping must not leave its state visible.
+					if (issue.state === "failed" || issue.state === "disabled") {
+						this.pluginUiService.clearPlugin(sessionId, issue.name);
+					}
+					// Setup runs on the first turn, after the start result went out;
+					// surface later plugin failures as a status notice instead.
+					if (!bootstrap) return;
+					this.eventBridge.dispatchAgentEvent(sessionId, bootstrap.config, {
+						type: "notice",
+						noticeType: "status",
+						displayRole: "status",
+						message: formatSessionPluginIssue(issue),
+						metadata: { pluginIssue: issue },
 					});
-				}
-			},
-		};
-		const agent = this.createAgentInstance(agentConfig);
-		if (agentConfig.onEvent) {
-			agent.subscribeEvents(agentConfig.onEvent);
-		}
-		runtime.registerLeadAgent?.(agent);
-		const rootAgentIdentity = buildTelemetryAgentIdentity({
-			agentId: agent.getAgentId(),
-			conversationId: agent.getConversationId(),
-			teamId: runtime.teamRuntime?.getTeamId(),
-			teamName: runtime.teamRuntime?.getTeamName(),
-			teamRole: runtime.teamRuntime ? "lead" : undefined,
-		});
-		emitSessionCreationTelemetry(
-			configWithProvider,
-			sessionId,
-			wasSessionIdRequested,
-			workspacePath,
-			rootAgentIdentity,
-		);
-		if (rootAgentIdentity) {
-			captureAgentCreated(configWithProvider.telemetry, {
-				ulid: sessionId,
-				modelId: configWithProvider.modelId,
-				provider: configWithProvider.providerId,
-				...rootAgentIdentity,
+				},
+				onTeamEvent: (event: TeamEvent) => {
+					void this.eventBridge.handleTeamEvent(sessionId, event);
+					bootstrap.config.onTeamEvent?.(event);
+				},
+				createSpawnTool: () =>
+					createSessionSpawnTool(
+						subAgentDeps,
+						bootstrap.config,
+						sessionId,
+						sessionToolExecutors,
+					),
+				createSubAgentLifecycleCallbacks: (config) =>
+					createSessionSubAgentLifecycleCallbacks(
+						subAgentDeps,
+						config,
+						sessionId,
+					),
+				readSessionMetadata: async () =>
+					(await this.getSession(sessionId))?.metadata as
+						| Record<string, unknown>
+						| undefined,
+				writeSessionMetadata: async (metadata) => {
+					await this.persistSessionMetadata(sessionId, () => metadata);
+				},
 			});
-		}
-		if (runtime.teamRuntime) {
-			captureAgentTeamCreated(configWithProvider.telemetry, {
-				ulid: sessionId,
-				teamId: runtime.teamRuntime.getTeamId(),
-				teamName: runtime.teamRuntime.getTeamName(),
-				leadAgentId: agent.getAgentId(),
-				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
-			});
-		}
-
-		const active: ActiveSession = {
-			sessionId,
-			config: configWithProvider,
-			sessionMetadata: initialSessionMetadata,
-			...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
-			source,
-			startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
-			updatedAt:
-				resumedArtifacts?.manifest.ended_at ??
-				resumedArtifacts?.manifest.started_at ??
-				startedAt,
-			pendingPrompt: manifest.prompt,
-			runtime,
-			agent,
-			started: false,
-			status:
-				resumedArtifacts?.manifest.status ??
-				(startsWithoutTurn ? "idle" : "running"),
-			aborting: false,
-			interactive: input.interactive === true,
-			persistedMessages: initialMessages,
-			compactionState: initialCompactionState,
-			activeTeamRunIds: new Set<string>(),
-			pendingTeamRunUpdates: [],
-			teamRunWaiters: [],
-			pendingPrompts: [],
-			drainingPendingPrompts: false,
-			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
-			submitAndExitObserved: false,
-			taskCompletedEmitted: false,
-			lastInteractiveTurnFinishReason: undefined,
-		};
-		activeSessionRef = active;
-		if (
-			active.compactionState &&
-			!this.isCompactionStateForSession(
-				active.sessionId,
-				active.compactionState,
-				active,
-			)
-		) {
-			active.config.logger?.log?.(
-				"Ignoring session compaction state for a different conversation",
+			const initialSessionMetadata = withSessionHistoryOriginMetadata(
+				withSessionGitMetadata(
+					{
+						...(resumedArtifacts?.manifest.metadata ?? {}),
+						...(startInput.sessionMetadata ?? {}),
+					},
+					bootstrap.gitState,
+				),
 				{
-					severity: "warn",
-					sessionId: active.sessionId,
-					conversationId: active.compactionState.conversation_id,
+					mode: sessionOrigin?.mode,
+					trigger: sessionOrigin?.trigger,
+					version: bootstrap.config.extensionContext?.client?.version,
 				},
 			);
-			active.compactionState = undefined;
+			if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
+			let runtime: Awaited<ReturnType<typeof this.runtimeBuilder.build>>;
+			try {
+				runtime = await this.runtimeBuilder.build({
+					...bootstrap.runtimeBuilderInput,
+					distinctId: this.distinctId,
+					runCommandExecutionController: this.runCommandExecutionController,
+				});
+			} catch (error) {
+				// The session never registers, so its stop/dispose paths will not
+				// run; release the plugin copies the bootstrap loaded for it.
+				await bootstrap.pluginSandboxShutdown?.().catch(() => undefined);
+				throw error;
+			}
+			const configWithProvider = bootstrap.config;
+			const providerConfig = bootstrap.providerConfig;
+			if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
+				configWithProvider.teamName = runtime.teamRuntime.getTeamName();
+			}
+
+			// Auth-retry hook for every agent in the session (lead, teammates,
+			// subagents): refresh OAuth credentials and propagate the new key to
+			// all connections, then let the runtime retry the failed run. Without
+			// this, a token that expires while the lead is blocked (e.g. in
+			// team_await_runs) kills teammate runs with a raw provider 401.
+			const onAuthError = async (): Promise<boolean> => {
+				const liveSession = this.sessions.get(sessionId);
+				if (!liveSession || !isOAuthProvider(liveSession.config.providerId)) {
+					return false;
+				}
+				try {
+					await this.syncOAuthCredentials(liveSession, { forceRefresh: true });
+					return true;
+				} catch {
+					return false;
+				}
+			};
+			runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
+				onAuthError,
+			});
+
+			const tools = [
+				...runtime.tools,
+				...(configWithProvider.extraTools ?? []),
+			];
+			const extensions = runtime.extensions ?? bootstrap.extensions;
+			const explicitInitialCompactionState = startInput.initialCompactionState;
+			let activeSessionRef: ActiveSession | undefined;
+			const rawInitialCompactionState =
+				explicitInitialCompactionState ?? resumedCompactionState;
+			const autoCompact =
+				createContextCompactionPrepareTurn(configWithProvider);
+			// Resuming an imported session summarizes the foreign transcript before
+			// the model sees it. The summary persists to the compaction sidecar and
+			// the policy stands down once that sidecar projects, so it applies once
+			// per session and again only if the sidecar has gone stale.
+			const importedFrom = isReadOnlyResumeStart
+				? readImportedFromMetadata(manifest.metadata)
+				: undefined;
+			const compact = importedFrom
+				? createImportedHistoryCompactionPrepareTurn({
+						config: configWithProvider,
+						importedFrom: importedFrom.tool,
+						next: autoCompact,
+					})
+				: autoCompact;
+			// A compaction sidecar must keep projecting into the working context even
+			// when auto-compaction is disabled (`compact` undefined): manual /compact
+			// persists a sidecar and promises the next turn will use it. The
+			// state-aware prepareTurn handles `compact: undefined` by projecting the
+			// existing state without re-compacting, and no-ops when no state exists.
+			const initialCompactionState = rawInitialCompactionState
+				? {
+						...rawInitialCompactionState,
+						conversation_id:
+							rawInitialCompactionState.conversation_id?.trim() || sessionId,
+					}
+				: undefined;
+			const prepareTurn = createCompactionStateAwarePrepareTurn({
+				compact,
+				getState: () => activeSessionRef?.compactionState,
+				saveState: async (state, sourceMessages) => {
+					const activeSession = activeSessionRef;
+					if (!activeSession) return;
+					const stateForSession = {
+						...state,
+						conversation_id: activeSession.sessionId,
+					};
+					try {
+						// Validate against the exact messages the state's hash was
+						// computed from. Mid-turn, `agent.getMessages()` (the
+						// conversation store) can legally differ from the runtime's
+						// working transcript, so validating against the store would
+						// spuriously reject the write.
+						const result = await this.persistActiveSessionCompactionState(
+							activeSession,
+							stateForSession,
+							sourceMessages,
+						);
+						if (!result.updated) {
+							configWithProvider.logger?.debug?.(
+								"Skipped stale session compaction state",
+								{
+									sessionId: activeSession.sessionId,
+									sourceMessageCount: stateForSession.source_message_count,
+								},
+							);
+						}
+					} catch (error) {
+						configWithProvider.logger?.error?.(
+							"Failed to persist session compaction state",
+							{ sessionId: activeSession.sessionId, error },
+						);
+						captureSdkError(configWithProvider.telemetry, {
+							component: "core",
+							operation: "session.persist_compaction_state",
+							severity: "warn",
+							handled: true,
+							error,
+							context: {
+								sessionId: activeSession.sessionId,
+								providerId: configWithProvider.providerId,
+								modelId: configWithProvider.modelId,
+							},
+						});
+					}
+				},
+			});
+
+			const agentConfig = {
+				distinctId: this.distinctId,
+				sessionId,
+				providerId: providerConfig.providerId,
+				modelId: providerConfig.modelId,
+				apiKey: providerConfig.apiKey,
+				baseUrl: providerConfig.baseUrl,
+				headers: providerConfig.headers,
+				onAuthError,
+				knownModels: providerConfig.knownModels,
+				providerConfig,
+				thinking: configWithProvider.thinking,
+				reasoningEffort:
+					configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+				thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
+				maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
+				temperature: configWithProvider.temperature,
+				systemPrompt: configWithProvider.systemPrompt,
+				maxIterations: configWithProvider.maxIterations,
+				execution: configWithProvider.execution,
+				prepareTurn,
+				tools,
+				modelTools: runtime.modelTools,
+				hooks: bootstrap.hooks,
+				extensions,
+				hookErrorMode: configWithProvider.hookErrorMode,
+				initialMessages: bootstrap.effectiveInput.initialMessages,
+				userFileContentLoader: loadUserFileContent,
+				toolPolicies: bootstrap.toolPolicies,
+				requestToolApproval: bootstrap.requestToolApproval
+					? async (request) => {
+							const requestToolApproval = bootstrap.requestToolApproval;
+							const liveSession = this.sessions.get(sessionId);
+							if (liveSession) {
+								await this.markTurnPending(liveSession);
+							}
+							try {
+								if (!requestToolApproval) {
+									return {
+										approved: false,
+										reason: "Tool approval callback is not configured.",
+									};
+								}
+								return await requestToolApproval(request);
+							} finally {
+								const currentSession = this.sessions.get(sessionId);
+								if (currentSession?.status === "pending") {
+									await this.markTurnRunning(currentSession);
+								}
+							}
+						}
+					: undefined,
+				telemetry: configWithProvider.telemetry,
+				onConsecutiveMistakeLimitReached:
+					configWithProvider.onConsecutiveMistakeLimitReached,
+				completionPolicy: runtime.completionPolicy,
+				consumePendingUserMessage: () => {
+					const entry = this.pendingPromptsController.consumeSteer(sessionId);
+					return entry
+						? formatModePrompt(
+								entry.prompt,
+								entry.mode ?? configWithProvider.mode,
+							)
+						: undefined;
+				},
+				logger: runtime.logger ?? configWithProvider.logger,
+				extensionContext: configWithProvider.extensionContext,
+				onEvent: (event: AgentEvent) =>
+					this.eventBridge.dispatchAgentEvent(
+						sessionId,
+						configWithProvider,
+						event,
+					),
+			} as AgentConfig;
+			agentConfig.hooks = {
+				...agentConfig.hooks,
+				onEvent: async (event) => {
+					await bootstrap.hooks?.onEvent?.(event);
+					if (event.type !== "assistant-message") return;
+					const liveSession = this.sessions.get(sessionId);
+					if (!liveSession) return;
+					const messages = liveSession.agent.getMessages();
+					try {
+						await this.invoke<void>(
+							"persistSessionMessages",
+							sessionId,
+							messages,
+							configWithProvider.systemPrompt,
+						);
+					} catch (error) {
+						configWithProvider.logger?.error?.(
+							"Failed to persist session messages after assistant response",
+							{ sessionId, error },
+						);
+						captureSdkError(configWithProvider.telemetry, {
+							component: "core",
+							operation: "session.persist_messages_after_assistant_response",
+							error,
+							severity: "warn",
+							handled: true,
+							context: {
+								sessionId,
+								providerId: configWithProvider.providerId,
+								modelId: configWithProvider.modelId,
+							},
+						});
+					}
+				},
+			};
+			const agent = this.createAgentInstance(agentConfig);
+			if (agentConfig.onEvent) {
+				agent.subscribeEvents(agentConfig.onEvent);
+			}
+			runtime.registerLeadAgent?.(agent);
+			const rootAgentIdentity = buildTelemetryAgentIdentity({
+				agentId: agent.getAgentId(),
+				conversationId: agent.getConversationId(),
+				teamId: runtime.teamRuntime?.getTeamId(),
+				teamName: runtime.teamRuntime?.getTeamName(),
+				teamRole: runtime.teamRuntime ? "lead" : undefined,
+			});
+			emitSessionCreationTelemetry(
+				configWithProvider,
+				sessionId,
+				wasSessionIdRequested,
+				workspacePath,
+				rootAgentIdentity,
+			);
+			if (rootAgentIdentity) {
+				captureAgentCreated(configWithProvider.telemetry, {
+					ulid: sessionId,
+					modelId: configWithProvider.modelId,
+					provider: configWithProvider.providerId,
+					...rootAgentIdentity,
+				});
+			}
+			if (runtime.teamRuntime) {
+				captureAgentTeamCreated(configWithProvider.telemetry, {
+					ulid: sessionId,
+					teamId: runtime.teamRuntime.getTeamId(),
+					teamName: runtime.teamRuntime.getTeamName(),
+					leadAgentId: agent.getAgentId(),
+					restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
+				});
+			}
+
+			active = {
+				sessionId,
+				config: configWithProvider,
+				sessionMetadata: initialSessionMetadata,
+				...(resumedArtifacts ? { artifacts: resumedArtifacts } : {}),
+				source,
+				startedAt: resumedArtifacts?.manifest.started_at ?? startedAt,
+				updatedAt:
+					resumedArtifacts?.manifest.ended_at ??
+					resumedArtifacts?.manifest.started_at ??
+					startedAt,
+				pendingPrompt: manifest.prompt,
+				runtime,
+				agent,
+				started: false,
+				status:
+					resumedArtifacts?.manifest.status ??
+					(startsWithoutTurn ? "idle" : "running"),
+				aborting: false,
+				interactive: input.interactive === true,
+				persistedMessages: initialMessages,
+				compactionState: initialCompactionState,
+				activeTeamRunIds: new Set<string>(),
+				pendingTeamRunUpdates: [],
+				teamRunWaiters: [],
+				pendingPrompts: [],
+				drainingPendingPrompts: false,
+				pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
+				submitAndExitObserved: false,
+				taskCompletedEmitted: false,
+				lastInteractiveTurnFinishReason: undefined,
+				pluginUiEpoch,
+			};
+			activeSessionRef = active;
+			if (
+				active.compactionState &&
+				!this.isCompactionStateForSession(
+					active.sessionId,
+					active.compactionState,
+					active,
+				)
+			) {
+				active.config.logger?.log?.(
+					"Ignoring session compaction state for a different conversation",
+					{
+						severity: "warn",
+						sessionId: active.sessionId,
+						conversationId: active.compactionState.conversation_id,
+					},
+				);
+				active.compactionState = undefined;
+			}
+		} catch (error) {
+			// The session never registers, so no teardown would end its UI epoch.
+			await this.pluginUiService.closeSession(sessionId, pluginUiEpoch);
+			this.pluginUiService.release(sessionId, pluginUiEpoch);
+			throw error;
 		}
 		this.sessions.set(sessionId, active);
+		this.pluginUiService.activate(sessionId, pluginUiEpoch);
 		const held = heldSessionEvents ?? [];
 		heldSessionEvents = null;
 		for (const event of held) {
@@ -2395,6 +2444,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// be skipped by teardown routing.
 		this.emitTaskCompletedOnTeardown(session, input.status);
 		notifyTeamRunWaiters(session);
+		await this.pluginUiService.closeSession(
+			session.sessionId,
+			session.pluginUiEpoch,
+		);
 
 		// Drain an in-flight run before tearing anything down. `stopSession` aborts
 		// first for exactly this reason; callers that arrive here another way — hub
@@ -2458,6 +2511,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
 		this.sessions.delete(session.sessionId);
+		this.pluginUiService.release(session.sessionId, session.pluginUiEpoch);
 		this.emit({
 			type: "ended",
 			payload: {
@@ -2505,6 +2559,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 				},
 			});
 		};
+		await this.pluginUiService.closeSession(
+			session.sessionId,
+			session.pluginUiEpoch,
+		);
 
 		// Drain an in-flight run before tearing anything down, the same way
 		// stopSession does for its non-interactive path.
@@ -2535,6 +2593,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
 		this.sessions.delete(session.sessionId);
+		this.pluginUiService.release(session.sessionId, session.pluginUiEpoch);
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];
 		}

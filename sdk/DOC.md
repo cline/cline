@@ -378,3 +378,81 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## Plugin UI slots
+
+A plugin can fill a Cline-owned UI slot that each host renders with its own
+components. v1 has one slot, `composer.suggestions`: up to three suggested
+prompts above the message box. Its state and verbs are typed in `@cline/shared`
+(`ComposerSuggestionsState`, `ComposerSuggestionsAction`).
+
+**The session's slot catalog.** The client that starts a session declares the
+slots it renders with `StartSessionInput.uiSlots`. Core keeps only the ids it
+knows (`readPluginUiSlotCatalog`), and the catalog is fixed for the session's
+epoch. `ClineCore.start`, `ClineCore.restore` and `LocalRuntimeHost.restoreSession`
+carry it unchanged. A session without a catalog offers plugins no slot API.
+
+**Plugins.** When the catalog is non-empty, worker plugins get
+`api.registerUiSlot({ slot, onAction })` and `ctx.ui`; otherwise neither is
+present. In-process `extensions` always have `registerUiSlot` but never
+`ctx.ui`, so test `ctx.ui?.slots.includes(slot)` before relying on a renderer,
+and import slot types type-only. Register the slot before calling
+`ctx.ui.update(slot, state | null)`. `update` is fire-and-forget and never
+throws: invalid, unregistered or oversized states (over 64 KiB) are dropped
+and logged. `onAction` returns only a verdict, `{ outcome: "ok" }` or
+`{ outcome: "refused", reason: "stale" | "unsendable" }`; state changes go
+through `update`. Its `context.viewers` counts the viewers attached after the
+action; plugins should do no model or network work while it is 0.
+
+**Hosts.** `ClineCore.pluginUi` (and `LocalRuntimeHost.pluginUi`) never throw.
+`get({ sessionId })` returns the last envelope of every slot that has state,
+tombstones (`state: null`) included, and `[]` for a session that is not
+resident. `invoke({ sessionId, slot, action })` validates the action, stamps
+the viewer (`"local"` unless `viewerId` is passed) and replies
+`{ outcome, reason?, state?, epoch? }`:
+
+- `ok` or `refused`: the plugin's verdict;
+- `rejected`: invalid action, rate limited (10 per second per session, burst
+  20), or the handler threw;
+- `unavailable`: no such session, the slot is not in its catalog, no plugin
+  fills it, extensions failed to initialize, or the session is closing;
+- `timeout`: the action did not reach the plugin within 10 s of arriving, or
+  the plugin took more than 10 s, so every reply arrives within 20 s.
+
+`state` is the slot's envelope after the action, and `epoch` the session's
+current epoch; both are present only while the session is resident and not
+closing. Renderers send `{ verb: "attach", surface }` whenever they bind and
+`{ verb: "detach" }` when they unbind. Session teardown queues a `detach` for
+every remaining viewer, counting `viewers` down to 0, and waits up to 2 s for
+them and the action in flight. Detaches still queued behind a slower handler
+are dropped with the session, so a plugin that persists a "viewed" flag must
+treat it as a hint, as it would after a crash.
+
+Envelopes carry `(epoch, seq)`. The epoch is minted when the session starts,
+and a restart under the same id always gets a later one; `seq` counts the
+states stored for a slot within an epoch. On every bind, renderers clear local
+state, then apply `get` and live events through `applyPluginUiState`, and
+re-attach when they see a newer epoch for their session. Live states arrive as
+`plugin_ui_state` events through `subscribe`, only once the session is
+resident. They are ephemeral and never written to a durable log. Pushes are
+coalesced per slot (100 ms) and identical states are dropped. Telemetry
+carries counts and outcomes only, never state text or plugin error messages.
+
+**Over the hub.** A hub advertises the `plugins.ui` capability. Its commands
+take `envelope.sessionId` and never fail for plugin reasons:
+
+- `plugins.ui.get` with `{}` replies `{ states }`, as `get` does;
+- `plugins.ui.invoke` with `{ slot, action }` replies the invoke result. The
+  hub stamps the viewer with the registered connection's `clientId` and
+  `clientType`, ignores any `viewerId` in the payload, and answers
+  `unavailable` to a socket that has not registered.
+
+Live states arrive as the `plugins.ui.state` event, with `sessionId` set and
+no `sequence`: it never enters the replay log, and a session-scoped subscribe
+re-issues each slot's current state instead. A viewer's lease belongs to the
+connection that attached it, so a disconnect detaches only the leases that
+connection holds, and clients re-attach after they reconnect. A client
+declares its catalog with `uiSlots` on `session.create` and `session.restore`;
+without the key the session has none. `HubRuntimeHost.pluginUi` and
+`HubSessionClient.pluginUi` expose the same never-throwing API; against an
+older hub that lacks the commands they return `[]` and `unavailable`.
