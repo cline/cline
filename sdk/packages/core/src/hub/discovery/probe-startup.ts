@@ -24,12 +24,12 @@ export async function probeHubForStartup(
 			timeoutMs: Math.min(3_000, Math.max(1, deadline - Date.now())),
 		});
 		if (probe.status === "healthy") return probe.hub;
-		if (probe.status === "unreachable") return undefined;
-		if (probe.status === "invalid-response") {
-			throw new Error(
-				"The existing Hub endpoint returned an invalid health response; it was left unchanged.",
-			);
-		}
+		// An endpoint that answers but is not a Hub (a stale discovery port reused
+		// by another server, or a fallback-eligible requested port) cannot own
+		// startup. Treating it as absent lets callers clear stale discovery or fall
+		// back to another port; the instance lock still prevents a second Hub.
+		if (probe.status === "unreachable" || probe.status === "invalid-response")
+			return undefined;
 		await setTimeout(
 			Math.min(100, Math.max(0, deadline - Date.now())),
 			undefined,

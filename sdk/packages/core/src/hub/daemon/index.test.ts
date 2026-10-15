@@ -579,6 +579,47 @@ describe("ensureDetachedHubServer", () => {
 		expect(spawn).toHaveBeenCalledOnce();
 	});
 
+	it("clears stale discovery and starts a Hub when the discovered port now serves something else", async () => {
+		vi.useFakeTimers();
+		try {
+			spawn.mockImplementationOnce(() => ({ unref: vi.fn() }));
+			readHubDiscovery
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:41000/hub",
+					authToken: "stale-token",
+				})
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "new-token",
+				});
+			probeHubServer
+				.mockResolvedValueOnce({ status: "invalid-response" })
+				.mockResolvedValueOnce({ status: "unreachable" })
+				.mockResolvedValueOnce({
+					status: "healthy",
+					hub: {
+						url: "ws://127.0.0.1:25463/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+					},
+				});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("retries a transient ETXTBSY spawn failure while prewarming the detached daemon", async () => {
 		vi.useFakeTimers();
 		try {

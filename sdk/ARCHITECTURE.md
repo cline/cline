@@ -371,7 +371,9 @@ Post-spawn probes retain the startup lock until readiness or the startup deadlin
 even if the launching caller cancels. Pre-spawn probes remain cancellable.
 Diagnostics report an unresponsive Hub without aborting the rest of the report.
 Startup retries indeterminate health within a bounded budget and never clears
-ownership or spawns a replacement just because a probe timed out. Retirement
+ownership or spawns a replacement just because a probe timed out. An endpoint
+that answers but is not a Hub is treated as no Hub, so stale discovery is cleared
+and port fallback still applies; the instance lock prevents a duplicate Hub. Retirement
 continues polling through timeouts until its own deadline, then uses the existing
 retirement fallback. Port-conflict identification is best-effort: an unanswered
 probe means an unknown occupant and must not replace the original bind failure.

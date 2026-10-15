@@ -46,10 +46,11 @@ describe("startup probe policy", () => {
 		expect(probeHubServer).toHaveBeenCalledTimes(1);
 	});
 
-	it("does not treat an invalid response as an absent Hub", async () => {
+	it("treats a non-Hub responder as no Hub without retrying", async () => {
 		probeHubServer.mockResolvedValue({ status: "invalid-response" });
 		await expect(
 			probeHubForStartup("ws://127.0.0.1:25463/hub"),
-		).rejects.toThrow("invalid health response");
+		).resolves.toBeUndefined();
+		expect(probeHubServer).toHaveBeenCalledTimes(1);
 	});
 });
