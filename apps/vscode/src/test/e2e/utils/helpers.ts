@@ -227,10 +227,11 @@ export class E2ETestHelper {
 		if (globalThis.process.platform === "win32" && process?.pid) {
 			try {
 				execFileSync("taskkill", ["/pid", String(process.pid), "/T", "/F"], { stdio: "ignore", timeout: 10_000 })
-			} catch {
-				// Already exited or tree gone; nothing left to kill.
+				return
+			} catch (error) {
+				// taskkill failed or timed out; fall through to the process.kill() fallback below.
+				console.warn(`[e2e teardown] taskkill failed for VS Code/Electron process tree: ${error}`)
 			}
-			return
 		}
 
 		if (!process || process.killed || process.exitCode !== null) {
