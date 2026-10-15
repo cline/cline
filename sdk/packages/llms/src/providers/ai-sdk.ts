@@ -1085,13 +1085,13 @@ function getNestedUsageValue(
 }
 
 /**
- * AI SDK request-start retries (`maxRetries`) handle transient failures before
- * streaming begins, with backoff that honors `retry-after` headers. Provider
- * error parts received after streaming starts use `streamRetries` instead.
+ * Request-start failures use AI SDK `maxRetries` with retry-after-aware backoff.
+ * Provider error parts use `streamRetries`; our versioned AI SDK patch requires
+ * explicit retryability, waits 2s/4s/8s, and stops replay as soon as provider-owned
+ * tool activity is observed. Unknown retryability is terminal.
  *
- * Exhausted request-start retries (`RetryError`) and terminal stream error parts
- * do not trigger the agent's whole-turn retry, so the retry budgets do not
- * multiply. See `captureStreamError` and `isRetryableBeyondSdkRetries`.
+ * Terminal stream errors and exhausted request-start RetryErrors do not trigger
+ * whole-turn retries, which would multiply the SDK's retry budgets.
  */
 const MODEL_REQUEST_MAX_RETRIES = 5;
 const MODEL_STREAM_MAX_RETRIES = 3;
@@ -1533,8 +1533,8 @@ function modelFailure(
 			...correlation,
 			aiSdkCallId: captured.aiSdkCallId,
 			requestId: captured.requestId,
-			error_phase: captured.phase,
-			error_turn_retryable: captured.retryable,
+			errorPhase: captured.phase,
+			errorTurnRetryable: captured.retryable,
 			providerId: request.providerId,
 			modelId: request.modelId,
 		},

@@ -424,7 +424,7 @@ export class DefaultGateway implements Gateway {
 		captureSdkError(this.telemetry, {
 			component: "llms",
 			operation:
-				failure.context?.error_phase === "request_start"
+				failure.context?.errorPhase === "request_start"
 					? "provider.create_or_stream"
 					: operation,
 			error,

@@ -170,7 +170,7 @@ describe("timeouts after a completed Cline model-tool step", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			failure: { cause: timeoutReason, context: { error_phase: "timeout" } },
+			failure: { cause: timeoutReason, context: { errorPhase: "timeout" } },
 		});
 		const errors = capture.mock.calls
 			.map(([event]) => event)
@@ -180,7 +180,7 @@ describe("timeouts after a completed Cline model-tool step", () => {
 			component: owner === "agent" ? "agents" : "llms",
 			operation: owner === "agent" ? "agent.run" : "provider.stream",
 			error_type: "TimeoutError",
-			error_phase: "timeout",
+			errorPhase: "timeout",
 		});
 	});
 });

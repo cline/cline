@@ -73,7 +73,7 @@
 		"@opentelemetry/context-async-hooks": "^2.6.1",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@streamparser/json": "^0.0.21",
-		"ai": "^7.0.120",
+		"ai": "7.0.120",
 		"ai-sdk-provider-opencode-sdk": "^3.0.1",
 		"dify-ai-provider": "^1.1.0",
 		"nanoid": "^5.1.7",

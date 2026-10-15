@@ -4642,7 +4642,7 @@ describe("AgentRuntime sdk.error reporting", () => {
 									diagnosticMessage: "Stable diagnostic error",
 									cause,
 									retryable: false,
-									context: { error_phase: "stream_read" },
+									context: { errorPhase: "stream_read" },
 								},
 							};
 						},
@@ -4682,7 +4682,7 @@ describe("AgentRuntime sdk.error reporting", () => {
 			error_code: "ConnectionClosed",
 			error_status: 504,
 			error_retryable: true,
-			error_phase: "stream_read",
+			errorPhase: "stream_read",
 		});
 	});
 	function sdkErrorEvents(capture: ReturnType<typeof vi.fn>) {

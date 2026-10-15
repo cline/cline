@@ -721,7 +721,7 @@
         "@opentelemetry/context-async-hooks": "^2.6.1",
         "@opentelemetry/sdk-trace-node": "^2.6.1",
         "@streamparser/json": "^0.0.21",
-        "ai": "^7.0.120",
+        "ai": "7.0.120",
         "ai-sdk-provider-opencode-sdk": "^3.0.1",
         "dify-ai-provider": "^1.1.0",
         "nanoid": "^5.1.7",
@@ -827,6 +827,7 @@
     "@shadcn/react@0.3.1": "patches/@shadcn%2Freact@0.3.1.patch",
     "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch",
     "ollama-ai-provider-v2@4.0.1": "patches/ollama-ai-provider-v2@4.0.1.patch",
+    "ai@7.0.120": "patches/ai@7.0.120.patch",
   },
   "overrides": {
     "@opentui/core": "0.4.3",
