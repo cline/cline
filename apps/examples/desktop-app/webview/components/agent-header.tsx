@@ -45,7 +45,6 @@ type AgentHeaderProps = {
 	onDeleteSession?: () => void;
 	canDeleteSession?: boolean;
 	deletingSession?: boolean;
-	onOpenDiff?: () => void;
 	/** Omit when the session has no browsable workspace (e.g. cloud runs). */
 	onToggleFiles?: () => void;
 	filesOpen?: boolean;
@@ -75,7 +74,6 @@ function AgentHeaderImpl({
 	onDeleteSession,
 	canDeleteSession,
 	deletingSession,
-	onOpenDiff,
 	onToggleFiles,
 	filesOpen = false,
 	showSessionActions = true,
@@ -142,46 +140,37 @@ function AgentHeaderImpl({
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenChange={onAgentsOpenChange}
 						/>
+						{/* One control for changes: it opens the workspace panel (which
+						    lands on the first diff) and carries the session's line counts. */}
 						{onToggleFiles ? (
 							<Button
-								aria-label={
-									filesOpen ? "Hide project files" : "Show project files"
-								}
+								aria-label={`${filesOpen ? "Hide" : "Show"} project files${
+									hasChanges
+										? `: ${additions} additions, ${deletions} deletions`
+										: ""
+								}`}
 								aria-pressed={filesOpen}
 								className={cn(
 									"text-muted-foreground transition-colors hover:text-foreground",
+									hasChanges && "h-7 gap-1.5 px-2",
 									filesOpen && "bg-secondary text-foreground",
 								)}
 								id="toggle-project-files"
 								onClick={onToggleFiles}
-								size="icon-sm"
+								size={hasChanges ? "sm" : "icon-sm"}
 								title={filesOpen ? "Hide project files" : "Show project files"}
 								type="button"
 								variant="ghost"
 							>
 								<FolderTree className="size-4" />
+								{hasChanges ? (
+									<span className="flex items-center gap-1 font-mono text-xs">
+										<span className="text-chart-2">+{additions}</span>
+										<span className="text-destructive">-{deletions}</span>
+									</span>
+								) : null}
 							</Button>
 						) : null}
-						{additions !== 0 && (
-							<Button
-								aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
-								className={cn(
-									"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
-									hasChanges
-										? "hover:bg-secondary/80"
-										: "cursor-default opacity-60",
-								)}
-								disabled={!hasChanges}
-								id="diff-stats"
-								onClick={() => onOpenDiff?.()}
-								size="sm"
-								type="button"
-								variant="secondary"
-							>
-								<span className="text-chart-2">+{additions}</span>
-								<span className="text-destructive">-{deletions}</span>
-							</Button>
-						)}
 						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}
