@@ -117,29 +117,144 @@ export function withOllamaResponseTimeout(
 		}
 	}) as typeof fetch;
 }
+const OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434/api";
+
+function withResolvedOllamaToolCapability(
+	model: GatewayProviderContext["model"],
+	supportsTools: boolean,
+): GatewayProviderContext["model"] {
+	// This is a partial, request-scoped fact. Populating an otherwise unknown
+	// capability list would silently narrow unrelated input modalities.
+	return {
+		...model,
+		metadata: { ...model.metadata, ollamaToolSupport: supportsTools },
+	};
+}
+
+async function resolveOllamaSelectedModel(
+	model: GatewayProviderContext["model"],
+	fetch: typeof globalThis.fetch,
+	baseURL: string,
+	headers: Record<string, string>,
+	context: GatewayProviderContext,
+	timeoutMs: number,
+	signal?: AbortSignal,
+): Promise<GatewayProviderContext["model"]> {
+	const timeoutController = new AbortController();
+	const requestSignal = signal
+		? AbortSignal.any([signal, timeoutController.signal])
+		: timeoutController.signal;
+	let onAbort!: () => void;
+	const aborted = new Promise<never>((_resolve, reject) => {
+		onAbort = () => reject(requestSignal.reason);
+	});
+	requestSignal.addEventListener("abort", onAbort, { once: true });
+	if (requestSignal.aborted) onAbort();
+	const timer = setTimeout(() => {
+		timeoutController.abort(
+			new Error(`Ollama /api/show timed out after ${timeoutMs / 1000} seconds`),
+		);
+	}, timeoutMs);
+	let reader:
+		| Pick<
+				ReadableStreamDefaultReader<Uint8Array>,
+				"read" | "cancel" | "releaseLock"
+		  >
+		| undefined;
+	try {
+		// Unlike chat streaming, metadata must finish within the budget, not
+		// merely return headers. Otherwise a stalled JSON body blocks the turn.
+		const payload = (await Promise.race([
+			(async () => {
+				requestSignal.throwIfAborted();
+				const response = await fetch(`${baseURL}/show`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json", ...headers },
+					body: JSON.stringify({ model: model.id }),
+					signal: requestSignal,
+				});
+				if (requestSignal.aborted) {
+					void response.body?.cancel().catch(() => {});
+					requestSignal.throwIfAborted();
+				}
+				if (!response.ok) {
+					void response.body?.cancel().catch(() => {});
+					throw new Error(`Ollama /api/show returned HTTP ${response.status}`);
+				}
+				reader = response.body?.getReader();
+				const decoder = new TextDecoder();
+				let json = "";
+				while (reader) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					json += decoder.decode(value, { stream: true });
+				}
+				return JSON.parse(json + decoder.decode());
+			})(),
+			aborted,
+		])) as { capabilities?: unknown };
+		if (!Array.isArray(payload.capabilities)) {
+			context.logger?.log(
+				"Ollama tool capability metadata is unknown; tools are disabled for the selected model.",
+				{
+					severity: "warn",
+					providerId: "ollama",
+					modelId: model.id,
+					reason: "missing-capabilities",
+				},
+			);
+			return withResolvedOllamaToolCapability(model, false);
+		}
+
+		return withResolvedOllamaToolCapability(
+			model,
+			payload.capabilities.includes("tools"),
+		);
+	} catch (error) {
+		// Cancellation ends the turn; only metadata failures fall back to chat.
+		if (signal?.aborted) throw signal.reason ?? error;
+		context.logger?.log(
+			"Ollama tool capability metadata could not be loaded; tools are disabled for the selected model.",
+			{
+				severity: "warn",
+				providerId: "ollama",
+				modelId: model.id,
+				reason: "metadata-request-failed",
+				error,
+			},
+		);
+		return withResolvedOllamaToolCapability(model, false);
+	} finally {
+		clearTimeout(timer);
+		requestSignal.removeEventListener("abort", onAbort);
+		if (requestSignal.aborted) void reader?.cancel().catch(() => {});
+		reader?.releaseLock();
+	}
+}
 
 export async function createOllamaProviderModule(
 	config: GatewayResolvedProviderConfig,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	// An API key is only needed for Ollama Cloud (ollama.com); local servers
 	// accept unauthenticated requests, so a missing key is not an error.
 	// The provider accepts auth through headers. An explicit configured header
 	// wins over the convenience API-key setting.
 	const apiKey = await resolveApiKey(config);
-	const baseURL = normalizeOllamaBaseUrl(config.baseUrl);
+	const baseURL =
+		normalizeOllamaBaseUrl(config.baseUrl) ?? OLLAMA_DEFAULT_BASE_URL;
 	const headers = {
 		...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
 		...config.headers,
 	};
+	const baseFetch = ensureFetch(config.fetch);
+	const timeoutMs = readOllamaTimeoutMs(config);
+	const fetch = withOllamaResponseTimeout(baseFetch, timeoutMs);
 	const provider = createOllama({
-		...(baseURL ? { baseURL } : {}),
+		baseURL,
 		...(Object.keys(headers).length > 0 ? { headers } : {}),
 		compatibility: "strict",
-		fetch: withOllamaResponseTimeout(
-			ensureFetch(config.fetch),
-			readOllamaTimeoutMs(config),
-		),
+		fetch,
 	});
 	// Empty-response retries (a common local-backend glitch that otherwise
 	// hard-fails the task) are applied centrally in `ai-sdk.ts` for every
@@ -149,6 +264,20 @@ export async function createOllamaProviderModule(
 	// the downstream converter stringifies multimodal tool-result content,
 	// losing image bytes.
 	return {
+		resolveSelectedModel: async (model, request, signal) => {
+			if (!request.tools?.length && !request.modelTools?.length) {
+				return model;
+			}
+			return resolveOllamaSelectedModel(
+				model,
+				baseFetch,
+				baseURL,
+				headers,
+				context,
+				timeoutMs,
+				signal,
+			);
+		},
 		operations: {
 			language: (modelId) =>
 				wrapLanguageModel({

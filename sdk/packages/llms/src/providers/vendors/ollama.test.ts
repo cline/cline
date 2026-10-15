@@ -175,11 +175,11 @@ describe("createOllamaProviderModule", () => {
 		expect(ollamaModelMock).toHaveBeenCalledWith("qwen3-coder:30b");
 	});
 
-	it("omits baseURL and authorization headers for a default local server", async () => {
+	it("uses one default local API root without authorization headers", async () => {
 		await createOllamaProviderModule(config({}), context({}));
 
 		const call = createOllamaMock.mock.calls[0][0];
-		expect(call.baseURL).toBeUndefined();
+		expect(call.baseURL).toBe("http://127.0.0.1:11434/api");
 		expect(call.headers).toBeUndefined();
 	});
 });

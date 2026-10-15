@@ -31,6 +31,15 @@ export interface ProviderFactoryResult {
 		videoGeneration?: (modelId: string) => unknown;
 		transcription?: (modelId: string) => unknown;
 	};
+	/**
+	 * Resolve request-scoped vendor metadata onto the selected model before
+	 * provider options and tools are derived from that model snapshot.
+	 */
+	resolveSelectedModel?: (
+		model: GatewayProviderContext["model"],
+		request: GatewayStreamRequest,
+		signal?: AbortSignal,
+	) => Promise<GatewayProviderContext["model"]>;
 	/** Translate portable model-tool intent into provider-defined AI SDK tools. */
 	buildModelTools?: (tools: readonly ModelTool[]) => BuiltModelTools;
 	/** AI SDK executes provider-defined client tools and continues model steps. */
