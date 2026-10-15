@@ -51,8 +51,11 @@ const MCP_SETTINGS_MIGRATION_VERSION = 2
  */
 const YOLO_MODE_MIGRATION_VERSION = 3
 
+/** Version 4 saves the implicit `/v1` on host-only OpenAI Compatible base URLs. */
+const OPENAI_COMPATIBLE_V1_MIGRATION_VERSION = 4
+
 /** Bump this when adding new migration steps. */
-const CURRENT_MIGRATION_VERSION = YOLO_MODE_MIGRATION_VERSION
+const CURRENT_MIGRATION_VERSION = OPENAI_COMPATIBLE_V1_MIGRATION_VERSION
 
 /** Sentinel key written to both globalState and workspaceState to track migration independently. */
 const MIGRATION_VERSION_KEY = "__vscodeMigrationVersion"
@@ -116,8 +119,15 @@ export async function exportVSCodeStorageToSharedFiles(
 	const needWorkspaceMigration = workspaceVersion === undefined || workspaceVersion < FILE_BACKED_STORAGE_EXPORT_VERSION
 	const needMcpSettingsMigration = globalVersion === undefined || globalVersion < MCP_SETTINGS_MIGRATION_VERSION
 	const needYoloModeMigration = globalVersion === undefined || globalVersion < YOLO_MODE_MIGRATION_VERSION
+	const needOpenAiV1Migration = globalVersion === undefined || globalVersion < OPENAI_COMPATIBLE_V1_MIGRATION_VERSION
 
-	if (!needGlobalMigration && !needWorkspaceMigration && !needMcpSettingsMigration && !needYoloModeMigration) {
+	if (
+		!needGlobalMigration &&
+		!needWorkspaceMigration &&
+		!needMcpSettingsMigration &&
+		!needYoloModeMigration &&
+		!needOpenAiV1Migration
+	) {
 		Logger.info(
 			`[Migration] File-backed stores already current (global: v${globalVersion}, workspace: v${workspaceVersion}), skipping.`,
 		)
@@ -199,6 +209,12 @@ export async function exportVSCodeStorageToSharedFiles(
 			result.yoloModeMigrated = migrateYoloModeToAutoApprovalSettings(vscodeContext, storage)
 		}
 
+		// ─── 1c. Save the implicit /v1 on host-only OpenAI Compatible
+		//         base URLs (if needed) ──────────────────────────────────
+		if (needOpenAiV1Migration) {
+			migrateOpenAiCompatibleBaseUrlToV1(storage)
+		}
+
 		// ─── 2. Migrate workspace state (if needed) ────────────────────
 		if (needWorkspaceMigration) {
 			// Batch workspace state keys
@@ -228,13 +244,13 @@ export async function exportVSCodeStorageToSharedFiles(
 		}
 
 		// If the original v1 export was already complete, still advance sentinels
-		// for this workspace after the v2/v3 migration attempts so future startups
+		// for this workspace after the later migration attempts so future startups
 		// don't re-run them. New workspaces still have no workspace sentinel and will
 		// get their v1 workspace-state export when first opened.
-		if (!needGlobalMigration && (needMcpSettingsMigration || needYoloModeMigration)) {
+		if (!needGlobalMigration && (needMcpSettingsMigration || needYoloModeMigration || needOpenAiV1Migration)) {
 			storage.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
 		}
-		if (!needWorkspaceMigration && (needMcpSettingsMigration || needYoloModeMigration)) {
+		if (!needWorkspaceMigration && (needMcpSettingsMigration || needYoloModeMigration || needOpenAiV1Migration)) {
 			storage.workspaceState.set(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
 		}
 
@@ -243,6 +259,7 @@ export async function exportVSCodeStorageToSharedFiles(
 			needWorkspaceMigration ||
 			needMcpSettingsMigration ||
 			needYoloModeMigration ||
+			needOpenAiV1Migration ||
 			result.mcpServersAdded > 0
 
 		Logger.info(
@@ -310,4 +327,24 @@ function migrateYoloModeToAutoApprovalSettings(vscodeContext: vscode.ExtensionCo
 	}
 
 	return shouldEnableAllActions
+}
+
+/**
+ * Earlier SDK extension builds sent requests for an OpenAI Compatible base URL
+ * with no path (`http://localhost:8000`) to `<host>/v1`; the URL is now used as
+ * entered. Save the `/v1` so existing setups keep reaching the same endpoint.
+ */
+function migrateOpenAiCompatibleBaseUrlToV1(storage: StorageContext): void {
+	const baseUrl = storage.globalState.get<string>("openAiBaseUrl")?.trim()
+	if (!baseUrl || !URL.canParse(baseUrl)) {
+		return
+	}
+	const url = new URL(baseUrl)
+	if (url.pathname !== "/") {
+		return
+	}
+	url.pathname = "/v1"
+	const migrated = url.toString().replace(/\/$/, "")
+	storage.globalState.update("openAiBaseUrl", migrated)
+	Logger.info(`[Migration] OpenAI Compatible base URL ${baseUrl} -> ${migrated}`)
 }
