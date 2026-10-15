@@ -394,6 +394,25 @@ describe("repository conventions", () => {
 		expect(readConventions(root, reader)?.scripts).toEqual(["test"]);
 	});
 
+	test("facts for an environment already read pick up a package.json edited since", () => {
+		const root = tempDir();
+		const packageJson = join(root, "package.json");
+		writeFileSync(packageJson, JSON.stringify({ scripts: { check: "x" } }));
+		const source = repoSource();
+		const turnEnv: SourceEnv = { tools: [], workspaceRoot: root };
+		expect(source.probe(turnEnv)).toBe("present");
+		expect(source.facts?.(turnEnv, 0)).toEqual({
+			heading: "This repository's commands",
+			lines: ["Script: `npm run check`"],
+		});
+		writeFileSync(packageJson, JSON.stringify({ scripts: { test: "x" } }));
+		utimesSync(packageJson, new Date(), new Date(Date.now() + 5000));
+		expect(source.facts?.(turnEnv, 0)).toEqual({
+			heading: "This repository's commands",
+			lines: ["Script: `npm run test`"],
+		});
+	});
+
 	test("absent with no workspace or none of its files", () => {
 		const source = repoSource();
 		expect(source.probe({ tools: [] })).toBe("absent");

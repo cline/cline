@@ -11,7 +11,7 @@ import {
 	collectFacts,
 	type Manifest,
 	manifestTags,
-	withSourcesOff,
+	withCurrentSources,
 } from "../context/manifest";
 import { sourceOff } from "../context/policy";
 import type { ContextSource, SourceEnv } from "../context/source";
@@ -81,8 +81,12 @@ type TurnState = {
 	backlog: Backlog;
 	/** Rebuilt after a sandbox respawn, which keeps no backlog: the planner reads it again first. */
 	restored?: boolean;
+	/** Restored after a sandbox respawn, whose sources and tools may still be loading: its planner calls keep the capabilities the turn saved. */
+	respawned?: boolean;
 	rules: Suggestion[];
 	pool?: readonly Suggestion[];
+	/** The manifest the planner saw for `pool`, which tags the model sets served from it. */
+	poolManifest?: Manifest;
 	excluded: string[];
 	excludedIds: Map<string, string>;
 	rerollsUsed: number;
@@ -145,6 +149,7 @@ function restore(snapshot: TurnSnapshot, env: SourceEnv): TurnState {
 		env,
 		backlog: EMPTY_BACKLOG,
 		restored: true,
+		respawned: true,
 		excludedIds: new Map(snapshot.excludedIds),
 		exposedOffers: new Set(snapshot.exposedOffers),
 	};
@@ -489,7 +494,11 @@ export class NextSession {
 			offerRecord(set, {
 				turn: turn.facts,
 				latencyMs: now - state.endedAt,
-				tags: manifestTags(state.manifest),
+				tags: manifestTags(
+					planner === "model"
+						? (state.poolManifest ?? state.manifest)
+						: state.manifest,
+				),
 				at: new Date(now),
 			}),
 		);
@@ -504,7 +513,11 @@ export class NextSession {
 		return set;
 	}
 
-	/** A completed root run. The hook must not wait on the manifest, backlog or planner, so they follow on the next tick. */
+	/**
+	 * A completed root run. Resolves with the rule-based set once it is served,
+	 * or with nothing when Next is off, the run left no turn, or the serve is
+	 * dropped or fails; the planner call stays detached.
+	 */
 	async afterRun(result: AgentRunResult): Promise<OfferedSet | undefined> {
 		this.runUnderway = false;
 		const settings = this.options.settings();
@@ -537,13 +550,8 @@ export class NextSession {
 			turnKey: turn.turnKey,
 			rerollsLeft: REROLL_LIMIT,
 		});
-		const ready =
-			trigger === "after_run"
-				? new Promise<void>((resolve) => setImmediate(resolve))
-				: Promise.resolve();
-		const served = ready
-			.then(() => this.serveTurn(turn, endedAt, gen, settings, trigger))
-			.catch((error: unknown) => {
+		const served = this.serveTurn(turn, endedAt, gen, settings, trigger).catch(
+			(error: unknown) => {
 				this.options.log?.("serving the turn failed", error);
 				if (this.isCurrent(gen)) {
 					this.state = undefined;
@@ -553,7 +561,8 @@ export class NextSession {
 					});
 				}
 				return undefined;
-			});
+			},
+		);
 		this.serving = { turnKey: turn.turnKey, gen, done: served };
 		this.track(served);
 		return served;
@@ -691,11 +700,15 @@ export class NextSession {
 		}
 		const settings = this.options.settings();
 		const sources = this.options.sources();
-		const manifest = withSourcesOff(
+		const current = withCurrentSources(
 			state.manifest,
 			sources,
+			state.env,
 			sourceOff(settings, state.env),
 		);
+		const manifest = state.respawned
+			? { ...current, capabilities: state.manifest.capabilities }
+			: current;
 		const facts = await collectFacts(sources, manifest, state.env);
 		if (!this.isCurrent(gen, state)) return;
 		const kinds = offerableKinds(manifest);
@@ -743,6 +756,7 @@ export class NextSession {
 			this.cache.set(key, pool);
 		}
 		state.pool = pool;
+		state.poolManifest = manifest;
 		this.serve(state);
 	}
 

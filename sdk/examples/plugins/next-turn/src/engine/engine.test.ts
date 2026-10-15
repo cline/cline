@@ -66,6 +66,25 @@ async function settle(): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+function hoursFromNow(hours: number): string {
+	return new Date(Date.now() + hours * 3_600_000).toISOString();
+}
+
+/** Holds the answers to `name` commands, each read as the hub stood when it was sent, until the returned release is called. */
+function holdCommands(link: ReturnType<typeof fakeLink>, name: string) {
+	let release: () => void = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const reply = link.command;
+	link.command = async (command, payload) => {
+		const answer = reply(command, payload);
+		if (command === name) await held;
+		return answer;
+	};
+	return release;
+}
+
 describe("NextTurnEngine", () => {
 	test("folds live events and tells listeners", async () => {
 		const link = fakeLink();
@@ -110,14 +129,16 @@ describe("NextTurnEngine", () => {
 		expect(link.sent.map((command) => command.name)).toEqual([
 			"session.list",
 			"task.list",
-			"schedule.upcoming",
 			"schedule.list_executions",
+			"schedule.upcoming",
+			"schedule.list",
 		]);
 		expect(link.sent.map((command) => command.payload)).toEqual([
 			{ rootOnly: true, limit: SEED_SESSION_LIMIT },
 			{ limit: SEED_TASK_LIMIT },
-			{ allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
 			{ allWorkspaces: true, limit: SEED_EXECUTION_LIMIT },
+			{ allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
+			{ allWorkspaces: true, enabled: true, limit: SEED_UPCOMING_LIMIT },
 		]);
 		expect(engine.board().sessions[0]?.state).toBe("failed");
 		expect(engine.needsYou().map((item) => item.key)).toEqual(["task:t1"]);
@@ -308,20 +329,22 @@ describe("NextTurnEngine", () => {
 		expect(engine.upcoming()).toEqual([]);
 	});
 
-	test("a finished scheduled run asks for the upcoming runs again, and a schedule the hub no longer lists leaves them", async () => {
+	test("a finished scheduled run asks for the upcoming runs again; a schedule the hub leaves out goes only once its time has passed", async () => {
+		const weekly = {
+			scheduleId: "weekly",
+			name: "Weekly",
+			nextRunAt: hoursFromNow(96),
+		};
 		const replies: Record<string, Record<string, unknown>> = {
 			"schedule.upcoming": {
 				runs: [
 					{
 						scheduleId: "nightly",
 						name: "Nightly",
-						nextRunAt: "2026-10-14T02:00:00Z",
+						nextRunAt: hoursFromNow(-1),
 					},
-					{
-						scheduleId: "weekly",
-						name: "Weekly",
-						nextRunAt: "2026-10-18T09:00:00Z",
-					},
+					{ scheduleId: "once", name: "Once", nextRunAt: hoursFromNow(-2) },
+					weekly,
 				],
 			},
 		};
@@ -330,15 +353,10 @@ describe("NextTurnEngine", () => {
 		await engine.start();
 		link.up();
 		await settle();
-		expect(engine.upcoming()).toHaveLength(2);
+		expect(engine.upcoming()).toHaveLength(3);
+		const tomorrow = hoursFromNow(23);
 		replies["schedule.upcoming"] = {
-			runs: [
-				{
-					scheduleId: "nightly",
-					name: "Nightly",
-					nextRunAt: "2026-10-15T02:00:00Z",
-				},
-			],
+			runs: [{ scheduleId: "nightly", name: "Nightly", nextRunAt: tomorrow }],
 		};
 		link.emit({
 			event: "schedule.execution_completed",
@@ -351,12 +369,147 @@ describe("NextTurnEngine", () => {
 		});
 		await settle();
 		expect(engine.upcoming()).toEqual([
-			{
-				scheduleId: "nightly",
-				name: "Nightly",
-				nextRunAt: "2026-10-15T02:00:00Z",
-			},
+			{ scheduleId: "nightly", name: "Nightly", nextRunAt: tomorrow },
+			weekly,
 		]);
+	});
+
+	test("a slow seed never brings back an upcoming time a newer read replaced", async () => {
+		const replies: Record<string, Record<string, unknown>> = {
+			"schedule.upcoming": {
+				runs: [{ scheduleId: "nightly", nextRunAt: hoursFromNow(1) }],
+			},
+		};
+		const link = fakeLink(replies);
+		const releaseTasks = holdCommands(link, "task.list");
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		const moved = hoursFromNow(25);
+		replies["schedule.upcoming"] = {
+			runs: [{ scheduleId: "nightly", nextRunAt: moved }],
+		};
+		link.emit({
+			event: "schedule.updated",
+			sequence: 1,
+			payload: { schedule: { scheduleId: "nightly", enabled: true } },
+		});
+		await settle();
+		expect(engine.upcoming().map((run) => run.nextRunAt)).toEqual([moved]);
+		releaseTasks();
+		await settle();
+		expect(engine.upcoming().map((run) => run.nextRunAt)).toEqual([moved]);
+	});
+
+	test("a disabled schedule leaves Upcoming even when an answer asked before the change arrives after it", async () => {
+		const weekly = { scheduleId: "weekly", nextRunAt: hoursFromNow(96) };
+		const replies: Record<string, Record<string, unknown>> = {
+			"schedule.upcoming": {
+				runs: [{ scheduleId: "nightly", nextRunAt: hoursFromNow(1) }, weekly],
+			},
+			"schedule.list": {
+				schedules: [{ scheduleId: "nightly" }, { scheduleId: "weekly" }],
+			},
+		};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		const releaseUpcoming = holdCommands(link, "schedule.upcoming");
+		link.emit({
+			event: "schedule.execution_completed",
+			sequence: 1,
+			payload: { scheduleId: "weekly", executionId: "e1", status: "completed" },
+		});
+		replies["schedule.upcoming"] = { runs: [weekly] };
+		replies["schedule.list"] = { schedules: [{ scheduleId: "weekly" }] };
+		link.emit({
+			event: "schedule.updated",
+			sequence: 2,
+			payload: { schedule: { scheduleId: "nightly", enabled: false } },
+		});
+		expect(engine.upcoming().map((run) => run.scheduleId)).toEqual(["weekly"]);
+		releaseUpcoming();
+		await settle();
+		expect(engine.upcoming().map((run) => run.scheduleId)).toEqual(["weekly"]);
+	});
+
+	test("a schedule deleted by a command whose event names no schedule leaves Upcoming", async () => {
+		const weekly = { scheduleId: "weekly", nextRunAt: hoursFromNow(96) };
+		const replies: Record<string, Record<string, unknown>> = {
+			"schedule.upcoming": {
+				runs: [{ scheduleId: "nightly", nextRunAt: hoursFromNow(1) }, weekly],
+			},
+			"schedule.list": {
+				schedules: [{ scheduleId: "nightly" }, { scheduleId: "weekly" }],
+			},
+		};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		replies["schedule.upcoming"] = { runs: [weekly] };
+		replies["schedule.list"] = { schedules: [{ scheduleId: "weekly" }] };
+		link.emit({
+			event: "schedule.deleted",
+			sequence: 1,
+			payload: { deleted: true },
+		});
+		await settle();
+		expect(engine.upcoming().map((run) => run.scheduleId)).toEqual(["weekly"]);
+	});
+
+	test("a schedule disabled while the link was down leaves Upcoming when it comes back up", async () => {
+		const weekly = { scheduleId: "weekly", nextRunAt: hoursFromNow(96) };
+		const replies: Record<string, Record<string, unknown>> = {
+			"schedule.upcoming": {
+				runs: [{ scheduleId: "nightly", nextRunAt: hoursFromNow(1) }, weekly],
+			},
+			"schedule.list": {
+				schedules: [{ scheduleId: "nightly" }, { scheduleId: "weekly" }],
+			},
+		};
+		const link = fakeLink(replies);
+		const engine = new NextTurnEngine({ link });
+		await engine.start();
+		link.up();
+		await settle();
+		link.down();
+		replies["schedule.upcoming"] = { runs: [weekly] };
+		replies["schedule.list"] = { schedules: [{ scheduleId: "weekly" }] };
+		link.up();
+		await settle();
+		expect(engine.upcoming().map((run) => run.scheduleId)).toEqual(["weekly"]);
+	});
+
+	test("the upcoming runs read on connect stay when the read after a change fails", async () => {
+		const logged: string[] = [];
+		const replies: Record<string, Record<string, unknown> | Error> = {
+			"schedule.upcoming": {
+				runs: [{ scheduleId: "weekly", nextRunAt: hoursFromNow(96) }],
+			},
+		};
+		const link = fakeLink(replies);
+		const releaseTasks = holdCommands(link, "task.list");
+		const engine = new NextTurnEngine({
+			link,
+			log: (message) => logged.push(message),
+		});
+		await engine.start();
+		link.up();
+		replies["schedule.upcoming"] = new Error("timed out");
+		link.emit({
+			event: "schedule.execution_completed",
+			sequence: 1,
+			payload: { scheduleId: "other", executionId: "e1" },
+		});
+		await settle();
+		releaseTasks();
+		await settle();
+		expect(engine.upcoming().map((run) => run.scheduleId)).toEqual(["weekly"]);
+		expect(logged).toEqual(["the upcoming runs could not be read; they stay"]);
 	});
 
 	test("notifies once for its own session's new approval, never for another chat's", async () => {

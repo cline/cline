@@ -281,6 +281,20 @@ function scheduleDeleted(fold: HubFold, event: HubEvent): HubFold {
 		: fold;
 }
 
+/** A disabled schedule has no next run; its other changes arrive with `schedule.upcoming`. */
+function scheduleDisabled(fold: HubFold, event: HubEvent): HubFold {
+	const schedule = payloadOf(event).schedule;
+	if (!isRecord(schedule) || schedule.enabled !== false) return fold;
+	const scheduleId = text(schedule.scheduleId);
+	const current = scheduleId ? fold.schedules[scheduleId] : undefined;
+	if (current?.nextRunAt === undefined) return fold;
+	const { nextRunAt: _disabled, ...rest } = current;
+	return {
+		...fold,
+		schedules: { ...fold.schedules, [current.scheduleId]: rest },
+	};
+}
+
 function scheduleExecution(defaultStatus: "completed" | "failed"): FoldStep {
 	return (fold, event) => {
 		const payload = payloadOf(event);
@@ -383,6 +397,7 @@ const FOLD_STEPS = new Map<HubEventName, FoldStep>([
 	["task.run.completed", taskChanged],
 	["task.run.failed", taskChanged],
 	["task.deleted", taskDeleted],
+	["schedule.updated", scheduleDisabled],
 	["schedule.deleted", scheduleDeleted],
 	["schedule.execution_completed", scheduleExecution("completed")],
 	["schedule.execution_failed", scheduleExecution("failed")],

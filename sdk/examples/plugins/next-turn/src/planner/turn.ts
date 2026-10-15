@@ -6,7 +6,7 @@ import {
 	TURN_TOOL_LIMIT,
 } from "../config";
 import { redactSecrets } from "../context/redact";
-import { isRecord } from "../values";
+import { isRecord, text } from "../values";
 import { fnv1a32, type TurnFacts, type TurnStatus } from "./candidates";
 
 /**
@@ -75,6 +75,21 @@ const WRITE_FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
 
 const PUSH = /\bgit\s+push\b|\bgh\s+pr\s+(?:create|merge|ready)\b/;
 const PATCH_FILE_LINE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
+
+/**
+ * How core's apply_patch reports a failure that can stop it partway. Core
+ * checks every Add, Update and Delete path before it writes anything, then
+ * writes file by file without undoing earlier writes. A filesystem error, or
+ * a `Move to` target outside the folder, which core checks only when it
+ * writes that file, leaves the earlier files written. An outside path the
+ * patch adds, updates or deletes is rejected before anything is written.
+ */
+const PATCH_WRITE_FAILURE =
+	/^apply_patch failed: (?:E[A-Z]+: |Path must stay within cwd: (.+)$)/;
+
+/** How core's editor and apply_patch report their time running out; core does not cancel the write, which can still land. */
+const WRITE_TIMEOUT =
+	/^(?:Editor operation failed: Editor operation|apply_patch failed: apply_patch) timed out\b/;
 
 /** Messages the runtime injects as the user's, which the person never typed: `<hook_context>`, with or without attributes. */
 const HOOK_CONTEXT = /^\s*<hook_context\b/;
@@ -307,6 +322,17 @@ function failedInBand(output: unknown, matching?: RegExp): boolean {
 	);
 }
 
+/** True when a write's reported failure may still have left files written: neither result says which ones. */
+function mayHaveWritten(output: unknown, paths: readonly string[]): boolean {
+	const error = isRecord(output) ? text(output.error) : undefined;
+	if (!error) return false;
+	if (WRITE_TIMEOUT.test(error)) return true;
+	const patchFailure = PATCH_WRITE_FAILURE.exec(error);
+	if (!patchFailure) return false;
+	const rejectedPath = patchFailure[1];
+	return rejectedPath === undefined || !paths.includes(rejectedPath);
+}
+
 function errorText(output: unknown): string {
 	if (typeof output === "string") return output;
 	if (isRecord(output) && typeof output.error === "string") return output.error;
@@ -373,6 +399,53 @@ function turnStatus(status: string): TurnStatus {
 	return "completed";
 }
 
+type ToolCall = { callId: unknown; name: string; input: unknown };
+type ToolResult = {
+	callId: string;
+	name?: string;
+	output: unknown;
+	isError: boolean;
+};
+
+/** A tool call as a run holds it (`tool-call`) or as the hub's transcript stores it (`tool_use`). */
+function toolCallOf(part: Record<string, unknown>): ToolCall | undefined {
+	if (part.type === "tool-call" && typeof part.toolName === "string")
+		return { callId: part.toolCallId, name: part.toolName, input: part.input };
+	if (part.type === "tool_use" && typeof part.name === "string")
+		return { callId: part.id, name: part.name, input: part.input };
+	return undefined;
+}
+
+/** A tool result as a run holds it (`tool-result`) or as the hub's transcript stores it (`tool_result`). */
+function toolResultOf(part: Record<string, unknown>): ToolResult | undefined {
+	if (part.type === "tool-result" && typeof part.toolCallId === "string")
+		return {
+			callId: part.toolCallId,
+			name: text(part.toolName),
+			output: storedOutput(part.output),
+			isError: part.isError === true,
+		};
+	if (part.type === "tool_result" && typeof part.tool_use_id === "string")
+		return {
+			callId: part.tool_use_id,
+			name: text(part.name),
+			output: storedOutput(part.content),
+			isError: part.is_error === true,
+		};
+	return undefined;
+}
+
+/** A tool's output, read back as the object when core stored it as JSON: a transcript does, and so does a run restored from one. */
+function storedOutput(output: unknown): unknown {
+	if (typeof output !== "string") return output;
+	try {
+		const parsed: unknown = JSON.parse(output);
+		return isRecord(parsed) || Array.isArray(parsed) ? parsed : output;
+	} catch {
+		return output;
+	}
+}
+
 /** The turn, or null when the transcript holds no message from the person. */
 function turnFrom(
 	sessionId: string,
@@ -386,6 +459,7 @@ function turnFrom(
 	const turnKey = `${sessionId}:${runCount}`;
 	const writes: { callId: unknown; paths: string[] }[] = [];
 	const pushCallIds: unknown[] = [];
+	const callNames = new Map<unknown, string>();
 	const tools = new Map<string, ToolFact>();
 	const unsuccessful = new Set<string>();
 	let chat: Turn["chat"];
@@ -397,40 +471,42 @@ function turnFrom(
 		if (!Array.isArray(message.content)) continue;
 		for (const part of message.content) {
 			if (!isRecord(part)) continue;
-			if (part.type === "tool-call" && typeof part.toolName === "string") {
-				if (WRITE_FILE_TOOL_NAMES.has(part.toolName))
-					writes.push({
-						callId: part.toolCallId,
-						paths: editedPaths(part.input),
-					});
-				else if (isPushCommand(part.input)) pushCallIds.push(part.toolCallId);
-			} else if (
-				part.type === "tool-result" &&
-				typeof part.toolCallId === "string" &&
-				typeof part.toolName === "string"
-			) {
-				// Only an errored call is a failure the turn owes a fix for: a command
-				// exiting non-zero is routine, a search with no match or a test the
-				// agent went on to fix.
-				const failed = part.isError === true;
-				const error = failed
-					? clampRedacted(errorText(part.output), TURN_ERROR_LIMIT)
-					: "";
-				tools.set(part.toolCallId, {
-					name: part.toolName,
-					failed,
-					...(error ? { error } : {}),
-				});
-				const pushCall = pushCallIds.includes(part.toolCallId);
-				if (failed || failedInBand(part.output, pushCall ? PUSH : undefined))
-					unsuccessful.add(part.toolCallId);
+			const call = toolCallOf(part);
+			if (call) {
+				callNames.set(call.callId, call.name);
+				if (WRITE_FILE_TOOL_NAMES.has(call.name))
+					writes.push({ callId: call.callId, paths: editedPaths(call.input) });
+				else if (isPushCommand(call.input)) pushCallIds.push(call.callId);
+				continue;
 			}
+			const result = toolResultOf(part);
+			if (!result) continue;
+			const { callId, output } = result;
+			const name = result.name ?? callNames.get(callId);
+			// Only an errored call is a failure the turn owes a fix for: a command
+			// exiting non-zero is routine, a search with no match or a test the
+			// agent went on to fix.
+			const failed = result.isError;
+			const error = failed
+				? clampRedacted(errorText(output), TURN_ERROR_LIMIT)
+				: "";
+			if (name !== undefined)
+				tools.set(callId, { name, failed, ...(error ? { error } : {}) });
+			const pushCall = pushCallIds.includes(callId);
+			const writePaths = writes.find((write) => write.callId === callId)?.paths;
+			if (
+				failed ||
+				(failedInBand(output, pushCall ? PUSH : undefined) &&
+					!(writePaths && mayHaveWritten(output, writePaths)))
+			)
+				unsuccessful.add(callId);
 		}
 	}
 	/**
 	 * A call that errored, such as an edit the person denied, or that reported
 	 * a failure, such as an edit whose text was not found or a rejected push,
-	 * changed nothing.
+	 * changed nothing. A write that ran out of time or a patch that stopped
+	 * partway is the exception: it may have written files, so its paths count.
 	 */
 	const succeeded = (callId: unknown) =>
 		typeof callId !== "string" || !unsuccessful.has(callId);

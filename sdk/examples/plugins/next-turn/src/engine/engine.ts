@@ -8,7 +8,7 @@ import {
 	type SessionFold,
 } from "../hub/fold";
 import type { HubLink } from "../hub/link";
-import { HUB_SEEDS, UPCOMING_SEED } from "../hub/seed";
+import { HUB_SEEDS, seedUpcoming, UPCOMING_READS } from "../hub/seed";
 import type { Log } from "../log";
 import { type NeedsYouItem, needsYou } from "../model/needs-you";
 import { type UpcomingRun, upcomingRuns } from "../model/schedules";
@@ -48,10 +48,10 @@ type EngineOptions = {
  * The engine's live view of the hub. One subscription folds the
  * allowlisted events; each time the link comes up, session, task and
  * schedule commands seed what live events have not supplied, and after a
- * reconnect, replace what went stale while the link was down. A schedule
- * that changes or runs has its upcoming runs read again. Planner
- * backlogs, the Status Hub's session rows and Needs you all read this fold
- * instead of querying the hub per offer.
+ * reconnect, replace what went stale while the link was down. The upcoming
+ * runs are read then too, and again whenever a schedule changes or runs.
+ * Planner backlogs, the Status Hub's session rows and Needs you all read this
+ * fold instead of querying the hub per offer.
  */
 export class NextTurnEngine {
 	private current: HubFold = emptyFold();
@@ -105,6 +105,7 @@ export class NextTurnEngine {
 					this.linkUp = true;
 					this.linkUps += 1;
 					void this.seed(this.foldAtDrop);
+					void this.readUpcoming();
 					this.foldAtDrop = undefined;
 				} else if (this.linkUp) {
 					this.linkUp = false;
@@ -141,27 +142,26 @@ export class NextTurnEngine {
 		this.apply(next);
 	}
 
-	/** Asks the hub for the upcoming runs, one request at a time; a change while one is out asks once more after it. */
+	/** Asks the hub for the upcoming runs, one read at a time; a change while one is out asks once more after it. */
 	private async readUpcoming(): Promise<void> {
 		if (this.readingUpcoming) {
 			this.upcomingMoved = true;
 			return;
 		}
 		this.readingUpcoming = true;
+		const { link, log } = this.options;
+		const { runs, enabled } = UPCOMING_READS;
 		try {
 			do {
 				this.upcomingMoved = false;
-				const { command, payload, seed } = UPCOMING_SEED;
-				const reply = await this.options.link
-					.command(command, payload)
-					.catch((error: unknown) => {
-						this.options.log?.(
-							`${command} failed; the upcoming runs stay`,
-							error,
-						);
-						return undefined;
-					});
-				if (reply) this.apply(seed(this.current, reply));
+				const replies = await Promise.all([
+					link.command(runs.command, runs.payload),
+					link.command(enabled.command, enabled.payload),
+				]).catch((error: unknown) => {
+					log?.("the upcoming runs could not be read; they stay", error);
+					return undefined;
+				});
+				if (replies) this.apply(seedUpcoming(this.current, ...replies));
 			} while (this.upcomingMoved && !this.disposed);
 		} finally {
 			this.readingUpcoming = false;

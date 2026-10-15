@@ -1,5 +1,5 @@
-import { rmSync } from "node:fs";
-import { readdir, rm, stat } from "node:fs/promises";
+import { rmSync, statSync } from "node:fs";
+import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { SESSION_STATE_TTL_MS } from "../config";
 import type { TurnSnapshot } from "../planner/next";
@@ -135,14 +135,17 @@ export async function pruneSessionStates(
 	} catch {
 		return;
 	}
+	const expired = (mtimeMs: number) => now - mtimeMs > SESSION_STATE_TTL_MS;
 	await Promise.all(
 		names
 			.filter((name) => name.endsWith(".json") || name.endsWith(".tmp"))
 			.map(async (name) => {
 				const path = join(dir, name);
 				try {
-					if (now - (await stat(path)).mtimeMs > SESSION_STATE_TTL_MS)
-						await rm(path, { force: true });
+					if (!expired((await stat(path)).mtimeMs)) return;
+					// A chat worker may have replaced the file while the stat was
+					// pending; check again without yielding so only an expired file goes.
+					if (expired(statSync(path).mtimeMs)) rmSync(path, { force: true });
 				} catch {}
 			}),
 	);

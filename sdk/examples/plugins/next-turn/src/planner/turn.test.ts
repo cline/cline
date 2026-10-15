@@ -1,12 +1,20 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
 	Agent,
 	CommandExitError,
 	countUserRunMessages as coreCount,
 	getUserRunSpan as coreSpan,
+	createApplyPatchExecutor,
 	createDefaultTools,
+	createEditorExecutor,
 } from "@cline/core";
-import type { AgentMessage } from "@cline/shared";
+import type {
+	AgentMessage,
+	MessageWithMetadata,
+	ToolResultContent,
+} from "@cline/shared";
 import { TURN_TEXT_LIMIT } from "../config";
 import {
 	editingModel,
@@ -14,6 +22,7 @@ import {
 	type Model,
 	message,
 	runResult,
+	useTempDirs,
 } from "../test-support";
 import { fnv1a32 } from "./candidates";
 import {
@@ -25,6 +34,8 @@ import {
 	lastPersonMessage,
 	type MessageLike,
 } from "./turn";
+
+const tempDir = useTempDirs("next-turn-turn-");
 
 /** The turn, held to the acceptance rule: its run count is core's count of the same transcript. */
 function turnOf(messages: AgentMessage[], sessionId = "s") {
@@ -554,6 +565,110 @@ describe("the turn's identity is core's run count", () => {
 		).toBeNull();
 	});
 
+	test("deriveTurnFromTranscript reads the provider blocks the hub's session.messages returns, with the same success filtering", () => {
+		const operation = (fields: Record<string, unknown>) =>
+			JSON.stringify({ result: "", ...fields });
+		const stored: MessageWithMetadata[] = [
+			{ id: "u1", role: "user", content: "Fix the retry and push" },
+			{
+				id: "a1",
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Fixed the retry and pushed." },
+					{
+						type: "tool_use",
+						id: "written",
+						name: "editor",
+						input: { path: "src/retry.ts", old_text: "a", new_text: "b" },
+					},
+					{
+						type: "tool_use",
+						id: "not_found",
+						name: "editor",
+						input: { path: "src/client.ts", old_text: "a", new_text: "b" },
+					},
+					{
+						type: "tool_use",
+						id: "denied",
+						name: "editor",
+						input: { path: "src/config.ts", old_text: "a", new_text: "b" },
+					},
+					{
+						type: "tool_use",
+						id: "push",
+						name: "run_commands",
+						input: { commands: ["npm test", "git push"] },
+					},
+				],
+				modelInfo: { provider: "anthropic", id: "claude-sonnet-4-5" },
+			},
+			{
+				id: "r1",
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "written",
+						name: "editor",
+						content: operation({ query: "edit:src/retry.ts", success: true }),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "not_found",
+						name: "editor",
+						content: operation({
+							query: "edit:src/client.ts",
+							error: "old_text was not found in src/client.ts",
+							success: false,
+						}),
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "denied",
+						name: "editor",
+						content: JSON.stringify({
+							error: "The user denied this operation.",
+						}),
+						is_error: true,
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "push",
+						name: "run_commands",
+						// Core stores a list of results as the list itself, not its JSON.
+						content: [
+							{ query: "npm test", result: "1 failing", success: false },
+							{ query: "git push", result: "", success: true },
+						] as unknown as ToolResultContent["content"],
+					},
+				],
+			},
+		];
+		const turn = deriveTurnFromTranscript("sess_tx", stored, "completed");
+		expect(turn?.runCount).toBe(coreCount(stored));
+		expect(turn).toMatchObject({
+			runCount: 1,
+			facts: { filesEdited: 1, toolErrored: true },
+			pushed: true,
+			chat: { providerId: "anthropic", modelId: "claude-sonnet-4-5" },
+			context: {
+				request: "Fix the retry and push",
+				reply: "Fixed the retry and pushed.",
+				editedPaths: ["src/retry.ts"],
+			},
+		});
+		expect(turn?.context.tools).toEqual([
+			{ name: "editor", failed: false },
+			{ name: "editor", failed: false },
+			{
+				name: "editor",
+				failed: true,
+				error: "The user denied this operation.",
+			},
+			{ name: "run_commands", failed: false },
+		]);
+	});
+
 	test("a push is a git push or a PR opened, merged or readied, read from the tool call's input", () => {
 		const pushedBy = (input: unknown) =>
 			deriveTurnFromTranscript("sess_push", [
@@ -794,6 +909,180 @@ describe("the turn, from the run result", () => {
 		expect(deriveTurn("s", failedPatch)?.facts.filesEdited).toBe(0);
 	});
 
+	test("a patch core stopped partway through writing counts its files; one it rejected before writing counts none", async () => {
+		const cwd = tempDir();
+		writeFileSync(
+			join(cwd, "blocker"),
+			"a file where the patch needs a folder",
+		);
+		writeFileSync(join(cwd, "client.ts"), "export const retries = 1;\n");
+		const tools = createDefaultTools({
+			cwd,
+			enableApplyPatch: true,
+			executors: { applyPatch: createApplyPatchExecutor() },
+		});
+		const patchRun = (patch: string) =>
+			new Agent({
+				model: callingModel([["apply_patch", { input: patch }]]),
+				tools,
+			}).run("Add the retry");
+
+		const partlyWritten = await patchRun(
+			[
+				"*** Begin Patch",
+				"*** Add File: retry.ts",
+				"+export const retry = true;",
+				"*** Add File: blocker/policy.ts",
+				"+export const policy = {};",
+				"*** End Patch",
+			].join("\n"),
+		);
+		expect(existsSync(join(cwd, "retry.ts"))).toBe(true);
+		expect(toolOutputs(partlyWritten.messages)).toEqual([
+			expect.objectContaining({
+				success: false,
+				error: expect.stringMatching(/^apply_patch failed: E[A-Z]+: /),
+			}),
+		]);
+		expect(deriveTurn("s", partlyWritten)?.context.editedPaths).toEqual([
+			"retry.ts",
+			"blocker/policy.ts",
+		]);
+
+		const movedOutside = await patchRun(
+			[
+				"*** Begin Patch",
+				"*** Add File: backoff.ts",
+				"+export const backoff = 2;",
+				"*** Update File: client.ts",
+				"*** Move to: ../outside/client.ts",
+				"@@",
+				"-export const retries = 1;",
+				"+export const retries = 3;",
+				"*** End Patch",
+			].join("\n"),
+		);
+		expect(existsSync(join(cwd, "backoff.ts"))).toBe(true);
+		expect(toolOutputs(movedOutside.messages)).toEqual([
+			expect.objectContaining({
+				success: false,
+				error:
+					"apply_patch failed: Path must stay within cwd: ../outside/client.ts",
+			}),
+		]);
+		expect(deriveTurn("s", movedOutside)?.context.editedPaths).toEqual([
+			"backoff.ts",
+			"client.ts",
+		]);
+
+		const unapplied = await patchRun(
+			[
+				"*** Begin Patch",
+				"*** Add File: notes.ts",
+				"+export const notes = [];",
+				"*** Update File: client.ts",
+				"@@ export function retry",
+				"-\treturn fetchOnce();",
+				"+\treturn fetchWithRetry();",
+				"*** End Patch",
+			].join("\n"),
+		);
+		expect(existsSync(join(cwd, "notes.ts"))).toBe(false);
+		expect(toolOutputs(unapplied.messages)).toEqual([
+			expect.objectContaining({ success: false }),
+		]);
+		expect(deriveTurn("s", unapplied)?.facts.filesEdited).toBe(0);
+
+		const deletesOutside = await patchRun(
+			[
+				"*** Begin Patch",
+				"*** Add File: notes.ts",
+				"+export const notes = [];",
+				"*** Delete File: ../outside/client.ts",
+				"*** End Patch",
+			].join("\n"),
+		);
+		expect(existsSync(join(cwd, "notes.ts"))).toBe(false);
+		expect(toolOutputs(deletesOutside.messages)).toEqual([
+			expect.objectContaining({
+				success: false,
+				error:
+					"apply_patch failed: Path must stay within cwd: ../outside/client.ts",
+			}),
+		]);
+		expect(deriveTurn("s", deletesOutside)?.facts.filesEdited).toBe(0);
+	});
+
+	test("an edit or a patch that ran out of time counts its files, since core lets the write finish", async () => {
+		const cwd = tempDir();
+		let releaseWrites = () => {};
+		const writesHeld = new Promise<void>((resolve) => {
+			releaseWrites = resolve;
+		});
+		const heldWrites: Promise<string>[] = [];
+		const held =
+			<Args extends unknown[]>(write: (...args: Args) => Promise<string>) =>
+			(...args: Args) => {
+				const pending = writesHeld.then(() => write(...args));
+				heldWrites.push(pending);
+				return pending;
+			};
+		const timedOutEdit = await new Agent({
+			model: callingModel([
+				["editor", { path: "retry.ts", new_text: "export const retry = 3;\n" }],
+			]),
+			tools: createDefaultTools({
+				cwd,
+				editorTimeoutMs: 1,
+				executors: { editor: held(createEditorExecutor()) },
+			}),
+		}).run("Add the retry");
+		const timedOutPatch = await new Agent({
+			model: callingModel([
+				[
+					"apply_patch",
+					{
+						input: [
+							"*** Begin Patch",
+							"*** Add File: backoff.ts",
+							"+export const backoff = 2;",
+							"*** End Patch",
+						].join("\n"),
+					},
+				],
+			]),
+			tools: createDefaultTools({
+				cwd,
+				enableApplyPatch: true,
+				applyPatchTimeoutMs: 1,
+				executors: { applyPatch: held(createApplyPatchExecutor()) },
+			}),
+		}).run("Add the backoff");
+		expect(
+			toolOutputs([...timedOutEdit.messages, ...timedOutPatch.messages]),
+		).toEqual([
+			expect.objectContaining({
+				success: false,
+				error: "Editor operation failed: Editor operation timed out after 1ms",
+			}),
+			expect.objectContaining({
+				success: false,
+				error: "apply_patch failed: apply_patch timed out after 1ms",
+			}),
+		]);
+
+		releaseWrites();
+		await Promise.all(heldWrites);
+		expect(existsSync(join(cwd, "retry.ts"))).toBe(true);
+		expect(existsSync(join(cwd, "backoff.ts"))).toBe(true);
+		expect(deriveTurn("s", timedOutEdit)?.context.editedPaths).toEqual([
+			"retry.ts",
+		]);
+		expect(deriveTurn("s", timedOutPatch)?.context.editedPaths).toEqual([
+			"backoff.ts",
+		]);
+	});
+
 	test("an aborted run is a stopped turn, a failed run a failed one; no message is no turn", () => {
 		const user = message("user", "Go");
 		expect(
@@ -818,6 +1107,14 @@ describe("the turn, from the run result", () => {
 		expect(turn?.context.request.length).toBeLessThanOrEqual(TURN_TEXT_LIMIT);
 	});
 });
+
+function toolOutputs(messages: readonly AgentMessage[]): unknown[] {
+	return messages.flatMap((item) =>
+		item.content.flatMap((part) =>
+			part.type === "tool-result" ? [part.output] : [],
+		),
+	);
+}
 
 function textOfParts(item: AgentMessage): string {
 	return item.content

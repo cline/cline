@@ -456,30 +456,60 @@ describe("Next Turn as a plugin", () => {
 		);
 	});
 
-	test("the afterRun hook returns before the set is served, and the connector refresh follows the serve", async () => {
+	test("the afterRun hook waits for the rule-based set but not the planner or the connector refresh, so a one-shot run closed at once keeps its offer", async () => {
+		const labelsPath = join(tempDir(), "labels.jsonl");
 		const sets: (OfferedSet | undefined)[] = [];
+		const logged: string[] = [];
+		const disposers: Array<() => unknown> = [];
+		const oneShot: SetupContext = {
+			...context,
+			logger: {
+				debug: (message) => {
+					logged.push(message);
+				},
+				log: () => {},
+			},
+			onDispose: (cleanup) => {
+				disposers.push(cleanup);
+			},
+		};
+		let answerPlanner: (answer: null) => void = () => {};
 		const next = new NextSession({
 			sessionId: "sess_1",
 			settings: defaultSettings,
-			env: sessionEnv(context, { tools: () => [] }),
+			env: sessionEnv(oneShot, { tools: () => [] }),
 			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
 			backlog: async () => EMPTY_BACKLOG,
+			dirtyFiles: () =>
+				new Promise((resolve) => setTimeout(() => resolve(1), 30)),
+			complete: () =>
+				new Promise((resolve) => {
+					answerPlanner = resolve;
+				}),
+			labels: new LabelLog(labelsPath),
 		});
 		next.onSet((set) => sets.push(set));
 		let refreshed: (setsServed: number) => void = () => {};
 		const setsServedAtRefresh = new Promise<number>((resolve) => {
 			refreshed = resolve;
 		});
+		let finishRefresh: () => void = () => {};
 		const connectors = {
-			onTurn: async () => refreshed(sets.length),
+			onTurn: () => {
+				refreshed(sets.length);
+				return new Promise<void>((resolve) => {
+					finishRefresh = resolve;
+				});
+			},
 		} as unknown as SessionRuntime["connectors"];
 		const plugin = createNextTurnPlugin({
-			startRuntime: () => fakeRuntime(next, { connectors }),
+			startRuntime: () =>
+				fakeRuntime(next, { connectors, stop: () => next.dispose() }),
 			lifecycle: alwaysActive,
 		});
 		await plugin.setup?.(
 			{} as Parameters<NonNullable<typeof plugin.setup>>[0],
-			context,
+			oneShot,
 		);
 		const agent = new Agent({
 			model: editingModel().model,
@@ -487,10 +517,22 @@ describe("Next Turn as a plugin", () => {
 			hooks: plugin.hooks,
 		});
 		await agent.run("Add a retry to the client");
-		expect(sets).toEqual([]);
-		await next.settled();
-		expect(sets).toHaveLength(1);
+		await Promise.all(disposers.map((dispose) => dispose()));
+
+		expect(sets.map((set) => [set?.planner, set?.model?.status])).toEqual([
+			["rules", "pending"],
+		]);
+		expect(logged).toContain("[next-turn] suggestions");
+		const offers = readFileSync(labelsPath, "utf8")
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line) as { event: string; planner: string })
+			.filter((record) => record.event === "offer");
+		expect(offers.map((record) => record.planner)).toEqual(["rules"]);
 		expect(await setsServedAtRefresh).toBe(1);
+		finishRefresh();
+		answerPlanner(null);
+		await next.settled();
 	});
 
 	test("setup registers teardown that stops the runtime, and a second setup stops the first runtime", async () => {

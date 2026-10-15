@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { CURSOR_SAVE_EVERY_EVENTS } from "../config";
+import { CURSOR_SAVE_EVERY_EVENTS, SEED_UPCOMING_LIMIT } from "../config";
 import { useTempDirs } from "../test-support";
 import { CursorWriter, readCursor } from "./cursor";
 import { eventLog } from "./event-log.fixture";
@@ -304,6 +304,36 @@ describe("tasks, schedules, teams, usage, sessions", () => {
 		).toEqual({});
 	});
 
+	test("disabling a schedule clears its next run; other updates keep it", () => {
+		const named = seedUpcoming(emptyFold(), {
+			runs: [
+				{
+					scheduleId: "nightly",
+					name: "Nightly checks",
+					nextRunAt: "2026-10-09T02:00:00.000Z",
+				},
+			],
+		});
+		const edited = foldEvent(
+			named,
+			ev("schedule.updated", {
+				schedule: { scheduleId: "nightly", enabled: true, prompt: "PRIVATE" },
+			}),
+		);
+		expect(edited.schedules).toEqual(named.schedules);
+		const disabled = foldEvent(
+			edited,
+			ev("schedule.updated", {
+				schedule: { scheduleId: "nightly", enabled: false },
+			}),
+		);
+		expect(disabled.schedules.nightly).toEqual({
+			scheduleId: "nightly",
+			name: "Nightly checks",
+		});
+		expect(JSON.stringify(disabled)).not.toContain("PRIVATE");
+	});
+
 	test("session records supply the workspace from session or snapshot, parse ISO updatedAt, and drop prompt/metadata", () => {
 		const fold = [
 			ev("session.created", {
@@ -415,6 +445,48 @@ describe("seed", () => {
 			],
 		});
 		expect(moved.schedules.soon?.nextRunAt).toBe("2026-10-10T02:00:00.000Z");
+	});
+
+	test("a schedule an upcoming reply leaves out keeps its next run until that time has passed", () => {
+		const hour = 3_600_000;
+		const passed = new Date(Date.now() - hour).toISOString();
+		const ahead = new Date(Date.now() + hour).toISOString();
+		const seeded = seedUpcoming(emptyFold(), {
+			runs: [
+				{ scheduleId: "done", nextRunAt: passed },
+				{ scheduleId: "capped", nextRunAt: ahead },
+			],
+		});
+		const short = seedUpcoming(seeded, { runs: [] });
+		expect(short.schedules.done).toEqual({ scheduleId: "done" });
+		expect(short.schedules.capped?.nextRunAt).toBe(ahead);
+	});
+
+	test("a complete enabled list clears a left-out schedule's future run; a full or malformed one proves nothing", () => {
+		const ahead = new Date(Date.now() + 3_600_000).toISOString();
+		const seeded = seedUpcoming(emptyFold(), {
+			runs: [
+				{ scheduleId: "capped", nextRunAt: ahead },
+				{ scheduleId: "gone", nextRunAt: ahead },
+			],
+		});
+		const cleared = seedUpcoming(
+			seeded,
+			{ runs: [] },
+			{ schedules: [{ scheduleId: "capped", prompt: "PRIVATE" }] },
+		);
+		expect(cleared.schedules.capped?.nextRunAt).toBe(ahead);
+		expect(cleared.schedules.gone).toEqual({ scheduleId: "gone" });
+		expect(JSON.stringify(cleared)).not.toContain("PRIVATE");
+		const full = {
+			schedules: Array.from({ length: SEED_UPCOMING_LIMIT }, (_, index) => ({
+				scheduleId: `other-${index}`,
+			})),
+		};
+		expect(seedUpcoming(seeded, { runs: [] }, full)).toBe(seeded);
+		expect(seedUpcoming(seeded, { runs: [] }, { schedules: "none" })).toBe(
+			seeded,
+		);
 	});
 
 	test("keeps each schedule's latest execution, and live events win", () => {

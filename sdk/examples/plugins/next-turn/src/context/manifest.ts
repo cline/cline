@@ -48,6 +48,20 @@ function capabilitiesOf(source: ContextSource, env: SourceEnv): string[] {
 	}
 }
 
+function presentCapabilities(
+	sources: readonly ContextSource[],
+	states: Record<string, SourceState>,
+	env: SourceEnv,
+): string[] {
+	return [
+		...new Set(
+			sources.flatMap((source) =>
+				states[source.id] === "present" ? capabilitiesOf(source, env) : [],
+			),
+		),
+	].sort();
+}
+
 /** Probe every source in parallel, each under its budget; a throw or a timeout reads as unknown. */
 export async function buildManifest(
 	sources: readonly ContextSource[],
@@ -60,38 +74,39 @@ export async function buildManifest(
 			state: await probe(source, env, options),
 		})),
 	);
+	const states = Object.fromEntries(
+		probed.map(({ source, state }) => [source.id, state]),
+	);
 	return {
 		client: env.client,
 		mode: env.mode,
-		sources: Object.fromEntries(
-			probed.map(({ source, state }) => [source.id, state]),
-		),
-		capabilities: [
-			...new Set(
-				probed.flatMap(({ source, state }) =>
-					state === "present" ? capabilitiesOf(source, env) : [],
-				),
-			),
-		].sort(),
+		sources: states,
+		capabilities: presentCapabilities(sources, states, env),
 	};
 }
 
-/** The manifest with every source `isOff` now refuses marked off, so a later planner call neither reads nor names it. */
-export function withSourcesOff(
+/**
+ * The manifest as a later planner call on the same turn should see it: every
+ * source `isOff` now refuses is marked off, and the capabilities are read
+ * again from the sources still present, so a source turned off or a script
+ * removed since the turn is neither read nor named.
+ */
+export function withCurrentSources(
 	manifest: Manifest,
 	sources: readonly ContextSource[],
+	env: SourceEnv,
 	isOff: (source: ContextSource) => boolean,
 ): Manifest {
-	const off = sources.filter(
-		(source) => source.id in manifest.sources && isOff(source),
+	const states: Record<string, SourceState> = Object.fromEntries(
+		Object.entries(manifest.sources).map(([id, state]) => {
+			const source = sources.find((candidate) => candidate.id === id);
+			return [id, source && isOff(source) ? "off" : state];
+		}),
 	);
-	if (off.length === 0) return manifest;
 	return {
 		...manifest,
-		sources: {
-			...manifest.sources,
-			...Object.fromEntries(off.map((source) => [source.id, "off"])),
-		},
+		sources: states,
+		capabilities: presentCapabilities(sources, states, env),
 	};
 }
 

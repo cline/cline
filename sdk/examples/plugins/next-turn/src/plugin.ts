@@ -94,9 +94,11 @@ export function defaultIsNextActive(
  * - `beforeModel` records the agent's tools, a capability source, and labels
  *   the person's new message against the set on screen once per `runId`.
  *   `beforeRun` cannot: its snapshot predates the new message;
- * - `afterRun` derives the turn and returns; the rule-based set, the planner,
- *   and the connectors' check for new connections and for a push follow
- *   without holding up the run.
+ * - `afterRun` derives the turn and waits for the rule-based set, which the
+ *   source, git and backlog read budgets bound, since a one-shot run closes
+ *   the sandbox as soon as the hook returns; the planner and the connectors'
+ *   check for new connections and for a push follow without holding up the
+ *   run.
  *
  * No hook can fail the person's run: each catches its own errors.
  */
@@ -194,6 +196,7 @@ export function createNextTurnPlugin(
 				served
 					.then(() => connectors?.onTurn({ pushed }))
 					.catch((error: unknown) => log("a refresh failed", error));
+				await served;
 			},
 		},
 		setup(rawApi, rawContext) {

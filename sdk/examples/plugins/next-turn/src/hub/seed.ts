@@ -166,15 +166,39 @@ export function seedTasks(
 }
 
 /**
- * Fold a `schedule.upcoming` reply payload (`{ runs: { scheduleId, name, nextRunAt }[] }`).
- * Names and next runs always refresh. A reply under the limit lists every
- * upcoming run, so a schedule it leaves out, disabled or done, has none.
+ * The ids in a `schedule.list` reply payload (`{ schedules: ScheduleRecord[] }`)
+ * asked for enabled schedules, when it names them all. The hub counts only Hub
+ * schedules toward that limit, so a reply under it is complete.
  */
-export function seedUpcoming(fold: HubFold, payload: unknown): HubFold {
+function enabledSchedules(payload: unknown): Set<string> | undefined {
+	const records = isRecord(payload) ? payload.schedules : undefined;
+	if (!Array.isArray(records) || records.length >= SEED_UPCOMING_LIMIT)
+		return undefined;
+	return new Set(
+		listOf(payload, "schedules").flatMap(
+			(record) => text(record.scheduleId) ?? [],
+		),
+	);
+}
+
+/**
+ * Fold a `schedule.upcoming` reply payload (`{ runs: { scheduleId, name, nextRunAt }[] }`),
+ * with the enabled schedules asked alongside it. Names and next runs always
+ * refresh. The upcoming reply never proves that a schedule it leaves out has
+ * no next run: the hub caps its spec rows before dropping file-based cron
+ * specs. A complete enabled list does, so a schedule it leaves out was
+ * disabled or deleted, including by a `schedule.delete` whose event names no
+ * schedule, or while the link was down. Without that proof, a schedule left
+ * out keeps its next run until that time has passed.
+ */
+export function seedUpcoming(
+	fold: HubFold,
+	payload: unknown,
+	enabledPayload?: unknown,
+): HubFold {
 	const schedules = copyOnWrite(fold.schedules);
-	const runs = listOf(payload, "runs");
 	const listed = new Set<string>();
-	for (const run of runs) {
+	for (const run of listOf(payload, "runs")) {
 		const scheduleId = text(run.scheduleId);
 		if (!scheduleId) continue;
 		listed.add(scheduleId);
@@ -185,27 +209,39 @@ export function seedUpcoming(fold: HubFold, payload: unknown): HubFold {
 			nextRunAt: text(run.nextRunAt),
 		});
 	}
-	const complete =
-		isRecord(payload) &&
-		Array.isArray(payload.runs) &&
-		runs.length < SEED_UPCOMING_LIMIT;
-	if (complete) {
-		for (const [scheduleId, current] of Object.entries(schedules.result())) {
-			if (listed.has(scheduleId) || current.nextRunAt === undefined) continue;
-			const { nextRunAt: _passed, ...rest } = current;
-			schedules.set(scheduleId, rest);
-		}
+	const enabled = enabledSchedules(enabledPayload);
+	const now = Date.now();
+	for (const [scheduleId, current] of Object.entries(schedules.result())) {
+		if (listed.has(scheduleId) || current.nextRunAt === undefined) continue;
+		const disabledOrDeleted = enabled !== undefined && !enabled.has(scheduleId);
+		const nextRun = isoMillis(current.nextRunAt);
+		const passed = nextRun !== undefined && nextRun <= now;
+		if (!disabledOrDeleted && !passed) continue;
+		const { nextRunAt: _none, ...rest } = current;
+		schedules.set(scheduleId, rest);
 	}
 	const next = schedules.result();
 	return next === fold.schedules ? fold : { ...fold, schedules: next };
 }
 
-/** The upcoming runs: seeded when the link comes up, and asked again whenever a schedule's next run may have moved. */
-export const UPCOMING_SEED = {
-	command: "schedule.upcoming",
-	payload: { allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
-	seed: seedUpcoming,
-} as const;
+/**
+ * The upcoming runs and the enabled schedules, asked together when the link
+ * comes up and whenever a schedule's next run may have moved; both answers
+ * go to `seedUpcoming`.
+ */
+export const UPCOMING_READS = {
+	runs: {
+		command: "schedule.upcoming",
+		payload: { allWorkspaces: true, limit: SEED_UPCOMING_LIMIT },
+	},
+	enabled: {
+		command: "schedule.list",
+		payload: { allWorkspaces: true, enabled: true, limit: SEED_UPCOMING_LIMIT },
+	},
+} as const satisfies Record<
+	string,
+	{ command: HubCommandName; payload: Record<string, unknown> }
+>;
 
 function executionTime(record: Record<string, unknown>): number {
 	return (
@@ -265,7 +301,6 @@ export const HUB_SEEDS = [
 		payload: { limit: SEED_TASK_LIMIT },
 		seed: seedTasks,
 	},
-	UPCOMING_SEED,
 	{
 		command: "schedule.list_executions",
 		payload: { allWorkspaces: true, limit: SEED_EXECUTION_LIMIT },

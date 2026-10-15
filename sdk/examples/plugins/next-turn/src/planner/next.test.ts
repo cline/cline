@@ -718,6 +718,93 @@ describe("Next under overlapping actions", () => {
 		expect(sent[1]?.user).not.toContain("Secret payroll migration");
 	});
 
+	test("a reroll after a script is removed no longer names it to the planner", async () => {
+		let scripts = ["script:test", "script:lint"];
+		const repo: ContextSource = {
+			id: "repo-scripts",
+			tier: "T0",
+			probe: () => "present",
+			capabilities: () => scripts,
+		};
+		const sent: string[] = [];
+		const { session } = harness({
+			sources: () => [...sources, repo],
+			complete: async (input) => {
+				sent.push(input.user);
+				return { text: MODEL_ANSWER };
+			},
+		});
+		await session.afterRun(editRun().result);
+		await session.settled();
+		expect(sent[0]).toContain("script:lint");
+		scripts = ["script:test"];
+		session.invoke({ type: "reroll" });
+		await session.settled();
+		expect(sent[1]).toContain("script:test");
+		expect(sent[1]).not.toContain("script:lint");
+	});
+
+	test("a model set is tagged with the manifest its planner call saw", async () => {
+		const settings = defaultSettings();
+		const history: ContextSource = {
+			id: "history",
+			tier: "T2",
+			settingsToggle: "history",
+			readsOtherChats: true,
+			probe: () => "present",
+			facts: () => ({
+				heading: "Related chats in this workspace",
+				lines: ['"Secret payroll migration" · 2h ago · idle'],
+			}),
+		};
+		const { session, labels } = harness(
+			{ sources: () => [...sources, history] },
+			settings,
+		);
+		const ask = message("user", "Add a retry to the client");
+		const reply = message("assistant", "Added the retry.", {
+			modelInfo: { provider: "anthropic", id: "claude" },
+		});
+		await session.afterRun(runResult([ask, reply]));
+		await session.settled();
+		settings.planner.model = {
+			kind: "model",
+			providerId: "openai",
+			modelId: "gpt",
+		};
+		session.invoke({ type: "reroll" });
+		await session.settled();
+		const tags = labels()
+			.filter((record) => record.event === "offer")
+			.map((record) => record.tags);
+		expect(tags[0]).toContain("source:history:present");
+		expect(tags.at(-1)).toContain("source:history:off");
+		expect(tags.at(-1)).not.toContain("source:history:present");
+	});
+
+	test("a reroll right after a respawn keeps the capabilities the turn saved while its sources load", async () => {
+		const store = new FileSessionStateStore(
+			tempDir("respawn-capabilities-"),
+			"sess_1",
+		);
+		let loaded = true;
+		const linear: ContextSource = {
+			id: "pinned-linear",
+			tier: "T0",
+			probe: () => "present",
+			capabilities: () => (loaded ? ["mcp:linear"] : []),
+		};
+		const first = harness({ store, sources: () => [...sources, linear] });
+		await first.session.afterRun(editRun().result);
+		await first.session.settled();
+		expect(first.calls[0]).toContain("mcp:linear");
+		loaded = false;
+		const respawned = harness({ store, sources: () => [...sources, linear] });
+		respawned.session.invoke({ type: "reroll" });
+		await respawned.session.settled();
+		expect(respawned.calls[0]).toContain("mcp:linear");
+	});
+
 	test("a reroll while the planner is still answering asks the model once", async () => {
 		let release: () => void = () => {};
 		const answered = new Promise<void>((resolve) => {

@@ -189,17 +189,8 @@ export function readConventions(
 export function repoSource(
 	reader: RepoReader = new RepoReader(),
 ): ContextSource {
-	const read = new WeakMap<SourceEnv, RepoConventions | undefined>();
-	const conventionsOf = (env: SourceEnv) => {
-		if (!read.has(env))
-			read.set(
-				env,
-				env.workspaceRoot
-					? readConventions(env.workspaceRoot, reader)
-					: undefined,
-			);
-		return read.get(env);
-	};
+	const conventionsOf = (env: SourceEnv) =>
+		env.workspaceRoot ? readConventions(env.workspaceRoot, reader) : undefined;
 	return {
 		id: "repo",
 		tier: "T1",

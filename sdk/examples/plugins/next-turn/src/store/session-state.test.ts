@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import { join } from "node:path";
 import { SESSION_STATE_TTL_MS } from "../config";
 import { EMPTY_BACKLOG } from "../planner/backlog";
@@ -167,5 +168,30 @@ describe("session state persistence across sandbox respawn", () => {
 		await pruneSessionStates(dir, now);
 		expect(readdirSync(dir)).toEqual(["fresh.json"]);
 		await pruneSessionStates(join(dir, "missing"), now);
+	});
+
+	test("pruning keeps a state file another worker rewrote after its age was checked", async () => {
+		const dir = tempDir();
+		const now = Date.now();
+		new FileSessionStateStore(dir, "sess_rewritten").write({ seq: 1 });
+		const [fileName] = readdirSync(dir);
+		const stale = new Date(now - SESSION_STATE_TTL_MS - 86_400_000);
+		utimesSync(join(dir, fileName), stale, stale);
+		const realStat = fsPromises.stat;
+		const statSpy = spyOn(fsPromises, "stat").mockImplementation((async (
+			path: string,
+		) => {
+			const checked = await realStat(path);
+			new FileSessionStateStore(dir, "sess_rewritten").write({ seq: 2 });
+			return checked;
+		}) as typeof fsPromises.stat);
+		try {
+			await pruneSessionStates(dir, now);
+		} finally {
+			statSpy.mockRestore();
+		}
+		expect(new FileSessionStateStore(dir, "sess_rewritten").read()?.seq).toBe(
+			2,
+		);
 	});
 });
