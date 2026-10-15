@@ -95,6 +95,7 @@ describe("CronRunner", () => {
 		materializer = new CronMaterializer({ store });
 	});
 	afterEach(() => {
+		vi.useRealTimers();
 		store.close();
 		rmSync(dir, { recursive: true, force: true });
 	});
@@ -145,8 +146,53 @@ describe("CronRunner", () => {
 				}),
 			);
 			await runner.tick();
+			expect(deliverResult).toHaveBeenCalledOnce();
+			vi.useFakeTimers();
+			vi.advanceTimersByTime(5_001);
+			await runner.tick();
 			expect(calls.send).toBe(1);
 			expect(store.listPendingResultDeliveries()).toEqual([]);
+		} finally {
+			await runner.dispose();
+		}
+	});
+
+	it.each([
+		"aborted",
+		"cancelled",
+		"mistake_limit",
+		"max_iterations",
+	])("does not report stopped scheduled work (%s) as completed", async (finishReason) => {
+		const { handlers } = fakeHandlers();
+		handlers.sendSession = async () => ({
+			result: { text: "Partial output", finishReason },
+		});
+		const spec = store.createHubSchedule({
+			name: "Check",
+			cronPattern: "0 9 * * *",
+			prompt: "Check",
+			workspaceRoot,
+			metadata: { __hubScheduleResultSessionId: "origin" },
+		});
+		const run = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "manual",
+		});
+		const deliverResult = vi.fn();
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			deliverResult,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		try {
+			await runner.tick();
+			expect(store.getRun(run.runId)?.status).toBe("cancelled");
+			expect(store.listPendingResultDeliveries()).toEqual([]);
+			expect(deliverResult).not.toHaveBeenCalled();
 		} finally {
 			await runner.dispose();
 		}

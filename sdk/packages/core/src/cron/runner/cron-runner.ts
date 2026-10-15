@@ -493,7 +493,14 @@ export class CronRunner {
 			result = sendResult.result as HubTurnResult;
 			// Provider failures (e.g. a retired model id) resolve the turn with an
 			// error finish instead of throwing.
-			if (result.finishReason === "error") {
+			if (
+				["aborted", "cancelled", "mistake_limit", "max_iterations"].includes(
+					result.finishReason ?? "",
+				)
+			) {
+				throw new RunCancelledError("scheduled agent turn was cancelled");
+			}
+			if (result.finishReason === "error" || result.finishReason === "failed") {
 				throw new Error(result.text || "agent turn ended with an error");
 			}
 

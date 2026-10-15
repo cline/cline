@@ -924,16 +924,25 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
   to the Hub's durable FIFO queue using a stable `schedule-result:<run-id>`
   admission ID. Admission is transactional and idempotent, so a crash between
   queue acceptance and outbox acknowledgement cannot duplicate the follow-up.
-  Handoff errors retry independently of task execution. A lightweight admission
+  Handoff errors retry independently of task execution, with a five-second
+  eligibility backoff so one full destination queue cannot monopolize the next
+  claim batch. A partial index covers pending rows by next-attempt time, run ID,
+  and lease expiry; acknowledged history is excluded from polling. A lightweight
+  admission
   ledger preserves idempotency after terminal queue rows expire; acknowledged
   outbox rows discard their prompt bodies.
 - The queue executor restores a saved destination using its original ID,
-  history, compaction state, workspace, model, and saved approval setting,
+  history, compaction state, workspace, model, and explicit saved approval policy
+  (including `autoApprove: false`),
   through ordinary Hub session bootstrap. A resident runtime is reused without
   replacing its live history or emitting another creation event. Result turns
   explicitly request immediate admission: a busy runtime rejects before adding
   the prompt to its in-memory queue, leaving the durable result queued for
-  retry. Deleted destinations fail visibly in `run.list`; they are not recreated.
+  retry. A host-level turn reservation covers asynchronous preparation through
+  finalization and is also checked by the pending-prompt drainer. Shutdown
+  waits for restoration before disposing the host, and for queue workers to
+  requeue busy rejections before closing storage.
+  Deleted destinations fail visibly in `run.list`; they are not recreated.
   On Hub restart, queued results resume normally and already-running follow-up
   turns are marked interrupted rather than automatically replayed.
 - The Hub contributes one tool-conditional system-prompt rule for `tasks`. It

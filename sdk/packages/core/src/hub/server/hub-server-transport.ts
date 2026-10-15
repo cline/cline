@@ -791,8 +791,10 @@ export class HubServerTransport implements NativeHubTransport {
 		);
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
-		this.runExecutor?.stop();
+		const executorStopped = this.runExecutor?.stop();
+		await this.runExecutor?.waitForPreparations();
 		await this.sessionHost.dispose("hub_server_stop");
+		await executorStopped;
 		await this.schedules.dispose();
 		if (this.cronService) {
 			try {

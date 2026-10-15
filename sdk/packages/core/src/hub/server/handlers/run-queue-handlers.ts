@@ -66,6 +66,8 @@ export class HubRunExecutor {
 		ReturnType<typeof setTimeout>
 	>();
 	private stopped = false;
+	private readonly executions = new Set<Promise<void>>();
+	private readonly preparations = new Set<Promise<void>>();
 
 	constructor(
 		private readonly ctx: HubTransportContext,
@@ -73,10 +75,16 @@ export class HubRunExecutor {
 		private readonly prepareRun?: (run: HubRunRecord) => Promise<void>,
 	) {}
 
-	stop(): void {
+	async stop(): Promise<void> {
 		this.stopped = true;
 		for (const timer of this.retryTimers.values()) clearTimeout(timer);
 		this.retryTimers.clear();
+		await Promise.allSettled([...this.executions]);
+	}
+
+	/** After stop() blocks new work, let existing activation finish before disposing the host. */
+	async waitForPreparations(): Promise<void> {
+		await Promise.allSettled([...this.preparations]);
 	}
 
 	/** Start (or continue) draining the session's queue in the background. */
@@ -89,7 +97,7 @@ export class HubRunExecutor {
 			return;
 		}
 		this.activeSessions.add(sessionId);
-		void this.drainSession(sessionId)
+		const execution = this.drainSession(sessionId)
 			.catch((error) => {
 				logHubMessage("error", "run.queue.pump_failed", { sessionId, error });
 			})
@@ -104,6 +112,8 @@ export class HubRunExecutor {
 					this.pump(sessionId);
 				}
 			});
+		this.executions.add(execution);
+		void execution.then(() => this.executions.delete(execution));
 	}
 
 	private async drainSession(sessionId: string): Promise<void> {
@@ -127,17 +137,25 @@ export class HubRunExecutor {
 			payload: { ...run.input, sessionId: run.sessionId },
 		};
 		try {
-			await this.prepareRun?.(run);
+			if (this.prepareRun) {
+				const preparation = this.prepareRun(run);
+				this.preparations.add(preparation);
+				try {
+					await preparation;
+				} finally {
+					this.preparations.delete(preparation);
+				}
+			}
 			if (this.stopped) return true;
 			this.queue.markRunning(run.runId);
 			const reply = await handleSessionInput(this.ctx, envelope);
-			if (this.stopped) return true;
 			if (
 				!reply.ok &&
 				reply.error?.code === "session_run_in_progress" &&
 				run.input.delivery === "immediate"
 			) {
 				this.queue.markQueued(run.runId);
+				if (this.stopped) return true;
 				const timer = setTimeout(() => {
 					this.retryTimers.delete(run.sessionId);
 					this.pump(run.sessionId);
@@ -146,6 +164,7 @@ export class HubRunExecutor {
 				this.retryTimers.set(run.sessionId, timer);
 				return true;
 			}
+			if (this.stopped) return true;
 			if (reply.ok) {
 				const finishReason = (
 					reply.payload?.result as { finishReason?: string } | undefined

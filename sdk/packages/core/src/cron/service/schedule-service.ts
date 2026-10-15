@@ -325,7 +325,7 @@ export class HubScheduleService {
 				: updates.timezone === null
 					? undefined
 					: (updates.timezone ?? currentSchedule.timezone),
-			updates.metadata ?? currentSchedule.metadata,
+			{ ...currentSchedule.metadata, ...updates.metadata },
 			nextEnabled,
 		);
 		if (nextEnabled && !nextWorkspaceRoot) {

@@ -24,6 +24,8 @@ export type ActiveSession = {
 	runtime: BuiltRuntime;
 	agent: SessionRuntime;
 	started: boolean;
+	/** Includes asynchronous prompt preparation and turn finalization. */
+	turnInFlight: boolean;
 	aborting: boolean;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];

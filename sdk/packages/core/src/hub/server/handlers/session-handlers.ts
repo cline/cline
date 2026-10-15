@@ -512,9 +512,20 @@ export async function handleSessionCreate(
 		plugins: parsePluginPolicies(payload.plugins),
 	});
 	if (started.reusedActiveSession) {
-		return okReply(envelope, {
-			session: await readHubSessionRecord(ctx, started.sessionId),
-		});
+		if (!options?.resumeExistingSession) {
+			ensureSessionParticipant(
+				ctx,
+				started.sessionId,
+				clientId,
+				"participant",
+				{ interactive: metadata.interactive !== false },
+			);
+		}
+		const [session, snapshot] = await Promise.all([
+			readHubSessionRecord(ctx, started.sessionId),
+			readCoreSessionSnapshot(ctx, started.sessionId),
+		]);
+		return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
 	}
 	const pluginIssues = started.pluginIssues ?? [];
 	if (pluginIssues.length > 0) {

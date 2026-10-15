@@ -53,7 +53,7 @@ describe("scheduled result executor", () => {
 			expect(runTurn).toHaveBeenCalledTimes(2);
 			expect(prepare).toHaveBeenCalledTimes(2);
 		} finally {
-			executor.stop();
+			await executor.stop();
 			queue.close();
 		}
 	});
@@ -71,11 +71,93 @@ describe("scheduled result executor", () => {
 			expect(runTurn).not.toHaveBeenCalled();
 			expect(queue.get(accepted.runId)?.error).toContain("deleted");
 		} finally {
-			executor.stop();
+			await executor.stop();
 			queue.close();
 		}
 	});
 
+	it("requeues an unstarted result rejected while stop is waiting, and recovers it after restart", async () => {
+		let rejectBusy: (error: Error) => void = () => {};
+		let entered: () => void = () => {};
+		const reached = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const blocked = new Promise<never>((_, reject) => {
+			rejectBusy = reject;
+		});
+		const runTurn = vi.fn(() => {
+			entered();
+			return blocked;
+		});
+		const queue = new HubRunQueue({ dbPath: ":memory:" });
+		const admitted = queue.admit("origin", {
+			prompt: "result",
+			delivery: "immediate",
+		});
+		const executor = new HubRunExecutor(context(runTurn), queue);
+		try {
+			executor.pump("origin");
+			await reached;
+			expect(queue.get(admitted.runId)?.state).toBe("running");
+			const stopped = executor.stop();
+			rejectBusy(
+				Object.assign(new Error("busy"), { code: "session_run_in_progress" }),
+			);
+			await stopped;
+			expect(queue.get(admitted.runId)?.state).toBe("queued");
+			const recovered = queue.recoverOnStartup();
+			expect(recovered.interrupted).toEqual([]);
+			expect(recovered.requeued.map((run) => run.runId)).toEqual([
+				admitted.runId,
+			]);
+			expect(runTurn).toHaveBeenCalledOnce();
+		} finally {
+			await executor.stop();
+			queue.close();
+		}
+	});
+
+	it("waits for restoration before host disposal without starting an unadmitted turn", async () => {
+		let release: () => void = () => {};
+		let entered: () => void = () => {};
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const reached = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		let prepared = false;
+		const runTurn = vi.fn();
+		const queue = new HubRunQueue({ dbPath: ":memory:" });
+		const accepted = queue.admit("origin", {
+			prompt: "result",
+			delivery: "immediate",
+		});
+		const executor = new HubRunExecutor(context(runTurn), queue, async () => {
+			entered();
+			await barrier;
+			prepared = true;
+		});
+		let stopped: Promise<void> | undefined;
+		try {
+			executor.pump("origin");
+			await reached;
+			stopped = executor.stop();
+			const preparations = executor.waitForPreparations();
+			release();
+			await preparations;
+			expect(prepared).toBe(true);
+			await stopped;
+			expect(runTurn).not.toHaveBeenCalled();
+			expect(queue.get(accepted.runId)?.state).toBe("queued");
+			expect(queue.recoverOnStartup().interrupted).toEqual([]);
+		} finally {
+			release();
+			await stopped;
+			await executor.stop();
+			queue.close();
+		}
+	});
 	it("leaves a busy delivery queued when the Hub stops", async () => {
 		vi.useFakeTimers();
 		const runTurn = vi
@@ -91,7 +173,7 @@ describe("scheduled result executor", () => {
 		const executor = new HubRunExecutor(context(runTurn), queue);
 		executor.pump("origin");
 		await vi.advanceTimersByTimeAsync(0);
-		executor.stop();
+		await executor.stop();
 		await vi.advanceTimersByTimeAsync(5000);
 		expect(queue.get(accepted.runId)?.state).toBe("queued");
 		expect(runTurn).toHaveBeenCalledOnce();

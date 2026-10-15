@@ -1826,9 +1826,9 @@ export class SqliteCronStore {
 			const claimUntil = new Date(Date.now() + leaseMs).toISOString();
 			const deliveries = this.db
 				.prepare(
-					`SELECT * FROM cron_result_deliveries WHERE delivered_at IS NULL AND (claim_until_at IS NULL OR claim_until_at <= ?) LIMIT 100;`,
+					`SELECT * FROM cron_result_deliveries WHERE delivered_at IS NULL AND next_attempt_at <= ? AND (claim_until_at IS NULL OR claim_until_at <= ?) ORDER BY next_attempt_at, run_id LIMIT 100;`,
 				)
-				.all(now);
+				.all(now, now);
 			for (const row of deliveries)
 				this.db
 					.prepare(
@@ -1863,9 +1863,14 @@ export class SqliteCronStore {
 	): void {
 		this.db
 			.prepare(
-				"UPDATE cron_result_deliveries SET error = ?, claim_token = NULL, claim_until_at = NULL WHERE run_id = ? AND claim_token = ?;",
+				"UPDATE cron_result_deliveries SET error = ?, next_attempt_at = ?, claim_token = NULL, claim_until_at = NULL WHERE run_id = ? AND claim_token = ?;",
 			)
-			.run(error, runId, claimToken);
+			.run(
+				error,
+				new Date(Date.now() + 5_000).toISOString(),
+				runId,
+				claimToken,
+			);
 	}
 
 	public requeueRun(

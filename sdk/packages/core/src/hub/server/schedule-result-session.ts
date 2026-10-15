@@ -50,6 +50,9 @@ export async function prepareScheduleResultSession(
 						? { systemPrompt: metadata.systemPrompt }
 						: {}),
 				},
+				toolPolicies: {
+					"*": { autoApprove: metadata.autoApproveTools === true },
+				},
 				runtimeOptions: {
 					autoApproveTools: metadata.autoApproveTools === true,
 				},

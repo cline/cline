@@ -154,6 +154,23 @@ describe("schedule result Hub integration", () => {
 			expect(created.schedule.metadata?.__hubScheduleResultSessionId).toBe(
 				"origin",
 			);
+			const runAt = created.schedule.metadata?.__hubScheduleRunAt;
+			for (const delivery of ["new_session", "current_session"] as const) {
+				const updated = (await tasksTool.execute(
+					{
+						kind: "scheduled",
+						operation: "update",
+						schedule_id: created.schedule.scheduleId,
+						delivery,
+					},
+					context,
+				)) as { ok: boolean; schedule: ScheduleRecord };
+				expect(updated.ok).toBe(true);
+				expect(updated.schedule.metadata?.__hubScheduleRunAt).toBe(runAt);
+				expect(updated.schedule.metadata?.__hubScheduleResultSessionId).toBe(
+					delivery === "current_session" ? "origin" : null,
+				);
+			}
 			active = false;
 			await tasksTool.execute(
 				{

@@ -10,7 +10,7 @@ import {
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SqliteCronStore } from "./sqlite-cron-store";
 
 function tempDbPath(): { dir: string; path: string } {
@@ -29,6 +29,7 @@ describe("SqliteCronStore", () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		store.close();
 		rmSync(dir, { recursive: true, force: true });
 	});
@@ -92,6 +93,9 @@ describe("SqliteCronStore", () => {
 			deliveryClaim.claimToken,
 		);
 		expect(store.listPendingResultDeliveries()).toEqual([delivery]);
+		expect(store.claimResultDeliveries()).toEqual([]);
+		vi.useFakeTimers();
+		vi.advanceTimersByTime(5_001);
 		const nextClaim = store.claimResultDeliveries()[0];
 		expect(nextClaim).toBeDefined();
 		if (!nextClaim) throw new Error("Expected delivery claim");
@@ -128,6 +132,48 @@ describe("SqliteCronStore", () => {
 		} finally {
 			other.close();
 		}
+	});
+
+	it("delays a full batch of blocked results so another conversation can receive its result", () => {
+		vi.useFakeTimers();
+		const spec = store.createHubSchedule({
+			name: "Check",
+			cronPattern: "0 9 * * *",
+			prompt: "Check",
+			workspaceRoot: "/ws",
+		});
+		const enqueue = (sessionId: string) => {
+			const run = store.enqueueRun({
+				specId: spec.specId,
+				specRevision: spec.revision,
+				triggerKind: "manual",
+			});
+			store.completeRun(run.runId, {
+				status: "done",
+				delivery: { runId: run.runId, sessionId, prompt: "Result" },
+			});
+			return run.runId;
+		};
+		const blockedIds = Array.from({ length: 100 }, () => enqueue("blocked"));
+		const blocked = store.claimResultDeliveries();
+		expect(blocked).toHaveLength(100);
+		for (const claim of blocked)
+			store.recordResultDeliveryError(
+				claim.runId,
+				"queue full",
+				claim.claimToken,
+			);
+		const healthy = enqueue("healthy");
+		expect(store.claimResultDeliveries().map((row) => row.runId)).toEqual([
+			healthy,
+		]);
+		vi.advanceTimersByTime(5_000);
+		expect(
+			store
+				.claimResultDeliveries()
+				.map((row) => row.runId)
+				.sort(),
+		).toEqual(blockedIds.sort());
 	});
 
 	it("creates a new spec row for a new source path", () => {
