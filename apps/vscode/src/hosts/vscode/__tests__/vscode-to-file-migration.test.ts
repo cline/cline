@@ -117,8 +117,8 @@ describe("vscode-to-file-migration", () => {
 			result.globalStateCount.should.be.greaterThan(0)
 			storageContext.globalState.get("mode")!.should.equal("act")
 			// Both sentinels should be written
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(4)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(4)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("should run only MCP settings migration when v1 storage export sentinels are already present", async () => {
@@ -144,14 +144,14 @@ describe("vscode-to-file-migration", () => {
 			result.mcpServersAdded.should.equal(1)
 			;(storageContext.globalState.get("mode") === undefined).should.be.true()
 			;(storageContext.workspaceState.get("localClineRulesToggles") === undefined).should.be.true()
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(4)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(4)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("should skip everything when both sentinels are current version", async () => {
 			// Pre-set BOTH sentinels
-			storageContext.globalState.update("__vscodeMigrationVersion", 4)
-			storageContext.workspaceState.set("__vscodeMigrationVersion", 4)
+			storageContext.globalState.update("__vscodeMigrationVersion", 3)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 3)
 
 			const mockCtx = createMockVSCodeContext()
 			mockCtx._globalStateStore.set("mode", "plan")
@@ -216,7 +216,7 @@ describe("vscode-to-file-migration", () => {
 			const stored = storageContext.workspaceState.get("localClineRulesToggles") as any
 			stored.should.deepEqual({ "rule-1": true })
 			// Workspace sentinel should now be set
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(4)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("should migrate globals when workspace already migrated", async () => {
@@ -237,7 +237,7 @@ describe("vscode-to-file-migration", () => {
 			// Workspace state should NOT have been migrated
 			result.workspaceStateCount.should.equal(0)
 			// Global sentinel should now be set
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(4)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 	})
 
@@ -676,8 +676,8 @@ describe("vscode-to-file-migration", () => {
 			settings.actions.should.deepEqual(allActionsEnabled)
 			// The dead key stays in place (inert for current builds, preserved for downgrades).
 			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
-			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(4)
-			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(4)
+			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
+			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
 
 		it("does NOT migrate when the file store explicitly disabled yolo after a stale VSCode true", async () => {
@@ -710,8 +710,8 @@ describe("vscode-to-file-migration", () => {
 		})
 
 		it("does NOT run again once the sentinel is current", async () => {
-			storageContext.globalState.update("__vscodeMigrationVersion", 4)
-			storageContext.workspaceState.set("__vscodeMigrationVersion", 4)
+			storageContext.globalState.update("__vscodeMigrationVersion", 3)
+			storageContext.workspaceState.set("__vscodeMigrationVersion", 3)
 			// A yolo value that reappears after the migration ran must stay untouched.
 			storageContext.globalState.update("yoloModeToggled", true)
 
@@ -721,56 +721,6 @@ describe("vscode-to-file-migration", () => {
 			result.migrated.should.be.false()
 			result.yoloModeMigrated.should.be.false()
 			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
-		})
-	})
-
-	describe("OpenAI Compatible base URL /v1 migration (v4)", () => {
-		async function migrateFromV3(openAiBaseUrl: string) {
-			storageContext.globalState.update("__vscodeMigrationVersion", 3)
-			storageContext.workspaceState.set("__vscodeMigrationVersion", 3)
-			storageContext.globalState.update("openAiBaseUrl", openAiBaseUrl)
-			return exportVSCodeStorageToSharedFiles(createMockVSCodeContext() as any, storageContext)
-		}
-
-		for (const [baseUrl, expected] of [
-			["https://example.com", "https://example.com/v1"],
-			["http://localhost:8000/", "http://localhost:8000/v1"],
-		]) {
-			it(`adds /v1 to the host-only base URL ${baseUrl}`, async () => {
-				const result = await migrateFromV3(baseUrl)
-
-				result.migrated.should.be.true()
-				storageContext.globalState.get("openAiBaseUrl")!.should.equal(expected)
-				storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(4)
-			})
-		}
-
-		for (const baseUrl of ["https://example.com/v1", "https://example.com/api/foo", "not a url"]) {
-			it(`leaves the base URL ${baseUrl} unchanged`, async () => {
-				await migrateFromV3(baseUrl)
-
-				storageContext.globalState.get("openAiBaseUrl")!.should.equal(baseUrl)
-			})
-		}
-
-		it("adds /v1 to a host-only base URL exported from VSCode storage on first run", async () => {
-			const mockCtx = createMockVSCodeContext()
-			mockCtx._globalStateStore.set("openAiBaseUrl", "http://localhost:8000")
-
-			await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
-
-			storageContext.globalState.get("openAiBaseUrl")!.should.equal("http://localhost:8000/v1")
-		})
-
-		it("does NOT run again once the sentinel is current", async () => {
-			storageContext.globalState.update("__vscodeMigrationVersion", 4)
-			storageContext.workspaceState.set("__vscodeMigrationVersion", 4)
-			storageContext.globalState.update("openAiBaseUrl", "https://example.com")
-
-			const result = await exportVSCodeStorageToSharedFiles(createMockVSCodeContext() as any, storageContext)
-
-			result.migrated.should.be.false()
-			storageContext.globalState.get("openAiBaseUrl")!.should.equal("https://example.com")
 		})
 	})
 
