@@ -119,25 +119,26 @@ describe("Hub agenda task vertical slice", () => {
 					);
 				}
 				return {
-					text:
-						capturedStart.sessionMetadata.factoryRole === "reviewer"
+					text: ["reviewer", "verifier"].includes(
+						String(capturedStart.sessionMetadata.factoryRole),
+					)
+						? JSON.stringify({
+								verdict: "pass",
+								summary: "Reviewed behavior and maintainability.",
+								findings: [],
+							})
+						: capturedStart.sessionMetadata.factoryRole === "designer"
 							? JSON.stringify({
-									verdict: "pass",
-									summary: "Reviewed behavior and maintainability.",
-									findings: [],
+									instructions: "Acceptance: feature.txt contains after.",
+									checks: [
+										{
+											name: "Feature route",
+											kind: "api",
+											command: `node -e "if(require('fs').readFileSync('feature.txt','utf8').trim()!=='after')process.exit(1)"`,
+										},
+									],
 								})
-							: capturedStart.sessionMetadata.factoryRole === "designer"
-								? JSON.stringify({
-										instructions: "Acceptance: feature.txt contains after.",
-										checks: [
-											{
-												name: "Feature route",
-												kind: "api",
-												command: `node -e "if(require('fs').readFileSync('feature.txt','utf8').trim()!=='after')process.exit(1)"`,
-											},
-										],
-									})
-								: "Implemented",
+							: "Implemented",
 					usage: { inputTokens: 1, outputTokens: 1 },
 					iterations: 1,
 					finishReason: "completed" as const,
@@ -167,6 +168,7 @@ describe("Hub agenda task vertical slice", () => {
 			};
 		});
 		const updateSessionConnection = vi.fn(async () => {});
+		const updateSession = vi.fn(async () => ({ updated: false }));
 		const readSessionMessages = vi.fn(
 			async (): Promise<Array<{ role: "user"; content: string }>> => [],
 		);
@@ -196,7 +198,7 @@ describe("Hub agenda task vertical slice", () => {
 				getAccumulatedUsage: vi.fn(async () => undefined),
 				listSessions: vi.fn(async () => [...sessions.values()]),
 				deleteSession: vi.fn(async () => false),
-				updateSession: vi.fn(async () => ({ updated: false })),
+				updateSession,
 				updateSessionCompactionState: vi.fn(async () => ({ updated: false })),
 				readSessionCompactionState: vi.fn(async () => undefined),
 				readSessionMessages,
@@ -504,6 +506,44 @@ describe("Hub agenda task vertical slice", () => {
 				"-m",
 				"Initial",
 			]);
+			for (const providerId of [
+				"claude-code",
+				"openai-codex-cli",
+				"missing-factory-provider",
+			]) {
+				const unsupported = await transport.handleCommand({
+					version: "v1",
+					command: "task.create",
+					clientId: "desktop",
+					payload: {
+						type: "follow-up",
+						title: `Unsupported ${providerId}`,
+						instructions: "Inspect the feature.",
+						expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+						factory: {
+							agents: {
+								reviewers: [
+									{ modelSelection: { providerId, modelId: "native-model" } },
+								],
+							},
+						},
+					},
+				});
+				expect(unsupported.ok).toBe(true);
+				const taskId = z
+					.object({ taskId: z.string() })
+					.parse(unsupported.payload?.task).taskId;
+				const before = capturedStarts.length;
+				const rejected = await transport.handleCommand({
+					version: "v1",
+					command: "task.factory.design",
+					clientId: "desktop",
+					payload: { taskId },
+				});
+				expect(rejected.ok).toBe(false);
+				expect(rejected.error?.message).toContain(providerId);
+				expect(capturedStarts).toHaveLength(before);
+			}
 			const feature = await transport.handleCommand({
 				version: "v1",
 				command: "task.create",
@@ -511,9 +551,40 @@ describe("Hub agenda task vertical slice", () => {
 				payload: {
 					type: "follow-up",
 					title: "Update feature behavior",
+					maxIterations: 12,
+					systemPrompt: "Stay within the approved scope.",
 					instructions: "Acceptance: feature.txt contains after.",
 					expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 					factory: {
+						agents: {
+							designer: {
+								modelSelection: { providerId: "openai", modelId: "gpt-4.1" },
+								maxIterations: 4,
+								instructions: "Clarify acceptance criteria.",
+							},
+							implementer: {
+								modelSelection: {
+									providerId: "anthropic",
+									modelId: "claude-sonnet-4-5",
+								},
+								maxIterations: 40,
+							},
+							verifier: {
+								modelSelection: {
+									providerId: "openai",
+									modelId: "gpt-4.1-mini",
+								},
+								maxIterations: 3,
+								instructions: "Exercise user behavior.",
+							},
+							reviewers: [
+								{
+									modelSelection: { providerId: "openai", modelId: "gpt-4.1" },
+									maxIterations: 5,
+									instructions: "Inspect correctness.",
+								},
+							],
+						},
 						checks: [
 							{
 								name: "Feature route",
@@ -567,7 +638,67 @@ describe("Hub agenda task vertical slice", () => {
 				expect(task.status).toBe("pending_approval");
 				featureTask.revision = task.revision;
 			});
-			const priorDesignerId = z.string().parse(design.payload?.sessionId);
+			let priorDesignerId = z.string().parse(design.payload?.sessionId);
+			const assigned = sessions.get(priorDesignerId);
+			if (!assigned) throw new Error("Designer session missing");
+			for (const updates of [
+				{ providerId: "openai-codex-cli" },
+				{ modelId: "different-model" },
+			]) {
+				const calls = updateSessionConnection.mock.calls.length;
+				const reply = await transport.handleCommand({
+					version: "v1",
+					command: "session.update_connection",
+					sessionId: priorDesignerId,
+					payload: { updates },
+				});
+				expect(reply.error?.code).toBe("factory_session_assignment_locked");
+				expect(updateSessionConnection).toHaveBeenCalledTimes(calls);
+			}
+			for (const [sessionId, updates] of [
+				[priorDesignerId, { modelId: assigned.model }],
+				["origin-session", { providerId: "openai-codex-cli" }],
+			] as const) {
+				const reply = await transport.handleCommand({
+					version: "v1",
+					command: "session.update_connection",
+					sessionId,
+					payload: { updates },
+				});
+				expect(reply.ok).toBe(true);
+			}
+			await transport.handleCommand({
+				version: "v1",
+				command: "session.update",
+				sessionId: priorDesignerId,
+				payload: {
+					metadata: {
+						factoryTaskId: null,
+						factoryRole: "builder",
+						factoryDesignConfig: "changed",
+						title: "Renamed",
+					},
+				},
+			});
+			expect(updateSession).toHaveBeenLastCalledWith(priorDesignerId, {
+				metadata: { title: "Renamed" },
+			});
+			// Simulate a persisted session changed by an older host.
+			assigned.model = "different-model";
+			const corrected = await reopenDesign();
+			expect(corrected.ok).toBe(true);
+			expect(corrected.payload?.sessionId).not.toBe(priorDesignerId);
+			priorDesignerId = z.string().parse(corrected.payload?.sessionId);
+			expect(sessions.get(priorDesignerId)?.model).toBe("gpt-4.1");
+			await vi.waitFor(async () => {
+				const current = await transport.handleCommand({
+					version: "v1",
+					command: "task.get",
+					clientId: "desktop",
+					payload: { taskId: featureTask.taskId },
+				});
+				expect(current.payload?.task).toMatchObject({ revision: 3 });
+			});
 			const transcript = [
 				{ role: "user" as const, content: "Keep the accepted feature scope." },
 			];
@@ -618,7 +749,7 @@ describe("Hub agenda task vertical slice", () => {
 				const task = z
 					.object({ revision: z.number(), status: z.string() })
 					.parse(current.payload?.task);
-				expect(task.revision).toBe(3);
+				expect(task.revision).toBe(4);
 				expect(task.status).toBe("pending_approval");
 				featureTask.revision = task.revision;
 			});
@@ -658,7 +789,17 @@ describe("Hub agenda task vertical slice", () => {
 						expect.objectContaining({
 							factory: expect.objectContaining({
 								phase: "ready",
-								checks: [expect.objectContaining({ status: "passed" })],
+								candidate: expect.objectContaining({
+									checks: [expect.objectContaining({ status: "passed" })],
+									verification: expect.objectContaining({
+										review: expect.objectContaining({ verdict: "pass" }),
+									}),
+									reviews: [
+										expect.objectContaining({
+											review: expect.objectContaining({ verdict: "pass" }),
+										}),
+									],
+								}),
 							}),
 						}),
 					]);
@@ -670,7 +811,14 @@ describe("Hub agenda task vertical slice", () => {
 			);
 			expect(
 				featureStarts.map((input) => input.sessionMetadata?.factoryRole),
-			).toEqual(["designer", "designer", "builder", "reviewer"]);
+			).toEqual([
+				"designer",
+				"designer",
+				"designer",
+				"builder",
+				"verifier",
+				"reviewer",
+			]);
 			for (const input of featureStarts) {
 				expect(input.sessionMetadata).toMatchObject({
 					agendaTaskId: featureTask.taskId,
@@ -681,8 +829,12 @@ describe("Hub agenda task vertical slice", () => {
 					enableAgentTeams: false,
 				});
 			}
-			const [designer, , builder, reviewer] = featureStarts;
+			const [designer, , , builder, verifier, reviewer] = featureStarts;
 			expect(designer?.config).toMatchObject({
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				maxIterations: 4,
+				systemPrompt: expect.stringContaining("Clarify acceptance criteria."),
 				mode: "plan",
 				workspaceRoot: canonicalChatWorkspace,
 			});
@@ -694,6 +846,33 @@ describe("Hub agenda task vertical slice", () => {
 			expect(builder?.toolPolicies).toMatchObject({
 				"*": { enabled: true, autoApprove: true },
 			});
+			expect(builder?.config).toMatchObject({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				maxIterations: 12,
+			});
+			expect(verifier?.config).toMatchObject({
+				providerId: "openai",
+				modelId: "gpt-4.1-mini",
+				maxIterations: 3,
+				cwd: builder?.config.cwd,
+				systemPrompt: expect.stringContaining("Exercise user behavior."),
+			});
+			expect(reviewer?.config).toMatchObject({
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				maxIterations: 5,
+				systemPrompt: expect.stringContaining("Inspect correctness."),
+			});
+			expect(verifier?.toolPolicies).toMatchObject({
+				"*": { enabled: false },
+				read_files: { enabled: true },
+				search_codebase: { enabled: true },
+				run_commands: { enabled: true },
+				ask_question: { enabled: true },
+				submit_and_exit: { enabled: true },
+			});
+
 			expect(reviewer?.config.cwd).toBe(builder?.config.cwd);
 			expect(reviewer?.toolPolicies).toMatchObject({
 				"*": { enabled: false },

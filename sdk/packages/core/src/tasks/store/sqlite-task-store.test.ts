@@ -1,7 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { AgendaTaskActor, AgendaTaskCreateInput } from "@cline/shared";
+import type {
+	AgendaTaskActor,
+	AgendaTaskCreateInput,
+	FactoryDesignReview,
+} from "@cline/shared";
 import { factoryTaskConfigSchema } from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -147,6 +151,9 @@ describe("SqliteAgendaTaskStore", () => {
 		const dbPath = join(directory, "tasks.db");
 		const oldDb = loadSqliteDb(dbPath);
 		oldDb.exec("ALTER TABLE agenda_tasks DROP COLUMN factory_json");
+		oldDb.exec(
+			"ALTER TABLE agenda_tasks DROP COLUMN factory_design_review_json",
+		);
 		oldDb.exec("ALTER TABLE agenda_task_runs DROP COLUMN factory_json");
 		oldDb.close?.();
 		store = new SqliteAgendaTaskStore({ dbPath });
@@ -163,23 +170,40 @@ describe("SqliteAgendaTaskStore", () => {
 			taskId: task.taskId,
 			taskRevision: task.revision,
 		});
-		store.updateRun(run.runId, {
-			factory: {
-				phase: "verifying",
-				repairRound: 1,
-				workspace: {
-					path: "/workspace/feature",
-					branch: "feat/feature",
-					baseBranch: "main",
-					baseCommit: "base",
-				},
-				sessions: [{ sessionId: "builder", role: "builder" }],
-				candidateCommit: "candidate",
-				checks: [],
+		const legacyFactory = {
+			phase: "verifying",
+			repairRound: 1,
+			workspace: {
+				path: "/workspace/feature",
+				branch: "feat/feature",
+				baseBranch: "main",
+				baseCommit: "base",
 			},
-		});
+			sessions: [
+				{ sessionId: "builder", role: "builder" },
+				{ sessionId: "reviewer", role: "reviewer" },
+			],
+			candidateCommit: "candidate",
+			checks: [
+				{
+					name: "API",
+					kind: "api",
+					command: "bun test",
+					status: "passed",
+					exitCode: 0,
+					output: "passed",
+					artifacts: [],
+				},
+			],
+			review: { verdict: "pass", summary: "Reviewed", findings: [] },
+		};
 		store.updateTaskState(task.taskId, { originSessionId: "design" });
 		store.close();
+		const legacyDb = loadSqliteDb(dbPath);
+		legacyDb
+			.prepare("UPDATE agenda_task_runs SET factory_json = ? WHERE run_id = ?")
+			.run(JSON.stringify(legacyFactory), run.runId);
+		legacyDb.close?.();
 		store = new SqliteAgendaTaskStore({ dbPath });
 		expect(store.getTask(task.taskId)).toMatchObject({
 			factory,
@@ -189,8 +213,26 @@ describe("SqliteAgendaTaskStore", () => {
 		expect(store.getRun(run.runId)?.factory).toMatchObject({
 			phase: "verifying",
 			repairRound: 1,
-			candidateCommit: "candidate",
+			candidate: {
+				commit: "candidate",
+				checks: legacyFactory.checks,
+				reviews: [
+					{
+						reviewerIndex: 0,
+						sessionId: "reviewer",
+						review: legacyFactory.review,
+					},
+				],
+			},
 		});
+		expect(store.getRun(run.runId)?.factory).not.toHaveProperty(
+			"candidateCommit",
+		);
+		const restoredFactory = store.getRun(run.runId)?.factory;
+		store.updateRun(run.runId, { factory: restoredFactory });
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath });
+		expect(store.getRun(run.runId)?.factory).toEqual(restoredFactory);
 		const edited = store.updateTask({
 			taskId: task.taskId,
 			expectedRevision: 1,
@@ -203,6 +245,65 @@ describe("SqliteAgendaTaskStore", () => {
 			factory: { maxRepairRounds: 0 },
 		});
 		expect(edited?.approvedRevision).toBeUndefined();
+	});
+
+	it("persists design reviews for their revision and rejects stale review completion after an edit", () => {
+		const task = store.createTask({
+			...createInput("design-review"),
+			factory: factoryTaskConfigSchema.parse({}),
+		});
+		const review: FactoryDesignReview = {
+			revision: task.revision,
+			reviews: [
+				{
+					reviewerIndex: 0,
+					sessionId: "plan-review",
+					review: {
+						verdict: "pass",
+						summary: "The plan covers the requirement.",
+						findings: [],
+						coverage: {
+							static: ["Plan"],
+							exercised: [],
+							unverified: ["Implementation"],
+						},
+					},
+				},
+			],
+		};
+		store.updateTaskState(
+			task.taskId,
+			{ factoryDesignReview: review },
+			task.revision,
+		);
+		store.updateTaskState(
+			task.taskId,
+			{ originSessionId: "designer" },
+			task.revision,
+		);
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath: join(directory, "tasks.db") });
+		expect(store.getTask(task.taskId)?.factoryDesignReview).toEqual(review);
+		const edited = store.updateTask({
+			taskId: task.taskId,
+			expectedRevision: task.revision,
+			instructions: "Revise the requirement.",
+			updatedBy: USER,
+		});
+		expect(edited?.factoryDesignReview).toBeUndefined();
+		expect(() =>
+			store.updateTaskState(
+				task.taskId,
+				{ factoryDesignReview: review },
+				task.revision,
+			),
+		).toThrow(AgendaTaskRevisionConflictError);
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath: join(directory, "tasks.db") });
+		expect(store.getTask(task.taskId)?.factoryDesignReview).toBeUndefined();
+		expect(store.getTask(task.taskId)?.instructions).toBe(
+			"Revise the requirement.",
+		);
 	});
 
 	it("auto-approves user-authored tasks but keeps agent suggestions pending", () => {

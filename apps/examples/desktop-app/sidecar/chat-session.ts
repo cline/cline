@@ -1638,9 +1638,17 @@ async function handleSend(
 				"This transcript is managed by the feature workflow. Use the feature controls to change or cancel its work.",
 			);
 		}
-		if (request.config && hasProviderChanged(session.config, request.config)) {
+		const requestedModel = request.config
+			? readAliasedString(request.config, "model", "modelId")
+			: undefined;
+		if (
+			(request.config && hasProviderChanged(session.config, request.config)) ||
+			(requestedModel !== undefined &&
+				requestedModel !==
+					readAliasedString(session.config, "model", "modelId"))
+		) {
 			throw new Error(
-				"This design interview uses the feature’s original provider. Switch back to that provider to continue.",
+				"This design interview uses the feature's assigned model. Edit the feature participant settings to change it.",
 			);
 		}
 		request = {

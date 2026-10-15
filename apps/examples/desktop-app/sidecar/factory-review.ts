@@ -16,7 +16,7 @@ const diffReplySchema = z.object({
 						path: z.string().min(1),
 						baseCommit: commitSchema,
 					}),
-					candidateCommit: commitSchema.optional(),
+					candidate: z.object({ commit: commitSchema }).optional(),
 				})
 				.optional(),
 		}),
@@ -30,12 +30,13 @@ export async function readFactoryDiff(
 	const run = diffReplySchema
 		.parse(reply)
 		.runs.find((item) => item.runId === runId);
-	if (!run?.factory?.candidateCommit) {
+	if (!run?.factory?.candidate) {
 		throw new Error(
 			"This feature run has no recorded candidate commit to review.",
 		);
 	}
-	const { workspace, candidateCommit } = run.factory;
+	const { workspace, candidate } = run.factory;
+	const candidateCommit = candidate.commit;
 	const git = async (...args: string[]) =>
 		(
 			await execFileAsync("git", args, {

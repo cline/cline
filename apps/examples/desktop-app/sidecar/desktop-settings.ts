@@ -1,11 +1,17 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { z } from "zod";
+import {
+	type FactoryPreset,
+	factoryPresetSchema,
+} from "../webview/lib/factory-presets";
 
 /** Desktop-only preferences kept separate from strict shared global settings. */
 export type DesktopSettings = {
 	/** Opt-in gate for cloud sessions while the feature is in preview. */
 	cloudSessionsEnabled: boolean;
+	factoryPresets?: FactoryPreset[];
 };
 
 const DEFAULT_SETTINGS: DesktopSettings = {
@@ -24,9 +30,26 @@ export function readDesktopSettings(): DesktopSettings {
 		return { ...DEFAULT_SETTINGS };
 	}
 	try {
-		const parsed = JSON.parse(raw) as Record<string, unknown>;
+		const parsed = z
+			.object({
+				cloudSessionsEnabled: z.unknown().optional(),
+				factoryPresets: z
+					.array(z.unknown())
+					.transform((items) =>
+						items.flatMap((item) => {
+							const result = factoryPresetSchema.safeParse(item);
+							return result.success ? [result.data] : [];
+						}),
+					)
+					.optional()
+					.catch(undefined),
+			})
+			.parse(JSON.parse(raw));
 		return {
 			cloudSessionsEnabled: parsed.cloudSessionsEnabled === true,
+			...(parsed.factoryPresets
+				? { factoryPresets: parsed.factoryPresets }
+				: {}),
 		};
 	} catch {
 		return { ...DEFAULT_SETTINGS };

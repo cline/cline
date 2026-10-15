@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { createGateway, normalizeProviderId } from "@cline/llms";
 import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
@@ -14,6 +15,7 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	captureSdkError,
 	createSessionId,
+	DEFAULT_FACTORY_AGENTS,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
@@ -45,6 +47,7 @@ import {
 	createTasksPromptExtension,
 	createTasksTool,
 } from "../../tasks";
+import { resolveFactoryAgent } from "../../tasks/factory-agents";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import type { HubConnectionAuthority } from "./command-transport";
@@ -119,6 +122,26 @@ import {
 	HubAgendaTaskCommandService,
 	isAgendaTaskCommand,
 } from "./task-command-service";
+
+const factoryProviders = createGateway().listProviders();
+
+function factoryDesignConfig(task: AgendaTaskRecord): string {
+	return JSON.stringify({
+		instructions: task.systemPrompt,
+		maxIterations: task.maxIterations,
+	});
+}
+
+function assertFactoryProvider(task: AgendaTaskRecord): void {
+	const providerId = normalizeProviderId(
+		task.modelSelection?.providerId?.trim() || "cline",
+	);
+	const provider = factoryProviders.find((item) => item.id === providerId);
+	if (!provider || provider.capabilities?.includes("provider-tools"))
+		throw new Error(
+			`Factory cannot enforce tool permissions and session limits for ${providerId} yet. Select a provider that uses Cline's agent tools.`,
+		);
+}
 
 /**
  * The agent-facing `kind: "todo"` half of the `tasks` tool and the Agenda
@@ -337,6 +360,25 @@ export class HubServerTransport implements NativeHubTransport {
 			watchFiles:
 				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
 			runtime: {
+				validateFactoryAgents: (task) => {
+					const agents = task.factory?.agents ?? DEFAULT_FACTORY_AGENTS;
+					for (const agent of [
+						agents.designer,
+						...agents.planReviewers,
+						agents.implementer,
+						...(agents.verifier ? [agents.verifier] : []),
+						...agents.reviewers,
+					])
+						assertFactoryProvider(resolveFactoryAgent(task, agent));
+				},
+				startDesignReviewSession: (task, clientId) =>
+					this.startAgendaTaskSession(
+						{ ...task, mode: "plan" },
+						undefined,
+						clientId,
+						false,
+						"reviewer",
+					),
 				isInteractiveClientAvailable: () =>
 					[...this.clients.values()].some((client) =>
 						client.capabilities.some(
@@ -352,6 +394,12 @@ export class HubServerTransport implements NativeHubTransport {
 						if (
 							previous?.metadata?.factoryTaskId === task.taskId &&
 							previous.metadata.factoryRole === "designer" &&
+							previous.provider ===
+								(task.modelSelection?.providerId || "cline") &&
+							previous.model ===
+								(task.modelSelection?.modelId || CLINE_DEFAULT_MODEL_ID) &&
+							previous.metadata.factoryDesignConfig ===
+								factoryDesignConfig(task) &&
 							this.sessionHost.updateSessionConnection
 						) {
 							try {
@@ -370,8 +418,6 @@ export class HubServerTransport implements NativeHubTransport {
 						{
 							...task,
 							mode: "plan",
-							systemPrompt:
-								"Read the repository and reference documents, then refine the feature through a concise adversarial design interview. Use ask_question for unresolved decisions and recommend defaults. Agree on scope, exclusions, acceptance criteria, affected clients and concrete verification commands. Reuse existing code and challenge unnecessary complexity. Do not implement or publish changes. Return the structured brief requested by the caller for the user's approval.",
 						},
 						undefined,
 						requestedByClientId,
@@ -521,8 +567,9 @@ export class HubServerTransport implements NativeHubTransport {
 		run: AgendaTaskRunRecord | undefined,
 		requestedByClientId?: string,
 		unattended = false,
-		factoryRole?: "builder" | "reviewer" | "designer",
+		factoryRole?: "builder" | "reviewer" | "designer" | "verifier",
 	): Promise<{ sessionId: string }> {
+		if (task.factory) assertFactoryProvider(task);
 		const originSession = task.originSessionId
 			? await this.sessionHost.getSession(task.originSessionId)
 			: undefined;
@@ -542,6 +589,8 @@ export class HubServerTransport implements NativeHubTransport {
 				agendaTaskRunId: run?.runId,
 				factoryTaskId: task.factory ? task.taskId : undefined,
 				factoryRole,
+				factoryDesignConfig:
+					factoryRole === "designer" ? factoryDesignConfig(task) : undefined,
 				agendaTaskAssignee: task.assignee,
 				interactive: !unattended,
 				source: SessionSource.CORE,
@@ -589,14 +638,24 @@ export class HubServerTransport implements NativeHubTransport {
 					toolPolicies: {
 						"*": {
 							autoApprove: autoApproveTools,
-							enabled: factoryRole !== "reviewer" && factoryRole !== "designer",
+							enabled:
+								factoryRole !== "reviewer" &&
+								factoryRole !== "designer" &&
+								factoryRole !== "verifier",
 						},
-						...(factoryRole === "reviewer" || factoryRole === "designer"
+						...(factoryRole === "reviewer" ||
+						factoryRole === "designer" ||
+						factoryRole === "verifier"
 							? {
 									read_files: { enabled: true, autoApprove: true },
 									search_codebase: { enabled: true, autoApprove: true },
 									ask_question: { enabled: true },
 									submit_and_exit: { enabled: true, autoApprove: true },
+								}
+							: {}),
+						...(factoryRole === "verifier"
+							? {
+									run_commands: { enabled: true, autoApprove: true },
 								}
 							: {}),
 					},

@@ -386,6 +386,40 @@ async function collectArtifact(input: {
 	return { label: input.declaredPath, path: destination, mimeType: mime };
 }
 
+export async function captureFactoryArtifactVersions(
+	cwd: string,
+	declaredPaths: string[],
+): Promise<Array<string | undefined>> {
+	return Promise.all(
+		declaredPaths.map((file) => artifactVersion(path.resolve(cwd, file))),
+	);
+}
+
+export async function collectFactoryArtifacts(input: {
+	cwd: string;
+	declaredPaths: string[];
+	previousVersions: Array<string | undefined>;
+	storageDir: string;
+	runId: string;
+}): Promise<FactoryArtifact[]> {
+	const artifacts: FactoryArtifact[] = [];
+	for (const [index, declaredPath] of input.declaredPaths.entries()) {
+		artifacts.push(
+			await collectArtifact({
+				declaredPath,
+				cwd: input.cwd,
+				previousVersion: input.previousVersions[index],
+				artifactDir: path.join(
+					input.storageDir,
+					"factory-artifacts",
+					key(input.runId),
+				),
+			}),
+		);
+	}
+	return artifacts;
+}
+
 export async function verifyFactoryChecks(input: {
 	checks: FactoryCheck[];
 	workspace: FactoryWorkspace;
@@ -413,10 +447,9 @@ export async function verifyFactoryChecks(input: {
 				"UI checks require declared screenshot or recording paths.";
 			continue;
 		}
-		const previousVersions = await Promise.all(
-			check.artifacts.map((file) =>
-				artifactVersion(path.resolve(input.workspace.path, file)),
-			),
+		const previousVersions = await captureFactoryArtifactVersions(
+			input.workspace.path,
+			check.artifacts,
 		);
 		const run = await runFactoryCommand({
 			cwd: input.workspace.path,
@@ -437,19 +470,13 @@ export async function verifyFactoryChecks(input: {
 		await assertFactoryCandidate(input);
 		if (result.status === "passed") {
 			try {
-				for (const [index, declaredPath] of check.artifacts.entries())
-					result.artifacts.push(
-						await collectArtifact({
-							declaredPath,
-							cwd: input.workspace.path,
-							artifactDir: path.join(
-								input.storageDir,
-								"factory-artifacts",
-								key(input.runId),
-							),
-							previousVersion: previousVersions[index],
-						}),
-					);
+				result.artifacts = await collectFactoryArtifacts({
+					cwd: input.workspace.path,
+					declaredPaths: check.artifacts,
+					previousVersions,
+					storageDir: input.storageDir,
+					runId: input.runId,
+				});
 			} catch (error) {
 				result.status = "blocked";
 				result.output += `\n${error instanceof Error ? error.message : String(error)}`;

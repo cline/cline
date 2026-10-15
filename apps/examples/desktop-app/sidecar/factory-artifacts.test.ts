@@ -14,7 +14,11 @@ function reply(path = artifactPath) {
 		runs: [
 			{
 				runId: "run-1",
-				factory: { checks: [{ artifacts: [{ path, mimeType: "image/png" }] }] },
+				factory: {
+					candidate: {
+						checks: [{ artifacts: [{ path, mimeType: "image/png" }] }],
+					},
+				},
 			},
 		],
 	};
@@ -33,6 +37,26 @@ afterEach(async () => {
 describe("Factory evidence preview", () => {
 	it("returns recorded media for its owning run", async () => {
 		expect(await readFactoryArtifact(reply(), "run-1", artifactPath)).toEqual({
+			dataUrl: "data:image/png;base64,iVBORw==",
+		});
+	});
+	it("previews host-collected verifier evidence", async () => {
+		const evidence = {
+			runs: [
+				{
+					runId: "run-1",
+					factory: {
+						candidate: {
+							checks: [],
+							verification: {
+								artifacts: [{ path: artifactPath, mimeType: "image/png" }],
+							},
+						},
+					},
+				},
+			],
+		};
+		expect(await readFactoryArtifact(evidence, "run-1", artifactPath)).toEqual({
 			dataUrl: "data:image/png;base64,iVBORw==",
 		});
 	});

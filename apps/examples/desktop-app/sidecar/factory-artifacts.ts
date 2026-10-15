@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { resolveTasksDbPath } from "@cline/shared/storage";
 import { z } from "zod";
 
+const artifactSchema = z.object({ path: z.string(), mimeType: z.string() });
 const artifactReplySchema = z.object({
 	runs: z
 		.array(
@@ -10,13 +11,16 @@ const artifactReplySchema = z.object({
 				runId: z.string(),
 				factory: z
 					.object({
-						checks: z.array(
-							z.object({
-								artifacts: z.array(
-									z.object({ path: z.string(), mimeType: z.string() }),
+						candidate: z
+							.object({
+								checks: z.array(
+									z.object({ artifacts: z.array(artifactSchema) }),
 								),
-							}),
-						),
+								verification: z
+									.object({ artifacts: z.array(artifactSchema) })
+									.optional(),
+							})
+							.optional(),
 					})
 					.optional(),
 			}),
@@ -40,9 +44,11 @@ export async function readFactoryArtifact(
 	const run = artifactReplySchema
 		.parse(reply)
 		.runs.find((item) => item.runId === runId);
-	const artifact = run?.factory?.checks
-		.flatMap((check) => check.artifacts)
-		.find((item) => item.path === path);
+	const candidate = run?.factory?.candidate;
+	const artifact = [
+		...(candidate?.checks.flatMap((check) => check.artifacts) ?? []),
+		...(candidate?.verification?.artifacts ?? []),
+	].find((item) => item.path === path);
 	if (!artifact || !run?.factory || !MEDIA_TYPES.has(artifact.mimeType))
 		throw new Error(
 			"This media file is not recorded evidence for the feature run.",

@@ -1,10 +1,14 @@
 import { factoryRunStateSchema, factoryTaskConfigSchema } from "@cline/shared";
 import { z } from "zod";
+import { factoryPresetSchema } from "../webview/lib/factory-presets";
+import { readDesktopSettings, writeDesktopSettings } from "./desktop-settings";
 import { readFactoryIssue } from "./factory-issue-import";
 import { readFactoryDiff } from "./factory-review";
 import type { JsonRecord, SidecarContext } from "./types";
 
 type FactoryCommand =
+	| "factory_list_presets"
+	| "factory_save_preset"
 	| "factory_import_issue"
 	| "factory_attention"
 	| "factory_get_diff";
@@ -50,6 +54,19 @@ export async function handleFactoryCommand(
 	args: JsonRecord | undefined,
 	readTask: ReadTask,
 ): Promise<unknown> {
+	if (command === "factory_list_presets")
+		return readDesktopSettings().factoryPresets ?? [];
+	if (command === "factory_save_preset") {
+		const preset = factoryPresetSchema.parse(args);
+		const settings = readDesktopSettings();
+		const presets = settings.factoryPresets ?? [];
+		const next = [
+			...presets.filter((item) => item.name !== preset.name),
+			preset,
+		];
+		writeDesktopSettings({ ...settings, factoryPresets: next });
+		return next;
+	}
 	const list = async () =>
 		tasksReplySchema.parse(
 			await readTask("task.list", {

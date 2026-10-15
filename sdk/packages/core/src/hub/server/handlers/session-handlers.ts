@@ -216,13 +216,19 @@ function stripServerOwnedSessionMetadata(
 	if (
 		!metadata ||
 		(!("autoApproveTools" in metadata) &&
-			!(CAPABILITY_OWNER_METADATA_KEY in metadata))
+			!(CAPABILITY_OWNER_METADATA_KEY in metadata) &&
+			!("factoryTaskId" in metadata) &&
+			!("factoryRole" in metadata) &&
+			!("factoryDesignConfig" in metadata))
 	) {
 		return metadata;
 	}
 	const sanitized = { ...metadata };
 	delete sanitized[CAPABILITY_OWNER_METADATA_KEY];
 	delete sanitized.autoApproveTools;
+	delete sanitized.factoryTaskId;
+	delete sanitized.factoryRole;
+	delete sanitized.factoryDesignConfig;
 	return sanitized;
 }
 
@@ -1111,6 +1117,19 @@ export async function handleSessionUpdateConnection(
 	}
 	const payload = asPlainRecord(envelope.payload);
 	const updates = readSessionConnectionUpdate(payload?.updates);
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (
+		typeof session?.metadata?.factoryTaskId === "string" &&
+		((updates.providerId !== undefined &&
+			updates.providerId !== session.provider) ||
+			(updates.modelId !== undefined && updates.modelId !== session.model))
+	) {
+		return errorReply(
+			envelope,
+			"factory_session_assignment_locked",
+			"This session's model is managed by the feature workflow. Edit the feature participant settings instead.",
+		);
+	}
 	await updateSessionConnection.call(ctx.sessionHost, sessionId, updates);
 	return okReply(envelope, { sessionId, updated: true });
 }

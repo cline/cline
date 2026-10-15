@@ -100,4 +100,14 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 			db.exec(`ALTER TABLE ${table} ADD COLUMN factory_json TEXT`);
 		}
 	}
+	if (
+		!db
+			.prepare("PRAGMA table_info(agenda_tasks)")
+			.all()
+			.some((column) => column.name === "factory_design_review_json")
+	) {
+		db.exec(
+			"ALTER TABLE agenda_tasks ADD COLUMN factory_design_review_json TEXT",
+		);
+	}
 }

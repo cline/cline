@@ -1651,7 +1651,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 /** Sentinel provider-picker row that opens Settings → Providers instead of selecting. */
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
-const ModelSelector = memo(function ModelSelector({
+export const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
 	autoCorrectModel = true,
 	includeCloudModels = false,
@@ -1661,11 +1661,16 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onSelectionChange,
 	onModelReadyChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
 }: {
+	onSelectionChange?: (selection: {
+		providerId: string;
+		modelId: string;
+	}) => void;
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
 	includeCloudModels?: boolean;
@@ -2072,6 +2077,7 @@ const ModelSelector = memo(function ModelSelector({
 			return;
 		}
 		if (
+			autoCorrectModel &&
 			!includeCloudModels &&
 			resolvedProvider &&
 			resolvedProvider !== normalizedProvider
@@ -2127,7 +2133,7 @@ const ModelSelector = memo(function ModelSelector({
 				onOpenModelSettings?.();
 				return;
 			}
-			if (!includeCloudModels) onProviderChange(value);
+			if (!includeCloudModels && !onSelectionChange) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
 			// Preserve live-only remembered models missing from the bundled
@@ -2142,8 +2148,18 @@ const ModelSelector = memo(function ModelSelector({
 					? rememberedModel
 					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
 						providerModelIds[0]);
+			if (onSelectionChange && !nextModel) {
+				toast({
+					title: "No models available",
+					description:
+						"Configure this provider in Settings, then choose a model. Your workflow assignment has not changed.",
+				});
+				return;
+			}
 			rememberSelection(value, nextModel);
-			if (nextModel && nextModel !== model) {
+			if (nextModel && onSelectionChange) {
+				onSelectionChange({ providerId: value, modelId: nextModel });
+			} else if (nextModel && nextModel !== model) {
 				onModelChange(nextModel);
 			}
 		},
@@ -2153,6 +2169,7 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onOpenModelSettings,
+			onSelectionChange,
 			onProviderChange,
 			pickerDataForProvider,
 			rememberSelection,
@@ -2162,9 +2179,11 @@ const ModelSelector = memo(function ModelSelector({
 	const handleModelSelect = useCallback(
 		(value: string) => {
 			rememberSelection(resolvedProvider, value);
-			onModelChange(value);
+			if (onSelectionChange)
+				onSelectionChange({ providerId: resolvedProvider, modelId: value });
+			else onModelChange(value);
 		},
-		[onModelChange, rememberSelection, resolvedProvider],
+		[onModelChange, onSelectionChange, rememberSelection, resolvedProvider],
 	);
 	// The picker only lists providers with saved settings, so it is also the
 	// natural place to reach the rest of the catalog.

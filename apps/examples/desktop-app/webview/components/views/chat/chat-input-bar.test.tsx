@@ -17,6 +17,7 @@ import {
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	ModelSelector,
 } from "./chat-input-bar";
 
 const {
@@ -376,6 +377,81 @@ describe("ChatInputBar draft navigation", () => {
 });
 
 describe("ChatInputBar", () => {
+	it("explains an empty provider catalog without changing a workflow assignment", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline", "empty-provider"],
+			providerModels: { cline: ["test-model"], "empty-provider": [] },
+			providerReasoningModels: { cline: [] },
+		});
+		const onSelectionChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<ModelSelector
+					provider="cline"
+					model="test-model"
+					isBusy={false}
+					autoCorrectModel={false}
+					persistSelection={false}
+					onProviderChange={vi.fn()}
+					onModelChange={vi.fn()}
+					onSelectionChange={onSelectionChange}
+					onModelReadyChange={vi.fn()}
+					onModelSupportsReasoningChange={vi.fn()}
+					onModelSupportsImagesChange={vi.fn()}
+				/>,
+			),
+		);
+		const provider = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		if (!provider) throw new Error("Missing provider picker");
+		await act(async () => provider.click());
+		const option = Array.from(
+			document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+		).find((item) => item.textContent?.includes("empty-provider"));
+		if (!option) throw new Error("Missing empty provider option");
+		await act(async () => option.click());
+		expect(onSelectionChange).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({ title: "No models available" }),
+		);
+	});
+
+	it("keeps a workflow model selection and global preference unchanged when its catalog is unavailable", async () => {
+		const saved = JSON.stringify({
+			lastProvider: "cline",
+			lastModelByProvider: { cline: "test-model" },
+		});
+		window.localStorage.setItem(MODEL_SELECTION_STORAGE_KEY, saved);
+		const onProviderChange = vi.fn();
+		const onModelChange = vi.fn();
+		const onSelectionChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<ModelSelector
+					provider="missing-provider"
+					model="saved-model"
+					isBusy={false}
+					autoCorrectModel={false}
+					persistSelection={false}
+					onProviderChange={onProviderChange}
+					onModelChange={onModelChange}
+					onSelectionChange={onSelectionChange}
+					onModelReadyChange={vi.fn()}
+					onModelSupportsReasoningChange={vi.fn()}
+					onModelSupportsImagesChange={vi.fn()}
+				/>,
+			),
+		);
+		expect(onProviderChange).not.toHaveBeenCalled();
+		expect(onModelChange).not.toHaveBeenCalled();
+		expect(onSelectionChange).not.toHaveBeenCalled();
+		expect(window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY)).toBe(
+			saved,
+		);
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });

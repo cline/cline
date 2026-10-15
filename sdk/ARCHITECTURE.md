@@ -787,26 +787,44 @@ attached documents and Q&A. Its structured brief and checks become a new task
 revision requiring approval. Concurrent edits take precedence over a stale
 design result. After a Hub restart, reopening design preserves the transcript
 in a new session with the canonical read-only tool policy.
+Workflow participant objects select the designer, plan reviewers, implementer,
+optional verification agent, and final reviewers through the existing gateway.
+Task limits cap participant overrides. Desktop presets live in local application
+settings and copy participants, repair limits and approval policy into a task; editing a preset cannot change an
+approved revision. Plan review results are output-only records tied to the exact
+task revision. Edits invalidate them, and configured plan reviewers must pass
+before approval. Failed plan reviews return consolidated findings to the designer
+within the configured repair bound.
 `task.factory.start` explicitly queues approved revisions for sequential local
 execution. Factory tasks do not enter the Agenda automation pump. Queued starts
 are kept in memory; restarting the Hub requires starting the queue again.
 
 Each task owns a Git worktree. The workflow freezes a candidate commit, executes
-the approved checks, and starts a fresh reviewer with read-only tools. Failed
+the approved checks, and starts fresh reviewers with read-only tools. Failed
 checks or review findings return to the builder together, up to the configured
 repair limit (two by default). Completion requires passing checks, a passing
-review, and an unchanged candidate. UI checks also require fresh image or video
-artifacts. Run records retain stage, sessions, check output, and evidence paths
-for the Desktop review panel.
+review from every configured reviewer, and an unchanged candidate. UI checks
+also require fresh image or video artifacts. An optional verification agent uses
+the existing command harness to exercise the application and generate declared
+evidence; source changes invalidate its result. Candidate records group the commit, checks, verification and individual
+reviews. Each repair discards the prior candidate evidence. Run records retain
+stage, sessions, check output, and evidence paths for the Desktop review panel.
 
 Brief approval is required by default and edits revoke it. Approved builder
 runs auto-approve tools; reviewer and designer sessions enable only read-only
-tools and questions. A worktree isolates changes, not process permissions. Cloud execution is rejected explicitly
-until a cloud executor is available. Draft PR publication is a separate opt-in
-and defaults off; otherwise the result stays on the task-owned local branch.
+tools and questions. The verifier uses the command harness; shell access is not
+sandboxed. Instructions prohibit editing or publication, and candidate checks
+reject tracked source changes after verification. Native CLI providers with
+provider-owned tools are rejected because their tool permissions, nested turn limits and interactive questions are
+not enforced by the Factory harness. Iteration limits describe host iterations,
+not token or monetary caps. A worktree isolates changes, not process permissions.
+Cloud execution is rejected explicitly until a cloud executor is available.
+Draft PR publication is a separate opt-in and defaults off; otherwise the result
+stays on the task-owned local branch.
 
 Opt-in PR follow-up uses the manager's maintenance timer and the same read-only
-reviewer, builder, checks, and repair budget. Run records persist handled feedback
+reviewer, builder, checks, and repair budget. It uses the configured implementer
+and reviewers; triage uses the first reviewer. Run records persist handled feedback
 and pending repair/publication so publication retries do not repeat a verified
 repair or reply. Paused repairs resume within the same repair round; failed
 attempts consume the remaining budget. Publication uses append-only pushes. Pausing stops active follow-up;

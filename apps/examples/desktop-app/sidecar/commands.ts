@@ -3558,6 +3558,8 @@ export async function handleCommand(
 	}
 
 	if (
+		command === "factory_list_presets" ||
+		command === "factory_save_preset" ||
 		command === "factory_import_issue" ||
 		command === "factory_attention" ||
 		command === "factory_get_diff"

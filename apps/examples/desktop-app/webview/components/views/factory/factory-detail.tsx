@@ -4,6 +4,7 @@ import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
 	FactoryCheck,
+	FactoryReview,
 	FactoryTaskConfig,
 } from "@cline/shared";
 import { AgentAskQuestion } from "@cline/ui";
@@ -25,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 import { DiffView } from "../chat/diff-view";
 import { PullRequestBar } from "../chat/pull-request-bar";
+
+import { FactoryWorkflowEditor } from "./factory-workflow-editor";
 
 export const DEFAULT_FACTORY: FactoryTaskConfig = {
 	execution: "local",
@@ -122,7 +125,7 @@ export function FeatureDetail({
 		runs[0];
 	const state = run?.factory;
 	const fileDiffs =
-		diff?.runId === run?.runId && diff?.commit === state?.candidateCommit
+		diff?.runId === run?.runId && diff?.commit === state?.candidate?.commit
 			? diff?.files
 			: null;
 	const currentEvidence = run?.taskRevision === task.revision;
@@ -387,6 +390,30 @@ export function FeatureDetail({
 					</div>
 				))}
 			</section>
+			<FactoryWorkflowEditor
+				config={config}
+				disabled={!editable || busy}
+				onChange={setConfig}
+			/>
+			{task.factoryDesignReview ? (
+				<section className="space-y-3">
+					<h3 className="text-sm font-semibold">
+						Plan review · revision {task.factoryDesignReview.revision}
+						{dirty || task.factoryDesignReview.revision !== task.revision
+							? " (previous draft)"
+							: ""}
+					</h3>
+					{task.factoryDesignReview.reviews.map((result) => (
+						<ReviewResult
+							key={result.reviewerIndex}
+							label={`Plan reviewer ${result.reviewerIndex + 1}`}
+							review={result.review}
+							sessionId={result.sessionId}
+							onOpenSession={onOpenSession}
+						/>
+					))}
+				</section>
+			) : null}
 			<section className="space-y-3">
 				<div className="flex items-center justify-between">
 					<h3 className="text-sm font-semibold">
@@ -534,8 +561,8 @@ export function FeatureDetail({
 					</h3>
 					<p className="break-all font-mono text-xs text-muted-foreground">
 						{state.workspace.branch}
-						{state.candidateCommit
-							? ` · ${state.candidateCommit.slice(0, 12)}`
+						{state.candidate?.commit
+							? ` · ${state.candidate.commit.slice(0, 12)}`
 							: ""}
 					</p>
 					<p className="break-all text-xs text-muted-foreground">
@@ -544,7 +571,7 @@ export function FeatureDetail({
 					<Button
 						variant="outline"
 						size="sm"
-						disabled={busy || !state.candidateCommit}
+						disabled={busy || !state.candidate?.commit}
 						onClick={() =>
 							void perform(async () => {
 								const diff = await desktopClient.invoke<SessionFileDiff[]>(
@@ -553,7 +580,7 @@ export function FeatureDetail({
 								);
 								setDiff({
 									runId: run?.runId,
-									commit: state.candidateCommit,
+									commit: state.candidate?.commit,
 									files: diff,
 								});
 							})
@@ -564,7 +591,7 @@ export function FeatureDetail({
 					{fileDiffs ? (
 						<div className="flex h-[32rem] flex-col overflow-hidden rounded-lg border">
 							<DiffView
-								title={`Feature changes · ${state.candidateCommit?.slice(0, 12) ?? "candidate"}`}
+								title={`Feature changes · ${state.candidate?.commit.slice(0, 12) ?? "candidate"}`}
 								environmentId={LOCAL_WORKSPACE_ENVIRONMENT_ID}
 								cwd={state.workspace.path}
 								fileDiffs={fileDiffs}
@@ -578,7 +605,7 @@ export function FeatureDetail({
 							branch={state.workspace.branch}
 						/>
 					) : null}
-					{state.checks.map((check, index) => (
+					{state.candidate?.checks.map((check, index) => (
 						<div
 							className="rounded-lg border p-3"
 							key={`${check.name}-${index}`}
@@ -617,22 +644,32 @@ export function FeatureDetail({
 							))}
 						</div>
 					))}
-					{state.review ? (
-						<div className="rounded-lg border p-3 text-sm">
-							<h4 className="font-medium">
-								Independent review · {state.review.verdict.replaceAll("_", " ")}
-							</h4>
-							<p className="mt-2 whitespace-pre-wrap text-muted-foreground">
-								{state.review.summary}
-							</p>
-							{state.review.findings.length ? (
-								<ul className="mt-2 list-disc space-y-1 pl-5">
-									{state.review.findings.map((finding) => (
-										<li key={finding}>{finding}</li>
-									))}
-								</ul>
-							) : null}
-						</div>
+					{state.candidate?.reviews.map((result) => (
+						<ReviewResult
+							key={result.reviewerIndex}
+							label={`Final reviewer ${result.reviewerIndex + 1}`}
+							review={result.review}
+							sessionId={result.sessionId}
+							onOpenSession={onOpenSession}
+						/>
+					))}
+					{state.candidate?.verification ? (
+						<>
+							<ReviewResult
+								label="Agent verification"
+								review={state.candidate.verification.review}
+								sessionId={state.candidate.verification.sessionId}
+								onOpenSession={onOpenSession}
+							/>
+							{state.candidate.verification.artifacts.map((artifact) => (
+								<EvidencePreview
+									key={artifact.path}
+									taskId={task.taskId}
+									runId={run?.runId ?? ""}
+									artifact={artifact}
+								/>
+							))}
+						</>
 					) : null}
 					<div className="flex flex-wrap gap-2">
 						{state.sessions.map((session, index) => (
@@ -888,6 +925,59 @@ function EvidencePreview({
 					<track kind="captions" />
 				</video>
 			) : null}
+		</div>
+	);
+}
+
+function ReviewResult({
+	label,
+	review,
+	sessionId,
+	onOpenSession,
+}: {
+	label: string;
+	review: FactoryReview;
+	sessionId: string;
+	onOpenSession: (sessionId: string) => Promise<void>;
+}) {
+	return (
+		<div className="rounded-lg border p-3 text-sm">
+			<h4 className="font-medium">
+				{label} · {review.verdict.replaceAll("_", " ")}
+			</h4>
+			<p className="mt-2 whitespace-pre-wrap text-muted-foreground">
+				{review.summary}
+			</p>
+			{review.findings.length ? (
+				<ul className="mt-2 list-disc space-y-1 pl-5">
+					{review.findings.map((finding) => (
+						<li key={finding}>{finding}</li>
+					))}
+				</ul>
+			) : null}
+			{review.coverage ? (
+				<details className="mt-2 text-xs">
+					<summary className="cursor-pointer">Private local coverage</summary>
+					{Object.entries(review.coverage).map(([kind, paths]) => (
+						<div key={kind} className="mt-2">
+							<strong>{kind}</strong>
+							<ul className="list-disc pl-5">
+								{paths.map((path) => (
+									<li key={path}>{path}</li>
+								))}
+							</ul>
+						</div>
+					))}
+				</details>
+			) : null}
+			<Button
+				variant="link"
+				size="sm"
+				onClick={() => void onOpenSession(sessionId)}
+			>
+				Open transcript
+				<ArrowUpRight className="ml-1 size-3" />
+			</Button>
 		</div>
 	);
 }

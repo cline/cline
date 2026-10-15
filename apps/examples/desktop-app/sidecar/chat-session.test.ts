@@ -1219,7 +1219,15 @@ describe("first-send connection updates", () => {
 				prompt: "Continue",
 				config: { provider: "openai", model: "different-model" },
 			}),
-		).rejects.toThrow("original provider");
+		).rejects.toThrow("assigned model");
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "Continue",
+				config: { ...baseConfig, model: "different-model" },
+			}),
+		).rejects.toThrow("assigned model");
 		expect(start).not.toHaveBeenCalled();
 		expect(stop).not.toHaveBeenCalled();
 		expect(send).toHaveBeenCalledTimes(1);

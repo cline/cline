@@ -10,11 +10,18 @@ import type {
 	AgendaTaskRunStatus,
 	AgendaTaskStatus,
 	AgendaTaskUpdateInput,
+	FactoryDesignReview,
 	FactoryRunState,
 	FactoryTaskConfig,
 	GatewayModelSelection,
 } from "@cline/shared";
-import { factoryRunStateSchema, factoryTaskConfigSchema } from "@cline/shared";
+import {
+	factoryCheckResultSchema,
+	factoryDesignReviewSchema,
+	factoryReviewSchema,
+	factoryRunStateSchema,
+	factoryTaskConfigSchema,
+} from "@cline/shared";
 import {
 	asOptionalString,
 	asString,
@@ -23,6 +30,7 @@ import {
 	type SqliteDb,
 } from "@cline/shared/db";
 import { resolveTasksDbPath } from "@cline/shared/storage";
+import { z } from "zod";
 import { normalizeAgendaTaskLocation } from "../task-location";
 import { ensureAgendaTaskSchema } from "./task-schema";
 
@@ -42,6 +50,7 @@ export class AgendaTaskRevisionConflictError extends Error {
 }
 
 export interface AgendaTaskStatePatch {
+	factoryDesignReview?: FactoryDesignReview | null;
 	originSessionId?: string;
 	status?: AgendaTaskStatus;
 	approvedRevision?: number | null;
@@ -105,6 +114,12 @@ function toInteger(value: unknown): number | undefined {
 
 function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	return {
+		factoryDesignReview:
+			row.factory_design_review_json == null
+				? undefined
+				: factoryDesignReviewSchema.parse(
+						parseJson<unknown>(row.factory_design_review_json),
+					),
 		factory:
 			row.factory_json == null
 				? undefined
@@ -150,12 +165,45 @@ function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	};
 }
 
+const storedFactoryRunSchema = factoryRunStateSchema
+	.extend({
+		candidateCommit: z.string().optional(),
+		checks: z.array(factoryCheckResultSchema).optional(),
+		review: factoryReviewSchema.optional(),
+	})
+	.transform(
+		({ candidateCommit, checks, review, ...state }): FactoryRunState => ({
+			...state,
+			candidate:
+				state.candidate ??
+				(candidateCommit
+					? {
+							commit: candidateCommit,
+							checks: checks ?? [],
+							reviews: review
+								? [
+										{
+											reviewerIndex: 0,
+											sessionId:
+												[...state.sessions]
+													.reverse()
+													.find((session) => session.role === "reviewer")
+													?.sessionId ?? "",
+											review,
+										},
+									]
+								: [],
+						}
+					: undefined),
+		}),
+	);
+
 function runRowToRecord(row: Record<string, unknown>): AgendaTaskRunRecord {
 	return {
 		factory:
 			row.factory_json == null
 				? undefined
-				: factoryRunStateSchema.parse(parseJson<unknown>(row.factory_json)),
+				: storedFactoryRunSchema.parse(parseJson<unknown>(row.factory_json)),
 		runId: asString(row.run_id),
 		taskId: asString(row.task_id),
 		taskRevision: toInteger(row.task_revision) ?? 1,
@@ -494,7 +542,7 @@ export class SqliteAgendaTaskStore {
 					priority = ?, assignee = ?, model_selection_json = ?, mode = ?,
 					system_prompt = ?, max_iterations = ?, timeout_seconds = ?,
 					available_at = ?, expires_at = ?, automation_eligible = ?, revision = ?,
-					approved_revision = NULL, error = NULL, updated_by_json = ?, updated_at = ?, factory_json = ?
+					approved_revision = NULL, factory_design_review_json = NULL, error = NULL, updated_by_json = ?, updated_at = ?, factory_json = ?
 				WHERE task_id = ? AND revision = ?`,
 			)
 			.run(
@@ -585,7 +633,7 @@ export class SqliteAgendaTaskStore {
 				`UPDATE agenda_tasks SET
 					status = ?, approved_revision = ?, current_run_id = ?, last_run_id = ?,
 					last_session_id = ?, spec_path = ?, error = ?, completed_at = ?,
-					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?
+					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?, factory_design_review_json = ?
 				WHERE task_id = ? AND revision = ?`,
 			)
 			.run(
@@ -613,6 +661,11 @@ export class SqliteAgendaTaskStore {
 				JSON.stringify(patch.updatedBy ?? current.updatedBy),
 				now,
 				patch.originSessionId ?? current.originSessionId ?? null,
+				patch.factoryDesignReview === null
+					? null
+					: (JSON.stringify(
+							patch.factoryDesignReview ?? current.factoryDesignReview,
+						) ?? null),
 				taskId,
 				current.revision,
 			);

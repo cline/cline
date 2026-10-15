@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+export const factoryAgentSchema = z.object({
+	modelSelection: z
+		.object({
+			providerId: z.string().trim().min(1),
+			modelId: z.string().trim().min(1),
+		})
+		.optional(),
+	instructions: z.string().max(20_000).optional(),
+	maxIterations: z.number().int().min(1).max(1000).optional(),
+	timeoutSeconds: z.number().int().min(1).max(7200).optional(),
+});
+export type FactoryAgent = z.infer<typeof factoryAgentSchema>;
+
+export const factoryAgentsSchema = z.object({
+	designer: factoryAgentSchema.default({}),
+	planReviewers: z.array(factoryAgentSchema).max(4).default([]),
+	implementer: factoryAgentSchema.default({}),
+	verifier: factoryAgentSchema
+		.extend({ artifacts: z.array(z.string().trim().min(1)).max(20).optional() })
+		.optional(),
+	reviewers: z.array(factoryAgentSchema).min(1).max(4).default([{}]),
+});
+export type FactoryAgents = z.infer<typeof factoryAgentsSchema>;
+export const DEFAULT_FACTORY_AGENTS: FactoryAgents = factoryAgentsSchema.parse(
+	{},
+);
+
 export const factoryCheckSchema = z.object({
 	name: z.string().trim().min(1).max(200),
 	command: z.string().trim().min(1).max(10_000),
@@ -8,6 +35,7 @@ export const factoryCheckSchema = z.object({
 });
 
 export const factoryTaskConfigSchema = z.object({
+	agents: factoryAgentsSchema.optional(),
 	execution: z.enum(["local", "cloud"]).default("local"),
 	approval: z.enum(["required", "automatic"]).default("required"),
 	maxRepairRounds: z.number().int().min(0).max(10).default(2),
@@ -57,9 +85,43 @@ export const factoryReviewSchema = z.object({
 	verdict: z.enum(["pass", "changes_requested"]),
 	summary: z.string().min(1),
 	findings: z.array(z.string().min(1)),
+	coverage: z
+		.object({
+			static: z.array(z.string()),
+			exercised: z.array(z.string()),
+			unverified: z.array(z.string()),
+		})
+		.optional(),
 });
 
 export type FactoryReview = z.infer<typeof factoryReviewSchema>;
+
+export const factoryReviewerResultSchema = z.object({
+	reviewerIndex: z.number().int().nonnegative(),
+	sessionId: z.string(),
+	review: factoryReviewSchema,
+});
+export type FactoryReviewerResult = z.infer<typeof factoryReviewerResultSchema>;
+
+export const factoryDesignReviewSchema = z.object({
+	revision: z.number().int().positive(),
+	reviews: z.array(factoryReviewerResultSchema),
+});
+export type FactoryDesignReview = z.infer<typeof factoryDesignReviewSchema>;
+
+export const factoryCandidateSchema = z.object({
+	commit: z.string(),
+	checks: z.array(factoryCheckResultSchema),
+	reviews: z.array(factoryReviewerResultSchema),
+	verification: z
+		.object({
+			sessionId: z.string(),
+			review: factoryReviewSchema,
+			artifacts: z.array(factoryArtifactSchema),
+		})
+		.optional(),
+});
+export type FactoryCandidate = z.infer<typeof factoryCandidateSchema>;
 
 export const factoryWorkspaceSchema = z.object({
 	path: z.string(),
@@ -83,11 +145,12 @@ export const factoryRunStateSchema = z.object({
 	repairRound: z.number().int().nonnegative(),
 	workspace: factoryWorkspaceSchema,
 	sessions: z.array(
-		z.object({ sessionId: z.string(), role: z.enum(["builder", "reviewer"]) }),
+		z.object({
+			sessionId: z.string(),
+			role: z.enum(["builder", "reviewer", "verifier"]),
+		}),
 	),
-	candidateCommit: z.string().optional(),
-	checks: z.array(factoryCheckResultSchema),
-	review: factoryReviewSchema.optional(),
+	candidate: factoryCandidateSchema.optional(),
 	pullRequestUrl: z.string().optional(),
 	pullRequestWatch: z
 		.object({

@@ -96,6 +96,103 @@ function changeInput(selector: string, value: string) {
 }
 
 describe("Factory workflow", () => {
+	it("copies a local workflow into the draft and saves its participants without replacing feature checks, PR settings, or docs", async () => {
+		const feature = task();
+		if (!feature.factory) throw new Error("Missing feature config");
+		feature.factory = {
+			...feature.factory,
+			publishPullRequest: true,
+			watchPullRequest: true,
+			documents: [{ name: "brief.md", content: "feature details" }],
+		};
+		mocks.tasks = [feature];
+		const preset = {
+			name: "Focused",
+			config: {
+				approval: "required",
+				maxRepairRounds: 1,
+				agents: {
+					designer: {},
+					implementer: { instructions: "Keep changes small" },
+					planReviewers: [{}],
+					reviewers: [{}, {}],
+				},
+			},
+		};
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_list_presets"
+				? [
+						preset,
+						{
+							name: "Default",
+							config: { approval: "required", maxRepairRounds: 2 },
+						},
+					]
+				: [],
+		);
+		mocks.updateAgendaTask.mockResolvedValue(task({ revision: 4 }));
+		await act(async () =>
+			root.render(
+				<FactoryView
+					workspacePaths={[]}
+					onOpenSession={vi.fn(async () => {})}
+				/>,
+			),
+		);
+		await act(async () => button("Export activity").click());
+		const select = document.querySelector(
+			'[aria-label="Apply workflow preset"]',
+		);
+		if (!(select instanceof HTMLSelectElement))
+			throw new Error("Missing preset picker");
+		await act(async () => {
+			select.value = "Focused";
+			select.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		await act(async () =>
+			changeInput('[aria-label="Implementer maxIterations"]', "7"),
+		);
+		await act(async () => button("Save brief").click());
+		expect(mocks.updateAgendaTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				expectedRevision: 3,
+				factory: {
+					...feature.factory,
+					...preset.config,
+					agents: {
+						...preset.config.agents,
+						implementer: {
+							...preset.config.agents.implementer,
+							maxIterations: 7,
+						},
+					},
+					documents: feature.factory.documents,
+				},
+			}),
+		);
+		expect(document.body.textContent).toContain("2 final reviewers");
+		expect(preset.config.agents.implementer).toEqual({
+			instructions: "Keep changes small",
+		});
+		await act(async () => {
+			select.value = "Default";
+			select.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		await act(async () => button("Save brief").click());
+		expect(mocks.updateAgendaTask).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				expectedRevision: 4,
+				factory: {
+					...feature.factory,
+					agents: undefined,
+					approval: "required",
+					maxRepairRounds: 2,
+				},
+			}),
+		);
+		expect(document.body.textContent).toContain("1 final reviewers");
+	});
+
 	it("labels evidence from an older brief without claiming the edited feature is ready", async () => {
 		mocks.tasks = [task({ status: "pending_approval", revision: 4 })];
 		mocks.getFactoryTask.mockResolvedValueOnce({
@@ -111,7 +208,6 @@ describe("Factory workflow", () => {
 						phase: "ready",
 						repairRound: 0,
 						sessions: [],
-						checks: [],
 						workspace: {
 							path: "/feature",
 							branch: "feat/feature",
@@ -217,7 +313,7 @@ describe("Factory workflow", () => {
 						]
 					: [];
 			if (command === "respond_ask_question") pending = false;
-			return undefined;
+			return [];
 		});
 		await act(async () =>
 			root.render(
@@ -350,8 +446,7 @@ describe("Factory workflow", () => {
 						phase: phase === "closed" ? "ready" : phase,
 						repairRound: 2,
 						sessions: [],
-						checks: [],
-						candidateCommit: "candidate",
+						candidate: { commit: "candidate", checks: [], reviews: [] },
 						workspace: {
 							path: "/feature",
 							branch: "feat/feature",
@@ -380,7 +475,7 @@ describe("Factory workflow", () => {
 							needsAttention: phase !== "watching",
 						},
 					]
-				: null,
+				: [],
 		);
 		await act(async () =>
 			root.render(

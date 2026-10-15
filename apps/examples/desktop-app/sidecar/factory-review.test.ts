@@ -37,7 +37,10 @@ function reply(candidateCommit?: string) {
 		runs: [
 			{
 				runId: "run-1",
-				factory: { workspace: { path: cwd, baseCommit }, candidateCommit },
+				factory: {
+					workspace: { path: cwd, baseCommit },
+					candidate: candidateCommit ? { commit: candidateCommit } : undefined,
+				},
 			},
 		],
 	};

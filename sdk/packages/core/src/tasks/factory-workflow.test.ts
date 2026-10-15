@@ -32,6 +32,9 @@ afterEach(async () => {
 function harness(
 	options: {
 		review?: string;
+		reviewFailures?: number;
+		reviewerError?: string;
+		verifier?: (task: AgendaTaskRecord) => Promise<string>;
 		failures?: number;
 		hold?: boolean;
 		triage?: "repair" | "ignore" | "needs_user";
@@ -49,6 +52,7 @@ function harness(
 		"test@example.invalid",
 	]);
 	writeFileSync(join(repo, "feature.txt"), "before\n");
+	writeFileSync(join(repo, ".gitignore"), ".evidence/\n");
 	execFileSync("git", ["-C", repo, "add", "."]);
 	execFileSync("git", ["-C", repo, "commit", "-m", "Initial"]);
 	let sessionIndex = 0;
@@ -63,6 +67,8 @@ function harness(
 			return { sessionId };
 		}),
 		runSession: vi.fn<AgendaTaskRuntime["runSession"]>(async (id, task) => {
+			if (roles.get(id) === "verifier")
+				return { status: "completed", summary: await options.verifier?.(task) };
 			if (roles.get(id) === "reviewer") {
 				if (task.instructions.startsWith("Triage this new PR feedback"))
 					return {
@@ -75,13 +81,21 @@ function harness(
 						}),
 					};
 				reviews++;
+				if (options.reviewerError)
+					return { status: "failed", error: options.reviewerError };
 				return {
 					status: "completed",
 					summary:
 						options.review ??
 						JSON.stringify({
-							verdict: "pass",
-							findings: [],
+							verdict:
+								reviews <= (options.reviewFailures ?? 0)
+									? "changes_requested"
+									: "pass",
+							findings:
+								reviews <= (options.reviewFailures ?? 0)
+									? ["Fix the missing edge case"]
+									: [],
 							summary: "Reviewed behavior and maintainability.",
 						}),
 				};
@@ -164,7 +178,26 @@ async function followupHarness(
 	triage: "repair" | "ignore" | "needs_user" = "repair",
 ) {
 	const h = harness({ triage });
-	const task = await h.create();
+	const task = await h.create(2, {
+		agents: {
+			designer: {},
+			planReviewers: [],
+			implementer: {
+				modelSelection: {
+					providerId: "test-provider",
+					modelId: "followup-writer",
+				},
+			},
+			reviewers: [
+				{
+					modelSelection: {
+						providerId: "test-provider",
+						modelId: "followup-reviewer",
+					},
+				},
+			],
+		},
+	});
 	await h.start(task);
 	await vi.waitFor(
 		async () =>
@@ -172,20 +205,20 @@ async function followupHarness(
 		{ timeout: 15000 },
 	);
 	const run = h.manager.getTaskRuns(task.taskId)[0];
-	if (!run?.factory?.candidateCommit)
+	if (!run?.factory?.candidate?.commit)
 		throw new Error("Missing verified candidate");
 	let state: FactoryRunState = {
 		...run.factory,
 		phase: "watching",
 		pullRequestUrl: "https://github.com/example/project/pull/1",
 		pullRequestWatch: {
-			headCommit: run.factory.candidateCommit,
+			headCommit: run.factory.candidate?.commit,
 			handledFeedbackIds: [],
 		},
 	};
 	let remote: FactoryPullRequestSnapshot = {
 		state: "OPEN",
-		headCommit: run.factory.candidateCommit,
+		headCommit: run.factory.candidate?.commit,
 		branch: state.workspace.branch,
 		feedback: [{ id: "review-1", text: "Handle empty input.", trusted: true }],
 		commentBodies: [],
@@ -207,7 +240,7 @@ async function followupHarness(
 			state.workspace.path,
 			"push",
 			"origin",
-			`${state.candidateCommit}:refs/heads/${state.workspace.branch}`,
+			`${state.candidate?.commit}:refs/heads/${state.workspace.branch}`,
 		],
 		{ stdio: "ignore" },
 	);
@@ -218,7 +251,7 @@ async function followupHarness(
 			expect(input.args).toEqual([
 				"push",
 				"origin",
-				`${state.candidateCommit}:refs/heads/${state.workspace.branch}`,
+				`${state.candidate?.commit}:refs/heads/${state.workspace.branch}`,
 			]);
 			const result = await runFactoryCommand(input);
 			if (result.exitCode !== 0) throw new Error(result.output);
@@ -303,16 +336,40 @@ describe("PR follow-up through the existing feature workflow", () => {
 		expect(h.state()).toMatchObject({
 			phase: "watching",
 			repairRound: 1,
-			review: { verdict: "pass" },
-			checks: [{ status: "passed" }],
+			candidate: {
+				reviews: [{ review: { verdict: "pass" } }],
+				checks: [{ status: "passed" }],
+			},
 			pullRequestWatch: { handledFeedbackIds: ["review-1"] },
 		});
 		expect(h.state().pullRequestWatch?.pending).toBeUndefined();
 		expect(h.builds()).toBe(2);
-		expect(h.remote().commentBodies[0]).toContain(h.state().candidateCommit);
+		expect(h.remote().commentBodies[0]).toContain(h.state().candidate?.commit);
 		const sessions = vi.mocked(h.runtime.startSession).mock.calls.length;
 		expect(await h.follow()).toBe("idle");
 		expect(h.runtime.startSession).toHaveBeenCalledTimes(sessions);
+		expect(
+			vi
+				.mocked(h.runtime.startSession)
+				.mock.calls.map(([task]) => task.modelSelection?.modelId),
+		).toEqual([
+			"followup-writer",
+			"followup-reviewer",
+			"followup-reviewer",
+			"followup-writer",
+			"followup-reviewer",
+		]);
+		expect(
+			vi
+				.mocked(h.runtime.runSession)
+				.mock.calls.map(([, task]) => task.modelSelection?.modelId),
+		).toEqual([
+			"followup-writer",
+			"followup-reviewer",
+			"followup-reviewer",
+			"followup-writer",
+			"followup-reviewer",
+		]);
 		expect(h.commands).toHaveBeenCalledTimes(2);
 	});
 	it("reconciles a reply accepted before a lost acknowledgement without repeating the repair or comment", async () => {
@@ -372,7 +429,7 @@ describe("PR follow-up through the existing feature workflow", () => {
 			}));
 		await expect(h.follow()).rejects.toThrow();
 		expect(h.state().pullRequestWatch?.pending?.phase).toBe("blocked");
-		expect(h.state().candidateCommit).not.toBe(h.remote().headCommit);
+		expect(h.state().candidate?.commit).not.toBe(h.remote().headCommit);
 		expect(await h.follow()).toBe("repaired");
 		expect(h.state().repairRound).toBe(2);
 		expect(h.remote().commentBodies).toHaveLength(1);
@@ -486,8 +543,10 @@ describe("feature workflow", () => {
 		expect(state).toMatchObject({
 			phase: "ready",
 			repairRound: 1,
-			checks: [{ status: "passed" }],
-			review: { verdict: "pass" },
+			candidate: {
+				reviews: [{ review: { verdict: "pass" } }],
+				checks: [{ status: "passed" }],
+			},
 		});
 		expect(state?.sessions.map((session) => session.role)).toEqual([
 			"builder",
@@ -498,6 +557,204 @@ describe("feature workflow", () => {
 		expect(readFileSync(join(h.repo, "feature.txt"), "utf8")).toBe("before\n");
 		expect(state?.pullRequestUrl).toBeUndefined();
 	});
+	it("routes independent reviewers and reruns every gate after one requests a repair", async () => {
+		const h = harness({ reviewFailures: 1 });
+		const agent = (modelId: string) => ({
+			modelSelection: { providerId: "test-provider", modelId },
+			instructions: `Instructions for ${modelId}`,
+			maxIterations: 3,
+			timeoutSeconds: 20,
+		});
+		const task = await h.create(2, {
+			agents: {
+				designer: {},
+				planReviewers: [],
+				implementer: agent("writer"),
+				reviewers: [agent("first"), agent("second")],
+			},
+		});
+		await h.start(task);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe(
+					"completed",
+				),
+			{ timeout: 15000 },
+		);
+		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
+		expect(
+			state?.candidate?.reviews.map((entry) => entry.reviewerIndex),
+		).toEqual([0, 1]);
+		expect(state?.repairRound).toBe(1);
+		expect(h.builds()).toBe(2);
+		expect(h.reviews()).toBe(4);
+		const starts = vi.mocked(h.runtime.startSession).mock.calls;
+		expect(starts.map(([task]) => task.modelSelection?.modelId)).toEqual([
+			"writer",
+			"first",
+			"second",
+			"first",
+			"second",
+		]);
+		for (const [id, assigned] of vi.mocked(h.runtime.runSession).mock.calls) {
+			const started = starts.find(
+				(_, index) => id === `session_${index + 1}`,
+			)?.[0];
+			expect(assigned.modelSelection).toEqual(started?.modelSelection);
+			expect(assigned.systemPrompt).toContain(
+				`Instructions for ${assigned.modelSelection?.modelId}`,
+			);
+			expect(assigned.maxIterations).toBe(3);
+			expect(assigned.timeoutSeconds).toBe(20);
+			if (assigned.modelSelection?.modelId === "second")
+				expect(assigned.instructions).not.toContain(
+					"Fix the missing edge case",
+				);
+		}
+	});
+	it.each([
+		"fresh",
+		"missing",
+		"repaired-missing",
+		"stale",
+		"changed-candidate",
+	])("validates verifier %s evidence before final review", async (scenario) => {
+		const png = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=",
+			"base64",
+		);
+		let verifications = 0;
+		const succeeds = scenario === "fresh" || scenario === "repaired-missing";
+		const h = harness({
+			verifier: async (task) => {
+				verifications++;
+				const dir = join(task.cwd ?? "", ".evidence");
+				mkdirSync(dir, { recursive: true });
+				if (
+					scenario === "fresh" ||
+					(scenario === "repaired-missing" && verifications === 2)
+				)
+					writeFileSync(join(dir, "screen.png"), png);
+				if (scenario === "changed-candidate")
+					writeFileSync(
+						join(task.cwd ?? "", "feature.txt"),
+						"unauthorized change",
+					);
+				return JSON.stringify({
+					verdict: "pass",
+					summary: "Verified behavior",
+					findings: [],
+				});
+			},
+		});
+		const task = await h.create(
+			scenario === "repaired-missing" || scenario === "changed-candidate"
+				? 1
+				: 0,
+			{
+				agents: {
+					designer: {},
+					planReviewers: [],
+					implementer: {},
+					reviewers: [{}],
+					verifier: { artifacts: [".evidence/screen.png"] },
+				},
+				...(scenario === "stale"
+					? {
+							checks: [
+								{
+									name: "Prepare evidence",
+									kind: "test",
+									command: `node -e "require('fs').mkdirSync('.evidence',{recursive:true});require('fs').writeFileSync('.evidence/screen.png',Buffer.from('${png.toString("base64")}','base64'))"`,
+									artifacts: [],
+								},
+							],
+						}
+					: {}),
+			},
+		);
+		await h.start(task);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe(
+					succeeds ? "completed" : "failed",
+				),
+			{ timeout: 15000 },
+		);
+		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
+		if (succeeds) {
+			expect(state?.candidate?.verification?.artifacts).toHaveLength(1);
+			const artifact = state?.candidate?.verification?.artifacts[0];
+			expect(artifact && readFileSync(artifact.path)).toEqual(png);
+			expect(h.reviews()).toBe(1);
+			const rounds = scenario === "repaired-missing" ? 1 : 0;
+			expect(state?.repairRound).toBe(rounds);
+			expect(h.builds()).toBe(rounds + 1);
+			expect(verifications).toBe(rounds + 1);
+			expect(state?.candidate?.verification?.review.verdict).toBe("pass");
+			if (scenario === "repaired-missing") {
+				const repair = vi
+					.mocked(h.runtime.runSession)
+					.mock.calls.find(([, assigned]) =>
+						assigned.instructions.startsWith("Address these consolidated"),
+					);
+				expect(repair?.[1].instructions).toContain("Verification:");
+				expect(repair?.[1].instructions).toContain("screen.png");
+			}
+		} else {
+			expect(state?.phase).toBe("blocked");
+			expect(h.reviews()).toBe(0);
+			expect(h.builds()).toBe(1);
+			expect(state?.repairRound).toBe(0);
+			if (scenario === "missing" || scenario === "stale") {
+				expect(state?.candidate?.verification?.review.verdict).toBe(
+					"changes_requested",
+				);
+				expect(state?.candidate?.verification?.review.findings).toHaveLength(1);
+				expect(state?.error).toContain("Repair limit (0) reached");
+			}
+		}
+	});
+	it("repairs failed agent verification and reruns it on the new candidate", async () => {
+		let verifications = 0;
+		const h = harness({
+			verifier: async () =>
+				JSON.stringify(
+					++verifications === 1
+						? {
+								verdict: "changes_requested",
+								findings: ["Behavior failed"],
+								summary: "Failed",
+							}
+						: { verdict: "pass", findings: [], summary: "Passed" },
+				),
+		});
+		const task = await h.create(2, {
+			agents: {
+				designer: {},
+				planReviewers: [],
+				implementer: {},
+				verifier: {},
+				reviewers: [{}],
+			},
+		});
+		await h.start(task);
+		await vi.waitFor(
+			async () =>
+				expect((await h.manager.getTask(task.taskId))?.status).toBe(
+					"completed",
+				),
+			{ timeout: 15000 },
+		);
+		expect(verifications).toBe(2);
+		expect(h.builds()).toBe(2);
+		expect(h.reviews()).toBe(1);
+		expect(
+			h.manager.getTaskRuns(task.taskId)[0]?.factory?.candidate?.verification
+				?.review.verdict,
+		).toBe("pass");
+	});
+
 	it("stops at the configured repair limit without turning failed checks into success", async () => {
 		const h = harness({ failures: 10 });
 		const task = await h.create(1);
@@ -510,13 +767,20 @@ describe("feature workflow", () => {
 		expect(h.manager.getTaskRuns(task.taskId)[0]?.factory).toMatchObject({
 			phase: "blocked",
 			repairRound: 1,
-			checks: [{ status: "failed" }],
+			candidate: { checks: [{ status: "failed" }] },
 		});
 		expect(h.builds()).toBe(2);
 		expect(h.reviews()).toBe(0);
 	});
-	it("requires structured independent review and rejects an unstructured all-clear", async () => {
-		const h = harness({ review: "Everything looks good!" });
+	it.each([
+		"malformed",
+		"provider failure",
+	])("blocks %s review without spending repair rounds", async (failure) => {
+		const h = harness(
+			failure === "malformed"
+				? { review: "Everything looks good!" }
+				: { reviewerError: "Provider unavailable" },
+		);
 		const task = await h.create();
 		await h.start(task);
 		await vi.waitFor(
@@ -524,10 +788,15 @@ describe("feature workflow", () => {
 				expect((await h.manager.getTask(task.taskId))?.status).toBe("failed"),
 			{ timeout: 15000 },
 		);
-		expect(h.manager.getTaskRuns(task.taskId)[0]?.factory?.phase).toBe(
-			"blocked",
-		);
+		const state = h.manager.getTaskRuns(task.taskId)[0]?.factory;
+		expect(state?.phase).toBe("blocked");
+		expect(state?.repairRound).toBe(0);
+		expect(h.builds()).toBe(1);
+		expect(state?.candidate?.reviews).toEqual([]);
+		if (failure === "provider failure")
+			expect(state?.error).toContain("Provider unavailable");
 	});
+
 	it("advances an explicitly approved queue while legacy automation stays disabled", async () => {
 		const h = harness();
 		const tasks = [await h.create(), await h.create()];
@@ -561,7 +830,9 @@ describe("feature workflow", () => {
 		expect((await h.manager.getTask(task.taskId))?.status).toBe("cancelled");
 		expect(h.runtime.abortSession).toHaveBeenCalled();
 		expect(h.reviews()).toBe(0);
-		expect(h.manager.getTaskRuns(task.taskId)[0]?.factory?.checks).toEqual([]);
+		expect(
+			h.manager.getTaskRuns(task.taskId)[0]?.factory?.candidate,
+		).toBeUndefined();
 	});
 	it("keeps design sessions singular across windows until the interview finishes", async () => {
 		const h = harness();

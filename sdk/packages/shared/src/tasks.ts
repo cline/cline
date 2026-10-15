@@ -1,4 +1,8 @@
-import type { FactoryRunState, FactoryTaskConfig } from "./factory";
+import type {
+	FactoryDesignReview,
+	FactoryRunState,
+	FactoryTaskConfig,
+} from "./factory";
 import type { GatewayModelSelection } from "./llms/gateway";
 
 /** Semantic labels used to group work on a user's agenda. */
@@ -43,6 +47,7 @@ export type AgendaTaskRunStatus =
 
 export interface AgendaTaskRecord {
 	factory?: FactoryTaskConfig;
+	factoryDesignReview?: FactoryDesignReview;
 	taskId: string;
 	type: AgendaTaskType;
 	status: AgendaTaskStatus;
