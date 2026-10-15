@@ -354,7 +354,14 @@ function getBootstrap(): NonNullable<ReturnType<typeof resolveBootstrap>> {
 	if (bootstrapUnavailableForTests) {
 		throw new PluginBootstrapMissingError();
 	}
-	resolvedBootstrap ??= resolveBootstrap();
+	// An extracted runtime can be pruned while this process runs; resolving
+	// again re-extracts it.
+	if (
+		!resolvedBootstrap ||
+		("file" in resolvedBootstrap && !existsSync(resolvedBootstrap.file))
+	) {
+		resolvedBootstrap = resolveBootstrap();
+	}
 	if (!resolvedBootstrap) {
 		throw new PluginBootstrapMissingError();
 	}

@@ -47,7 +47,7 @@ export function resolvePluginRuntimeDirectory(): string | undefined {
 		return undefined;
 	const root = join(resolveClineDir(), "runtime", "plugins");
 	let directory = embeddedDirectories.get(root);
-	if (!directory) {
+	if (!directory || !isPluginRuntime(directory)) {
 		directory = materializeEmbeddedResources(
 			__CLINE_PLUGIN_RUNTIME_RESOURCES__,
 			root,

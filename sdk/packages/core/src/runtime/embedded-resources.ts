@@ -1,10 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+	type Dirent,
 	existsSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
 	renameSync,
 	rmSync,
+	statSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname, join, win32 } from "node:path";
@@ -71,5 +75,36 @@ export function materializeEmbeddedResources(
 			rmSync(temporary, { force: true });
 		}
 	}
+	const now = new Date();
+	try {
+		utimesSync(directory, now, now);
+	} catch {}
+	pruneStaleBuilds(root, directory, now.getTime());
 	return directory;
+}
+
+const STALE_BUILD_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Each upgrade extracts a new build directory. A process still running an
+// older build re-extracts its own directory if it is pruned here.
+function pruneStaleBuilds(root: string, current: string, now: number): void {
+	let entries: Dirent[];
+	try {
+		entries = readdirSync(root, { withFileTypes: true });
+	} catch {
+		return;
+	}
+	for (const entry of entries) {
+		const path = join(root, entry.name);
+		if (
+			path === current ||
+			!entry.isDirectory() ||
+			!/^[a-f0-9]{64}$/.test(entry.name)
+		)
+			continue;
+		try {
+			if (now - statSync(path).mtimeMs > STALE_BUILD_MS)
+				rmSync(path, { recursive: true, force: true });
+		} catch {}
+	}
 }
