@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { exposedSuggestionMemory } from "./use-composer-suggestions";
 import { fakeDesktop } from "./use-composer-suggestions.fake-client";
 import {
+	click,
+	deferred,
 	emitState,
 	envelope,
 	expectEveryActionParses,
@@ -50,6 +53,7 @@ const UP = { code: "ArrowUp", key: "ArrowUp" };
 
 const SENT_PROMPT = ITEMS[0]?.prompt ?? "";
 const FORK_REFUSAL = "Wait for the current turn to finish before forking.";
+const NOT_TAKEN_BACK = "Couldn't take it back yet — try again";
 
 function actions(verb: string) {
 	return invokedActions(verb).map(({ action }) => action);
@@ -182,8 +186,7 @@ describe("useSuggestionTrayKeys", () => {
 	});
 
 	it("Ctrl+3 takes a queued sent prompt back into the box and invokes no verb", async () => {
-		const onRemoveQueuedPrompt = vi.fn(async () => undefined);
-		const tray = await mountReady({ onRemoveQueuedPrompt });
+		const tray = await mountReady();
 		await sendFirstSuggestion(tray);
 		await tray.update({
 			promptsInQueue: [{ id: "q1", prompt: SENT_PROMPT, steer: false }],
@@ -192,7 +195,7 @@ describe("useSuggestionTrayKeys", () => {
 		const event = await press(tray.composer(), UNDO);
 
 		expect(event.defaultPrevented).toBe(true);
-		expect(onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
+		expect(tray.options().onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
 		expect(tray.composer().value).toBe(SENT_PROMPT);
 		expect(actions("undo")).toEqual([]);
 		expect(tray.options().onUndoTurn).not.toHaveBeenCalled();
@@ -213,6 +216,132 @@ describe("useSuggestionTrayKeys", () => {
 		expect(tray.composer().value).toBe(
 			`${SENT_PROMPT}\n\nmy own half-written message`,
 		);
+	});
+
+	it("Ctrl+3 keeps the sent line and the box when the queue will not give the prompt back", async () => {
+		const onRemoveQueuedPrompt = vi.fn(async () => undefined);
+		const tray = await mountReady({ onRemoveQueuedPrompt });
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			status: "running",
+			promptsInQueue: [{ id: "q1", prompt: SENT_PROMPT, steer: false }],
+		});
+
+		await press(tray.composer(), UNDO);
+
+		expect(onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
+		expect(tray.composer().value).toBe("");
+		expect(tray.controller().local.sent?.itemId).toBe("verify");
+		expect(
+			tray.container.querySelector('[data-testid="suggestion-sent"]'),
+		).not.toBeNull();
+		expect(actions("undo")).toEqual([]);
+		expect(tray.options().abort).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({ title: NOT_TAKEN_BACK }),
+		);
+	});
+
+	it("Ctrl+3 never rewinds to an earlier copy of the prompt when the queue will not give it back", async () => {
+		const onRemoveQueuedPrompt = vi.fn(async () => undefined);
+		const onUndoTurn = vi.fn(async () => undefined);
+		const abort = vi.fn(async () => undefined);
+		const tray = await mountReady({
+			abort,
+			onRemoveQueuedPrompt,
+			onUndoTurn,
+			messages: [
+				userMessage("m-earlier", SENT_PROMPT, 1),
+				userMessage("m-between", "Now add a changelog entry", 2),
+			],
+		});
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			status: "running",
+			promptsInQueue: [{ id: "q1", prompt: SENT_PROMPT, steer: false }],
+		});
+
+		await press(tray.composer(), UNDO);
+		await tray.update({ status: "cancelled" });
+		await settle(100);
+
+		expect(abort).not.toHaveBeenCalled();
+		expect(actions("undo")).toEqual([]);
+		expect(onUndoTurn).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({ title: NOT_TAKEN_BACK }),
+		);
+	});
+
+	it("takes a queued sent prompt back once when Undo is pressed again while the removal is in flight", async () => {
+		const queued = { id: "q1", prompt: SENT_PROMPT, steer: false };
+		const removal = deferred<typeof queued | undefined>();
+		const onRemoveQueuedPrompt = vi.fn(() => removal.promise);
+		const onUndoTurn = vi.fn(async () => undefined);
+		const abort = vi.fn(async () => undefined);
+		const tray = await mountReady({
+			abort,
+			onRemoveQueuedPrompt,
+			onUndoTurn,
+			messages: [
+				userMessage("m-earlier", SENT_PROMPT, 1),
+				userMessage("m-between", "Now add a changelog entry", 2),
+			],
+		});
+		await sendFirstSuggestion(tray);
+		await tray.update({ status: "running", promptsInQueue: [queued] });
+
+		await press(tray.composer(), UNDO);
+		await click(
+			tray.container.querySelector(
+				'[data-testid="suggestion-undo"]',
+			) as Element,
+		);
+		await press(tray.composer(), UNDO);
+		await act(async () => removal.resolve(queued));
+		await tray.update({ promptsInQueue: [] });
+		await settle(100);
+
+		expect(onRemoveQueuedPrompt).toHaveBeenCalledTimes(1);
+		expect(tray.composer().value).toBe(SENT_PROMPT);
+		expect(abort).not.toHaveBeenCalled();
+		expect(actions("undo")).toEqual([]);
+		expect(onUndoTurn).not.toHaveBeenCalled();
+		expect(toastMock).not.toHaveBeenCalled();
+	});
+
+	it("Ctrl+3 rewinds a queued prompt that started while its removal was in flight", async () => {
+		const removal = deferred<undefined>();
+		const onRemoveQueuedPrompt = vi.fn(() => removal.promise);
+		const abort = vi.fn(async () => undefined);
+		const onUndoTurn = vi.fn(async () => undefined);
+		const tray = await mountReady({ abort, onRemoveQueuedPrompt, onUndoTurn });
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			status: "running",
+			promptsInQueue: [{ id: "q1", prompt: SENT_PROMPT, steer: false }],
+		});
+
+		await press(tray.composer(), UNDO);
+		await tray.update({
+			promptsInQueue: [],
+			messages: [userMessage("m-sent", SENT_PROMPT, 1)],
+		});
+		await act(async () => removal.resolve(undefined));
+		await settle();
+		expect(abort).toHaveBeenCalledTimes(1);
+		await tray.update({ status: "cancelled" });
+		await settle(100);
+
+		expect(tray.composer().value).toBe("");
+		expect(actions("undo")).toEqual([
+			{ verb: "undo", revision: "r1", itemId: "verify" },
+		]);
+		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 1);
+		expect(abort.mock.invocationCallOrder[0]).toBeLessThan(
+			invokedActions("undo")[0]?.order ?? 0,
+		);
+		expect(toastMock).not.toHaveBeenCalled();
 	});
 
 	it("Ctrl+3 invokes undo on the source session before forking from the sent message's run count", async () => {

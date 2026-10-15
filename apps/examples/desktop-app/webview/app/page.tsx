@@ -2390,7 +2390,7 @@ function ChatThreadPane({
 		promptsInQueue,
 		onSend: handleSendPrompt,
 		onUndoTurn: handleEditMessage,
-		onRemoveQueuedPrompt: handleRemoveQueuedPrompt,
+		onRemoveQueuedPrompt: removePromptInQueue,
 		abort,
 	});
 	const isSessionActive =

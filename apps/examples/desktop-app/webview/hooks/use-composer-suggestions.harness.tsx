@@ -9,6 +9,7 @@ import { act, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, vi } from "vitest";
 import { SuggestionTray } from "@/components/views/chat/suggestion-tray/suggestion-tray";
+import type { PromptInQueue } from "@/hooks/chat-session/types";
 import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	type ComposerSuggestionsController,
@@ -175,7 +176,10 @@ export function userMessage(
 	};
 }
 
-export function defaultOptions(): ComposerSuggestionsOptions {
+/** `queue` reads the pane's queue as last rendered; the default removal takes from it, as the sidecar does. */
+export function defaultOptions(
+	queue: () => readonly PromptInQueue[],
+): ComposerSuggestionsOptions {
 	return {
 		enabled: true,
 		environmentId: ENVIRONMENT_ID,
@@ -186,7 +190,9 @@ export function defaultOptions(): ComposerSuggestionsOptions {
 		promptsInQueue: [],
 		onSend: vi.fn(),
 		onUndoTurn: vi.fn(async () => undefined),
-		onRemoveQueuedPrompt: vi.fn(async () => undefined),
+		onRemoveQueuedPrompt: vi.fn(async (promptId: string) =>
+			queue().find((queued) => queued.id === promptId),
+		),
 		abort: vi.fn(async () => undefined),
 	};
 }
@@ -253,7 +259,10 @@ export async function mountTray(
 	document.body.append(container);
 	const root = createRoot(container);
 	const controllerRef: ControllerRef = {};
-	let options = { ...defaultOptions(), ...changes };
+	let options: ComposerSuggestionsOptions = {
+		...defaultOptions(() => options.promptsInQueue),
+		...changes,
+	};
 	const render = () =>
 		root.render(<Harness controllerRef={controllerRef} options={options} />);
 	await act(async () => render());

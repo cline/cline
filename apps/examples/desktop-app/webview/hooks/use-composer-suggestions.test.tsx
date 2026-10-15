@@ -56,6 +56,7 @@ vi.mock("@/hooks/use-toast", () => ({
 }));
 
 const READY_R1 = { [SESSION_ID]: [envelope(readyState("r1"))] };
+const USE_KEYS = { code: "Digit1", key: "1", ctrlKey: true };
 const SEND_KEYS = { code: "Digit1", key: "!", ctrlKey: true, shiftKey: true };
 
 function options(container: HTMLElement): HTMLElement[] {
@@ -383,6 +384,46 @@ describe("useComposerSuggestions", () => {
 		await settle(1);
 		expect(stale()).toBeNull();
 		expect(options(tray.container)).toHaveLength(3);
+		expect(invokedActions("clear")).toEqual([]);
+	});
+
+	it("sends no clear for a refused Use whose box was edited before the refusal landed", async () => {
+		const useReply = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "use" ? useReply.promise : undefined,
+		});
+		const tray = await mountTray();
+
+		await press(tray.composer(), USE_KEYS);
+		await typeInto(tray.composer(), `${ITEMS[0]?.prompt} please`);
+		await act(async () =>
+			useReply.resolve({ outcome: "refused", reason: "stale" }),
+		);
+		await settle();
+		expect(tray.composer().value).toBe(`${ITEMS[0]?.prompt} please`);
+		await typeInto(tray.composer(), "");
+
+		expect(invokedActions("clear")).toEqual([]);
+	});
+
+	it("tells the plugin when the box holding a used suggestion is emptied, edited or not", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray();
+
+		await press(tray.composer(), USE_KEYS);
+		await typeInto(tray.composer(), "");
+		expect(options(tray.container)).toHaveLength(3);
+		await press(tray.composer(), USE_KEYS);
+		await typeInto(tray.composer(), `${ITEMS[0]?.prompt} please`);
+		await typeInto(tray.composer(), "");
+
+		expect(invokedActions("clear").map(({ action }) => action)).toEqual([
+			{ verb: "clear", revision: "r1", itemId: "verify" },
+			{ verb: "clear", revision: "r1", itemId: "verify" },
+		]);
+		expect(options(tray.container)).toHaveLength(3);
 	});
 
 	it("ignores a detach reply for the previous session that lands after a switch to an older one", async () => {
@@ -421,6 +462,65 @@ describe("useComposerSuggestions", () => {
 		expect(highlightedPrompt(tray.container)).toBe(ITEMS[1]?.prompt);
 		expect(options(tray.container)).toHaveLength(1);
 		expect(invokedActions("attach")).toHaveLength(2);
+	});
+
+	it("never attaches a chat left while its get was pending", async () => {
+		const get = deferred<unknown>();
+		scriptHub();
+		const defaultReply = fakeDesktop.invoke.getMockImplementation();
+		fakeDesktop.invoke.mockImplementation(async (command, args) =>
+			command === "plugin_ui_get" ? get.promise : defaultReply?.(command, args),
+		);
+		const tray = await mountTray();
+		await tray.unmount();
+
+		await act(async () => get.resolve([envelope(readyState("r1"))]));
+		await settle();
+
+		expect(invokedActions("attach")).toEqual([]);
+		expect(invokedActions("detach")).toMatchObject([{ sessionId: SESSION_ID }]);
+		expect(invokedActions()).toHaveLength(1);
+	});
+
+	it("still sends a one-key Send to the chat its pane left while it waited for the verdict", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const onSend = vi.fn();
+		const tray = await mountTray({ onSend });
+		await settle(400);
+		await press(tray.composer(), SEND_KEYS);
+		await tray.unmount();
+
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+		await settle(300);
+
+		expect(invokedActions("send")).toHaveLength(1);
+		expect(onSend).toHaveBeenCalledTimes(1);
+		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
+	});
+
+	it("drops a one-key Send whose pane switched to another session while it waited for the verdict", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const onSend = vi.fn();
+		const tray = await mountTray({ onSend });
+		await settle(400);
+		await press(tray.composer(), SEND_KEYS);
+		await tray.update({ sessionId: OLDER_SESSION_ID });
+
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+		await settle(300);
+
+		expect(invokedActions("send")).toMatchObject([{ sessionId: SESSION_ID }]);
+		expect(onSend).not.toHaveBeenCalled();
 	});
 
 	it("reports msSinceExposed as a non-negative integer", async () => {
@@ -470,5 +570,6 @@ describe("useComposerSuggestions", () => {
 
 		expect(onSend).toHaveBeenLastCalledWith(`${ITEMS[0]?.prompt} please`);
 		expect(invokedActions("send")).toHaveLength(1);
+		expect(invokedActions("clear")).toEqual([]);
 	});
 });

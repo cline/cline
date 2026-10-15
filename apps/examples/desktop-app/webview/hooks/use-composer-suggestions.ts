@@ -41,6 +41,8 @@ const SLOT = "composer.suggestions";
 const STOP_WAIT_MS = 5_000;
 const STOP_POLL_MS = 50;
 const STILL_STOPPING = "Still stopping — try again";
+/** The queue would not give the prompt back: it already started, or the sidecar does not know its id yet. */
+const NOT_TAKEN_BACK = "Couldn't take it back yet — try again";
 /** Sessions, and revisions per session, the webview remembers as exposed; the view model keeps 32 revisions too. */
 const EXPOSED_SESSIONS_KEPT = 32;
 const EXPOSED_REVISIONS_KEPT = 32;
@@ -83,7 +85,10 @@ export type ComposerSuggestionsOptions = {
 		content: string,
 		runCount: number,
 	) => Promise<void>;
-	onRemoveQueuedPrompt: (promptId: string) => Promise<void> | void;
+	/** Resolves the prompt it took out of the queue, or undefined when it was no longer queued. */
+	onRemoveQueuedPrompt: (
+		promptId: string,
+	) => Promise<PromptInQueue | undefined>;
 	abort: () => Promise<void> | void;
 };
 
@@ -128,7 +133,7 @@ export type ComposerSuggestionsController = {
 	undoSent(composer: SuggestionComposer): Promise<void>;
 	/** The composer is submitting `prompt` through its own send path. */
 	submitted(prompt: string): void;
-	/** The box emptied while it held a used suggestion. */
+	/** The box emptied while it held a used suggestion; tells the plugin, as Esc's Clear does. */
 	draftCleared(): void;
 };
 
@@ -266,13 +271,18 @@ export function useComposerSuggestions(
 	onUndoTurnRef.current = options.onUndoTurn;
 	const latest = useRef(options);
 	latest.current = options;
-	/** The session verbs go to; empty while unbound or disabled. */
+	/**
+	 * The session verbs go to; empty while unbound or disabled. An unmount
+	 * leaves it set, so a Send the person already made still reaches the chat they left.
+	 */
 	const boundRef = useRef("");
-	/** Bumped on every bind, so a reply to an earlier bind is never applied. */
+	/** Bumped on every bind and unbind, so a reply to an earlier bind is never applied. */
 	const generationRef = useRef(0);
 	const attachingForRef = useRef<number | undefined>(undefined);
 	/** A one-key Send is waiting for its verdict; another press then sends nothing. */
 	const sendInFlightRef = useRef(false);
+	/** An Undo is taking the sent prompt back; another press then does nothing. */
+	const undoInFlightRef = useRef(false);
 
 	useEffect(
 		() =>
@@ -390,6 +400,7 @@ export function useComposerSuggestions(
 			await attach(boundSessionId, generation);
 		})();
 		return () => {
+			generationRef.current += 1;
 			void invokeFor(boundSessionId, { verb: "detach" });
 		};
 	}, [attach, connectedEpoch, environmentId, invokeFor, live, sessionId]);
@@ -537,9 +548,12 @@ export function useComposerSuggestions(
 				input,
 				...msSinceExposed(current),
 			}).then((result) => {
-				if (result?.outcome === "refused" && composer.draft() === item.prompt) {
-					composer.setDraft("");
+				if (result?.outcome !== "refused") return;
+				const used = localRef.current.used;
+				if (used?.itemId === item.id && used.revision === revision) {
+					dispatch({ type: "draft_cleared" });
 				}
+				if (composer.draft() === item.prompt) composer.setDraft("");
 			});
 		},
 		[invoke],
@@ -669,44 +683,61 @@ export function useComposerSuggestions(
 		[invoke],
 	);
 
+	const draftCleared = useCallback(() => {
+		const used = localRef.current.used;
+		if (!used) return;
+		dispatch({ type: "draft_cleared" });
+		void invoke(
+			{ verb: "clear", revision: used.revision, itemId: used.itemId },
+			{ applyReply: false },
+		);
+	}, [invoke]);
+
 	const clear = useCallback(
 		(_input: PluginUiInput, composer: SuggestionComposer) => {
-			const used = localRef.current.used;
-			if (!used) return;
+			if (!localRef.current.used) return;
 			composer.setDraft("");
-			dispatch({ type: "draft_cleared" });
-			void invoke(
-				{ verb: "clear", revision: used.revision, itemId: used.itemId },
-				{ applyReply: false },
-			);
+			draftCleared();
 		},
-		[invoke],
+		[draftCleared],
 	);
 
 	/**
-	 * A sent prompt still in the queue comes back into the box with no verb,
-	 * since no turn ran. Otherwise the turn is forked away from before the
-	 * sent message, after stopping a run the fork would refuse.
+	 * A sent prompt the queue still holds comes back into the box with no verb,
+	 * since no turn ran. Otherwise, including when the runtime started it before
+	 * the removal landed, the turn is forked away from before the sent message,
+	 * after stopping a run the fork would refuse.
 	 */
 	const undoSent = useCallback(
 		async (composer: SuggestionComposer) => {
 			const sent = localRef.current.sent;
-			if (!sent) return;
-			const { abort, messages, onRemoveQueuedPrompt, promptsInQueue } =
-				latest.current;
+			if (!sent || undoInFlightRef.current) return;
+			undoInFlightRef.current = true;
+			const { abort, onRemoveQueuedPrompt, promptsInQueue } = latest.current;
 			try {
 				const queuedPrompt = promptsInQueue.find((item) =>
 					samePrompt(item.prompt, sent.prompt),
 				);
+				/** A prompt still queued has no message of its own, so a match now is an earlier copy. */
+				let earlierCopyId: string | undefined;
 				if (queuedPrompt) {
-					await onRemoveQueuedPrompt(queuedPrompt.id);
-					composer.setDraft(takenBackDraft(sent.prompt, composer.draft()));
-					composer.focus();
-					dispatch({ type: "unsent" });
+					earlierCopyId = findSentMessage(
+						latest.current.messages,
+						sent.prompt,
+					)?.messageId;
+					if (await onRemoveQueuedPrompt(queuedPrompt.id)) {
+						composer.setDraft(takenBackDraft(sent.prompt, composer.draft()));
+						composer.focus();
+						dispatch({ type: "unsent" });
+						return;
+					}
+					if (localRef.current.sent !== sent) return;
+				}
+				const target = findSentMessage(latest.current.messages, sent.prompt);
+				if (!target || target.messageId === earlierCopyId) {
+					if (queuedPrompt) toast({ title: NOT_TAKEN_BACK });
 					return;
 				}
-				const target = findSentMessage(messages, sent.prompt);
-				if (!target) return;
 				if (BUSY_STATUSES.has(statusRef.current)) {
 					void abort();
 					const deadline = Date.now() + STOP_WAIT_MS;
@@ -740,6 +771,8 @@ export function useComposerSuggestions(
 					title: "Could not undo the suggestion",
 					description: error instanceof Error ? error.message : String(error),
 				});
+			} finally {
+				undoInFlightRef.current = false;
 			}
 		},
 		[invoke],
@@ -763,10 +796,6 @@ export function useComposerSuggestions(
 		},
 		[invoke],
 	);
-
-	const draftCleared = useCallback(() => {
-		dispatch({ type: "draft_cleared" });
-	}, []);
 
 	const move = useCallback((delta: 1 | -1) => {
 		dispatch({ type: "move", delta });
