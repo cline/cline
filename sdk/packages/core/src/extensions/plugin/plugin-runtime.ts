@@ -5,6 +5,7 @@ import { resolveClineDir } from "@cline/shared/storage";
 import {
 	type EmbeddedResources,
 	materializeEmbeddedResources,
+	pruneStaleEmbeddedResources,
 } from "../../runtime/embedded-resources";
 
 export const CLINE_PLUGIN_RUNTIME_DIR_ENV = "CLINE_PLUGIN_RUNTIME_DIR";
@@ -53,6 +54,8 @@ export function resolvePluginRuntimeDirectory(): string | undefined {
 			root,
 		);
 		embeddedDirectories.set(root, directory);
+		// Processes on an older build re-extract it here if it was pruned.
+		pruneStaleEmbeddedResources(root, directory);
 	}
 	return directory;
 }

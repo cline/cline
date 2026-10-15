@@ -12,6 +12,7 @@ import { afterEach, expect, it } from "vitest";
 import {
 	materializeEmbeddedResources,
 	packEmbeddedResources,
+	pruneStaleEmbeddedResources,
 } from "./embedded-resources";
 
 const roots: string[] = [];
@@ -78,6 +79,9 @@ it("prunes builds unused for a week", () => {
 		}),
 		root,
 	);
+	// Materializing alone never prunes: the dashboard serves its directory for its lifetime.
+	expect(existsSync(staleDirectory)).toBe(true);
+	pruneStaleEmbeddedResources(root, currentDirectory);
 	expect(existsSync(staleDirectory)).toBe(false);
 	expect(existsSync(recentDirectory)).toBe(true);
 	expect(existsSync(currentDirectory)).toBe(true);

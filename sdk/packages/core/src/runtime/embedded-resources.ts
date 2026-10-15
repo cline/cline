@@ -79,15 +79,20 @@ export function materializeEmbeddedResources(
 	try {
 		utimesSync(directory, now, now);
 	} catch {}
-	pruneStaleBuilds(root, directory, now.getTime());
 	return directory;
 }
 
 const STALE_BUILD_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Each upgrade extracts a new build directory. A process still running an
-// older build re-extracts its own directory if it is pruned here.
-function pruneStaleBuilds(root: string, current: string, now: number): void {
+/**
+ * Removes sibling builds not materialized for a week. Only safe for callers
+ * whose processes re-extract a pruned build instead of holding its directory.
+ */
+export function pruneStaleEmbeddedResources(
+	root: string,
+	current: string,
+): void {
+	const now = Date.now();
 	let entries: Dirent[];
 	try {
 		entries = readdirSync(root, { withFileTypes: true });
