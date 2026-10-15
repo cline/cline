@@ -1085,10 +1085,9 @@ function getNestedUsageValue(
 }
 
 /**
- * Request-start failures use AI SDK `maxRetries` with retry-after-aware backoff.
- * Provider error parts use `streamRetries`; our versioned AI SDK patch requires
- * explicit retryability, waits 2s/4s/8s, and stops replay as soon as provider-owned
- * tool activity is observed. Unknown retryability is terminal.
+ * AI SDK `maxRetries` handles request-start failures with retry-after-aware
+ * backoff. `streamRetries` handles provider error parts after streaming starts
+ * using the SDK's built-in retry policy.
  *
  * Terminal stream errors and exhausted request-start RetryErrors do not trigger
  * whole-turn retries, which would multiply the SDK's retry budgets.

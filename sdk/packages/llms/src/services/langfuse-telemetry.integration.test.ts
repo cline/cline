@@ -211,124 +211,120 @@ it.each([
 	["direct", 4, true],
 	["direct", 2, false],
 	["direct", 4, false],
-] as const)(
-	"exports %s attempts after %s failures (finish event: %s)",
-	async (route, failures, hasFinish) => {
-		if (route === "direct") {
-			trace.disable();
-			context.disable();
-			vi.stubEnv("LANGFUSE_BASE_URL", "https://langfuse.example");
-			vi.stubEnv("LANGFUSE_PUBLIC_KEY", "public-key");
-			vi.stubEnv("LANGFUSE_SECRET_KEY", "secret-key");
-		}
-		let calls = 0;
-		const streamTelemetry = createStreamErrorTelemetry(
-			await resolveAiSdkTelemetry("cline", "retry-test"),
-		);
-		const result = streamText({
-			model: new MockLanguageModelV4({
-				provider: "cline",
-				modelId: "retry-test",
-				doStream: async () => {
-					// Every earlier attempt must already be exported before issuing a retry.
-					const completed = (route === "direct" ? directExporters[0] : exporter)
-						.getFinishedSpans()
-						.filter((span) => span.name === "chat retry-test");
-					expect(completed).toHaveLength(calls);
-					const fail = calls++ < failures;
-					return {
-						stream: new ReadableStream({
-							start(controller) {
-								controller.enqueue({ type: "stream-start", warnings: [] });
-								if (fail)
-									controller.enqueue({
-										type: "error",
-										error: {
-											message: "upstream timeout",
-											type: "timeout_error",
-											code: "504",
+] as const)("exports %s attempts after %s failures (finish event: %s)", async (route, failures, hasFinish) => {
+	if (route === "direct") {
+		trace.disable();
+		context.disable();
+		vi.stubEnv("LANGFUSE_BASE_URL", "https://langfuse.example");
+		vi.stubEnv("LANGFUSE_PUBLIC_KEY", "public-key");
+		vi.stubEnv("LANGFUSE_SECRET_KEY", "secret-key");
+	}
+	let calls = 0;
+	const streamTelemetry = createStreamErrorTelemetry(
+		await resolveAiSdkTelemetry("cline", "retry-test"),
+	);
+	const result = streamText({
+		model: new MockLanguageModelV4({
+			provider: "cline",
+			modelId: "retry-test",
+			doStream: async () => {
+				// Every earlier attempt must already be exported before issuing a retry.
+				const completed = (route === "direct" ? directExporters[0] : exporter)
+					.getFinishedSpans()
+					.filter((span) => span.name === "chat retry-test");
+				expect(completed).toHaveLength(calls);
+				const fail = calls++ < failures;
+				return {
+					stream: new ReadableStream({
+						start(controller) {
+							controller.enqueue({ type: "stream-start", warnings: [] });
+							if (fail)
+								controller.enqueue({
+									type: "error",
+									error: {
+										message: "upstream timeout",
+										type: "timeout_error",
+										code: "504",
+									},
+								});
+							else {
+								controller.enqueue({ type: "text-start", id: "text" });
+								controller.enqueue({
+									type: "text-delta",
+									id: "text",
+									delta: "recovered",
+								});
+								controller.enqueue({ type: "text-end", id: "text" });
+							}
+							if (!fail || hasFinish)
+								controller.enqueue({
+									type: "finish",
+									finishReason: {
+										unified: fail ? "error" : "stop",
+										raw: undefined,
+									},
+									usage: {
+										inputTokens: {
+											total: 1,
+											noCache: 1,
+											cacheRead: 0,
+											cacheWrite: 0,
 										},
-									});
-								else {
-									controller.enqueue({ type: "text-start", id: "text" });
-									controller.enqueue({
-										type: "text-delta",
-										id: "text",
-										delta: "recovered",
-									});
-									controller.enqueue({ type: "text-end", id: "text" });
-								}
-								if (!fail || hasFinish)
-									controller.enqueue({
-										type: "finish",
-										finishReason: {
-											unified: fail ? "error" : "stop",
-											raw: undefined,
-										},
-										usage: {
-											inputTokens: {
-												total: 1,
-												noCache: 1,
-												cacheRead: 0,
-												cacheWrite: 0,
-											},
-											outputTokens: { total: 1, text: 1, reasoning: 0 },
-										},
-									});
-								controller.close();
-							},
-						}),
-					};
-				},
-			}),
-			prompt: "test",
-			streamRetries: 3,
-			maxRetries: 0,
-			telemetry: streamTelemetry.telemetry,
-			onError: async ({ error }) => {
-				// The SDK may read the finish event ahead of a slower error consumer.
-				await new Promise<void>((resolve) => setImmediate(resolve));
-				streamTelemetry.captureError(error);
+										outputTokens: { total: 1, text: 1, reasoning: 0 },
+									},
+								});
+							controller.close();
+						},
+					}),
+				};
 			},
-		});
-		for (const promise of [
-			result.usage,
-			result.totalUsage,
-			result.finishReason,
-			result.steps,
-			result.text,
-			result.response,
-		])
-			promise.catch(() => {});
-		// Let the producer complete before the event consumer reports errors.
-		await result.text.catch(() => {});
-		expect(streamTelemetry.getCallId()).toEqual(expect.any(String));
-		const errors: unknown[] = [];
-		for await (const part of result.fullStream) {
-			if (part.type === "error") {
-				errors.push(part.error);
-				await streamTelemetry.recordError(part.error);
-			}
+		}),
+		prompt: "test",
+		streamRetries: 3,
+		maxRetries: 0,
+		telemetry: streamTelemetry.telemetry,
+		onError: async ({ error }) => {
+			// The SDK may read the finish event ahead of a slower error consumer.
+			await new Promise<void>((resolve) => setImmediate(resolve));
+			streamTelemetry.captureError(error);
+		},
+	});
+	for (const promise of [
+		result.usage,
+		result.totalUsage,
+		result.finishReason,
+		result.steps,
+		result.text,
+		result.response,
+	])
+		promise.catch(() => {});
+	// Let the producer complete before the event consumer reports errors.
+	await result.text.catch(() => {});
+	expect(streamTelemetry.getCallId()).toEqual(expect.any(String));
+	const errors: unknown[] = [];
+	for await (const part of result.fullStream) {
+		if (part.type === "error") {
+			errors.push(part.error);
+			await streamTelemetry.recordError(part.error);
 		}
-		await provider.forceFlush();
-		expect(calls).toBe(failures === 2 ? 3 : 4);
-		expect(errors).toHaveLength(failures === 2 ? 0 : 1);
-		const spans = (
-			route === "direct" ? directExporters[0] : exporter
-		).getFinishedSpans();
-		const attempts = spans.filter((span) => span.name === "chat retry-test");
-		expect(attempts).toHaveLength(calls);
-		expect(
-			attempts.filter((span) => span.status.code === SpanStatusCode.ERROR),
-		).toHaveLength(Math.min(failures, 4));
-		const roots = spans.filter((span) => !span.parentSpanContext);
-		expect(roots).toHaveLength(1);
-		expect(roots[0]?.status.code).toBe(
-			failures === 2 ? SpanStatusCode.UNSET : SpanStatusCode.ERROR,
-		);
-	},
-	25_000,
-);
+	}
+	await provider.forceFlush();
+	expect(calls).toBe(failures === 2 ? 3 : 4);
+	expect(errors).toHaveLength(failures === 2 ? 0 : 1);
+	const spans = (
+		route === "direct" ? directExporters[0] : exporter
+	).getFinishedSpans();
+	const attempts = spans.filter((span) => span.name === "chat retry-test");
+	expect(attempts).toHaveLength(calls);
+	expect(
+		attempts.filter((span) => span.status.code === SpanStatusCode.ERROR),
+	).toHaveLength(Math.min(failures, 4));
+	const roots = spans.filter((span) => !span.parentSpanContext);
+	expect(roots).toHaveLength(1);
+	expect(roots[0]?.status.code).toBe(
+		failures === 2 ? SpanStatusCode.UNSET : SpanStatusCode.ERROR,
+	);
+});
 
 async function runStream(
 	telemetry = { isEnabled: true } as Awaited<
