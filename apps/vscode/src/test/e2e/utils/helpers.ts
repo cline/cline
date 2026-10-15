@@ -1,4 +1,4 @@
-import type { ChildProcess } from "node:child_process"
+import { type ChildProcess, execFileSync } from "node:child_process"
 import { mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -221,6 +221,17 @@ export class E2ETestHelper {
 		console.warn(
 			`[e2e teardown] app.close() exceeded ${E2ETestHelper.TEARDOWN_TIMEOUT_MS}ms; forcing VS Code/Electron shutdown (${getProcessSummary()}; windows: ${windowDiagnostics})`,
 		)
+
+		// Windows: SIGKILL only ends the root process; Code child processes survive and keep the
+		// Playwright worker from exiting ("Worker teardown timeout"). Kill the whole tree.
+		if (globalThis.process.platform === "win32" && process?.pid) {
+			try {
+				execFileSync("taskkill", ["/pid", String(process.pid), "/T", "/F"], { stdio: "ignore", timeout: 10_000 })
+			} catch {
+				// Already exited or tree gone; nothing left to kill.
+			}
+			return
+		}
 
 		if (!process || process.killed || process.exitCode !== null) {
 			return
