@@ -46,9 +46,11 @@ export class LangfuseStreamTelemetry
 	override onLanguageModelCallEnd(
 		event: LanguageModelCallEndEvent<ToolSet>,
 	): void {
-		// The SDK can read a finish event ahead of the application's error
-		// callback. Keep the real completion event until the attempt is classified.
+		// A failed finish can be read ahead of the application's error callback.
+		// Defer that completion so the original error can still mark the span.
+		// Successful calls keep their original lifetime and latency measurement.
 		this.completedAttempts.set(event.callId, event);
+		if (event.finishReason !== "error") this.endAttempt(event.callId);
 	}
 
 	private endAttempt(callId: string): void {
