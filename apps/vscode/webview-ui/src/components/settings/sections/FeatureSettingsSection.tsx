@@ -39,14 +39,6 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
-	{
-		id: "cloud-sessions",
-		label: "Cloud",
-		description:
-			"Run Cline on your GitHub repositories in secure cloud sandboxes. Adds a Cloud option to the new task composer. Requires a Cline account with GitHub connected.",
-		stateKey: "cloudSessionsEnabled",
-		settingKey: "cloudSessionsEnabled",
-	},
 ]
 
 const editorFeatures: FeatureToggle[] = [
@@ -175,13 +167,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		worktreesEnabled: worktreesEnabled?.user,
 		backgroundEditEnabled,
-		cloudSessionsEnabled,
 	}
 
 	// Visibility lookup for features with feature flags
 	const featureVisibility: Record<string, boolean | undefined> = {
 		worktreesEnabled: worktreesEnabled?.featureFlag,
-		cloudSessionsEnabled: !!cloudSessionsAvailable,
 	}
 
 	return (
@@ -227,6 +217,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								description="Let the model search the web when the selected provider and model support it. Applies to new tasks."
 								label="Web Search"
 								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
+							/>
+							<FeatureRow
+								checked={cloudSessionsEnabled}
+								description="Run Cline on your GitHub repositories in secure cloud sandboxes. Adds a Cloud option to the new task composer. Requires a Cline account with GitHub connected."
+								id="cloud-sessions"
+								isVisible={!!cloudSessionsAvailable}
+								label="Cloud"
+								onChange={(checked) => updateSetting("cloudSessionsEnabled", checked)}
 							/>
 						</div>
 					</div>
