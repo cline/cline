@@ -8,11 +8,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentExtensionAutomationContext,
+	type AgentExtensionUiSlot,
 	type AgentResult,
 	type AgentRuntimeEvent,
 	type BasicLogger,
@@ -1045,6 +1047,77 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			status: "idle",
 		});
+	});
+
+	it("loads the composer-suggestions fixture as an ordinary plugin when the session declares no slots", async () => {
+		const fixturePath = fileURLToPath(
+			new URL(
+				"../../../../../examples/plugins/composer-suggestions.ts",
+				import.meta.url,
+			),
+		);
+		let extensions: AgentConfig["extensions"];
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-fixture"),
+			getConversationId: vi.fn().mockReturnValue("conv-fixture"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}),
+			} as never,
+			createAgent: (config) => {
+				extensions = config.extensions;
+				return agent as never;
+			},
+		});
+		try {
+			await manager.startSession({
+				...normalizeStartInput({
+					config: createConfig({
+						sessionId: "sess-composer-suggestions-fixture",
+						cwd: isolatedHomeDir,
+						enableSpawnAgent: false,
+						enableAgentTeams: false,
+					}),
+					interactive: true,
+				}),
+				localRuntime: { pluginPaths: [fixturePath] } as never,
+			});
+			const fixture = extensions?.find(
+				(extension) => extension.name === "composer-suggestions-demo",
+			);
+			expect(fixture).toBeDefined();
+			const uiSlots: AgentExtensionUiSlot[] = [];
+			await fixture?.setup?.(
+				{
+					registerTool: vi.fn(),
+					registerCommand: vi.fn(),
+					registerRule: vi.fn(),
+					registerMessageBuilder: vi.fn(),
+					registerProvider: vi.fn(),
+					registerAutomationEventType: vi.fn(),
+					registerMcpServer: vi.fn(),
+					registerUiSlot: (uiSlot) => uiSlots.push(uiSlot),
+				},
+				{},
+			);
+			// No catalog, so the plugin was offered no slot API and set itself up without one.
+			expect(uiSlots).toEqual([]);
+		} finally {
+			await manager.dispose();
+		}
 	});
 
 	it("ingests automation events emitted by sandbox plugins during setup", async () => {
