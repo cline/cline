@@ -12,8 +12,7 @@ import path from "node:path"
 // Each test gets a fresh tempDir, so the per-dataDir manager cache and the
 // stub's per-dataDir store are naturally isolated between tests.
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import type { StateManager } from "@/core/storage/StateManager"
-import { getProviderSettingsManager, migrateOpenAiCompatibleBaseUrlToV1, migrateProviders } from "./provider-migration"
+import { getProviderSettingsManager, migrateProviders } from "./provider-migration"
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -120,83 +119,5 @@ describe("getProviderSettingsManager", () => {
 		const first = getProviderSettingsManager(tempDir)
 		const second = getProviderSettingsManager(tempDir)
 		expect(second).toBe(first)
-	})
-})
-
-// ---------------------------------------------------------------------------
-// migrateOpenAiCompatibleBaseUrlToV1
-// ---------------------------------------------------------------------------
-
-describe("migrateOpenAiCompatibleBaseUrlToV1", () => {
-	function fakeStateManager(initial: Record<string, unknown> = {}) {
-		const state: Record<string, unknown> = { ...initial }
-		const get = (key: string) => state[key]
-		const stateManager = {
-			getGlobalStateKey: get,
-			getGlobalSettingsKey: get,
-			setGlobalState: (key: string, value: unknown) => {
-				state[key] = value
-			},
-		} as unknown as StateManager
-		return { state, stateManager }
-	}
-
-	it.each([
-		["https://example.com", "https://example.com/v1"],
-		["http://localhost:8000/", "http://localhost:8000/v1"],
-		[" http://127.0.0.1:1234 ", "http://127.0.0.1:1234/v1"],
-	])("rewrites the host-only state URL %j to %j", (baseUrl, expected) => {
-		const { state, stateManager } = fakeStateManager({ openAiBaseUrl: baseUrl })
-
-		migrateOpenAiCompatibleBaseUrlToV1(stateManager, tempDir)
-
-		expect(state.openAiBaseUrl).toBe(expected)
-		expect(state.openAiBaseUrlV1Migrated).toBe(true)
-	})
-
-	it.each([
-		"https://example.com/v1",
-		"https://example.com/api/foo",
-		"not a url",
-	])("leaves the state URL %j unchanged", (baseUrl) => {
-		const { state, stateManager } = fakeStateManager({ openAiBaseUrl: baseUrl })
-
-		migrateOpenAiCompatibleBaseUrlToV1(stateManager, tempDir)
-
-		expect(state.openAiBaseUrl).toBe(baseUrl)
-		expect(state.openAiBaseUrlV1Migrated).toBe(true)
-	})
-
-	it("runs only once, so a host-only URL saved afterwards is kept", () => {
-		const { state, stateManager } = fakeStateManager({ openAiBaseUrlV1Migrated: true, openAiBaseUrl: "https://example.com" })
-
-		migrateOpenAiCompatibleBaseUrlToV1(stateManager, tempDir)
-
-		expect(state.openAiBaseUrl).toBe("https://example.com")
-	})
-
-	it("leaves providers.json alone when the state URL is set", () => {
-		const manager = getProviderSettingsManager(tempDir)
-		manager.saveProviderSettings({ provider: "openai-compatible", baseUrl: "https://example.com" })
-		const { stateManager } = fakeStateManager({ openAiBaseUrl: "https://example.com" })
-
-		migrateOpenAiCompatibleBaseUrlToV1(stateManager, tempDir)
-
-		expect(manager.getProviderSettings("openai-compatible")?.baseUrl).toBe("https://example.com")
-	})
-
-	it("rewrites the providers.json URL when the state URL is unset", () => {
-		const manager = getProviderSettingsManager(tempDir)
-		manager.saveProviderSettings({ provider: "openai-compatible", baseUrl: "https://example.com", apiKey: "key" })
-		const { state, stateManager } = fakeStateManager()
-
-		migrateOpenAiCompatibleBaseUrlToV1(stateManager, tempDir)
-
-		expect(manager.getProviderSettings("openai-compatible")).toMatchObject({
-			baseUrl: "https://example.com/v1",
-			apiKey: "key",
-		})
-		expect(state.openAiBaseUrl).toBeUndefined()
-		expect(state.openAiBaseUrlV1Migrated).toBe(true)
 	})
 })

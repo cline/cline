@@ -14,7 +14,6 @@
 import path from "node:path"
 import { ProviderSettingsManager } from "@cline/core"
 import { Logger } from "@shared/services/Logger"
-import type { StateManager } from "@/core/storage/StateManager"
 import { resolveDataDir } from "./legacy-state-reader"
 
 // ---------------------------------------------------------------------------
@@ -110,59 +109,4 @@ export function getProviderSettingsManager(dataDir?: string): ProviderSettingsMa
 	_cachedManager = new ProviderSettingsManager({ filePath, dataDir: resolvedDataDir })
 	_cachedDataDir = resolvedDataDir
 	return _cachedManager
-}
-
-// ---------------------------------------------------------------------------
-// OpenAI Compatible base URL /v1 migration
-// ---------------------------------------------------------------------------
-
-function withV1Path(baseUrl: string | undefined): string | undefined {
-	const trimmed = baseUrl?.trim()
-	if (!trimmed || !URL.canParse(trimmed)) {
-		return undefined
-	}
-	const url = new URL(trimmed)
-	if (url.pathname !== "/") {
-		return undefined
-	}
-	url.pathname = "/v1"
-	return url.toString().replace(/\/$/, "")
-}
-
-/**
- * Earlier extension builds sent requests for a host-only OpenAI Compatible
- * base URL (`https://example.com`) to `<host>/v1`; the URL is now used as
- * entered. Rewrite saved host-only URLs to `/v1` once, so existing setups keep
- * reaching the endpoint they always have. Runs once so a user can still save a
- * host-only URL afterwards.
- *
- * Only the value the extension resolves is rewritten: the legacy state field
- * when set, otherwise providers.json. providers.json is shared with the CLI,
- * which has always used the URL verbatim.
- */
-export function migrateOpenAiCompatibleBaseUrlToV1(stateManager: StateManager, dataDir?: string): void {
-	if (stateManager.getGlobalStateKey("openAiBaseUrlV1Migrated")) {
-		return
-	}
-	try {
-		const stateBaseUrl = stateManager.getGlobalSettingsKey("openAiBaseUrl")
-		if (stateBaseUrl?.trim()) {
-			const migrated = withV1Path(stateBaseUrl)
-			if (migrated) {
-				stateManager.setGlobalState("openAiBaseUrl", migrated)
-				Logger.log(`[ProviderMigration] OpenAI Compatible base URL ${stateBaseUrl} -> ${migrated}`)
-			}
-		} else {
-			const manager = getProviderSettingsManager(dataDir)
-			const settings = manager.getProviderSettings("openai-compatible")
-			const migrated = withV1Path(settings?.baseUrl)
-			if (settings && migrated) {
-				manager.saveProviderSettings({ ...settings, baseUrl: migrated }, { setLastUsed: false })
-				Logger.log(`[ProviderMigration] OpenAI Compatible base URL ${settings.baseUrl} -> ${migrated}`)
-			}
-		}
-		stateManager.setGlobalState("openAiBaseUrlV1Migrated", true)
-	} catch (error) {
-		Logger.error("[ProviderMigration] Failed to migrate OpenAI Compatible base URL:", error)
-	}
 }

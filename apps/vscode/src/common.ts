@@ -10,7 +10,6 @@ import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
-import { migrateOpenAiCompatibleBaseUrlToV1 } from "./sdk/provider-migration"
 import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
 import { registerClineClientIdentity } from "./services/ClineClientIdentity"
 import { ErrorService } from "./services/error"
@@ -56,7 +55,6 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 
 	try {
 		await StateManager.initialize(storageContext)
-		migrateOpenAiCompatibleBaseUrlToV1(StateManager.get())
 	} catch (error) {
 		Logger.error("[Cline] CRITICAL: Failed to initialize StateManager:", error)
 		HostProvider.window.showMessage({
