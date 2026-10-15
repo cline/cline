@@ -63,6 +63,12 @@ import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
+import {
+	areShortcutsSuspended,
+	matchesAccelerator,
+	useKeybindings,
+} from "@/lib/keybindings";
+import { QuitHoldHandler } from "@/components/quit-hold-handler";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
@@ -758,30 +764,27 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
-	// new session, and Cmd/Ctrl+, for settings.
+	// App shortcuts come from keybindings.json (Settings → Keybindings).
+	const keybindings = useKeybindings();
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (showOnboarding) {
+			if (showOnboarding || areShortcutsSuspended()) {
 				return;
 			}
-			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
-				return;
-			}
-			if (event.key === "n" || event.key === "N") {
+			if (matchesAccelerator(event, keybindings["new-session"].key)) {
 				event.preventDefault();
 				handleNewThread();
-			} else if (event.key === "p" || event.key === "P") {
+			} else if (matchesAccelerator(event, keybindings["command-bar"].key)) {
 				event.preventDefault();
 				setCommandBarOpen((current) => !current);
-			} else if (event.key === ",") {
+			} else if (matchesAccelerator(event, keybindings["open-settings"].key)) {
 				event.preventDefault();
 				handleViewChange("settings");
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleNewThread, handleViewChange, showOnboarding]);
+	}, [handleNewThread, handleViewChange, keybindings, showOnboarding]);
 	const handleThreadStarted = useCallback(
 		(threadId: string, sessionId?: string) => {
 			dispatchApp({ type: "thread-started", threadId, sessionId });
@@ -856,6 +859,9 @@ export default function Home() {
 					case "open-settings":
 						handleViewChange("settings");
 						break;
+					case "open-keybindings":
+						handleSettingsSectionChange("Keybindings");
+						break;
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
 						break;
@@ -872,7 +878,12 @@ export default function Home() {
 						break;
 				}
 			}),
-		[handleNewThread, handleOpenSessionById, handleViewChange],
+		[
+			handleNewThread,
+			handleOpenSessionById,
+			handleSettingsSectionChange,
+			handleViewChange,
+		],
 	);
 
 	const historyWorkspacePaths = useMemo(
@@ -1056,6 +1067,7 @@ export default function Home() {
 				open={exportDiagnosticsOpen}
 			/>
 			<HubUpdateRequiredDialog />
+			<QuitHoldHandler bindings={keybindings} />
 			{whatsNew ? (
 				<WhatsNewDialog
 					onOpenChange={(open) => {

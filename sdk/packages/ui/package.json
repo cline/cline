@@ -93,6 +93,7 @@
 		"components/agent-quick-actions.tsx",
 		"components/agent-session-row.tsx",
 		"components/github-icon.tsx",
+		"components/kbd.tsx",
 		"components/markdown.css",
 		"components/markdown.ts",
 		"components/mermaid-block.tsx",
