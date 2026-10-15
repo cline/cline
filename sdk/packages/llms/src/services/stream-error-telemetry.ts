@@ -1,6 +1,13 @@
 import type { Telemetry } from "ai";
 import type { AiSdkTelemetryDecision } from "./langfuse-telemetry";
 
+export interface StreamAttemptTelemetry extends Telemetry {
+	onLanguageModelCallError?: (event: {
+		callId: string;
+		error: unknown;
+	}) => void;
+}
+
 /** Connect application-level stream failures to the operation's tracing lifecycle. */
 export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 	telemetry: AiSdkTelemetryDecision;
@@ -14,11 +21,13 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 			: [decision.integrations]
 		: [];
 	let callId: string | undefined;
+	let active = false;
 	let failed = false;
 	let pendingError: unknown;
 	const lifecycle: Telemetry = {
 		onStart(event) {
 			callId = event.callId;
+			active = true;
 		},
 		onError() {
 			failed = true;
@@ -35,15 +44,15 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 			) {
 				await recordError(pendingError);
 			}
-			callId = undefined;
+			active = false;
 		},
 		async onAbort(event) {
 			if (isTimeoutReason(event.reason)) await recordError(event.reason);
-			callId = undefined;
+			active = false;
 		},
 	};
 	async function recordError(error: unknown) {
-		if (!callId || failed) return;
+		if (!callId || !active || failed) return;
 		failed = true;
 		await Promise.all(
 			integrations.map((integration) =>
@@ -60,6 +69,10 @@ export function createStreamErrorTelemetry(decision: AiSdkTelemetryDecision): {
 		recordError,
 		captureError: (error) => {
 			pendingError = error;
+			if (!callId || !active) return;
+			for (const integration of integrations) {
+				integration.onLanguageModelCallError?.({ callId, error });
+			}
 		},
 		getCallId: () => callId,
 	};
