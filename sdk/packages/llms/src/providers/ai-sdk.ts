@@ -1525,12 +1525,14 @@ function modelFailure(
 	);
 	return {
 		message: captured.message,
+		diagnosticMessage: captured.baseMessage,
 		cause: captured.error,
 		classification: captured.errorClass,
 		retryable: captured.retryable,
 		context: {
 			...correlation,
 			aiSdkCallId: captured.aiSdkCallId,
+			requestId: captured.requestId,
 			error_phase: captured.phase,
 			error_turn_retryable: captured.retryable,
 			providerId: request.providerId,
@@ -1917,10 +1919,17 @@ async function* emitAiSdkEvents(
 
 				if (part.type === "abort") {
 					streamAborted = true;
-					if (isTimeoutReason(part.reason)) {
-						streamError =
-							capturedError?.current ??
-							captureStreamError(part.reason, "timeout");
+					// AI SDK serializes the public abort reason to a string; onAbort
+					// retains the original structured timeout, even after prior steps.
+					const captured = capturedError?.current;
+					const signalReason = request.signal?.reason;
+					const reason = isTimeoutReason(signalReason)
+						? signalReason
+						: part.reason;
+					if (captured && isTimeoutReason(captured.error)) {
+						streamError = captured;
+					} else if (isTimeoutReason(reason)) {
+						streamError = captureStreamError(reason, "timeout");
 					}
 					break;
 				}

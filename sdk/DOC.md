@@ -88,7 +88,9 @@ Callback errors preserve their original type; they do not prove an earlier POST 
 
 `AgentModelEvent` finish events carry an optional `failure: AgentModelFailure`.
 It contains the display `message`, original `cause`, `classification`, turn-level
-`retryable` decision, and diagnostic `context`. Successful finish events omit it.
+`retryable` decision, and diagnostic `context`. Optional `diagnosticMessage` keeps
+telemetry stable when display messages include request IDs. Successful finish
+events omit the failure.
 Custom models return failure details and leave terminal reporting to their caller.
 
 `AgentRuntime` owns terminal `sdk.error` reports for agent operations, including

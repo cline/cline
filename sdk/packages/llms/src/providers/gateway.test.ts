@@ -1446,7 +1446,9 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			requestId: "req_abc123",
-			error: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+			failure: {
+				message: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+			},
 		});
 	});
 

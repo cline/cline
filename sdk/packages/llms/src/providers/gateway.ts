@@ -428,7 +428,7 @@ export class DefaultGateway implements Gateway {
 					? "provider.create_or_stream"
 					: operation,
 			error,
-			errorMessage: failure.message,
+			errorMessage: failure.diagnosticMessage ?? failure.message,
 			context: {
 				...context,
 				...failure.context,

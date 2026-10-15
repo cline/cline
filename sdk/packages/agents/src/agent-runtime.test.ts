@@ -4639,6 +4639,7 @@ describe("AgentRuntime sdk.error reporting", () => {
 								reason: "error",
 								failure: {
 									message: "Display error",
+									diagnosticMessage: "Stable diagnostic error",
 									cause,
 									retryable: false,
 									context: { error_phase: "stream_read" },
@@ -4662,6 +4663,7 @@ describe("AgentRuntime sdk.error reporting", () => {
 			const result = await runtime.run("test");
 			expect(result.status).toBe("failed");
 			expect(result.error?.cause).toBe(cause);
+			expect(result.error?.message).toBe("Display error");
 		} else {
 			for await (const _event of await gateway.stream({
 				providerId: "test-provider",
@@ -4676,7 +4678,7 @@ describe("AgentRuntime sdk.error reporting", () => {
 		expect(errors).toHaveLength(1);
 		expect(errors[0].properties).toMatchObject({
 			component: owner === "agent" ? "agents" : "llms",
-			error_message: "Display error",
+			error_message: "Stable diagnostic error",
 			error_code: "ConnectionClosed",
 			error_status: 504,
 			error_retryable: true,

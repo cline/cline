@@ -2715,7 +2715,9 @@ export class AgentRuntime {
 					component: "agents",
 					operation: "agent.run",
 					error: this.state.lastModelFailure?.cause ?? event.error,
-					errorMessage: event.error.message,
+					errorMessage:
+						this.state.lastModelFailure?.diagnosticMessage ??
+						event.error.message,
 					severity: "error",
 					handled: false,
 					context: {

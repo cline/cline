@@ -309,6 +309,8 @@ export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
 /** Structured terminal model failure, reported by the outermost operation. */
 export interface AgentModelFailure {
 	message: string;
+	/** Stable diagnostic text, excluding request-specific display details. */
+	diagnosticMessage?: string;
 	cause?: unknown;
 	classification?: ProviderErrorClass;
 	retryable?: boolean;
