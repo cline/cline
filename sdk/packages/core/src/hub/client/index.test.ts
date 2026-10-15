@@ -1013,6 +1013,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 	});
 
 	it("returns undefined on build mismatch but keeps discovery for retirement", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "2000");
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -1034,6 +1035,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					hubId: "hub-test",
 					protocolVersion: "v1",
 					buildId: "old-build",
+					buildEpochMs: 1_000,
 					host: "127.0.0.1",
 					port: 59999,
 					url: "ws://127.0.0.1:59999/hub",
@@ -1047,6 +1049,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					hubId: "hub-test",
 					protocolVersion: "v1",
 					buildId: "old-build",
+					buildEpochMs: 1_000,
 					host: "127.0.0.1",
 					port: 59999,
 					url: "ws://127.0.0.1:59999/hub",
@@ -1304,6 +1307,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 	it("replaces a stale-build hub without dropping its retirement credentials", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "2000");
 		const clearHubDiscoveryMock = vi.fn();
 		const ensureDetachedHubServerMock = vi.fn(async () => ({
 			url: "ws://127.0.0.1:25465/hub",
@@ -1313,6 +1317,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			hubId: "hub-test",
 			protocolVersion: "v1",
 			buildId: "old-build",
+			buildEpochMs: 1_000,
 			authToken: "old-token",
 			host: "127.0.0.1",
 			port: 25464,
