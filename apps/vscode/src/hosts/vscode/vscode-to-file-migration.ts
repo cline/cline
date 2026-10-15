@@ -344,7 +344,6 @@ function migrateOpenAiCompatibleBaseUrlToV1(storage: StorageContext): void {
 		return
 	}
 	url.pathname = "/v1"
-	const migrated = url.toString().replace(/\/$/, "")
-	storage.globalState.update("openAiBaseUrl", migrated)
-	Logger.info(`[Migration] OpenAI Compatible base URL ${baseUrl} -> ${migrated}`)
+	storage.globalState.update("openAiBaseUrl", url.toString().replace(/\/$/, ""))
+	Logger.info("[Migration] Added /v1 to the host-only OpenAI Compatible base URL")
 }
