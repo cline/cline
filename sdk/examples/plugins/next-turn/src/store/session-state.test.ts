@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs";
 import { readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import { join } from "node:path";
@@ -193,5 +194,67 @@ describe("session state persistence across sandbox respawn", () => {
 		expect(new FileSessionStateStore(dir, "sess_rewritten").read()?.seq).toBe(
 			2,
 		);
+		expect(readdirSync(dir)).toEqual([fileName]);
+	});
+
+	test("pruning keeps state another process writes after the last age check", async () => {
+		const dir = tempDir();
+		const now = Date.now();
+		new FileSessionStateStore(dir, "sess_late").write({ seq: 1 });
+		const [fileName] = readdirSync(dir);
+		const stale = new Date(now - SESSION_STATE_TTL_MS - 86_400_000);
+		utimesSync(join(dir, fileName), stale, stale);
+		const realStatSync = fs.statSync;
+		let wrote = false;
+		const statSpy = spyOn(fs, "statSync").mockImplementation(((
+			path: string,
+		) => {
+			const checked = realStatSync(path);
+			if (!wrote) {
+				wrote = true;
+				new FileSessionStateStore(dir, "sess_late").write({ seq: 2 });
+			}
+			return checked;
+		}) as typeof fs.statSync);
+		try {
+			await pruneSessionStates(dir, now);
+		} finally {
+			statSpy.mockRestore();
+		}
+		expect(new FileSessionStateStore(dir, "sess_late").read()?.seq).toBe(2);
+		expect(readdirSync(dir)).toEqual([fileName]);
+	});
+
+	test("pruning gives way to a write that lands while it holds a newer version aside", async () => {
+		const dir = tempDir();
+		const now = Date.now();
+		new FileSessionStateStore(dir, "sess_raced").write({ seq: 1 });
+		const [fileName] = readdirSync(dir);
+		const stale = new Date(now - SESSION_STATE_TTL_MS - 86_400_000);
+		utimesSync(join(dir, fileName), stale, stale);
+		const realStat = fsPromises.stat;
+		const asyncSpy = spyOn(fsPromises, "stat").mockImplementation((async (
+			path: string,
+		) => {
+			const checked = await realStat(path);
+			new FileSessionStateStore(dir, "sess_raced").write({ seq: 2 });
+			return checked;
+		}) as typeof fsPromises.stat);
+		const realStatSync = fs.statSync;
+		const syncSpy = spyOn(fs, "statSync").mockImplementation(((
+			path: string,
+		) => {
+			const moved = realStatSync(path);
+			new FileSessionStateStore(dir, "sess_raced").write({ seq: 3 });
+			return moved;
+		}) as typeof fs.statSync);
+		try {
+			await pruneSessionStates(dir, now);
+		} finally {
+			asyncSpy.mockRestore();
+			syncSpy.mockRestore();
+		}
+		expect(new FileSessionStateStore(dir, "sess_raced").read()?.seq).toBe(3);
+		expect(readdirSync(dir)).toEqual([fileName]);
 	});
 });

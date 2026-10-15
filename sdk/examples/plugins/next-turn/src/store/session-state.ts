@@ -1,10 +1,19 @@
-import { rmSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+	existsSync,
+	linkSync,
+	renameSync,
+	rmSync,
+	type Stats,
+	statSync,
+} from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { SESSION_STATE_TTL_MS } from "../config";
 import type { TurnSnapshot } from "../planner/next";
 import type { TrayPush } from "../planner/tray";
 import type { Turn } from "../planner/turn";
+import { isRecord } from "../values";
 import { readJsonFile, sha256Hex, writeFileAtomic } from "./data-dir";
 
 const SESSION_STATE_VERSION = 1;
@@ -121,6 +130,38 @@ export class FileSessionStateStore implements SessionStateStore {
 }
 
 /**
+ * Deletes `path` only while it is still the version `checked` saw. Another
+ * chat's worker can rename fresh state onto the path at any moment, so the
+ * file is first renamed aside, which no write can interleave with. A version
+ * written since the check goes back with `link`, which never overwrites a
+ * write that landed after the rename. The aside name ends in `.tmp`, so a
+ * prune cut short leaves only what a later prune removes.
+ */
+function removeIfUnchanged(path: string, checked: Stats): void {
+	const aside = `${path}.${process.pid}.${randomUUID()}.tmp`;
+	renameSync(path, aside);
+	const moved = statSync(aside);
+	if (
+		moved.ino === checked.ino &&
+		moved.mtimeMs === checked.mtimeMs &&
+		moved.size === checked.size
+	) {
+		rmSync(aside, { force: true });
+		return;
+	}
+	try {
+		linkSync(aside, path);
+	} catch (error) {
+		const newerWrite = isRecord(error) && error.code === "EEXIST";
+		if (!newerWrite && !existsSync(path)) {
+			renameSync(aside, path);
+			return;
+		}
+	}
+	rmSync(aside, { force: true });
+}
+
+/**
  * Removes every chat's state file, and any temporary file a worker left
  * mid-write, last written longer than the TTL ago. A chat's own store also
  * expires its file on read, so this only keeps the directory from growing.
@@ -142,10 +183,8 @@ export async function pruneSessionStates(
 			.map(async (name) => {
 				const path = join(dir, name);
 				try {
-					if (!expired((await stat(path)).mtimeMs)) return;
-					// A chat worker may have replaced the file while the stat was
-					// pending; check again without yielding so only an expired file goes.
-					if (expired(statSync(path).mtimeMs)) rmSync(path, { force: true });
+					const checked = await stat(path);
+					if (expired(checked.mtimeMs)) removeIfUnchanged(path, checked);
 				} catch {}
 			}),
 	);
