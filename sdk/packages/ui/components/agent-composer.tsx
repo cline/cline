@@ -146,7 +146,7 @@ export const AgentComposerTextarea = forwardRef<
 							return [
 								before,
 								<span
-									className="-mx-0.5 rounded-cline-ui-md bg-cline-ui-primary/25 px-0.5 py-0.5 inset-ring inset-ring-cline-ui-primary/50"
+									className="-mx-0.5 rounded-cline-ui-md bg-cline-ui-primary/25 px-0.5 py-px inset-ring inset-ring-cline-ui-primary/50"
 									key={start}
 								>
 									{value.slice(start, end)}
