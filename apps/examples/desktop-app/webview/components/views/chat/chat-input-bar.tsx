@@ -267,20 +267,15 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	if (slashIndex === -1) {
 		return null;
 	}
-	// Slash must be at the start or preceded by whitespace.
-	if (slashIndex > 0 && !/\s/.test(left[slashIndex - 1] ?? "")) {
+	// The sidecar only runs a command that starts the trimmed prompt, so a
+	// mid-sentence slash is plain text.
+	if (left.slice(0, slashIndex).trim() !== "") {
 		return null;
 	}
 	const query = left.slice(slashIndex + 1);
 	// No whitespace allowed inside the query — once the user typed a space
 	// the slash command has been committed.
 	if (/\s/.test(query)) {
-		return null;
-	}
-	// Don't open slash mode if there's already a completed slash command earlier in the input.
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/;
-	const textBeforeCurrentSlash = input.slice(0, slashIndex);
-	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return null;
 	}
 	return { slashIndex, query };

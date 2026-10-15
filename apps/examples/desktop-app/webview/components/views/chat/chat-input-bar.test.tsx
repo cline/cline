@@ -686,6 +686,21 @@ describe("ChatInputBar", () => {
 		expect(suggestions?.textContent).toContain("/compact");
 	});
 
+	it("opens the slash menu after leading whitespace", async () => {
+		await renderVoiceComposer({ prompt: "  /comp", executionTarget: "local" });
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+	});
+
+	it("does not open the slash menu mid-sentence", async () => {
+		await renderVoiceComposer({
+			prompt: "please /comp",
+			executionTarget: "local",
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+	});
+
 	it("scrolls the arrow-key selected slash command into view", async () => {
 		await renderVoiceComposer({ prompt: "/", executionTarget: "local" });
 		const textarea = container.querySelector("textarea");
