@@ -4,6 +4,7 @@ import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
 	AgendaTaskUpdateInput,
+	PluginUiStateEnvelope,
 } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HubSessionClient } from "./session-client";
@@ -17,6 +18,7 @@ class MockWebSocket {
 		payload?: Record<string, unknown>;
 	}> = [];
 	static commandPayloads = new Map<string, Record<string, unknown>>();
+	static subscriptionFrames: Array<{ kind: string; sessionId?: string }> = [];
 
 	readyState = 0;
 	private readonly listeners = new Map<string, SocketListener[]>();
@@ -33,17 +35,29 @@ class MockWebSocket {
 		MockWebSocket.instances = [];
 		MockWebSocket.sentCommands = [];
 		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.subscriptionFrames = [];
 	}
 
 	send(data: string): void {
 		const frame = JSON.parse(data) as {
 			kind?: string;
+			sessionId?: string;
 			envelope?: {
 				requestId?: string;
 				command?: string;
 				payload?: Record<string, unknown>;
 			};
 		};
+		if (
+			frame.kind === "stream.subscribe" ||
+			frame.kind === "stream.unsubscribe"
+		) {
+			MockWebSocket.subscriptionFrames.push({
+				kind: frame.kind,
+				...(frame.sessionId ? { sessionId: frame.sessionId } : {}),
+			});
+			return;
+		}
 		if (frame.kind !== "command" || !frame.envelope?.requestId) {
 			return;
 		}
@@ -87,6 +101,29 @@ class MockWebSocket {
 		}
 	}
 }
+
+const currentSuggestions: PluginUiStateEnvelope = {
+	sessionId: "session-1",
+	slot: "composer.suggestions",
+	plugin: "next-turn",
+	epoch: 7,
+	seq: 2,
+	state: {
+		status: "ready",
+		title: "Next",
+		revision: "r1",
+		canRefresh: false,
+		items: [
+			{
+				id: "fix",
+				label: "Fix",
+				tone: "repair",
+				prompt: "Fix the failing test",
+				sendable: true,
+			},
+		],
+	},
+};
 
 describe("HubSessionClient", () => {
 	afterEach(() => {
@@ -164,6 +201,118 @@ describe("HubSessionClient", () => {
 			await client.dispose();
 			await client.connect();
 			expect(invokes()).toHaveLength(2);
+		} finally {
+			client.close();
+		}
+	});
+
+	it("streams a session's plugin UI from its current state, fetched again after a reconnect, over the client's global subscription", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		const pushed: PluginUiStateEnvelope = { ...currentSuggestions, seq: 3 };
+		MockWebSocket.commandPayloads.set("plugins.ui.get", {
+			states: [
+				currentSuggestions,
+				{ ...currentSuggestions, sessionId: "session-2" },
+			],
+		});
+		const gets = () =>
+			MockWebSocket.sentCommands.filter(
+				(command) => command.command === "plugins.ui.get",
+			);
+		const received: PluginUiStateEnvelope[] = [];
+		const unsubscribe = client.streamPluginUi(
+			{ sessionId: "session-1" },
+			{ onState: (envelope) => received.push(envelope) },
+		);
+		try {
+			await client.connect();
+			await vi.waitFor(() => expect(received).toEqual([currentSuggestions]));
+			expect(gets()).toHaveLength(1);
+			expect(MockWebSocket.subscriptionFrames).toEqual([
+				{ kind: "stream.subscribe" },
+			]);
+
+			const emitEvent = (
+				event: string,
+				sessionId: string,
+				payload: Record<string, unknown>,
+			) =>
+				MockWebSocket.instances.at(-1)?.emitFrame({
+					kind: "event",
+					envelope: { version: "v1", event, sessionId, payload },
+				});
+			emitEvent("plugins.ui.state", "session-1", { ...pushed });
+			emitEvent("plugins.ui.state", "session-2", {
+				...pushed,
+				sessionId: "session-2",
+			});
+			emitEvent("plugins.ui.state", "session-1", {
+				...pushed,
+				sessionId: "session-2",
+			});
+			emitEvent("plugins.ui.state", "session-1", { ...pushed, seq: "4" });
+			emitEvent("usage.updated", "session-1", { inputTokens: 1 });
+			expect(received).toEqual([currentSuggestions, pushed]);
+
+			MockWebSocket.instances[0]?.close();
+			await client.connect();
+			await vi.waitFor(() =>
+				expect(received).toEqual([
+					currentSuggestions,
+					pushed,
+					currentSuggestions,
+				]),
+			);
+			expect(gets()).toHaveLength(2);
+
+			unsubscribe();
+			expect(MockWebSocket.subscriptionFrames.at(-1)).toEqual({
+				kind: "stream.unsubscribe",
+			});
+			emitEvent("plugins.ui.state", "session-1", { ...pushed });
+			MockWebSocket.instances.at(-1)?.close();
+			await client.connect();
+			await client.pluginUi.get({ sessionId: "session-1" });
+			expect(gets()).toHaveLength(3);
+			expect(received).toEqual([
+				currentSuggestions,
+				pushed,
+				currentSuggestions,
+			]);
+		} finally {
+			client.close();
+		}
+	});
+
+	it("gives a second plugin UI stream for a session already streamed its own current state", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		MockWebSocket.commandPayloads.set("plugins.ui.get", {
+			states: [currentSuggestions],
+		});
+		const first: PluginUiStateEnvelope[] = [];
+		const second: PluginUiStateEnvelope[] = [];
+		const stopFirst = client.streamPluginUi(
+			{ sessionId: "session-1" },
+			{ onState: (envelope) => first.push(envelope) },
+		);
+		try {
+			await vi.waitFor(() => expect(first).toEqual([currentSuggestions]));
+			const stopSecond = client.streamPluginUi(
+				{ sessionId: "session-1" },
+				{ onState: (envelope) => second.push(envelope) },
+			);
+			await vi.waitFor(() => expect(second).toEqual([currentSuggestions]));
+			expect(first).toEqual([currentSuggestions]);
+			stopSecond();
+			stopFirst();
 		} finally {
 			client.close();
 		}

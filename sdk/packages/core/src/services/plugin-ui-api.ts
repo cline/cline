@@ -23,7 +23,7 @@ export interface PluginUiHostApi extends PluginUiApi {
 		viewer?: PluginUiViewer,
 		connectionId?: string,
 	): Promise<PluginUiInvokeResult>;
-	/** Synthesizes a `detach` for every session this viewer attached to through `connectionId` (every session without one). */
+	/** Synthesizes a `detach` in every session where this viewer holds a lease, or has an attach queued, through `connectionId` (any connection without one). */
 	detachViewer(viewerId: string, connectionId?: string): void;
 }
 

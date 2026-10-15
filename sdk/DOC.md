@@ -451,8 +451,15 @@ Live states arrive as the `plugins.ui.state` event, with `sessionId` set and
 no `sequence`: it never enters the replay log, and a session-scoped subscribe
 re-issues each slot's current state instead. A viewer's lease belongs to the
 connection that attached it, so a disconnect detaches only the leases that
-connection holds, and clients re-attach after they reconnect. A client
-declares its catalog with `uiSlots` on `session.create` and `session.restore`;
-without the key the session has none. `HubRuntimeHost.pluginUi` and
-`HubSessionClient.pluginUi` expose the same never-throwing API; against an
-older hub that lacks the commands they return `[]` and `unavailable`.
+connection holds, along with its attaches still queued, and clients re-attach
+after they reconnect. A client declares its catalog with `uiSlots` on
+`session.create` and `session.restore`; without the key the session has none.
+`HubRuntimeHost.pluginUi` and `HubSessionClient.pluginUi` expose the same
+never-throwing API; against an older hub that lacks the commands they return
+`[]` and `unavailable`. `HubRuntimeHost` delivers live states as
+`plugin_ui_state` events through `subscribe`.
+`HubSessionClient.streamPluginUi({ sessionId }, handlers)` passes `onState`
+each slot's current state, read with `plugins.ui.get` once connected and again
+after every reconnect, and every live push for that session; it returns the
+unsubscribe. It listens on the client's global subscription, so `streamEvents`
+on the same client still sees each event once.

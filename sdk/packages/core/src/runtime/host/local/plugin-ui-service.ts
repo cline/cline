@@ -84,7 +84,17 @@ interface SessionUiChain {
 	tokensAt: number;
 	/** The slot each viewer last attached through, where its synthesized detach goes. */
 	attachedSlots: Map<string, PluginUiSlot>;
+	/**
+	 * Attaches whose turn has not finished. Until a turn records the lease, a
+	 * hub disconnect finds the attach here instead of in the store.
+	 */
+	queuedAttaches: Set<QueuedAttach>;
 	activity: Map<PluginUiSlot, SlotActivity>;
+}
+
+interface QueuedAttach {
+	viewer: PluginUiViewer;
+	connectionId?: string;
 }
 
 /**
@@ -170,6 +180,7 @@ export class PluginUiService implements PluginUiHostApi {
 			tokens: PLUGIN_UI_LIMITS.invokeBurst,
 			tokensAt: this.now(),
 			attachedSlots: new Map(),
+			queuedAttaches: new Set(),
 			activity: new Map(),
 		});
 		return epoch;
@@ -264,13 +275,15 @@ export class PluginUiService implements PluginUiHostApi {
 
 	detachViewer(viewerId: string, connectionId?: string): void {
 		try {
-			for (const sessionId of this.store.sessionsViewedBy(
-				viewerId,
-				connectionId,
-			)) {
-				const chain = this.chains.get(sessionId);
-				const viewer = this.store.viewer(sessionId, viewerId);
-				if (!chain || chain.closing || !viewer) continue;
+			const leased = new Set(
+				this.store.sessionsViewedBy(viewerId, connectionId),
+			);
+			for (const [sessionId, chain] of this.chains) {
+				if (chain.closing) continue;
+				const viewer = leased.has(sessionId)
+					? this.store.viewer(sessionId, viewerId)
+					: this.queuedAttach(chain, viewerId, connectionId)?.viewer;
+				if (!viewer) continue;
 				this.enqueueSystemDetach(chain, sessionId, viewer, { connectionId });
 			}
 		} catch (error) {
@@ -303,12 +316,24 @@ export class PluginUiService implements PluginUiHostApi {
 			closedWhileWaiting = () => resolve({ outcome: "unavailable" });
 		});
 		chain.waiting.add(closedWhileWaiting);
-		const performed = this.enqueue(chain, () => {
+		const queuedAttach =
+			action.verb === "attach" ? { viewer, connectionId } : undefined;
+		if (queuedAttach) chain.queuedAttaches.add(queuedAttach);
+		const performed = this.enqueue(chain, async () => {
 			chain.waiting.delete(closedWhileWaiting);
-			return this.perform(chain, session, sessionId, slot, action, viewer, {
-				connectionId,
-				deadline,
-			});
+			try {
+				return await this.perform(
+					chain,
+					session,
+					sessionId,
+					slot,
+					action,
+					viewer,
+					{ connectionId, deadline },
+				);
+			} finally {
+				if (queuedAttach) chain.queuedAttaches.delete(queuedAttach);
+			}
 		});
 		const result = await Promise.race([performed, deadline.reached, cancelled]);
 		deadline.cancel();
@@ -500,6 +525,7 @@ export class PluginUiService implements PluginUiHostApi {
 		return run;
 	}
 
+	/** The slot is read on the detach's turn, so a queued attach ahead of it has recorded its own. */
 	private enqueueSystemDetach(
 		chain: SessionUiChain,
 		sessionId: string,
@@ -507,22 +533,38 @@ export class PluginUiService implements PluginUiHostApi {
 		system: SystemDetach,
 	): void {
 		const session = this.options.sessions(sessionId);
-		const slot =
-			chain.attachedSlots.get(viewer.id) ?? this.store.slots(sessionId)[0];
-		if (!session || !slot) return;
-		void this.enqueue(chain, () =>
-			this.perform(
+		if (!session) return;
+		void this.enqueue(chain, async () => {
+			const slot =
+				chain.attachedSlots.get(viewer.id) ?? this.store.slots(sessionId)[0];
+			if (!slot) return undefined;
+			return this.perform(
 				chain,
 				session,
 				sessionId,
 				slot,
 				{ verb: "detach" },
 				viewer,
-				{
-					system,
-				},
-			),
-		);
+				{ system },
+			);
+		});
+	}
+
+	/** With no `connectionId`, an attach through any connection matches, as the store's leases do. */
+	private queuedAttach(
+		chain: SessionUiChain,
+		viewerId: string,
+		connectionId: string | undefined,
+	): QueuedAttach | undefined {
+		for (const queued of chain.queuedAttaches) {
+			if (
+				queued.viewer.id === viewerId &&
+				(connectionId === undefined || queued.connectionId === connectionId)
+			) {
+				return queued;
+			}
+		}
+		return undefined;
 	}
 
 	private async close(

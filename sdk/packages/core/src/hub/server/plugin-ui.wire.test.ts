@@ -12,6 +12,7 @@ import type {
 	HubEventEnvelope,
 	HubReplyEnvelope,
 	HubTransportFrame,
+	PluginUiStateEnvelope,
 	PluginUiViewer,
 } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
@@ -25,9 +26,13 @@ import {
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { FileSessionService } from "../../session/services/file-session-service";
 import type { CoreSessionEvent } from "../../types/events";
+import { HubSessionClient } from "../client/session-client";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { createInMemoryHubOwnerContext } from "../discovery";
-import type { HubWebSocketServer } from "./hub-server-options";
+import type {
+	HubWebSocketServer,
+	HubWebSocketServerOptions,
+} from "./hub-server-options";
 import { startHubWebSocketServer } from "./hub-websocket-server";
 
 const SLOT = "composer.suggestions";
@@ -106,6 +111,30 @@ class WireClient {
 	}
 }
 
+function startHub(
+	root: string,
+	sessionHost: HubWebSocketServerOptions["sessionHost"],
+): Promise<HubWebSocketServer> {
+	return startHubWebSocketServer({
+		owner: createInMemoryHubOwnerContext("hub-plugin-ui-wire"),
+		host: "127.0.0.1",
+		port: 0,
+		pathname: "/hub",
+		workspaceRoot: root,
+		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		scheduleOptions: { dbPath: ":memory:" },
+		taskOptions: {
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+		},
+		sessionSearchOptions: { dbPath: ":memory:" },
+		eventLog: { dbPath: ":memory:" },
+		runQueue: { dbPath: ":memory:" },
+		sessionHost,
+	});
+}
+
 describe("plugin UI over the hub wire", () => {
 	let root: string;
 	let server: HubWebSocketServer | undefined;
@@ -143,24 +172,7 @@ describe("plugin UI over the hub wire", () => {
 		const runtime = new LocalRuntimeHost({
 			sessionService: new FileSessionService(join(root, "sessions")),
 		});
-		server = await startHubWebSocketServer({
-			owner: createInMemoryHubOwnerContext("hub-plugin-ui-wire"),
-			host: "127.0.0.1",
-			port: 0,
-			pathname: "/hub",
-			workspaceRoot: root,
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-			scheduleOptions: { dbPath: ":memory:" },
-			taskOptions: {
-				dbPath: join(root, "tasks.db"),
-				globalSpecsDir: join(root, "specs"),
-				watchFiles: false,
-			},
-			sessionSearchOptions: { dbPath: ":memory:" },
-			eventLog: { dbPath: ":memory:" },
-			runQueue: { dbPath: ":memory:" },
-			sessionHost: runtime,
-		});
+		server = await startHub(root, runtime);
 		const viewers = (sessionId: string): PluginUiViewer[] =>
 			(
 				Reflect.get(runtime.pluginUi, "store") as {
@@ -269,5 +281,87 @@ describe("plugin UI over the hub wire", () => {
 
 		wire.socket.close();
 		await expect.poll(() => viewers(sessionId)).toEqual([]);
+	});
+
+	it("gives every plugin UI stream on one HubSessionClient the current state and leaves its event stream undoubled", async () => {
+		const sessionId = "wire-session";
+		const current: PluginUiStateEnvelope = {
+			sessionId,
+			slot: SLOT,
+			plugin: FIXTURE,
+			epoch: 1,
+			seq: 1,
+			state: {
+				status: "ready",
+				title: "Demo",
+				revision: "r1",
+				canRefresh: true,
+				items: [
+					{
+						id: "a",
+						label: "Run the tests",
+						tone: "continue",
+						prompt: "Run the tests",
+						sendable: true,
+					},
+				],
+			},
+		};
+		let emit: (event: CoreSessionEvent) => void = () => {};
+		server = await startHub(root, {
+			subscribe: (listener: (event: CoreSessionEvent) => void) => {
+				emit = listener;
+				return () => {};
+			},
+			pluginUi: {
+				get: async (input: { sessionId?: string }) =>
+					input.sessionId === sessionId ? [current] : [],
+				invoke: async () => ({ outcome: "unavailable" }),
+				detachViewer: () => {},
+			},
+			dispose: async () => {},
+		} as never);
+		const client = new HubSessionClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientId: "reader",
+			workspaceRoot: root,
+			cwd: root,
+		});
+		const events: string[] = [];
+		const first: number[] = [];
+		const second: number[] = [];
+		const stops = [
+			client.streamEvents(
+				{ sessionIds: [sessionId] },
+				{ onEvent: (event) => events.push(event.eventType) },
+			),
+			client.streamPluginUi(
+				{ sessionId },
+				{ onState: (state) => first.push(state.seq) },
+			),
+		];
+		try {
+			await expect.poll(() => first).toEqual([1]);
+			stops.push(
+				client.streamPluginUi(
+					{ sessionId },
+					{ onState: (state) => second.push(state.seq) },
+				),
+			);
+			await expect.poll(() => second).toEqual([1]);
+
+			emit({
+				type: "hook",
+				payload: { sessionId, hookEventName: "tool_call", toolName: "read" },
+			} as CoreSessionEvent);
+			emit({ type: "plugin_ui_state", payload: { ...current, seq: 2 } });
+			await expect.poll(() => second).toEqual([1, 2]);
+			expect(first).toEqual([1, 2]);
+			expect(events).toEqual(["runtime.chat.tool_call_start"]);
+		} finally {
+			for (const stop of stops) stop();
+			client.close();
+		}
 	});
 });

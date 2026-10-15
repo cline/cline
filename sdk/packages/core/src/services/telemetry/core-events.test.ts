@@ -18,6 +18,10 @@ import {
 	captureExtensionActivated,
 	captureGitSnapshot,
 	captureMistakeLimitReached,
+	capturePluginUiInvoke,
+	capturePluginUiSessionSummary,
+	capturePluginUiStateDropped,
+	capturePluginUiViewersChanged,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
 	captureScheduleRun,
@@ -928,6 +932,70 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"sdk.tool_timeout",
 			"task.compaction_budget_emergency",
 		]);
+	});
+
+	function pluginUiCase<Properties extends object>(
+		event: string,
+		capture: (telemetry: ITelemetryService, properties: Properties) => void,
+		properties: NoInfer<Properties>,
+	) {
+		return {
+			event,
+			properties,
+			send: (telemetry: ITelemetryService) => capture(telemetry, properties),
+		};
+	}
+
+	test.each([
+		pluginUiCase(
+			CORE_TELEMETRY_EVENTS.PLUGIN_UI.STATE_DROPPED,
+			capturePluginUiStateDropped,
+			{
+				plugin_name: "next-turn",
+				slot: "composer.suggestions",
+				reason: "invalid",
+			},
+		),
+		pluginUiCase(
+			CORE_TELEMETRY_EVENTS.PLUGIN_UI.INVOKE,
+			capturePluginUiInvoke,
+			{
+				plugin_name: "next-turn",
+				slot: "composer.suggestions",
+				verb: "use",
+				outcome: "ok",
+				latency_ms: 3,
+				surface: "desktop",
+			},
+		),
+		pluginUiCase(
+			CORE_TELEMETRY_EVENTS.PLUGIN_UI.SESSION_SUMMARY,
+			capturePluginUiSessionSummary,
+			{
+				plugin_name: "next-turn",
+				slot: "composer.suggestions",
+				attaches: 1,
+				detaches: 1,
+				exposed: 0,
+				key_inert: 0,
+				peak_viewers: 1,
+				surfaces: ["cli"],
+			},
+		),
+		pluginUiCase(
+			CORE_TELEMETRY_EVENTS.PLUGIN_UI.VIEWERS_CHANGED,
+			capturePluginUiViewersChanged,
+			{ slot: "composer.suggestions", count: 0, surface: "cli" },
+		),
+	])("$event never invokes captureRequired", ({ event, properties, send }) => {
+		const { adapter, emit, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({ adapters: [adapter] });
+		send(service);
+		expect(emit).toHaveBeenCalledExactlyOnceWith(
+			event,
+			expect.objectContaining(properties),
+		);
+		expect(emitRequired).not.toHaveBeenCalled();
 	});
 });
 

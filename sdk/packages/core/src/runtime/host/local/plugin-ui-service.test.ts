@@ -584,6 +584,104 @@ describe("PluginUiService", () => {
 		expect(harness.store.viewers("s1")).toEqual([]);
 	});
 
+	it("detaches a viewer whose attach was still queued behind another action when its connection closed", async () => {
+		const harness = createHarness();
+		const slow = deferred<PluginUiActionReply>();
+		const { onAction } = harness.start("s1", {
+			onAction: (action) =>
+				action.verb === "use" ? slow.promise : { outcome: "ok" },
+		});
+
+		const inFlight = harness.invoke(
+			"s1",
+			{ verb: "use", input: "key", revision: "r1", itemId: "fix" },
+			{ id: "other" },
+			"conn-other",
+		);
+		const queuedAttach = harness.invoke(
+			"s1",
+			attach,
+			{ id: "client" },
+			"conn-1",
+		);
+		harness.service.detachViewer("client", "conn-1");
+		slow.resolve({ outcome: "ok" });
+		await inFlight;
+		await queuedAttach;
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(onAction.mock.calls.map(([action]) => action.verb)).toEqual([
+			"use",
+			"attach",
+			"detach",
+		]);
+		expect(onAction.mock.calls.at(-1)?.[1]).toEqual({
+			sessionId: "s1",
+			viewer: { id: "client", surface: "desktop" },
+			viewers: 0,
+		});
+		expect(harness.store.viewers("s1")).toEqual([]);
+	});
+
+	it("detaches a viewer whose attach was still initializing extensions when its connection closed", async () => {
+		const harness = createHarness();
+		const initialized = deferred();
+		const { onAction } = harness.start("s1", {
+			initializeExtensions: () => initialized.promise,
+		});
+
+		const pendingAttach = harness.invoke(
+			"s1",
+			attach,
+			{ id: "client" },
+			"conn-1",
+		);
+		await vi.advanceTimersByTimeAsync(0);
+		harness.service.detachViewer("client", "conn-1");
+		initialized.resolve();
+		await pendingAttach;
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(
+			onAction.mock.calls.map(([action, context]) => [
+				action.verb,
+				context.viewers,
+			]),
+		).toEqual([
+			["attach", 1],
+			["detach", 0],
+		]);
+		expect(harness.store.viewers("s1")).toEqual([]);
+	});
+
+	it("tells the plugin nothing for a queued attach that timed out after its connection closed", async () => {
+		const harness = createHarness();
+		const { epoch, onAction } = harness.start("s1", {
+			onAction: (action) =>
+				action.verb === "use" ? new Promise(() => {}) : { outcome: "ok" },
+		});
+
+		void harness.invoke(
+			"s1",
+			{ verb: "use", input: "key", revision: "r1", itemId: "fix" },
+			{ id: "other" },
+			"conn-other",
+		);
+		const queuedAttach = harness.invoke(
+			"s1",
+			attach,
+			{ id: "client" },
+			"conn-1",
+		);
+		harness.service.detachViewer("client", "conn-1");
+		await vi.advanceTimersByTimeAsync(10_000);
+
+		expect(await queuedAttach).toEqual({ outcome: "timeout", epoch });
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(onAction.mock.calls.map(([action]) => action.verb)).toEqual(["use"]);
+		expect(harness.store.viewers("s1")).toEqual([]);
+	});
+
 	it("answers unavailable after the epoch ended and holds no chain once released", async () => {
 		const harness = createHarness();
 		const { epoch, onAction } = harness.start("s1");

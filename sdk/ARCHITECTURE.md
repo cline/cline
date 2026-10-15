@@ -862,11 +862,13 @@ records the connection that attached it: the browser adapter mints a
 `connectionId` per socket, stamps it on the registered
 `HubConnectionAuthority`, and names it in the `client.unregister` it sends when
 the socket closes. The Hub then synthesizes a `detach` only for leases still
-held through that connection, and the synthesized detach re-checks the
-connection when its turn on the chain comes, so a late unregister from an old
-socket cannot remove the lease a client re-attached on its new one. An
-unregister from a socket that never registered ends no leases. Clients restore
-their leases after a reconnect: `createHubPluginUiApi` remembers the last
+held through that connection and for attaches from it still queued on the
+chain, which run before it, so a socket that closes mid-attach leaves no lease.
+The synthesized detach re-checks the connection when its turn on the chain
+comes, so a late unregister from an old socket cannot remove the lease a client
+re-attached on its new one. An unregister from a socket that never registered
+ends no leases. Clients restore their leases after a reconnect:
+`createHubPluginUiApi` remembers the last
 attach per session, whatever its reply, and re-sends it from
 `NodeHubClient.onRegistered` unless it is still in flight (its own command
 delivers that one). `HubRuntimeHost` forgets a session's attach when it drops
