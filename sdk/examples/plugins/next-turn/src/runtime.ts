@@ -1,5 +1,5 @@
 import type { AgentPlugin } from "@cline/core";
-import type { AgentRunResult } from "@cline/shared";
+import type { AgentRunResult, PluginUiSurface } from "@cline/shared";
 import { clineConnectionLoaders } from "./connectors/cline-connections";
 import { GhReader } from "./connectors/github/gh";
 import { Connectors } from "./connectors/index";
@@ -10,16 +10,21 @@ import { dirtyFileCounter } from "./context/sources/workspace";
 import { NextTurnEngine } from "./engine/engine";
 import { NotifyGate } from "./engine/notify";
 import { CursorWriter } from "./hub/cursor";
-import { HubLink, nodeHubLinkDeps } from "./hub/link";
+import { HubLink, type HubLinkDeps, nodeHubLinkDeps } from "./hub/link";
 import { pluginLog } from "./log";
 import { PlannerLedger } from "./planner/allowance";
 import { backlogReader, type PlanAdapter } from "./planner/backlog";
 import { LabelLog } from "./planner/labels";
 import { clineCompleter, plannerProvider } from "./planner/model";
 import { NextSession } from "./planner/next";
-import { captureLabel, surfaceOf } from "./planner/telemetry";
+import {
+	captureLabel,
+	clientSurfaceOf,
+	legacySurfaceOf,
+	surfaceOf,
+} from "./planner/telemetry";
 import { deriveTurn, type MessageLike } from "./planner/turn";
-import { runCommand } from "./run";
+import { type RunCommand, runCommand } from "./run";
 import type { Settings } from "./settings/settings";
 import { nextTurnPaths } from "./store/data-dir";
 import {
@@ -39,8 +44,20 @@ export type SetupContext = Parameters<NonNullable<AgentPlugin["setup"]>>[1];
 export type SessionRuntime = {
 	next?: NextSession;
 	connectors?: Connectors;
-	/** Starts `NextSession`, `clineSources` and `Connectors` when a dormant session is viewed (`current` invoke). */
-	activateNext(viewerClient?: string): NextSession | undefined;
+	/**
+	 * Whether a viewer is attached. Viewed, a dormant chat starts
+	 * `NextSession`, `clineSources` and `Connectors`, and the connector
+	 * refresher runs; unviewed, the refresher stops and turns are only
+	 * recorded. While the plugin is disabled a viewer is only remembered, and
+	 * Next starts at the first turn after it is enabled again. A surface is
+	 * remembered past a detach; without one the remembered surface stays.
+	 */
+	setViewed(
+		viewed: boolean,
+		surface?: PluginUiSurface,
+	): NextSession | undefined;
+	/** True while a viewer is attached, and always on a session that never waits for one. */
+	viewed(): boolean;
 	/** Records the last turn even while `next` is dormant. */
 	recordDormantTurn(result: AgentRunResult): void;
 	/** The agent's tools this turn, from `beforeModel`: a capability source. */
@@ -50,19 +67,21 @@ export type SessionRuntime = {
 
 type RuntimeOptions = {
 	settings: () => Settings;
-	/** Whether Next starts immediately at setup time (false when dormant until a viewer attaches). */
+	/** Whether the session never waits for a viewer, so Next starts at setup (false: dormant until a viewer attaches). */
 	active: boolean;
 	/** Whether the plugin is still enabled and installed; a disabled plugin sends no notifications. */
 	pluginActive?: () => boolean;
 	/** Optional host-supplied plan and bank adapter. */
 	plan?: PlanAdapter & { source?: () => ContextSource };
+	/** How the hub link finds and reaches a running hub; tests replace it. */
+	hubLink?: HubLinkDeps;
+	/** The read-only `gh` and `git` runner; tests replace it. */
+	runCommand?: RunCommand;
 };
 
 type SessionEnvInputs = {
 	/** The agent's tools as `beforeModel` last saw them. */
 	tools: () => readonly string[];
-	/** The client of the viewer that attached, over the session's own. */
-	viewerClient?: () => string | undefined;
 	/** Branch and commit as git last reported them, over the setup context's. */
 	git?: () => { branch?: string; commit?: string } | undefined;
 	/** The chat's provider: a connector's Read holds only while the planner sends to it. */
@@ -72,7 +91,7 @@ type SessionEnvInputs = {
 /** The session's environment from the setup context and what the session learned since. */
 export function sessionEnv(
 	context: SetupContext,
-	{ tools, viewerClient, git, chatProviderId }: SessionEnvInputs,
+	{ tools, git, chatProviderId }: SessionEnvInputs,
 ): () => SourceEnv {
 	const info = context.workspaceInfo;
 	return () => {
@@ -81,7 +100,7 @@ export function sessionEnv(
 		const commit = liveGit?.commit ?? info?.latestGitCommitHash;
 		const providerId = chatProviderId?.();
 		return {
-			client: viewerClient?.() ?? context.client?.name,
+			client: context.client?.name,
 			sessionId: context.session?.sessionId,
 			...(providerId ? { providerId } : {}),
 			workspaceRoot: info?.rootPath,
@@ -128,7 +147,8 @@ export function startSessionRuntime(
 	const scope = { workspaceRoot };
 	const log = pluginLog(context);
 	const pluginActive = () => options.pluginActive?.() ?? true;
-	const link = new HubLink(nodeHubLinkDeps(), {
+	const run = options.runCommand ?? runCommand;
+	const link = new HubLink(options.hubLink ?? nodeHubLinkDeps(), {
 		workspaceRoot,
 		cwd: workspaceRoot,
 	});
@@ -146,19 +166,37 @@ export function startSessionRuntime(
 	engine.start().catch((error: unknown) => log("the hub link stopped", error));
 	void pruneSessionStates(paths.sessions);
 	const store = new FileSessionStateStore(paths.sessions, sessionId);
+	const saved = store.read();
+	/** The last viewer's surface, kept past its detach so labels still name the tray it used. */
+	let rememberedSurface: PluginUiSurface | undefined =
+		saved?.viewerSurface ??
+		(saved?.viewerClient
+			? (clientSurfaceOf(saved.viewerClient) ?? "other")
+			: undefined);
+	let viewedFlag = options.active || Boolean(rememberedSurface);
+	/** The store keeps the surface only while a viewer is attached, so an unviewed chat's respawn waits for one. */
+	const persistedSurface = () => (viewedFlag ? rememberedSurface : undefined);
+	const persistViewer = () => {
+		const surface = persistedSurface();
+		const stored = store.read();
+		if (stored?.viewerSurface === surface && stored?.viewerClient === undefined)
+			return;
+		updateSessionState(store, {
+			viewerSurface: surface,
+			viewerClient: undefined,
+		});
+	};
+	if (saved?.viewerClient !== undefined) persistViewer();
 	let tools: readonly string[] = [];
-	let clientOverride: string | undefined = store.read()?.viewerClient;
 	let gitState: { branch?: string; commit?: string } | undefined;
 	const env = sessionEnv(context, {
 		tools: () => tools,
-		viewerClient: () => clientOverride,
 		git: () => gitState,
 		chatProviderId: () => runtime.next?.chat()?.providerId,
 	});
 	const stops: Array<() => void> = [];
 	let stopped = false;
-	const activateNext = (viewerClient?: string): NextSession | undefined => {
-		if (viewerClient) clientOverride = viewerClient;
+	const activateNext = (): NextSession | undefined => {
 		if (runtime.next) return runtime.next;
 		if (!settings().features.next) return undefined;
 		const cline = clineSources(link, () => engine.fold(), scope, log, {
@@ -168,7 +206,7 @@ export function startSessionRuntime(
 		stops.push(() => cline.stop());
 		const connectors = new Connectors({
 			loaders: clineConnectionLoaders(link),
-			gh: new GhReader(runCommand),
+			gh: new GhReader(run),
 			mcp: clineMcpRunnerDeps(),
 			settings,
 			env,
@@ -179,7 +217,8 @@ export function startSessionRuntime(
 			.detect()
 			.catch((error: unknown) => log("connector detection failed", error))
 			.then(() => {
-				if (!stopped && pluginActive()) return connectors.refresher.start();
+				if (!stopped && pluginActive() && viewedFlag)
+					return connectors.refresher.start();
 			})
 			.catch((error: unknown) => log("the refresher stopped", error));
 		stops.push(() => connectors.refresher.stop());
@@ -194,7 +233,7 @@ export function startSessionRuntime(
 				scope,
 				plan: options.plan,
 			}),
-			dirtyFiles: dirtyFileCounter(runCommand, (snapshot) => {
+			dirtyFiles: dirtyFileCounter(run, (snapshot) => {
 				gitState = {
 					branch: snapshot.branch ?? gitState?.branch,
 					commit: snapshot.commit ?? gitState?.commit,
@@ -203,24 +242,21 @@ export function startSessionRuntime(
 			github: (turnEnv) => connectors.github.ciEvidence(turnEnv),
 			complete: clineCompleter({
 				choice: (planned) => plannerProvider(planned, next.chat()),
-				requestContext: () => ({
-					sessionId,
-					client: {
-						...context.client,
-						...(clientOverride ? { name: clientOverride } : {}),
-					},
-				}),
+				requestContext: () => ({ sessionId, client: context.client }),
 			}),
 			ledger: new PlannerLedger(paths.plannerLedger),
 			labels: new LabelLog(paths.labels, (record) =>
 				captureLabel(
 					context.telemetry,
-					surfaceOf(clientOverride ?? context.client?.name),
+					rememberedSurface
+						? surfaceOf(rememberedSurface)
+						: legacySurfaceOf(context.client?.name),
 					record,
 				),
 			),
 			store,
-			viewerClient: () => clientOverride,
+			viewerSurface: persistedSurface,
+			viewed: () => viewedFlag,
 			active: pluginActive,
 			readTranscript: () => hubTranscript(link, sessionId),
 			log,
@@ -230,12 +266,29 @@ export function startSessionRuntime(
 		return next;
 	};
 	const runtime: SessionRuntime = {
-		activateNext,
+		setViewed: (viewed, surface) => {
+			if (surface) rememberedSurface = surface;
+			const wasViewed = viewedFlag;
+			viewedFlag = viewed;
+			persistViewer();
+			const connectors = runtime.connectors;
+			if (!viewed) {
+				connectors?.refresher.stop();
+				return runtime.next;
+			}
+			if (!pluginActive()) return runtime.next;
+			if (!wasViewed && connectors && !stopped)
+				void connectors.refresher
+					.start()
+					.catch((error: unknown) => log("the refresher stopped", error));
+			return activateNext();
+		},
+		viewed: () => viewedFlag,
 		recordDormantTurn: (result) => {
 			const derived = deriveTurn(sessionId, result);
 			if (!derived) return;
 			updateSessionState(store, {
-				...(clientOverride ? { viewerClient: clientOverride } : {}),
+				viewerSurface: persistedSurface(),
 				lastTurn: derived,
 				...(derived.chat ? { lastChat: derived.chat } : {}),
 				turnState: undefined,
@@ -253,7 +306,7 @@ export function startSessionRuntime(
 		},
 	};
 	if (!current.features.next) return runtime;
-	if (!options.active && !clientOverride) {
+	if (!viewedFlag) {
 		log("Next is dormant until a viewer attaches", {
 			client: context.client?.name,
 		});

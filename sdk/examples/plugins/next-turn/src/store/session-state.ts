@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import type { PluginUiSurface } from "@cline/shared";
 import { SESSION_STATE_TTL_MS } from "../config";
 import type { TurnSnapshot } from "../planner/next";
 import type { TrayPush } from "../planner/tray";
@@ -22,6 +23,9 @@ type PersistedSessionState = {
 	v: typeof SESSION_STATE_VERSION;
 	sessionId: string;
 	updatedAt: number;
+	/** The surface of the chat's viewer, written only while one is attached: a respawn of a viewed chat starts Next at once. */
+	viewerSurface?: PluginUiSurface;
+	/** Written by earlier versions in place of `viewerSurface`; read once, then cleared. */
 	viewerClient?: string;
 	hiddenForChat?: boolean;
 	seq: number;

@@ -13,7 +13,7 @@ import { type Backlog, EMPTY_BACKLOG } from "./backlog";
 import { LabelLog } from "./labels";
 import { type Complete, plannerProvider } from "./model";
 import { type NextOptions, NextSession } from "./next";
-import type { OfferedSet } from "./tray";
+import type { OfferedSet, TrayPush } from "./tray";
 import { deriveTurn } from "./turn";
 
 const sources: ContextSource[] = [
@@ -353,10 +353,10 @@ describe("Next, for one chat", () => {
 		const skipped = session.invoke({
 			type: "skip",
 			candidateId: first?.id ?? "",
-		}).set;
+		}).push.set;
 		expect(skipped?.candidates.map((row) => row.id)).not.toContain(first?.id);
 		expect(skipped?.excluded).toEqual([first?.prompt ?? ""]);
-		const rerolled = session.invoke({ type: "reroll" }).set;
+		const rerolled = session.invoke({ type: "reroll" }).push.set;
 		expect(
 			rerolled?.candidates.some((row) =>
 				skipped?.candidates.some((old) => old.id === row.id),
@@ -374,7 +374,9 @@ describe("Next, for one chat", () => {
 			"exposed",
 			"hidden_by_user",
 		]);
-		expect(session.invoke({ type: "reroll" }).set).toBeUndefined();
+		const afterHide = session.invoke({ type: "reroll" });
+		expect(afterHide.refused).toBe("stale");
+		expect(afterHide.push.set).toBeUndefined();
 	});
 
 	test("Check CI joins the set when GitHub is connected and the turn pushed", async () => {
@@ -473,7 +475,7 @@ describe("Next, for one chat", () => {
 			candidateId: rulesRow?.id ?? "",
 			offerId: rules?.offerId,
 			input: "key",
-		}).set;
+		}).push.set;
 		expect(afterSkip?.candidates.map((row) => row.id)).not.toContain(
 			rulesRow?.id,
 		);
@@ -491,11 +493,13 @@ describe("Next, for one chat", () => {
 			candidateId: rulesRow?.id,
 		});
 
-		session.invoke({
-			type: "send",
-			candidateId: "anything",
-			offerId: "offer_stale_123",
-		});
+		expect(
+			session.invoke({
+				type: "send",
+				candidateId: "anything",
+				offerId: "offer_stale_123",
+			}).refused,
+		).toBe("stale");
 		expect(labels().find((r) => r.event === "refused_stale")).toMatchObject({
 			reason: "set_changed",
 			verb: "do",
@@ -521,15 +525,47 @@ describe("Next, for one chat", () => {
 		const { session } = harness();
 		await session.afterRun(editRun().result);
 		await session.settled();
-		const r1 = session.invoke({ type: "reroll", input: "key" }).set;
+		session.invoke({ type: "reroll", input: "key" });
 		await session.settled();
-		expect(r1?.rerollsLeft).toBe(1);
-		const r2 = session.invoke({ type: "reroll", input: "key" }).set;
+		expect(session.current()?.rerollsLeft).toBe(1);
+		session.invoke({ type: "reroll", input: "key" });
 		await session.settled();
-		expect(r2?.rerollsLeft).toBe(0);
-		const r3 = session.invoke({ type: "reroll", input: "key" }).set;
+		expect(session.current()?.rerollsLeft).toBe(0);
+		const r3 = session.invoke({ type: "reroll", input: "key" }).push.set;
 		expect(r3?.candidates).toEqual([]);
 		expect(session.currentPush().state).toBe("exhausted");
+	});
+
+	test("a reroll the model's pool cannot answer shows loading until the planner does, and the tray refuses actions meanwhile", async () => {
+		const { session, calls } = harness();
+		await session.afterRun(editRun().result);
+		await session.settled();
+		const shown = session.current();
+		const pushes: TrayPush[] = [];
+		session.onPush((push) => pushes.push(push));
+		const { push } = session.invoke({
+			type: "reroll",
+			offerId: shown?.offerId,
+			input: "key",
+			cause: "more",
+		});
+		expect(push).toMatchObject({
+			state: "computing",
+			computingFor: "reroll",
+			rerollsLeft: 1,
+		});
+		expect(push.set).toBeUndefined();
+		expect(
+			session.invoke({
+				type: "skip",
+				candidateId: shown?.candidates[0]?.id ?? "",
+				offerId: shown?.offerId,
+			}).refused,
+		).toBe("stale");
+		await session.settled();
+		expect(calls).toHaveLength(2);
+		expect(pushes.map((entry) => entry.state)).toEqual(["computing", "ready"]);
+		expect(session.current()?.offerId).not.toBe(shown?.offerId);
 	});
 
 	test("a label the tray passes through is stamped with this session and the offer it names", async () => {
@@ -611,7 +647,7 @@ describe("Next, for one chat", () => {
 			}),
 		});
 
-		const push = await session.ensureCurrent(1);
+		const push = await session.ensureCurrent();
 		expect(push.state).toBe("ready");
 		expect(push.set?.planner).toBe("rules");
 		expect(push.set?.trigger).toBe("on_demand");
@@ -864,7 +900,7 @@ describe("Next under overlapping actions", () => {
 		await session.settled();
 		expect(sets.at(-1)).toBeUndefined();
 		expect(session.currentPush().state).toBe("off");
-		const reply = await session.ensureCurrent(session.turn()?.runCount);
+		const reply = await session.ensureCurrent();
 		expect(reply.state).toBe("ready");
 		expect(reply.seq).toBeGreaterThan(off.seq);
 	});
@@ -874,7 +910,7 @@ describe("Next under overlapping actions", () => {
 		const states: string[] = [];
 		session.onPush((push) => states.push(push.state));
 		const served = session.afterRun(editRun().result);
-		const reply = await session.ensureCurrent(session.turn()?.runCount);
+		const reply = await session.ensureCurrent();
 		await served;
 		expect(reply.state).toBe("ready");
 		expect(states).toEqual(["computing", "ready"]);
@@ -898,7 +934,7 @@ describe("Next under overlapping actions", () => {
 				return { messages, status: "completed" };
 			},
 		});
-		const reply = session.ensureCurrent(1);
+		const reply = session.ensureCurrent();
 		session.invoke({ type: "hide", scope: "chat" });
 		release();
 		expect((await reply).state).toBe("off");
@@ -910,7 +946,7 @@ describe("Next under overlapping actions", () => {
 		const opened = harness({
 			readTranscript: async () => ({ messages, status: "running" }),
 		});
-		expect((await opened.session.ensureCurrent(1)).state).toBe("off");
+		expect((await opened.session.ensureCurrent()).state).toBe("off");
 		await opened.session.settled();
 		expect(opened.calls).toEqual([]);
 		expect(opened.sets.filter(Boolean)).toEqual([]);
@@ -981,7 +1017,10 @@ describe("Next under overlapping actions", () => {
 			type: "skip",
 			candidateId: first?.candidates[0]?.id ?? "",
 		});
-		expect(reply.state).toBe("computing");
+		expect(reply).toMatchObject({
+			push: { state: "computing", computingFor: "turn" },
+			refused: "stale",
+		});
 		expect(labels().find((r) => r.event === "refused_stale")).toMatchObject({
 			reason: "computing",
 			offerId: first?.offerId,
@@ -1007,10 +1046,10 @@ describe("Next under overlapping actions", () => {
 			backlog: failing,
 			readTranscript: async () => ({ messages, status: "completed" }),
 		});
-		expect((await viewed.session.ensureCurrent(1)).state).toBe("unavailable");
+		expect((await viewed.session.ensureCurrent()).state).toBe("unavailable");
 	});
 
-	test("when the planner fails, the set on screen keeps its tray state and reports the error", async () => {
+	test("when the planner fails, the set on screen keeps its tray state and reports the error, and a reroll waiting on it gets the rules' next page", async () => {
 		let asked = 0;
 		const { session, sets } = harness({
 			complete: async () => {
@@ -1026,11 +1065,19 @@ describe("Next under overlapping actions", () => {
 			set: { model: { status: "error" } },
 		});
 		expect(sets).toHaveLength(1);
-		session.invoke({ type: "reroll" });
-		session.invoke({ type: "reroll" });
-		expect(session.currentPush().state).toBe("exhausted");
+		expect(session.invoke({ type: "reroll" }).push).toMatchObject({
+			state: "computing",
+			computingFor: "reroll",
+		});
 		await session.settled();
 		expect(asked).toBe(2);
+		expect(session.currentPush()).toMatchObject({
+			state: "empty",
+			set: { candidates: [], model: { status: "error" } },
+		});
+		session.invoke({ type: "reroll" });
+		await session.settled();
+		expect(asked).toBe(3);
 		expect(session.currentPush()).toMatchObject({
 			state: "exhausted",
 			set: { candidates: [], model: { status: "error" } },
@@ -1138,5 +1185,289 @@ describe("Next under overlapping actions", () => {
 		const { session } = harness({ store, complete: undefined });
 		expect(session.current()).toBeUndefined();
 		expect(session.currentPush()).toMatchObject({ seq: 4, state: "off" });
+	});
+
+	test("a reroll still waiting on the planner when its worker stopped is answered after the respawn, by the planner or by the next page", async () => {
+		const stalledReroll = async (label: string) => {
+			const store = new FileSessionStateStore(tempDir(label), "sess_1");
+			let asked = 0;
+			const first = harness({
+				store,
+				complete: async () => {
+					asked += 1;
+					if (asked > 1) return new Promise(() => {});
+					return { text: MODEL_ANSWER, costUsd: 0.001 };
+				},
+			});
+			await first.session.afterRun(editRun().result);
+			await first.session.settled();
+			const shown = first.session.current();
+			expect(
+				first.session.invoke({
+					type: "reroll",
+					offerId: shown?.offerId,
+					input: "key",
+				}).push,
+			).toMatchObject({ state: "computing", computingFor: "reroll" });
+			first.session.dispose();
+			return { store, shown };
+		};
+
+		const asksAgain = await stalledReroll("reroll-planner-");
+		const respawned = harness({ store: asksAgain.store });
+		await respawned.session.settled();
+		expect(respawned.calls).toHaveLength(1);
+		expect(respawned.session.currentPush()).toMatchObject({
+			set: { planner: "model", rerollsLeft: 1 },
+		});
+		expect(respawned.session.currentPush().state).not.toBe("computing");
+		expect(respawned.session.current()?.offerId).not.toBe(
+			asksAgain.shown?.offerId,
+		);
+		expect(
+			respawned.session.invoke({ type: "reroll", input: "key" }).refused,
+		).toBeUndefined();
+		await respawned.session.settled();
+
+		const noPlanner = await stalledReroll("reroll-rules-");
+		const rules = harness({ store: noPlanner.store, complete: undefined });
+		expect(rules.session.currentPush().state).not.toBe("computing");
+		expect(rules.session.current()?.offerId).not.toBe(noPlanner.shown?.offerId);
+		expect(rules.session.current()?.rerollsLeft).toBe(1);
+	});
+
+	test("a turn whose first set a respawn cut off is served on demand, not the set before it", async () => {
+		const store = new FileSessionStateStore(tempDir("serve-cut-"), "sess_1");
+		const first = harness({ store, complete: undefined });
+		const run = editRun();
+		const earlier = await first.session.afterRun(run.result);
+		const cutOff = first.session.afterRun(
+			runResult([
+				...run.messages,
+				message("assistant", "Done."),
+				message("user", "Now the parser"),
+				message("assistant", "Fixed the parser."),
+			]),
+		);
+		first.session.dispose();
+		expect(await cutOff).toBeUndefined();
+
+		const respawned = harness({ store, complete: undefined });
+		expect(respawned.session.current()).toBeUndefined();
+		expect(await respawned.session.ensureCurrent()).toMatchObject({
+			state: "ready",
+			set: { runCount: 2, trigger: "on_demand" },
+		});
+		expect(respawned.session.current()?.offerId).not.toBe(earlier?.offerId);
+	});
+});
+
+describe("Next behind Cline's composer.suggestions slot", () => {
+	test("Send on an outward row or a connector's row is refused and labelled, and Use still takes it", async () => {
+		const slack: ContextSource = {
+			id: "slack",
+			tier: "T3",
+			probe: () => "present",
+			capabilities: () => ["slack"],
+		};
+		const github: ContextSource = {
+			id: "github",
+			tier: "T3",
+			probe: () => "present",
+			capabilities: () => ["github", "github:gh"],
+		};
+		const remote: ContextSource = {
+			id: "git",
+			tier: "T1",
+			probe: () => "present",
+			capabilities: () => ["remote:github"],
+		};
+		const { session, labels } = harness({
+			sources: () => [sources[0] as ContextSource, remote, slack, github],
+			backlog: async () => EMPTY_BACKLOG,
+			github: () => ({ failingChecks: ["build"] }),
+			complete: async () => ({
+				text: '{"suggestions":[{"kind":"post_update","source":"tasks","prompt":"Post the release note to the team.","why":"Slack is connected"}]}',
+			}),
+		});
+		const { result, messages } = editRun();
+		const rules = await session.afterRun(result);
+		const connectorRow = rules?.candidates.find(
+			(row) => row.source === "connector",
+		);
+		expect(connectorRow?.kind).toBe("check_ci");
+		expect(
+			session.invoke({
+				type: "send",
+				candidateId: connectorRow?.id ?? "",
+				offerId: rules?.offerId,
+				input: "key",
+			}).refused,
+		).toBe("unsendable");
+		await session.settled();
+		const model = session.current();
+		const outwardRow = model?.candidates.find((row) => row.outward);
+		expect(outwardRow?.kind).toBe("post_update");
+		expect(
+			session.invoke({
+				type: "send",
+				candidateId: outwardRow?.id ?? "",
+				offerId: model?.offerId,
+				input: "pointer",
+			}).refused,
+		).toBe("unsendable");
+		expect(
+			labels()
+				.filter((record) => record.event === "key_inert")
+				.map((record) => [record.candidateId, record.reason]),
+		).toEqual([
+			[connectorRow?.id, "unsendable"],
+			[outwardRow?.id, "unsendable"],
+		]);
+		expect(
+			session.invoke({
+				type: "use",
+				candidateId: outwardRow?.id ?? "",
+				offerId: model?.offerId,
+				input: "key",
+			}).refused,
+		).toBeUndefined();
+		session.outgoing([
+			...messages,
+			message("user", `${outwardRow?.prompt} today`),
+		]);
+		expect(labels().find((r) => r.event === "adjust_sent")).toMatchObject({
+			candidateId: outwardRow?.id,
+		});
+	});
+
+	test("an action naming a set when none is on screen is refused as stale, after off and while a run is going", async () => {
+		const offerVerbs = (offerId: string | undefined, candidateId: string) => [
+			{ type: "use" as const, candidateId, offerId },
+			{ type: "send" as const, candidateId, offerId },
+			{ type: "skip" as const, candidateId, offerId },
+			{ type: "unskip" as const, candidateId, offerId },
+			{ type: "exposed" as const, candidateId, offerId },
+			{ type: "reroll" as const, offerId },
+		];
+		const off = harness({ complete: undefined });
+		const turned = await off.session.afterRun(editRun().result);
+		off.session.off();
+		for (const action of offerVerbs(
+			turned?.offerId,
+			turned?.candidates[0]?.id ?? "",
+		))
+			expect([action.type, off.session.invoke(action).refused]).toEqual([
+				action.type,
+				"stale",
+			]);
+
+		const running = harness({ complete: undefined });
+		const first = editRun();
+		const shown = await running.session.afterRun(first.result);
+		running.session.outgoing([
+			...first.messages,
+			message("user", "Now the parser"),
+		]);
+		for (const action of offerVerbs(
+			shown?.offerId,
+			shown?.candidates[0]?.id ?? "",
+		))
+			expect([action.type, running.session.invoke(action).refused]).toEqual([
+				action.type,
+				"stale",
+			]);
+		expect(running.sets.filter(Boolean)).toHaveLength(1);
+	});
+
+	test("off says why: a message, a hidden chat or Next turned off", async () => {
+		const settings = defaultSettings();
+		const { session } = harness({ complete: undefined }, settings);
+		const run = editRun();
+		await session.afterRun(run.result);
+		session.outgoing([...run.messages, message("user", "Now the parser")]);
+		expect(session.currentPush()).toMatchObject({
+			state: "off",
+			offReason: "message",
+		});
+		const superseded = session.currentPush();
+		session.invoke({ type: "hide", scope: "chat" });
+		expect(session.currentPush()).toMatchObject({
+			state: "off",
+			offReason: "hidden",
+		});
+		expect(session.currentPush().seq).toBe(superseded.seq + 1);
+		expect(await session.ensureCurrent()).toMatchObject({
+			offReason: "hidden",
+		});
+		await session.afterRun(editRun("Another turn").result);
+		expect(session.currentPush().offReason).toBe("hidden");
+
+		const disabled = harness({ complete: undefined }, settings);
+		settings.features.next = false;
+		await disabled.session.afterRun(editRun().result);
+		expect(disabled.session.currentPush()).toMatchObject({
+			state: "off",
+			offReason: "disabled",
+		});
+		expect(await disabled.session.ensureCurrent()).toMatchObject({
+			offReason: "disabled",
+		});
+	});
+
+	test("show turns a hidden chat's tray into a plain off when there is no turn to serve or a run is going, then serves the next turn", async () => {
+		const unknown = harness({ complete: undefined });
+		unknown.session.invoke({ type: "hide", scope: "chat" });
+		unknown.session.show();
+		expect(await unknown.session.ensureCurrent()).toMatchObject({
+			state: "off",
+			offReason: "message",
+		});
+
+		const running = harness({ complete: undefined });
+		const first = editRun();
+		await running.session.afterRun(first.result);
+		running.session.invoke({ type: "hide", scope: "chat" });
+		running.session.outgoing([
+			...first.messages,
+			message("user", "Now the parser"),
+		]);
+		running.session.show();
+		expect(await running.session.ensureCurrent()).toMatchObject({
+			state: "off",
+			offReason: "message",
+		});
+		await running.session.afterRun(editRun("Now the parser").result);
+		expect(running.session.currentPush().state).toBe("ready");
+	});
+
+	test("a turn that ends while nobody is viewing is recorded without a set or a planner call, and the next viewer gets that turn", async () => {
+		let viewed = true;
+		const { session, sets, calls } = harness({ viewed: () => viewed });
+		const run = editRun();
+		await session.afterRun(run.result);
+		await session.settled();
+		const pushes: TrayPush[] = [];
+		session.onPush((push) => pushes.push(push));
+		viewed = false;
+		const callsBefore = calls.length;
+		const unseen = runResult([
+			...run.messages,
+			message("assistant", "Done."),
+			message("user", "A turn nobody saw"),
+		]);
+		expect(await session.afterRun(unseen)).toBeUndefined();
+		await session.settled();
+		expect(pushes).toEqual([]);
+		expect(calls).toHaveLength(callsBefore);
+		expect(session.current()).toBeUndefined();
+		expect(session.turn()?.runCount).toBe(2);
+		viewed = true;
+		const reply = await session.ensureCurrent();
+		expect(reply).toMatchObject({
+			state: "ready",
+			set: { runCount: 2, trigger: "on_demand" },
+		});
+		expect(sets.at(-1)?.runCount).toBe(2);
 	});
 });

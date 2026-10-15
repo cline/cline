@@ -27,6 +27,11 @@ describe("dist/index.js bundle", () => {
 		const source = readFileSync(entryPath, "utf8");
 		expect(forbiddenBareSpecifiers(source)).toEqual([]);
 		expect(source).not.toContain("NextTurnLabelRecord");
+		// A named import of a newer @cline/shared export fails to link on an older host, so the slot types stay type-only.
+		expect(source).not.toMatch(
+			/\bimport\s+[^"'`()]*?\bfrom\s*["'`]@cline\/shared["'`]/,
+		);
+		expect(source).not.toContain("DESKTOP_CLIENT_NAME");
 		const specifiers = collectStaticModuleSpecifiers(source);
 		expect(specifiers).toEqual(
 			expect.arrayContaining(["@cline/core", "@cline/core/hub", "@cline/llms"]),

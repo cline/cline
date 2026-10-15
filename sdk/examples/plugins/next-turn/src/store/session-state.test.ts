@@ -39,7 +39,7 @@ describe("session state persistence across sandbox respawn", () => {
 				},
 				labels: new LabelLog(labelsPath),
 				store: new FileSessionStateStore(sessionsDir, "sess_respawn"),
-				viewerClient: () => "cline-desktop",
+				viewerSurface: () => "desktop",
 			});
 
 		const first = makeSession();
@@ -59,7 +59,7 @@ describe("session state persistence across sandbox respawn", () => {
 			type: "skip",
 			candidateId: firstCandidate?.id ?? "",
 			offerId: originalOffer?.offerId,
-		}).set;
+		}).push.set;
 		expect(plannerCalls).toBe(1);
 		expect(afterSkip?.candidates.map((row) => row.id)).not.toContain(
 			firstCandidate?.id,
@@ -109,7 +109,7 @@ describe("session state persistence across sandbox respawn", () => {
 		writeFileSync(filePath, `${JSON.stringify(saved)}\n`);
 
 		const respawned = makeSession();
-		const push = respawned.invoke({
+		const { push } = respawned.invoke({
 			type: "skip",
 			candidateId: skipped?.id ?? "",
 			offerId: offer?.offerId,
@@ -128,14 +128,14 @@ describe("session state persistence across sandbox respawn", () => {
 			lastChat: { providerId: "anthropic", modelId: "claude" },
 		});
 		updateSessionState(store, {
-			viewerClient: "cline-desktop",
+			viewerSurface: "desktop",
 			lastPush: undefined,
 		});
 		const merged = {
 			hiddenForChat: true,
 			seq: 7,
 			lastChat: { providerId: "anthropic", modelId: "claude" },
-			viewerClient: "cline-desktop",
+			viewerSurface: "desktop",
 		};
 		expect(store.read()).toMatchObject(merged);
 		const reread = new FileSessionStateStore(dir, "sess_merge").read();

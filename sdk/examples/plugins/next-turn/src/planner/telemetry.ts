@@ -1,5 +1,8 @@
-import type { ITelemetryService, TelemetryProperties } from "@cline/shared";
-import { DESKTOP_CLIENT_NAME } from "../config";
+import type {
+	ITelemetryService,
+	PluginUiSurface,
+	TelemetryProperties,
+} from "@cline/shared";
 import type { LabelEvent, LabelRecord } from "./labels";
 
 /**
@@ -58,14 +61,38 @@ const DROPPED_FIELDS: ReadonlySet<string> = new Set([
 	"excluded",
 ]);
 
-const TRAY_SURFACES: ReadonlyMap<string | undefined, string> = new Map([
-	[DESKTOP_CLIENT_NAME, "desktop-tray"],
-	["cline-cli", "terminal-tray"],
+const TRAY_SURFACES: Record<PluginUiSurface, string> = {
+	desktop: "desktop-tray",
+	cli: "terminal-tray",
+	vscode: "vscode-tray",
+	jetbrains: "jetbrains-tray",
+	other: "plugin",
+};
+
+/** The tray a viewer's surface renders, or `plugin` when no viewer named one. */
+export function surfaceOf(surface: PluginUiSurface | undefined): string {
+	return surface ? TRAY_SURFACES[surface] : "plugin";
+}
+
+const CLIENT_SURFACES: ReadonlyMap<string, PluginUiSurface> = new Map([
+	["cline-cli", "cli"],
+	["cline-desktop", "desktop"],
 ]);
 
-/** `desktop-tray`, `terminal-tray`, or `plugin` for a host this plugin does not know. */
-export function surfaceOf(client: string | undefined): string {
-	return TRAY_SURFACES.get(client) ?? "plugin";
+/** The surface a client name stood for before viewers named their own, or undefined for a client this plugin does not know. */
+export function clientSurfaceOf(
+	client: string | undefined,
+): PluginUiSurface | undefined {
+	return client ? CLIENT_SURFACES.get(client) : undefined;
+}
+
+/**
+ * The label for a chat no viewer ever attached to, from the session's client
+ * name, as labels were before viewers named their surface: the CLI's chats
+ * are `terminal-tray`, the desktop's `desktop-tray`, any other `plugin`.
+ */
+export function legacySurfaceOf(client: string | undefined): string {
+	return surfaceOf(clientSurfaceOf(client));
 }
 
 function telemetryProperties(

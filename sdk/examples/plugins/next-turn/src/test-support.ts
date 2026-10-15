@@ -3,10 +3,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Agent, createTool } from "@cline/core";
-import type { AgentMessage, AgentRunResult } from "@cline/shared";
+import type {
+	AgentExtensionUiSlot,
+	AgentMessage,
+	AgentRunResult,
+	ComposerSuggestionsAction,
+	ComposerSuggestionsState,
+	PluginUiActionReply,
+	PluginUiContext,
+} from "@cline/shared";
 import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { NEXT_TURN_SCHEMAS } from "./contracts";
+import type { HubLinkDeps } from "./hub/link";
 import type { NextSession } from "./planner/next";
+import type { RunCommand } from "./run";
 import type { SessionRuntime } from "./runtime";
 import { isRecord } from "./values";
 
@@ -38,14 +48,19 @@ export function useTempDirs(
 	};
 }
 
-/** A runtime around `next` with no hub, sources or connectors; `activateNext` returns whatever `next` it holds. */
+/**
+ * A runtime around `next` with no hub, sources or connectors. It is always
+ * viewed, as on a host that renders no slot, and `setViewed` returns
+ * whatever `next` it holds.
+ */
 export function fakeRuntime(
 	next?: NextSession,
 	overrides: Partial<SessionRuntime> = {},
 ): SessionRuntime {
 	const runtime: SessionRuntime = {
 		next,
-		activateNext: () => runtime.next,
+		setViewed: () => runtime.next,
+		viewed: () => true,
 		recordDormantTurn: () => {},
 		setTools: () => {},
 		stop: () => {},
@@ -54,8 +69,71 @@ export function fakeRuntime(
 	return runtime;
 }
 
+/**
+ * A host that renders the `composer.suggestions` slot, as core offers it to
+ * a worker plugin: `api` and `ui` go to `setup`, `states` holds every state
+ * published, and `invoke` delivers a verb from a viewer the way core does,
+ * counting viewers after it.
+ */
+export function fakeSlotHost(
+	slots: readonly string[] = ["composer.suggestions"],
+) {
+	const states: (ComposerSuggestionsState | null)[] = [];
+	const viewers = new Set<string>();
+	let registered: AgentExtensionUiSlot | undefined;
+	const ui: PluginUiContext = {
+		slots,
+		update: (_slot, state) => {
+			states.push(state);
+		},
+	};
+	return {
+		api: {
+			registerUiSlot: (slot: AgentExtensionUiSlot) => {
+				registered = slot;
+			},
+		},
+		ui,
+		states,
+		registered: () => registered,
+		latest: () => states.at(-1),
+		invoke(
+			action: ComposerSuggestionsAction,
+			viewerId = "local",
+		): PluginUiActionReply | Promise<PluginUiActionReply> {
+			if (action.verb === "attach") viewers.add(viewerId);
+			if (action.verb === "detach") viewers.delete(viewerId);
+			if (!registered) throw new Error("no slot registered");
+			return registered.onAction(action, {
+				sessionId: "sess_1",
+				viewer: { id: viewerId },
+				viewers: viewers.size,
+			});
+		},
+	};
+}
+
+/** Lets detached work started by a slot verb (an attach's serve) settle. */
+export function flushDetached(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 /** A lifecycle that never reads the developer's own Cline settings. */
 export const alwaysActive = { active: () => true };
+
+/** No hub is running: the link reports `off` and never connects. */
+export const offlineHub: HubLinkDeps = {
+	resolveEndpoint: async () => undefined,
+	createClient: () => {
+		throw new Error("no hub in tests");
+	},
+	sleep: () => new Promise(() => {}),
+};
+
+/** A machine with neither `gh` nor `git` installed. */
+export const noCommands: RunCommand = async () => {
+	throw Object.assign(new Error("not installed"), { code: "ENOENT" });
+};
 
 type RuntimeConfig = ConstructorParameters<typeof Agent>[0];
 export type Model = Extract<RuntimeConfig, { model: unknown }>["model"];

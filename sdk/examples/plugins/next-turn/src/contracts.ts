@@ -25,7 +25,9 @@ import {
 	TRIGGERS,
 } from "./planner/labels";
 import {
+	COMPUTING_FOR,
 	MODEL_STATUSES,
+	OFF_REASONS,
 	type OfferedSet,
 	TRAY_STATES,
 	type TrayPush,
@@ -35,11 +37,12 @@ import {
 /**
  * What Next Turn publishes as JSON Schema (generated into `contracts/` by
  * `scripts/build-contracts.ts` in this package): the label record, the
- * environment manifest, and the UI slot's payloads (the set a tray shows, the
- * sequenced state push, and the actions it sends back through `plugin.invoke`).
- * Built from the constants the writer and the engine use, and each object's
- * `properties` names exactly its type's keys. A host that renders the tray
- * natively codes against these.
+ * environment manifest, and Next's own tray state (the set, the sequenced
+ * state push, and the actions that drive it). Built from the constants the
+ * writer and the engine use, and each object's `properties` names exactly
+ * its type's keys. Hosts render Cline's `composer.suggestions` slot, whose
+ * schema `@cline/shared` owns; Next projects its tray state into that slot,
+ * so no host codes against the tray schemas.
  */
 
 type ContractSchema = {
@@ -206,14 +209,14 @@ export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 		name: "NextTurnSet",
 		io: "output",
 		about:
-			"The set the tray slot shows: one served offer, rules first and the model's when it answers",
+			"One served offer, rules first and the model's when it answers: the plugin's internal set, projected into Cline's composer.suggestions slot",
 		schema: setSchema,
 	},
 	{
 		name: "NextTurnTrayPush",
 		io: "output",
 		about:
-			"A sequenced tray state update pushed on next.state or returned from current",
+			"The plugin's internal sequenced tray state, projected into Cline's composer.suggestions slot",
 		schema: {
 			type: "object",
 			required: [
@@ -229,6 +232,8 @@ export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 				rerollsLeft,
 				set: setSchema,
 				error: { type: "string" },
+				offReason: { enum: [...OFF_REASONS] },
+				computingFor: { enum: [...COMPUTING_FOR] },
 			} satisfies Record<keyof TrayPush, unknown>,
 			additionalProperties: false,
 		},
@@ -236,7 +241,8 @@ export const NEXT_TURN_SCHEMAS: readonly ContractSchema[] = [
 	{
 		name: "NextTurnTrayAction",
 		io: "input",
-		about: "What the tray slot sends back through plugin.invoke",
+		about:
+			"The plugin's internal tray actions, which Cline's composer.suggestions verbs map to",
 		schema: trayActionSchema(),
 	},
 ];

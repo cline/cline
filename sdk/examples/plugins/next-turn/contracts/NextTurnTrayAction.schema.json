@@ -2,26 +2,8 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://cline.bot/next-turn/NextTurnTrayAction.schema.json",
 	"title": "NextTurnTrayAction",
-	"description": "What the tray slot sends back through plugin.invoke",
+	"description": "The plugin's internal tray actions, which Cline's composer.suggestions verbs map to",
 	"oneOf": [
-		{
-			"type": "object",
-			"required": ["type"],
-			"properties": {
-				"type": {
-					"const": "current"
-				},
-				"client": {
-					"type": "string",
-					"minLength": 1
-				},
-				"runCount": {
-					"type": "integer",
-					"minimum": 0
-				}
-			},
-			"additionalProperties": false
-		},
 		{
 			"type": "object",
 			"required": ["type", "candidateId"],

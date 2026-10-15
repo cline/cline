@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://cline.bot/next-turn/NextTurnTrayPush.schema.json",
 	"title": "NextTurnTrayPush",
-	"description": "A sequenced tray state update pushed on next.state or returned from current",
+	"description": "The plugin's internal sequenced tray state, projected into Cline's composer.suggestions slot",
 	"type": "object",
 	"required": ["sessionId", "seq", "state"],
 	"properties": {
@@ -177,6 +177,12 @@
 		},
 		"error": {
 			"type": "string"
+		},
+		"offReason": {
+			"enum": ["message", "hidden", "disabled"]
+		},
+		"computingFor": {
+			"enum": ["turn", "reroll"]
 		}
 	},
 	"additionalProperties": false

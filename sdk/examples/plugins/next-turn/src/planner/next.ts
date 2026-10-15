@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { AgentMessage, AgentRunResult } from "@cline/shared";
+import type {
+	AgentMessage,
+	AgentRunResult,
+	PluginUiSurface,
+} from "@cline/shared";
 import {
 	DIRTY_FILES_BUDGET_MS,
 	EXCLUDED_LIMIT,
@@ -22,7 +26,7 @@ import type { SessionStateStore } from "../store/session-state";
 import { errorMessage, isRecord } from "../values";
 import { type PlannerLedger, pausedUntil } from "./allowance";
 import { type Backlog, EMPTY_BACKLOG } from "./backlog";
-import { cueCode, fnv1a32, type Suggestion } from "./candidates";
+import { cueCode, fnv1a32, type Suggestion, sendable } from "./candidates";
 import { buildPlannerInput } from "./input";
 import { offerableKinds } from "./kinds";
 import {
@@ -37,7 +41,13 @@ import {
 import { type Complete, generatePool, PoolCache } from "./model";
 import { buildModelSet } from "./output";
 import { type GitHubEvidence, pageSet, rulePool } from "./rules";
-import type { OfferedSet, TrayAction, TrayPush, TrayState } from "./tray";
+import type {
+	OfferedSet,
+	OffReason,
+	TrayAction,
+	TrayPush,
+	TrayState,
+} from "./tray";
 import {
 	deriveTurn,
 	deriveTurnFromTranscript,
@@ -62,7 +72,10 @@ export type NextOptions = {
 	ledger?: PlannerLedger;
 	labels?: LabelLog;
 	store?: SessionStateStore;
-	viewerClient?: () => string | undefined;
+	/** The surface of the viewer the chat has while one is attached, persisted so a respawn knows the chat is viewed. */
+	viewerSurface?: () => PluginUiSurface | undefined;
+	/** Whether a viewer is attached: an unviewed chat's turn is recorded, never served. Viewed when absent. */
+	viewed?: () => boolean;
 	/** Whether the plugin is still enabled and installed: work that lands after it is disabled pushes and labels nothing. */
 	active?: () => boolean;
 	/** Reads the session's transcript and status from the hub on demand when no turn is in memory. */
@@ -161,6 +174,9 @@ const UNFINISHED_SESSION_STATUSES: ReadonlySet<string> = new Set([
 	"pending",
 ]);
 
+/** What an action Next would not apply asks the host to do instead: show the stale line, or offer Use only. */
+export type TrayRefusal = "stale" | "unsendable";
+
 /** The label verb a refused Send or Use would have recorded. */
 const STALE_VERB: Partial<Record<TrayAction["type"], string>> = {
 	send: "do",
@@ -197,7 +213,7 @@ function rowOf(
 	return index === -1 ? undefined : { item: set.candidates[index], index };
 }
 
-/** Next, for one chat: the plugin's run hooks and the tray's `plugin.invoke` drive it. */
+/** Next, for one chat: the plugin's run hooks and the `composer.suggestions` verbs drive it. */
 export class NextSession {
 	private state: TurnState | undefined;
 	private lastPush: TrayPush | undefined;
@@ -246,11 +262,30 @@ export class NextSession {
 		} catch (error) {
 			this.options.log?.("the saved turn did not restore", error);
 		}
+		if (this.state && this.lastPush?.state === "computing")
+			this.resumeComputing(this.state);
+	}
+
+	/**
+	 * A `computing` push read back from the store has nothing working on it
+	 * any more. A reroll asks the planner again, or takes the turn's next page
+	 * when the planner cannot answer now. A turn's first set is served on
+	 * demand instead, so the set the store holds, which is an older turn's,
+	 * is dropped.
+	 */
+	private resumeComputing(state: TurnState): void {
+		if (this.lastPush?.computingFor !== "reroll") {
+			this.state = undefined;
+			return;
+		}
+		const model = this.plannerModel(this.options.settings());
+		if (model?.status === "pending") this.startPlanner(state, this.generation);
+		else this.serve(state, model);
 	}
 
 	private persist(): void {
 		this.options.store?.write({
-			viewerClient: this.options.viewerClient?.(),
+			viewerSurface: this.options.viewerSurface?.(),
 			hiddenForChat: this.hiddenForChat || undefined,
 			seq: this.seq,
 			lastPush: this.lastPush,
@@ -281,13 +316,35 @@ export class NextSession {
 	/**
 	 * Drops the set and any in-flight serve, then pushes `off` under this
 	 * session's own sequence, so the next push after it is newer. A tray that
-	 * is already off gets no second push.
+	 * is already off for the same reason gets no second push.
 	 */
-	off(): TrayPush {
+	off(reason?: OffReason): TrayPush {
 		this.generation += 1;
-		if (!this.state && this.lastPush?.state === "off") return this.lastPush;
+		if (
+			!this.state &&
+			this.lastPush?.state === "off" &&
+			this.lastPush.offReason === reason
+		)
+			return this.lastPush;
 		this.state = undefined;
-		return this.pushState("off");
+		return this.pushState("off", reason ? { offReason: reason } : {});
+	}
+
+	/** Why Next is off in this chat: the person hid its suggestions, or Next is off in settings. */
+	private whyOff(): OffReason {
+		return this.hiddenForChat ? "hidden" : "disabled";
+	}
+
+	/**
+	 * Undoes "hide for this chat". A tray still showing that hide turns into a
+	 * plain off at once, so a viewer that asks for the current set while a run
+	 * is going or before any turn is known is not handed the hide back.
+	 */
+	show(): void {
+		this.hiddenForChat = false;
+		if (this.lastPush?.state === "off" && this.lastPush.offReason === "hidden")
+			this.off("message");
+		else this.persist();
 	}
 
 	/** Stops in-flight serves and planner calls from pushing, and detaches every listener. */
@@ -296,13 +353,18 @@ export class NextSession {
 		this.listeners.clear();
 	}
 
-	/** The latest sequenced tray state push, or a fresh `off` when nothing has been pushed yet. */
+	/**
+	 * The latest sequenced tray state push. Before the first push, Next is on
+	 * and no set exists yet, which reads like a set a message superseded, not
+	 * like Next turned off.
+	 */
 	currentPush(): TrayPush {
 		return (
 			this.lastPush ?? {
 				sessionId: this.options.sessionId,
 				seq: this.seq,
 				state: "off",
+				offReason: "message",
 			}
 		);
 	}
@@ -520,14 +582,32 @@ export class NextSession {
 	 */
 	async afterRun(result: AgentRunResult): Promise<OfferedSet | undefined> {
 		this.runUnderway = false;
+		if (this.options.viewed?.() === false) {
+			const turn = deriveTurn(this.options.sessionId, result);
+			if (turn) this.recordUnviewedTurn(turn);
+			return undefined;
+		}
 		const settings = this.options.settings();
 		if (!this.isOn(settings)) {
-			this.off();
+			this.off(this.whyOff());
 			return undefined;
 		}
 		const turn = deriveTurn(this.options.sessionId, result);
 		if (!turn) return undefined;
 		return this.startTurn(turn, settings, "after_run");
+	}
+
+	/**
+	 * A turn nobody is viewing: remembered, so the next viewer is served this
+	 * turn rather than the set before it, with no set, planner call or push.
+	 */
+	private recordUnviewedTurn(turn: Turn): void {
+		this.generation += 1;
+		this.state = undefined;
+		this.lastTurn = turn;
+		this.lastTurnFromStore = false;
+		if (turn.chat) this.lastChat = turn.chat;
+		this.persist();
 	}
 
 	/**
@@ -549,6 +629,7 @@ export class NextSession {
 		this.pushState("computing", {
 			turnKey: turn.turnKey,
 			rerollsLeft: REROLL_LIMIT,
+			computingFor: "turn",
 		});
 		const served = this.serveTurn(turn, endedAt, gen, settings, trigger).catch(
 			(error: unknown) => {
@@ -569,20 +650,17 @@ export class NextSession {
 	}
 
 	/**
-	 * `current` from a viewer: the set for `runCount`, served on demand when
-	 * the chat has none (a forked chat after Undo, a reopened session) from the
+	 * A viewer's attach or show: the current set, served on demand when the
+	 * chat has none (a forked chat after Undo, a reopened session) from the
 	 * last turn or the transcript `readTranscript` returns, whichever is newer.
 	 * A last turn from the store is served only once the hub says no run is
 	 * going.
 	 */
-	async ensureCurrent(runCount?: number): Promise<TrayPush> {
+	async ensureCurrent(): Promise<TrayPush> {
 		const settings = this.options.settings();
-		if (!this.isOn(settings)) return this.off();
-		const wanted = (candidate: { runCount: number } | undefined) =>
-			candidate !== undefined &&
-			(runCount === undefined || candidate.runCount === runCount);
-		if (wanted(this.shown) || this.runUnderway) return this.currentPush();
-		let turn = wanted(this.lastTurn) ? this.lastTurn : undefined;
+		if (!this.isOn(settings)) return this.off(this.whyOff());
+		if (this.shown || this.runUnderway) return this.currentPush();
+		let turn = this.lastTurn;
 		const inFlight = this.serving;
 		if (
 			turn &&
@@ -608,11 +686,7 @@ export class NextSession {
 					loaded.messages,
 					loaded.status,
 				);
-			if (
-				derived &&
-				wanted(derived) &&
-				(!turn || derived.runCount > turn.runCount)
-			)
+			if (derived && (!turn || derived.runCount > turn.runCount))
 				turn = derived;
 		}
 		if (!turn) return this.currentPush();
@@ -669,9 +743,19 @@ export class NextSession {
 
 	private startPlanner(state: TurnState, gen: number): void {
 		this.track(
-			this.planModel(state, gen).catch((error: unknown) =>
-				this.options.log?.("the planner failed", error),
-			),
+			this.planModel(state, gen).catch((error: unknown) => {
+				this.options.log?.("the planner failed", error);
+				if (this.isCurrent(gen, state) && this.awaitingReroll())
+					this.reportPlannerFailure(state, "error");
+			}),
+		);
+	}
+
+	/** The tray shows a reroll's loading state until the planner answers it. */
+	private awaitingReroll(): boolean {
+		return (
+			this.lastPush?.state === "computing" &&
+			this.lastPush.computingFor === "reroll"
 		);
 	}
 
@@ -760,11 +844,18 @@ export class NextSession {
 		this.serve(state);
 	}
 
-	/** The rule-based set stays on screen; only its model status changes. */
+	/**
+	 * The rule-based set stays on screen; only its model status changes. A
+	 * reroll that was waiting on the planner gets the rules' next page instead.
+	 */
 	private reportPlannerFailure(
 		state: TurnState,
 		status: "no_provider" | "error",
 	): void {
+		if (this.awaitingReroll()) {
+			this.serve(state, { status });
+			return;
+		}
 		const shown = this.shown;
 		if (shown?.turnKey !== state.turn.turnKey) return;
 		const { paused: _paused, ...rest } = shown;
@@ -797,7 +888,7 @@ export class NextSession {
 			this.labelMessage(set, state, message.text);
 			this.labelFor(set, "superseded", { cause: "message" });
 		}
-		if (set || this.lastPush?.state === "computing") this.off();
+		if (set || this.lastPush?.state === "computing") this.off("message");
 	}
 
 	private labelMessage(set: OfferedSet, state: TurnState, text: string): void {
@@ -867,11 +958,13 @@ export class NextSession {
 	}
 
 	/**
-	 * A tray action, answered with the push the tray should show next. Skip,
-	 * Unskip and Reroll serve a new set from the same turn; Use, Send, Exposed,
-	 * Hide and Label update state and labels.
+	 * A tray action, answered with the push the tray should show next and,
+	 * when Next would not apply it, why. Skip, Unskip and Reroll serve a new
+	 * set from the same turn; Use, Send, Exposed, Hide and Label update state
+	 * and labels. An action naming a set when none is on screen (after `off`,
+	 * or while a run is going) is refused as stale.
 	 */
-	invoke(action: Exclude<TrayAction, { type: "current" }>): TrayPush {
+	invoke(action: TrayAction): { push: TrayPush; refused?: TrayRefusal } {
 		if (action.type === "label") {
 			this.label({
 				...action.fields,
@@ -886,7 +979,7 @@ export class NextSession {
 					},
 				),
 			});
-			return this.currentPush();
+			return { push: this.currentPush() };
 		}
 		if (action.type === "hide") {
 			this.labelFor(this.shown, "hidden_by_user", { scope: action.scope });
@@ -894,11 +987,12 @@ export class NextSession {
 				this.hiddenForChat = true;
 				this.persist();
 			}
-			return this.off();
+			return { push: this.off("hidden") };
 		}
 		const state = this.state;
 		const current = this.shown;
-		if (!state || !current) return this.currentPush();
+		if (!state || !current)
+			return { push: this.currentPush(), refused: "stale" };
 		const computing = this.lastPush?.state === "computing";
 		const target = computing ? undefined : this.resolveOffer(action.offerId);
 		if (!target) {
@@ -906,18 +1000,18 @@ export class NextSession {
 				reason: computing ? "computing" : "set_changed",
 				verb: STALE_VERB[action.type],
 			});
-			return this.currentPush();
+			return { push: this.currentPush(), refused: "stale" };
 		}
-		this.apply(state, current, target, action);
-		return this.currentPush();
+		const refused = this.apply(state, current, target, action);
+		return { push: this.currentPush(), ...(refused ? { refused } : {}) };
 	}
 
 	private apply(
 		state: TurnState,
 		current: OfferedSet,
 		target: OfferedSet,
-		action: Exclude<TrayAction, { type: "current" | "label" | "hide" }>,
-	): void {
+		action: Exclude<TrayAction, { type: "label" | "hide" }>,
+	): TrayRefusal | undefined {
 		switch (action.type) {
 			case "exposed":
 				state.exposedOffers.add(target.offerId);
@@ -928,6 +1022,14 @@ export class NextSession {
 			case "send": {
 				const row = rowOf(target, action.candidateId);
 				if (!row) return;
+				if (action.type === "send" && !sendable(row.item)) {
+					this.labelFor(target, "key_inert", {
+						...rowFields(row.item, row.index),
+						reason: "unsendable",
+						input: action.input,
+					});
+					return "unsendable";
+				}
 				if (action.type === "use")
 					this.labelFor(target, "adjust", {
 						...rowFields(row.item, row.index),
@@ -1002,8 +1104,15 @@ export class NextSession {
 			!poolLeft &&
 			!state.planning &&
 			this.plannerModel(this.options.settings())?.status === "pending"
-		)
+		) {
+			this.pushState("computing", {
+				turnKey: state.turn.turnKey,
+				rerollsLeft: this.rerollsLeft(state),
+				computingFor: "reroll",
+			});
 			this.startPlanner(state, this.generation);
+			return;
+		}
 		this.serve(state, current.model);
 	}
 

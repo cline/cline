@@ -17,7 +17,13 @@ import { createNextTurnPlugin } from "./plugin";
 import { type SetupContext, sessionEnv } from "./runtime";
 import { defaultSettings } from "./settings/settings";
 import { FileSessionStateStore } from "./store/session-state";
-import { editorTool, editRun, fakeRuntime, useTempDirs } from "./test-support";
+import {
+	editorTool,
+	editRun,
+	fakeRuntime,
+	fakeSlotHost,
+	useTempDirs,
+} from "./test-support";
 
 const tempDir = useTempDirs("next-turn-lifecycle-");
 
@@ -46,7 +52,7 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 
 		const labelsPath = join(dir, "labels.jsonl");
 		let plannerCalls = 0;
-		const pushes: Array<{ state: string }> = [];
+		const host = fakeSlotHost();
 		const context: SetupContext = {
 			session: { sessionId: "sess_life" },
 			client: { name: "cline-desktop" },
@@ -66,29 +72,11 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 			},
 			labels: new LabelLog(labelsPath),
 		});
-		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
 		const plugin = createNextTurnPlugin({
 			startRuntime: () => fakeRuntime(next),
 			lifecycle,
 		});
-		await plugin.setup?.(
-			{
-				registerUiHandler(
-					name: string,
-					fn: (input: unknown) => Promise<unknown> | unknown,
-				) {
-					if (name === "next") handler = fn;
-				},
-			} as never,
-			{
-				...context,
-				ui: {
-					push(_event: string, payload: unknown) {
-						pushes.push(payload as { state: string });
-					},
-				},
-			} as never,
-		);
+		await plugin.setup?.(host.api as never, { ...context, ui: host.ui });
 
 		writeFileSync(
 			settingsPath,
@@ -112,9 +100,16 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 
 		expect(plannerCalls).toBe(0);
 		expect(() => readFileSync(labelsPath)).toThrow();
-		expect(pushes.map((p) => p.state)).toEqual(["off"]);
-		expect(await handler?.({ type: "current" })).toMatchObject({
-			state: "off",
+		expect(
+			host.states.map((state) => [state?.status, state?.hiddenReason]),
+		).toEqual([["hidden", "disabled"]]);
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		expect(host.latest()).toMatchObject({
+			status: "hidden",
+			hiddenReason: "disabled",
+			title: "Next",
 		});
 
 		writeFileSync(settingsPath, JSON.stringify({ disabledPlugins: [] }));
@@ -192,7 +187,7 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 		expect(read).toEqual(["pr"]);
 	});
 
-	test("a chat set up while the plugin is disabled answers current with off, not the saved set", async () => {
+	test("a chat set up while the plugin is disabled answers an attach with a disabled tray, not the saved set", async () => {
 		const dir = tempDir();
 		const makeSession = () =>
 			new NextSession({
@@ -210,33 +205,28 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 
 		const respawned = makeSession();
 		expect(respawned.currentPush().state).toBe("ready");
-		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
+		const host = fakeSlotHost();
 		const plugin = createNextTurnPlugin({
 			startRuntime: () => fakeRuntime(respawned),
 			lifecycle: { active: () => false },
 		});
-		await plugin.setup?.(
-			{
-				registerUiHandler(
-					name: string,
-					fn: (input: unknown) => Promise<unknown> | unknown,
-				) {
-					if (name === "next") handler = fn;
-				},
-			} as never,
-			{
-				session: { sessionId: "sess_disabled" },
-				client: { name: "cline-desktop" },
-			} as never,
-		);
-		const reply = (await handler?.({ type: "current" })) as {
-			state: string;
-			seq: number;
-			set?: unknown;
-		};
-		expect(reply.state).toBe("off");
+		await plugin.setup?.(host.api as never, {
+			session: { sessionId: "sess_disabled" },
+			client: { name: "cline-desktop" },
+			ui: host.ui,
+		});
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		const reply = respawned.currentPush();
+		expect(reply).toMatchObject({ state: "off", offReason: "disabled" });
 		expect(reply.set).toBeUndefined();
 		expect(reply.seq).toBeGreaterThan(first.currentPush().seq);
+		expect(host.latest()).toMatchObject({
+			status: "hidden",
+			hiddenReason: "disabled",
+			items: [],
+		});
 	});
 
 	test("a settings file that stops parsing keeps the plugin as it was, and a removed one enables it", () => {

@@ -4,7 +4,6 @@ import { EMPTY_BACKLOG } from "./planner/backlog";
 import { suggestion } from "./planner/candidates";
 import { buildLabelRecord, offerRecord } from "./planner/labels";
 import { NextSession } from "./planner/next";
-import { parseTrayAction } from "./planner/tray";
 import { defaultSettings } from "./settings/settings";
 import {
 	contractSchema,
@@ -128,11 +127,33 @@ describe("what Next Turn publishes as JSON Schema", () => {
 		);
 	});
 
-	test("the tray action parser accepts exactly what NextTurnTrayAction accepts", () => {
+	test("a tray push says why the tray is off and what a computing push is for, and names nothing else", () => {
+		const base = { sessionId: "sess_1", seq: 3 };
+		for (const push of [
+			{ ...base, state: "off", offReason: "message" },
+			{ ...base, state: "off", offReason: "hidden" },
+			{ ...base, state: "off", offReason: "disabled" },
+			{ ...base, state: "computing", computingFor: "turn" },
+			{ ...base, state: "computing", computingFor: "reroll" },
+		])
+			expect([push, contractErrors("NextTurnTrayPush", push)]).toEqual([
+				push,
+				[],
+			]);
+		for (const push of [
+			{ ...base, state: "off", offReason: "bored" },
+			{ ...base, state: "computing", computingFor: "lunch" },
+			{ ...base, state: "off", hiddenReason: "user" },
+		])
+			expect([
+				push,
+				contractErrors("NextTurnTrayPush", push).length > 0,
+			]).toEqual([push, true]);
+	});
+
+	test("NextTurnTrayAction accepts every tray action and refuses malformed ones", () => {
 		const schema = contractSchema("NextTurnTrayAction");
 		const accepted = [
-			{ type: "current" },
-			{ type: "current", client: "cline-desktop", runCount: 2 },
 			{
 				type: "skip",
 				candidateId: "c1",
@@ -155,10 +176,8 @@ describe("what Next Turn publishes as JSON Schema", () => {
 				fields: { key: "cmd_2" },
 			},
 		];
-		for (const action of accepted) {
-			expect([action, parseTrayAction(action)]).toEqual([action, action]);
+		for (const action of accepted)
 			expect([action, schemaErrors(schema, action)]).toEqual([action, []]);
-		}
 		const branchTypes = (
 			schema.oneOf as { properties: { type: { const: string } } }[]
 		).map((branch) => branch.properties.type.const);
@@ -175,20 +194,16 @@ describe("what Next Turn publishes as JSON Schema", () => {
 			{ type: "skip", candidateId: "c1", extra: true },
 			{ type: "skip", candidateId: "c1", input: "not a token!" },
 			{ type: "unskip", candidateId: "c1", msSinceExposed: 5 },
-			{ type: "current", client: "" },
-			{ type: "current", runCount: -1 },
-			{ type: "current", runCount: 1.5 },
+			{ type: "current" },
 			{ type: "reroll", cause: "two words" },
 			{ type: "exposed", candidateId: "" },
 			{ type: "hide", scope: "everywhere" },
 			{ type: "label", event: "offer" },
 			{ type: "label", event: "key_inert", fields: "key" },
-		]) {
-			expect([refused, parseTrayAction(refused)]).toEqual([refused, null]);
+		])
 			expect([refused, schemaErrors(schema, refused).length > 0]).toEqual([
 				refused,
 				true,
 			]);
-		}
 	});
 });

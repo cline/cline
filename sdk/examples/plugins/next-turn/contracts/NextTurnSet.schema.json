@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://cline.bot/next-turn/NextTurnSet.schema.json",
 	"title": "NextTurnSet",
-	"description": "The set the tray slot shows: one served offer, rules first and the model's when it answers",
+	"description": "One served offer, rules first and the model's when it answers: the plugin's internal set, projected into Cline's composer.suggestions slot",
 	"type": "object",
 	"required": [
 		"sessionId",

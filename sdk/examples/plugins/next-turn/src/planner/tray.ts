@@ -1,11 +1,11 @@
-import { isRecord, num, text } from "../values";
-import { isToken, type LabelEvent, type Offer, TOKEN_PATTERN } from "./labels";
+import { type LabelEvent, type Offer, TOKEN_PATTERN } from "./labels";
 
 /**
- * The tray slot's protocol: the set it shows, the sequenced state push, and
- * the actions it sends back through `plugin.invoke`. One table per action
- * gives the parser, the TypeScript type and the published
- * `NextTurnTrayAction` schema, so the three cannot disagree.
+ * Next's own tray state: the set it shows, the sequenced state push, and the
+ * actions that drive it. Cline's `composer.suggestions` slot is projected
+ * from these (`tray-view.ts`), and its verbs map onto these actions. One
+ * table per action gives the TypeScript type and the published
+ * `NextTurnTrayAction` schema, so the two cannot disagree.
  */
 
 export const TRAY_STATES = [
@@ -47,6 +47,14 @@ export type OfferedSet = Offer & {
 	model?: { status: ModelStatus; resetsAt?: number };
 };
 
+export const OFF_REASONS = ["message", "hidden", "disabled"] as const;
+/** Why the tray went off: a message superseded the set (or no set exists yet), the person hid this chat's, or Next or the plugin is off. */
+export type OffReason = (typeof OFF_REASONS)[number];
+
+export const COMPUTING_FOR = ["turn", "reroll"] as const;
+/** What a `computing` push is working on: the turn's first set, or a reroll the planner must answer. */
+export type ComputingFor = (typeof COMPUTING_FOR)[number];
+
 export type TrayPush = {
 	sessionId: string;
 	seq: number;
@@ -55,42 +63,24 @@ export type TrayPush = {
 	rerollsLeft?: number;
 	set?: OfferedSet;
 	error?: string;
+	offReason?: OffReason;
+	computingFor?: ComputingFor;
 };
 
-/** One action field: how the published schema describes it, and how the parser reads it (undefined when refused). */
-type Field<T> = {
-	schema: Record<string, unknown>;
-	read(value: unknown): T | undefined;
-};
+/** One action field as the published schema describes it; `T` is the value it carries. */
+type Field<T> = { schema: Record<string, unknown>; value?: T };
 
-const id: Field<string> = {
-	schema: { type: "string", minLength: 1 },
-	read: text,
-};
+const id: Field<string> = { schema: { type: "string", minLength: 1 } };
 const token: Field<string> = {
 	schema: { type: "string", pattern: TOKEN_PATTERN.source },
-	read: (value) => (isToken(value) ? value : undefined),
 };
-const count: Field<number> = {
-	schema: { type: "integer", minimum: 0 },
-	read: (value) =>
-		typeof value === "number" && Number.isInteger(value) && value >= 0
-			? value
-			: undefined,
-};
-const ms: Field<number> = { schema: { type: "number" }, read: num };
-const chatScope: Field<"chat"> = {
-	schema: { const: "chat" },
-	read: (value) => (value === "chat" ? value : undefined),
-};
+const ms: Field<number> = { schema: { type: "number" } };
+const chatScope: Field<"chat"> = { schema: { const: "chat" } };
 const passthroughEvent: Field<TrayPassthroughLabelEvent> = {
 	schema: { enum: [...TRAY_PASSTHROUGH_LABEL_EVENTS] },
-	read: (value) =>
-		TRAY_PASSTHROUGH_LABEL_EVENTS.find((event) => event === value),
 };
 const labelFields: Field<Record<string, unknown>> = {
 	schema: { type: "object" },
-	read: (value) => (isRecord(value) ? value : undefined),
 };
 
 type ActionFields = Readonly<Record<string, Field<unknown>>>;
@@ -103,7 +93,6 @@ const candidateVerb = {
 
 /** Every tray action and its fields, in the published schema's order. */
 const TRAY_ACTIONS = {
-	current: { required: {}, optional: { client: id, runCount: count } },
 	skip: candidateVerb,
 	unskip: {
 		required: { candidateId: id },
@@ -138,32 +127,6 @@ type ActionOf<Type extends keyof TrayActions> = { type: Type } & {
 export type TrayAction = {
 	[Type in keyof TrayActions]: ActionOf<Type>;
 }[keyof TrayActions];
-
-/** An incoming `plugin.invoke` payload, or null when `NextTurnTrayAction` refuses it. */
-export function parseTrayAction(raw: unknown): TrayAction | null {
-	if (
-		!isRecord(raw) ||
-		typeof raw.type !== "string" ||
-		!Object.hasOwn(TRAY_ACTIONS, raw.type)
-	)
-		return null;
-	const spec: ActionSpec = TRAY_ACTIONS[raw.type as keyof TrayActions];
-	const fields = { ...spec.required, ...spec.optional };
-	if (
-		Object.keys(raw).some(
-			(key) => key !== "type" && !Object.hasOwn(fields, key),
-		)
-	)
-		return null;
-	const action: Record<string, unknown> = { type: raw.type };
-	for (const [key, field] of Object.entries(fields)) {
-		if (raw[key] === undefined && !Object.hasOwn(spec.required, key)) continue;
-		const value = field.read(raw[key]);
-		if (value === undefined) return null;
-		action[key] = value;
-	}
-	return action as TrayAction;
-}
 
 /** `NextTurnTrayAction`: one closed object per action. */
 export function trayActionSchema(): Record<string, unknown> {

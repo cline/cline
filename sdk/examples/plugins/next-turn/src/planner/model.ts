@@ -214,7 +214,7 @@ const reasoningRequired = new Set<string>();
 
 type CompleterOptions = {
 	choice: (settings: Settings) => ProviderChoice;
-	/** Read on every call, so the request headers name the client viewing the chat now. */
+	/** Read on every call: the session and client the request headers name. */
 	requestContext?: () => PlannerRequestContext;
 	load?: () => Promise<{ core: CoreModule; llms: LlmsModule }>;
 };

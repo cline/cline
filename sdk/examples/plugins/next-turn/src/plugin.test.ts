@@ -3,13 +3,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	Agent,
+	type AgentPlugin,
 	countUserRunMessages as coreCount,
 	loadAgentPluginFromPath,
 } from "@cline/core";
+import type { ComposerSuggestionsAction, PluginUiSurface } from "@cline/shared";
 import type { ContextSource } from "./context/source";
 import { EMPTY_BACKLOG } from "./planner/backlog";
 import { LabelLog } from "./planner/labels";
-import { NextSession } from "./planner/next";
+import { type NextOptions, NextSession } from "./planner/next";
 import type { OfferedSet } from "./planner/tray";
 import { deriveTurn } from "./planner/turn";
 import { createNextTurnPlugin, defaultIsNextActive } from "./plugin";
@@ -26,6 +28,10 @@ import {
 	editorTool,
 	editRun,
 	fakeRuntime,
+	fakeSlotHost,
+	flushDetached,
+	noCommands,
+	offlineHub,
 	useTempDirs,
 } from "./test-support";
 
@@ -193,12 +199,12 @@ describe("Next Turn as a plugin", () => {
 					if (!settings.features.next && !settings.notify.needsYou)
 						return undefined;
 					const runtime = fakeRuntime(undefined, {
-						activateNext: () => {
+						setViewed: () => {
 							if (settings.features.next) runtime.next = next;
 							return runtime.next;
 						},
 					});
-					if (active) runtime.activateNext();
+					if (active) runtime.setViewed(true);
 					return runtime;
 				},
 				lifecycle: alwaysActive,
@@ -236,224 +242,33 @@ describe("Next Turn as a plugin", () => {
 		expect(
 			sessionEnv(context, {
 				tools: () => [],
-				viewerClient: () => "cline-desktop",
 				git: () => ({ branch: "feature", commit: "abc" }),
 				chatProviderId: () => "anthropic",
 			})(),
 		).toMatchObject({
-			client: "cline-desktop",
+			client: "cline-cli",
 			providerId: "anthropic",
 			git: { branch: "feature", commit: "abc" },
 		});
 	});
 
-	test("registers the next UI handler and pushes computing → ready (rules) → ready (model)", async () => {
-		const labelsPath = join(tempDir(), "labels.jsonl");
-		const pushes: Array<{ event: string; payload: unknown }> = [];
-		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
-		const api = {
-			registerUiHandler(
-				name: string,
-				fn: (input: unknown) => Promise<unknown> | unknown,
-			) {
-				if (name === "next") handler = fn;
-			},
-		};
-		const desktopContext = { ...context, client: { name: "cline-desktop" } };
-		const slotContext = {
-			...desktopContext,
-			ui: {
-				push(event: string, payload: unknown) {
-					pushes.push({ event, payload });
-				},
-			},
-		};
-		const next = new NextSession({
-			sessionId: "sess_1",
-			settings: defaultSettings,
-			env: sessionEnv(desktopContext, { tools: () => [] }),
-			sources: () => [
-				{ id: "turn", tier: "T0", probe: () => "present" },
-				{ id: "tasks", tier: "T2", probe: () => "present" },
-			],
-			backlog: async () => EMPTY_BACKLOG,
-			complete: async () => ({
-				text: '{"suggestions":[{"kind":"verify","source":"turn","prompt":"Run bun test on retry.ts.","why":"retry.ts changed"}]}',
-				costUsd: 0.001,
-				providerId: "cline",
-				modelId: "claude-sonnet",
-			}),
-			labels: new LabelLog(labelsPath),
-		});
-		const plugin = createNextTurnPlugin({
-			startRuntime: () => fakeRuntime(next),
-			lifecycle: alwaysActive,
-		});
-		await plugin.setup?.(api as never, slotContext as never);
-		expect(handler).toBeDefined();
-
-		const agent = new Agent({
-			model: editingModel().model,
-			tools: [editorTool],
-			hooks: plugin.hooks,
-		});
-		await agent.run("Add a retry to the client");
-		await next.settled();
-
-		expect(
-			pushes.map((entry) => (entry.payload as { state: string }).state),
-		).toEqual(["computing", "ready", "ready"]);
-		const current = (await handler?.({ type: "current" })) as {
-			state: string;
-			seq: number;
-			set?: OfferedSet;
-		};
-		expect(current.state).toBe("ready");
-		expect(current.set?.planner).toBe("model");
-
-		const firstId = current.set?.candidates[0]?.id ?? "";
-		const afterSkip = (await handler?.({
-			type: "skip",
-			candidateId: firstId,
-			offerId: current.set?.offerId,
-		})) as {
-			state: string;
-			seq: number;
-			set?: OfferedSet;
-		};
-		expect(afterSkip.seq).toBeGreaterThan(current.seq);
-		expect(afterSkip.set?.candidates.map((row) => row.id)).not.toContain(
-			firstId,
-		);
-
-		const afterUnskip = (await handler?.({
-			type: "unskip",
-			candidateId: firstId,
-			offerId: afterSkip.set?.offerId,
-		})) as {
-			set?: OfferedSet;
-		};
-		expect(afterUnskip.set?.candidates.map((row) => row.id)).toContain(firstId);
-
-		await expect(
-			Promise.resolve().then(() => handler?.({ type: "unknown_verb" })),
-		).rejects.toThrow("invalid NextTurnTrayAction");
-	});
-
-	test("dormant gate: a client the gate holds back stays dormant until current is invoked", async () => {
-		let activated = 0;
-		let dormantRecorded = 0;
-		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
-		const api = {
-			registerUiHandler(
-				name: string,
-				fn: (input: unknown) => Promise<unknown> | unknown,
-			) {
-				if (name === "next") handler = fn;
-			},
-		};
-		const next = new NextSession({
-			sessionId: "sess_1",
-			settings: defaultSettings,
-			env: sessionEnv(context, { tools: () => [] }),
-			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
-			backlog: async () => EMPTY_BACKLOG,
-		});
-		const runtime: SessionRuntime = fakeRuntime(undefined, {
-			activateNext: () => {
-				activated += 1;
-				runtime.next = next;
-				return next;
-			},
-			recordDormantTurn: () => {
-				dormantRecorded += 1;
-			},
-		});
-		const plugin = createNextTurnPlugin({
-			startRuntime: (_ctx, { active }) => {
-				if (active) runtime.activateNext();
-				return runtime;
-			},
-			lifecycle: alwaysActive,
-		});
-		await plugin.setup?.(api as never, context as never);
-		expect(activated).toBe(0);
-		const agent = new Agent({
-			model: editingModel().model,
-			tools: [editorTool],
-			hooks: plugin.hooks,
-		});
-		await agent.run("First turn while dormant");
-		expect(dormantRecorded).toBe(1);
-		expect(next.current()).toBeUndefined();
-
-		const cur = (await handler?.({
-			type: "current",
-			client: "cline-desktop",
-		})) as { state: string };
-		expect(cur.state).toBe("off");
-		expect(activated).toBe(1);
-
-		await agent.run("Second turn after viewer attached");
-		await next.settled();
-		expect(next.current()?.candidates.length).toBeGreaterThan(0);
-	});
-
-	test("a viewer's current on a chat with no turn in memory serves a set from the hub's transcript", async () => {
-		const { messages } = editRun("Forked chat turn");
-		let transcriptReads = 0;
-		const next = new NextSession({
-			sessionId: "sess_fresh_hub",
-			settings: defaultSettings,
-			env: sessionEnv(context, { tools: () => [] }),
-			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
-			backlog: async () => EMPTY_BACKLOG,
-			readTranscript: async () => {
-				transcriptReads += 1;
-				return { messages, status: "completed" };
-			},
-		});
-		let handler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
-		const plugin = createNextTurnPlugin({
-			startRuntime: () => fakeRuntime(next),
-			lifecycle: alwaysActive,
-		});
-		await plugin.setup?.(
-			{
-				registerUiHandler(
-					name: string,
-					fn: (input: unknown) => Promise<unknown> | unknown,
-				) {
-					if (name === "next") handler = fn;
-				},
-			} as never,
-			{
-				session: { sessionId: "sess_fresh_hub" },
-				client: { name: "cline-desktop" },
-				workspaceInfo: { rootPath: "/w" },
-			} as never,
-		);
-		const push = (await handler?.({ type: "current", runCount: 1 })) as {
-			state: string;
-			set?: OfferedSet;
-		};
-		expect(push.state).toBe("ready");
-		expect(push.set?.trigger).toBe("on_demand");
-		expect(push.set?.runId).toBeUndefined();
-		expect(transcriptReads).toBe(1);
-	});
-
-	test("the default gate starts Next at once without UI slots or on the desktop, and holds back other slot clients", () => {
-		const slots = { registerUiHandler: () => undefined };
-		expect(defaultIsNextActive({}, { client: { name: "cline-cli" } })).toBe(
+	test("the default gate starts Next at once unless the host renders the composer.suggestions slot", () => {
+		const registerUiSlot = () => undefined;
+		const ui = (slots: string[]) => ({ slots, update: () => undefined });
+		expect(defaultIsNextActive({}, {})).toBe(true);
+		expect(defaultIsNextActive({ registerUiSlot }, {})).toBe(true);
+		expect(defaultIsNextActive({}, { ui: ui(["composer.suggestions"]) })).toBe(
 			true,
 		);
 		expect(
-			defaultIsNextActive(slots, { client: { name: "cline-desktop" } }),
+			defaultIsNextActive({ registerUiSlot }, { ui: ui(["composer.other"]) }),
 		).toBe(true);
-		expect(defaultIsNextActive(slots, { client: { name: "cline-cli" } })).toBe(
-			false,
-		);
+		expect(
+			defaultIsNextActive(
+				{ registerUiSlot },
+				{ ui: ui(["composer.suggestions"]) },
+			),
+		).toBe(false);
 	});
 
 	test("the afterRun hook waits for the rule-based set but not the planner or the connector refresh, so a one-shot run closed at once keeps its offer", async () => {
@@ -600,5 +415,580 @@ describe("Next Turn as a plugin", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(started).toBe(2);
 		expect(logged).toContain("[next-turn] the runtime did not stop");
+	});
+});
+
+const MODEL_ANSWER =
+	'{"suggestions":[{"kind":"verify","source":"turn","prompt":"Run bun test on retry.ts.","why":"retry.ts changed"}]}';
+
+/**
+ * Next around a runtime that keeps it dormant until viewed, as
+ * `startSessionRuntime` does: `viewing` records each `setViewed`, each start
+ * of Next and each turn recorded while dormant.
+ */
+function presence(
+	nextOptions: Partial<NextOptions> = {},
+	runtimeOverrides: Partial<SessionRuntime> = {},
+	nextOn: () => boolean = () => true,
+) {
+	const viewing = {
+		viewed: false,
+		activated: 0,
+		dormant: 0,
+		calls: [] as [boolean, PluginUiSurface | undefined][],
+	};
+	const next = new NextSession({
+		sessionId: "sess_1",
+		settings: defaultSettings,
+		env: sessionEnv(context, { tools: () => [] }),
+		sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+		backlog: async () => EMPTY_BACKLOG,
+		viewed: () => viewing.viewed,
+		...nextOptions,
+	});
+	const runtime: SessionRuntime = fakeRuntime(undefined, {
+		setViewed: (viewed, surface) => {
+			viewing.viewed = viewed;
+			viewing.calls.push([viewed, surface]);
+			if (viewed && !runtime.next && nextOn()) {
+				viewing.activated += 1;
+				runtime.next = next;
+			}
+			return runtime.next;
+		},
+		viewed: () => viewing.viewed,
+		recordDormantTurn: () => {
+			viewing.dormant += 1;
+		},
+		...runtimeOverrides,
+	});
+	const start = (_context: SetupContext, { active }: { active: boolean }) => {
+		if (active) runtime.setViewed(true);
+		return runtime;
+	};
+	return { next, runtime, viewing, start };
+}
+
+function agentFor(plugin: AgentPlugin): Agent {
+	return new Agent({
+		model: editingModel().model,
+		tools: [editorTool],
+		hooks: plugin.hooks,
+	});
+}
+
+function slotContext(
+	host: ReturnType<typeof fakeSlotHost>,
+	extra: Partial<SetupContext> = {},
+): SetupContext {
+	return {
+		...context,
+		client: { name: "cline-desktop" },
+		ui: host.ui,
+		...extra,
+	};
+}
+
+/** A connector's Check CI row: GitHub connected, a GitHub remote, a failing check. */
+const githubSources: ContextSource[] = [
+	{ id: "turn", tier: "T0", probe: () => "present" },
+	{
+		id: "git",
+		tier: "T1",
+		probe: () => "present",
+		capabilities: () => ["remote:github"],
+	},
+	{
+		id: "github",
+		tier: "T3",
+		probe: () => "present",
+		capabilities: () => ["github", "github:gh"],
+	},
+];
+
+describe("Next Turn on a host that renders the composer.suggestions slot", () => {
+	test("the gate follows the slot API, not the client: with it Next waits for a viewer, without it Next starts at once, runs the planner and logs each set", async () => {
+		let planned = 0;
+		const complete = async () => {
+			planned += 1;
+			return { text: MODEL_ANSWER };
+		};
+		const slotHost = fakeSlotHost();
+		const dormant = presence({ complete });
+		const waiting = createNextTurnPlugin({
+			startRuntime: dormant.start,
+			lifecycle: alwaysActive,
+		});
+		await waiting.setup?.(slotHost.api as never, slotContext(slotHost));
+		expect(slotHost.registered()?.slot).toBe("composer.suggestions");
+		await agentFor(waiting).run("Add a retry to the client");
+		await dormant.next.settled();
+		expect([
+			dormant.viewing.activated,
+			dormant.viewing.dormant,
+			planned,
+		]).toEqual([0, 1, 0]);
+
+		const inProcess = fakeSlotHost();
+		const otherCatalog = fakeSlotHost(["composer.other"]);
+		for (const [label, api, ui] of [
+			["no slot API", {}, undefined],
+			["registerUiSlot without ctx.ui", inProcess.api, undefined],
+			["a catalog without the slot", otherCatalog.api, otherCatalog.ui],
+		] as const) {
+			planned = 0;
+			const logged: string[] = [];
+			const started = presence({ complete });
+			const plugin = createNextTurnPlugin({
+				startRuntime: started.start,
+				lifecycle: alwaysActive,
+			});
+			await plugin.setup?.(api as never, {
+				...context,
+				...(ui ? { ui } : {}),
+				logger: {
+					debug: (message) => {
+						logged.push(message);
+					},
+					log: () => {},
+				},
+			});
+			expect([label, started.viewing.activated]).toEqual([label, 1]);
+			await agentFor(plugin).run("Add a retry to the client");
+			await started.next.settled();
+			expect([label, planned, started.next.current()?.planner]).toEqual([
+				label,
+				1,
+				"model",
+			]);
+			expect(logged).toContain("[next-turn] suggestions");
+		}
+		expect(inProcess.registered()).toBeUndefined();
+		expect(otherCatalog.registered()).toBeUndefined();
+	});
+
+	test("an attach serves the set, the set streams to the slot, and Skip and Unskip serve new sets; an unknown verb is refused", async () => {
+		const host = fakeSlotHost();
+		const { next, viewing, start } = presence({
+			sources: () => [
+				{ id: "turn", tier: "T0", probe: () => "present" },
+				{ id: "tasks", tier: "T2", probe: () => "present" },
+			],
+			complete: async () => ({ text: MODEL_ANSWER }),
+		});
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		expect(viewing.calls).toEqual([[true, "desktop"]]);
+		await flushDetached();
+		expect(host.latest()).toMatchObject({
+			status: "hidden",
+			hiddenReason: "superseded",
+			title: "Next",
+			revision: "none",
+		});
+		await agentFor(plugin).run("Add a retry to the client");
+		await next.settled();
+		expect(host.states.map((state) => state?.status)).toEqual([
+			"hidden",
+			"loading",
+			"ready",
+			"ready",
+		]);
+		const shown = host.latest();
+		expect(shown?.revision).toBe(next.current()?.offerId);
+		expect(shown?.cue).toEqual({ text: "after 1 file changed", tone: "check" });
+
+		host.states.splice(0);
+		expect(
+			host.invoke({ verb: "attach", surface: "desktop" }, "other"),
+		).toEqual({ outcome: "ok" });
+		await flushDetached();
+		expect(host.states).toEqual([shown ?? null]);
+
+		const firstId = shown?.items[0]?.id ?? "";
+		expect(
+			host.invoke({
+				verb: "skip",
+				revision: shown?.revision ?? "",
+				itemId: firstId,
+				input: "key",
+			}),
+		).toEqual({ outcome: "ok" });
+		const afterSkip = host.latest();
+		expect(afterSkip?.revision).not.toBe(shown?.revision);
+		expect(afterSkip?.items.map((item) => item.id)).not.toContain(firstId);
+		expect(
+			host.invoke({
+				verb: "unskip",
+				revision: afterSkip?.revision ?? "",
+				itemId: firstId,
+				input: "pointer",
+			}),
+		).toEqual({ outcome: "ok" });
+		expect(host.latest()?.items.map((item) => item.id)).toContain(firstId);
+		expect(
+			host.invoke({
+				verb: "skip",
+				revision: shown?.revision ?? "",
+				itemId: "gone",
+				input: "key",
+			}),
+		).toEqual({ outcome: "refused", reason: "stale" });
+		expect(
+			host.invoke({ verb: "dance" } as unknown as ComposerSuggestionsAction),
+		).toEqual({ outcome: "refused" });
+	});
+
+	test("an attach answers before its serve settles, so a verb behind it is not held", async () => {
+		const host = fakeSlotHost();
+		const { start } = presence({ readTranscript: () => new Promise(() => {}) });
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		expect(
+			host.invoke({ verb: "skip", revision: "r1", itemId: "a1", input: "key" }),
+		).toEqual({ outcome: "refused", reason: "stale" });
+	});
+
+	test("an attach with no runtime, or with Next off in settings, shows the tray as disabled", async () => {
+		const withoutRuntime = fakeSlotHost();
+		const idle = createNextTurnPlugin({
+			startRuntime: () => undefined,
+			lifecycle: alwaysActive,
+		});
+		await idle.setup?.(
+			withoutRuntime.api as never,
+			slotContext(withoutRuntime),
+		);
+		const nextOff = fakeSlotHost();
+		const { start } = presence({}, {}, () => false);
+		const off = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await off.setup?.(nextOff.api as never, slotContext(nextOff));
+		for (const host of [withoutRuntime, nextOff]) {
+			expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+				outcome: "ok",
+			});
+			expect(host.latest()).toEqual({
+				status: "hidden",
+				hiddenReason: "disabled",
+				title: "Next",
+				command: "next",
+				revision: "none",
+				items: [],
+				canRefresh: false,
+			});
+		}
+	});
+
+	test("Next turned on after an attach found it off starts at the next turn, and so it does on a host with no slot", async () => {
+		for (const slot of [true, false]) {
+			let nextOn = false;
+			const host = fakeSlotHost();
+			const { next, viewing, start } = presence({}, {}, () => nextOn);
+			const plugin = createNextTurnPlugin({
+				startRuntime: start,
+				lifecycle: alwaysActive,
+			});
+			await plugin.setup?.(
+				(slot ? host.api : {}) as never,
+				slot ? slotContext(host) : context,
+			);
+			if (slot) host.invoke({ verb: "attach", surface: "desktop" });
+			const agent = agentFor(plugin);
+			await agent.run("A turn while Next is off");
+			nextOn = true;
+			await agent.run("A turn after Next was turned on");
+			await next.settled();
+			expect([slot, viewing.activated, next.current()?.runCount]).toEqual([
+				slot,
+				1,
+				2,
+			]);
+			if (slot) expect(host.latest()?.status).toBe("ready");
+		}
+	});
+
+	test("a runtime first started by a turn after an attach starts viewed", async () => {
+		let featureOn = false;
+		const host = fakeSlotHost();
+		const { next, viewing, start } = presence();
+		const plugin = createNextTurnPlugin({
+			startRuntime: (startContext, options) =>
+				featureOn ? start(startContext, options) : undefined,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		host.invoke({ verb: "attach", surface: "desktop" });
+		expect(host.latest()?.hiddenReason).toBe("disabled");
+		featureOn = true;
+		await agentFor(plugin).run("Add a retry to the client");
+		await next.settled();
+		expect(viewing.calls).toEqual([[true, "desktop"]]);
+		expect(host.latest()?.status).toBe("ready");
+	});
+
+	test("once the last viewer detaches a turn is only recorded, and the next attach serves that turn", async () => {
+		let planned = 0;
+		let refreshed = 0;
+		const connectors = {
+			onTurn: async () => {
+				refreshed += 1;
+			},
+		} as unknown as SessionRuntime["connectors"];
+		const host = fakeSlotHost();
+		const { next, viewing, start } = presence(
+			{
+				complete: async () => {
+					planned += 1;
+					return { text: MODEL_ANSWER };
+				},
+			},
+			{ connectors },
+		);
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		host.invoke({ verb: "attach", surface: "desktop" }, "first");
+		host.invoke({ verb: "attach", surface: "desktop" }, "second");
+		const agent = agentFor(plugin);
+		await agent.run("Add a retry to the client");
+		await next.settled();
+		const earlier = next.current();
+		expect([planned, refreshed, earlier?.runCount]).toEqual([1, 1, 1]);
+
+		host.invoke({ verb: "detach" }, "first");
+		expect(viewing.calls.map(([viewed]) => viewed)).toEqual([true, true]);
+		host.invoke({ verb: "detach" }, "second");
+		expect(viewing.calls.at(-1)).toEqual([false, undefined]);
+		await agent.run("Now the parser");
+		await next.settled();
+		expect([planned, refreshed]).toEqual([1, 1]);
+		expect(next.current()).toBeUndefined();
+		expect(next.turn()?.runCount).toBe(2);
+
+		host.invoke({ verb: "attach", surface: "desktop" }, "first");
+		await flushDetached();
+		await next.settled();
+		const served = next.current();
+		expect(served?.runCount).toBe(2);
+		expect(served?.offerId).not.toBe(earlier?.offerId);
+		expect(host.latest()?.revision).toBe(served?.offerId);
+	});
+
+	test("Send on a connector's row is refused as Use only", async () => {
+		const host = fakeSlotHost();
+		const { next, start } = presence({
+			sources: () => githubSources,
+			github: () => ({ failingChecks: ["build"] }),
+		});
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		host.invoke({ verb: "attach", surface: "desktop" });
+		await agentFor(plugin).run("Add a retry to the client");
+		await next.settled();
+		const row = host.latest()?.items.find((item) => item.label === "Check CI");
+		expect(row?.sendable).toBe(false);
+		expect(
+			host.invoke({
+				verb: "send",
+				revision: host.latest()?.revision ?? "",
+				itemId: row?.id ?? "",
+				input: "key",
+			}),
+		).toEqual({ outcome: "refused", reason: "unsendable" });
+	});
+
+	test("Show after hiding the chat clears the hide, answers at once and serves a set", async () => {
+		const host = fakeSlotHost();
+		const { next, start } = presence();
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		host.invoke({ verb: "attach", surface: "desktop" });
+		await agentFor(plugin).run("Add a retry to the client");
+		await next.settled();
+		expect(
+			host.invoke({ verb: "hide", scope: "chat", input: "command" }),
+		).toEqual({ outcome: "ok" });
+		expect(host.latest()).toMatchObject({
+			status: "hidden",
+			hiddenReason: "user",
+		});
+		host.states.splice(0);
+		expect(host.invoke({ verb: "show", input: "command" })).toEqual({
+			outcome: "ok",
+		});
+		await flushDetached();
+		await next.settled();
+		expect(
+			host.states.map((state) => [state?.status, state?.hiddenReason]),
+		).toEqual([
+			["hidden", "superseded"],
+			["loading", undefined],
+			["ready", undefined],
+			["ready", undefined],
+		]);
+		expect(next.current()?.trigger).toBe("on_demand");
+	});
+
+	test("a disabled plugin answers every verb by showing the tray as disabled, whether or not Next started", async () => {
+		let enabled = true;
+		const lifecycle = { active: () => enabled };
+		const host = fakeSlotHost();
+		const runtime = fakeRuntime();
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => runtime,
+			lifecycle,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		enabled = false;
+		expect(
+			host.invoke({ verb: "use", revision: "r1", itemId: "a1", input: "key" }),
+		).toEqual({ outcome: "ok" });
+		expect(host.latest()).toMatchObject({
+			status: "hidden",
+			hiddenReason: "disabled",
+			revision: "none",
+		});
+		const unbound = new NextSession({
+			sessionId: "sess_1",
+			settings: defaultSettings,
+			env: sessionEnv(context, { tools: () => [] }),
+			sources: () => [],
+			backlog: async () => EMPTY_BACKLOG,
+		});
+		runtime.next = unbound;
+		host.states.splice(0);
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		expect(unbound.currentPush()).toMatchObject({
+			state: "off",
+			offReason: "disabled",
+		});
+		expect(host.states).toEqual([
+			expect.objectContaining({ status: "hidden", hiddenReason: "disabled" }),
+		]);
+	});
+
+	test("re-enabling the plugin restarts the connector refresher only for a viewed chat", async () => {
+		for (const viewed of [false, true]) {
+			let enabled = true;
+			const refresher = { starts: 0, stops: 0 };
+			const connectors = {
+				refresher: {
+					start: async () => {
+						refresher.starts += 1;
+					},
+					stop: () => {
+						refresher.stops += 1;
+					},
+				},
+			} as unknown as SessionRuntime["connectors"];
+			const host = fakeSlotHost();
+			const { start } = presence({}, { connectors });
+			const plugin = createNextTurnPlugin({
+				startRuntime: start,
+				lifecycle: { active: () => enabled },
+			});
+			await plugin.setup?.(host.api as never, slotContext(host));
+			if (viewed) host.invoke({ verb: "attach", surface: "desktop" });
+			const exposed = { verb: "exposed", revision: "r1", itemIds: [] } as const;
+			enabled = false;
+			host.invoke({ ...exposed, itemIds: [] });
+			enabled = true;
+			host.invoke({ ...exposed, itemIds: [] });
+			expect([viewed, refresher]).toEqual([
+				viewed,
+				{ starts: viewed ? 1 : 0, stops: 1 },
+			]);
+		}
+	});
+
+	test("a viewer that attaches while the plugin is disabled starts nothing, and is served once the plugin is enabled again", async () => {
+		const settings = defaultSettings();
+		settings.notify.needsYou = false;
+		settings.planner.callsPerHour = 0;
+		let enabled = false;
+		let started: SessionRuntime | undefined;
+		const host = fakeSlotHost();
+		const plugin = createNextTurnPlugin({
+			startRuntime: (startContext, { active }) => {
+				started = startSessionRuntime(startContext, {
+					settings: () => settings,
+					active,
+					pluginActive: () => enabled,
+					hubLink: offlineHub,
+					runCommand: noCommands,
+				});
+				return started;
+			},
+			lifecycle: { active: () => enabled },
+		});
+		await plugin.setup?.(
+			host.api as never,
+			slotContext(host, {
+				session: { sessionId: "sess_attached_while_disabled" },
+				workspaceInfo: { rootPath: tempDir() },
+			}),
+		);
+		try {
+			expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+				outcome: "ok",
+			});
+			expect(host.latest()?.hiddenReason).toBe("disabled");
+			expect([started?.viewed(), started?.next]).toEqual([true, undefined]);
+			enabled = true;
+			await agentFor(plugin).run("Add a retry to the client");
+			await started?.next?.settled();
+			expect(host.latest()?.status).toBe("ready");
+		} finally {
+			await started?.stop();
+		}
+	});
+
+	test("an attach on a chat with no turn in memory serves a set from the hub's transcript", async () => {
+		const { messages } = editRun("Forked chat turn");
+		let transcriptReads = 0;
+		const host = fakeSlotHost();
+		const { next, start } = presence({
+			readTranscript: async () => {
+				transcriptReads += 1;
+				return { messages, status: "completed" };
+			},
+		});
+		const plugin = createNextTurnPlugin({
+			startRuntime: start,
+			lifecycle: alwaysActive,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		host.invoke({ verb: "attach", surface: "desktop" });
+		await flushDetached();
+		await next.settled();
+		expect(host.latest()?.status).toBe("ready");
+		expect(next.current()?.trigger).toBe("on_demand");
+		expect(next.current()?.runId).toBeUndefined();
+		expect(transcriptReads).toBe(1);
 	});
 });

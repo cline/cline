@@ -140,7 +140,6 @@ export const REROLL_LIMIT = 2;
 /** Offers kept per turn, so an action on a rules row still resolves after the model set replaces it. */
 export const RETAINED_OFFERS_LIMIT = 2;
 export const PLANNER_LEDGER_TAIL_BYTES = 262_144;
-export const DESKTOP_CLIENT_NAME = "cline-desktop";
 export const PROMPT_MIN_CHARS = 8;
 export const PROMPT_MAX_CHARS = 200;
 export const WHY_MAX_CHARS = 120;

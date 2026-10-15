@@ -1,13 +1,20 @@
 import type { AgentPlugin } from "@cline/core";
-import type { AgentRuntimeStateSnapshot } from "@cline/shared";
-import { DESKTOP_CLIENT_NAME, PLUGIN_NAME } from "./config";
+import type {
+	AgentExtensionApi,
+	AgentRuntimeStateSnapshot,
+	ComposerSuggestionsAction,
+	PluginSetupContext,
+	PluginUiActionContext,
+	PluginUiActionReply,
+	PluginUiContext,
+	PluginUiSurface,
+} from "@cline/shared";
+import { PLUGIN_NAME } from "./config";
 import { PluginLifecycle } from "./lifecycle";
 import { type Log, pluginLog } from "./log";
-import {
-	type OfferedSet,
-	parseTrayAction,
-	type TrayPush,
-} from "./planner/tray";
+import type { NextSession } from "./planner/next";
+import type { OfferedSet, TrayPush } from "./planner/tray";
+import { toSuggestionsState, toTrayActions } from "./planner/tray-view";
 import {
 	type SessionRuntime,
 	type SetupContext,
@@ -21,20 +28,6 @@ import {
 import { cachedByFile, nextTurnPaths } from "./store/data-dir";
 import { errorMessage } from "./values";
 
-/** Structural slice of the `ui-slots` API (`registerUiHandler` on `api`, `ui.push` on `context`). */
-type UiSlotPluginApi = {
-	registerUiHandler?: (
-		name: string,
-		handler: (input: unknown) => Promise<unknown> | unknown,
-	) => void;
-};
-
-type UiSlotSetupContext = SetupContext & {
-	ui?: {
-		push: (event: string, payload: unknown) => void;
-	};
-};
-
 export type NextTurnPluginOptions = {
 	/** Starts this session's runtime, or returns nothing when no feature needs it. Tests replace it. */
 	startRuntime?: (
@@ -44,6 +37,8 @@ export type NextTurnPluginOptions = {
 	/** Checks whether the plugin is still enabled and installed. */
 	lifecycle?: { active(): boolean };
 };
+
+const OK = { outcome: "ok" } as const;
 
 /** Re-reads the settings file whenever it changes, so a change from the desktop or the CLI applies to the next decision. */
 function settingsReader(context: SetupContext): () => Settings {
@@ -73,18 +68,31 @@ function isRootRun(snapshot: AgentRuntimeStateSnapshot): boolean {
 }
 
 /**
- * Default viewer gate. A host without UI slots serves every set to the debug
- * log, so Next starts at once; with slots, the desktop app starts at once and
- * any other client waits until a viewer asks for `current`.
+ * Whether this session's host renders Cline's `composer.suggestions` slot.
+ * Both halves of the slot API are needed: an in-process extension always sees
+ * `registerUiSlot` but never gets `ctx.ui`, and a host's catalog can name
+ * other slots only.
  */
-export function defaultIsNextActive(
-	api: UiSlotPluginApi,
-	context: UiSlotSetupContext,
+function slotOffered(
+	api: Partial<Pick<AgentExtensionApi, "registerUiSlot">> | undefined,
+	context: Pick<PluginSetupContext, "ui">,
 ): boolean {
 	return (
-		typeof api?.registerUiHandler !== "function" ||
-		context.client?.name === DESKTOP_CLIENT_NAME
+		typeof api?.registerUiSlot === "function" &&
+		context.ui?.slots?.includes("composer.suggestions") === true
 	);
+}
+
+/**
+ * Default viewer gate. A session whose host renders no slot starts Next at
+ * once and serves every set to the debug log; one that renders the slot
+ * keeps Next dormant until a viewer attaches.
+ */
+export function defaultIsNextActive(
+	api: Partial<Pick<AgentExtensionApi, "registerUiSlot">> | undefined,
+	context: Pick<PluginSetupContext, "ui">,
+): boolean {
+	return !slotOffered(api, context);
 }
 
 /**
@@ -100,6 +108,11 @@ export function defaultIsNextActive(
  *   check for new connections and for a push follow without holding up the
  *   run.
  *
+ * On a host that renders the `composer.suggestions` slot, setup registers
+ * it: sets stream to the slot, its verbs drive Next, and Next works only
+ * while a viewer is attached. Elsewhere Next starts at once and logs each
+ * set to debug.
+ *
  * No hook can fail the person's run: each catches its own errors.
  */
 export function createNextTurnPlugin(
@@ -110,8 +123,6 @@ export function createNextTurnPlugin(
 	let lastBeforeModelRunId: string | undefined;
 	let wasActive = true;
 	let log: Log = () => {};
-	/** Whether setup's viewer gate started Next at once for this chat. */
-	let nextActive = false;
 	/** Tries setup's start again; setup sets it. */
 	let retryStart: () => void = () => {};
 	/** Subscribes the slot and the debug log to a Next started since; setup sets it. */
@@ -127,12 +138,13 @@ export function createNextTurnPlugin(
 		if (!nowActive && wasActive) {
 			wasActive = false;
 			runtime?.connectors?.refresher.stop();
-			runtime?.next?.off();
+			runtime?.next?.off("disabled");
 		} else if (nowActive && !wasActive) {
 			wasActive = true;
-			void runtime?.connectors?.refresher
-				.start()
-				.catch((error: unknown) => log("the refresher stopped", error));
+			if (runtime?.viewed())
+				void runtime.connectors?.refresher
+					.start()
+					.catch((error: unknown) => log("the refresher stopped", error));
 		}
 		return nowActive;
 	};
@@ -171,9 +183,9 @@ export function createNextTurnPlugin(
 				if (!isRootRun(context.snapshot) || !checkActive()) return;
 				const current = ensureRuntime();
 				if (!current) return;
-				if (!current.next && nextActive) {
+				if (!current.next && current.viewed()) {
 					try {
-						current.activateNext();
+						current.setViewed(true);
 						bindNext();
 					} catch (error) {
 						log("Next did not start", error);
@@ -191,30 +203,111 @@ export function createNextTurnPlugin(
 				const served = next
 					.afterRun(context.result)
 					.catch((error: unknown) => log("afterRun failed", error));
-				const pushed = next.turn()?.pushed ?? false;
-				const connectors = current.connectors;
-				served
-					.then(() => connectors?.onTurn({ pushed }))
-					.catch((error: unknown) => log("a refresh failed", error));
+				if (current.viewed()) {
+					const pushed = next.turn()?.pushed ?? false;
+					const connectors = current.connectors;
+					served
+						.then(() => connectors?.onTurn({ pushed }))
+						.catch((error: unknown) => log("a refresh failed", error));
+				}
 				await served;
 			},
 		},
 		setup(rawApi, rawContext) {
-			const api = (rawApi ?? {}) as UiSlotPluginApi;
-			const context = (rawContext ?? {}) as UiSlotSetupContext;
+			const api: Partial<Pick<AgentExtensionApi, "registerUiSlot">> =
+				rawApi ?? {};
+			const context: SetupContext = rawContext ?? {};
 			const sessionId = context.session?.sessionId ?? "";
 			log = pluginLog(context);
 			startError = undefined;
 			lastBeforeModelRunId = undefined;
 			wasActive = lifecycle.active();
 			const active = defaultIsNextActive(api, context);
-			nextActive = active;
-			const pushToSlot = (payload: TrayPush) => {
+			const slotUi: PluginUiContext | undefined = active
+				? undefined
+				: context.ui;
+			/** The surface of the viewer attached now, so a runtime started later starts viewed. */
+			let attachedSurface: PluginUiSurface | undefined;
+			/** The newest set published: the revision of a state with no set of its own. */
+			let lastRevision: string | undefined;
+			const publish = (push: TrayPush) => {
+				if (!slotUi) return;
+				lastRevision = push.set?.offerId ?? lastRevision;
 				try {
-					context.ui?.push("next.state", payload);
+					slotUi.update(
+						"composer.suggestions",
+						toSuggestionsState(push, {
+							facts: runtime?.next?.turn()?.facts,
+							lastRevision,
+						}),
+					);
 				} catch (error) {
-					log("ui.push failed", error);
+					log("ui.update failed", error);
 				}
+			};
+			const disabledPush = (): TrayPush => ({
+				sessionId,
+				seq: 0,
+				state: "off",
+				offReason: "disabled",
+			});
+			/** Serves the chat's current set without holding the slot's verbs behind it. */
+			const serveCurrent = (next: NextSession) => {
+				void next
+					.ensureCurrent()
+					.then(() => publish(next.currentPush()))
+					.catch((error: unknown) => log("attach serve failed", error));
+			};
+			const onAction = (
+				action: ComposerSuggestionsAction,
+				viewing: PluginUiActionContext,
+			): PluginUiActionReply => {
+				const trayActions = toTrayActions(action);
+				if (!trayActions) return { outcome: "refused" };
+				if (action.verb === "detach") {
+					if (viewing.viewers === 0) {
+						attachedSurface = undefined;
+						runtime?.setViewed(false);
+					}
+					return OK;
+				}
+				if (action.verb === "attach") attachedSurface = action.surface;
+				if (!checkActive()) {
+					if (action.verb === "attach")
+						runtime?.setViewed(true, action.surface);
+					publish(runtime?.next?.off("disabled") ?? disabledPush());
+					return OK;
+				}
+				ensureRuntime();
+				if (startError) {
+					publish({
+						sessionId,
+						seq: 0,
+						state: "unavailable",
+						error: startError,
+					});
+					return OK;
+				}
+				if (action.verb === "attach" || action.verb === "show") {
+					const next = runtime?.setViewed(
+						true,
+						action.verb === "attach" ? action.surface : undefined,
+					);
+					if (!next) {
+						publish(disabledPush());
+						return OK;
+					}
+					bindNext();
+					if (action.verb === "show") next.show();
+					serveCurrent(next);
+					return OK;
+				}
+				const next = runtime?.next;
+				if (!next) return { outcome: "refused", reason: "stale" };
+				const refused = trayActions
+					.map((trayAction) => next.invoke(trayAction).refused)
+					.find(Boolean);
+				return refused ? { outcome: "refused", reason: refused } : OK;
 			};
 			let subscribedNext: unknown;
 			bindNext = () => {
@@ -222,7 +315,7 @@ export function createNextTurnPlugin(
 				if (!next || next === subscribedNext) return;
 				subscribedNext = next;
 				next.onSet(logSet(context));
-				next.onPush(pushToSlot);
+				next.onPush(publish);
 			};
 			retryStart = () => {
 				try {
@@ -230,43 +323,18 @@ export function createNextTurnPlugin(
 					if (!started) return;
 					runtime = started;
 					context.onDispose?.(() => stopRuntime(started));
+					if (attachedSurface) started.setViewed(true, attachedSurface);
 					bindNext();
 				} catch (error) {
 					startError = errorMessage(error);
 					log("the runtime did not start", error);
 				}
 			};
+			if (slotUi)
+				api.registerUiSlot?.({ slot: "composer.suggestions", onAction });
 			void stopRuntime(runtime);
 			runtime = undefined;
 			retryStart();
-			if (typeof api.registerUiHandler === "function") {
-				const off: TrayPush = { sessionId, seq: 0, state: "off" };
-				api.registerUiHandler("next", async (rawInput: unknown) => {
-					const action = parseTrayAction(rawInput);
-					if (!action) throw new Error("invalid NextTurnTrayAction");
-					if (!checkActive()) return runtime?.next?.off() ?? off;
-					ensureRuntime();
-					if (startError) {
-						return {
-							sessionId,
-							seq: 0,
-							state: "unavailable",
-							error: startError,
-						} satisfies TrayPush;
-					}
-					if (!runtime || !sessionId) return off;
-					if (action.type === "current") {
-						if (!runtime.next) {
-							runtime.activateNext(action.client);
-							bindNext();
-						}
-						if (!runtime.next) return off;
-						return await runtime.next.ensureCurrent(action.runCount);
-					}
-					if (!runtime.next) return off;
-					return runtime.next.invoke(action);
-				});
-			}
 		},
 	};
 }

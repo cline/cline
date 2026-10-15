@@ -103,6 +103,17 @@ export function suggestion(
 	};
 }
 
+/**
+ * Whether Send may submit the row as it stands. An outward kind speaks for
+ * the person outside the machine, and a connector's row carries third-party
+ * text, so both are Use only: the tray hides Send and Next refuses one.
+ */
+export function sendable(
+	candidate: Pick<Suggestion, "outward" | "source">,
+): boolean {
+	return !candidate.outward && candidate.source !== "connector";
+}
+
 export function uniqueByPrompt(
 	items: Iterable<Suggestion | null | undefined>,
 	skip: ReadonlySet<string> = new Set(),

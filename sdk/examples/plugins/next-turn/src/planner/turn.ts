@@ -562,7 +562,7 @@ export function deriveTurn(
 
 /**
  * Derives a turn from persisted or hub-returned transcript messages (`session.messages`)
- * and session status (`session.get`), when `current` is invoked on a chat with no
+ * and session status (`session.get`), when a viewer attaches to a chat with no
  * set in memory (for example, a forked chat after Undo or a reopened session).
  */
 export function deriveTurnFromTranscript(

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ITelemetryService } from "@cline/shared";
 import { LABEL_SCHEMA_VERSION } from "../config";
 import { buildLabelRecord, LABEL_EVENTS } from "./labels";
-import { captureLabel, surfaceOf } from "./telemetry";
+import { captureLabel, legacySurfaceOf, surfaceOf } from "./telemetry";
 
 type Captured = { event: string; properties?: Record<string, unknown> };
 type Recorded = { name: string; value: number };
@@ -88,11 +88,19 @@ describe("the telemetry mirror", () => {
 		expect(() => captureLabel(undefined, "plugin", record)).not.toThrow();
 	});
 
-	test("the surface follows the client", () => {
-		expect(surfaceOf("cline-desktop")).toBe("desktop-tray");
-		expect(surfaceOf("cline-cli")).toBe("terminal-tray");
-		expect(surfaceOf("cline-vscode")).toBe("plugin");
-		expect(surfaceOf("cline-jetbrains")).toBe("plugin");
+	test("the surface follows the viewer's tray", () => {
+		expect(surfaceOf("desktop")).toBe("desktop-tray");
+		expect(surfaceOf("cli")).toBe("terminal-tray");
+		expect(surfaceOf("vscode")).toBe("vscode-tray");
+		expect(surfaceOf("jetbrains")).toBe("jetbrains-tray");
+		expect(surfaceOf("other")).toBe("plugin");
 		expect(surfaceOf(undefined)).toBe("plugin");
+	});
+
+	test("a chat no viewer attached to keeps its client's label", () => {
+		expect(legacySurfaceOf("cline-cli")).toBe("terminal-tray");
+		expect(legacySurfaceOf("cline-desktop")).toBe("desktop-tray");
+		expect(legacySurfaceOf("cline-vscode")).toBe("plugin");
+		expect(legacySurfaceOf(undefined)).toBe("plugin");
 	});
 });
