@@ -557,6 +557,21 @@ uses an isolated provider owned and disposed by `llms`. It does not replace or
 shut down an ambient host provider. When both routes are configured, the relay
 takes precedence so a request is not exported through both routes.
 
+Each issued agent model request gets a `modelRequestId`, shared by request-start
+and stream lifecycle events, provider error logs, and AI SDK runtime context.
+Transport retries within one AI SDK call share that ID; a new agent request gets
+a new ID, even within the same run and iteration. Provider errors also include
+run, agent, session, and conversation IDs when available. The AI SDK `callId`
+is recorded separately as `aiSdkCallId` on errors.
+
+Terminal stream failures notify both application error reporting and tracing
+integrations. Native timeout aborts are failures; explicit caller cancellation
+does not emit a provider `sdk.error`. AI SDK stream recovery permits three retries
+per model step. Recovered attempts do not produce terminal `sdk.error` reports or
+mark the operation as failed. Exhausted stream recovery disables the agent's
+whole-turn retry so the two retry budgets do not multiply. Previously streamed
+text and reasoning follow AI SDK's append semantics and may repeat on recovery.
+
 ### 7. Storage Adapters
 
 Stateful persistence should be isolated behind adapter/service layers.
