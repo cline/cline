@@ -8,6 +8,7 @@ import type {
 	ClientContext,
 	ExtensionContext,
 	ITelemetryService,
+	PluginUiSlot,
 	RuntimeConfigExtensionKind,
 	SessionPluginIssue,
 	ToolApprovalRequest,
@@ -33,6 +34,7 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
+import type { PluginUiStatePush } from "../extensions/plugin/plugin-registry";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
@@ -289,6 +291,12 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultFetch?: typeof fetch;
 	connectorsRequest?: ConnectorsRequest;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * The session's slot catalog. Set together with `onPluginUiState`, and only
+	 * when the catalog is non-empty, so plugins are offered the slot API.
+	 */
+	pluginUiSlots?: readonly PluginUiSlot[];
+	onPluginUiState?: (push: PluginUiStatePush) => void;
 	/** A plugin this session uses became degraded or failed after start. */
 	onPluginIssue?: (issue: SessionPluginIssue) => void;
 	onTeamEvent: (event: TeamEvent) => void;
@@ -339,6 +347,8 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultFetch,
 		connectorsRequest,
 		onPluginEvent,
+		pluginUiSlots,
+		onPluginUiState,
 		onPluginIssue,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
@@ -464,6 +474,8 @@ export async function prepareLocalRuntimeBootstrap(
 				workspacePath,
 				cwd: input.config.cwd,
 				onEvent: onPluginEvent,
+				uiSlots: pluginUiSlots,
+				onUiState: onPluginUiState,
 				providerId: input.config.providerId,
 				modelId: input.config.modelId,
 				workspaceInfo,

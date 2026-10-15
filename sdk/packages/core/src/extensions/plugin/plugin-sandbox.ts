@@ -13,6 +13,8 @@ import type {
 	AgentToolContext,
 	Message,
 	PluginSetupContext,
+	PluginUiActionReply,
+	PluginUiSlot,
 	WorkspaceInfo,
 } from "@cline/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
@@ -65,6 +67,16 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	 */
 	idleTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * The session's slot catalog. Plugins are offered `registerUiSlot` and
+	 * `ctx.ui` only when it is non-empty and `onUiState` is set.
+	 */
+	uiSlots?: readonly PluginUiSlot[];
+	/**
+	 * A plugin's UI slot state, stamped with the plugin that registered the
+	 * slot. Held until `initialize` returns, so setup-time updates arrive too.
+	 */
+	onUiState?: (event: UiStateEvent) => void;
 	/** Worker transport only: the worker ended on its own (crash, exit). */
 	onUnexpectedExit?: (error: Error) => void;
 	/**
@@ -133,6 +145,13 @@ type SandboxedContributionDescriptor = {
  */
 const TOOL_UPDATE_EVENT = "__cline_tool_update";
 const SETUP_STARTED_EVENT = "__cline_setup_started";
+const UI_STATE_EVENT = "__cline_ui_state";
+
+export interface UiStateEvent {
+	pluginName: string;
+	slot: string;
+	state: unknown;
+}
 
 /** Progress callbacks of tool calls in flight, by call id. */
 type ToolUpdateRoutes = Map<string, (update: unknown) => void>;
@@ -149,6 +168,8 @@ type SandboxedAutomationEventTypeDescriptor =
 		id: string;
 	};
 
+type SandboxedUiSlotDescriptor = { id: string; slot: PluginUiSlot };
+
 type SandboxedPluginDescriptor = {
 	pluginId: string;
 	pluginPath: string;
@@ -163,6 +184,7 @@ type SandboxedPluginDescriptor = {
 		providers: SandboxedContributionDescriptor[];
 		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
 		mcpServers: AgentExtensionMcpServer[];
+		uiSlots: SandboxedUiSlotDescriptor[];
 		shortcuts?: SandboxedContributionDescriptor[];
 		flags?: SandboxedContributionDescriptor[];
 	};
@@ -187,8 +209,87 @@ function normalizeDescriptor(
 			automationEventTypes:
 				descriptor.contributions?.automationEventTypes ?? [],
 			mcpServers: descriptor.contributions?.mcpServers ?? [],
+			uiSlots: descriptor.contributions?.uiSlots ?? [],
 			shortcuts: descriptor.contributions?.shortcuts ?? [],
 			flags: descriptor.contributions?.flags ?? [],
+		},
+	};
+}
+
+const MAX_HELD_UI_STATES = 8;
+
+/**
+ * Routes the sandbox's UI state events to `onUiState`. Until `initialize` (or
+ * a re-initialize after idle reclaim) returns, it holds the latest state per
+ * plugin and slot. Then it forwards a state only for a slot the plugin's
+ * descriptor registered. A worker runs one plugin, so the worker transport
+ * stamps that plugin's name whatever the payload claims; the subprocess
+ * transport can only trust the payload's name.
+ */
+function createUiStateGate(
+	transport: PluginSandboxTransport | undefined,
+	onUiState: PluginSandboxOptions["onUiState"],
+) {
+	const held = new Map<string, UiStateEvent>();
+	let registeredSlots: Map<string, ReadonlySet<string>> | undefined;
+	let workerPluginName: string | undefined;
+	let openedWith: SandboxedPluginDescriptor[] = [];
+
+	const deliver = (event: UiStateEvent) => {
+		const pluginName = workerPluginName ?? event.pluginName;
+		if (!registeredSlots?.get(pluginName)?.has(event.slot)) return;
+		try {
+			onUiState?.({ pluginName, slot: event.slot, state: event.state });
+		} catch {
+			// A host listener must not break the sandbox's message handling.
+		}
+	};
+	const open = (descriptors: SandboxedPluginDescriptor[]) => {
+		openedWith = descriptors;
+		registeredSlots = new Map(
+			descriptors.map((descriptor) => [
+				descriptor.name,
+				new Set(descriptor.contributions.uiSlots.map(({ slot }) => slot)),
+			]),
+		);
+		workerPluginName =
+			transport === "worker" && descriptors.length === 1
+				? descriptors[0]?.name
+				: undefined;
+		const pending = [...held.values()];
+		held.clear();
+		for (const event of pending) deliver(event);
+	};
+
+	return {
+		receive(payload: unknown): void {
+			if (!onUiState || typeof payload !== "object" || payload === null) {
+				return;
+			}
+			const { pluginName, slot, state } = payload as Record<string, unknown>;
+			if (typeof slot !== "string") return;
+			const event = {
+				pluginName: typeof pluginName === "string" ? pluginName : "",
+				slot,
+				state,
+			};
+			if (registeredSlots) {
+				deliver(event);
+				return;
+			}
+			const key = JSON.stringify([event.pluginName, slot]);
+			if (held.has(key) || held.size < MAX_HELD_UI_STATES) {
+				held.set(key, event);
+			}
+		},
+		hold(): void {
+			registeredSlots = undefined;
+		},
+		open,
+		/** After a failed re-initialize: drop what it held and keep the last slots. */
+		discardHeld(): void {
+			held.clear();
+			open(openedWith);
 		},
 	};
 }
@@ -470,6 +571,7 @@ export async function loadSandboxedPlugins(
 			: withTimeoutFallback(options.setupTimeoutMs, 4000);
 	const initTimeoutMs = importTimeoutMs + (setupTimeoutMs ?? 0);
 	const toolUpdates: ToolUpdateRoutes = new Map();
+	const uiStates = createUiStateGate(options.transport, options.onUiState);
 	const onEvent = (event: { name: string; payload?: unknown }) => {
 		const payload = event.payload as Record<string, unknown> | undefined;
 		if (event.name === TOOL_UPDATE_EVENT) {
@@ -478,6 +580,10 @@ export async function loadSandboxedPlugins(
 		}
 		if (event.name === SETUP_STARTED_EVENT) {
 			options.onSetupStarted?.(String(payload?.pluginPath));
+			return;
+		}
+		if (event.name === UI_STATE_EVENT) {
+			uiStates.receive(event.payload);
 			return;
 		}
 		options.onEvent?.(event);
@@ -520,17 +626,30 @@ export async function loadSandboxedPlugins(
 		setupTimeoutMs,
 		policy: options.policy,
 		policyNames: options.policyNames,
+		uiSlots: options.onUiState ? [...(options.uiSlots ?? [])] : [],
 	};
 
+	const reinitializeSandbox = async (): Promise<void> => {
+		uiStates.hold();
+		try {
+			const reinitialized = await sandbox.call<SandboxedInitializeResult>(
+				"initialize",
+				initArgs,
+				{ timeoutMs: initTimeoutMs },
+			);
+			uiStates.open(reinitialized.plugins.map(normalizeDescriptor));
+		} catch (error) {
+			uiStates.discardHeld();
+			throw error;
+		}
+	};
 	// Guard against concurrent re-initialization when multiple tools/hooks
 	// fail simultaneously with "Unknown sandbox plugin id:".
 	let reinitPromise: Promise<void> | undefined;
 	const reinitialize = (): Promise<void> => {
-		reinitPromise ??= sandbox
-			.call<void>("initialize", initArgs, { timeoutMs: initTimeoutMs })
-			.finally(() => {
-				reinitPromise = undefined;
-			});
+		reinitPromise ??= reinitializeSandbox().finally(() => {
+			reinitPromise = undefined;
+		});
 		return reinitPromise;
 	};
 
@@ -548,6 +667,7 @@ export async function loadSandboxedPlugins(
 		throw error;
 	}
 	const descriptors = initialized.plugins.map(normalizeDescriptor);
+	uiStates.open(descriptors);
 
 	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
 		(descriptor) => {
@@ -586,6 +706,13 @@ export async function loadSandboxedPlugins(
 						reinitialize,
 					);
 					registerSimpleContributions(api, descriptor);
+					registerUiSlots(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
 				},
 			};
 
@@ -858,6 +985,42 @@ function registerCommands(
 						},
 						{ timeoutMs },
 					);
+				}
+			},
+		});
+	}
+}
+
+function registerUiSlots(
+	api: AgentExtensionApi,
+	sandbox: SandboxChannel,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const ud of descriptor.contributions.uiSlots) {
+		api.registerUiSlot?.({
+			slot: ud.slot,
+			onAction: async (action, context) => {
+				const invoke = () =>
+					sandbox.call<PluginUiActionReply>(
+						"invokeUiSlot",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: ud.id,
+							action,
+							context,
+						},
+						{ timeoutMs },
+					);
+				try {
+					return await invoke();
+				} catch (error) {
+					if (!isUnknownPluginIdError(error)) {
+						throw error;
+					}
+					await reinitialize();
+					return await invoke();
 				}
 			},
 		});

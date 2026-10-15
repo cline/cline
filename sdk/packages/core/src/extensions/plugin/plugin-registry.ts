@@ -1,22 +1,25 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import type {
-	AgentExtension,
-	AgentExtensionApi,
-	AgentExtensionCommand,
-	AgentExtensionMessageBuilder,
-	AgentExtensionRule,
-	AgentTool,
-	AgentToolContext,
-	BasicLogger,
-	Message,
-	PluginErrorPhase,
-	PluginErrorRecord,
-	PluginPolicies,
-	PluginRuntimeState,
-	PluginSetupContext,
-	PluginStatusRecord,
-	SessionPluginIssue,
+import {
+	type AgentExtension,
+	type AgentExtensionApi,
+	type AgentExtensionCommand,
+	type AgentExtensionMessageBuilder,
+	type AgentExtensionRule,
+	type AgentExtensionUiSlot,
+	type AgentTool,
+	type AgentToolContext,
+	type BasicLogger,
+	type Message,
+	PLUGIN_UI_LIMITS,
+	type PluginErrorPhase,
+	type PluginErrorRecord,
+	type PluginPolicies,
+	type PluginRuntimeState,
+	type PluginSetupContext,
+	type PluginStatusRecord,
+	type PluginUiSlot,
+	type SessionPluginIssue,
 } from "@cline/shared";
 import { getPluginDisplayName } from "@cline/shared/storage";
 import type {
@@ -91,6 +94,13 @@ interface PluginEntry {
 	updatedAt: number;
 }
 
+/** A plugin's UI slot state, stamped with the plugin that registered the slot. */
+export interface PluginUiStatePush {
+	plugin: string;
+	slot: string;
+	state: unknown;
+}
+
 /** One session's copy of a plugin module. */
 interface PluginInstance {
 	extension: AgentExtension;
@@ -104,6 +114,12 @@ interface PluginInstance {
 	shutdown?: () => Promise<void>;
 	/** The session's event sink, given to tools that do not bring their own. */
 	emitEvent?: (name: string, payload?: unknown) => void;
+	/**
+	 * Setup-time UI states, the latest per slot, held until the session
+	 * selects this copy; a copy it discards never delivers them.
+	 */
+	uiHeld: Map<string, PluginUiStatePush>;
+	uiSelected: boolean;
 }
 
 interface PluginTimeouts {
@@ -136,6 +152,13 @@ export interface PluginSessionLoadInput extends PluginTargeting {
 	hookErrorMode?: PluginHookErrorMode;
 	setupContext?: PluginSetupContext;
 	emitEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * The session's slot catalog: the slots its host renders. Plugins are
+	 * offered `registerUiSlot` and `ctx.ui` only when it is non-empty and
+	 * `onUiState` is set.
+	 */
+	uiSlots?: readonly PluginUiSlot[];
+	onUiState?: (push: PluginUiStatePush) => void;
 	/**
 	 * Called when a call made for this session moves a plugin to `degraded`
 	 * or `failed`. Setup runs lazily on the first turn, after the session
@@ -270,6 +293,8 @@ function newInstance(importId: number): PluginInstance {
 		setupFailed: false,
 		closed: false,
 		disposers: [],
+		uiHeld: new Map(),
+		uiSelected: false,
 	};
 }
 
@@ -470,6 +495,13 @@ export class PluginRegistry {
 		const selected = [...loadedByName.values()].sort(
 			(left, right) => left.order - right.order,
 		);
+		for (const { entry, instance } of selected) {
+			instance.uiSelected = true;
+			const held = [...instance.uiHeld.values()];
+			instance.uiHeld.clear();
+			for (const push of held)
+				this.receiveUiState(entry, instance, input, push);
+		}
 		if (sessionId) {
 			for (const { entry } of selected) {
 				entry.sessions.set(sessionId, input.onIssue);
@@ -554,6 +586,17 @@ export class PluginRegistry {
 				onSetupStarted: () => {
 					setupStarted = true;
 				},
+				...(input.onUiState && input.uiSlots?.length
+					? {
+							uiSlots: [...input.uiSlots],
+							onUiState: ({ pluginName, slot, state }) =>
+								this.receiveUiState(entry, instance, input, {
+									plugin: pluginName,
+									slot,
+									state,
+								}),
+						}
+					: {}),
 				policy: input.policy,
 				policyNames: {
 					[entry.pluginPath]: [
@@ -631,6 +674,24 @@ export class PluginRegistry {
 			});
 		}
 		return { entry, instance };
+	}
+
+	private receiveUiState(
+		entry: PluginEntry,
+		instance: PluginInstance,
+		input: PluginSessionLoadInput,
+		push: PluginUiStatePush,
+	): void {
+		if (!this.isUsable(entry, instance)) return;
+		if (!instance.uiSelected) {
+			instance.uiHeld.set(push.slot, push);
+			return;
+		}
+		try {
+			input.onUiState?.(push);
+		} catch {
+			// A broken host listener costs this state, never the session's plugins.
+		}
 	}
 
 	/** Re-validates a plugin's current code in a throwaway worker. */
@@ -901,6 +962,10 @@ export class PluginRegistry {
 				requireCapability("mcp", "registerMcpServer");
 				pending.calls.push((target) => target.registerMcpServer(server));
 			},
+			registerUiSlot: (uiSlot) => {
+				const wrappedUiSlot = this.wrapUiSlot(entry, instance, uiSlot, input);
+				pending.calls.push((target) => target.registerUiSlot?.(wrappedUiSlot));
+			},
 		};
 		const failSetup = (error: unknown) => {
 			// Setup failure only costs this session its copy of the plugin;
@@ -1035,6 +1100,34 @@ export class PluginRegistry {
 					timeouts.call,
 					input,
 					() => handler.call(command, commandInput),
+				);
+			},
+		};
+	}
+
+	/**
+	 * Throws and timeouts count toward the failure threshold like a command's;
+	 * a call cut short because the session closed does not.
+	 */
+	private wrapUiSlot(
+		entry: PluginEntry,
+		instance: PluginInstance,
+		uiSlot: AgentExtensionUiSlot,
+		input: PluginSessionLoadInput,
+	): AgentExtensionUiSlot {
+		const phase: PluginErrorPhase = `ui:${uiSlot.slot}`;
+		return {
+			...uiSlot,
+			onAction: async (action, context) => {
+				this.assertUsable(entry, instance, `UI slot "${uiSlot.slot}"`);
+				return this.guardedCall(
+					entry,
+					instance,
+					phase,
+					PLUGIN_UI_LIMITS.invokeTimeoutMs,
+					input,
+					() => uiSlot.onAction.call(uiSlot, action, context),
+					() => instance.closed,
 				);
 			},
 		};
