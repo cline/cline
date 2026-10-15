@@ -5,6 +5,7 @@
 
 import { expect } from "chai"
 import * as fs from "fs"
+import * as os from "os"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
 import * as sinon from "sinon"
@@ -12,7 +13,7 @@ import * as sinon from "sinon"
 import * as disk from "@/core/storage/disk"
 import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
-import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
+import { discoverAvailableSkills, discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -708,5 +709,65 @@ description: Test
 				sinon.assert.notCalled(readFileStub)
 			})
 		})
+	})
+})
+
+describe("Skills discovery on a real filesystem (.claude/skills)", () => {
+	const skillMd = (name: string, body: string) => `---\nname: ${name}\ndescription: Test skill ${name}\n---\n\n${body}\n`
+	let tmp: string
+
+	beforeEach(async () => {
+		tmp = await fs.promises.mkdtemp(path.join(os.tmpdir(), "cline-claude-skills-test-"))
+	})
+
+	afterEach(async () => {
+		await fs.promises.rm(tmp, { recursive: true, force: true })
+	})
+
+	it("scans workspace .claude/skills exactly once", () => {
+		const dirs = disk.getSkillsDirectoriesForScan(tmp).filter((d) => d.path === path.join(tmp, ".claude", "skills"))
+		expect(dirs).to.have.length(1)
+		expect(dirs[0].source).to.equal("project")
+	})
+
+	it("discovers real and symlinked skills, ignores broken/circular links, honors disabled toggle", async function () {
+		const skillsDir = path.join(tmp, ".claude", "skills")
+		await fs.promises.mkdir(path.join(skillsDir, "ponytail-real-skill"), { recursive: true })
+		await fs.promises.writeFile(
+			path.join(skillsDir, "ponytail-real-skill", "SKILL.md"),
+			skillMd("ponytail-real-skill", "real body"),
+		)
+		const externalSkill = path.join(tmp, "external", "ponytail-linked-skill")
+		await fs.promises.mkdir(externalSkill, { recursive: true })
+		await fs.promises.writeFile(path.join(externalSkill, "SKILL.md"), skillMd("ponytail-linked-skill", "linked body"))
+		try {
+			await fs.promises.symlink(externalSkill, path.join(skillsDir, "ponytail-linked-skill"), "dir")
+			await fs.promises.symlink(path.join(tmp, "nowhere"), path.join(skillsDir, "ponytail-broken-skill"), "dir")
+			await fs.promises.symlink(path.join(skillsDir, "ponytail-loop-b"), path.join(skillsDir, "ponytail-loop-a"), "dir")
+			await fs.promises.symlink(path.join(skillsDir, "ponytail-loop-a"), path.join(skillsDir, "ponytail-loop-b"), "dir")
+		} catch (error) {
+			if (process.platform === "win32") {
+				this.skip()
+			}
+			throw error
+		}
+
+		const available = await discoverAvailableSkills(tmp)
+		const mine = available
+			.filter((s) => s.name.startsWith("ponytail-"))
+			.map((s) => s.name)
+			.sort()
+		expect(mine).to.deep.equal(["ponytail-linked-skill", "ponytail-real-skill"])
+
+		const linked = await getSkillContent("ponytail-linked-skill", available)
+		expect(linked?.instructions).to.equal("linked body")
+
+		const realPath = path.join(skillsDir, "ponytail-real-skill", "SKILL.md")
+		const afterToggle = await discoverAvailableSkills(tmp, { localSkillsToggles: { [realPath]: false } })
+		expect(afterToggle.map((s) => s.name)).to.not.include("ponytail-real-skill")
+		expect(afterToggle.map((s) => s.name)).to.include("ponytail-linked-skill")
+
+		const all = await discoverSkills(tmp)
+		expect(all.filter((s) => s.name === "ponytail-real-skill")).to.have.length(1)
 	})
 })

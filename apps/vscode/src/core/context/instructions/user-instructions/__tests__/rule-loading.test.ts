@@ -2,7 +2,7 @@ import { expect } from "chai"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
-import { getRuleFilesTotalContentWithMetadata } from "../rule-helpers"
+import { getRuleFilesTotalContentWithMetadata, readDirectoryRecursive, synchronizeRuleToggles } from "../rule-helpers"
 
 describe("rule loading with paths frontmatter", () => {
 	it("filters rules by evaluationContext.paths", async () => {
@@ -110,6 +110,47 @@ describe("rule loading with paths frontmatter", () => {
 			})
 
 			expect(res.activatedConditionalRules.map((r) => r.name)).to.deep.equal(files.map((f) => `global:${f}`))
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+})
+
+describe("rule loading with symlinked rule files", () => {
+	it("discovers, toggles and loads a symlinked rule by link path", async function () {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rules-link-test-"))
+		try {
+			const rulesDir = path.join(tmp, ".clinerules")
+			const target = path.join(tmp, "external", "target.md")
+			const link = path.join(rulesDir, "linked.md")
+			await fs.mkdir(rulesDir, { recursive: true })
+			await fs.mkdir(path.dirname(target), { recursive: true })
+			await fs.writeFile(target, "first text")
+			try {
+				await fs.symlink(target, link)
+			} catch (error) {
+				if (process.platform === "win32") {
+					this.skip()
+				}
+				throw error
+			}
+
+			const toggles = await synchronizeRuleToggles(rulesDir, {}, "")
+			expect(Object.keys(toggles)).to.deep.equal([link])
+			expect(toggles[link]).to.equal(true)
+
+			const files = await readDirectoryRecursive(rulesDir, "")
+			expect(files).to.deep.equal([link])
+
+			const res1 = await getRuleFilesTotalContentWithMetadata(files, rulesDir, toggles)
+			expect(res1.content).to.equal("linked.md\nfirst text")
+
+			await fs.writeFile(target, "second text")
+			const res2 = await getRuleFilesTotalContentWithMetadata(files, rulesDir, toggles)
+			expect(res2.content).to.equal("linked.md\nsecond text")
+
+			const res3 = await getRuleFilesTotalContentWithMetadata(files, rulesDir, { [link]: false })
+			expect(res3.content).to.equal("")
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true })
 		}

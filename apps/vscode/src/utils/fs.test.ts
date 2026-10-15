@@ -1,9 +1,10 @@
 import * as fs from "fs/promises"
-import { after, describe, it } from "mocha"
+import { after, before, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
 import { createDirectoriesForFile, fileExistsAtPath, isDirectory, readDirectory } from "./fs"
+import { readDirectoryRecursive } from "@/core/context/instructions/user-instructions/rule-helpers"
 
 describe("Filesystem Utilities", () => {
 	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
@@ -312,5 +313,83 @@ describe("Filesystem Utilities", () => {
 		const rootOnlyFiles = [path.resolve(clinerulesDirPath, "config.json"), path.resolve(clinerulesDirPath, "settings.js")]
 
 		multiExcludeFiles.sort().should.deepEqual(rootOnlyFiles.sort())
+	})
+	describe("readDirectory with symlinks", function () {
+		let root: string
+		let rules: string
+		let external: string
+
+		before(async function () {
+			root = await fs.mkdtemp(path.join(os.tmpdir(), "cline-symlink-test-"))
+			rules = path.join(root, ".clinerules")
+			external = path.join(root, "external")
+			await fs.mkdir(path.join(rules, "nested"), { recursive: true })
+			await fs.mkdir(path.join(rules, "workflows"), { recursive: true })
+			await fs.mkdir(path.join(rules, "hooks"), { recursive: true })
+			await fs.mkdir(path.join(rules, "skills"), { recursive: true })
+			await fs.mkdir(path.join(external, "real-dir"), { recursive: true })
+			await fs.writeFile(path.join(external, "target.md"), "target")
+			await fs.writeFile(path.join(external, "cursor.mdc"), "mdc")
+			await fs.writeFile(path.join(rules, "plain.md"), "plain")
+			try {
+				await fs.symlink(path.join(external, "target.md"), path.join(rules, "abs.md"))
+				await fs.symlink(path.relative(rules, path.join(external, "target.md")), path.join(rules, "rel.md"))
+				await fs.symlink(path.join(external, "target.md"), path.join(rules, "nested", "deep.md"))
+				await fs.symlink(path.join(external, "cursor.mdc"), path.join(rules, "linked.mdc"))
+				await fs.symlink(path.join(rules, "missing-target.md"), path.join(rules, "broken.md"))
+				await fs.symlink(path.join(rules, "loop-b.md"), path.join(rules, "loop-a.md"))
+				await fs.symlink(path.join(rules, "loop-a.md"), path.join(rules, "loop-b.md"))
+				await fs.symlink(path.join(external, "real-dir"), path.join(rules, "dirlink"), "dir")
+				await fs.writeFile(path.join(external, "real-dir", "inside.md"), "inside")
+				await fs.symlink(path.join(external, "target.md"), path.join(rules, ".DS_Store"))
+				await fs.symlink(path.join(external, "target.md"), path.join(rules, "workflows", "wf.md"))
+				await fs.symlink(path.join(external, "target.md"), path.join(rules, "hooks", "hook.md"))
+				await fs.symlink(path.join(external, "target.md"), path.join(rules, "skills", "skill.md"))
+			} catch (error) {
+				await fs.rm(root, { recursive: true, force: true })
+				if (process.platform === "win32") {
+					this.skip()
+				}
+				throw error
+			}
+		})
+
+		after(async () => {
+			if (root) {
+				await fs.rm(root, { recursive: true, force: true })
+			}
+		})
+
+		it("returns file links by link path and skips invalid targets", async () => {
+			const files = await readDirectory(rules, [
+				[".clinerules", "workflows"],
+				[".clinerules", "hooks"],
+				[".clinerules", "skills"],
+			])
+			files
+				.sort()
+				.should.deepEqual(
+					[
+						path.join(rules, "abs.md"),
+						path.join(rules, "linked.mdc"),
+						path.join(rules, "nested", "deep.md"),
+						path.join(rules, "plain.md"),
+						path.join(rules, "rel.md"),
+					].sort(),
+				)
+		})
+
+		it("keeps links under excluded paths excluded and OS files filtered", async () => {
+			const files = await readDirectory(rules)
+			files.should.containEql(path.join(rules, "workflows", "wf.md"))
+			files.should.not.containEql(path.join(rules, ".DS_Store"))
+			files.should.not.containEql(path.join(rules, "dirlink", "inside.md"))
+			files.should.not.containEql(path.join(rules, "dirlink"))
+		})
+
+		it("keeps extension filtering working through the recursive wrapper", async () => {
+			const mdc = await readDirectoryRecursive(rules, ".mdc")
+			mdc.should.deepEqual([path.join(rules, "linked.mdc")])
+		})
 	})
 })
