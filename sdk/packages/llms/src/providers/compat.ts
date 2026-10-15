@@ -592,7 +592,7 @@ function toApiStreamChunk(
 			return {
 				type: "done",
 				id,
-				success: event.reason !== "error",
+				success: event.reason !== "error" && !event.error,
 				error: event.error,
 				incompleteReason:
 					event.reason === "max-tokens"
