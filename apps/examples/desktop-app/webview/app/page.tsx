@@ -57,6 +57,7 @@ import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useComposerSuggestions } from "@/hooks/use-composer-suggestions";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -2390,6 +2391,20 @@ function ChatThreadPane({
 		!displayedError &&
 		!isProvisioningCloudSession &&
 		!historySession;
+	const composerSuggestions = useComposerSuggestions({
+		enabled:
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID && !isCloudSession,
+		environmentId,
+		sessionId: displayedSessionId,
+		status: displayedStatus,
+		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
+		messages: displayedMessages,
+		promptsInQueue,
+		onSend: handleSendPrompt,
+		onUndoTurn: handleEditMessage,
+		onRemoveQueuedPrompt: handleRemoveQueuedPrompt,
+		abort,
+	});
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
@@ -2567,6 +2582,7 @@ function ChatThreadPane({
 			status={status}
 			summary={summary}
 			thinking={config.thinking}
+			suggestions={composerSuggestions}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
 	);

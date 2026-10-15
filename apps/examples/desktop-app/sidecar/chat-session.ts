@@ -63,6 +63,7 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
+import { desktopUiSlots, reattachPluginUiViewers } from "./plugin-ui";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -1106,12 +1107,14 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
+	const uiSlots = desktopUiSlots(binding);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(config),
+		...(uiSlots ? { uiSlots } : {}),
 		sessionMetadata:
 			binding.kind === "ssh"
 				? {
@@ -1271,6 +1274,7 @@ async function startRebuiltSession(
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
+	const uiSlots = desktopUiSlots(getSessionRuntimeBinding(ctx, sessionId));
 	const restarted = await manager.start({
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig(
@@ -1296,12 +1300,14 @@ async function startRebuiltSession(
 				}
 			: {}),
 		toolPolicies: resolveToolPolicies(config),
+		...(uiSlots ? { uiSlots } : {}),
 	});
 	if (restarted.sessionId !== sessionId) {
 		throw new Error(
 			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
 		);
 	}
+	reattachPluginUiViewers(ctx, manager, sessionId);
 }
 
 async function rebuildSessionForProviderChange(
@@ -2168,6 +2174,7 @@ async function handleForkUnlocked(
 			? readExplicitSystemPrompt(forkConfig)
 			: await resolveSystemPrompt(forkConfig);
 	let newSessionId = "";
+	const uiSlots = desktopUiSlots(binding);
 	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig(
@@ -2183,6 +2190,7 @@ async function handleForkUnlocked(
 		interactive: true,
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
+		...(uiSlots ? { uiSlots } : {}),
 	};
 	// Sessions without a checkpoint at or before the edited run (imported
 	// transcripts, checkpoints disabled) have no workspace state to roll back,
@@ -2326,6 +2334,7 @@ async function handleRestoreCheckpoint(
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
 		// Updated once restore() returns; read lazily by the mistake-limit prompt.
 		let restoredSessionId = sourceSessionId;
+		const uiSlots = desktopUiSlots(binding);
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
 			checkpointRunCount: runCount,
@@ -2348,6 +2357,7 @@ async function handleRestoreCheckpoint(
 				source: SessionSource.DESKTOP,
 				interactive: true,
 				toolPolicies: resolveToolPolicies(config),
+				...(uiSlots ? { uiSlots } : {}),
 			},
 		});
 		const sessionId = restored.sessionId;

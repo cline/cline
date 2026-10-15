@@ -170,6 +170,7 @@ import {
 	getPluginCommandService,
 	warmPluginCommandService,
 } from "./plugin-commands";
+import { getPluginUiStates, invokePluginUi } from "./plugin-ui";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -3584,6 +3585,12 @@ export async function handleCommand(
 		const workspacePath =
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
 		return await getPluginCommandService(ctx, workspacePath).listCommands();
+	}
+	if (command === "plugin_ui_get") {
+		return await getPluginUiStates(ctx, args);
+	}
+	if (command === "plugin_ui_invoke") {
+		return await invokePluginUi(ctx, args, options?.connection);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

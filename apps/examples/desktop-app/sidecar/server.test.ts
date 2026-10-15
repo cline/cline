@@ -296,3 +296,47 @@ describe("desktop error telemetry", () => {
 		expect(capture).not.toHaveBeenCalled();
 	});
 });
+
+describe("plugin UI viewers on socket close", () => {
+	it("detaches only the sessions the closed socket was the last to view", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { invokePluginUi } = await import("./plugin-ui");
+		const invoke = vi.fn(async () => ({ outcome: "ok" as const }));
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			sessionManager: { pluginUi: { invoke } },
+			hubClient: { updateCapabilities: vi.fn(async () => undefined) },
+			unsubscribeSessionEvents: () => {},
+		} as never);
+		const closing = { data: { canApproveTools: true }, send: vi.fn() };
+		const staying = { data: { canApproveTools: true }, send: vi.fn() };
+		const attach = (sessionId: string) => ({
+			environmentId: "local",
+			sessionId,
+			slot: "composer.suggestions",
+			action: { verb: "attach", surface: "desktop" },
+		});
+		await invokePluginUi(ctx, attach("shared"), closing);
+		await invokePluginUi(ctx, attach("shared"), staying);
+		await invokePluginUi(ctx, attach("solo"), closing);
+		invoke.mockClear();
+
+		const handler = createWebSocketHandler(ctx);
+		handler.open(closing);
+		handler.close(closing);
+
+		await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+		expect(invoke).toHaveBeenCalledWith({
+			sessionId: "solo",
+			slot: "composer.suggestions",
+			action: { verb: "detach" },
+		});
+		expect(ctx.pluginUiViews?.get("shared")).toEqual({
+			environmentId: "local",
+			sockets: new Set([staying]),
+		});
+	});
+});

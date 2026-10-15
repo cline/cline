@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionNotFoundError } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -219,6 +219,12 @@ describe("starting SSH sessions", () => {
 		expect(ctx.liveSessions.size).toBe(0);
 	});
 
+	it("declares no plugin UI slots, since remote sessions get no tray", async () => {
+		const { ctx, config, start } = setup();
+		await handleChatSessionCommand(ctx, { action: "start", config });
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("uiSlots");
+	});
+
 	it("uses explicit initial messages without reading remote history", async () => {
 		const { ctx, config, readMessages, start } = setup();
 		await handleChatSessionCommand(ctx, {
@@ -229,6 +235,132 @@ describe("starting SSH sessions", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: transcript }),
 		);
+	});
+});
+
+describe("plugin UI slot catalog", () => {
+	const sourceSessionId = "catalog-source";
+	const workspaceRoot = "/workspace/project";
+	const model = { provider: "cline", model: "anthropic/claude-sonnet-4.6" };
+	const transcript = [
+		{ role: "user" as const, content: "first prompt" },
+		{ role: "assistant" as const, content: "first response" },
+	];
+	const desktopCatalog = { uiSlots: ["composer.suggestions"] };
+	let dataDir: string;
+	let originalDataDir: string | undefined;
+
+	beforeEach(() => {
+		originalDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		dataDir = mkdtempSync(join(tmpdir(), "cline-ui-slots-"));
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+	});
+
+	afterEach(() => {
+		if (originalDataDir === undefined) {
+			delete process.env.CLINE_SESSION_DATA_DIR;
+		} else {
+			process.env.CLINE_SESSION_DATA_DIR = originalDataDir;
+		}
+		rmSync(dataDir, { recursive: true, force: true });
+	});
+
+	function createCatalogContext() {
+		const start = vi.fn(async (_input?: unknown) => ({
+			sessionId: "catalog-started",
+			manifest: { cwd: workspaceRoot, workspace_root: workspaceRoot },
+		}));
+		const restore = vi.fn(async (_input?: unknown) => ({
+			sessionId: "catalog-restored",
+			messages: transcript,
+			checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+		}));
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: { ...model, cwd: workspaceRoot },
+						messages: transcript,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			pendingApprovals: new Map(),
+			pendingQuestions: new Map(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId: sourceSessionId,
+						source: "desktop",
+						status: "completed",
+						...model,
+						cwd: workspaceRoot,
+						workspaceRoot,
+						metadata: {
+							checkpoint: {
+								latest: { ref: "first", createdAt: 1, runCount: 1 },
+								history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+							},
+						},
+					})),
+					readMessages: vi.fn(async () => transcript),
+					restore,
+					start,
+					pendingPrompts: { list: vi.fn(async () => []) },
+				},
+				{ sessionIds: [sourceSessionId], workspaceRoot },
+			),
+		} as unknown as SidecarContext;
+		return { ctx, restore, start };
+	}
+
+	it("declares the tray when it starts a local session", async () => {
+		const { ctx, start } = createCatalogContext();
+		await handleChatSessionCommand(ctx, { action: "start", config: model });
+		expect(start.mock.calls[0]?.[0]).toMatchObject(desktopCatalog);
+	});
+
+	it("declares the tray on the restore a message edit forks through", async () => {
+		const { ctx, restore } = createCatalogContext();
+		await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 1,
+			config: model,
+		});
+		expect(restore.mock.calls[0]?.[0]).toMatchObject({
+			start: desktopCatalog,
+		});
+	});
+
+	it("declares the tray on a plain fork's start", async () => {
+		const { ctx, start } = createCatalogContext();
+		await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			config: model,
+		});
+		expect(start.mock.calls[0]?.[0]).toMatchObject(desktopCatalog);
+	});
+
+	it("declares the tray on the session a checkpoint restore starts", async () => {
+		const { ctx, restore } = createCatalogContext();
+		await handleChatSessionCommand(ctx, {
+			action: "restore_checkpoint",
+			sessionId: sourceSessionId,
+			checkpointRunCount: 1,
+			config: { ...model, cwd: workspaceRoot },
+		});
+		expect(restore.mock.calls[0]?.[0]).toMatchObject({
+			start: desktopCatalog,
+		});
 	});
 });
 
@@ -1110,8 +1242,13 @@ describe("first-send connection updates", () => {
 	function createContext(options?: {
 		attachedViaHub?: boolean;
 		config?: Record<string, unknown>;
+		/** A real viewer map holding this session's viewer, or only another session's; omitted, the hand-built context has no map. */
+		pluginUiViews?: "viewed" | "unviewed";
 	}) {
 		const updateSessionConnection = vi.fn(async () => undefined);
+		const pluginUiInvoke = vi.fn(async (_input?: unknown) => ({
+			outcome: "ok",
+		}));
 		const send = vi.fn(async (_input?: unknown) => ({
 			text: "done",
 			finishReason: "completed",
@@ -1143,6 +1280,21 @@ describe("first-send connection updates", () => {
 			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
+			...(options?.pluginUiViews
+				? {
+						pluginUiViews: new Map([
+							[
+								options.pluginUiViews === "viewed"
+									? sessionId
+									: "another-session",
+								{
+									environmentId: "local",
+									sockets: new Set([{ send: vi.fn() }]),
+								},
+							],
+						]),
+					}
+				: {}),
 			...localRuntimeContext(
 				{
 					readMessages,
@@ -1154,12 +1306,14 @@ describe("first-send connection updates", () => {
 					pendingPrompts: {
 						list: vi.fn(async () => []),
 					},
+					pluginUi: { invoke: pluginUiInvoke },
 				},
 				{ sessionIds: [sessionId] },
 			),
 		} as unknown as SidecarContext;
 		return {
 			ctx,
+			pluginUiInvoke,
 			readMessages,
 			readSessionCompactionState,
 			send,
@@ -1593,6 +1747,73 @@ describe("first-send connection updates", () => {
 		await switching;
 	});
 
+	it("re-attaches a viewed session's tray after a provider switch rebuilds it", async () => {
+		const { ctx, pluginUiInvoke, sessionId, start } = createContext({
+			pluginUiViews: "viewed",
+		});
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "continue with Codex",
+			config: {
+				...baseConfig,
+				provider: "openai-codex",
+				model: "gpt-5.3-codex",
+			},
+		});
+
+		expect(start.mock.calls[0]?.[0]).toMatchObject({
+			uiSlots: ["composer.suggestions"],
+		});
+		await vi.waitFor(() => expect(pluginUiInvoke).toHaveBeenCalledOnce());
+		expect(pluginUiInvoke).toHaveBeenCalledWith({
+			sessionId,
+			slot: "composer.suggestions",
+			action: { verb: "attach", surface: "desktop" },
+		});
+	});
+
+	it("re-attaches a viewed session's tray after a failed provider switch rolls back", async () => {
+		const { ctx, pluginUiInvoke, sessionId, start } = createContext({
+			pluginUiViews: "viewed",
+		});
+		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
+		const testKanbanDataDir = mkdtempSync(
+			join(tmpdir(), "cline-provider-rollback-tray-"),
+		);
+		process.env.CLINE_KANBAN_DATA_DIR = testKanbanDataDir;
+		start
+			.mockRejectedValueOnce(new Error("Codex bootstrap failed"))
+			.mockResolvedValueOnce({ sessionId });
+
+		try {
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue with Codex",
+				config: {
+					...baseConfig,
+					provider: "openai-codex",
+					model: "gpt-5.3-codex",
+				},
+			});
+
+			expect(start).toHaveBeenCalledTimes(2);
+			await vi.waitFor(() => expect(pluginUiInvoke).toHaveBeenCalledOnce());
+			expect(pluginUiInvoke.mock.invocationCallOrder[0]).toBeGreaterThan(
+				start.mock.invocationCallOrder[1] ?? Number.POSITIVE_INFINITY,
+			);
+		} finally {
+			if (previousKanbanDataDir === undefined) {
+				delete process.env.CLINE_KANBAN_DATA_DIR;
+			} else {
+				process.env.CLINE_KANBAN_DATA_DIR = previousKanbanDataDir;
+			}
+			rmSync(testKanbanDataDir, { recursive: true, force: true });
+		}
+	});
+
 	it("restores the previous provider runtime when replacement startup fails", async () => {
 		const { ctx, send, sessionId, start, stop } = createContext();
 		const previousKanbanDataDir = process.env.CLINE_KANBAN_DATA_DIR;
@@ -1763,6 +1984,62 @@ describe("first-send connection updates", () => {
 				finishReason: "aborted",
 				hubInterrupted: true,
 			});
+		});
+
+		it("declares the tray on a rebuilt session and re-attaches it while a webview views it", async () => {
+			const {
+				ctx,
+				pluginUiInvoke,
+				send,
+				sessionId,
+				start,
+				updateSessionConnection,
+			} = createContext({ pluginUiViews: "viewed" });
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+
+			expect(start.mock.calls[0]?.[0]).toMatchObject({
+				uiSlots: ["composer.suggestions"],
+			});
+			await vi.waitFor(() =>
+				expect(pluginUiInvoke).toHaveBeenCalledWith({
+					sessionId,
+					slot: "composer.suggestions",
+					action: { verb: "attach", surface: "desktop" },
+				}),
+			);
+			expect(pluginUiInvoke.mock.invocationCallOrder[0]).toBeGreaterThan(
+				start.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+			);
+		});
+
+		it("does not attach for a rebuilt session no webview views", async () => {
+			const {
+				ctx,
+				pluginUiInvoke,
+				send,
+				sessionId,
+				start,
+				updateSessionConnection,
+			} = createContext({ pluginUiViews: "unviewed" });
+			send.mockRejectedValueOnce(missing(sessionId));
+			updateSessionConnection.mockRejectedValueOnce(missing(sessionId));
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(start).toHaveBeenCalledTimes(1);
+			expect(pluginUiInvoke).not.toHaveBeenCalled();
 		});
 
 		it("leaves a session the hub still holds alone and reports the failure", async () => {

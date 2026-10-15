@@ -135,6 +135,12 @@ export type SidecarWebSocketClient = {
 	close?: () => void;
 };
 
+/** The webview sockets viewing one session's plugin UI slots, and the environment their attach went to. */
+export type PluginUiSessionViewers = {
+	environmentId: string;
+	sockets: Set<SidecarWebSocketClient>;
+};
+
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
@@ -166,6 +172,12 @@ export type SidecarContext = {
 	 * replayed to webviews that connect after the event fired.
 	 */
 	hubBuildMismatch: ManagedHubBuildMismatchEvent | null;
+	/**
+	 * Webview sockets viewing each session's plugin UI slots, by session id.
+	 * Optional so hand-built contexts still work; read and written only through
+	 * the `plugin-ui.ts` helpers.
+	 */
+	pluginUiViews?: Map<string, PluginUiSessionViewers>;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };

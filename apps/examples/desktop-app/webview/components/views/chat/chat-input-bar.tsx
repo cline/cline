@@ -41,6 +41,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
+import type { ComposerSuggestionsController } from "@/hooks/use-composer-suggestions";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
@@ -74,6 +75,7 @@ import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
 import { PullRequestBar } from "./pull-request-bar";
+import { SuggestionTray } from "./suggestion-tray/suggestion-tray";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
@@ -345,6 +347,8 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenModelSettings?: () => void;
+	/** The composer.suggestions slot; its tray sits above a conversation's composer while it is enabled. */
+	suggestions?: ComposerSuggestionsController | null;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -389,6 +393,7 @@ function ChatInputBarImpl({
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
 	onOpenModelSettings,
+	suggestions,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -583,6 +588,7 @@ function ChatInputBarImpl({
 			});
 			return;
 		}
+		suggestions?.submitted(prompt);
 		setPromptInput("");
 		onSend(prompt);
 	}, [
@@ -593,6 +599,7 @@ function ChatInputBarImpl({
 		promptInput,
 		setPromptInput,
 		speechInputActive,
+		suggestions,
 		unsupportedDraftImageCount,
 		reportUnsupportedImages,
 	]);
@@ -1106,7 +1113,7 @@ function ChatInputBarImpl({
 		[promptsInQueue],
 	);
 
-	return (
+	const composer = (
 		<AgentComposer variant={variant}>
 			{/* Input area */}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
@@ -1638,6 +1645,21 @@ function ChatInputBarImpl({
 				</AgentComposerSettingsEnd>
 			</AgentComposerSettings>
 		</AgentComposer>
+	);
+
+	return (
+		<>
+			{suggestions?.enabled && variant === "conversation" ? (
+				<SuggestionTray
+					composerInputRef={promptInputRef}
+					composerMenuOpen={slashOpen || mentionOpen}
+					draft={promptInput}
+					setDraft={setPromptInput}
+					suggestions={suggestions}
+				/>
+			) : null}
+			{composer}
+		</>
 	);
 }
 

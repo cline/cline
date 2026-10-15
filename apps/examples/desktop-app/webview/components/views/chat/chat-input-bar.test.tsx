@@ -1,10 +1,26 @@
 // @vitest-environment jsdom
 
+import {
+	type ComposerSuggestionItem,
+	createSuggestionsLocal,
+	deriveSuggestionsView,
+	reduceSuggestionsLocal,
+	SUGGESTION_BREAKPOINTS,
+} from "@cline/shared/browser";
 import { act, type MouseEvent as ReactMouseEvent } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	type Mock,
+	vi,
+} from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import type { ComposerSuggestionsController } from "@/hooks/use-composer-suggestions";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
@@ -3169,5 +3185,250 @@ describe("ChatInputBar token ring", () => {
 		);
 		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+	});
+});
+
+describe("ChatInputBar suggestion tray", () => {
+	const suggestion: ComposerSuggestionItem = {
+		id: "verify",
+		label: "Verify",
+		tone: "check",
+		icon: "verify",
+		prompt: "Run the tests and fix what fails",
+		sendable: true,
+	};
+
+	/** A controller over the real view model with one ready set, whose Use fills and focuses the box as the real one does. */
+	function stubSuggestions(enabled = true): ComposerSuggestionsController & {
+		use: Mock<ComposerSuggestionsController["use"]>;
+		submitted: Mock<ComposerSuggestionsController["submitted"]>;
+	} {
+		const local = [
+			{ type: "bind", sessionId: "session-1" },
+			{
+				type: "state",
+				now: 0,
+				envelope: {
+					sessionId: "session-1",
+					slot: "composer.suggestions",
+					plugin: "composer-suggestions",
+					epoch: 1,
+					seq: 1,
+					state: {
+						status: "ready",
+						title: "Next",
+						revision: "r1",
+						items: [suggestion],
+						canRefresh: false,
+					},
+				},
+			},
+			{ type: "view", ready: true, now: 0 },
+		].reduce(
+			(current, event) =>
+				reduceSuggestionsLocal(
+					current,
+					event as Parameters<typeof reduceSuggestionsLocal>[1],
+				),
+			createSuggestionsLocal(),
+		);
+		return {
+			enabled,
+			busy: false,
+			local,
+			now: 0,
+			canUnskip: false,
+			view: (facts, at = Date.now()) =>
+				deriveSuggestionsView(local, {
+					draft: facts.draft.trim() ? facts.draft : "",
+					busy: false,
+					blocked: facts.menuOpen || facts.dialogOpen,
+					queued: 0,
+					canUndo: false,
+					width: facts.width,
+					breakpoints: SUGGESTION_BREAKPOINTS.desktop,
+					now: at,
+				}),
+			reportView: vi.fn(),
+			move: vi.fn(),
+			highlight: vi.fn(),
+			use: vi.fn<ComposerSuggestionsController["use"]>(
+				(item, _input, composer) => {
+					composer.setDraft(item.prompt);
+					composer.focus();
+				},
+			),
+			send: vi.fn(async () => undefined),
+			skip: vi.fn(),
+			refresh: vi.fn(),
+			unskip: vi.fn(),
+			collapse: vi.fn(),
+			hideForChat: vi.fn(),
+			show: vi.fn(),
+			clear: vi.fn(),
+			undoSent: vi.fn(async () => undefined),
+			submitted: vi.fn<ComposerSuggestionsController["submitted"]>(),
+			draftCleared: vi.fn(),
+		};
+	}
+
+	async function renderWithSuggestions({
+		suggestions,
+		variant = "conversation",
+		prompt = "",
+		promptVersion = 0,
+		onSend = vi.fn(),
+	}: {
+		suggestions: ComposerSuggestionsController;
+		variant?: "conversation" | "welcome";
+		prompt?: string;
+		promptVersion?: number;
+		onSend?: (prompt: string) => void;
+	}) {
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						environmentId="local"
+						executionTarget="local"
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={onSend}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: promptVersion, value: prompt }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						suggestions={suggestions}
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant={variant}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+	}
+
+	function tray(): Element | null {
+		return container.querySelector('[data-testid="suggestion-tray"]');
+	}
+
+	beforeEach(() => {
+		vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Win32");
+	});
+
+	it("sits above a conversation's message box only while the controller is enabled", async () => {
+		await renderWithSuggestions({ suggestions: stubSuggestions() });
+		const region = tray();
+		const textarea = container.querySelector("textarea");
+		expect(region?.querySelector('[role="option"]')?.textContent).toContain(
+			"Verify",
+		);
+		expect(
+			region && textarea
+				? region.compareDocumentPosition(textarea) &
+						Node.DOCUMENT_POSITION_FOLLOWING
+				: 0,
+		).toBeTruthy();
+
+		await renderWithSuggestions({
+			suggestions: stubSuggestions(),
+			variant: "welcome",
+		});
+		expect(
+			container.querySelector('[data-testid="suggestion-tray-root"]'),
+		).toBeNull();
+
+		await renderWithSuggestions({ suggestions: stubSuggestions(false) });
+		expect(
+			container.querySelector('[data-testid="suggestion-tray-root"]'),
+		).toBeNull();
+	});
+
+	it("Ctrl+1 fills and focuses the composer's own message box", async () => {
+		const suggestions = stubSuggestions();
+		await renderWithSuggestions({ suggestions });
+
+		await act(async () => {
+			document.body.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					cancelable: true,
+					code: "Digit1",
+					key: "1",
+					ctrlKey: true,
+				}),
+			);
+		});
+
+		const textarea = container.querySelector("textarea");
+		expect(suggestions.use).toHaveBeenCalledWith(
+			suggestion,
+			"key",
+			expect.anything(),
+		);
+		expect(textarea?.value).toBe(suggestion.prompt);
+		expect(document.activeElement).toBe(textarea);
+	});
+
+	it("steps aside while the slash menu is open over the message box", async () => {
+		await renderWithSuggestions({
+			suggestions: stubSuggestions(),
+			prompt: "draft",
+		});
+		expect(tray()?.textContent).toContain("clear the message box");
+
+		await renderWithSuggestions({
+			suggestions: stubSuggestions(),
+			prompt: "/",
+			promptVersion: 1,
+		});
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+		expect(tray()).toBeNull();
+	});
+
+	it("tells the tray what Enter submits before sending it", async () => {
+		const suggestions = stubSuggestions();
+		const onSend = vi.fn<(prompt: string) => void>();
+		await renderWithSuggestions({
+			suggestions,
+			prompt: suggestion.prompt,
+			onSend,
+		});
+
+		await act(async () => {
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				);
+		});
+
+		expect(suggestions.submitted).toHaveBeenCalledWith(suggestion.prompt);
+		expect(onSend).toHaveBeenCalledWith(suggestion.prompt);
+		expect(suggestions.submitted.mock.invocationCallOrder[0]).toBeLessThan(
+			onSend.mock.invocationCallOrder[0] ?? 0,
+		);
 	});
 });
