@@ -65,6 +65,11 @@ import {
 	wrapFetchForProviderRequestCapture,
 } from "./provider-request-capture";
 import {
+	appendRequestId,
+	extractResponseRequestId,
+	findRequestIdHeader,
+} from "./response-request-id";
+import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
@@ -1486,16 +1491,22 @@ interface CapturedStreamError {
 	 * does not report the same failure a second time.
 	 */
 	reported?: boolean;
+	requestId?: string;
+	baseMessage: string;
 }
 
 function captureStreamError(
 	error: unknown,
 	phase: CapturedStreamError["phase"] = "stream_callback",
 ): CapturedStreamError {
+	const requestId = extractResponseRequestId(error);
+	const baseMessage = extractErrorMessage(error);
 	return {
 		error,
 		phase,
-		message: extractErrorMessage(error),
+		message: appendRequestId(baseMessage, requestId),
+		baseMessage,
+		...(requestId ? { requestId } : {}),
 		errorClass: classifyProviderError(error),
 		// Error parts reaching the consumer have exhausted AI SDK stream recovery.
 		// Do not multiply its retry budget in the agent's whole-turn retry loop.
@@ -1547,9 +1558,7 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 				if (part.type === "finish-step") {
-					requestId = Object.entries(part.response?.headers ?? {}).find(
-						([name]) => name.toLowerCase() === "x-request-id",
-					)?.[1];
+					requestId = findRequestIdHeader(part.response?.headers);
 					continue;
 				}
 				if (part.type === "text-delta") {
@@ -2034,10 +2043,11 @@ async function* emitAiSdkEvents(
 
 	if (streamError) await reportError?.(streamError);
 
+	const finishRequestId = requestId ?? streamError?.requestId;
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason),
-		...(requestId ? { requestId } : {}),
+		...(finishRequestId ? { requestId: finishRequestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
 		errorRetryable: streamError?.retryable,
@@ -2222,7 +2232,7 @@ function createAiSdkProvider(
 					component: "llms",
 					operation,
 					error: captured.error,
-					errorMessage: captured.message,
+					errorMessage: captured.baseMessage,
 					severity: "error",
 					handled: true,
 					context: {
@@ -2233,6 +2243,7 @@ function createAiSdkProvider(
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
+						requestId: captured.requestId,
 					},
 				});
 				await recordTraceError?.(captured.error);
