@@ -29,6 +29,9 @@ const MAX_DIAGNOSTIC_LINE: usize = 1024;
 #[derive(Default)]
 struct BackendDiagnostics {
     started_at: Option<Instant>,
+    /// The tracked child published its endpoint, so its exit is a crash that
+    /// the supervisor recovers from rather than a startup failure.
+    published: bool,
     lines: VecDeque<String>,
     exit_status: Option<String>,
     error: Option<String>,
@@ -430,6 +433,7 @@ fn ensure_desktop_backend_started_locked(
         }
         diagnostics.error = None;
         diagnostics.started_at = Some(Instant::now());
+        diagnostics.published = false;
     }
     let mut child = spawn_backend().map_err(|error| {
         let error = sanitize_startup_diagnostic(&error);
@@ -472,6 +476,7 @@ fn ensure_desktop_backend_started_locked(
                             }
                             if let Ok(mut diagnostics) = state_for_stdout.diagnostics.lock() {
                                 diagnostics.error = None;
+                                diagnostics.published = true;
                             }
                         }
                     }
@@ -598,12 +603,32 @@ fn desktop_backend_status(backend_state: &DesktopBackendState) -> DesktopBackend
     // Reap an exited child before inspecting endpoint readiness. The stdout
     // reader and periodic supervisor can otherwise lag behind the process.
     if let Ok(mut process) = backend_state.process.lock() {
-        if let Some(child) = process.as_mut() {
-            if let Ok(Some(status)) = child.try_wait() {
-                if let Ok(mut endpoint) = backend_state.ws_endpoint.lock() {
-                    *endpoint = None;
-                }
-                if let Ok(mut diagnostics) = backend_state.diagnostics.lock() {
+        let exited = match process.as_mut().map(Child::try_wait) {
+            Some(Ok(Some(status))) => Some(status),
+            _ => None,
+        };
+        if let Some(status) = exited {
+            if let Ok(mut endpoint) = backend_state.ws_endpoint.lock() {
+                *endpoint = None;
+            }
+            if let Ok(mut diagnostics) = backend_state.diagnostics.lock() {
+                if diagnostics.published {
+                    // The endpoint request or the periodic supervisor respawns a
+                    // sidecar that crashed after startup. Report recovery, time the
+                    // replacement from now rather than the first launch, and stop
+                    // tracking the dead child so later polls cannot re-reap it as
+                    // a startup failure.
+                    diagnostics.published = false;
+                    diagnostics.error = None;
+                    diagnostics.started_at = Some(Instant::now());
+                    if diagnostics.lines.len() == MAX_STARTUP_DIAGNOSTICS {
+                        diagnostics.lines.pop_front();
+                    }
+                    diagnostics
+                        .lines
+                        .push_back(format!("Sidecar exited after startup: {status}"));
+                    *process = None;
+                } else {
                     diagnostics.exit_status = Some(status.to_string());
                 }
             }
@@ -888,6 +913,61 @@ mod tests {
         *state.ws_endpoint.lock().unwrap() = Some("ws://127.0.0.1/transport".to_string());
         state.diagnostics.lock().unwrap().started_at = Some(Instant::now() - ENDPOINT_WAIT_TIMEOUT);
         assert_eq!(desktop_backend_status(&state).state, "ready");
+        state
+            .process
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .kill()
+            .unwrap();
+        state.stop();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn crash_after_publishing_reports_recovery_instead_of_startup_failure() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, || {
+            spawn_ready_sidecar("ws://127.0.0.1:9/transport")
+        })
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while desktop_backend_status(&state).state != "ready" {
+            assert!(Instant::now() < deadline, "endpoint should be published");
+            thread::sleep(Duration::from_millis(5));
+        }
+        // A long-running app: the first launch is older than the startup timeout.
+        state.diagnostics.lock().unwrap().started_at = Some(Instant::now() - ENDPOINT_WAIT_TIMEOUT);
+        state
+            .process
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .kill()
+            .unwrap();
+        wait_until_tracked_child_exits(&state);
+
+        for _ in 0..3 {
+            let status = desktop_backend_status(&state);
+            assert_eq!(status.state, "starting");
+            assert!(status.error.is_none());
+            assert!(status.exit_status.is_none());
+        }
+        assert!(desktop_backend_status(&state)
+            .diagnostics
+            .iter()
+            .any(|line| line.starts_with("Sidecar exited after startup")));
+
+        let respawned = AtomicUsize::new(0);
+        ensure_desktop_backend_started_with(&state, || {
+            respawned.fetch_add(1, Ordering::SeqCst);
+            spawn_pending_sidecar()
+        })
+        .unwrap();
+        assert_eq!(respawned.load(Ordering::SeqCst), 1);
+        assert_eq!(desktop_backend_status(&state).state, "starting");
         state
             .process
             .lock()
