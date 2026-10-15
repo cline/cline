@@ -176,7 +176,7 @@ export function readSupersededHubDiscovery(
  * is a hazard — its pid can be recycled by the OS and a much later launch
  * that finds no live record would SIGTERM an unrelated process with it.
  */
-function discardSupersededHubDiscovery(discoveryPath: string): void {
+export function discardSupersededHubDiscovery(discoveryPath: string): void {
 	try {
 		unlinkSync(`${discoveryPath}.superseded`);
 	} catch {

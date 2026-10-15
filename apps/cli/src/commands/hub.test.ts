@@ -2,23 +2,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockClearHubDiscovery,
+	mockDiscardSupersededHubDiscovery,
 	mockEnsureDetachedHubServer,
 	mockEnsureLoginShellPath,
 	mockLocalHubHasNoActiveSessions,
 	mockProbeHubServer,
 	mockReadHubDiscovery,
+	mockReadSupersededHubDiscovery,
 	mockRequestHubDrain,
+	mockRequestHubShutdown,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockStopLocalHubServerGracefully,
 } = vi.hoisted(() => ({
 	mockClearHubDiscovery: vi.fn(),
+	mockDiscardSupersededHubDiscovery: vi.fn(),
 	mockEnsureDetachedHubServer: vi.fn(),
 	mockEnsureLoginShellPath: vi.fn(async () => undefined),
 	mockLocalHubHasNoActiveSessions: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockReadHubDiscovery: vi.fn(),
+	mockReadSupersededHubDiscovery: vi.fn(),
 	mockRequestHubDrain: vi.fn(),
+	mockRequestHubShutdown: vi.fn(),
 	mockResolveProductionHubOwnerContext: vi.fn(() => ({
 		ownerId: "hub-production",
 		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
@@ -32,12 +38,15 @@ const {
 
 vi.mock("@cline/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
+	discardSupersededHubDiscovery: mockDiscardSupersededHubDiscovery,
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
 	ensureLoginShellPath: mockEnsureLoginShellPath,
 	localHubHasNoActiveSessions: mockLocalHubHasNoActiveSessions,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
+	readSupersededHubDiscovery: mockReadSupersededHubDiscovery,
 	requestHubDrain: mockRequestHubDrain,
+	requestHubShutdown: mockRequestHubShutdown,
 	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
@@ -391,6 +400,41 @@ describe("createHubCommand", () => {
 		expect(exitCode()).toBe(0);
 		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
 		expect(mockStopLocalHubServerGracefully).not.toHaveBeenCalled();
+	});
+
+	it("stops a hub whose record the npm postinstall set aside", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockReadSupersededHubDiscovery.mockReturnValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+			pid: 50174,
+		});
+		mockRequestHubShutdown.mockResolvedValue(true);
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(mockRequestHubShutdown).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"token",
+		);
+		expect(mockDiscardSupersededHubDiscovery).toHaveBeenCalled();
+		expect(exitCode()).toBe(0);
+		expect(JSON.parse(output[0] || "")).toEqual({ stopped: true });
+	});
+
+	it("fails when a set-aside hub keeps running", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockReadSupersededHubDiscovery.mockReturnValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "token",
+			pid: 50174,
+		});
+		mockRequestHubShutdown.mockResolvedValue(false);
+		vi.spyOn(process, "kill").mockReturnValue(true);
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["stop"], { from: "user" });
+		expect(mockDiscardSupersededHubDiscovery).not.toHaveBeenCalled();
+		expect(exitCode()).toBe(1);
+		expect(JSON.parse(output[0] || "")).toEqual({ stopped: false });
 	});
 
 	it("does not mistake an inaccessible process for an exited hub", async () => {

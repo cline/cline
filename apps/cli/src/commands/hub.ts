@@ -1,12 +1,15 @@
 import {
 	clearHubDiscovery,
+	discardSupersededHubDiscovery,
 	ensureDetachedHubServer,
 	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
 	NodeHubClient,
 	probeHubServer,
 	readHubDiscovery,
+	readSupersededHubDiscovery,
 	requestHubDrain,
+	requestHubShutdown,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
@@ -54,25 +57,43 @@ function addHubOptions(command: Command, defaultCwd?: string): Command {
 		);
 }
 
+// A stale PID must never receive a termination signal. A zero-signal
+// existence check can only establish that the recorded process exited;
+// a live/reused PID or a permission error cannot prove shutdown.
+function hasExited(pid: number | undefined): boolean {
+	if (!pid) return false;
+	try {
+		process.kill(pid, 0);
+		return false;
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === "ESRCH";
+	}
+}
+
 async function stopHubServer(): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath, {
 		onError: "throw",
 	});
 	if (!discovery) {
-		return true; // Already stopped: cleanup is idempotent.
-	}
-	if (!(await stopLocalHubServerGracefully(owner))) {
-		// A stale PID must never receive a termination signal. A zero-signal
-		// existence check can only establish that the recorded process exited;
-		// a live/reused PID or a permission error cannot prove shutdown.
-		if (!discovery.pid) return false;
-		try {
-			process.kill(discovery.pid, 0);
-			return false;
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== "ESRCH") return false;
+		// The npm postinstall sets the record aside while its hub keeps running.
+		const superseded = readSupersededHubDiscovery(owner.discoveryPath);
+		if (!superseded?.url) {
+			return true; // Already stopped: cleanup is idempotent.
 		}
+		const stopped = await requestHubShutdown(
+			superseded.url,
+			superseded.authToken,
+		).catch(() => false);
+		if (!stopped && !hasExited(superseded.pid)) return false;
+		discardSupersededHubDiscovery(owner.discoveryPath);
+		return true;
+	}
+	if (
+		!(await stopLocalHubServerGracefully(owner)) &&
+		!hasExited(discovery.pid)
+	) {
+		return false;
 	}
 	await clearHubDiscovery(owner.discoveryPath);
 	return true;
