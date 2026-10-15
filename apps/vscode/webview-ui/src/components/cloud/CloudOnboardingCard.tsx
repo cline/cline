@@ -59,7 +59,7 @@ export function CloudOnboardingCard({
 				</div>
 				<p className="m-0 text-xs leading-relaxed text-description">
 					Cloud sessions run in an isolated sandbox on Cline's infrastructure. Cline clones your repository, works on a
-					branch, and keeps going after you close VS Code.
+					branch, and keeps going after you close your editor.
 				</p>
 			</div>
 

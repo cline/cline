@@ -12,7 +12,7 @@ interface AutoApproveBarProps {
 }
 
 export const CLOUD_AUTO_APPROVE_TOOLTIP =
-	"Cloud sessions always auto-approve actions so they can continue running when VS Code is closed. Your local auto-approve settings are unchanged."
+	"Cloud sessions always auto-approve actions so they can continue running when your editor is closed. Your local auto-approve settings are unchanged."
 
 const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps) => {
 	const { autoApprovalSettings } = useExtensionState()
