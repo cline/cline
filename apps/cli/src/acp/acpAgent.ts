@@ -281,11 +281,15 @@ export class AcpAgent implements Agent {
 					mcpServers: params.mcpServers,
 					currentMode: "act",
 					currentProviderId: providerId,
-					currentModelId: await resolveDefaultModelId(
-						providerId,
-						process.env.CLINE_MODEL,
-						providerModels,
-					),
+					currentModelId:
+						process.env.CLINE_MODEL ??
+						this.providerSettingsManager.getProviderSettings(providerId)
+							?.model ??
+						(await resolveDefaultModelId(
+							providerId,
+							undefined,
+							providerModels,
+						)),
 					autoApproveTools: this.defaultAutoApproveTools,
 				};
 				this.sessions.set(params.sessionId, session);
@@ -316,6 +320,13 @@ export class AcpAgent implements Agent {
 				description: info.description,
 			}),
 		);
+		if (session.currentModelId && !(session.currentModelId in providerModels)) {
+			availableModels.push({
+				modelId: session.currentModelId,
+				name: session.currentModelId,
+				description: undefined,
+			});
+		}
 
 		return {
 			modes: {
@@ -469,6 +480,11 @@ export class AcpAgent implements Agent {
 
 		switch (params.configId) {
 			case "provider": {
+				// Selecting the advertised current provider is idempotent, including
+				// restored BYOK providers and provider-scoped private model IDs.
+				if (value === session.currentProviderId) {
+					break;
+				}
 				if (process.env.CLINE_PROVIDER) {
 					throw RequestError.invalidParams(
 						undefined,

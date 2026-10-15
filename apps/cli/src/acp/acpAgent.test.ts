@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSideConnection } from "@agentclientprotocol/sdk";
-import { ProviderSettingsManager } from "@cline/core";
+import { ClineCore, ProviderSettingsManager, SessionSource } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AcpAgent } from "./acpAgent";
 
@@ -27,7 +27,9 @@ describe("ACP saved-provider authentication", () => {
 	function fixture() {
 		return {
 			manager: new ProviderSettingsManager(),
-			agent: new AcpAgent({} as AgentSideConnection),
+			agent: new AcpAgent({
+				sessionUpdate: async () => {},
+			} as unknown as AgentSideConnection),
 		};
 	}
 
@@ -47,7 +49,77 @@ describe("ACP saved-provider authentication", () => {
 				currentValue: "openai-compatible",
 			}),
 		);
+		const selected = await agent.setSessionConfigOption({
+			sessionId: session.sessionId,
+			configId: "provider",
+			value: "openai-compatible",
+		});
+		expect(selected.configOptions).toContainEqual(
+			expect.objectContaining({
+				id: "model",
+				currentValue: "private-model-not-in-catalog",
+			}),
+		);
+		await expect(
+			agent.setSessionConfigOption({
+				sessionId: session.sessionId,
+				configId: "provider",
+				value: "unconfigured-provider",
+			}),
+		).rejects.toMatchObject({ code: -32602 });
 		await agent.shutdown();
+	});
+
+	it.each([
+		undefined,
+		"private-environment-model",
+	])("cold-loads a real persisted conversation with saved/default model precedence (%s)", async (environmentModel) => {
+		const { manager, agent } = fixture();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "synthetic-local-key",
+			baseUrl: "http://127.0.0.1:12345/v1",
+			model: "private-model-not-in-catalog",
+		});
+		vi.stubEnv("CLINE_SESSION_BACKEND_MODE", "local");
+		vi.stubEnv("CLINE_MODEL", environmentModel);
+		const core = await ClineCore.create({ backendMode: "local" });
+		const { sessionId } = await core.start({
+			source: SessionSource.CLI,
+			interactive: true,
+			config: {
+				providerId: "openai-compatible",
+				modelId: "private-model-not-in-catalog",
+				apiKey: "synthetic-local-key",
+				systemPrompt: "Fixture",
+				cwd: directory,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+			initialMessages: [
+				{
+					role: "user",
+					content: "Persisted fixture history",
+					id: "fixture-user",
+				},
+			],
+		});
+		await core.dispose("fixture-persisted");
+		try {
+			const loaded = await agent.loadSession({
+				sessionId,
+				cwd: directory,
+				mcpServers: [],
+			});
+			const expectedModel = environmentModel ?? "private-model-not-in-catalog";
+			expect(loaded.models?.currentModelId).toBe(expectedModel);
+			expect(loaded.models?.availableModels).toContainEqual(
+				expect.objectContaining({ modelId: expectedModel }),
+			);
+		} finally {
+			await agent.shutdown();
+		}
 	});
 
 	it("honors an explicitly selected saved provider and model override", async () => {
