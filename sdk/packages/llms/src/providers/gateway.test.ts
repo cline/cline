@@ -2759,7 +2759,7 @@ describe("sdk-gateway", () => {
 				conversationId: "conversation-test",
 				modelRequestId: "request-test",
 				iteration: 3,
-				error_phase: "stream_read",
+				errorPhase: "stream_read",
 				error_code: "ConnectionClosed",
 				error_message: error.message,
 			}),
@@ -2814,7 +2814,7 @@ describe("sdk-gateway", () => {
 			expect(errors).toHaveLength(1);
 			expect(errors[0]?.[0].properties).toMatchObject({
 				error_type: "TimeoutError",
-				error_phase: "timeout",
+				errorPhase: "timeout",
 				severity: "error",
 			});
 		} else {

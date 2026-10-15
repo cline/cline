@@ -2232,8 +2232,8 @@ function createAiSdkProvider(
 					context: {
 						...correlation,
 						aiSdkCallId: getAiSdkCallId?.(),
-						error_phase: captured.phase,
-						error_turn_retryable: captured.retryable,
+						errorPhase: captured.phase,
+						errorTurnRetryable: captured.retryable,
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
