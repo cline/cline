@@ -337,19 +337,34 @@ describe("cloud agents gate", () => {
 		delete process.env.CLINE_CODE_CLOUD_AGENTS;
 	});
 
-	it("is enabled without any rollout flag", async () => {
+	it("is disabled while the rollout flag is off", async () => {
 		const { isCloudAgentsEnabled } = await import("./feature-flags");
-		expect(isCloudAgentsEnabled()).toBe(true);
-		expect(mocks.getBooleanFlagEnabled).not.toHaveBeenCalled();
+		expect(isCloudAgentsEnabled()).toBe(false);
 	});
 
-	it("lets the env override turn it off", async () => {
+	it("does not enable a boolean rollout from a truthy variant payload", async () => {
 		const { isCloudAgentsEnabled } = await import("./feature-flags");
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		mocks.getFlagPayload.mockReturnValue("control");
 		expect(isCloudAgentsEnabled()).toBe(false);
-		process.env.CLINE_CODE_CLOUD_AGENTS = "false";
-		expect(isCloudAgentsEnabled()).toBe(false);
+		expect(mocks.getBooleanFlagEnabled).toHaveBeenCalledWith(
+			"code-cloud-agents",
+		);
+	});
+
+	it("is enabled by the rollout flag alone", async () => {
+		const { isCloudAgentsEnabled } = await import("./feature-flags");
+		mocks.getBooleanFlagEnabled.mockImplementation(
+			(flag: unknown) => flag === "code-cloud-agents",
+		);
+		expect(isCloudAgentsEnabled()).toBe(true);
+	});
+
+	it("lets the env override force the gate in both directions", async () => {
+		const { isCloudAgentsEnabled } = await import("./feature-flags");
+		mocks.getFlagPayload.mockReturnValue(undefined);
 		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 		expect(isCloudAgentsEnabled()).toBe(true);
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		expect(isCloudAgentsEnabled()).toBe(false);
 	});
 });

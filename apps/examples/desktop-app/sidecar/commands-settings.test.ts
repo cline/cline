@@ -9,7 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCloudSessionManager } from "./cloud-sessions";
 import { handleCommand } from "./commands";
 import { createSidecarContext } from "./context";
-import { resetDesktopFeatureFlagsForTesting } from "./feature-flags";
+import {
+	getDesktopFeatureFlagsService,
+	resetDesktopFeatureFlagsForTesting,
+} from "./feature-flags";
 import type { SidecarContext } from "./types";
 
 function createContext(): {
@@ -75,7 +78,7 @@ describe("desktop settings commands", () => {
 		"list_chat_sessions",
 		"list_discovered_sessions",
 		"search_sessions",
-	])("hides cloud rows from %s only when cloud sessions are turned off", async (command) => {
+	])("hides cloud rows from %s unless the rollout flag is enabled", async (command) => {
 		const { ctx } = createContext();
 		for (const target of ["local", "cloud"] as const) {
 			ctx.liveSessions.set(target, {
@@ -94,6 +97,12 @@ describe("desktop settings commands", () => {
 		const discovery = vi
 			.spyOn(getCloudSessionManager(ctx), "listForDiscovery")
 			.mockResolvedValue(cloudRows);
+		const flags = getDesktopFeatureFlagsService();
+		flags.hydrateCache({
+			userId: null,
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { "code-cloud-agents": true } },
+		});
 		const rows = async () =>
 			(
 				(await handleCommand(ctx, command, { query: "match" })) as Array<{
@@ -109,7 +118,13 @@ describe("desktop settings commands", () => {
 			return cloudRows;
 		});
 		expect(await rows()).toEqual(["local"]);
+		delete process.env.CLINE_CODE_CLOUD_AGENTS;
 		discovery.mockClear();
+		flags.hydrateCache({
+			userId: null,
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { "code-cloud-agents": false } },
+		});
 		expect(await rows()).toEqual(["local"]);
 		expect(discovery).not.toHaveBeenCalled();
 		expect(ctx.liveSessions.has("cloud")).toBe(true);
@@ -152,13 +167,5 @@ describe("desktop settings commands", () => {
 		expect(cloud.models).toContainEqual(
 			expect.objectContaining({ id: "cline-cloud/cloud-only" }),
 		);
-	});
-
-	it("reports cloud sessions as enabled by default", async () => {
-		const { ctx } = createContext();
-
-		await expect(
-			handleCommand(ctx, "get_feature_flags", {}),
-		).resolves.toMatchObject({ cloudAgents: true });
 	});
 });

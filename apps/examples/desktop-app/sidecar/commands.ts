@@ -2206,7 +2206,13 @@ export async function handleCommand(
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
 		});
-		return { ...snapshot, cloudAgents: isCloudAgentsEnabled() };
+		return {
+			...snapshot,
+			cloudAgents: isCloudAgentsEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+		};
 	}
 	if (command === "list_cloud_models") {
 		return await getCloudSessionManager(ctx).listModels();
