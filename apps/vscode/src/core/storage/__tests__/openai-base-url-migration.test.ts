@@ -41,6 +41,37 @@ describe("migrateOpenAiCompatibleBaseUrlToV1", () => {
 		})
 	}
 
+	const writeModelsJson = (entry: object) => {
+		fs.mkdirSync(path.join(storage.dataDir, "settings"), { recursive: true })
+		fs.writeFileSync(
+			path.join(storage.dataDir, "settings", "models.json"),
+			JSON.stringify({ version: 1, providers: { "openai-compatible": entry } }),
+		)
+	}
+
+	for (const [seededBaseUrl, expected] of [
+		["http://localhost:8000", "http://localhost:8000"],
+		["https://gateway.example.com/api/v1", "http://localhost:8000/api/v1"],
+	]) {
+		it(`takes the path from a legacy-seeded models.json base URL ${seededBaseUrl}`, () => {
+			writeModelsJson({ provider: { name: "OpenAI Compatible", baseUrl: seededBaseUrl } })
+			storage.globalState.update("openAiBaseUrl", "http://localhost:8000")
+
+			migrateOpenAiCompatibleBaseUrlToV1(storage)
+
+			expect(storage.globalState.get<string>("openAiBaseUrl")).toBe(expected)
+		})
+	}
+
+	it("adds /v1 when models.json only has model overrides", () => {
+		writeModelsJson({ models: { "my-model": { name: "my-model" } } })
+		storage.globalState.update("openAiBaseUrl", "http://localhost:8000")
+
+		migrateOpenAiCompatibleBaseUrlToV1(storage)
+
+		expect(storage.globalState.get<string>("openAiBaseUrl")).toBe("http://localhost:8000/v1")
+	})
+
 	it("runs only once, so a host-only URL saved afterwards stays as entered", () => {
 		storage.globalState.update("openAiBaseUrl", "https://example.com")
 		migrateOpenAiCompatibleBaseUrlToV1(storage)
