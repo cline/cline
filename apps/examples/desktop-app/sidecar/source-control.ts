@@ -448,20 +448,41 @@ function subprojectText(sha: string | undefined): string | undefined {
 	return sha ? `Subproject commit ${sha}\n` : undefined;
 }
 
-function submoduleDiff(
-	environmentId: string,
+/** One side of a diff: a submodule renders as its commit, anything else as the blob. */
+async function sideContents(
+	git: GitRunner,
+	rev: string,
 	path: string,
-	oldSha: string | undefined,
-	newSha: string | undefined,
-): GitFileDiff {
-	return {
-		environmentId,
-		path,
-		oldText: subprojectText(oldSha),
-		newText: subprojectText(newSha) ?? "",
-		binary: false,
-		truncated: false,
-	};
+	entry: TreeEntry | undefined,
+): Promise<string | undefined> {
+	return entry?.mode === GITLINK
+		? subprojectText(entry.sha)
+		: showBlob(git, rev, path);
+}
+
+/**
+ * The submodule checked out at `path`, as git diff shows it: its HEAD, with
+ * `-dirty` when it has uncommitted changes of its own. Undefined when `path`
+ * is not a repository root (an uninitialized submodule would otherwise
+ * report the superproject's HEAD).
+ */
+async function workingSubproject(
+	git: GitRunner,
+	path: string,
+): Promise<string | undefined> {
+	const prefix = await git(["-C", path, "rev-parse", "--show-prefix"]).catch(
+		() => undefined,
+	);
+	if (prefix === undefined || prefix.trim() !== "") return undefined;
+	const head = (
+		await git(["-C", path, "rev-parse", "HEAD"]).catch(() => "")
+	).trim();
+	if (!head) return undefined;
+	const dirty =
+		(
+			await git(["-C", path, "status", "--porcelain"]).catch(() => "")
+		).trim() !== "";
+	return `Subproject commit ${head}${dirty ? "-dirty" : ""}\n`;
 }
 
 /** Contents of a path before and after a commit. */
@@ -479,12 +500,13 @@ export async function getCommitFileDiff(
 		base === EMPTY_TREE ? undefined : treeEntry(git, base, oldPath),
 		treeEntry(git, sha, path),
 	]);
-	if (oldEntry?.mode === GITLINK || newEntry?.mode === GITLINK) {
-		return submoduleDiff(environmentId, path, oldEntry?.sha, newEntry?.sha);
-	}
+	// Each side is read by its own mode, so a file replaced by a submodule
+	// (or the reverse) keeps its contents on the file side.
 	const [oldText, newText] = await Promise.all([
-		base === EMPTY_TREE ? undefined : showBlob(git, base, oldPath),
-		showBlob(git, sha, path),
+		base === EMPTY_TREE
+			? undefined
+			: sideContents(git, base, oldPath, oldEntry),
+		sideContents(git, sha, path, newEntry),
 	]);
 	return {
 		environmentId,
@@ -515,17 +537,9 @@ export async function getGitFileDiff(
 	const indexEntry = await treeEntry(git, null, path);
 	if (staged) {
 		const headEntry = await treeEntry(git, "HEAD", originalPath ?? path);
-		if (headEntry?.mode === GITLINK || indexEntry?.mode === GITLINK) {
-			return submoduleDiff(
-				environmentId,
-				path,
-				headEntry?.sha,
-				indexEntry?.sha,
-			);
-		}
 		const [oldText, newText] = await Promise.all([
-			showBlob(git, "HEAD", originalPath ?? path),
-			showBlob(git, "", path),
+			sideContents(git, "HEAD", originalPath ?? path, headEntry),
+			sideContents(git, "", path, indexEntry),
 		]);
 		return {
 			environmentId,
@@ -537,15 +551,24 @@ export async function getGitFileDiff(
 		};
 	}
 	if (indexEntry?.mode === GITLINK) {
-		const checkedOut = await git(["-C", path, "rev-parse", "HEAD"]).catch(
-			() => "",
-		);
-		return submoduleDiff(
+		const working =
+			(await workingSubproject(git, path)) ??
+			// Replaced by a plain file in the working tree, or not checked out.
+			(
+				await readWorkingFile(path, { symlink: false }).catch(() => ({
+					content: "",
+					truncated: false,
+				}))
+			).content ??
+			"";
+		return {
 			environmentId,
 			path,
-			indexEntry.sha,
-			checkedOut.trim() || undefined,
-		);
+			oldText: subprojectText(indexEntry.sha),
+			newText: working,
+			binary: working.includes("\0"),
+			truncated: false,
+		};
 	}
 	const [oldText, working] = await Promise.all([
 		showBlob(git, "", path),

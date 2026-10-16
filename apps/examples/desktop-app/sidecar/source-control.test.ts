@@ -508,6 +508,33 @@ describe("against a real repository", () => {
 			);
 			expect(working.oldText).toBe(`Subproject commit ${first}\n`);
 			expect(working.newText).toBe(`Subproject commit ${second}\n`);
+
+			// Uncommitted edits inside the submodule mark it dirty, as git does.
+			writeFileSync(join(root, "vendor/lib/lib.txt"), "v3\n");
+			const dirty = await getGitFileDiff(
+				git,
+				async () => ({ content: "", truncated: false }),
+				"local",
+				"vendor/lib",
+				false,
+			);
+			expect(dirty.newText).toBe(`Subproject commit ${second}-dirty\n`);
+
+			// A commit that replaces the submodule with a file shows each side
+			// by its own type: the old commit, then the new file's contents.
+			await git(["rm", "-q", "-rf", "vendor/lib"]);
+			writeFileSync(join(root, "vendor/lib"), "now a file\n");
+			await git(["add", "vendor/lib"]);
+			await git(["commit", "-q", "-m", "replace submodule with a file"]);
+			const replaced = (await git(["rev-parse", "HEAD"])).trim();
+			const replacement = await getCommitFileDiff(
+				git,
+				"local",
+				replaced,
+				"vendor/lib",
+			);
+			expect(replacement.oldText).toBe(`Subproject commit ${first}\n`);
+			expect(replacement.newText).toBe("now a file\n");
 		} finally {
 			rmSync(library, { recursive: true, force: true });
 		}
