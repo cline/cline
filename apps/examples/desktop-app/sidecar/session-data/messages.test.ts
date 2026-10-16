@@ -342,14 +342,19 @@ describe("readSessionMessages", () => {
 			],
 		]);
 
-		const [message] = await readSessionMessages(
-			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
-			sessionId,
-		);
-		expect(message?.content).toBe("Review @src/app.ts");
-		expect(message?.meta).toMatchObject({
-			attachedFiles: ["/repo/src/app.ts"],
-		});
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				content: "Review @src/app.ts",
+				meta: expect.objectContaining({
+					attachedFiles: ["/repo/src/app.ts"],
+				}),
+			}),
+		]);
 	});
 
 	it("preserves absolute user run counts when older messages are omitted", async () => {
