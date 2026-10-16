@@ -652,12 +652,7 @@ export function ProjectFilesPanel({
 			} catch (error) {
 				toast({
 					variant: "destructive",
-					title:
-						action.type === "commit"
-							? "Commit failed"
-							: action.type === "push"
-								? "Push failed"
-								: "Git command failed",
+					title: "Git command failed",
 					description: error instanceof Error ? error.message : String(error),
 				});
 				return false;

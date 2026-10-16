@@ -1,6 +1,7 @@
 // Source control backing for the desktop app's workspace panel: one call
 // returns everything the Source Control column renders, plus the small set
-// of mutations it offers (stage, unstage, discard, commit, push).
+// of mutations it offers (stage, unstage, discard) plus a background fetch.
+// Committing, pushing, and pulling are left to the agent.
 
 /** Runs git in the repository and resolves stdout; rejects on non-zero exit. */
 export type GitRunner = (args: string[]) => Promise<string>;
@@ -485,9 +486,6 @@ export type SourceControlAction =
 	| { type: "stage"; paths: string[] }
 	| { type: "unstage"; paths: string[] }
 	| { type: "discard"; paths: string[]; untrackedPaths: string[] }
-	| { type: "commit"; message: string; push: boolean }
-	| { type: "push" }
-	| { type: "pull" }
 	/** Background refresh of remote-tracking refs; never touches the work tree. */
 	| { type: "fetch" };
 
@@ -515,31 +513,11 @@ export function parseSourceControlAction(value: unknown): SourceControlAction {
 				paths: stringList(record.paths),
 				untrackedPaths: stringList(record.untrackedPaths),
 			};
-		case "commit":
-			return {
-				type: "commit",
-				message: typeof record.message === "string" ? record.message : "",
-				push: record.push === true,
-			};
-		case "push":
-		case "pull":
 		case "fetch":
-			return { type: record.type };
+			return { type: "fetch" };
 		default:
 			throw new Error("Unknown source control action");
 	}
-}
-
-async function hasUpstream(git: GitRunner): Promise<boolean> {
-	return git([
-		"rev-parse",
-		"--abbrev-ref",
-		"--symbolic-full-name",
-		"@{u}",
-	]).then(
-		() => true,
-		() => false,
-	);
 }
 
 async function hasHead(git: GitRunner): Promise<boolean> {
@@ -547,12 +525,6 @@ async function hasHead(git: GitRunner): Promise<boolean> {
 		() => true,
 		() => false,
 	);
-}
-
-async function push(git: GitRunner): Promise<void> {
-	// A branch without an upstream is published rather than failing.
-	if (await hasUpstream(git)) await git(["push"]);
-	else await git(["push", "-u", "origin", "HEAD"]);
 }
 
 // Filenames are data, never patterns: without this, `draft*.txt` would also
@@ -594,21 +566,6 @@ export async function runSourceControlAction(
 			if (action.untrackedPaths.length) {
 				await git([LITERAL, "clean", "-f", "--", ...action.untrackedPaths]);
 			}
-			return;
-		case "commit": {
-			const message = action.message.trim();
-			if (!message) throw new Error("A commit message is required.");
-			await git(["commit", "-m", message]);
-			if (action.push) await push(git);
-			return;
-		}
-		case "push":
-			await push(git);
-			return;
-		case "pull":
-			// Non-interactive: git skips the merge editor without a TTY, and
-			// conflicts surface as the error message in the UI.
-			await git(["pull"]);
 			return;
 		case "fetch":
 			await git(["fetch", "--quiet"]);

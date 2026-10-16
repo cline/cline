@@ -50,9 +50,7 @@ export type SourceControlAction =
 	| { type: "stage"; paths: string[] }
 	| { type: "unstage"; paths: string[] }
 	| { type: "discard"; paths: string[]; untrackedPaths: string[] }
-	| { type: "commit"; message: string; push: boolean }
-	| { type: "push" }
-	| { type: "pull" };
+	| { type: "fetch" };
 
 // Over SSH every poll is a remote git invocation, so it runs less often.
 const LOCAL_POLL_INTERVAL_MS = 5_000;

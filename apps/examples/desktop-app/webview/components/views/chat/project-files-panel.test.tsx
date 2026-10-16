@@ -209,16 +209,18 @@ describe("ProjectFilesPanel source control view", () => {
 		expect(text).toContain("README.md");
 		expect(text).toContain("notes.txt");
 		expect(text).toContain("Latest work");
-		// One commit ahead: Push is enabled with a count, Pull is available.
-		const push = byLabel("Push", container) as HTMLButtonElement;
-		expect(push.disabled).toBe(false);
-		expect(push.textContent).toContain("1");
-		expect((byLabel("Pull", container) as HTMLButtonElement).disabled).toBe(
-			false,
-		);
-		await click(byLabel("Pull", container));
-		expect(actionCalls()).toContainEqual({ type: "pull" });
-		expect(container.textContent).toContain("main");
+		// Committing, pushing, and pulling are left to the agent; the branch
+		// line still reports how far the branch is ahead.
+		expect(container.querySelector('[aria-label="Commit message"]')).toBeNull();
+		for (const label of ["Push", "Pull", "Publish branch"]) {
+			expect(container.querySelector(`[aria-label="${label}"]`)).toBeNull();
+		}
+		expect(
+			Array.from(column?.querySelectorAll("button") ?? []).some((el) =>
+				/^Commit$/.test(el.textContent ?? ""),
+			),
+		).toBe(false);
+		expect(text).toMatch(/main\s*1/);
 		// Session-touched rows carry the marker.
 		expect(
 			column?.querySelector('[title="Changed in this session"]'),
@@ -249,7 +251,7 @@ describe("ProjectFilesPanel source control view", () => {
 		).toContain("/repo/README.md");
 	});
 
-	it("stages, unstages, and commits through the sidecar", async () => {
+	it("stages and unstages through the sidecar", async () => {
 		await render();
 		await click(byLabel("Stage README.md"));
 		expect(actionCalls()).toContainEqual({
@@ -261,26 +263,6 @@ describe("ProjectFilesPanel source control view", () => {
 			type: "unstage",
 			paths: ["src/app.ts"],
 		});
-
-		const message = byLabel("Commit message") as HTMLTextAreaElement;
-		const commit = button(/^Commit$/);
-		expect(commit.disabled).toBe(true);
-		await act(async () => {
-			const setter = Object.getOwnPropertyDescriptor(
-				HTMLTextAreaElement.prototype,
-				"value",
-			)?.set;
-			setter?.call(message, "feat: panel");
-			message.dispatchEvent(new Event("input", { bubbles: true }));
-		});
-		expect(button(/^Commit$/).disabled).toBe(false);
-		await click(button(/^Commit$/));
-		expect(actionCalls()).toContainEqual({
-			type: "commit",
-			message: "feat: panel",
-			push: false,
-		});
-		expect((byLabel("Commit message") as HTMLTextAreaElement).value).toBe("");
 	});
 
 	it("opens the first change when the panel opens, once", async () => {
@@ -344,63 +326,26 @@ describe("ProjectFilesPanel source control view", () => {
 		).toHaveLength(1);
 	});
 
-	it("keeps the commit message when the commit fails", async () => {
-		await render();
-		const message = byLabel("Commit message") as HTMLTextAreaElement;
-		await act(async () => {
-			Object.getOwnPropertyDescriptor(
-				HTMLTextAreaElement.prototype,
-				"value",
-			)?.set?.call(message, "wip");
-			message.dispatchEvent(new Event("input", { bubbles: true }));
-		});
-		invokeMock.mockImplementationOnce(async (command: string) => {
-			if (command === "run_source_control_action") {
-				throw new Error("pre-commit hook failed");
-			}
-			return null;
-		});
-		await click(button(/^Commit$/));
-		expect((byLabel("Commit message") as HTMLTextAreaElement).value).toBe(
-			"wip",
-		);
-	});
-
-	it("publishes a branch that has no upstream and disables Pull", async () => {
-		const previous = { ...sourceControlState };
-		Object.assign(sourceControlState, { hasUpstream: false, ahead: 0 });
-		try {
-			await render();
-			expect((byLabel("Pull", container) as HTMLButtonElement).disabled).toBe(
-				true,
-			);
-			await click(byLabel("Publish branch", container));
-			expect(actionCalls()).toContainEqual({ type: "push" });
-		} finally {
-			Object.assign(sourceControlState, previous);
-		}
-	});
-
-	it("reloads the folders expanded by the time a pull finishes", async () => {
+	it("reloads the folders expanded by the time an action finishes", async () => {
 		await render();
 		const listings = () =>
 			invokeMock.mock.calls.filter(
 				([command]) => command === "list_project_entries",
 			).length;
-		// Hold the pull open and expand a folder while it runs.
-		let finishPull: (value: unknown) => void = () => {};
+		// Hold a stage open and expand a folder while it runs.
+		let finishAction: (value: unknown) => void = () => {};
 		invokeMock.mockImplementationOnce(
 			() =>
 				new Promise((resolve) => {
-					finishPull = resolve;
+					finishAction = resolve;
 				}),
 		);
-		await click(byLabel("Pull", container));
+		await click(byLabel("Stage README.md", container));
 		await click(button(/^Files$/));
 		await click(button(/^src/));
 		const before = listings();
 		await act(async () => {
-			finishPull({ environmentId: "local" });
+			finishAction({ environmentId: "local" });
 			await Promise.resolve();
 		});
 		// Root and the newly expanded src both list again, and src keeps
@@ -449,13 +394,16 @@ describe("ProjectFilesPanel source control view", () => {
 		try {
 			await render();
 			expect(fetchCount()).toBe(1);
-			await click(byLabel("Pull", container));
+			await click(byLabel("Stage README.md", container));
 			expect(actionCalls()).toEqual([]);
 			await act(async () => {
 				finishFetch({ environmentId: "local" });
 				await Promise.resolve();
 			});
-			expect(actionCalls()).toContainEqual({ type: "pull" });
+			expect(actionCalls()).toContainEqual({
+				type: "stage",
+				paths: ["README.md"],
+			});
 		} finally {
 			invokeMock.mockImplementation(fallback as never);
 		}
@@ -467,19 +415,6 @@ describe("ProjectFilesPanel source control view", () => {
 		try {
 			await render();
 			expect(fetchCount()).toBe(0);
-		} finally {
-			Object.assign(sourceControlState, previous);
-		}
-	});
-
-	it("disables Push when nothing is ahead", async () => {
-		const previous = { ...sourceControlState };
-		Object.assign(sourceControlState, { ahead: 0 });
-		try {
-			await render();
-			expect((byLabel("Push", container) as HTMLButtonElement).disabled).toBe(
-				true,
-			);
 		} finally {
 			Object.assign(sourceControlState, previous);
 		}

@@ -165,16 +165,10 @@ describe("parseSourceControlAction", () => {
 			type: "stage",
 			paths: ["a"],
 		});
-		expect(
-			parseSourceControlAction({ type: "commit", message: "m", push: true }),
-		).toEqual({
-			type: "commit",
-			message: "m",
-			push: true,
-		});
-		expect(parseSourceControlAction({ type: "pull" })).toEqual({
-			type: "pull",
-		});
+		// Committing, pushing, and pulling are left to the agent.
+		for (const type of ["commit", "push", "pull"]) {
+			expect(() => parseSourceControlAction({ type })).toThrow(/Unknown/);
+		}
 		expect(parseSourceControlAction({ type: "fetch" })).toEqual({
 			type: "fetch",
 		});
@@ -383,7 +377,7 @@ describe("against a real repository", () => {
 		}
 	});
 
-	it("pushes to and pulls from an upstream", async () => {
+	it("fetch surfaces commits pushed elsewhere without touching the tree", async () => {
 		const remote = mkdtempSync(join(tmpdir(), "cline-remote-"));
 		const other = mkdtempSync(join(tmpdir(), "cline-clone-"));
 		const run = (cwd: string) => async (args: string[]) =>
@@ -398,13 +392,12 @@ describe("against a real repository", () => {
 				remote,
 			]);
 			await git(["remote", "add", "origin", remote]);
-			// First push publishes the branch (no upstream yet).
-			await runSourceControlAction(git, { type: "push" });
+			await git(["push", "-q", "-u", "origin", "HEAD"]);
 			let state = await getSourceControlState(git, "local");
 			expect(state.hasUpstream).toBe(true);
 			expect(state.commits[0]?.pushed).toBe(true);
 
-			// Someone else lands a commit; pull brings it in.
+			// Someone else lands a commit; only a fetch can reveal it.
 			await execFileAsync("git", ["clone", "-q", remote, other]);
 			const otherGit = run(other);
 			await otherGit(["config", "user.email", "o@example.com"]);
@@ -417,12 +410,8 @@ describe("against a real repository", () => {
 			await runSourceControlAction(git, { type: "fetch" });
 			state = await getSourceControlState(git, "local");
 			expect(state.behind).toBe(1);
-			// Park the local edits so the pull is a clean fast-forward.
-			await git(["stash", "-q", "--include-untracked"]);
-			await runSourceControlAction(git, { type: "pull" });
-			state = await getSourceControlState(git, "local");
-			expect(state.behind).toBe(0);
-			expect(state.commits[0]?.subject).toBe("remote work");
+			// Fetching never touches the working tree.
+			expect(existsSync(join(root, "remote.txt"))).toBe(false);
 		} finally {
 			rmSync(remote, { recursive: true, force: true });
 			rmSync(other, { recursive: true, force: true });
@@ -455,7 +444,7 @@ describe("against a real repository", () => {
 		expect(added.newText).toBe("one\ntwo\n");
 	});
 
-	it("stages, unstages, discards, and commits", async () => {
+	it("stages, unstages, and discards", async () => {
 		await runSourceControlAction(git, {
 			type: "stage",
 			paths: ["a.ts", "new.txt"],
@@ -478,21 +467,5 @@ describe("against a real repository", () => {
 			untrackedPaths: [],
 		});
 		expect(readFileSync(join(root, "a.ts"), "utf8")).toBe("one\ntwo\n");
-
-		await runSourceControlAction(git, {
-			type: "commit",
-			message: "add staged work",
-			push: false,
-		});
-		state = await getSourceControlState(git, "local");
-		expect(state.staged).toEqual([]);
-		expect(state.commits[0]?.subject).toBe("add staged work");
-		await expect(
-			runSourceControlAction(git, {
-				type: "commit",
-				message: "  ",
-				push: false,
-			}),
-		).rejects.toThrow(/message/);
 	});
 });

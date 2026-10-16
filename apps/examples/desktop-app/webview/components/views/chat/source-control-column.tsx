@@ -3,7 +3,6 @@
 import {
 	ArrowDown,
 	ArrowUp,
-	Check,
 	ChevronDown,
 	ChevronRight,
 	GitBranch,
@@ -13,8 +12,6 @@ import {
 	Undo2,
 } from "lucide-react";
 import { type ReactNode, useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
 	type CommitFile,
 	type SourceControlAction,
@@ -84,7 +81,6 @@ export function SourceControlColumn({
 	onOpenCommitFile,
 	selectedCommitFile,
 }: SourceControlColumnProps) {
-	const [message, setMessage] = useState("");
 	const [expandedCommits, setExpandedCommits] = useState<Set<string>>(
 		() => new Set(),
 	);
@@ -124,26 +120,6 @@ export function SourceControlColumn({
 	const [commitsOpen, setCommitsOpen] = useState(true);
 	const staged = state?.staged ?? [];
 	const changes = [...(state?.unstaged ?? []), ...(state?.untracked ?? [])];
-	const canCommit = staged.length > 0 && message.trim().length > 0 && !busy;
-	// Pushing publishes a branch without an upstream; otherwise it needs
-	// something ahead. Pulling always needs an upstream.
-	const canPush =
-		!busy &&
-		Boolean(state?.root) &&
-		(state?.hasUpstream === false
-			? state.commits.length > 0
-			: (state?.ahead ?? 0) > 0);
-	const canPull = !busy && Boolean(state?.root && state.hasUpstream);
-
-	const commit = useCallback(async () => {
-		if (!canCommit) return;
-		// A rejected hook or missing identity keeps the message for retry.
-		if (
-			await onAction({ type: "commit", message: message.trim(), push: false })
-		) {
-			setMessage("");
-		}
-	}, [canCommit, message, onAction]);
 
 	if (state && !state.root) {
 		return (
@@ -159,89 +135,11 @@ export function SourceControlColumn({
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" id="source-control-column">
-			<div className="flex flex-col gap-2 border-b border-border p-2">
-				{state?.root ? (
-					<div className="flex h-5 min-w-0 items-center px-1">
-						<BranchIndicator state={state} />
-					</div>
-				) : null}
-				<Textarea
-					aria-label="Commit message"
-					className="min-h-16 resize-none bg-background text-xs"
-					disabled={busy}
-					onChange={(event) => setMessage(event.target.value)}
-					onKeyDown={(event) => {
-						if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-							event.preventDefault();
-							void commit();
-						}
-					}}
-					placeholder={
-						staged.length > 0
-							? "Commit message (⌘↵ to commit)"
-							: "Stage changes to commit"
-					}
-					value={message}
-				/>
-				<Button
-					className="h-7 w-full text-xs"
-					disabled={!canCommit}
-					onClick={() => void commit()}
-					size="sm"
-					type="button"
-				>
-					{busy ? (
-						<Loader2 className="size-3.5 animate-spin" />
-					) : (
-						<Check className="size-3.5" />
-					)}
-					Commit
-				</Button>
-				<div className="grid grid-cols-2 gap-1.5">
-					<Button
-						aria-label={
-							state?.hasUpstream === false ? "Publish branch" : "Push"
-						}
-						className="h-7 text-xs"
-						disabled={!canPush}
-						onClick={() => void onAction({ type: "push" })}
-						size="sm"
-						title={
-							state?.hasUpstream === false
-								? "Publish this branch to origin"
-								: state?.ahead
-									? `Push ${state.ahead} commit${state.ahead === 1 ? "" : "s"}`
-									: "Nothing to push"
-						}
-						type="button"
-						variant="outline"
-					>
-						<ArrowUp className="size-3.5" />
-						Push
-						{state?.ahead ? <CountBadge count={state.ahead} /> : null}
-					</Button>
-					<Button
-						aria-label="Pull"
-						className="h-7 text-xs"
-						disabled={!canPull}
-						onClick={() => void onAction({ type: "pull" })}
-						size="sm"
-						title={
-							state?.hasUpstream
-								? state.behind
-									? `Pull ${state.behind} commit${state.behind === 1 ? "" : "s"}`
-									: "Pull from upstream"
-								: "No upstream branch to pull from"
-						}
-						type="button"
-						variant="outline"
-					>
-						<ArrowDown className="size-3.5" />
-						Pull
-						{state?.behind ? <CountBadge count={state.behind} /> : null}
-					</Button>
+			{state?.root ? (
+				<div className="flex h-8 shrink-0 min-w-0 items-center border-b border-border px-3">
+					<BranchIndicator state={state} />
 				</div>
-			</div>
+			) : null}
 			<div className="min-h-0 flex-1 overflow-auto px-1 py-1">
 				{error ? (
 					<div className="px-2 py-1 text-[11px] text-destructive">{error}</div>
@@ -585,14 +483,6 @@ function CommitDetailRow({
 			<CommitRail last={last} />
 			<span className="ml-2 flex items-center gap-1.5">{children}</span>
 		</div>
-	);
-}
-
-function CountBadge({ count }: { count: number }) {
-	return (
-		<span className="rounded bg-foreground/10 px-1 font-mono text-[10px] leading-4">
-			{count}
-		</span>
 	);
 }
 
