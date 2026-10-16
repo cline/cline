@@ -783,10 +783,32 @@ async function installSkill(
 		};
 	}
 	ensureGlobalSkillsDirWritable();
+	// The skills CLI is the default so installs track Vercel's tooling. It
+	// needs Node (>=22.20, on the app's PATH) and git, which many Desktop users
+	// don't have; a GUI app can also inherit a stale PATH. When it fails for a
+	// GitHub-hosted skill, install from the repository archive ourselves. The
+	// failure isn't classified: the CLI's output is localized and changes
+	// between releases, and if the fallback fails too the user sees both.
 	const githubSource = parseGitHubSkillSource(entry.install.args ?? []);
-	const output = githubSource
-		? await installSkillFromGitHub(entry, githubSource)
-		: await installSkillWithSkillsCli(entry, spawnCommand);
+	let output: string | undefined;
+	try {
+		output = await installSkillWithSkillsCli(entry, spawnCommand);
+	} catch (cliError) {
+		if (!githubSource) throw cliError;
+		const cliMessage = errorMessage(cliError);
+		try {
+			output = [
+				cliMessage,
+				"",
+				"Installed from the GitHub repository instead.",
+				await installSkillFromGitHub(entry, githubSource),
+			].join("\n");
+		} catch (fallbackError) {
+			throw new Error(
+				`Skill install failed.\n\nskills CLI: ${cliMessage}\n\nDownload from GitHub: ${errorMessage(fallbackError)}`,
+			);
+		}
+	}
 	return {
 		id: entry.id,
 		type: entry.type,
@@ -796,55 +818,66 @@ async function installSkill(
 	};
 }
 
-// Catalog skills all live on GitHub, so they install in-process: shelling out
-// to `npx skills` failed for users without Node on the app's PATH (a GUI app
-// can inherit a stale or minimal one) or with a Node older than what
-// skills@latest requires.
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 async function installSkillFromGitHub(
 	entry: MarketplaceInstallInput,
 	source: GitHubSkillSource,
 ): Promise<string> {
-	try {
-		const result = await installGitHubSkill(source, {
-			acceptedNames: getSkillInstallCandidates(entry),
-		});
-		return [
-			`Path: ${result.installPath}`,
-			...result.skippedPaths.map((path) => `Skipped link: ${path}`),
-		].join("\n");
-	} catch (error) {
-		throw new Error(
-			`Skill install failed: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
+	const result = await installGitHubSkill(source, {
+		acceptedNames: getSkillInstallCandidates(entry),
+	});
+	return [
+		`Path: ${result.installPath}`,
+		...result.skippedPaths.map((path) => `Skipped link: ${path}`),
+	].join("\n");
 }
+
+const MISSING_NODE_HINT =
+	"The skills CLI needs Node.js 22.20 or newer on PATH. Install or update Node.js, or restart Cline after installing it so the new PATH is picked up.\n";
 
 async function installSkillWithSkillsCli(
 	entry: MarketplaceInstallInput,
 	spawnCommand: SpawnCommand,
 ): Promise<string | undefined> {
-	const result = await spawnCommand("npx", [
-		"-y",
-		SKILLS_CLI_PACKAGE,
-		"add",
-		...(entry.install.args ?? []),
-		"-g",
-		"-a",
-		"cline",
-		"-y",
-	]);
+	let result: SpawnResult;
+	try {
+		result = await spawnCommand("npx", [
+			"-y",
+			SKILLS_CLI_PACKAGE,
+			"add",
+			...(entry.install.args ?? []),
+			"-g",
+			"-a",
+			"cline",
+			"-y",
+		]);
+	} catch (error) {
+		throw new Error(
+			`Skill install failed: could not run the skills CLI (${errorMessage(error)}).\n${MISSING_NODE_HINT}`,
+		);
+	}
 	const output = commandOutput(result);
 	const missingGitHint = /\bspawn\s+git\s+ENOENT\b/i.test(output ?? "")
 		? "Git is required to install this skill. Install Git, make sure it is on PATH, and retry.\n"
 		: "";
+	// Best effort: cmd.exe's "not recognized" message is localized.
+	const missingNodeHint =
+		/not recognized as an internal or external command|npx: (command )?not found|EBADENGINE|Unsupported engine/i.test(
+			output ?? "",
+		)
+			? MISSING_NODE_HINT
+			: "";
 	if (result.exitCode !== 0) {
 		throw new Error(
-			`Skill install failed with exit code ${result.exitCode}${output ? `:\n${missingGitHint}${output}` : ""}`,
+			`Skill install failed with exit code ${result.exitCode}${output ? `:\n${missingGitHint}${missingNodeHint}${output}` : ""}`,
 		);
 	}
 	if (/\bFailed to install\b/i.test(output ?? "")) {
 		throw new Error(
-			`Skill install failed${output ? `:\n${missingGitHint}${output}` : ""}`,
+			`Skill install failed${output ? `:\n${missingGitHint}${missingNodeHint}${output}` : ""}`,
 		);
 	}
 	// The CLI picks the directory name itself, so confirm it landed where the

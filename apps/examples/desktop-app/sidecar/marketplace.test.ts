@@ -34,8 +34,8 @@ const GOAL_ENTRY = {
 	install: { args: ["goal"] },
 };
 
-// A non-GitHub source: GitHub sources install in-process and never reach the
-// skills CLI, so only this path can produce the CLI's errors.
+// A non-GitHub source: for those the skills CLI is the only path, so its
+// errors reach the user unchanged (GitHub sources fall back to a download).
 const SKILL_ENTRY = {
 	id: "example-skill",
 	type: "skill",
@@ -302,67 +302,124 @@ describe("marketplace skill install", () => {
 		install: { args: ["cline/skills", "--skill", "review-team"] },
 	};
 
-	it("installs GitHub skills in-process without spawning npx", async () => {
-		const spawnCommand = vi.fn();
+	it("uses the skills CLI when it works and does not touch GitHub", async () => {
+		const spawnCommand = vi.fn(async () => {
+			const installPath = join(tempHome, ".agents", "skills", "review-team");
+			await mkdir(installPath, { recursive: true });
+			await writeFile(join(installPath, "SKILL.md"), "# Review Team");
+			return { exitCode: 0, stdout: "installed", stderr: "" };
+		});
 
 		const result = await installMarketplaceEntry(
 			{ entry: REVIEW_TEAM_ENTRY },
 			{ spawnCommand },
 		);
 
+		expect(spawnCommand).toHaveBeenCalledWith(
+			"npx",
+			expect.arrayContaining([SKILLS_CLI_PACKAGE, "add", "cline/skills"]),
+		);
+		expect(installGitHubSkillMock).not.toHaveBeenCalled();
+		expect(result).toMatchObject({
+			status: "installed",
+			message: "Installed Review Team globally for Cline.",
+		});
+	});
+
+	it.each([
+		[
+			"npx missing from PATH",
+			() => Promise.reject(new Error("spawn npx ENOENT")),
+		],
+		[
+			"npx not recognized (Windows cmd)",
+			async () => ({
+				exitCode: 1,
+				stdout: "",
+				stderr:
+					"'npx' is not recognized as an internal or external command, operable program or batch file.",
+			}),
+		],
+		[
+			"Node too old for skills@latest",
+			async () => ({
+				exitCode: 1,
+				stdout: "",
+				stderr:
+					"npm warn EBADENGINE Unsupported engine { required: { node: '>=22.20.0' } }\nSyntaxError: The requested module 'node:zlib' does not provide an export named 'crc32'",
+			}),
+		],
+		[
+			"git missing",
+			async () => ({
+				exitCode: 1,
+				stdout: "",
+				stderr:
+					"Failed to clone https://github.com/cline/skills.git: Error: spawn git ENOENT",
+			}),
+		],
+	])("falls back to installing from GitHub when the skills CLI fails: %s", async (_case, spawn) => {
+		const spawnCommand = vi.fn(spawn);
+
+		const result = await installMarketplaceEntry(
+			{ entry: REVIEW_TEAM_ENTRY },
+			{ spawnCommand },
+		);
+
+		expect(spawnCommand).toHaveBeenCalledTimes(1);
 		// The accepted names are the ones the installed-check looks for, so the
 		// installer lands the skill where this entry will find it again.
 		expect(installGitHubSkillMock).toHaveBeenCalledWith(
 			{ owner: "cline", repo: "skills", skill: "review-team" },
 			{ acceptedNames: ["review-team"] },
 		);
-		expect(spawnCommand).not.toHaveBeenCalled();
 		expect(result).toMatchObject({
 			status: "installed",
 			message: "Installed Review Team globally for Cline.",
 		});
+		expect(result.output).toContain(
+			"Installed from the GitHub repository instead.",
+		);
 		expect(result.output).toContain("Skipped link: skills/review-team/linked");
 	});
 
-	it("surfaces download failures as a skill install error", async () => {
+	it("reports both failures when the CLI and the GitHub fallback fail", async () => {
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 1,
+			stdout: "",
+			stderr: "Failed to clone: Error: spawn git ENOENT",
+		}));
 		installGitHubSkillMock.mockRejectedValueOnce(
 			new Error("Could not download cline/skills from GitHub: HTTP 503"),
 		);
 
 		await expect(
-			installMarketplaceEntry({ entry: REVIEW_TEAM_ENTRY }),
+			installMarketplaceEntry({ entry: REVIEW_TEAM_ENTRY }, { spawnCommand }),
 		).rejects.toThrow(
-			"Skill install failed: Could not download cline/skills from GitHub: HTTP 503",
+			/Skill install failed\.\n\nskills CLI: Skill install failed with exit code 1:\nGit is required[\s\S]*\n\nDownload from GitHub: Could not download cline\/skills from GitHub: HTTP 503/,
 		);
 	});
 
-	it("falls back to the skills CLI for sources that are not on GitHub", async () => {
-		const spawnCommand = vi.fn(async () => {
-			const installPath = join(tempHome, ".agents", "skills", "local-skill");
-			await mkdir(installPath, { recursive: true });
-			await writeFile(join(installPath, "SKILL.md"), "# local");
-			return { exitCode: 0, stdout: "done", stderr: "" };
-		});
+	it("has no fallback for sources that are not on GitHub", async () => {
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 1,
+			stdout: "",
+			stderr:
+				"'npx' is not recognized as an internal or external command, operable program or batch file.",
+		}));
 
-		await installMarketplaceEntry(
-			{
-				entry: {
-					id: "local-skill",
-					type: "skill",
-					install: { args: ["https://gitlab.com/team/local-skill"] },
+		await expect(
+			installMarketplaceEntry(
+				{
+					entry: {
+						id: "local-skill",
+						type: "skill",
+						install: { args: ["https://gitlab.com/team/local-skill"] },
+					},
 				},
-			},
-			{ spawnCommand },
-		);
-
+				{ spawnCommand },
+			),
+		).rejects.toThrow(/The skills CLI needs Node\.js 22\.20 or newer on PATH/);
 		expect(installGitHubSkillMock).not.toHaveBeenCalled();
-		expect(spawnCommand).toHaveBeenCalledWith(
-			"npx",
-			expect.arrayContaining([
-				SKILLS_CLI_PACKAGE,
-				"add",
-				"https://gitlab.com/team/local-skill",
-			]),
-		);
 	});
 });
