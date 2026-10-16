@@ -3,7 +3,7 @@ import type {
 	PluginUiStateEnvelope,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type PluginUiStateDrop, PluginUiStore } from "./plugin-ui-store";
+import { type PluginUiStateDrop, PluginUiStore } from "./store";
 
 const SLOT = "composer.suggestions";
 

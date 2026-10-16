@@ -1,28 +1,31 @@
 import type * as LlmsProviders from "@cline/llms";
-import {
-	type AgendaAutomationPolicy,
-	type AgendaTaskListInput,
-	type AgendaTaskRecord,
-	type AgendaTaskRunRecord,
-	type ChatRunTurnRequest,
-	type ChatStartSessionRequest,
-	type ChatStartSessionResponse,
-	type ChatTurnResult,
-	type HubCommandInput,
-	type HubCommandOutput,
-	type HubEventEnvelope,
-	type HubSessionSearchHit,
-	type HubTaskCreateInput,
-	type HubTaskUpdateInput,
-	type HubTypedCommandName,
-	type PluginUiStateEnvelope,
-	readPluginUiEnvelope,
-	type TeamProgressProjectionEvent,
+import type {
+	AgendaAutomationPolicy,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	ChatRunTurnRequest,
+	ChatStartSessionRequest,
+	ChatStartSessionResponse,
+	ChatTurnResult,
+	HubCommandInput,
+	HubCommandOutput,
+	HubEventEnvelope,
+	HubSessionSearchHit,
+	HubTaskCreateInput,
+	HubTaskUpdateInput,
+	HubTypedCommandName,
+	TeamProgressProjectionEvent,
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
-import { createHubPluginUiApi, type HubPluginUiApi } from "./plugin-ui";
+import {
+	createHubPluginUiApi,
+	type HubPluginUiApi,
+	type HubPluginUiStreamHandlers,
+	streamHubPluginUi,
+} from "./plugin-ui";
 
 type ScheduleClientRecord = Record<string, unknown> & {
 	metadata?: Record<string, unknown>;
@@ -83,11 +86,6 @@ export interface HubEventStreamHandlers {
 
 export interface HubTeamProgressHandlers {
 	onProjection?: (event: TeamProgressProjectionEvent) => void;
-	onError?: (error: Error) => void;
-}
-
-export interface HubPluginUiStreamHandlers {
-	onState?: (state: PluginUiStateEnvelope) => void;
 	onError?: (error: Error) => void;
 }
 
@@ -699,48 +697,7 @@ export class HubSessionClient {
 		input: { sessionId: string },
 		handlers: HubPluginUiStreamHandlers,
 	): () => void {
-		let streaming = true;
-		const deliver = (state: PluginUiStateEnvelope | undefined) => {
-			if (streaming && state?.sessionId === input.sessionId) {
-				handlers.onState?.(state);
-			}
-		};
-		const deliverCurrent = () => {
-			void this.pluginUi.get({ sessionId: input.sessionId }).then((states) => {
-				for (const state of states) {
-					deliver(state);
-				}
-			});
-		};
-		// Global, as streamEvents is: a second, session-scoped subscription on
-		// this client would make the hub send that session's events twice.
-		const unsubscribe = this.client.subscribe((event: HubEventEnvelope) => {
-			if (event.event === "plugins.ui.state") {
-				deliver(readPluginUiEnvelope(event.payload));
-			}
-		});
-		let fetchedOnRegistration = false;
-		const stopRefetching = this.client.onRegistered(() => {
-			fetchedOnRegistration = true;
-			deliverCurrent();
-		});
-		void this.client.connect().then(
-			() => {
-				if (!fetchedOnRegistration) {
-					deliverCurrent();
-				}
-			},
-			(error) => {
-				handlers.onError?.(
-					error instanceof Error ? error : new Error(String(error)),
-				);
-			},
-		);
-		return () => {
-			streaming = false;
-			unsubscribe();
-			stopRefetching();
-		};
+		return streamHubPluginUi(this.client, this.pluginUi, input, handlers);
 	}
 
 	async createSchedule(

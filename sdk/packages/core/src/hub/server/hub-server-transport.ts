@@ -8,7 +8,6 @@ import type {
 	HubCommandEnvelope,
 	HubEventEnvelope,
 	HubReplyEnvelope,
-	PluginUiInvokeInput,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -80,6 +79,11 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import {
+	handlePluginUiCommand,
+	reissuePluginUiState,
+	releasePluginUiViewer,
+} from "./handlers/plugin-ui-handlers";
 import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
@@ -859,10 +863,11 @@ export class HubServerTransport implements NativeHubTransport {
 					// A socket that has not registered can name any clientId, so it
 					// never ends that client's plugin UI leases.
 					if (!unregisteredSocket) {
-						this.sessionHost.pluginUi?.detachViewer(
+						releasePluginUiViewer(
+							this.ctx,
 							clientId,
-							authority?.connectionId ??
-								readUnregisterConnectionId(envelope.payload),
+							authority,
+							envelope.payload,
 						);
 					}
 				});
@@ -975,7 +980,7 @@ export class HubServerTransport implements NativeHubTransport {
 				return okReply(envelope);
 			case "plugins.ui.get":
 			case "plugins.ui.invoke":
-				return await this.handlePluginUiCommand(envelope, authority);
+				return await handlePluginUiCommand(this.ctx, envelope, authority);
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":
@@ -1011,51 +1016,6 @@ export class HubServerTransport implements NativeHubTransport {
 				}
 				return reply;
 			}
-		}
-	}
-
-	/**
-	 * Never fails for plugin reasons: a missing session, slot or plugin, and
-	 * any throw, come back as `ok:true` with no states or `unavailable`, so no
-	 * plugin text reaches a captured error.
-	 */
-	private async handlePluginUiCommand(
-		envelope: HubCommandEnvelope,
-		authority: HubConnectionAuthority | undefined,
-	): Promise<HubReplyEnvelope> {
-		const service = this.sessionHost.pluginUi;
-		if (!service) {
-			return errorReply(
-				envelope,
-				"plugin_ui_unavailable",
-				"This runtime does not support plugin UI",
-			);
-		}
-		const isGet = envelope.command === "plugins.ui.get";
-		const nothing = isGet ? { states: [] } : { outcome: "unavailable" };
-		const sessionId = envelope.sessionId?.trim();
-		if (!sessionId) {
-			return okReply(envelope, nothing);
-		}
-		try {
-			if (isGet) {
-				return okReply(envelope, { states: await service.get({ sessionId }) });
-			}
-			const viewerId =
-				authority?.clientId ?? (envelope.clientId?.trim() || "hub");
-			const clientType = this.clients.get(viewerId)?.clientType;
-			const result = await service.invoke(
-				{
-					sessionId,
-					slot: envelope.payload?.slot,
-					action: envelope.payload?.action,
-				} as PluginUiInvokeInput,
-				{ id: viewerId, ...(clientType ? { clientType } : {}) },
-				authority?.connectionId,
-			);
-			return okReply(envelope, { ...result });
-		} catch {
-			return okReply(envelope, nothing);
 		}
 	}
 
@@ -1286,34 +1246,13 @@ export class HubServerTransport implements NativeHubTransport {
 		}
 		// Plugin UI state is never logged for replay, so a session-scoped
 		// subscriber gets each slot's current state from the runtime instead.
-		const pluginUi = this.sessionHost.pluginUi;
-		if (options?.sessionId && pluginUi) {
-			void pluginUi
-				.get({ sessionId: options.sessionId })
-				.then((states) => {
-					queueMicrotask(() => {
-						if (!this.listeners.get(clientId)?.has(entry)) {
-							return;
-						}
-						for (const state of states) {
-							try {
-								entry.listener(
-									buildHubEvent(
-										"plugins.ui.state",
-										state as unknown as Record<string, unknown>,
-										state.sessionId,
-									),
-								);
-							} catch (error) {
-								logHubBoundaryError(
-									"listener threw while re-issuing plugin ui state",
-									error,
-								);
-							}
-						}
-					});
-				})
-				.catch(() => {});
+		if (options?.sessionId) {
+			reissuePluginUiState(
+				this.ctx,
+				options.sessionId,
+				() => this.listeners.get(clientId)?.has(entry) === true,
+				(event) => entry.listener(event),
+			);
 		}
 		return () => {
 			const listeners = this.listeners.get(clientId);
@@ -1392,15 +1331,6 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 		}
 	}
-}
-
-function readUnregisterConnectionId(
-	payload: HubCommandEnvelope["payload"],
-): string | undefined {
-	const connectionId = payload?.connectionId;
-	return typeof connectionId === "string" && connectionId
-		? connectionId
-		: undefined;
 }
 
 function shouldCaptureHubReplyError(code: string): boolean {

@@ -118,7 +118,7 @@ import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
-import { PluginUiService } from "./local/plugin-ui-service";
+import { PluginUiService } from "./local/plugin-ui/service";
 import {
 	type SessionBackend,
 	toActiveSessionRecord,

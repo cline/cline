@@ -1,5 +1,6 @@
 import {
 	type HubCommandName,
+	type HubEventEnvelope,
 	type PluginUiInvokeInput,
 	type PluginUiInvokeOutcome,
 	type PluginUiInvokeResult,
@@ -8,6 +9,11 @@ import {
 } from "@cline/shared";
 import type { PluginUiApi } from "../../services/plugin-ui-api";
 import type { NodeHubClient } from "./index";
+
+export interface HubPluginUiStreamHandlers {
+	onState?: (state: PluginUiStateEnvelope) => void;
+	onError?: (error: Error) => void;
+}
 
 export interface HubPluginUiApi extends PluginUiApi {
 	/**
@@ -151,5 +157,55 @@ export function createHubPluginUiApi(
 			attached.clear();
 			attachesInFlight.clear();
 		},
+	};
+}
+
+export function streamHubPluginUi(
+	client: Pick<NodeHubClient, "subscribe" | "onRegistered" | "connect">,
+	pluginUi: Pick<PluginUiApi, "get">,
+	input: { sessionId: string },
+	handlers: HubPluginUiStreamHandlers,
+): () => void {
+	let streaming = true;
+	const deliver = (state: PluginUiStateEnvelope | undefined) => {
+		if (streaming && state?.sessionId === input.sessionId) {
+			handlers.onState?.(state);
+		}
+	};
+	const deliverCurrent = () => {
+		void pluginUi.get({ sessionId: input.sessionId }).then((states) => {
+			for (const state of states) {
+				deliver(state);
+			}
+		});
+	};
+	// Global, as streamEvents is: a second, session-scoped subscription on
+	// this client would make the hub send that session's events twice.
+	const unsubscribe = client.subscribe((event: HubEventEnvelope) => {
+		if (event.event === "plugins.ui.state") {
+			deliver(readPluginUiEnvelope(event.payload));
+		}
+	});
+	let fetchedOnRegistration = false;
+	const stopRefetching = client.onRegistered(() => {
+		fetchedOnRegistration = true;
+		deliverCurrent();
+	});
+	void client.connect().then(
+		() => {
+			if (!fetchedOnRegistration) {
+				deliverCurrent();
+			}
+		},
+		(error) => {
+			handlers.onError?.(
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		},
+	);
+	return () => {
+		streaming = false;
+		unsubscribe();
+		stopRefetching();
 	};
 }
