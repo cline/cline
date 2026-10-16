@@ -400,7 +400,7 @@
         "@vscode/codicons": "^0.0.36",
         "archiver": "^7.0.1",
         "aws4fetch": "^1.0.20",
-        "axios": "1.18.0",
+        "axios": "1.20.0",
         "better-sqlite3": "^12.4.1",
         "cheerio": "^1.0.0",
         "chokidar": "^4.0.1",
@@ -836,7 +836,7 @@
     "@sap-cloud-sdk/openapi": "4.9.1",
     "@sap-cloud-sdk/resilience": "4.9.1",
     "@sap-cloud-sdk/util": "4.9.1",
-    "axios": "1.18.0",
+    "axios": "1.20.0",
     "diff": "8.0.4",
     "fast-uri": ">=3.1.4",
     "js-yaml": ">=4.3.2 <5",
@@ -2872,7 +2872,7 @@
 
     "axe-core": ["axe-core@4.13.0", "", {}, "sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A=="],
 
-    "axios": ["axios@1.18.0", "", { "dependencies": { "follow-redirects": "^1.16.0", "form-data": "^4.0.5", "https-proxy-agent": "^5.0.1", "proxy-from-env": "^2.1.0" } }, "sha512-E32NzpYKp++W7XRe52rHiXV2ehxmh3wbdgO7MHeFM+vqxLBYHzt0ElkiImtOBxtOmyp0yoC8C6uESVV84Y2/hw=="],
+    "axios": ["axios@1.20.0", "", { "dependencies": { "follow-redirects": "^1.16.0", "form-data": "^4.0.6", "https-proxy-agent": "^5.0.1", "proxy-from-env": "^2.1.0" } }, "sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg=="],
 
     "azure-devops-node-api": ["azure-devops-node-api@12.5.0", "", { "dependencies": { "tunnel": "0.0.6", "typed-rest-client": "^1.8.4" } }, "sha512-R5eFskGvOm3U/GzeAuxRkUsAl0hrAwGgWn6zAd2KrZmrEhWZVqLew4OOupbQlXUuojUzpGtq62SmdhJ06N88og=="],
 
