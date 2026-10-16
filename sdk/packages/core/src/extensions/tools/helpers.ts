@@ -17,6 +17,19 @@ export function formatError(error: unknown): string {
 	return String(error);
 }
 
+const ANSI_ST = "(?:\\u0007|\\u001B\\u005C|\\u009C)";
+const ANSI_REGEX = new RegExp(
+	[
+		`[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?${ANSI_ST})`,
+		"(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))",
+	].join("|"),
+	"g",
+);
+
+export function stripAnsi(value: string): string {
+	return value.replace(ANSI_REGEX, "");
+}
+
 export function getEditorSizeError(input: EditFileInput): string | null {
 	if (
 		typeof input.old_text === "string" &&
