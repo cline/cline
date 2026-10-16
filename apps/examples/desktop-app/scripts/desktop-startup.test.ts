@@ -2,9 +2,12 @@ import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
 	closeSync,
+	copyFileSync,
+	mkdirSync,
 	mkdtempSync,
 	openSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -12,6 +15,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import { compileCliBinary } from "../../../cli/script/compile-binary";
 
 // Exercise the shipped runtime artifacts: the compiled Cline CLI that starts
@@ -55,6 +59,7 @@ function resolveBackendBundle(): string {
 	}
 	if (!bundledBackend) {
 		const outdir = join(ensureBuildDir(), "desktop-backend");
+		const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 		const build = spawnSync(
 			process.execPath,
 			[
@@ -62,6 +67,10 @@ function resolveBackendBundle(): string {
 				fileURLToPath(new URL("../sidecar/index.ts", import.meta.url)),
 				"--target",
 				"bun",
+				"--define",
+				`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(resolveSdkRuntimeBuildId(repoRoot))}`,
+				"--define",
+				`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${JSON.stringify(Date.now())}`,
 				"--outdir",
 				outdir,
 			],
@@ -133,7 +142,11 @@ function processCommandLine(pid: number): string | undefined {
 
 async function runStartupScenario(
 	extraEnv: Record<string, string>,
-	options: { hubAlreadyRunning: boolean; discoveryContents?: string },
+	options: {
+		hubAlreadyRunning: boolean;
+		discoveryContents?: string;
+		pluginCommands?: boolean;
+	},
 ): Promise<void> {
 	const root = mkdtempSync(join(tmpdir(), "cline-desktop-startup-"));
 	const discoveryPath = join(root, "hub.json");
@@ -146,6 +159,13 @@ async function runStartupScenario(
 	try {
 		if (options.discoveryContents !== undefined) {
 			writeFileSync(discoveryPath, options.discoveryContents);
+		}
+		if (options.pluginCommands) {
+			mkdirSync(join(root, "plugins"), { recursive: true });
+			writeFileSync(
+				join(root, "plugins", "hub-command.ts"),
+				`export default { name: "hub-command", manifest: { capabilities: ["commands"] }, setup(api) { api.registerCommand({ name: "hub_only", description: String(process.pid), handler: () => "hub reply" }); } };`,
+			);
 		}
 		const cli = await resolveCliBinary();
 		const bundle = resolveBackendBundle();
@@ -247,6 +267,45 @@ async function runStartupScenario(
 		} else {
 			expect(hub.port).toBe(Number(env.CLINE_HUB_PORT));
 		}
+		if (options.pluginCommands) {
+			const wsUrl = new URL(`${endpoint}/transport`);
+			wsUrl.protocol = "ws:";
+			const socket = new WebSocket(wsUrl);
+			try {
+				const commands = await new Promise<unknown>((resolve, reject) => {
+					const timer = setTimeout(
+						() => reject(new Error("Plugin command discovery timed out")),
+						15_000,
+					);
+					socket.onopen = () =>
+						socket.send(
+							JSON.stringify({
+								type: "request",
+								id: "plugins",
+								command: "list_plugin_commands",
+								args: { workspacePath: root },
+							}),
+						);
+					socket.onerror = () => {
+						clearTimeout(timer);
+						reject(new Error("Desktop transport failed"));
+					};
+					socket.onmessage = (event) => {
+						const message = JSON.parse(String(event.data));
+						if (message.id !== "plugins") return;
+						clearTimeout(timer);
+						if (message.ok) resolve(message.result);
+						else reject(new Error(message.error));
+					};
+				});
+				expect(commands).toContainEqual({
+					name: "hub_only",
+					description: String(hub.pid),
+				});
+			} finally {
+				socket.close();
+			}
+		}
 		// Either way the Hub daemon is the bundled CLI, not the backend.
 		expect(hub.pid).not.toBe(child.pid);
 		const hubCommand = processCommandLine(hub.pid);
@@ -306,6 +365,13 @@ test("desktop backend has the bundled CLI start the Hub when none is running", a
 	await runStartupScenario({}, { hubAlreadyRunning: false });
 }, 180_000);
 
+test("Desktop discovers plugin commands in the compiled Hub, not its backend", async () => {
+	await runStartupScenario(
+		{ CLINE_PLUGIN_MODE: "worker" },
+		{ hubAlreadyRunning: false, pluginCommands: true },
+	);
+}, 180_000);
+
 test("desktop backend reuses a compatible Hub the CLI already started", async () => {
 	await runStartupScenario({}, { hubAlreadyRunning: true });
 }, 180_000);
@@ -332,3 +398,140 @@ for (const discoveryContents of ["{ invalid json", "{}"]) {
 		);
 	}, 120_000);
 }
+
+test.each([
+	"worker",
+	"sandbox",
+])("standalone CLI loads an SDK plugin without Node (%s)", async (mode) => {
+	const cli = await resolveCliBinary();
+	const root = mkdtempSync(join(tmpdir(), "cline-plugin-installed-"));
+	try {
+		const directory = join(root, ".cline", "plugins");
+		mkdirSync(directory, { recursive: true });
+		const marker = join(root, "plugin-result.json");
+		// Copy the raw TypeScript fixture so SDK imports must resolve from the
+		// packaged runtime, outside the monorepo and without prebundling.
+		copyFileSync(
+			fileURLToPath(
+				new URL("./fixtures/embedded-plugin/smoke.ts", import.meta.url),
+			),
+			join(directory, "smoke.ts"),
+		);
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) =>
+					!/^(CLINE_|BUN_BE_BUN|NODE_PATH|npm_node_execpath|NODE$|BUN_EXEC_PATH)/.test(
+						key,
+					),
+			),
+		);
+		const result = spawnSync(cli, ["config", "tools", "--json"], {
+			cwd: root,
+			encoding: "utf8",
+			timeout: 30000,
+			env: {
+				...env,
+				HOME: root,
+				USERPROFILE: root,
+				CLINE_DIR: join(root, ".cline"),
+				PATH: root,
+				JITI_FS_CACHE: "false",
+				CLINE_PLUGIN_MODE: mode,
+				CLINE_TEST_PLUGIN_RESULT_PATH: marker,
+				TMPDIR: root,
+				CLINE_NO_AUTO_UPDATE: "1",
+			},
+		});
+		expect(result.status, result.stderr || String(result.error)).toBe(0);
+		expect(
+			JSON.parse(result.stdout).some(
+				(tool: { name: string }) => tool.name === "embedded_ping",
+			),
+		).toBe(true);
+		expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({
+			pong: true,
+			execPath: realpathSync(cli),
+			isMainThread: mode === "sandbox",
+		});
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);
+
+test("standalone CLI serves the dashboard and its assets without external files or Node", async () => {
+	const cli = await resolveCliBinary();
+	const root = mkdtempSync(join(tmpdir(), "cline-standalone-dashboard-"));
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(
+			([key]) =>
+				!/^(CLINE_|BUN_BE_BUN|NODE_PATH|HOST$|PORT$|ROOM_SECRET$|PUBLIC_URL$)/.test(
+					key,
+				),
+		),
+	);
+	const port = await reserveLoopbackPort();
+	const isolatedEnv = {
+		...env,
+		HOME: root,
+		USERPROFILE: root,
+		CLINE_DIR: join(root, ".cline"),
+		CLINE_HUB_DISCOVERY_PATH: join(root, "hub.json"),
+		CLINE_HUB_PORT: String(await reserveLoopbackPort()),
+		CLINE_NO_AUTO_UPDATE: "1",
+		PATH: root,
+	};
+	const child = Bun.spawn(
+		[
+			cli,
+			"dashboard",
+			"--no-open",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			String(port),
+			"--cwd",
+			root,
+		],
+		{ cwd: root, env: isolatedEnv, stdout: "ignore", stderr: "pipe" },
+	);
+	try {
+		const url = `http://127.0.0.1:${port}`;
+		let response: Response | undefined;
+		const deadline = Date.now() + 20000;
+		while (Date.now() < deadline) {
+			try {
+				response = await fetch(url);
+				if (response.status === 200) break;
+			} catch {}
+			if (child.exitCode !== null)
+				throw new Error(await new Response(child.stderr).text());
+			await Bun.sleep(100);
+		}
+		expect(response?.status).toBe(200);
+		if (!response) throw new Error("Dashboard did not start");
+		const html = await response.text();
+		expect(html).toContain("<html");
+		const assets = [
+			...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
+		].map((match) => match[1]);
+		expect(assets.length).toBeGreaterThan(0);
+		for (const asset of assets) {
+			if (!asset) throw new Error("Missing dashboard asset URL");
+			const resource = await fetch(new URL(asset, url));
+			expect(resource.status).toBe(200);
+			expect(resource.headers.get("content-type")).toMatch(
+				asset.endsWith(".css") ? /text\/css/ : /(?:javascript|ecmascript)/,
+			);
+			expect((await resource.arrayBuffer()).byteLength).toBeGreaterThan(0);
+		}
+	} finally {
+		child.kill("SIGTERM");
+		await child.exited;
+		spawnSync(cli, ["hub", "stop"], {
+			cwd: root,
+			env: isolatedEnv,
+			timeout: 10000,
+		});
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);

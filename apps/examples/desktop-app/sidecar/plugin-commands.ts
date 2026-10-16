@@ -1,28 +1,11 @@
-import {
-	createPluginCommandService,
-	type PluginCommandResult,
-	type PluginCommandService,
-} from "@cline/core";
-import type { SidecarContext } from "./types";
+import type { PluginCommandResult } from "@cline/core";
+import { HubPluginClient, type NodeHubClient } from "@cline/core/hub";
+import type { SessionRuntimeBinding, SidecarContext } from "./types";
 
-// One service per workspace; it keeps the plugin sandboxes alive between
-// commands and reloads them itself when the plugin set changes.
-const servicesByWorkspace = new Map<string, PluginCommandService>();
-
-export function getPluginCommandService(
-	ctx: SidecarContext,
-	workspacePath: string,
-): PluginCommandService {
-	let service = servicesByWorkspace.get(workspacePath);
-	if (!service) {
-		service = createPluginCommandService({
-			cwd: workspacePath,
-			workspacePath,
-			logger: ctx.logger,
-		});
-		servicesByWorkspace.set(workspacePath, service);
-	}
-	return service;
+export function getPluginCommandClient(
+	binding: SessionRuntimeBinding,
+): HubPluginClient {
+	return new HubPluginClient(binding.hubClient);
 }
 
 // A failed load (sandbox startup timeout, I/O hiccup) yields an empty command
@@ -35,13 +18,14 @@ export const WARMUP_MAX_ATTEMPTS = 4;
 type WarmupState = {
 	attempts: number;
 	done: boolean;
+	cancelled: boolean;
 	inFlight: boolean;
 	retry?: ReturnType<typeof setTimeout>;
 };
-const warmups = new Map<string, WarmupState>();
+const warmups = new Map<NodeHubClient, Map<string, WarmupState>>();
 
 /**
- * Spawn the plugin sandbox for a workspace ahead of the first slash menu
+ * Ask the selected Hub to prepare commands ahead of the first slash menu
  * open (the CLI does the same at TUI mount), so the menu lists plugin
  * commands immediately instead of paying the cold spawn on the first `/`.
  * The webview calls this for whichever workspace it has adopted. A load that
@@ -51,11 +35,17 @@ const warmups = new Map<string, WarmupState>();
 export function warmPluginCommandService(
 	ctx: SidecarContext,
 	workspacePath: string,
+	binding: SessionRuntimeBinding,
 ): void {
-	let state = warmups.get(workspacePath);
+	let workspaces = warmups.get(binding.hubClient);
+	if (!workspaces) {
+		workspaces = new Map();
+		warmups.set(binding.hubClient, workspaces);
+	}
+	let state = workspaces.get(workspacePath);
 	if (!state) {
-		state = { attempts: 0, done: false, inFlight: false };
-		warmups.set(workspacePath, state);
+		state = { attempts: 0, done: false, cancelled: false, inFlight: false };
+		workspaces.set(workspacePath, state);
 	}
 	if (
 		state.done ||
@@ -67,8 +57,8 @@ export function warmPluginCommandService(
 	}
 	state.attempts += 1;
 	state.inFlight = true;
-	void getPluginCommandService(ctx, workspacePath)
-		.listCommands()
+	void getPluginCommandClient(binding)
+		.listCommands(workspacePath)
 		.then(
 			(commands) => commands.length > 0,
 			(error) => {
@@ -77,6 +67,7 @@ export function warmPluginCommandService(
 			},
 		)
 		.then((loaded) => {
+			if (state.cancelled) return;
 			state.inFlight = false;
 			if (loaded) {
 				state.done = true;
@@ -87,19 +78,23 @@ export function warmPluginCommandService(
 			}
 			state.retry = setTimeout(() => {
 				state.retry = undefined;
-				warmPluginCommandService(ctx, workspacePath);
+				warmPluginCommandService(ctx, workspacePath, binding);
 			}, WARMUP_RETRY_DELAY_MS);
 			state.retry.unref?.();
 		});
 }
 
-/** Test hook: forget warm-up progress and cached services. */
-export function resetPluginCommandServicesForTests(): void {
-	for (const state of warmups.values()) {
-		clearTimeout(state.retry);
+/** Cancel client warmup retries when Desktop disconnects; the Hub owns sandboxes. */
+export function disposePluginCommandWarmups(
+	clients?: Iterable<NodeHubClient>,
+): void {
+	for (const client of clients ?? warmups.keys()) {
+		for (const state of warmups.get(client)?.values() ?? []) {
+			state.cancelled = true;
+			clearTimeout(state.retry);
+		}
+		warmups.delete(client);
 	}
-	warmups.clear();
-	servicesByWorkspace.clear();
 }
 
 /**
@@ -107,13 +102,15 @@ export function resetPluginCommandServicesForTests(): void {
  * prompt. Returns undefined when no enabled plugin declares the command so
  * the prompt continues through the normal path.
  */
-export async function runPluginSlashCommand(
-	ctx: SidecarContext,
-	input: { workspacePath: string; prompt: string },
-): Promise<PluginCommandResult | undefined> {
+export async function runPluginSlashCommand(input: {
+	workspacePath: string;
+	prompt: string;
+	binding: SessionRuntimeBinding;
+}): Promise<PluginCommandResult | undefined> {
 	const match = input.prompt.match(/^\/(\S+)([\s\S]*)$/);
 	if (!match?.[1]) return undefined;
-	return await getPluginCommandService(ctx, input.workspacePath).run(
+	return await getPluginCommandClient(input.binding).runCommand(
+		input.workspacePath,
 		match[1],
 		match[2] ?? "",
 	);

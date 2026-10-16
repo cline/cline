@@ -1203,10 +1203,13 @@ export interface HubSessionActivity {
 	activeSessionCount: number;
 	/** Distinct client ids attached to those sessions. */
 	participantClientCount: number;
+	/** Plugin discovery, command execution, or installation still in flight. */
+	activePluginRequests: number;
 }
 
 /**
- * Summarize live activity from a `session.list` payload. A session counts as
+ * Summarize live sessions and plugin requests from a `session.list` payload.
+ * Plugin requests are counted independently of attached sessions. A session counts as
  * active only while a client is attached to it - the one signal that cannot
  * go stale, because participants are live socket subscriptions the hub drops
  * the moment a client's connection closes.
@@ -1249,7 +1252,19 @@ export function summarizeHubSessionActivity(
 			}
 		}
 	}
-	return { activeSessionCount, participantClientCount: clientIds.size };
+	const count =
+		payload && typeof payload === "object"
+			? (payload as { activePluginRequests?: unknown }).activePluginRequests
+			: undefined;
+	const activePluginRequests =
+		typeof count === "number" && Number.isSafeInteger(count) && count >= 0
+			? count
+			: 0;
+	return {
+		activeSessionCount,
+		participantClientCount: clientIds.size,
+		activePluginRequests,
+	};
 }
 
 export function hasActiveHubSessions(payload: unknown): boolean {
@@ -1297,7 +1312,9 @@ export async function localHubHasNoActiveSessions(
 ): Promise<boolean> {
 	try {
 		const activity = await queryHubSessionActivity(url, authToken, options);
-		return activity.activeSessionCount === 0;
+		return (
+			activity.activeSessionCount === 0 && activity.activePluginRequests === 0
+		);
 	} catch {
 		// Recovery callers must not treat a hub they cannot positively observe
 		// idle as safe to stop, so an unanswerable hub reports as busy here.

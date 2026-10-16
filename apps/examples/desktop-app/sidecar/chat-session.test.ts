@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionNotFoundError } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -116,7 +116,10 @@ function localRuntimeContext(
 					workspaceRoot,
 					sessionManager,
 					hubClient: {
-						command: vi.fn(async () => undefined),
+						command: vi.fn(async () => ({
+							ok: true,
+							payload: { handled: false, commands: [] },
+						})),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
@@ -2234,7 +2237,13 @@ describe("workspace metadata prewarming", () => {
 describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
 
+	beforeEach(() => {
+		const settings = mkdtempSync(join(tmpdir(), "desktop-slash-settings-"));
+		tempRoots.push(settings);
+		vi.stubEnv("CLINE_DIR", settings);
+	});
 	afterEach(() => {
+		vi.unstubAllEnvs();
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -2307,6 +2316,41 @@ Follow the desktop send workflow instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
+	it("sends an SSH plugin's submitPrompt while preserving the typed command for display", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		binding.kind = "ssh";
+		binding.sessionManager.updateSessionConnection = vi
+			.fn()
+			.mockResolvedValue(undefined);
+		const command = vi.fn<typeof binding.hubClient.command>(async () => ({
+			version: "v1",
+			ok: true,
+			payload: {
+				handled: true,
+				result: { reply: "Ready", submitPrompt: "Remote plugin instructions" },
+			},
+		}));
+		binding.hubClient.command = command;
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/remote original input",
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
+			{ workspaceRoot: workspace, name: "remote", input: " original input" },
+			undefined,
+			{ timeoutMs: null },
+		);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({ prompt: "Remote plugin instructions" }),
+		);
+		expect(session.prompt).toBe("/remote original input");
+	});
+
 	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
@@ -2317,9 +2361,7 @@ Follow the desktop send workflow instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
-		// Skills are not expanded into the user message: the runtime's skills
-		// tool loads the instructions, and the persisted transcript keeps the
-		// typed command.
+		// Skills remain typed for the runtime skills tool; the display prompt is unchanged.
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "/desktop-send-skill write the docs",
@@ -2392,7 +2434,7 @@ Follow the desktop send workflow instructions.`,
 		expect(session.prompt).toBe("/desktop-send-workflow ship it");
 	});
 
-	it("keeps a skill command as typed when a queued prompt is edited", async () => {
+	it("expands local skill instructions when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
@@ -2400,13 +2442,13 @@ Follow the desktop send workflow instructions.`,
 			action: "update_pending_prompt",
 			sessionId,
 			promptId: "queued-1",
-			prompt: "/desktop-send-skill later please",
+			prompt: "Follow the desktop send skill instructions. later please",
 		});
 
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
-			prompt: "/desktop-send-skill later please",
+			prompt: "Follow the desktop send skill instructions. later please",
 		});
 	});
 

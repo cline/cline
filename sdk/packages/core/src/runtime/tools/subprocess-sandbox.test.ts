@@ -51,6 +51,31 @@ describe("SubprocessSandbox runtime resolution", () => {
 		).toBe("node");
 	});
 
+	it("uses the current compiled Bun executable without relying on PATH", () => {
+		const path = "/opt/cline/cline";
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: path,
+				env: {},
+				host: { isBunRuntime: true, selfExecPath: path },
+			}),
+		).toBe(path);
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: path,
+				env: {},
+				host: { isBunRuntime: false, selfExecPath: path },
+			}),
+		).toBe("node");
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: "/other/cline",
+				env: {},
+				host: { isBunRuntime: true, selfExecPath: path },
+			}),
+		).toBe("node");
+	});
+
 	it("allows an explicit helper runtime override", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({

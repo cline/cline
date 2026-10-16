@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installPlugin } from "@cline/core";
+import type { PluginInstallOptions } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getOfficialPluginInstallPath,
@@ -10,14 +10,14 @@ import {
 } from "./marketplace";
 import type { JsonRecord } from "./types";
 
-// Marketplace plugin installs run in-process through @cline/core (spawning a
-// `cline` binary fails with 'Executable not found in $PATH: "cline"' in the
-// packaged app). Stub only installPlugin; everything else stays real.
-vi.mock(import("@cline/core"), async (importOriginal) => ({
-	...(await importOriginal()),
-	installPlugin: vi.fn(),
+// Desktop delegates install-time contribution loading to its connected Hub.
+const installPluginMock = vi.fn(async (_options: PluginInstallOptions) => ({
+	source: "",
+	installPath: "",
+	entryPaths: [] as string[],
+	mcpSyncFailures: [],
+	mcpOAuthCandidates: [],
 }));
-const installPluginMock = vi.mocked(installPlugin);
 
 const GOAL_ENTRY = {
 	id: "goal",
@@ -68,8 +68,11 @@ function goalInstallDir(): string {
 }
 
 describe("official plugin install detection", () => {
-	it("installs plugins in-process through @cline/core", async () => {
-		const result = await installMarketplaceEntry({ entry: GOAL_ENTRY });
+	it("delegates plugin installation to the Hub", async () => {
+		const result = await installMarketplaceEntry(
+			{ entry: GOAL_ENTRY },
+			{ pluginInstaller: installPluginMock },
+		);
 
 		expect(result).toMatchObject({
 			status: "installed",
@@ -90,7 +93,10 @@ describe("official plugin install detection", () => {
 		installPluginMock.mockRejectedValueOnce(new Error("install exploded"));
 
 		await expect(
-			installMarketplaceEntry({ entry: GOAL_ENTRY }),
+			installMarketplaceEntry(
+				{ entry: GOAL_ENTRY },
+				{ pluginInstaller: installPluginMock },
+			),
 		).rejects.toThrow(/install exploded/);
 		expect(installPluginMock).toHaveBeenCalledTimes(1);
 	});
@@ -101,7 +107,10 @@ describe("official plugin install detection", () => {
 		// so every retry from the UI would fail against the stale directory.
 		await mkdir(goalInstallDir(), { recursive: true });
 
-		const result = await installMarketplaceEntry({ entry: GOAL_ENTRY });
+		const result = await installMarketplaceEntry(
+			{ entry: GOAL_ENTRY },
+			{ pluginInstaller: installPluginMock },
+		);
 
 		expect(result).toMatchObject({
 			status: "installed",
@@ -129,7 +138,10 @@ describe("official plugin install detection", () => {
 			"export default {};",
 		);
 
-		const result = await installMarketplaceEntry({ entry: GOAL_ENTRY });
+		const result = await installMarketplaceEntry(
+			{ entry: GOAL_ENTRY },
+			{ pluginInstaller: installPluginMock },
+		);
 
 		expect(result).toMatchObject({
 			status: "installed",

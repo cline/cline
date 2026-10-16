@@ -378,3 +378,27 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## Hub plugin client
+
+`HubPluginClient` from `@cline/core/hub` uses an existing authenticated
+`NodeHubClient` connection. Plugin code executes on that Hub host; the client
+loads no plugin modules or bootstrap resources.
+
+```ts
+const plugins = new HubPluginClient(hubClient);
+const commands = await plugins.listCommands(workspaceRoot);
+const result = await plugins.runCommand(workspaceRoot, "hello", "input");
+const installed = await plugins.install({ source: "goal", force: false });
+```
+
+`listCommands` and `runCommand` select plugins for the requested workspace.
+An unrecognized command returns `undefined`; recognized commands return
+`{ reply?, submitPrompt? }`. Discovery refreshes when plugin files or settings
+change. `install` installs globally on the Hub host and syncs plugin MCP
+contributions there; it allows up to ten minutes for installation. Failed Hub
+replies reject with the reported error. Discovery and command execution leave
+timeouts to the plugin runtime rather than imposing the transport's 30-second
+default. Active plugin requests prevent automatic Hub replacement even when
+no session is attached. The Hub owns command services, waits
+for active requests when stopping, and then shuts down their plugin runtimes.

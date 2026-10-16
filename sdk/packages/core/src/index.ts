@@ -969,6 +969,10 @@ export {
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
 export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+} from "./extensions/plugin/plugin-runtime";
+export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
 	type ApplyPatchInput,
@@ -1024,6 +1028,11 @@ export {
 } from "./extensions/tools";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
+export {
+	type EmbeddedResources,
+	materializeEmbeddedResources,
+	packEmbeddedResources,
+} from "./runtime/embedded-resources";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
 	applyClineFeaturedModels,

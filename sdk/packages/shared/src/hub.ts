@@ -48,6 +48,9 @@ export type HubCapabilityName =
 	| "plugins.list"
 	| "plugins.status"
 	| "plugins.reload"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
+	| "plugins.install"
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
@@ -81,6 +84,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"plugins.list",
 	"plugins.status",
 	"plugins.reload",
+	"plugins.commands.list",
+	"plugins.commands.run",
+	"plugins.install",
 	"stream.replay",
 ];
 
@@ -660,6 +666,9 @@ export type HubCommandName =
 	| "plugins.list"
 	| "plugins.status"
 	| "plugins.reload"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
+	| "plugins.install"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"

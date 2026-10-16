@@ -1,40 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getRuntimeBinding } from "./context";
 
-const { listCommandsMock, runMock, createPluginCommandServiceMock } =
-	vi.hoisted(() => {
-		const listCommandsMock = vi.fn(
-			async (): Promise<Array<{ name: string; description?: string }>> => [],
-		);
-		const runMock = vi.fn(
-			async (
-				_name: string,
-				_input: string,
-			): Promise<{ reply?: string; submitPrompt?: string } | undefined> =>
-				undefined,
-		);
-		return {
-			listCommandsMock,
-			runMock,
-			createPluginCommandServiceMock: vi.fn(() => ({
-				listCommands: listCommandsMock,
-				run: runMock,
-				shutdown: vi.fn(),
-			})),
-		};
-	});
-
-vi.mock("@cline/core", async () => {
-	const actual =
-		await vi.importActual<typeof import("@cline/core")>("@cline/core");
-	return {
-		...actual,
-		createPluginCommandService: createPluginCommandServiceMock,
-	};
-});
+const listCommandsMock = vi.fn(
+	async (): Promise<Array<{ name: string; description?: string }>> => [],
+);
+const runMock = vi.fn(
+	async (
+		_name: string,
+		_input: string,
+	): Promise<{ reply?: string; submitPrompt?: string } | undefined> =>
+		undefined,
+);
+const commandMock = vi.fn(
+	async (command: string, payload: Record<string, string>) => {
+		if (command === "plugins.commands.list")
+			return { ok: true, payload: { commands: await listCommandsMock() } };
+		const result = await runMock(payload.name, payload.input);
+		return { ok: true, payload: { handled: result !== undefined, result } };
+	},
+);
 
 import { handleCommand } from "./commands";
 import {
-	resetPluginCommandServicesForTests,
+	disposePluginCommandWarmups,
 	runPluginSlashCommand,
 	WARMUP_MAX_ATTEMPTS,
 	WARMUP_RETRY_DELAY_MS,
@@ -54,6 +42,7 @@ function createContext(kind: "local" | "ssh" = "local"): SidecarContext {
 					kind,
 					environmentId: "env",
 					workspaceRoot: "/local/launch-root",
+					hubClient: { command: commandMock },
 				},
 			],
 		]),
@@ -69,11 +58,11 @@ async function flushPromises(): Promise<void> {
 describe("plugin command warmup", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
-		resetPluginCommandServicesForTests();
+		disposePluginCommandWarmups();
 		listCommandsMock.mockReset();
 		listCommandsMock.mockResolvedValue([]);
 		runMock.mockReset();
-		createPluginCommandServiceMock.mockClear();
+		commandMock.mockClear();
 	});
 
 	afterEach(() => {
@@ -89,10 +78,15 @@ describe("plugin command warmup", () => {
 		await flushPromises();
 
 		// The service is keyed on the reported workspace, not the launch root.
-		expect(createPluginCommandServiceMock).toHaveBeenCalledTimes(1);
-		expect(createPluginCommandServiceMock).toHaveBeenCalledWith(
-			expect.objectContaining({ cwd: WORKSPACE, workspacePath: WORKSPACE }),
+		expect(commandMock).toHaveBeenCalledWith(
+			"plugins.commands.list",
+			{
+				workspaceRoot: WORKSPACE,
+			},
+			undefined,
+			{ timeoutMs: null },
 		);
+
 		expect(listCommandsMock).toHaveBeenCalledTimes(1);
 
 		// Re-reporting the same workspace does not reload a warmed host.
@@ -106,7 +100,14 @@ describe("plugin command warmup", () => {
 		await expect(
 			handleCommand(ctx, "list_plugin_commands", { workspacePath: WORKSPACE }),
 		).resolves.toEqual([{ name: "goal" }]);
-		expect(createPluginCommandServiceMock).toHaveBeenCalledTimes(1);
+		expect(commandMock).toHaveBeenCalledWith(
+			"plugins.commands.list",
+			{
+				workspaceRoot: WORKSPACE,
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 	});
 
 	it("recovers from a failed cold load and makes the command available", async () => {
@@ -141,9 +142,10 @@ describe("plugin command warmup", () => {
 			handleCommand(ctx, "list_plugin_commands", { workspacePath: WORKSPACE }),
 		).resolves.toEqual([{ name: "goal", description: "Set a goal" }]);
 		await expect(
-			runPluginSlashCommand(ctx, {
+			runPluginSlashCommand({
 				workspacePath: WORKSPACE,
 				prompt: "/goal ship it",
+				binding: getRuntimeBinding(ctx, "env"),
 			}),
 		).resolves.toEqual({ reply: "Goal set: ship it" });
 		expect(runMock).toHaveBeenCalledWith("goal", " ship it");
@@ -167,12 +169,76 @@ describe("plugin command warmup", () => {
 		expect(listCommandsMock).toHaveBeenCalledTimes(WARMUP_MAX_ATTEMPTS);
 	});
 
-	it("does not spawn a sandbox for remote workspaces", async () => {
+	it("asks the SSH Hub to warm remote workspaces", async () => {
 		const ctx = createContext("ssh");
 		await handleCommand(ctx, "warm_plugin_commands", {
 			workspacePath: "/srv/code",
 		});
 		await flushPromises();
-		expect(createPluginCommandServiceMock).not.toHaveBeenCalled();
+		expect(commandMock).toHaveBeenCalledWith(
+			"plugins.commands.list",
+			{
+				workspaceRoot: "/srv/code",
+			},
+			undefined,
+			{ timeoutMs: null },
+		);
 	});
+});
+
+it("does not schedule a new retry after an in-flight warmup is disposed", async () => {
+	vi.useFakeTimers();
+	try {
+		let complete: (commands: Array<{ name: string }>) => void = () => {};
+		listCommandsMock.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const ctx = createContext();
+		await handleCommand(ctx, "warm_plugin_commands", {
+			workspacePath: WORKSPACE,
+		});
+		disposePluginCommandWarmups([getRuntimeBinding(ctx, "env").hubClient]);
+		complete([]);
+		await flushPromises();
+		expect(vi.getTimerCount()).toBe(0);
+	} finally {
+		disposePluginCommandWarmups();
+		vi.useRealTimers();
+	}
+});
+
+it("uses the selected SSH workspace and Hub for discovery and command execution", async () => {
+	const ctx = createContext("ssh");
+	const binding = getRuntimeBinding(ctx, "env");
+	binding.workspaceRoot = "/srv/project";
+	runMock.mockResolvedValueOnce({ reply: "remote reply" });
+	await handleCommand(ctx, "list_plugin_commands");
+	expect(commandMock).toHaveBeenLastCalledWith(
+		"plugins.commands.list",
+		{
+			workspaceRoot: "/srv/project",
+		},
+		undefined,
+		{ timeoutMs: null },
+	);
+	expect(
+		await runPluginSlashCommand({
+			binding,
+			workspacePath: binding.workspaceRoot,
+			prompt: "/hello remote",
+		}),
+	).toEqual({ reply: "remote reply" });
+	expect(commandMock).toHaveBeenLastCalledWith(
+		"plugins.commands.run",
+		{
+			workspaceRoot: "/srv/project",
+			name: "hello",
+			input: " remote",
+		},
+		undefined,
+		{ timeoutMs: null },
+	);
 });

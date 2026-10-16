@@ -87,6 +87,11 @@ Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
 
+Plugin slash-command discovery and execution use `HubPluginClient` against the
+selected local or SSH Hub. Marketplace plugin installation also runs through the
+local Hub because discovery of MCP contributions executes plugin code. Desktop
+does not load plugin modules or request a plugin runtime directory from the CLI.
+
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
 that context across the Hub transport and scopes the daemon-owned telemetry

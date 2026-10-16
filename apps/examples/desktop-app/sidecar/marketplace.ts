@@ -18,10 +18,11 @@ import {
 	resolve,
 } from "node:path";
 import {
-	installPlugin as installCorePlugin,
 	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
+	type PluginInstallOptions,
+	type PluginInstallResult,
 	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
@@ -817,8 +818,13 @@ async function installSkill(
 	};
 }
 
+type PluginInstaller = (
+	options: PluginInstallOptions,
+) => Promise<PluginInstallResult>;
+
 async function installPlugin(
 	entry: MarketplaceInstallInput,
+	pluginInstaller: PluginInstaller | undefined,
 ): Promise<MarketplaceInstallResult> {
 	const installArgs = entry.install.args ?? [];
 	if (installArgs.length !== 1) {
@@ -835,17 +841,10 @@ async function installPlugin(
 			message: `${entry.name ?? entry.id} is already installed.`,
 		};
 	}
-	// Install in-process instead of shelling out to a `cline` binary: the
-	// packaged desktop app cannot assume a CLI install exists on the user's
-	// PATH (GUI apps inherit launchd's minimal PATH on macOS), which surfaced
-	// as 'Executable not found in $PATH: "cline"' in the marketplace UI.
-	//
-	// force reclaims a leftover directory from a failed or interrupted
-	// install: without it the installer refuses to replace the existing path
-	// and every retry from the UI would fail the same way. This is safe
-	// because the state check just confirmed the directory contains no
-	// loadable plugin module.
-	const result = await installCorePlugin({
+	if (!pluginInstaller)
+		throw new Error("Plugin installation requires a connected Hub");
+	// Contribution discovery executes plugin code inside the Hub.
+	const result = await pluginInstaller({
 		source: installArgs[0] ?? "",
 		force: installState === "partial",
 	});
@@ -870,7 +869,10 @@ async function installPlugin(
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
+	options: {
+		spawnCommand?: SpawnCommand;
+		pluginInstaller?: PluginInstaller;
+	} = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
@@ -894,7 +896,7 @@ export async function installMarketplaceEntry(
 		return installSkill(entry, spawnCommand);
 	}
 	if (entry.type === "plugin") {
-		return installPlugin(entry);
+		return installPlugin(entry, options.pluginInstaller);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }
@@ -927,6 +929,7 @@ export async function installMarketplaceEntryFromCatalog(
 	options: {
 		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
+		pluginInstaller?: PluginInstaller;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
 	const requested = readInstallRequest(args);
@@ -942,7 +945,10 @@ export async function installMarketplaceEntryFromCatalog(
 	}
 	return installMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand },
+		{
+			spawnCommand: options.spawnCommand,
+			pluginInstaller: options.pluginInstaller,
+		},
 	);
 }
 
@@ -986,6 +992,7 @@ export async function installMarketplaceEntryForDesktopCommand(
 	options: {
 		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
+		pluginInstaller?: PluginInstaller;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
 	return installMarketplaceEntryFromCatalog(args, options);

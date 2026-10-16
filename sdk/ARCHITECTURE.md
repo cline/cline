@@ -763,10 +763,10 @@ Because no plugin code runs on the daemon's thread, its `uncaughtException` /
 #### Worker and subprocess transports
 
 Both transports share one RPC protocol and one bootstrap
-(`plugin-sandbox-bootstrap.ts`), bundled self-contained into
-`dist/extensions/plugin-sandbox-bootstrap.js` (the core build fails if it
-imports anything but Node builtins, because hosts ship it without
-`node_modules`):
+(`plugin-sandbox-bootstrap.ts`). After SDK compilation, Core builds
+`dist/plugin-runtime/`, containing the self-contained bootstrap and the complete
+SDK import graph under `node_modules/@cline`. Package exports come from the SDK
+manifests, including browser subpaths. Hosts ship this directory as one artifact:
 
 - `WorkerSandbox` (worker mode): structured clone over the worker's message
   port. A worker must not `chdir` (Bun would change the host's cwd), so the
@@ -779,16 +779,22 @@ imports anything but Node builtins, because hosts ship it without
 - `SubprocessSandbox` (sandbox mode): JSON IPC to a `node`/`bun` child with
   stdout ignored.
 
-Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
-or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop
-sidecar sets it to the copy shipped as a Tauri resource). A host that ships
-none cannot run plugins at all: every load fails with
-`PluginBootstrapMissingError`, which names the env var, rather than
-importing plugin code into the host. The SSH remote host is in that state
-today: since #14792 it is the bundled Cline CLI uploaded as a single file
-with no bootstrap beside it, so plugins fail on remotes until the remote
-runtime carries one.
+Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
+package-local `plugin-runtime` directory, or embedded resources. Source hosts
+prefer their sibling TypeScript bootstrap over packaged runtimes so development
+and tests execute the current bootstrap and module importer without rebuilding.
+The CLI compiler embeds the archive and materializes it under
+`CLINE_DIR/runtime/plugins/<hash>`
+when needed. Matching cached bytes are reused and corrupt files are repaired;
+builds retain separate directories so running workers survive upgrades. Plugin
+SDK imports resolve against this same artifact. VS Code copies the complete
+artifact into its extension bundle. Desktop delegates plugin execution to its
+CLI-hosted Hub. A host without a bootstrap fails closed with
+`PluginBootstrapMissingError`; plugin code never runs on the host main thread.
+
+Compiled Bun executables can also run subprocess plugins themselves, using
+`BUN_BE_BUN=1` when no separate Node or Bun runtime is available. Resource
+packaging is independent of execution-mode policy.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -1062,7 +1068,6 @@ session requires the current claim token. Terminal status is persisted before
 writing the optional report, so a report filesystem failure cannot replay a
 completed turn. Report and cleanup failures are logged separately.
 
-
 ## Navigating the Codebase
 
 ### Starting Points by Task
@@ -1250,3 +1255,25 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Hub-owned plugin commands
+
+`plugins.commands.list` and `plugins.commands.run` load and execute slash-command
+contributions inside the Hub, using one command service per resolved workspace.
+`plugins.install` installs a plugin and discovers its MCP contributions on the
+Hub host. The Hub waits for in-flight requests and shuts down command services
+when stopping. `HubPluginClient` exposes these operations to clients without
+loading plugin modules. Desktop routes local and SSH command menus/execution to
+the corresponding runtime binding; its marketplace installs target the local Hub.
+Desktop no longer requests an extracted runtime directory from the CLI.
+
+Plugin command discovery and execution defer their deadline to the plugin runtime,
+so the transport cannot discard a valid long-running handler's result. The Hub
+reports active plugin requests in both `session.list` activity and `hub.status`;
+replacement and recovery checks count these requests even when no chat is attached.
+Admission is drained before activity is checked, preventing new plugin work from
+starting between the idle check and retirement.
+
+The Hub owns the SQLite session store it creates for its default local runtime
+and closes that store after runtime shutdown. An injected session host retains
+ownership of its persistence resources.

@@ -155,6 +155,28 @@ describe("hub discovery", () => {
 				{ self },
 			),
 		).toBe(false);
+		// Equal core version where the running Hub has an unstamped source-* buildId
+		// and this build is stamped with sdk-v1-*: retire the unstamped Hub, never reverse.
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v1",
+					buildId: "source-0.0.70",
+					coreVersion: "0.0.70",
+				},
+				{ self: { buildId: "sdk-v1-abc", coreVersion: "0.0.70" } },
+			),
+		).toBe(false);
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v1",
+					buildId: "sdk-v1-abc",
+					coreVersion: "0.0.70",
+				},
+				{ self: { buildId: "source-0.0.70", coreVersion: "0.0.70" } },
+			),
+		).toBe(true);
 		// Different build with no ordering information at all: attach rather
 		// than replace. Retiring an unordered peer is what let two installs
 		// shut each other's daemon down in a loop.

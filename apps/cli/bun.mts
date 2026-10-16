@@ -1,14 +1,15 @@
 import {
-	copyFileSync,
 	cpSync,
 	existsSync,
 	mkdirSync,
 	readdirSync,
+	rmSync,
 	statSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../sdk/packages/core/scripts/runtime-build-id";
 
 function defineProcessEnv(name: string): string {
 	return JSON.stringify(process.env[name] ?? "");
@@ -85,6 +86,10 @@ const result = await Bun.build({
 	],
 	define: {
 		"process.env.NODE_ENV": '"production"',
+		__CLINE_CORE_RUNTIME_BUILD_ID__: JSON.stringify(
+			resolveSdkRuntimeBuildId(repoRoot),
+		),
+		__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: JSON.stringify(Date.now()),
 		...(process.env.TELEMETRY_SERVICE_API_KEY
 			? {
 					"process.env.TELEMETRY_SERVICE_API_KEY": defineProcessEnv(
@@ -136,16 +141,13 @@ if (result.logs.length > 0) {
 	}
 }
 
-const coreBootstrapPath = join(
+const corePluginRuntimePath = join(
 	rootDir,
-	"../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
+	"../../sdk/packages/core/dist/plugin-runtime",
 );
-const cliBootstrapPath = join(
-	rootDir,
-	"./dist/extensions/plugin-sandbox-bootstrap.js",
-);
-mkdirSync(dirname(cliBootstrapPath), { recursive: true });
-copyFileSync(coreBootstrapPath, cliBootstrapPath);
+const cliPluginRuntimePath = join(rootDir, "dist/plugin-runtime");
+rmSync(cliPluginRuntimePath, { recursive: true, force: true });
+cpSync(corePluginRuntimePath, cliPluginRuntimePath, { recursive: true });
 
 if (existsSync(hubWebviewDistPath)) {
 	mkdirSync(dirname(cliHubWebviewDistPath), { recursive: true });

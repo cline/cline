@@ -291,6 +291,12 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
 
+Compiled CLI binaries embed the plugin bootstrap, SDK modules, and dashboard
+assets. They can start the Hub, load SDK plugins, and serve the dashboard without
+a separate Node/Bun installation or adjacent runtime files. Embedded resources
+are materialized into build-specific directories under `CLINE_DIR/runtime`
+(default: `~/.cline/runtime`).
+
 ## Hub dashboard
 
 Run `cline hub` to list hub subcommands. To start the browser dashboard:

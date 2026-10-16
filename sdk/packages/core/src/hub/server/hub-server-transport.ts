@@ -118,6 +118,7 @@ import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
+import { HubPluginCommandService } from "./plugin-command-service";
 import {
 	HubAgendaTaskCommandService,
 	isAgendaTaskCommand,
@@ -278,7 +279,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionTools: AgentTool[] = [];
 	private readonly sessionExtensions: AgentExtension[] = [];
 	private readonly settings: CoreSettingsService;
+	private readonly pluginCommands: HubPluginCommandService;
 	private readonly sessionSearch: SessionHistorySearchService;
+	private readonly sessionStore?: SqliteSessionStore;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
@@ -295,6 +298,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private unsubscribePluginStatus?: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.pluginCommands = new HubPluginCommandService(options);
 		this.plugins.setLogger(hubPluginLogger);
 		this.unsubscribePluginStatus = this.plugins.subscribe((status) => {
 			this.publish(
@@ -303,14 +307,17 @@ export class HubServerTransport implements NativeHubTransport {
 				}),
 			);
 		});
-		this.sessionHost =
-			options.sessionHost ??
-			new LocalRuntimeHost({
-				sessionService: new CoreSessionService(new SqliteSessionStore()),
+		if (options.sessionHost) {
+			this.sessionHost = options.sessionHost;
+		} else {
+			this.sessionStore = new SqliteSessionStore();
+			this.sessionHost = new LocalRuntimeHost({
+				sessionService: new CoreSessionService(this.sessionStore),
 				fetch: options.fetch,
 				logger: options.logger,
 				telemetry: options.telemetry,
 			});
+		}
 		this.sessionSearch = new SessionHistorySearchService(
 			this.sessionHost,
 			options.sessionSearchOptions ??
@@ -758,9 +765,15 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		await this.pluginCommands.dispose();
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
-		await this.sessionHost.dispose("hub_server_stop");
+		try {
+			await this.sessionHost.dispose("hub_server_stop");
+		} finally {
+			// The Hub owns the default store; injected runtimes own theirs.
+			this.sessionStore?.close();
+		}
 		await this.schedules.dispose();
 		if (this.cronService) {
 			try {
@@ -868,8 +881,16 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionMessages(this.ctx, envelope);
 			case "session.compaction.get":
 				return await handleSessionCompactionGet(this.ctx, envelope);
-			case "session.list":
-				return await handleSessionList(this.ctx, envelope);
+			case "session.list": {
+				const reply = await handleSessionList(this.ctx, envelope);
+				return {
+					...reply,
+					payload: {
+						...reply.payload,
+						activePluginRequests: this.pluginCommands.activeRequestCount,
+					},
+				};
+			}
 			case "session.search":
 				return await handleSessionSearch(this.ctx, envelope);
 			case "session.update":
@@ -926,6 +947,10 @@ export class HubServerTransport implements NativeHubTransport {
 			case "plugins.list":
 			case "plugins.status":
 				return okReply(envelope, { plugins: this.plugins.list() });
+			case "plugins.commands.list":
+			case "plugins.commands.run":
+			case "plugins.install":
+				return await this.pluginCommands.handleCommand(envelope);
 			case "plugins.reload":
 				return await this.handlePluginsReload(envelope);
 			case "run.abort":
@@ -1146,12 +1171,16 @@ export class HubServerTransport implements NativeHubTransport {
 			hubId: this.hubId,
 			draining: this.draining,
 			activeRpcTurns,
+			activePluginRequests: this.pluginCommands.activeRequestCount,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
 				: undefined,
 			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
-			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
+			idle:
+				activeRpcTurns === 0 &&
+				this.pluginCommands.activeRequestCount === 0 &&
+				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
 

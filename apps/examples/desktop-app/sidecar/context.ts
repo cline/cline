@@ -31,6 +31,7 @@ import {
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
+import { disposePluginCommandWarmups } from "./plugin-commands";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -686,6 +687,9 @@ export async function disposeSidecarContext(
 	ctx: SidecarContext,
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
+	disposePluginCommandWarmups(
+		[...ctx.runtimeBindings.values()].map((binding) => binding.hubClient),
+	);
 	const cleanup: Array<Promise<unknown>> = [];
 	const approvalCleanup: Array<Promise<unknown>> = [];
 
@@ -1389,6 +1393,7 @@ async function disposeRuntimeBinding(
 	binding: SessionRuntimeBinding,
 	reason: string,
 ): Promise<void> {
+	disposePluginCommandWarmups([binding.hubClient]);
 	try {
 		binding.unsubscribeSessionEvents();
 	} catch {

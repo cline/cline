@@ -65,7 +65,6 @@ const myPlugin: AgentPlugin = {
 
 Hooks are defined inside the `hooks` object, not directly on the extension. The available lifecycle hooks are `beforeRun`, `afterRun`, `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, and `onEvent`.
 
-
 ## Next Steps
 
 Register with `ClineCore`:
@@ -110,9 +109,9 @@ Values passed to and returned from a plugin cross a thread boundary, so they mus
 
 Plugin code never runs on the host's main thread. One other mode is available as an opt-in through `CLINE_PLUGIN_MODE` (or `mode` on `resolveAndLoadAgentPlugins`):
 
-- **`sandbox`**: the previous per-session subprocess sandbox. It needs `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself, and does not apply the per-session plugin policy or report plugin status.
+- **`sandbox`**: the previous per-session subprocess sandbox. A compiled Cline CLI uses its embedded Bun runtime; other hosts need `node` or `bun` on `PATH` when the host isn't `node` or `bun` itself, and this mode does not apply the per-session plugin policy or report plugin status.
 
-Both modes need the worker bootstrap. The CLI, the hub, the desktop app, and the VS Code extension ship it; an SDK host that bundles `@cline/core` can copy `dist/extensions/plugin-sandbox-bootstrap.js` next to its bundle, or point `CLINE_PLUGIN_BOOTSTRAP_PATH` at it. A host that ships none (the SSH remote, which receives only the Cline CLI binary, does not yet) cannot load any plugin; each one is reported `failed` with a message naming that variable.
+Both modes need Core's complete plugin runtime. An SDK host that bundles `@cline/core` should ship `dist/plugin-runtime` beside its bundle, or point `CLINE_PLUGIN_RUNTIME_DIR` at that directory. It includes the bootstrap and SDK package exports used by plugins. Compiled CLI binaries embed and materialize this artifact automatically, without installing SDK packages into each plugin directory. Hosts without a bootstrap fail closed with `PluginBootstrapMissingError`; plugin code never falls back to the host's main thread.
 
 Plugins are bound to a session when it starts. Adding, editing, or reloading a plugin affects only sessions started afterwards; running sessions keep the plugins and code they started with. Every new session imports the plugin fresh, so any change is picked up; `cline hub plugins --reload <plugin>` re-checks it and clears a failed status.
 

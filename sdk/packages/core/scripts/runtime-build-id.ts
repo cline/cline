@@ -34,7 +34,10 @@ function collectRuntimeSourceFiles(directory: string): string[] {
  */
 export function resolveSdkRuntimeBuildId(repoRoot: string): string {
 	const packagesRoot = join(repoRoot, "sdk", "packages");
-	const inputs = [join(repoRoot, "bun.lock")];
+	const inputs = [
+		join(repoRoot, "bun.lock"),
+		join(packagesRoot, "core", "build-plugin-runtime.mts"),
+	];
 
 	for (const packageName of RUNTIME_PACKAGE_NAMES) {
 		const packageRoot = join(packagesRoot, packageName);
