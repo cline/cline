@@ -45,6 +45,7 @@ export {
 	AgentComposerTextarea,
 	type AgentComposerTextareaProps,
 	type AgentComposerVariant,
+	agentComposerTokenClassName,
 } from "./agent-composer.js";
 export {
 	AgentContextUsage,

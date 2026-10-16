@@ -98,6 +98,8 @@ export const ChatMessageSchema = z.object({
 			providerAuth: ProviderAuthInfoSchema.optional(),
 			modelId: z.string().optional(),
 			userRunSpan: z.number().int().nonnegative().optional(),
+			/** Absolute paths of files attached to a user message (resolved `@` mentions). */
+			attachedFiles: z.array(z.string()).optional(),
 			runCount: z.number().int().positive().optional(),
 			checkpoint: z
 				.object({

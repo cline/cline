@@ -45,6 +45,12 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
+import {
+	addKnownMentionPaths,
+	getComposerHighlights,
+	setKnownSlashCommands,
+	useKnownComposerTokens,
+} from "@/lib/composer-tokens";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	buildModelPickerData,
@@ -267,20 +273,15 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	if (slashIndex === -1) {
 		return null;
 	}
-	// Slash must be at the start or preceded by whitespace.
-	if (slashIndex > 0 && !/\s/.test(left[slashIndex - 1] ?? "")) {
+	// The sidecar only runs a command that starts the trimmed prompt, so a
+	// mid-sentence slash is plain text.
+	if (left.slice(0, slashIndex).trim() !== "") {
 		return null;
 	}
 	const query = left.slice(slashIndex + 1);
 	// No whitespace allowed inside the query — once the user typed a space
 	// the slash command has been committed.
 	if (/\s/.test(query)) {
-		return null;
-	}
-	// Don't open slash mode if there's already a completed slash command earlier in the input.
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/;
-	const textBeforeCurrentSlash = input.slice(0, slashIndex);
-	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return null;
 	}
 	return { slashIndex, query };
@@ -637,6 +638,7 @@ function ChatInputBarImpl({
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
+	const knownTokens = useKnownComposerTokens();
 
 	// ---- Slash command state ----
 	const activeSlash = useMemo(
@@ -660,6 +662,18 @@ function ChatInputBarImpl({
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	useEffect(() => {
+		setKnownSlashCommands(slashCommands.map((command) => command.name));
+	}, [slashCommands]);
+	const composerHighlights = useMemo(
+		() =>
+			executionTarget === "local"
+				? getComposerHighlights(promptInput, knownTokens.commandNames, (path) =>
+						knownTokens.mentionPaths.has(path),
+					)
+				: undefined,
+		[executionTarget, promptInput, knownTokens],
+	);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -935,6 +949,7 @@ function ChatInputBarImpl({
 				const nextResults = Array.isArray(results) ? results : [];
 				mentionResultsCacheRef.current.set(requestKey, nextResults);
 				setMentionFiles(nextResults);
+				addKnownMentionPaths(nextResults);
 				setMentionSelectedIndex(0);
 			} catch {
 				if (cancelled) {
@@ -1012,10 +1027,11 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Reload user commands whenever the slash menu opens so newly installed or
-	// edited skills and workflows are reflected without remounting the chat UI.
+	// Load user commands once up front (sent messages chip them too) and reload
+	// whenever the slash menu opens so newly installed or edited skills and
+	// workflows are reflected without remounting the chat UI.
 	useEffect(() => {
-		if (!slashOpen) {
+		if (!slashOpen && cachedSlashCommands !== null) {
 			return;
 		}
 		let cancelled = false;
@@ -1245,6 +1261,7 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
+							highlights={composerHighlights}
 							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;

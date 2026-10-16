@@ -658,6 +658,21 @@ describe("ChatInputBar", () => {
 		expect(suggestions?.textContent).toContain("/compact");
 	});
 
+	it("opens the slash menu after leading whitespace", async () => {
+		await renderVoiceComposer({ prompt: "  /comp", executionTarget: "local" });
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+	});
+
+	it("does not open the slash menu mid-sentence", async () => {
+		await renderVoiceComposer({
+			prompt: "please /comp",
+			executionTarget: "local",
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+	});
+
 	it("scrolls the arrow-key selected slash command into view", async () => {
 		await renderVoiceComposer({ prompt: "/", executionTarget: "local" });
 		const textarea = container.querySelector("textarea");
@@ -1015,9 +1030,10 @@ describe("ChatInputBar", () => {
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("min-h-16");
-		expect(promptInput?.parentElement?.className).toContain("items-end");
-		expect(promptInput?.className).toContain("self-start");
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("min-h-16");
+		expect(field?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).toContain("self-start");
 	});
 
 	it("inserts cumulative browser fallback transcripts without duplicating text", async () => {
@@ -1582,9 +1598,10 @@ describe("ChatInputBar", () => {
 		const stopTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Stop agent"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("items-start");
-		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("items-start");
+		expect(field?.contains(sendTrigger)).toBe(true);
+		expect(field?.contains(stopTrigger)).toBe(true);
 		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
 		expect(speechTrigger).toBeNull();
 		expect(sendTrigger?.parentElement?.className).toContain("self-end");

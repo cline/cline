@@ -318,6 +318,45 @@ describe("readSessionMessages", () => {
 		]);
 	});
 
+	it("records file blocks of a user message as attached files", async () => {
+		const sessionId = `file-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "user-files",
+							role: "user",
+							content: [
+								{ type: "text", text: "Review @src/app.ts" },
+								{
+									type: "file",
+									path: "/repo/src/app.ts",
+									content: "export {}",
+								},
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				content: "Review @src/app.ts",
+				meta: expect.objectContaining({
+					attachedFiles: ["/repo/src/app.ts"],
+				}),
+			}),
+		]);
+	});
+
 	it("preserves absolute user run counts when older messages are omitted", async () => {
 		const sessionId = `run-count-projection-${Date.now()}`;
 		const liveSessions = new Map([
