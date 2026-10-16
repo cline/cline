@@ -105,6 +105,9 @@ export const CORE_TELEMETRY_EVENTS = {
 		INIT_ERROR: "workspace.init_error",
 		PATH_RESOLVED: "workspace.path_resolved",
 	},
+	DESKTOP: {
+		MARKETPLACE_INSTALL: "desktop.marketplace.install",
+	},
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
@@ -295,6 +298,39 @@ export function captureWorkspacePathResolved(
 	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.PATH_RESOLVED, {
 		...properties,
 	});
+}
+
+export interface MarketplaceInstallProperties {
+	/** Marketplace entry type: skill, plugin, mcp. */
+	type: string;
+	outcome: "installed" | "already_installed" | "failed";
+	/** Path that produced the outcome: skills-cli, github-download, already-installed. */
+	method?: string;
+	/** Coarse class of a skills CLI failure: npx-missing, node-too-old, git-missing, other. */
+	cli_failure?: string;
+	fallback_failed?: boolean;
+}
+
+/**
+ * One event per Desktop marketplace install attempt. Only coarse classes are
+ * sent, never CLI output, so the payload cannot carry paths or tokens.
+ */
+export function captureMarketplaceInstall(
+	telemetry: ITelemetryService | undefined,
+	properties: MarketplaceInstallProperties,
+): void {
+	const payload: TelemetryProperties = {
+		type: properties.type,
+		outcome: properties.outcome,
+	};
+	if (properties.method !== undefined) payload.method = properties.method;
+	if (properties.cli_failure !== undefined) {
+		payload.cli_failure = properties.cli_failure;
+	}
+	if (properties.fallback_failed !== undefined) {
+		payload.fallback_failed = properties.fallback_failed;
+	}
+	emit(telemetry, CORE_TELEMETRY_EVENTS.DESKTOP.MARKETPLACE_INSTALL, payload);
 }
 
 export function captureAuthStarted(
