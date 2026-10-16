@@ -1,7 +1,9 @@
 import { release } from "node:os";
 import {
 	createClineTelemetryServiceConfig,
+	type HubLauncherIdentity,
 	type ITelemetryService,
+	readHubLauncherIdentity,
 } from "@cline/shared";
 import type { AuthSettings } from "../../services/llms/provider-settings";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
@@ -12,14 +14,46 @@ import {
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { createConfiguredTelemetryHandle } from "../../services/telemetry/OpenTelemetryProvider";
 import { CORE_BUILD_VERSION } from "../../version";
+import { resolveHubBuildId } from "../discovery";
 
 const IDENTITY_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const DISPOSE_FLUSH_TIMEOUT_MS = 5_000;
 
 export interface HubDaemonTelemetry {
 	readonly telemetry: ITelemetryService;
+	/** Who started this daemon, as published on its telemetry resource. */
+	readonly launcher?: HubLauncherIdentity;
 	/** Flushes pending batches and disposes the underlying provider. */
 	dispose(): Promise<void>;
+}
+
+/**
+ * Resource attributes that say whose build is hosting the sessions. One hub
+ * serves every Cline client on the machine, and a session only carries its
+ * own client's name/version (`clientName: cline-desktop`), so without these
+ * a desktop trace cannot be told apart from "desktop session on a hub the
+ * CLI started" - which decides whether a build-specific telemetry gap is the
+ * desktop's or the CLI's. Values are low-cardinality identifiers, never paths.
+ */
+export function hubDaemonResourceAttributes(
+	launcher: HubLauncherIdentity | undefined = readHubLauncherIdentity(),
+	options: { buildId?: string; execPath?: string } = {},
+): Record<string, string> {
+	const buildId = options.buildId ?? resolveHubBuildId();
+	const execPath = options.execPath ?? process.execPath ?? "";
+	return {
+		"cline.hub.build_id": buildId,
+		// Executable name only: cline-cli (bundled by the desktop), cline
+		// (npm), code-sidecar (older desktop), bun/node (source runs). Split on
+		// both separators so a Windows path read on any platform strips too.
+		"cline.hub.runtime": (execPath.split(/[\\/]/).pop() ?? "").replace(
+			/\.exe$/i,
+			"",
+		),
+		"cline.hub.launcher.client": launcher?.client ?? "unknown",
+		"cline.hub.launcher.version": launcher?.version ?? "unknown",
+		"cline.hub.launcher.transport": launcher?.transport ?? "local",
+	};
 }
 
 /**
@@ -35,6 +69,7 @@ export interface HubDaemonTelemetry {
  * periodically rather than only once at startup.
  */
 export function createHubDaemonTelemetry(): HubDaemonTelemetry {
+	const launcher = readHubLauncherIdentity();
 	const config = createClineTelemetryServiceConfig({
 		// Spans carry only the OTel resource, not per-event metadata, so the
 		// daemon needs its own service identity: it ships in the same binary
@@ -54,7 +89,10 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 			os_version: release(),
 		},
 	});
-	const handle = createConfiguredTelemetryHandle(config);
+	const handle = createConfiguredTelemetryHandle({
+		...config,
+		resourceAttributes: hubDaemonResourceAttributes(launcher),
+	});
 
 	// Constructed once and reused: the constructor runs legacy settings
 	// migration and provider registration side effects, while
@@ -112,6 +150,7 @@ export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 
 	return {
 		telemetry: handle.telemetry,
+		launcher,
 		dispose: async (): Promise<void> => {
 			clearInterval(identityTimer);
 			// dispose only runs on the daemon's way out; a hung exporter must

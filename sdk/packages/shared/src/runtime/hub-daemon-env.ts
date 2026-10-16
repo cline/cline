@@ -3,6 +3,64 @@ export const CLINE_CONNECTOR_CLI_LAUNCH_ENV = "CLINE_CONNECTOR_CLI_LAUNCH";
 export const CLINE_CONNECTOR_STARTING_INSTANCE_ENV =
 	"CLINE_CONNECTOR_STARTING_INSTANCE";
 export const CLINE_CONNECTOR_SUPERVISED_ENV = "CLINE_CONNECTOR_SUPERVISED";
+export const CLINE_HUB_LAUNCHER_CLIENT_ENV = "CLINE_HUB_LAUNCHER_CLIENT";
+export const CLINE_HUB_LAUNCHER_VERSION_ENV = "CLINE_HUB_LAUNCHER_VERSION";
+export const CLINE_HUB_LAUNCHER_TRANSPORT_ENV = "CLINE_HUB_LAUNCHER_TRANSPORT";
+
+/**
+ * Which Cline client started a Hub daemon. The daemon is one shared process
+ * per machine and any client attaches to it, so a session's own client
+ * identity (desktop, CLI, extension) says nothing about whose build is
+ * hosting it. The spawner stamps this into the daemon's environment and the
+ * daemon publishes it as OTel resource attributes, so a trace from a desktop
+ * session can be read as "served by the hub the CLI started" (or vice versa).
+ */
+export interface HubLauncherIdentity {
+	/** Client name of the spawner, e.g. `cline-desktop`, `cline-cli`. */
+	client: string;
+	version?: string;
+	/** `local` for a daemon on the client's own machine, `ssh` for a remote one. */
+	transport?: "local" | "ssh";
+}
+
+/**
+ * Stamp the launcher identity onto a daemon environment. Values already in
+ * `env` win: an embedding host (the desktop app running `cline-cli hub
+ * ensure`) sets them before handing the spawn to the CLI, whose own identity
+ * would otherwise be recorded.
+ */
+export function withHubLauncherIdentity<
+	T extends Record<string, string | undefined>,
+>(env: T, identity: HubLauncherIdentity | undefined): T {
+	const client = identity?.client?.trim();
+	if (!client) {
+		return env;
+	}
+	const stamped: Record<string, string | undefined> = { ...env };
+	stamped[CLINE_HUB_LAUNCHER_CLIENT_ENV] ??= client;
+	const version = identity?.version?.trim();
+	if (version) {
+		stamped[CLINE_HUB_LAUNCHER_VERSION_ENV] ??= version;
+	}
+	stamped[CLINE_HUB_LAUNCHER_TRANSPORT_ENV] ??= identity?.transport ?? "local";
+	return stamped as T;
+}
+
+export function readHubLauncherIdentity(
+	env: Record<string, string | undefined> = process.env,
+): HubLauncherIdentity | undefined {
+	const client = env[CLINE_HUB_LAUNCHER_CLIENT_ENV]?.trim();
+	if (!client) {
+		return undefined;
+	}
+	const version = env[CLINE_HUB_LAUNCHER_VERSION_ENV]?.trim();
+	const transport = env[CLINE_HUB_LAUNCHER_TRANSPORT_ENV]?.trim();
+	return {
+		client,
+		...(version ? { version } : {}),
+		...(transport === "ssh" || transport === "local" ? { transport } : {}),
+	};
+}
 
 export interface ConnectorCliLaunchSpec {
 	launcher: string;

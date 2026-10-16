@@ -519,7 +519,7 @@ describe("RemoteEnvironmentService", () => {
 			/\/home\/dev\/\.cline\/data\/remote\/[a-f0-9-]+\.json/,
 		);
 		expect(ensure?.args.at(-1)).toContain(
-			"exec 'env' 'CLINE_NO_AUTO_UPDATE=1' '/home/dev/.cline/remote/cline-linux-arm64-abcdef0123456789' 'hub' 'ensure' '--json' '--allow-port-fallback' '--no-connectors' '--login-shell-path' '--cwd' '/home/dev' '--host' '127.0.0.1' '--port' '0' '--pathname' '/hub' '--discovery-path' ",
+			"exec 'env' 'CLINE_NO_AUTO_UPDATE=1' 'CLINE_HUB_LAUNCHER_CLIENT=cline' 'CLINE_HUB_LAUNCHER_TRANSPORT=ssh' '/home/dev/.cline/remote/cline-linux-arm64-abcdef0123456789' 'hub' 'ensure' '--json' '--allow-port-fallback' '--no-connectors' '--login-shell-path' '--cwd' '/home/dev' '--host' '127.0.0.1' '--port' '0' '--pathname' '/hub' '--discovery-path' ",
 		);
 		expect(spawnTunnel).toHaveBeenCalledWith(
 			"ssh",
