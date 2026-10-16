@@ -132,6 +132,7 @@ function inferLegacyDataDir(filePath: string): string | undefined {
 export class ProviderSettingsManager {
 	private readonly filePath: string;
 	private readonly dataDir?: string;
+	private lastReadDiagnostic?: string;
 
 	constructor(options: ProviderSettingsManagerOptions = {}) {
 		this.filePath = options.filePath ?? resolveProviderSettingsPath();
@@ -171,9 +172,13 @@ export class ProviderSettingsManager {
 			if (result.success) {
 				registerConfiguredProvidersFromSettings(result.data);
 				const clineAuth = result.data.providers["cline"]?.settings?.auth;
-				sdkDebug(
-					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
-				);
+				const diagnostic = `providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`;
+				// Hosts call read() on every model-catalog lookup, so only log
+				// when the summary changes.
+				if (diagnostic !== this.lastReadDiagnostic) {
+					this.lastReadDiagnostic = diagnostic;
+					sdkDebug(diagnostic);
+				}
 				return result.data;
 			}
 		} catch {
