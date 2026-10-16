@@ -475,6 +475,7 @@ export function readSessionMessagesSync(
 
 		const textParts: string[] = [];
 		const images: Array<{ id: string; mediaType: string; data: string }> = [];
+		const attachedFiles: string[] = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -656,6 +657,12 @@ export function readSessionMessagesSync(
 				}
 				continue;
 			}
+			if (blockType === "file") {
+				if (role === "user" && typeof record.path === "string") {
+					attachedFiles.push(record.path);
+				}
+				continue;
+			}
 			if (blockType === "media" && isGeneratedMedia(record.media)) {
 				flushTextParts();
 				out.push({
@@ -694,6 +701,21 @@ export function readSessionMessagesSync(
 					meta: textMeta,
 				});
 				textMeta = undefined;
+			}
+		}
+		if (attachedFiles.length > 0) {
+			// The webview chips `@` mentions in the user's text that resolved to
+			// one of these attachments.
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role && item.content);
+			if (target) {
+				target.meta = {
+					...(target.meta && typeof target.meta === "object"
+						? (target.meta as JsonRecord)
+						: {}),
+					attachedFiles,
+				};
 			}
 		}
 		flushReasoningParts();
