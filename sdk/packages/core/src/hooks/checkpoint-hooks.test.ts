@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AgentMessage } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	type CheckpointEntry,
 	type CheckpointMetadata,
@@ -93,6 +93,48 @@ async function runCheckpointHooks(
 			tools: [],
 		},
 	});
+}
+
+// Scratch indexes live under the Cline data dir; keep test runs out of the
+// real ~/.cline.
+let isolatedDataDir = "";
+let previousDataDir: string | undefined;
+beforeAll(async () => {
+	previousDataDir = process.env.CLINE_DATA_DIR;
+	isolatedDataDir = await mkdtemp(join(tmpdir(), "core-checkpoint-data-"));
+	process.env.CLINE_DATA_DIR = isolatedDataDir;
+});
+afterAll(async () => {
+	if (previousDataDir === undefined) {
+		delete process.env.CLINE_DATA_DIR;
+	} else {
+		process.env.CLINE_DATA_DIR = previousDataDir;
+	}
+	await rm(isolatedDataDir, { recursive: true, force: true });
+});
+
+async function untrackedSnapshotPaths(
+	cwd: string,
+	ref: string,
+): Promise<string[]> {
+	return (await runGit(cwd, "ls-tree", "-r", "--name-only", `${ref}^3`))
+		.split("\n")
+		.filter(Boolean)
+		.sort();
+}
+
+async function snapshotOnce(cwd: string, sessionId: string) {
+	let metadata: Record<string, unknown> | undefined;
+	const hooks = createCheckpointHooks({
+		cwd,
+		sessionId,
+		readSessionMetadata: async () => metadata,
+		writeSessionMetadata: async (next) => {
+			metadata = next;
+		},
+	});
+	await runCheckpointHooks(hooks);
+	return (metadata?.checkpoint as CheckpointMetadata).latest;
 }
 
 describe("createCheckpointHooks", () => {
@@ -845,6 +887,115 @@ describe("createCheckpointHooks", () => {
 		} finally {
 			await deleteCheckpointRefs(cwd, sessionId);
 			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("leaves default-excluded untracked files out of the snapshot", async () => {
+		// Media, dependency trees, and model weights are what legacy never
+		// snapshotted; hashing them every turn is the cost behind #13131.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_default_excludes";
+		try {
+			await writeFile(join(cwd, "clip.mp4"), "video", "utf8");
+			await writeFile(join(cwd, "take.mov"), "video", "utf8");
+			await mkdir(join(cwd, "node_modules", "pkg"), { recursive: true });
+			await writeFile(
+				join(cwd, "node_modules", "pkg", "index.js"),
+				"x",
+				"utf8",
+			);
+			await writeFile(join(cwd, "model.safetensors"), "weights", "utf8");
+			await writeFile(join(cwd, "keep.txt"), "keep\n", "utf8");
+
+			const entry = await snapshotOnce(cwd, sessionId);
+
+			expect(entry.kind).toBe("stash");
+			expect(await untrackedSnapshotPaths(cwd, entry.ref)).toEqual([
+				"keep.txt",
+			]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps snapshotting paths Next deliberately does not exclude", async () => {
+		// Legacy excluded these, but agents author and edit files in them, so
+		// Reset Code must still rewind them.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_kept_paths";
+		const kept = [
+			".clinerules/rules.md",
+			".idea/runConfigurations/app.xml",
+			".vscode/settings.json",
+			"Cargo.lock",
+			"bin/run.sh",
+			"build/notes.txt",
+			"env/settings.txt",
+			"temp/scratch.txt",
+		];
+		try {
+			for (const path of kept) {
+				await mkdir(join(cwd, path, ".."), { recursive: true });
+				await writeFile(join(cwd, path), "content\n", "utf8");
+			}
+
+			const entry = await snapshotOnce(cwd, sessionId);
+
+			expect(await untrackedSnapshotPaths(cwd, entry.ref)).toEqual(kept);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("excludes untracked files matching Git LFS patterns from .gitattributes", async () => {
+		const cwd = await createGitRepo();
+		const sessionId = "sess_lfs_patterns";
+		try {
+			await writeFile(
+				join(cwd, ".gitattributes"),
+				"# engine assets\n*.uasset\tfilter=lfs diff=lfs merge=lfs -text\n*.md text\n",
+				"utf8",
+			);
+			await runGit(cwd, "add", ".gitattributes");
+			await runGit(cwd, "commit", "-m", "lfs attributes");
+			await writeFile(join(cwd, "hero.uasset"), "asset", "utf8");
+			await writeFile(join(cwd, "keep.txt"), "keep\n", "utf8");
+
+			const entry = await snapshotOnce(cwd, sessionId);
+
+			expect(entry.kind).toBe("stash");
+			expect(await untrackedSnapshotPaths(cwd, entry.ref)).toEqual([
+				"keep.txt",
+			]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps honoring the user's own core.excludesFile", async () => {
+		// The checkpoint excludes are supplied as core.excludesFile, which
+		// replaces the user's setting for that command — so it must be merged in.
+		const cwd = await createGitRepo();
+		const sessionId = "sess_user_excludes";
+		const userExcludes = join(cwd, "..", `${sessionId}-user-ignore`);
+		try {
+			await writeFile(userExcludes, "*.secret\n", "utf8");
+			await runGit(cwd, "config", "core.excludesFile", userExcludes);
+			await writeFile(join(cwd, "token.secret"), "hunter2", "utf8");
+			await writeFile(join(cwd, "keep.txt"), "keep\n", "utf8");
+
+			const entry = await snapshotOnce(cwd, sessionId);
+
+			expect(await untrackedSnapshotPaths(cwd, entry.ref)).toEqual([
+				"keep.txt",
+			]);
+		} finally {
+			await deleteCheckpointRefs(cwd, sessionId);
+			await rm(cwd, { recursive: true, force: true });
+			await rm(userExcludes, { force: true });
 		}
 	});
 });
