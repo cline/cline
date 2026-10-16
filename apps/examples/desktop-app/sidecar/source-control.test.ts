@@ -3,7 +3,9 @@ import {
 	existsSync,
 	mkdtempSync,
 	readFileSync,
+	readlinkSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -415,6 +417,99 @@ describe("against a real repository", () => {
 		} finally {
 			rmSync(remote, { recursive: true, force: true });
 			rmSync(other, { recursive: true, force: true });
+		}
+	});
+
+	it("surfaces read failures instead of showing a deletion", async () => {
+		const failing: GitRunner = async (args) => {
+			if (args[0] === "show") {
+				throw new Error("stdout maxBuffer length exceeded");
+			}
+			return git(args);
+		};
+		await expect(
+			getGitFileDiff(failing, readWorking, "local", "b.ts", true),
+		).rejects.toThrow(/maxBuffer/);
+		await expect(
+			getGitFileDiff(failing, readWorking, "local", "a.ts", false),
+		).rejects.toThrow(/maxBuffer/);
+	});
+
+	it("reads a changed symlink as its link text", async () => {
+		symlinkSync("a.ts", join(root, "link"));
+		await git(["add", "link"]);
+		await git(["commit", "-q", "-m", "add link"]);
+		rmSync(join(root, "link"));
+		symlinkSync("b.ts", join(root, "link"));
+		const seen: Array<{ symlink: boolean }> = [];
+		const diff = await getGitFileDiff(
+			git,
+			async (path, options) => {
+				seen.push(options);
+				return { content: readlinkSync(join(root, path)), truncated: false };
+			},
+			"local",
+			"link",
+			false,
+		);
+		expect(seen).toEqual([{ symlink: true }]);
+		expect(diff.oldText).toBe("a.ts");
+		expect(diff.newText).toBe("b.ts");
+	});
+
+	it("previews submodules as the commit each side points at", async () => {
+		const library = mkdtempSync(join(tmpdir(), "cline-submodule-"));
+		const run = (cwd: string) => async (args: string[]) =>
+			(await execFileAsync("git", args, { cwd, encoding: "utf8" })).stdout;
+		const lib = run(library);
+		try {
+			await lib(["init", "-q", "-b", "main"]);
+			await lib(["config", "user.email", "l@example.com"]);
+			await lib(["config", "user.name", "Lib"]);
+			writeFileSync(join(library, "lib.txt"), "v1\n");
+			await lib(["add", "."]);
+			await lib(["commit", "-q", "-m", "v1"]);
+			const first = (await lib(["rev-parse", "HEAD"])).trim();
+			await git([
+				"-c",
+				"protocol.file.allow=always",
+				"submodule",
+				"add",
+				"-q",
+				library,
+				"vendor/lib",
+			]);
+			await git(["commit", "-q", "-m", "add submodule"]);
+			const added = (await git(["rev-parse", "HEAD"])).trim();
+			const commitDiff = await getCommitFileDiff(
+				git,
+				"local",
+				added,
+				"vendor/lib",
+			);
+			expect(commitDiff.oldText).toBeUndefined();
+			expect(commitDiff.newText).toBe(`Subproject commit ${first}\n`);
+
+			// Advance the submodule's checkout: the working side follows it.
+			const sub = run(join(root, "vendor/lib"));
+			await sub(["config", "user.email", "l@example.com"]);
+			await sub(["config", "user.name", "Lib"]);
+			writeFileSync(join(root, "vendor/lib/lib.txt"), "v2\n");
+			await sub(["commit", "-qam", "v2"]);
+			const second = (await sub(["rev-parse", "HEAD"])).trim();
+			const working = await getGitFileDiff(
+				git,
+				async () => {
+					throw new Error("submodules are not read as files");
+				},
+				"local",
+				"vendor/lib",
+				false,
+			);
+			expect(working.oldText).toBe(`Subproject commit ${first}\n`);
+			expect(working.newText).toBe(`Subproject commit ${second}\n`);
+		} finally {
+			rmSync(library, { recursive: true, force: true });
 		}
 	});
 

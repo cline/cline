@@ -123,9 +123,20 @@ export function readLocalProjectFile(
 	};
 }
 
-// `ls -p` marks directories with a trailing slash; names themselves cannot
-// contain `/`, so the marker is unambiguous. Newlines in names are not
-// supported over SSH.
+// Prints one entry per line with a trailing slash on directories, the same
+// shape `ls -p` gives, except `[ -d ]` follows symlinks so a link to a folder
+// expands like the local explorer. POSIX sh, so it runs on Linux and macOS
+// hosts alike; the folder is a positional argument, never interpolated.
+export const REMOTE_LIST_SCRIPT = [
+	'cd -- "$1" || exit 1',
+	"for f in * .[!.]* ..?*; do",
+	'  [ -e "$f" ] || [ -L "$f" ] || continue',
+	'  if [ -d "$f" ]; then printf \'%s/\\n\' "$f"; else printf \'%s\\n\' "$f"; fi',
+	"done",
+].join("\n");
+
+// Names cannot contain `/`, so the directory marker is unambiguous.
+// Newlines in names are not supported over SSH.
 export function parseRemoteListing(
 	path: string,
 	output: string,
@@ -169,8 +180,8 @@ export async function listProjectEntries(
 	}
 	assertInsideRoot(root, path, true);
 	const result = await requireRemote(ctx).run(environmentId, {
-		command: "ls",
-		args: ["-1Ap", "--", path],
+		command: "sh",
+		args: ["-c", REMOTE_LIST_SCRIPT, "cline-list-project-entries", path],
 	});
 	return { environmentId, ...parseRemoteListing(path, result.stdout) };
 }

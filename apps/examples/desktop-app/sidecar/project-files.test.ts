@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -6,6 +13,7 @@ import {
 	listLocalProjectEntries,
 	PROJECT_FILE_READ_LIMIT_BYTES,
 	parseRemoteListing,
+	REMOTE_LIST_SCRIPT,
 	readLocalProjectFile,
 } from "./project-files";
 
@@ -90,5 +98,35 @@ describe("parseRemoteListing", () => {
 			{ name: "src", path: "/home/u/app/src", kind: "directory" },
 			{ name: "package.json", path: "/home/u/app/package.json", kind: "file" },
 		]);
+	});
+});
+
+describe("REMOTE_LIST_SCRIPT", () => {
+	it("marks folders, follows folder links, and keeps dotfiles and broken links", () => {
+		const outside = mkdtempSync(join(tmpdir(), "cline-linked-folder-"));
+		try {
+			symlinkSync(outside, join(root, "linked"));
+			symlinkSync(join(root, "missing-target"), join(root, "dangling"));
+			writeFileSync(join(root, ".env"), "X=1\n");
+			const output = execFileSync(
+				"sh",
+				["-c", REMOTE_LIST_SCRIPT, "cline-list-project-entries", root],
+				{ encoding: "utf8" },
+			);
+			const entries = parseRemoteListing(root, output).entries.map((entry) => [
+				entry.name,
+				entry.kind,
+			]);
+			expect(entries).toEqual([
+				["linked", "directory"],
+				["src", "directory"],
+				[".env", "file"],
+				["dangling", "file"],
+				["logo.png", "file"],
+				["README.md", "file"],
+			]);
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
 	});
 });

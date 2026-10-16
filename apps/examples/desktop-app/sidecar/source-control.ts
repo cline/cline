@@ -52,9 +52,13 @@ export type GitFileDiff = {
 	truncated: boolean;
 };
 
-/** Working-tree read: null content for binary, empty for a missing file. */
+/**
+ * Working-tree read: null content for binary, empty for a missing file.
+ * `symlink` asks for the link's own text, which is what git stores.
+ */
 export type WorkingFileReader = (
 	path: string,
+	options: { symlink: boolean },
 ) => Promise<{ content: string | null; truncated: boolean }>;
 
 const COMMIT_LIMIT = 15;
@@ -402,6 +406,64 @@ export async function getCommitDetails(
 	};
 }
 
+// Only these mean "no such path on that side"; anything else (an output
+// limit, a corrupt object) must surface rather than pass for a deletion.
+const MISSING_OBJECT =
+	/does not exist|exists on disk, but not in|invalid object name|not a valid object name|bad revision|unknown revision/i;
+
+function showBlob(
+	git: GitRunner,
+	rev: string,
+	path: string,
+): Promise<string | undefined> {
+	return git(["show", `${rev}:${path}`]).catch((error: unknown) => {
+		if (MISSING_OBJECT.test(String(error))) return undefined;
+		throw error;
+	});
+}
+
+type TreeEntry = { mode: string; sha: string };
+
+/** Mode and object of a path in a tree (`rev`) or, for `null`, the index. */
+async function treeEntry(
+	git: GitRunner,
+	rev: string | null,
+	path: string,
+): Promise<TreeEntry | undefined> {
+	const output = await git(
+		rev === null
+			? [LITERAL, "ls-files", "--stage", "--", path]
+			: [LITERAL, "ls-tree", rev, "--", path],
+	).catch(() => "");
+	const match = output.match(/^(\d{6}) (?:\w+ )?([0-9a-f]{40,64})/);
+	return match ? { mode: match[1] ?? "", sha: match[2] ?? "" } : undefined;
+}
+
+const GITLINK = "160000";
+const SYMLINK = "120000";
+
+// Submodules have no blob to show; git's own diff renders them as the
+// commit each side points at, so the preview does the same.
+function subprojectText(sha: string | undefined): string | undefined {
+	return sha ? `Subproject commit ${sha}\n` : undefined;
+}
+
+function submoduleDiff(
+	environmentId: string,
+	path: string,
+	oldSha: string | undefined,
+	newSha: string | undefined,
+): GitFileDiff {
+	return {
+		environmentId,
+		path,
+		oldText: subprojectText(oldSha),
+		newText: subprojectText(newSha) ?? "",
+		binary: false,
+		truncated: false,
+	};
+}
+
 /** Contents of a path before and after a commit. */
 export async function getCommitFileDiff(
 	git: GitRunner,
@@ -412,16 +474,17 @@ export async function getCommitFileDiff(
 ): Promise<GitFileDiff> {
 	assertCommitSha(sha);
 	const base = await commitBase(git, sha);
-	const show = (rev: string, at: string) =>
-		git(["show", `${rev}:${at}`]).then(
-			(text) => text,
-			() => undefined,
-		);
+	const oldPath = originalPath ?? path;
+	const [oldEntry, newEntry] = await Promise.all([
+		base === EMPTY_TREE ? undefined : treeEntry(git, base, oldPath),
+		treeEntry(git, sha, path),
+	]);
+	if (oldEntry?.mode === GITLINK || newEntry?.mode === GITLINK) {
+		return submoduleDiff(environmentId, path, oldEntry?.sha, newEntry?.sha);
+	}
 	const [oldText, newText] = await Promise.all([
-		base === EMPTY_TREE
-			? Promise.resolve(undefined)
-			: show(base, originalPath ?? path),
-		show(sha, path),
+		base === EMPTY_TREE ? undefined : showBlob(git, base, oldPath),
+		showBlob(git, sha, path),
 	]);
 	return {
 		environmentId,
@@ -447,17 +510,22 @@ export async function getGitFileDiff(
 	/** For staged renames, the path the old contents live at in HEAD. */
 	originalPath?: string,
 ): Promise<GitFileDiff> {
-	const show = (rev: string, at: string) =>
-		git(["show", `${rev}:${at}`]).then(
-			(text) => text,
-			() => undefined,
-		);
 	const isBinary = (...texts: Array<string | null | undefined>) =>
 		texts.some((text) => text?.includes("\0"));
+	const indexEntry = await treeEntry(git, null, path);
 	if (staged) {
+		const headEntry = await treeEntry(git, "HEAD", originalPath ?? path);
+		if (headEntry?.mode === GITLINK || indexEntry?.mode === GITLINK) {
+			return submoduleDiff(
+				environmentId,
+				path,
+				headEntry?.sha,
+				indexEntry?.sha,
+			);
+		}
 		const [oldText, newText] = await Promise.all([
-			show("HEAD", originalPath ?? path),
-			show("", path),
+			showBlob(git, "HEAD", originalPath ?? path),
+			showBlob(git, "", path),
 		]);
 		return {
 			environmentId,
@@ -468,9 +536,20 @@ export async function getGitFileDiff(
 			truncated: false,
 		};
 	}
+	if (indexEntry?.mode === GITLINK) {
+		const checkedOut = await git(["-C", path, "rev-parse", "HEAD"]).catch(
+			() => "",
+		);
+		return submoduleDiff(
+			environmentId,
+			path,
+			indexEntry.sha,
+			checkedOut.trim() || undefined,
+		);
+	}
 	const [oldText, working] = await Promise.all([
-		show("", path),
-		readWorkingFile(path),
+		showBlob(git, "", path),
+		readWorkingFile(path, { symlink: indexEntry?.mode === SYMLINK }),
 	]);
 	return {
 		environmentId,

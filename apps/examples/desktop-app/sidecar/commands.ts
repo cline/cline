@@ -2,8 +2,10 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readdirSync,
+	readlinkSync,
 	realpathSync,
 	rmSync,
 	statSync,
@@ -3627,14 +3629,33 @@ export async function handleCommand(
 			}
 			return await getGitFileDiff(
 				git,
-				async (relative) => {
+				async (relative, { symlink }) => {
 					const absolute =
 						binding.kind === "local"
 							? join(root, relative)
 							: posix.join(root, relative);
-					// A deleted file has nothing on the working side.
-					if (binding.kind === "local" && !existsSync(absolute)) {
-						return { content: "", truncated: false };
+					// Git stores a symlink as its target text, so the preview compares
+					// that rather than the contents of whatever the link points at.
+					if (binding.kind === "local") {
+						const stat = lstatSync(absolute, { throwIfNoEntry: false });
+						// A deleted file has nothing on the working side.
+						if (!stat) return { content: "", truncated: false };
+						if (stat.isSymbolicLink()) {
+							return { content: readlinkSync(absolute), truncated: false };
+						}
+					} else if (symlink && ctx.remoteEnvironments) {
+						const link = await ctx.remoteEnvironments
+							.run(binding.environmentId, {
+								command: "readlink",
+								args: ["--", absolute],
+							})
+							.catch(() => null);
+						if (link) {
+							return {
+								content: link.stdout.replace(/\n$/, ""),
+								truncated: false,
+							};
+						}
 					}
 					try {
 						const file = await readProjectFile(ctx, binding, root, absolute);
