@@ -215,7 +215,7 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 				}
 			}
 		}
-		if (parts.length > 0) return parts.join("\n");
+		if (parts.length > 0) return parts.join(" ");
 	}
 
 	if (typeof raw === "object") {
