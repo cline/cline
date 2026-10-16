@@ -242,6 +242,7 @@ export function toRedactedProviderConfigResponse(
 		aws: toRedactedAwsProviderConfigProto(config.aws),
 		gcp: toRedactedGcpProviderConfigProto(config.gcp),
 		contextWindow: config.contextWindow,
+		reasoningEffort: config.reasoningEffort,
 	})
 }
 
@@ -274,17 +275,19 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 					},
 				}
 			: {}),
-		...(protoPatch.reasoning
-			? {
-					reasoning: {
-						...(protoPatch.reasoning.enabled !== undefined ? { enabled: protoPatch.reasoning.enabled } : {}),
-						...(protoPatch.reasoning.effort !== undefined ? { effort: protoPatch.reasoning.effort } : {}),
-						...(protoPatch.reasoning.budgetTokens !== undefined
-							? { budgetTokens: protoPatch.reasoning.budgetTokens }
-							: {}),
-					},
-				}
-			: {}),
+		...(protoPatch.clearReasoning
+			? { reasoning: null }
+			: protoPatch.reasoning
+				? {
+						reasoning: {
+							...(protoPatch.reasoning.enabled !== undefined ? { enabled: protoPatch.reasoning.enabled } : {}),
+							...(protoPatch.reasoning.effort !== undefined ? { effort: protoPatch.reasoning.effort } : {}),
+							...(protoPatch.reasoning.budgetTokens !== undefined
+								? { budgetTokens: protoPatch.reasoning.budgetTokens }
+								: {}),
+						},
+					}
+				: {}),
 	}
 }
 

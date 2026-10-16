@@ -8,6 +8,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "xai"
@@ -72,10 +73,8 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 		}).catch((err) => console.error("Failed to commit X AI model selection:", err))
 	}
 
-	const handleReasoningEffortChange = (effort: string) => {
-		void write({
-			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-		}).catch((err) => console.error("Failed to update X AI reasoning effort:", err))
+	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
+		void write(reasoningEffortPatch(effort)).catch((err) => console.error("Failed to update X AI reasoning effort:", err))
 	}
 
 	return (
@@ -110,7 +109,11 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 					/>
 
 					{selectedModelInfo.supportsReasoning === true && (
-						<ReasoningEffortSelector currentMode={currentMode} onEffortChange={handleReasoningEffortChange} />
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							onEffortChange={handleReasoningEffortChange}
+							value={savedReasoningEffort(config)}
+						/>
 					)}
 
 					<ModelInfoView

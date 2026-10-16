@@ -105,6 +105,13 @@ export interface EffectiveProviderConfig {
 	 */
 	readonly contextWindow?: number
 	/**
+	 * The reasoning effort a session started now would request, derived from
+	 * providers.json `reasoning` the same way the session factory reads it.
+	 * Absent when no level is requested and the provider or model default
+	 * applies.
+	 */
+	readonly reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh"
+	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
 	 */

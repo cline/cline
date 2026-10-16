@@ -24,6 +24,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
+import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const AWS_REGIONS = BedrockData.regions
@@ -76,10 +77,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				}
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
-	const handleReasoningEffortChange = (effort: string) => {
-		void write({
-			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-		}).catch((err) => console.error("Failed to update Bedrock reasoning effort:", err))
+	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
+		void write(reasoningEffortPatch(effort)).catch((err) => console.error("Failed to update Bedrock reasoning effort:", err))
 	}
 	const awsAuthentication =
 		config?.aws?.authentication === "iam"
@@ -602,10 +601,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						<ReasoningEffortSelector
 							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
 							currentMode={currentMode}
-							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 							onEffortChange={handleReasoningEffortChange}
+							value={savedReasoningEffort(config)}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ||
 						(isCustomModelSelected &&
@@ -613,9 +612,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							bedrockModels[customBaseModelId]?.supportsReasoning === true) ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
+							value={savedReasoningEffort(config)}
 						/>
 					) : null}
 

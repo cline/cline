@@ -9,6 +9,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 
 /**
  * Props for the MoonshotProvider component
@@ -116,10 +117,11 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-								}).catch((err) => console.error("Failed to update Moonshot reasoning effort:", err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error("Failed to update Moonshot reasoning effort:", err),
+								)
 							}}
+							value={savedReasoningEffort(config)}
 						/>
 					)}
 

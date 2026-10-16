@@ -12,6 +12,7 @@ import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { getModeSpecificFields } from "../utils/providerUtils"
+import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "anthropic"
@@ -82,8 +83,8 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 		)
 	}
 
-	const handleReasoningEffortChange = (effort: string) => {
-		void write({ reasoning: { enabled: effort !== "none", effort } }).catch((err) =>
+	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
+		void write(reasoningEffortPatch(effort)).catch((err) =>
 			console.error("Failed to update Anthropic reasoning effort:", err),
 		)
 	}
@@ -122,17 +123,17 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						<ReasoningEffortSelector
 							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
 							currentMode={currentMode}
-							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 							onEffortChange={handleReasoningEffortChange}
+							value={savedReasoningEffort(config)}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
+							value={savedReasoningEffort(config)}
 						/>
 					) : null}
 
