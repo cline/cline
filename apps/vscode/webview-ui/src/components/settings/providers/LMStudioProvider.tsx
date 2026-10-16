@@ -6,6 +6,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
@@ -127,7 +128,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			.catch((error) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
-	}, [endpoint])
+	}, [endpoint, apiConfiguration?.lmStudioApiKey])
 
 	useEffect(() => {
 		requestLmStudioModels()
@@ -164,6 +165,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				onChange={handleBaseUrlChange}
 				onClear={handleBaseUrlClear}
 				placeholder="Default: http://localhost:1234"
+			/>
+
+			<ApiKeyField
+				helpText="Optional API key for authenticated LM Studio instances. Required when LM Studio's 'Require Authentication' server setting is enabled. Leave empty for unauthenticated access."
+				initialValue={apiConfiguration?.lmStudioApiKey || ""}
+				onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
+				placeholder="Enter API Key (optional)..."
+				providerName="LM Studio"
 			/>
 
 			<div className="font-semibold">Model</div>
