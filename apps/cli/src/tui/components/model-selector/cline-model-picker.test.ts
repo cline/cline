@@ -2,10 +2,46 @@ import { describe, expect, it } from "vitest";
 import {
 	buildFeaturedModelEntries,
 	CLINE_PASS_FREE_SECTION_DESCRIPTION,
+	findFeaturedModelOption,
 	freeTierDescriptionFor,
 } from "./cline-model-entries";
 
 const model = (id: string) => ({ id, name: id, description: "", tags: [] });
+
+describe("featured model reasoning metadata", () => {
+	it.each([
+		["z-ai/glm-5.3-flash", "zai/glm-5.3-flash"],
+		["zai/glm-5.3-flash", "z-ai/glm-5.3-flash"],
+	])("resolves %s against catalog key %s", (feedId, catalogId) => {
+		const option = { key: catalogId, supportsReasoning: true };
+		const entries = buildFeaturedModelEntries("cline", {
+			recommended: [],
+			free: [model(feedId)],
+			clinePass: [],
+		});
+		const entry = entries[0];
+		if (entry.kind !== "model") throw new Error("Expected a free model");
+		expect(findFeaturedModelOption([option], entry.model.id)).toBe(option);
+		expect(entry.model.id).toBe(feedId);
+	});
+
+	it("prefers exact metadata when both spellings exist", () => {
+		const exact = { key: "z-ai/glm-5.3-flash", supportsReasoning: false };
+		const alias = { key: "zai/glm-5.3-flash", supportsReasoning: true };
+		expect(findFeaturedModelOption([alias, exact], exact.key)).toBe(exact);
+	});
+
+	it("does not borrow capabilities from a different vendor or model variant", () => {
+		const options = [
+			{ key: "other/glm-5.3-flash", supportsReasoning: true },
+			{ key: "zai/glm-5.3-flash:free", supportsReasoning: true },
+		];
+		expect(
+			findFeaturedModelOption(options, "z-ai/glm-5.3-flash"),
+		).toBeUndefined();
+		expect(findFeaturedModelOption([], "unknown/model")).toBeUndefined();
+	});
+});
 
 describe("cline model picker entries", () => {
 	it("builds Recommended/Free sections for the cline provider", () => {
