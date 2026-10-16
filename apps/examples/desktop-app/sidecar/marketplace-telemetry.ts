@@ -1,20 +1,11 @@
-import type { ITelemetryService, TelemetryProperties } from "@cline/shared";
+import {
+	captureMarketplaceInstall,
+	type MarketplaceInstallProperties,
+} from "@cline/core";
+import type { ITelemetryService } from "@cline/shared";
 import type { JsonRecord } from "./types";
 
-export type MarketplaceInstallOutcome =
-	| "installed"
-	| "already_installed"
-	| "failed";
-
-export interface MarketplaceInstallEvent {
-	type: string;
-	outcome: MarketplaceInstallOutcome;
-	/** Which path produced the outcome: skills-cli, github-download, already-installed. */
-	method?: string;
-	/** Coarse class of the skills CLI failure, when one happened. */
-	cli_failure?: string;
-	fallback_failed?: boolean;
-}
+export type MarketplaceInstallEvent = MarketplaceInstallProperties;
 
 /** The marketplace entry type a desktop install request asked for. */
 export function requestedMarketplaceType(
@@ -66,11 +57,7 @@ export function captureMarketplaceInstallEvent(
 ): void {
 	try {
 		if (!telemetry?.isEnabled()) return;
-		const properties: TelemetryProperties = {};
-		for (const [key, value] of Object.entries(event)) {
-			if (value !== undefined) properties[key] = value;
-		}
-		telemetry.capture({ event: "desktop.marketplace.install", properties });
+		captureMarketplaceInstall(telemetry, event);
 	} catch {
 		// Product interactions must continue if the telemetry provider fails.
 	}
