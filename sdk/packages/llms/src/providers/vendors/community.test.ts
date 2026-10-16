@@ -11,6 +11,11 @@ function deferred() {
 	return { promise, resolve };
 }
 
+// The /v4 entrypoint wraps the V3 model that holds the resolved SAP config.
+function sapInternalModel(model: unknown): unknown {
+	return (model as { internalModel?: unknown }).internalModel;
+}
+
 describe("createSapAiCoreProviderModule", () => {
 	afterEach(() => {
 		if (originalServiceKey === undefined) {
@@ -34,8 +39,8 @@ describe("createSapAiCoreProviderModule", () => {
 			},
 		});
 
-		const model = provider.operations.language(
-			"anthropic--claude-4.6-sonnet",
+		const model = sapInternalModel(
+			provider.operations.language("anthropic--claude-4.6-sonnet"),
 		) as {
 			config?: {
 				destination?: Record<string, unknown>;
@@ -177,8 +182,8 @@ describe("createSapAiCoreProviderModule", () => {
 			},
 		});
 
-		const model = provider.operations.language(
-			"anthropic--claude-4.6-sonnet",
+		const model = sapInternalModel(
+			provider.operations.language("anthropic--claude-4.6-sonnet"),
 		) as {
 			config?: {
 				deploymentConfig?: Record<string, unknown>;
@@ -204,8 +209,8 @@ describe("createSapAiCoreProviderModule", () => {
 			},
 		});
 
-		const model = provider.operations.language(
-			"anthropic--claude-4.6-sonnet",
+		const model = sapInternalModel(
+			provider.operations.language("anthropic--claude-4.6-sonnet"),
 		) as {
 			config?: {
 				requestConfig?: {
@@ -245,8 +250,8 @@ describe("createSapAiCoreProviderModule", () => {
 			},
 		});
 
-		const model = provider.operations.language(
-			"anthropic--claude-4.6-sonnet",
+		const model = sapInternalModel(
+			provider.operations.language("anthropic--claude-4.6-sonnet"),
 		) as {
 			config?: {
 				requestConfig?: { fetch?: unknown };

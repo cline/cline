@@ -30,7 +30,7 @@ const sapImportScope = new AsyncLocalStorage<Set<ProcessListener>>();
 // The specifier is a literal so bundlers still include the package (a
 // computed one left the VSIX loading it from node_modules at runtime).
 async function importSapAiProvider(): Promise<
-	typeof import("@jerome-benoit/sap-ai-provider")
+	typeof import("@jerome-benoit/sap-ai-provider/v4")
 > {
 	const emitter = process as unknown as EventEmitter;
 	const owned = new Set<ProcessListener>();
@@ -43,7 +43,7 @@ async function importSapAiProvider(): Promise<
 	try {
 		return await sapImportScope.run(
 			owned,
-			() => import("@jerome-benoit/sap-ai-provider"),
+			() => import("@jerome-benoit/sap-ai-provider/v4"),
 		);
 	} finally {
 		emitter.removeListener("newListener", record);
