@@ -417,7 +417,13 @@ export function isMoonshotKimiModelIdFallback(
 }
 
 export function isDeepSeekFamily(context: GatewayProviderContext): boolean {
-	return normalizedFamily(context).includes("deepseek");
+	const family = normalizedFamily(context);
+	return (
+		family === "deepseek" ||
+		family === "deepseek-thinking" ||
+		family === "deepseek-flash" ||
+		family === "deepseek-flash-free"
+	);
 }
 
 /**
