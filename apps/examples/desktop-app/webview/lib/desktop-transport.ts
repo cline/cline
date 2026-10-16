@@ -33,6 +33,13 @@ export type DesktopTransportMessage =
 	| DesktopTransportResponse
 	| DesktopTransportEvent;
 
+/** Local Hub startup, sent as the `hub_status` event. */
+export type DesktopHubStatus = {
+	state: "starting" | "ready" | "failed";
+	/** User-facing summary. Raw errors go to the log and diagnostics report. */
+	error?: string;
+};
+
 export type DesktopTransportState =
 	| "connecting"
 	| "reconnecting"
