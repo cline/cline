@@ -63,7 +63,7 @@ export function CloudGitHubCard() {
 					</span>
 				) : (
 					<span className="text-description">
-						Connect GitHub to run tasks in isolated cloud sandboxes that keep working after you close VS Code.
+						Connect GitHub to run tasks in isolated cloud sandboxes that keep working after you close your editor.
 					</span>
 				)}
 			</div>
