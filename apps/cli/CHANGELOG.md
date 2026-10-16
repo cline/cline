@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.72
+
+- Plugins now run in a worker instead of directly inside the hub. If this build can't run plugins, Cline says so in `cline config tools`, `cline hub plugins`, and the session-start warnings instead of quietly running them inside the hub. `CLINE_PLUGIN_MODE=in_process` is no longer supported; use `worker` (the default) or `sandbox`
+- When a provider error interrupts a response mid-stream, Cline retries it up to 3 times before failing the turn
+- Failed model requests now log the provider's request id, which makes support tickets easier to trace
+- `cline hub ensure` and `cline hub start` gain `--json` (prints the hub URL and auth token), `--allow-port-fallback`, `--no-connectors`, and `--login-shell-path`. `cline hub` accepts `--discovery-path` to use a dedicated discovery record
+- `cline hub` commands no longer count as a CLI activation in usage stats
+- With no model chosen, the Cline provider now uses Gemini 4 Argon, the new first model in Cline's recommended list
+- Refreshed the model catalog. Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova
+
 ## 3.0.71
 
 - Plugins now load inside the hub instead of a separate node or bun process, so the CLI no longer needs a JavaScript runtime on your PATH to run plugins. A plugin that fails to load no longer silently loses its tools: Cline prints a warning naming the plugin and the error, `cline config tools --json` lists it as a `plugin_failure` entry, and the new `cline hub plugins` shows each plugin's status and last error (`--reload <plugin>` re-imports one without restarting the hub). Set `CLINE_PLUGIN_MODE=sandbox` to keep the old subprocess behavior
