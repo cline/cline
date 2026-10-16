@@ -462,9 +462,10 @@ async function sideContents(
 
 /**
  * The submodule checked out at `path`, as git diff shows it: its HEAD, with
- * `-dirty` when it has uncommitted changes of its own. Undefined when `path`
- * is not a repository root (an uninitialized submodule would otherwise
- * report the superproject's HEAD).
+ * `-dirty` when it has uncommitted changes of its own. Empty for a directory
+ * that is not its own repository root (an uninitialized submodule, which
+ * would otherwise report the superproject's HEAD); undefined when `path` is
+ * not a directory, so the caller reads it as a file.
  */
 async function workingSubproject(
 	git: GitRunner,
@@ -473,11 +474,12 @@ async function workingSubproject(
 	const prefix = await git(["-C", path, "rev-parse", "--show-prefix"]).catch(
 		() => undefined,
 	);
-	if (prefix === undefined || prefix.trim() !== "") return undefined;
+	if (prefix === undefined) return undefined;
+	if (prefix.trim() !== "") return "";
 	const head = (
 		await git(["-C", path, "rev-parse", "HEAD"]).catch(() => "")
 	).trim();
-	if (!head) return undefined;
+	if (!head) return "";
 	const dirty =
 		(
 			await git(["-C", path, "status", "--porcelain"]).catch(() => "")
@@ -551,27 +553,22 @@ export async function getGitFileDiff(
 		};
 	}
 	if (indexEntry?.mode === GITLINK) {
-		const working =
-			(await workingSubproject(git, path)) ??
-			// Replaced by a plain file in the working tree, or not checked out.
-			(
-				await readWorkingFile(path, { symlink: false }).catch(() => ({
-					content: "",
-					truncated: false,
-				}))
-			).content ??
-			"";
-		return {
-			environmentId,
-			path,
-			oldText: subprojectText(indexEntry.sha),
-			newText: working,
-			binary: working.includes("\0"),
-			truncated: false,
-		};
+		const checkout = await workingSubproject(git, path);
+		if (checkout !== undefined) {
+			return {
+				environmentId,
+				path,
+				oldText: subprojectText(indexEntry.sha),
+				newText: checkout,
+				binary: false,
+				truncated: false,
+			};
+		}
 	}
+	// A submodule replaced by a file (or deleted) in the working tree reads
+	// through the file reader, keeping its binary and truncation flags.
 	const [oldText, working] = await Promise.all([
-		showBlob(git, "", path),
+		sideContents(git, "", path, indexEntry),
 		readWorkingFile(path, { symlink: indexEntry?.mode === SYMLINK }),
 	]);
 	return {

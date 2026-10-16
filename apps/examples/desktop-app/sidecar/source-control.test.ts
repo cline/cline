@@ -520,9 +520,24 @@ describe("against a real repository", () => {
 			);
 			expect(dirty.newText).toBe(`Subproject commit ${second}-dirty\n`);
 
+			// Replaced by a file in the working tree: the reader's result (and its
+			// truncation flag) is used as-is.
+			rmSync(join(root, "vendor/lib"), { recursive: true, force: true });
+			writeFileSync(join(root, "vendor/lib"), "big file\n");
+			const fileReplacement = await getGitFileDiff(
+				git,
+				async () => ({ content: "big file\n", truncated: true }),
+				"local",
+				"vendor/lib",
+				false,
+			);
+			expect(fileReplacement.oldText).toBe(`Subproject commit ${first}\n`);
+			expect(fileReplacement.newText).toBe("big file\n");
+			expect(fileReplacement.truncated).toBe(true);
+
 			// A commit that replaces the submodule with a file shows each side
 			// by its own type: the old commit, then the new file's contents.
-			await git(["rm", "-q", "-rf", "vendor/lib"]);
+			await git(["rm", "-q", "--cached", "vendor/lib"]);
 			writeFileSync(join(root, "vendor/lib"), "now a file\n");
 			await git(["add", "vendor/lib"]);
 			await git(["commit", "-q", "-m", "replace submodule with a file"]);
