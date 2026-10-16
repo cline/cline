@@ -7,6 +7,10 @@ Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core 
 
 Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
 
+## Empty model turn recovery
+
+A model turn with no tool call ends the run only when it left something visible: non-whitespace text, media, or provider-executed tool activity. A turn that produced only reasoning (or whitespace-only text) is not treated as a completion. `AgentRuntime` emits a `status-notice` with `metadata.kind: "empty_turn_recovery"`, appends a user reminder message (`metadata.userRunSpan: 0`, like the max-tokens nudge) asking the model to call a tool or answer, and requests another turn. Up to three consecutive empty turns are nudged; the counter resets whenever a turn makes a tool call. When the limit is exhausted the run fails with `Model returned no visible response or tool call across several consecutive turns` instead of completing silently. A turn with no content at all still fails immediately as `Model returned empty response`.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed
