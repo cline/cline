@@ -28,6 +28,7 @@ export type DelegatedAgentConnectionConfig = Pick<
 	| "providerConfig"
 	| "knownModels"
 	| "thinking"
+	| "serviceTier"
 	| "reasoningEffort"
 	| "thinkingBudgetTokens"
 	| "maxTokensPerTurn"
@@ -103,6 +104,7 @@ export function createDelegatedAgentConfigProvider(
 			providerConfig: runtimeConfig.providerConfig,
 			knownModels: runtimeConfig.knownModels,
 			thinking: runtimeConfig.thinking,
+			serviceTier: runtimeConfig.serviceTier,
 			reasoningEffort: runtimeConfig.reasoningEffort,
 			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
 			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
