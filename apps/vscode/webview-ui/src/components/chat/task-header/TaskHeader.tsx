@@ -160,7 +160,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				{/* Task Title */}
 				<div
 					aria-label={isTaskExpanded ? "Collapse task header" : "Expand task header"}
-					className="flex justify-between items-center cursor-pointer"
+					className="flex justify-between items-start cursor-pointer"
 					onClick={toggleTaskExpanded}
 					onKeyDown={(e) => {
 						if (e.key === "Enter" || e.key === " ") {
@@ -170,49 +170,52 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						}
 					}}
 					tabIndex={0}>
-					<div className="flex justify-between items-center">
-						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
-						{isTaskExpanded && (
-							<div className="mt-1 flex justify-end cursor-pointer opacity-80 gap-2 mx-2">
-								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
-								<DeleteTaskButton
-									className={BUTTON_CLASS}
-									taskId={currentTaskItem?.id}
-									taskSize={currentTaskItem?.size}
-								/>
-								{/* Only visible in development mode */}
-								{IS_DEV && (
-									<OpenDiskConversationHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
-								)}
-							</div>
-						)}
-					</div>
-					<div className="flex items-center select-none grow min-w-0 gap-1 justify-between">
+					<div className="flex flex-wrap gap-y-1 items-center grow min-w-0">
+						<div className="flex justify-between items-center">
+							{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
+							{isTaskExpanded && (
+								<div className="mt-1 flex justify-end cursor-pointer opacity-80 gap-2 mx-2">
+									<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
+									<DeleteTaskButton
+										className={BUTTON_CLASS}
+										taskId={currentTaskItem?.id}
+										taskSize={currentTaskItem?.size}
+									/>
+									{/* Only visible in development mode */}
+									{IS_DEV && (
+										<OpenDiskConversationHistoryButton
+											className={BUTTON_CLASS}
+											taskId={currentTaskItem?.id}
+										/>
+									)}
+								</div>
+							)}
+						</div>
 						{!isTaskExpanded && (
-							<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
+							<div className="select-none whitespace-nowrap overflow-hidden text-ellipsis grow basis-0 min-w-16">
 								<span className="ph-no-capture text-base">{highlightedText}</span>
 							</div>
 						)}
+						<div className="inline-flex flex-wrap gap-y-1 items-center justify-end select-none ml-auto min-w-0">
+							{currentCloudTask ? (
+								<CloudTaskBadge cloudTask={currentCloudTask} />
+							) : (
+								<TaskWorkingDirectoryBadge
+									platform={platform}
+									taskCwd={currentTaskItem?.cwdOnTaskInitialization}
+									workspaceRoots={workspaceRoots}
+								/>
+							)}
+							{isCostAvailable && (
+								<div
+									className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
+									id="price-tag">
+									<span className="text-xs sm:text-sm">${totalCost?.toFixed(4)}</span>
+								</div>
+							)}
+						</div>
 					</div>
-					<div className="inline-flex items-center justify-end select-none shrink-0">
-						{currentCloudTask ? (
-							<CloudTaskBadge cloudTask={currentCloudTask} />
-						) : (
-							<TaskWorkingDirectoryBadge
-								platform={platform}
-								taskCwd={currentTaskItem?.cwdOnTaskInitialization}
-								workspaceRoots={workspaceRoots}
-							/>
-						)}
-						{isCostAvailable && (
-							<div
-								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
-								id="price-tag">
-								<span className="text-xs sm:text-sm">${totalCost?.toFixed(4)}</span>
-							</div>
-						)}
-						<NewTaskButton className={BUTTON_CLASS} onClick={onClose} />
-					</div>
+					<NewTaskButton className={cn(BUTTON_CLASS, "shrink-0 mt-1")} onClick={onClose} />
 				</div>
 
 				{/* Expand/Collapse Task Details */}
