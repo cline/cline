@@ -17,6 +17,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubCapabilityNotice } from "@/components/hub-capability-notice";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
@@ -949,6 +950,7 @@ export default function Home() {
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
+							<HubCapabilityNotice className="mx-4 my-2 shrink-0" />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
 									<SessionsView
@@ -2385,6 +2387,7 @@ function ChatThreadPane({
 		environmentId,
 		sessionId: displayedSessionId,
 		status: displayedStatus,
+		loadingChat: displayedIsSwitching,
 		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
 		messages: displayedMessages,
 		promptsInQueue,

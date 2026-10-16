@@ -13,7 +13,7 @@ import {
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
-import { releasePluginUiViewer } from "./plugin-ui";
+import { releasePluginUiViewer, visibleHubBuildMismatch } from "./plugin-ui";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -367,8 +367,9 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 			});
 			// Replay a pending mismatch so webviews that connect (or reload)
 			// after detection still prompt the user to update and restart.
-			if (ctx.hubBuildMismatch) {
-				ws.send(encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch));
+			const hubBuildMismatch = visibleHubBuildMismatch(ctx);
+			if (hubBuildMismatch) {
+				ws.send(encodeSidecarEvent("hub_build_mismatch", hubBuildMismatch));
 			}
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {

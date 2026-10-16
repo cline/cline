@@ -74,6 +74,8 @@ export type ComposerSuggestionsOptions = {
 	environmentId: string;
 	sessionId: string | null;
 	status: ChatSessionStatus;
+	/** The displayed chat is still loading; its placeholder `starting` status is not a run. */
+	loadingChat: boolean;
 	/** A tool approval or a question is waiting on the person. */
 	waiting: boolean;
 	messages: ChatMessage[];
@@ -249,7 +251,9 @@ export function findSentMessage(
 export function useComposerSuggestions(
 	options: ComposerSuggestionsOptions,
 ): ComposerSuggestionsController {
-	const { enabled, environmentId, sessionId, status, waiting } = options;
+	const { enabled, environmentId, sessionId, status, loadingChat, waiting } =
+		options;
+	const busy = BUSY_STATUSES.has(status) && !loadingChat;
 	const [local, dispatch] = useReducer(
 		reduceSuggestionsLocal,
 		undefined,
@@ -267,6 +271,8 @@ export function useComposerSuggestions(
 	localRef.current = local;
 	const statusRef = useRef(status);
 	statusRef.current = status;
+	const busyRef = useRef(busy);
+	busyRef.current = busy;
 	const onUndoTurnRef = useRef(options.onUndoTurn);
 	onUndoTurnRef.current = options.onUndoTurn;
 	const latest = useRef(options);
@@ -278,7 +284,8 @@ export function useComposerSuggestions(
 	const boundRef = useRef("");
 	/** Bumped on every bind and unbind, so a reply to an earlier bind is never applied. */
 	const generationRef = useRef(0);
-	const attachingForRef = useRef<number | undefined>(undefined);
+	/** The due re-attach already sent (its epoch, or null without one); undefined while none is due. */
+	const attachingForRef = useRef<number | null | undefined>(undefined);
 	/** A one-key Send is waiting for its verdict; another press then sends nothing. */
 	const sendInFlightRef = useRef(false);
 	/** An Undo is taking the sent prompt back; another press then does nothing. */
@@ -357,6 +364,7 @@ export function useComposerSuggestions(
 			dispatch({
 				type: "attached",
 				sessionId: targetSessionId,
+				outcome: result.outcome,
 				epoch: result.epoch,
 			});
 		},
@@ -397,9 +405,7 @@ export function useComposerSuggestions(
 				const envelope = readSuggestionsEnvelope(value);
 				if (envelope) dispatch({ type: "state", envelope, now: Date.now() });
 			}
-			if (BUSY_STATUSES.has(statusRef.current)) {
-				dispatch({ type: "run_started" });
-			}
+			if (busyRef.current) dispatch({ type: "run_started" });
 			await attach(boundSessionId, generation);
 		})();
 		return () => {
@@ -421,18 +427,21 @@ export function useComposerSuggestions(
 	}, [enabled, environmentId]);
 
 	useEffect(() => {
-		const due = local.attachDueFor;
+		if (!local.attachDue) {
+			attachingForRef.current = undefined;
+			return;
+		}
+		const due = local.attachDueFor ?? null;
 		const boundSessionId = boundRef.current;
-		if (!local.attachDue || !boundSessionId) return;
-		if (attachingForRef.current === due) return;
+		if (!boundSessionId || attachingForRef.current === due) return;
 		attachingForRef.current = due;
 		void attach(boundSessionId, generationRef.current);
 	}, [attach, local.attachDue, local.attachDueFor]);
 
-	const busy = BUSY_STATUSES.has(status);
 	const wasBusyRef = useRef(busy);
 	useEffect(() => {
 		if (busy && !wasBusyRef.current) dispatch({ type: "run_started" });
+		if (!busy && wasBusyRef.current) dispatch({ type: "run_ended" });
 		wasBusyRef.current = busy;
 	}, [busy]);
 

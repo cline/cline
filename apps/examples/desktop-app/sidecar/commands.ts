@@ -34,6 +34,7 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	type ClineAccountUser,
+	checkManagedHubBuildMismatch,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
@@ -69,6 +70,7 @@ import {
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
+	summarizeHubSessionActivity,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
@@ -165,7 +167,13 @@ import {
 	getPluginCommandService,
 	warmPluginCommandService,
 } from "./plugin-commands";
-import { getPluginUiStates, invokePluginUi } from "./plugin-ui";
+import {
+	broadcastHubBuildMismatch,
+	DESKTOP_REQUIRED_HUB_CAPABILITIES,
+	getPluginUiStates,
+	invokePluginUi,
+	refreshHubCapabilityNotice,
+} from "./plugin-ui";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -1467,6 +1475,49 @@ async function toggleHubSetting(
 	return reply.payload?.snapshot as CoreSettingsSnapshot;
 }
 
+/**
+ * Plugins load once per session start, so open local chats restart before
+ * their next turn to pick up a plugin that was added or turned on. Removing
+ * or turning one off restarts nothing, as before: each restart leaves the
+ * replaced runtime resident in the Hub, and a plugin that is no longer
+ * active withdraws its slot state on its own.
+ */
+function markLocalSessionsPluginsStale(ctx: SidecarContext): void {
+	for (const session of ctx.liveSessions.values()) {
+		if (session.environmentId === LOCAL_ENVIRONMENT_ID) {
+			session.pluginsStale = true;
+		}
+	}
+}
+
+/**
+ * The Hub keeps a plugin whose import failed blocked for its lifetime, so an
+ * install asks it to import the plugin again. A Hub that never tried has
+ * nothing to clear, and a failed request never fails the install.
+ */
+async function reloadInstalledPluginInHub(
+	ctx: SidecarContext,
+	details: JsonRecord | undefined,
+): Promise<void> {
+	const entryPaths = Array.isArray(details?.entryPaths)
+		? details.entryPaths.filter(
+				(entryPath): entryPath is string => typeof entryPath === "string",
+			)
+		: [];
+	for (const entryPath of entryPaths) {
+		try {
+			const hubClient = await ensureSharedHubClient(ctx);
+			await hubClient.command("plugins.reload", { plugin: entryPath });
+		} catch (error) {
+			ctx.logger?.log("Failed to reload the installed plugin in the hub", {
+				entryPath,
+				error,
+				severity: "warn",
+			});
+		}
+	}
+}
+
 async function listUserInstructionConfigs(
 	ctx: SidecarContext,
 	settingsSnapshot?: CoreSettingsSnapshot,
@@ -2233,6 +2284,18 @@ export async function handleCommand(
 	}
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
+	// Read fresh when the person asks to restart the Hub, so the interruption
+	// they confirm is the one the restart causes. Includes this app's chats.
+	if (command === "hub_session_activity") {
+		const hubClient = await ensureSharedHubClient(ctx);
+		const reply = await hubClient.command("session.list", { limit: 500 });
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? "hub command failed: session.list",
+			);
+		}
+		return summarizeHubSessionActivity(reply.payload);
+	}
 	if (command === "hub_upgrade") {
 		// Replacing the shared Hub interrupts other clients' sessions, so it
 		// carries the same per-connection gate as the tool-approval commands:
@@ -2241,14 +2304,16 @@ export async function handleCommand(
 		if (!options?.connection?.data?.canApproveTools) {
 			throw new Error("hub upgrade requires a trusted desktop connection");
 		}
-		// Only reached after the user accepted the blocking "Hub update
-		// required" dialog, so force: the old Hub is replaced even though it
-		// is still serving other clients' sessions. Drain-first semantics
-		// still give in-flight turns the wait window to finish.
+		// Only reached after the user asked for it, from the blocking "Hub
+		// update required" dialog or the Restart Hub notice (which confirms a
+		// fresh hub_session_activity count), so force: the old Hub is replaced
+		// even though it is still serving other clients' sessions. Drain-first
+		// semantics still give in-flight turns the wait window to finish.
 		const result = await upgradeManagedHub({
 			workspaceRoot: ctx.localWorkspaceRoot,
 			force: true,
 			reason: "Cline Desktop hub update",
+			requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
 		});
 		if (result.outcome === "hub_not_older") {
 			throw new Error(
@@ -2259,6 +2324,24 @@ export async function handleCommand(
 			throw new Error(
 				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
 			);
+		}
+		if (result.outcome === "replaced" || result.outcome === "started") {
+			// Open chats were started on the old Hub, which may lack plugin
+			// support; each restarts on the new Hub before its next turn.
+			markLocalSessionsPluginsStale(ctx);
+			// Retiring the old Hub and starting this build's are separate steps,
+			// and another Cline app's client can respawn its own build in
+			// between, which this app then reuses as the same identity.
+			const remaining = await checkManagedHubBuildMismatch({
+				requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
+			});
+			if (remaining?.reason === "missing_capability") {
+				ctx.hubBuildMismatch = remaining;
+				broadcastHubBuildMismatch(ctx);
+				throw new Error(
+					"Another Cline app restarted the Cline Hub with its own version first, so suggestions are still off. Quit the other Cline apps, then restart the Hub again.",
+				);
+			}
 		}
 		// The mismatch is resolved: a null broadcast closes the dialog in
 		// every connected webview and stops the replay-on-connect.
@@ -3574,16 +3657,27 @@ export async function handleCommand(
 	}
 	if (command === "install_marketplace_entry") {
 		const result = await installMarketplaceEntryForDesktopCommand(args);
+		if (result.type === "plugin") {
+			await reloadInstalledPluginInHub(ctx, result.details);
+			markLocalSessionsPluginsStale(ctx);
+			refreshHubCapabilityNotice(ctx);
+		}
 		return result;
 	}
 	if (command === "uninstall_marketplace_entry") {
 		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
+		if (result.type === "plugin") {
+			refreshHubCapabilityNotice(ctx);
+		}
 		return result;
 	}
 	if (command === "uninstall_local_primitive") {
 		const result = await uninstallLocalPrimitive(args, {
 			workspaceRoot: ctx.localWorkspaceRoot,
 		});
+		if (result.type === "plugin") {
+			refreshHubCapabilityNotice(ctx);
+		}
 		return result;
 	}
 	if (command === "toggle_disabled_plugin_tool") {
@@ -3625,6 +3719,10 @@ export async function handleCommand(
 			path: pluginPath,
 			enabled: args?.disabled !== true,
 		});
+		if (args?.disabled !== true) {
+			markLocalSessionsPluginsStale(ctx);
+		}
+		refreshHubCapabilityNotice(ctx);
 		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_skill_disabled") {

@@ -6,6 +6,23 @@ import {
 import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
 
+const { enabledPluginPaths } = vi.hoisted(() => ({
+	enabledPluginPaths: { current: [] as string[] },
+}));
+
+vi.mock("@cline/core", async () => {
+	const actual =
+		await vi.importActual<typeof import("@cline/core")>("@cline/core");
+	return {
+		...actual,
+		resolveAgentPluginPathsWithDiagnostics: () => ({
+			paths: enabledPluginPaths.current,
+			disabledPaths: [],
+			discoveryFailures: [],
+		}),
+	};
+});
+
 const TEST_APPROVAL_TOKEN = "test-approval-token";
 
 function createTestServer() {
@@ -338,5 +355,57 @@ describe("plugin UI viewers on socket close", () => {
 			environmentId: "local",
 			sockets: new Set([staying]),
 		});
+	});
+});
+
+describe("replaying a pending Hub mismatch to a new webview", () => {
+	const missingPluginUi = {
+		url: "ws://127.0.0.1:25463/hub",
+		reason: "missing_capability" as const,
+		hubBuildId: "source-0.0.93",
+		expectedBuildId: "source-0.0.93",
+		missingCapabilities: ["plugins.ui"],
+	};
+
+	async function replayedMismatches(
+		hubBuildMismatch: SidecarContext["hubBuildMismatch"],
+	): Promise<unknown[]> {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.hubBuildMismatch = hubBuildMismatch;
+		const socket = { data: { canApproveTools: true }, send: vi.fn() };
+
+		createWebSocketHandler(ctx).open(socket);
+
+		return socket.send.mock.calls
+			.map(
+				([encoded]) =>
+					JSON.parse(String(encoded)) as {
+						event?: { name: string; payload: unknown };
+					},
+			)
+			.filter((message) => message.event?.name === "hub_build_mismatch")
+			.map((message) => message.event?.payload);
+	}
+
+	it("holds back the plugin UI notice while no plugin is enabled", async () => {
+		enabledPluginPaths.current = [];
+
+		await expect(replayedMismatches(missingPluginUi)).resolves.toEqual([]);
+	});
+
+	it("replays the plugin UI notice once a plugin is enabled", async () => {
+		enabledPluginPaths.current = ["/plugins/next-turn/index.ts"];
+
+		await expect(replayedMismatches(missingPluginUi)).resolves.toEqual([
+			missingPluginUi,
+		]);
+	});
+
+	it("replays the other Hub prompts regardless of plugins", async () => {
+		enabledPluginPaths.current = [];
+		const outdated = { ...missingPluginUi, reason: "outdated_hub" as const };
+
+		await expect(replayedMismatches(outdated)).resolves.toEqual([outdated]);
 	});
 });

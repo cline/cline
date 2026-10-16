@@ -138,6 +138,24 @@ function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
 	>;
 }
 
+/** Adds a webview socket to the context; returns the payloads it received for an event. */
+function recordEvents(
+	ctx: SidecarContext,
+): (name: string) => Array<Record<string, unknown>> {
+	const send = vi.fn();
+	ctx.wsClients.add({ send } as never);
+	return (name) =>
+		send.mock.calls
+			.map(
+				([encoded]) =>
+					JSON.parse(String(encoded)) as {
+						event: { name: string; payload: Record<string, unknown> };
+					},
+			)
+			.filter((message) => message.event.name === name)
+			.map((message) => message.event.payload);
+}
+
 describe("starting SSH sessions", () => {
 	const sessionId = "session-new-ssh";
 	const environmentId = "ssh-test";
@@ -270,6 +288,9 @@ describe("plugin UI slot catalog", () => {
 			sessionId: "catalog-started",
 			manifest: { cwd: workspaceRoot, workspace_root: workspaceRoot },
 		}));
+		const pluginUiInvoke = vi.fn(async (_input?: unknown) => ({
+			outcome: "ok",
+		}));
 		const restore = vi.fn(async (_input?: unknown) => ({
 			sessionId: "catalog-restored",
 			messages: transcript,
@@ -314,17 +335,62 @@ describe("plugin UI slot catalog", () => {
 					restore,
 					start,
 					pendingPrompts: { list: vi.fn(async () => []) },
+					pluginUi: { invoke: pluginUiInvoke },
 				},
 				{ sessionIds: [sourceSessionId], workspaceRoot },
 			),
 		} as unknown as SidecarContext;
-		return { ctx, restore, start };
+		return { ctx, pluginUiInvoke, restore, start };
+	}
+
+	function recordViewer(ctx: SidecarContext, sessionId: string): void {
+		ctx.pluginUiViews = new Map([
+			[
+				sessionId,
+				{ environmentId: "local", sockets: new Set([{ send: vi.fn() }]) },
+			],
+		]);
 	}
 
 	it("declares the tray when it starts a local session", async () => {
 		const { ctx, start } = createCatalogContext();
 		await handleChatSessionCommand(ctx, { action: "start", config: model });
 		expect(start.mock.calls[0]?.[0]).toMatchObject(desktopCatalog);
+	});
+
+	it("attaches the viewer a reopened chat recorded before its same-id start", async () => {
+		const reopenedSessionId = "catalog-reopened";
+		const { ctx, pluginUiInvoke, start } = createCatalogContext();
+		start.mockResolvedValueOnce({
+			sessionId: reopenedSessionId,
+			manifest: { cwd: workspaceRoot, workspace_root: workspaceRoot },
+		});
+		recordViewer(ctx, reopenedSessionId);
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...model, sessionId: reopenedSessionId },
+		});
+
+		await vi.waitFor(() => expect(pluginUiInvoke).toHaveBeenCalledOnce());
+		expect(pluginUiInvoke).toHaveBeenCalledWith({
+			sessionId: reopenedSessionId,
+			slot: "composer.suggestions",
+			action: { verb: "attach", surface: "desktop" },
+		});
+		expect(pluginUiInvoke.mock.invocationCallOrder[0]).toBeGreaterThan(
+			start.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+		);
+	});
+
+	it("does not attach for a started session no webview views", async () => {
+		const { ctx, pluginUiInvoke } = createCatalogContext();
+		recordViewer(ctx, "another-session");
+
+		await handleChatSessionCommand(ctx, { action: "start", config: model });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(pluginUiInvoke).not.toHaveBeenCalled();
 	});
 
 	it("declares the tray on the restore a message edit forks through", async () => {
@@ -1954,6 +2020,226 @@ describe("first-send connection updates", () => {
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
 		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
+	});
+
+	describe("after the installed plugins change", () => {
+		function markPluginsStale(ctx: SidecarContext, sessionId: string) {
+			const session = ctx.liveSessions.get(sessionId);
+			if (!session) throw new Error("missing session");
+			session.pluginsStale = true;
+			return session;
+		}
+
+		it("restarts the chat with the tray before its next prompt, once", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			const session = markPluginsStale(ctx, sessionId);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+
+			expect(stop).toHaveBeenCalledOnce();
+			expect(stop).toHaveBeenCalledWith(sessionId);
+			expect(start).toHaveBeenCalledOnce();
+			expect(start.mock.calls[0]?.[0]).toMatchObject({
+				config: {
+					providerId: "cline",
+					modelId: "anthropic/claude-sonnet-4.6",
+					sessionId,
+				},
+				initialMessages: [
+					{ role: "user", content: "first prompt" },
+					{ role: "assistant", content: "first response" },
+				],
+				uiSlots: ["composer.suggestions"],
+			});
+			expect(start.mock.invocationCallOrder[0]).toBeLessThan(
+				send.mock.invocationCallOrder[0] ?? 0,
+			);
+			expect(session.pluginsStale).toBe(false);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "and again",
+			});
+			expect(start).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledTimes(2);
+		});
+
+		it("restarts once when the same send switches provider", async () => {
+			const { ctx, sessionId, start } = createContext();
+			const session = markPluginsStale(ctx, sessionId);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "continue with Codex",
+				config: {
+					...baseConfig,
+					provider: "openai-codex",
+					model: "gpt-5.3-codex",
+				},
+			});
+
+			expect(start).toHaveBeenCalledOnce();
+			expect(start.mock.calls[0]?.[0]).toMatchObject({
+				config: { providerId: "openai-codex", sessionId },
+			});
+			expect(session.pluginsStale).toBe(false);
+		});
+
+		it.each([
+			"queue",
+			"steer",
+		] as const)("keeps the chat running through an explicit %s send", async (delivery) => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			const session = markPluginsStale(ctx, sessionId);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "follow-up",
+				delivery,
+			});
+
+			expect(send).toHaveBeenCalledOnce();
+			expect(stop).not.toHaveBeenCalled();
+			expect(start).not.toHaveBeenCalled();
+			expect(session.pluginsStale).toBe(true);
+		});
+
+		it("keeps the chat running while a turn is in flight", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			const session = markPluginsStale(ctx, sessionId);
+			session.busy = true;
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "follow-up",
+			});
+
+			expect(send).toHaveBeenCalledWith(
+				expect.objectContaining({ delivery: "queue" }),
+			);
+			expect(stop).not.toHaveBeenCalled();
+			expect(start).not.toHaveBeenCalled();
+			expect(session.pluginsStale).toBe(true);
+		});
+
+		it("queues a follow-up sent while the chat restarts into the restarted chat", async () => {
+			let resolveMessages:
+				| ((messages: Array<{ role: string; content: string }>) => void)
+				| undefined;
+			const messages = new Promise<Array<{ role: string; content: string }>>(
+				(resolve) => {
+					resolveMessages = resolve;
+				},
+			);
+			const { ctx, readMessages, send, sessionId, start } = createContext();
+			markPluginsStale(ctx, sessionId);
+			readMessages.mockImplementationOnce(async () => await messages);
+
+			const restarting = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+			await vi.waitFor(() => expect(readMessages).toHaveBeenCalledOnce());
+			const followUp = handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "and also this",
+				delivery: "queue",
+			});
+
+			resolveMessages?.([
+				{ role: "user", content: "first prompt" },
+				{ role: "assistant", content: "first response" },
+			]);
+			await restarting;
+			await expect(followUp).resolves.toMatchObject({ queued: true });
+			const queuedCall = send.mock.calls.findIndex(
+				([input]) =>
+					(input as { delivery?: string } | undefined)?.delivery === "queue",
+			);
+			expect(queuedCall).toBeGreaterThanOrEqual(0);
+			expect(start).toHaveBeenCalledOnce();
+			expect(start.mock.invocationCallOrder[0]).toBeLessThan(
+				send.mock.invocationCallOrder[queuedCall] ?? 0,
+			);
+		});
+
+		it("still restarts on its next send after the webview attaches it again", async () => {
+			const { ctx, send, sessionId, start, stop } = createContext();
+			markPluginsStale(ctx, sessionId);
+			localSessionManager(ctx).get = vi.fn(async () => ({
+				status: "idle",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+			}));
+
+			await handleChatSessionCommand(ctx, { action: "attach", sessionId });
+			expect(ctx.liveSessions.get(sessionId)?.pluginsStale).toBe(true);
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+
+			expect(stop).toHaveBeenCalledOnce();
+			expect(start).toHaveBeenCalledOnce();
+			expect(start.mock.invocationCallOrder[0]).toBeLessThan(
+				send.mock.invocationCallOrder[0] ?? 0,
+			);
+		});
+
+		it("shows the plugins the restarted chat could not load", async () => {
+			const { ctx, sessionId, start } = createContext();
+			const events = recordEvents(ctx);
+			markPluginsStale(ctx, sessionId);
+			const failed = {
+				name: "next-turn",
+				pluginPath: "/plugins/next-turn/index.ts",
+				state: "failed",
+				lastError: { phase: "load", message: "Plugin import timed out" },
+			};
+			start.mockResolvedValueOnce({
+				sessionId,
+				pluginIssues: [
+					failed,
+					{
+						name: "quiet",
+						pluginPath: "/plugins/quiet/index.ts",
+						state: "disabled",
+						reason: "settings",
+					},
+				],
+			} as never);
+
+			await handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "hello",
+			});
+
+			const pluginNotices = events("chat_event")
+				.filter((payload) => payload.stream === "chat_core_log")
+				.map((payload) => JSON.parse(String(payload.chunk)))
+				.filter((chunk) => chunk.metadata?.pluginIssue);
+			expect(pluginNotices).toEqual([
+				expect.objectContaining({
+					message:
+						'Plugin "next-turn" failed during load: Plugin import timed out (/plugins/next-turn/index.ts). Its tools and hooks are unavailable.',
+					metadata: { pluginIssue: failed },
+				}),
+			]);
+		});
 	});
 
 	describe("hub loss recovery", () => {

@@ -185,6 +185,7 @@ export function defaultOptions(
 		environmentId: ENVIRONMENT_ID,
 		sessionId: SESSION_ID,
 		status: "idle",
+		loadingChat: false,
 		waiting: false,
 		messages: [],
 		promptsInQueue: [],

@@ -5,6 +5,7 @@ import { createSidecarContext } from "./context";
 import {
 	desktopUiSlots,
 	invokePluginUi,
+	reattachPluginUiViewers,
 	releasePluginUiViewer,
 } from "./plugin-ui";
 import type { SidecarContext, SidecarWebSocketClient } from "./types";
@@ -217,5 +218,78 @@ describe("plugin UI sidecar commands", () => {
 		releasePluginUiViewer(bare, socket);
 
 		expect(forwardedVerbs(invoke)).toEqual(["attach"]);
+	});
+});
+
+describe("re-attaching a viewed session after a same-id restart", () => {
+	/** Re-attaches a session one webview socket views; returns the plugin UI states that socket then received. */
+	async function reattachAnswering(reply: unknown) {
+		const { ctx, invoke } = createContext();
+		const socket = trustedSocket();
+		ctx.wsClients.add(socket);
+		await invokePluginUi(ctx, presence("attach"), socket);
+		invoke.mockResolvedValueOnce(reply as never);
+
+		reattachPluginUiViewers(
+			ctx,
+			ctx.runtimeBindings.get("local")?.sessionManager as never,
+			SESSION_ID,
+		);
+		await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(2));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		return vi
+			.mocked(socket.send)
+			.mock.calls.map(
+				([encoded]) =>
+					JSON.parse(String(encoded)) as {
+						event: { name: string; payload: unknown };
+					},
+			)
+			.filter((message) => message.event.name === "plugin_ui_state")
+			.map((message) => message.event.payload);
+	}
+
+	// Nothing else would replace the set the webview kept from the old epoch,
+	// so the tray would show "working" on every later turn.
+	it("clears the slot for the new epoch when no plugin fills it", async () => {
+		await expect(
+			reattachAnswering({ outcome: "unavailable", epoch: 200 }),
+		).resolves.toEqual([
+			{
+				environmentId: "local",
+				sessionId: SESSION_ID,
+				envelope: {
+					sessionId: SESSION_ID,
+					slot: "composer.suggestions",
+					plugin: "",
+					epoch: 200,
+					seq: 0,
+					state: null,
+				},
+			},
+		]);
+	});
+
+	it("leaves the slot to the plugin once the new epoch holds its state", async () => {
+		await expect(
+			reattachAnswering({
+				outcome: "ok",
+				epoch: 200,
+				state: {
+					sessionId: SESSION_ID,
+					slot: "composer.suggestions",
+					plugin: "demo",
+					epoch: 200,
+					seq: 1,
+					state: null,
+				},
+			}),
+		).resolves.toEqual([]);
+	});
+
+	it("sends nothing when the reply names no epoch", async () => {
+		await expect(
+			reattachAnswering({ outcome: "unavailable" }),
+		).resolves.toEqual([]);
 	});
 });

@@ -474,6 +474,7 @@ function createLiveSession(
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		pluginsStale: overrides?.pluginsStale,
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -1151,6 +1152,9 @@ async function handleStart(
 	);
 	ctx.liveSessions.set(sessionId, session);
 	ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+	// A chat reopened from history attached before the hub held it, so the
+	// viewer it recorded then never reached this start's epoch.
+	reattachPluginUiViewers(ctx, manager, sessionId);
 	return {
 		sessionId,
 		cwd,
@@ -1158,6 +1162,12 @@ async function handleStart(
 		environmentId: binding.environmentId,
 		...pluginWarningsOf(startResult.pluginIssues),
 	};
+}
+
+function failedPluginIssues(
+	issues: ReadonlyArray<SessionPluginIssue> | undefined,
+): SessionPluginIssue[] {
+	return (issues ?? []).filter((issue) => issue.state === "failed");
 }
 
 /**
@@ -1168,10 +1178,34 @@ async function handleStart(
 function pluginWarningsOf(
 	issues: ReadonlyArray<SessionPluginIssue> | undefined,
 ): { pluginWarnings?: string[] } {
-	const pluginWarnings = (issues ?? [])
-		.filter((issue) => issue.state === "failed")
-		.map(formatSessionPluginIssue);
+	const pluginWarnings = failedPluginIssues(issues).map(
+		formatSessionPluginIssue,
+	);
 	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
+}
+
+/**
+ * A rebuild has no start reply to carry plugin warnings, so its load
+ * failures go to the chat the way later plugin failures do.
+ */
+function emitPluginFailureNotices(
+	ctx: SidecarContext,
+	sessionId: string,
+	issues: ReadonlyArray<SessionPluginIssue> | undefined,
+): void {
+	for (const issue of failedPluginIssues(issues)) {
+		emitChunk(
+			ctx,
+			sessionId,
+			"chat_core_log",
+			JSON.stringify({
+				level: "warn",
+				message: formatSessionPluginIssue(issue),
+				noticeType: "status",
+				metadata: { pluginIssue: issue },
+			}),
+		);
+	}
 }
 
 async function handleAttach(
@@ -1240,6 +1274,7 @@ async function handleAttach(
 				existing?.title,
 			endedAt: isoTimestampToMs(session.endedAt),
 			attachedViaHub: true,
+			pluginsStale: existing?.pluginsStale,
 			// Preserve tracked attachment files so re-attach (called on every
 			// webview hydrate) does not orphan materialized files still awaiting
 			// cleanup.
@@ -1307,6 +1342,7 @@ async function startRebuiltSession(
 			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
 		);
 	}
+	emitPluginFailureNotices(ctx, sessionId, restarted.pluginIssues);
 	reattachPluginUiViewers(ctx, manager, sessionId);
 }
 
@@ -1629,6 +1665,19 @@ async function recoverSessionAfterHubLoss(
 	return outcome;
 }
 
+// Restarts that load changed plugins, by session. A prompt sent meanwhile
+// waits for the restarted session instead of reaching the one being replaced.
+const pluginReloads = new Map<string, Promise<void>>();
+
+function trackPluginReload(sessionId: string, reload: Promise<void>): void {
+	pluginReloads.set(sessionId, reload);
+	const forget = () => {
+		if (pluginReloads.get(sessionId) === reload)
+			pluginReloads.delete(sessionId);
+	};
+	reload.then(forget, forget);
+}
+
 async function handleSend(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1642,6 +1691,8 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	const pluginReload = pluginReloads.get(sessionId);
+	if (pluginReload) await pluginReload.catch(() => undefined);
 	const session = ctx.liveSessions.get(sessionId);
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -1739,6 +1790,7 @@ async function handleSend(
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
 	);
+	const reloadsPlugins = ownsBusyState && session?.pluginsStale === true;
 	if (session) {
 		if (ownsBusyState) {
 			session.prompt = prompt;
@@ -1750,16 +1802,21 @@ async function handleSend(
 		}
 	}
 	try {
-		if ((request.config || binding.kind === "ssh") && nextConfig) {
-			if (providerChanged && session) {
-				await rebuildSessionForProviderChange(
-					ctx,
-					binding,
-					sessionId,
-					session.config,
-					nextConfig,
-				);
-			} else if (
+		if (session && nextConfig && (providerChanged || reloadsPlugins)) {
+			session.pluginsStale = false;
+			const rebuilt = rebuildSessionForProviderChange(
+				ctx,
+				binding,
+				sessionId,
+				session.config,
+				nextConfig,
+			);
+			if (reloadsPlugins) trackPluginReload(sessionId, rebuilt);
+			await rebuilt;
+			session.config = nextConfig;
+			session.attachedViaHub = false;
+		} else if ((request.config || binding.kind === "ssh") && nextConfig) {
+			if (
 				binding.kind === "ssh" ||
 				!session ||
 				session.attachedViaHub ||
@@ -1792,9 +1849,6 @@ async function handleSend(
 			}
 			if (session) {
 				session.config = nextConfig;
-				if (providerChanged) {
-					session.attachedViaHub = false;
-				}
 			}
 		}
 

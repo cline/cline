@@ -1,10 +1,20 @@
-import type { ClineCore } from "@cline/core";
+import {
+	type ClineCore,
+	type ManagedHubBuildMismatchEvent,
+	resolveAgentPluginPathsWithDiagnostics,
+} from "@cline/core";
 import type {
+	HubCapabilityName,
 	PluginUiInvokeInput,
 	PluginUiInvokeResult,
 	PluginUiStateEnvelope,
 } from "@cline/shared";
-import { getRuntimeBinding, getSessionRuntimeBinding } from "./context";
+import {
+	broadcastEvent,
+	getRuntimeBinding,
+	getSessionRuntimeBinding,
+	sendEvent,
+} from "./context";
 import type {
 	SessionRuntimeBinding,
 	SidecarContext,
@@ -22,6 +32,42 @@ export function desktopUiSlots(
 	binding: Pick<SessionRuntimeBinding, "kind">,
 ): string[] | undefined {
 	return binding.kind === "local" ? [COMPOSER_SUGGESTIONS] : undefined;
+}
+
+/**
+ * The local Hub capabilities those slots depend on. A Hub without them
+ * ignores the declared slots, so the desktop offers to restart it.
+ */
+export const DESKTOP_REQUIRED_HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"plugins.ui",
+];
+
+/**
+ * The mismatch the webview should see. A Hub without plugin UI costs nothing
+ * until a plugin is enabled, so its notice waits for one; the mismatch stays
+ * recorded for when it does.
+ */
+export function visibleHubBuildMismatch(
+	ctx: SidecarContext,
+): ManagedHubBuildMismatchEvent | null {
+	const mismatch = ctx.hubBuildMismatch;
+	if (mismatch?.reason !== "missing_capability") return mismatch;
+	const enabledPlugins = resolveAgentPluginPathsWithDiagnostics({
+		workspacePath: ctx.localWorkspaceRoot,
+		cwd: ctx.localWorkspaceRoot,
+	}).paths;
+	return enabledPlugins.length > 0 ? mismatch : null;
+}
+
+export function broadcastHubBuildMismatch(ctx: SidecarContext): void {
+	broadcastEvent(ctx, "hub_build_mismatch", visibleHubBuildMismatch(ctx));
+}
+
+/** Shows or withdraws the plugin UI notice after the enabled plugins changed. */
+export function refreshHubCapabilityNotice(ctx: SidecarContext): void {
+	if (ctx.hubBuildMismatch?.reason === "missing_capability") {
+		broadcastHubBuildMismatch(ctx);
+	}
 }
 
 function readSessionId(args: Record<string, unknown> | undefined): string {
@@ -45,13 +91,6 @@ function readVerb(action: unknown): unknown {
 	return action && typeof action === "object"
 		? (action as { verb?: unknown }).verb
 		: undefined;
-}
-
-export function hasPluginUiViewers(
-	ctx: SidecarContext,
-	sessionId: string,
-): boolean {
-	return (ctx.pluginUiViews?.get(sessionId)?.sockets.size ?? 0) > 0;
 }
 
 function addPluginUiViewer(
@@ -169,20 +208,43 @@ export function releasePluginUiViewer(
 /**
  * A same-id rebuild starts a new epoch with no viewers, so a session the
  * webview still shows is attached again for it.
+ *
+ * When the new epoch's slot is empty, no plugin owns it yet and nothing
+ * would replace the set the webview kept from the old epoch, so the webview
+ * gets an empty state for the new epoch; any push the plugin makes later
+ * orders after it.
  */
 export function reattachPluginUiViewers(
 	ctx: SidecarContext,
 	manager: ClineCore,
 	sessionId: string,
 ): void {
-	if (!hasPluginUiViewers(ctx, sessionId)) return;
+	const viewers = ctx.pluginUiViews?.get(sessionId);
+	if (!viewers?.sockets.size) return;
 	void Promise.resolve()
 		.then(() =>
-			sendPresence(manager.pluginUi, sessionId, {
-				verb: "attach",
-				surface: "desktop",
+			manager.pluginUi.invoke({
+				sessionId,
+				slot: COMPOSER_SUGGESTIONS,
+				action: { verb: "attach", surface: "desktop" },
 			}),
 		)
+		.then((reply) => {
+			if (reply.epoch === undefined || reply.state) return;
+			const emptied: PluginUiStateEnvelope = {
+				sessionId,
+				slot: COMPOSER_SUGGESTIONS,
+				plugin: "",
+				epoch: reply.epoch,
+				seq: 0,
+				state: null,
+			};
+			sendEvent(ctx, "plugin_ui_state", {
+				environmentId: viewers.environmentId,
+				sessionId,
+				envelope: emptied,
+			});
+		})
 		.catch((error: unknown) => {
 			ctx.logger?.log("Failed to re-attach plugin UI viewer", {
 				sessionId,

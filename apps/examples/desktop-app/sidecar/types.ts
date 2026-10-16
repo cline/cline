@@ -63,6 +63,12 @@ export type LiveSession = {
 	endedAt?: number;
 	status: string;
 	transitioningProvider?: boolean;
+	/**
+	 * A local session's plugins changed since it started (install, uninstall,
+	 * toggle, or a replaced Hub). Plugins load once per start, so its next own
+	 * turn restarts it first.
+	 */
+	pluginsStale?: boolean;
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;

@@ -318,6 +318,164 @@ describe("useComposerSuggestions", () => {
 		expect(invokedActions("attach")).toHaveLength(2);
 	});
 
+	it("re-attaches once for the first state of a chat its attach found not yet running", async () => {
+		scriptHub({
+			reply: (_sessionId, action) =>
+				action.verb === "attach" ? { outcome: "unavailable" } : undefined,
+		});
+		const tray = await mountTray();
+		expect(invokedActions("attach")).toHaveLength(1);
+
+		await emitState(envelope(readyState("r1"), { epoch: 300, seq: 1 }));
+		expect(invokedActions("attach")).toHaveLength(2);
+
+		await emitState(envelope(readyState("r2"), { epoch: 300, seq: 2 }));
+		await settle(1_000);
+		expect(invokedActions("attach")).toHaveLength(2);
+		expect(options(tray.container)).toHaveLength(3);
+	});
+
+	it("re-attaches once within the epoch of an attach that timed out", async () => {
+		let attachReply: unknown = { outcome: "timeout", epoch: 100 };
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "attach" ? attachReply : undefined,
+		});
+		await mountTray();
+		expect(invokedActions("attach")).toHaveLength(1);
+
+		attachReply = { outcome: "ok", epoch: 100 };
+		await emitState(envelope(readyState("r2"), { seq: 2 }));
+		expect(invokedActions("attach")).toHaveLength(2);
+
+		await emitState(envelope(readyState("r3"), { seq: 3 }));
+		expect(invokedActions("attach")).toHaveLength(2);
+	});
+
+	describe("after an attach that timed out with the plugin's state already held", () => {
+		const dormant = envelope({
+			status: "hidden",
+			title: "Next",
+			revision: "none",
+			items: [],
+			canRefresh: false,
+		});
+
+		it("re-attaches once when the next run ends, when the timed-out reply carried the state", async () => {
+			let attachReply: unknown = {
+				outcome: "timeout",
+				epoch: 100,
+				state: dormant,
+			};
+			scriptHub({
+				reply: (_sessionId, action) =>
+					action.verb === "attach" ? attachReply : undefined,
+			});
+			const tray = await mountTray();
+			expect(invokedActions("attach")).toHaveLength(1);
+
+			attachReply = { outcome: "ok", epoch: 100 };
+			await tray.update({ status: "running" });
+			expect(invokedActions("attach")).toHaveLength(1);
+			await tray.update({ status: "idle" });
+			expect(invokedActions("attach")).toHaveLength(2);
+
+			await tray.update({ status: "running" });
+			await tray.update({ status: "idle" });
+			expect(invokedActions("attach")).toHaveLength(2);
+		});
+
+		it("re-attaches when the next run ends, when the state arrived before the reply", async () => {
+			scriptHub({
+				states: { [SESSION_ID]: [dormant] },
+				reply: (_sessionId, action) =>
+					action.verb === "attach"
+						? { outcome: "timeout", epoch: 100 }
+						: undefined,
+			});
+			const tray = await mountTray();
+			expect(invokedActions("attach")).toHaveLength(1);
+
+			await tray.update({ status: "running" });
+			await tray.update({ status: "idle" });
+			expect(invokedActions("attach")).toHaveLength(2);
+		});
+
+		it("re-attaches when the next run ends even after the state's own re-attach timed out", async () => {
+			scriptHub({
+				reply: (_sessionId, action) =>
+					action.verb === "attach"
+						? { outcome: "timeout", epoch: 100 }
+						: undefined,
+			});
+			const tray = await mountTray();
+			await emitState(dormant);
+			expect(invokedActions("attach")).toHaveLength(2);
+
+			await tray.update({ status: "running" });
+			await tray.update({ status: "idle" });
+			expect(invokedActions("attach")).toHaveLength(3);
+		});
+	});
+
+	it("hides a set its restarted chat no longer has, through the next turn", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray();
+		expect(options(tray.container)).toHaveLength(3);
+
+		await emitState({
+			...envelope(null, { epoch: 200, seq: 0 }),
+			plugin: "",
+		});
+		await tray.update({ status: "running" });
+
+		expect(
+			tray.container.querySelector('[data-testid="suggestion-working"]'),
+		).toBeNull();
+		expect(options(tray.container)).toHaveLength(0);
+		expect(invokedActions("attach")).toHaveLength(2);
+	});
+
+	it("keeps a set fetched while the chat loads, since loading is not a run", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray({ status: "starting", loadingChat: true });
+		expect(options(tray.container)).toHaveLength(3);
+
+		await tray.update({ status: "idle", loadingChat: false });
+		expect(options(tray.container)).toHaveLength(3);
+	});
+
+	it("still counts a run under way at bind when the chat is not loading", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray({ status: "starting", loadingChat: false });
+		await tray.update({ status: "idle" });
+
+		expect(options(tray.container)).toHaveLength(0);
+	});
+
+	it("counts no run when an idle chat reloads, and a run once loading ends", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray({ status: "idle", loadingChat: true });
+		await tray.update({ loadingChat: false });
+		await tray.update({ status: "starting", loadingChat: true });
+		await tray.update({ status: "idle", loadingChat: false });
+		expect(options(tray.container)).toHaveLength(3);
+
+		await tray.update({ status: "running" });
+		await tray.update({ status: "idle" });
+		expect(options(tray.container)).toHaveLength(0);
+	});
+
+	it("counts a run when a chat finishes loading with its run under way", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray({ status: "starting", loadingChat: true });
+		await tray.update({ status: "running", loadingChat: false });
+		await tray.update({ status: "idle" });
+
+		expect(options(tray.container)).toHaveLength(0);
+	});
+
 	it("binds again when the desktop transport reconnects", async () => {
 		scriptHub({ states: READY_R1 });
 		await mountTray();
