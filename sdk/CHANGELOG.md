@@ -1,5 +1,17 @@
 # Cline SDK Changelog
 
+## 0.0.94
+
+- Plugins now run only in worker threads (the default, `CLINE_PLUGIN_MODE=worker`) or in the subprocess sandbox (`sandbox`). The `in_process` mode is removed, along with its silent fallback. A host that ships no `plugin-sandbox-bootstrap.js` fails every plugin load with `PluginBootstrapMissingError`, which names `CLINE_PLUGIN_BOOTSTRAP_PATH`, instead of quietly running plugins inside the hub. The hub daemon's uncaught error handlers are fatal again. The SSH remote hub ships no bootstrap yet, so it reports plugin tools as missing
+- Provider errors that arrive after a model stream has started are retried up to 3 times, and the final failure is reported as an error in logs and Langfuse traces. Exhausted retries no longer also trigger the agent's whole-turn retry, so retry budgets don't multiply
+- Model request failure logs include the provider's request id
+- `setHubDaemonLauncher` lets an embedding host start the hub daemon through a bundled Cline CLI, and `ensureDetachedHubServer` gains a `beforeSpawn` hook that runs only when a new daemon actually starts. The standalone SSH remote helper entrypoint is removed: SSH remotes run the hub through the uploaded Cline CLI
+- `NodeHubClient` accepts `resolveConnectionHeaders`, so a remote proxy's WebSocket upgrade can be authenticated with HTTP headers refreshed on every reconnect. It is threaded through `HubRuntimeHost` and `RemoteRuntimeHost`
+- `AskQuestionExecutor` may return text and image blocks, so attachments sent with an answer reach the model
+- New `buildTelemetrySelfcheckReport` export in `@cline/shared`
+- The `cline` provider's bundled default (the first Cline recommended model) is now Gemini 4 Argon instead of Claude Sonnet 5.5, because the recommended list now leads with it
+- Refreshed the model catalog (6,862 → 6,952 models). Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova
+
 ## 0.0.93
 
 - Plugins load in-process through one registry per process instead of a node/bun subprocess, so the compiled CLI and its hub no longer need a runtime on PATH, and plugins can use the Bun global under the Bun-built hub. `CLINE_PLUGIN_MODE=sandbox` keeps the subprocess sandbox. The registry wraps import, setup, hooks, tools and commands with timeouts and error capture, and tracks each plugin's state (loading/ready/degraded/failed/disabled) with its last error. A failing plugin no longer silently drops its tools: `session.create` accepts a `plugins` policy and returns `pluginIssues`, later failures reach affected sessions as status notices, the hub answers `plugins.list`/`plugins.status`/`plugins.reload` and broadcasts `plugin.status_changed`, and the daemon marks a plugin failed instead of shutting down when an uncaught error comes from it. Each session gets its own copy of every plugin module, so plugins that keep per-session state at module level keep working

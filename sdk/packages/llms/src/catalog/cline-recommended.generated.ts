@@ -5,6 +5,13 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "google/gemini-4-argon",
+				name: "Gemini 4 Argon",
+				description:
+					"Frontier model for real-world coding, enterprise knowledge work, and cyber defense",
+				tags: ["NEW"],
+			},
+			{
 				id: "anthropic/claude-sonnet-5.5",
 				name: "claude-sonnet-5.5",
 				description: "",
@@ -13,12 +20,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 			{
 				id: "anthropic/claude-opus-5.5",
 				name: "claude-opus-5.5",
-				description: "",
-				tags: ["NEW"],
-			},
-			{
-				id: "x-ai/grok-4.7",
-				name: "grok-4.7",
 				description: "",
 				tags: ["NEW"],
 			},
@@ -44,10 +45,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
-				id: "cline-free/step-5-preview",
-				name: "Step 5 Preview",
-				description:
-					"StepFun's flagship model for agentic work, built on a sparse Mixture-of-Experts",
+				id: "cline-free/nemotron-3.5-super-vl",
+				name: "cline-free/nemotron-3.5-super-vl",
+				description: "NVIDIA’s latest model with 120B and fast output",
 				tags: [],
 			},
 			{
@@ -97,15 +97,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/deepseek-v4-pro",
-				name: "cline-pass/deepseek-v4-pro",
-				description: "Frontier reasoning and coding with 1M context window",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.8-max",
 				name: "cline-pass/qwen3.8-max",
 				description: "Qwen's New SOTA coding model",
+				tags: [],
+			},
+			{
+				id: "cline-pass/deepseek-v4-pro",
+				name: "cline-pass/deepseek-v4-pro",
+				description: "Frontier reasoning and coding with 1M context window",
 				tags: [],
 			},
 			{
@@ -128,6 +128,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
+				id: "cline-pass/qwen3.7-plus",
+				name: "cline-pass/qwen3.7-plus",
+				description: "Fast multimodal agent model with vision and video input",
+				tags: [],
+			},
+			{
 				id: "cline-pass/minimax-m3",
 				name: "cline-pass/minimax-m3",
 				description: "Frontier coding and agent model with 1M context window",
@@ -137,12 +143,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
-				tags: [],
-			},
-			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
 				tags: [],
 			},
 			{
