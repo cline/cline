@@ -1,0 +1,116 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+        
+      - name: Install dependencies
+        run: bun install
+        
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/examples/desktop-app/src-tauri -> target
+          
+      - name: Build Tauri app
+        run: |
+          cd apps/examples/desktop-app
+          bun run tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          
+      - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            apps/examples/desktop-app/src-tauri/target/release/bundle/msi/*.msi
+            apps/examples/desktop-app/src-tauri/target/release/bundle/nsis/*.exe
+            
+      - name: Upload Linux AppImage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: |
+            apps/examples/desktop-app/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/examples/desktop-app/src-tauri/target/release/bundle/deb/*.deb
+            
+      - name: Upload macOS artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            apps/examples/desktop-app/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/examples/desktop-app/src-tauri/target/release/bundle/macos/*.app.tar.gz
+
+  release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            Session Import Enhancement Release
+            
+            ## 🎉 New Features
+            - **Kilo Code session import** - Import tasks from VS Code + CLI
+            - **Antigravity (agy) session import** - Import from agy-desktop/IDE/CLI
+            - **Auto-updater** - Silent background updates
+            - **Enhanced path resolution** - Multi-directory support for all tools
+            
+            ## Import Sources
+            | Tool | Storage Location |
+            |------|-----------------|
+            | Claude Code | ~/.claude/projects/ |
+            | Codex | ~/.codex/ |
+            | opencode | ~/.local/share/opencode/, %APPDATA%/opencode/ |
+            | Kilo Code | VS Code globalStorage + ~/.kilocode/tasks |
+            | Antigravity | ~/.gemini/antigravity*/conversations/ |
+            
+            ## Installation
+            Download the installer for your platform and run it. The app auto-updates on startup.
+          draft: false
+          prerelease: false
+          files: |
+            windows-installer/*.exe
+            windows-installer/*.msi
+            linux-appimage/*
+            macos-artifacts/*
