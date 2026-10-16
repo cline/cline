@@ -13,7 +13,7 @@ import { desktopClient } from "@/lib/desktop-client";
 const BACKEND_UNRESPONSIVE_MS = 30_000;
 
 /**
- * Replaces the app while local Hub startup is in progress or has failed, so the
+ * Shown instead of the app while local Hub startup is in progress or has failed, so the
  * user gets Retry and a diagnostics export instead of Hub errors from
  * whichever feature they tried first.
  */

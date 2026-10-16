@@ -8,6 +8,7 @@ import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
+	Activity,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -304,19 +305,22 @@ export default function Home() {
 	const startup = useHubStartup();
 	const hubReady =
 		startup.transport === "connected" && startup.hub.state === "ready";
-	// Show the app once the Hub is first ready. A later restart that is still
-	// starting keeps it up (its commands wait in the sidecar); a failed one
-	// replaces it, so none of its dialogs can trap focus behind the screen.
+	// Mount the app once the Hub is first ready, then hide it with Activity
+	// whenever the Hub is not ready. Hidden Activity content keeps its state
+	// (open conversations) but unmounts effects, so its dialogs, including
+	// portaled ones, release focus traps and body pointer-events.
 	const [loaded, setLoaded] = useState(false);
 	useEffect(() => {
 		if (hubReady) setLoaded(true);
 	}, [hubReady]);
-	const hubFailed =
-		startup.transport === "connected" && startup.hub.state === "failed";
-	const showApp = loaded && !hubFailed;
 	return (
 		<>
-			{showApp ? <App /> : <HubStartupScreen {...startup} />}
+			{loaded ? (
+				<Activity mode={hubReady ? "visible" : "hidden"}>
+					<App />
+				</Activity>
+			) : null}
+			{hubReady ? null : <HubStartupScreen {...startup} />}
 			{/* Outside the gate: the startup mismatch check can fire before App mounts. */}
 			<HubUpdateRequiredDialog />
 		</>
