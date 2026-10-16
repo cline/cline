@@ -12,7 +12,7 @@ interface AutoApproveBarProps {
 	cloudAutoApprove?: boolean
 }
 
-export const cloudAutoApproveTooltip = (editor: string) =>
+const cloudAutoApproveTooltip = (editor: string) =>
 	`Cloud sessions always auto-approve actions so they can continue running when ${editor} is closed. Your local auto-approve settings are unchanged.`
 
 const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps) => {

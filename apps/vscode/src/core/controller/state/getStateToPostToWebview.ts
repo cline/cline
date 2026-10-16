@@ -8,14 +8,13 @@ import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cli
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
-import { ExtensionRegistryInfo } from "@/registry"
+import { ExtensionRegistryInfo, HostRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
-import { getHostName } from "./getHostName"
 
 /**
  * Builds the ExtensionState object to push to the webview.
@@ -99,7 +98,8 @@ export async function getStateToPostToWebview(controller: {
 	const version = ExtensionRegistryInfo.version
 	const clineConfig = ClineEnv.config()
 	const environment = clineConfig.environment
-	const hostName = await getHostName()
+	const hostPlatform = HostRegistryInfo.get()?.platform
+	const hostName = hostPlatform && hostPlatform !== "unknown" ? hostPlatform : undefined
 	const banners = BannerService.get().getActiveBanners() ?? []
 	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
 
