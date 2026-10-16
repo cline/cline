@@ -57,6 +57,7 @@ import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-res
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	isDeepSeekFamily,
 	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
@@ -401,6 +402,8 @@ function buildAiSdkRequestMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		requireAssistantReasoning:
+			requiresOpenCodeGoAssistantReasoning(request, context),
 		supportedInputModalities:
 			context.model.modalities?.input ??
 			(context.model.capabilities
@@ -604,6 +607,24 @@ function shouldIncludeReasoningHistory(
 	return !isCerebrasProvider(request, context);
 }
 
+/**
+ * OpenCode Go's DeepSeek thinking endpoint validates the replayed history as
+ * an all-or-nothing sequence: every assistant turn needs a
+ * `reasoning_content` field once reasoning is in use. A tool-only turn has no
+ * reasoning part to serialize, so make that field explicit rather than
+ * letting the endpoint reject an otherwise valid tool-result continuation.
+ */
+function requiresOpenCodeGoAssistantReasoning(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): boolean {
+	return (
+		request.providerId === "opencode-go" &&
+		isDeepSeekFamily(context) &&
+		request.reasoning?.enabled !== false
+	);
+}
+
 async function resolveGatewayAiSdkTelemetry(
 	providerId: string,
 	request: GatewayStreamRequest,
@@ -747,15 +768,19 @@ function toAiSdkMessages(
 	systemPrompt?: string,
 	options?: {
 		includeReasoning?: boolean;
+		requireAssistantReasoning?: boolean;
 		supportedInputModalities?: readonly string[];
 	},
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
+	const requireAssistantReasoning = options?.requireAssistantReasoning ?? false;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
 
 	for (const message of messages) {
 		const content: AiSdkFormatterPart[] = [];
 		let skippedReasoning = false;
+		let hasSerializableReasoning = false;
+		let hasToolCall = false;
 		for (const part of message.content) {
 			if (part.type === "text") {
 				content.push({ type: "text", text: sanitizeSurrogates(part.text) });
@@ -767,6 +792,7 @@ function toAiSdkMessages(
 					skippedReasoning = true;
 					continue;
 				}
+				hasSerializableReasoning ||= part.text.length > 0;
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const signature = metadata?.signature;
 				const redactedData = metadata?.redactedData;
@@ -813,6 +839,7 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "tool-call") {
+				hasToolCall = true;
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
 					metadata?.thoughtSignature ??
@@ -843,6 +870,19 @@ function toAiSdkMessages(
 					isError: part.isError ?? false,
 				});
 			}
+		}
+
+		if (
+			requireAssistantReasoning &&
+			message.role === "assistant" &&
+			hasToolCall &&
+			!hasSerializableReasoning
+		) {
+			// @ai-sdk/openai-compatible only emits reasoning_content for a
+			// non-empty reasoning part, so a whitespace-only part is the smallest
+			// value that keeps the field on the wire. Scoped to tool-call turns,
+			// the shape the endpoint is known to reject.
+			content.unshift({ type: "reasoning", text: " " });
 		}
 
 		// A message left empty only because its reasoning was dropped is
