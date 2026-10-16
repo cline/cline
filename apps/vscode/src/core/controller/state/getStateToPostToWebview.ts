@@ -15,6 +15,7 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
+import { getHostName } from "./getHostName"
 
 /**
  * Builds the ExtensionState object to push to the webview.
@@ -98,6 +99,7 @@ export async function getStateToPostToWebview(controller: {
 	const version = ExtensionRegistryInfo.version
 	const clineConfig = ClineEnv.config()
 	const environment = clineConfig.environment
+	const hostName = await getHostName()
 	const banners = BannerService.get().getActiveBanners() ?? []
 	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
 
@@ -133,6 +135,7 @@ export async function getStateToPostToWebview(controller: {
 		enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 		platform,
 		environment,
+		hostName,
 		distinctId,
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
