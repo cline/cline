@@ -5,7 +5,7 @@ import {
 	USER_REJECTED_TOOL_REASON,
 } from "@cline/shared";
 import { truncate } from "./helpers";
-import { c, getActiveCliSession, write } from "./output";
+import { c, write } from "./output";
 
 const SHOW_TERMINAL_CURSOR = "\x1b[?25h";
 
@@ -57,9 +57,8 @@ async function requestDesktopToolApprovalFromCore(
 			});
 	}
 	const requester = await cachedDesktopApprovalRequester;
-	const sessionId = getActiveCliSession()?.manifest.session_id;
 	const approvalDir = process.env.CLINE_TOOL_APPROVAL_DIR?.trim();
-	return requester(request, { approvalDir, sessionId });
+	return requester(request, { approvalDir, sessionId: request.sessionId });
 }
 
 // =============================================================================
