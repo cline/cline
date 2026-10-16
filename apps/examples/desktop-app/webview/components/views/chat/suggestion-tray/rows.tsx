@@ -8,19 +8,19 @@ import type {
 } from "@cline/shared/browser";
 import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
-import { suggestionIcon } from "./suggestion-tray-icons";
+import { suggestionIcon } from "./icons";
 import {
 	OPTION_ID_PREFIX,
 	type ReadySuggestionsView,
 	ROW_GRID_WITH_END,
 	type SuggestionTrayPartProps,
-} from "./suggestion-tray-shared";
-import { SourceLink } from "./suggestion-tray-source";
+} from "./shared";
+import { SourceLink } from "./source-link";
 import {
 	TONE_CHIP_CLASSES,
 	TONE_EDGE_CLASSES,
 	TONE_TEXT_CLASSES,
-} from "./suggestion-tray-tones";
+} from "./tones";
 
 /**
  * The word's ink on the card's why line: each tone's text step, which for

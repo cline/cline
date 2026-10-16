@@ -3,7 +3,7 @@ import {
 	MAX_RECORDED_AUDIO_BASE64_BYTES,
 	MAX_RECORDED_AUDIO_BYTES,
 } from "../webview/lib/voice-input-limits";
-import { hubBuildWatchCallbacks } from "./plugin-ui";
+import { hubBuildWatchCallbacks } from "./hub-capability";
 import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
 

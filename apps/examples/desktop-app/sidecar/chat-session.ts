@@ -63,6 +63,12 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
+import {
+	claimPluginReload,
+	emitPluginFailureNotices,
+	failedPluginIssues,
+	pluginReloads,
+} from "./plugin-reload";
 import { desktopUiSlots, reattachPluginUiViewers } from "./plugin-ui";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
@@ -1164,12 +1170,6 @@ async function handleStart(
 	};
 }
 
-function failedPluginIssues(
-	issues: ReadonlyArray<SessionPluginIssue> | undefined,
-): SessionPluginIssue[] {
-	return (issues ?? []).filter((issue) => issue.state === "failed");
-}
-
 /**
  * Plugins the session asked for but could not load, as display lines.
  * Failures that happen later (setup and hooks run on the first turn) arrive
@@ -1182,30 +1182,6 @@ function pluginWarningsOf(
 		formatSessionPluginIssue,
 	);
 	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
-}
-
-/**
- * A rebuild has no start reply to carry plugin warnings, so its load
- * failures go to the chat the way later plugin failures do.
- */
-function emitPluginFailureNotices(
-	ctx: SidecarContext,
-	sessionId: string,
-	issues: ReadonlyArray<SessionPluginIssue> | undefined,
-): void {
-	for (const issue of failedPluginIssues(issues)) {
-		emitChunk(
-			ctx,
-			sessionId,
-			"chat_core_log",
-			JSON.stringify({
-				level: "warn",
-				message: formatSessionPluginIssue(issue),
-				noticeType: "status",
-				metadata: { pluginIssue: issue },
-			}),
-		);
-	}
 }
 
 async function handleAttach(
@@ -1663,23 +1639,6 @@ async function recoverSessionAfterHubLoss(
 		...(outcome === "failed" ? { error: lastError } : {}),
 	});
 	return outcome;
-}
-
-// Restarts that load changed plugins, by session. A send that may restart a
-// stale chat claims the restart before it expands its prompt, and every other
-// send to that chat waits for the claim before it reaches the Hub, so it lands
-// in the restarted session instead of the one being replaced.
-const pluginReloads = new Map<string, Promise<void>>();
-
-function claimPluginReload(sessionId: string): () => void {
-	const claim = Promise.withResolvers<void>();
-	pluginReloads.set(sessionId, claim.promise);
-	return () => {
-		if (pluginReloads.get(sessionId) === claim.promise) {
-			pluginReloads.delete(sessionId);
-		}
-		claim.resolve();
-	};
 }
 
 /**

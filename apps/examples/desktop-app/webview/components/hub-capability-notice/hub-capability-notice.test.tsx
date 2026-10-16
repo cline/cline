@@ -4,8 +4,8 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
+import { HubUpdateRequiredDialog } from "../hub-update-required-dialog";
 import { HubCapabilityNotice } from "./hub-capability-notice";
-import { HubUpdateRequiredDialog } from "./hub-update-required-dialog";
 
 const { invoke, subscribe, emitHubMismatch } = vi.hoisted(() => {
 	const handlers = new Set<(payload: unknown) => void>();

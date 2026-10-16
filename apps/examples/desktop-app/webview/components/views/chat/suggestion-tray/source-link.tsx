@@ -8,7 +8,23 @@ import { ExternalLink } from "lucide-react";
 import type { MouseEvent } from "react";
 import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
-import { asHttpUrl } from "./suggestion-tray-keycaps";
+
+const LINK_PROTOCOLS = new Set(["http:", "https:"]);
+
+/**
+ * A link a row may open: an absolute http(s) URL; anything else reads as
+ * none, so nothing else leaves for the browser.
+ */
+function asHttpUrl(value: unknown): string | null {
+	if (typeof value !== "string" || !value.trim()) return null;
+	try {
+		return LINK_PROTOCOLS.has(new URL(value.trim()).protocol)
+			? value.trim()
+			: null;
+	} catch {
+		return null;
+	}
+}
 
 /** A source link: 18 px, 11 px medium muted words underlined at 45 %, the accent surface on hover. */
 const LINK_CLASSES = [

@@ -18,20 +18,16 @@ import {
 import type {
 	ComposerSuggestionsController,
 	SuggestionComposer,
-} from "@/hooks/use-composer-suggestions";
+} from "@/hooks/composer-suggestions/types";
 import {
 	runSuggestionVerb,
 	useSuggestionTrayKeys,
-} from "@/hooks/use-suggestion-tray-keys";
-import {
-	type HeaderView,
-	headerLabel,
-	SuggestionTrayHeader,
-} from "./suggestion-tray-header";
-import { suggestionVerbAriaKeys } from "./suggestion-tray-keycaps";
-import { SuggestionTrayLegend } from "./suggestion-tray-legend";
-import { SuggestionTrayRows } from "./suggestion-tray-rows";
-import type { SuggestionTrayDispatch } from "./suggestion-tray-shared";
+} from "@/hooks/composer-suggestions/use-tray-keys";
+import { type HeaderView, headerLabel, SuggestionTrayHeader } from "./header";
+import { suggestionVerbAriaKeys } from "./keycaps";
+import { SuggestionTrayLegend } from "./legend";
+import { SuggestionTrayRows } from "./rows";
+import type { SuggestionTrayDispatch } from "./shared";
 import {
 	SuggestionTrayCollapsed,
 	SuggestionTrayLine,
@@ -41,7 +37,7 @@ import {
 	SuggestionTrayUsed,
 	SuggestionTrayWorking,
 	SuggestionTrayYielded,
-} from "./suggestion-tray-states";
+} from "./states";
 
 export type SuggestionTrayProps = {
 	suggestions: ComposerSuggestionsController;

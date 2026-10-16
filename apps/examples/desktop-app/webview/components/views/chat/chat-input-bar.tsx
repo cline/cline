@@ -41,7 +41,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
-import type { ComposerSuggestionsController } from "@/hooks/use-composer-suggestions";
+import type { ComposerSuggestionsController } from "@/hooks/composer-suggestions/types";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";

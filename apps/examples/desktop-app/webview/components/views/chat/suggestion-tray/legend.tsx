@@ -7,8 +7,8 @@ import {
 	suggestionVerbAriaKeys,
 	suggestionVerbKbd,
 	suggestionVerbWord,
-} from "./suggestion-tray-keycaps";
-import type { SuggestionTrayPartProps } from "./suggestion-tray-shared";
+} from "./keycaps";
+import type { SuggestionTrayPartProps } from "./shared";
 
 /** A verb with a key button; Undo has its key (⌘3) and the sent line's button instead. */
 type LegendVerb = Exclude<SuggestionVerb, "undo">;

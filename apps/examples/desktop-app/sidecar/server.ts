@@ -10,10 +10,11 @@ import {
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
+import { visibleHubBuildMismatch } from "./hub-capability";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
-import { releasePluginUiViewer, visibleHubBuildMismatch } from "./plugin-ui";
+import { releasePluginUiViewer } from "./plugin-ui";
 import {
 	BunRuntime,
 	SIDECAR_HOST,

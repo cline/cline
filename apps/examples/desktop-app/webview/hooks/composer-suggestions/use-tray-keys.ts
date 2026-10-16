@@ -6,11 +6,11 @@ import {
 	isMacPlatform,
 	type SuggestionVerb,
 	suggestionDigitVerb,
-} from "@/components/views/chat/suggestion-tray/suggestion-tray-keycaps";
+} from "@/components/views/chat/suggestion-tray/keycaps";
 import type {
 	ComposerSuggestionsController,
 	SuggestionComposer,
-} from "@/hooks/use-composer-suggestions";
+} from "./types";
 
 export type SuggestionTrayKeysOptions = {
 	controller: ComposerSuggestionsController;

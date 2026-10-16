@@ -8,18 +8,15 @@ import type {
 import { EyeOff, MessageCircle, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-	suggestionVerbAriaKeys,
-	suggestionVerbKbd,
-} from "./suggestion-tray-keycaps";
-import { ToneTile } from "./suggestion-tray-rows";
+import { suggestionVerbAriaKeys, suggestionVerbKbd } from "./keycaps";
+import { ToneTile } from "./rows";
 import {
 	ROW_GRID,
 	ROW_GRID_WITH_END,
 	type SuggestionTrayPartProps,
 	TEXT_BUTTON_CLASSES,
-} from "./suggestion-tray-shared";
-import { TONE_DOT_CLASSES } from "./suggestion-tray-tones";
+} from "./shared";
+import { TONE_DOT_CLASSES } from "./tones";
 
 type ViewOf<M extends SuggestionsView["mode"]> = Extract<
 	SuggestionsView,

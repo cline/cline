@@ -20,7 +20,7 @@ import {
 } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import type { ComposerSuggestionsController } from "@/hooks/use-composer-suggestions";
+import type { ComposerSuggestionsController } from "@/hooks/composer-suggestions/types";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {

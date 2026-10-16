@@ -21,12 +21,9 @@ import {
 	shiftKeyLabel,
 	suggestionVerbAriaKeys,
 	suggestionVerbKbd,
-} from "./suggestion-tray-keycaps";
-import {
-	REFRESH_LABEL,
-	type SuggestionTrayPartProps,
-} from "./suggestion-tray-shared";
-import { TONE_DOT_CLASSES } from "./suggestion-tray-tones";
+} from "./keycaps";
+import { REFRESH_LABEL, type SuggestionTrayPartProps } from "./shared";
+import { TONE_DOT_CLASSES } from "./tones";
 
 /** The views that draw the header: a set, one loading, a line in its place, or one hidden for the turn. */
 export type HeaderView = Extract<

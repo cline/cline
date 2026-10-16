@@ -1,6 +1,6 @@
 import type { PluginUiInput, SuggestionsView } from "@cline/shared/browser";
-import type { ComposerSuggestionsController } from "@/hooks/use-composer-suggestions";
-import type { SuggestionVerb } from "./suggestion-tray-keycaps";
+import type { ComposerSuggestionsController } from "@/hooks/composer-suggestions/types";
+import type { SuggestionVerb } from "./keycaps";
 
 /**
  * Runs a verb on the highlighted suggestion exactly as its key does: the same

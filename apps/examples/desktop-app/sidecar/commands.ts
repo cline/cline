@@ -134,6 +134,11 @@ import {
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import {
+	broadcastHubBuildMismatch,
+	DESKTOP_REQUIRED_HUB_CAPABILITIES,
+	refreshHubCapabilityNotice,
+} from "./hub-capability";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
@@ -168,12 +173,10 @@ import {
 	warmPluginCommandService,
 } from "./plugin-commands";
 import {
-	broadcastHubBuildMismatch,
-	DESKTOP_REQUIRED_HUB_CAPABILITIES,
-	getPluginUiStates,
-	invokePluginUi,
-	refreshHubCapabilityNotice,
-} from "./plugin-ui";
+	markLocalSessionsPluginsStale,
+	reloadInstalledPluginInHub,
+} from "./plugin-reload";
+import { getPluginUiStates, invokePluginUi } from "./plugin-ui";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -1473,49 +1476,6 @@ async function toggleHubSetting(
 		);
 	}
 	return reply.payload?.snapshot as CoreSettingsSnapshot;
-}
-
-/**
- * Plugins load once per session start, so open local chats restart before
- * their next turn to pick up a plugin that was added or turned on. Removing
- * or turning one off restarts nothing, as before: each restart leaves the
- * replaced runtime resident in the Hub, and a plugin that is no longer
- * active withdraws its slot state on its own.
- */
-function markLocalSessionsPluginsStale(ctx: SidecarContext): void {
-	for (const session of ctx.liveSessions.values()) {
-		if (session.environmentId === LOCAL_ENVIRONMENT_ID) {
-			session.pluginsStale = true;
-		}
-	}
-}
-
-/**
- * The Hub keeps a plugin whose import failed blocked for its lifetime, so an
- * install asks it to import the plugin again. A Hub that never tried has
- * nothing to clear, and a failed request never fails the install.
- */
-async function reloadInstalledPluginInHub(
-	ctx: SidecarContext,
-	details: JsonRecord | undefined,
-): Promise<void> {
-	const entryPaths = Array.isArray(details?.entryPaths)
-		? details.entryPaths.filter(
-				(entryPath): entryPath is string => typeof entryPath === "string",
-			)
-		: [];
-	for (const entryPath of entryPaths) {
-		try {
-			const hubClient = await ensureSharedHubClient(ctx);
-			await hubClient.command("plugins.reload", { plugin: entryPath });
-		} catch (error) {
-			ctx.logger?.log("Failed to reload the installed plugin in the hub", {
-				entryPath,
-				error,
-				severity: "warn",
-			});
-		}
-	}
 }
 
 async function listUserInstructionConfigs(

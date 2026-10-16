@@ -14,15 +14,17 @@ import { desktopClient } from "@/lib/desktop-client";
 import { requestPromptInputFocus } from "@/lib/prompt-input-focus";
 import { cn } from "@/lib/utils";
 import {
-	describeHubRestartInterruption,
-	HUB_RESTART_COST,
 	HUB_UPGRADE_TIMEOUT_MS,
 	type HubBuildMismatchPayload,
-	type HubSessionActivity,
 	hubMismatchKeyOf,
+} from "../hub-update-required-helpers";
+import {
+	describeHubRestartInterruption,
+	HUB_RESTART_COST,
+	type HubSessionActivity,
 	persistHubCapabilityNoticeDismissal,
 	readHubCapabilityNoticeDismissal,
-} from "./hub-update-required-helpers";
+} from "./helpers";
 
 type RestartStep =
 	| { kind: "offer"; error?: string }

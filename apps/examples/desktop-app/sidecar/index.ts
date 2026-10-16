@@ -24,14 +24,14 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
-import { createDesktopObservability } from "./observability";
-import { resolveWorkspaceRoot } from "./paths";
-import { configurePluginBootstrap } from "./plugin-bootstrap";
 import {
 	broadcastHubBuildMismatch,
 	DESKTOP_REQUIRED_HUB_CAPABILITIES,
 	hubBuildWatchCallbacks,
-} from "./plugin-ui";
+} from "./hub-capability";
+import { createDesktopObservability } from "./observability";
+import { resolveWorkspaceRoot } from "./paths";
+import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 

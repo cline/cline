@@ -17,7 +17,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
-import { HubCapabilityNotice } from "@/components/hub-capability-notice";
+import { HubCapabilityNotice } from "@/components/hub-capability-notice/hub-capability-notice";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {

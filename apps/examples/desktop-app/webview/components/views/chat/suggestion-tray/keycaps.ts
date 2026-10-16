@@ -77,20 +77,3 @@ export function suggestionDigitVerb(
 	if (!shift) return verb;
 	return verb === "use" ? "send" : null;
 }
-
-const LINK_PROTOCOLS = new Set(["http:", "https:"]);
-
-/**
- * A link a row may open: an absolute http(s) URL; anything else reads as
- * none, so nothing else leaves for the browser.
- */
-export function asHttpUrl(value: unknown): string | null {
-	if (typeof value !== "string" || !value.trim()) return null;
-	try {
-		return LINK_PROTOCOLS.has(new URL(value.trim()).protocol)
-			? value.trim()
-			: null;
-	} catch {
-		return null;
-	}
-}

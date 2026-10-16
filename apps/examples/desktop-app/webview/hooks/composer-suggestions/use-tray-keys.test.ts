@@ -2,36 +2,36 @@
 
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { exposedSuggestionMemory } from "./use-composer-suggestions";
-import { fakeDesktop } from "./use-composer-suggestions.fake-client";
+import { exposedSuggestionMemory } from "./exposed-memory";
+import { fakeDesktop } from "./test-support/fake-client";
 import {
-	click,
 	deferred,
-	emitState,
 	envelope,
 	expectEveryActionParses,
-	highlightedPrompt,
 	ITEMS,
 	invokedActions,
-	type MountedTray,
-	mountTray,
-	press,
 	readyState,
 	SESSION_ID,
 	scriptHub,
+	userMessage,
+} from "./test-support/fixtures";
+import {
+	click,
+	emitState,
+	highlightedPrompt,
+	type MountedTray,
+	mountTray,
+	press,
 	settle,
 	stubBrowserApis,
 	typeInto,
 	unmountAll,
-	userMessage,
-} from "./use-composer-suggestions.harness";
+} from "./test-support/harness";
 
 const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
 
 vi.mock("@/lib/desktop-client", async () => {
-	const { fakeDesktop } = await import(
-		"./use-composer-suggestions.fake-client"
-	);
+	const { fakeDesktop } = await import("./test-support/fake-client");
 	return {
 		desktopClient: fakeDesktop.client,
 		openExternalUrl: fakeDesktop.openExternalUrl,
