@@ -56,6 +56,7 @@ export enum BUILT_IN_PROVIDER {
 	KILO = "kilo",
 	ZAI = "zai",
 	ZAI_CODING_PLAN = "zai-coding-plan",
+	FIKRAAPI = "fikraapi",
 	// Regional/specialized
 	QWEN = "qwen",
 	QWEN_CODE = "qwen-code",
