@@ -144,6 +144,7 @@ function makeManager() {
 	});
 	return {
 		start,
+		pluginCommands: { list: vi.fn(), run: vi.fn(), subscribe: vi.fn() },
 		stop: vi.fn(async () => {}),
 		send: vi.fn(),
 		getAccumulatedUsage: vi.fn(),
@@ -240,6 +241,65 @@ describe("createInteractiveSessionRuntime", () => {
 		loadInteractiveResumeMessagesMock.mockResolvedValue([]);
 		subscribeToAgentEventsMock.mockReturnValue(() => {});
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
+	});
+
+	it.each([
+		undefined,
+		"resumed-session",
+	])("shares initialization between plugin catalog discovery and session startup (%s)", async (resumeSessionId) => {
+		const manager = makeManager();
+		manager.get.mockResolvedValue(undefined);
+		manager.getAccumulatedUsage.mockResolvedValue(undefined);
+		const runtime = await makeRuntime(manager, { resumeSessionId });
+		if (resumeSessionId)
+			loadInteractiveResumeMessagesMock.mockResolvedValue([
+				{ role: "user", content: "resume" },
+			]);
+		const gate = deferred<typeof manager>();
+		createCliCoreMock.mockReturnValue(gate.promise);
+		const commands = runtime.getPluginCommandsApi();
+		const ready = runtime.ensureReady();
+		expect(createCliCoreMock).toHaveBeenCalledTimes(1);
+		gate.resolve(manager);
+		expect(await commands).toBe(manager.pluginCommands);
+		await ready;
+		expect(manager.start).toHaveBeenCalledTimes(1);
+		expect(subscribeToAgentEventsMock).toHaveBeenCalledTimes(1);
+		await runtime.cleanup();
+		expect(manager.dispose).toHaveBeenCalledTimes(1);
+	});
+
+	it("retries failed shared initialization", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		createCliCoreMock.mockRejectedValueOnce(new Error("startup failed"));
+		await expect(runtime.getPluginCommandsApi()).rejects.toThrow(
+			"startup failed",
+		);
+		expect(await runtime.getPluginCommandsApi()).toBe(manager.pluginCommands);
+		expect(createCliCoreMock).toHaveBeenCalledTimes(2);
+		await runtime.cleanup();
+	});
+
+	it("awaits and disposes plugin-only initialization during cleanup", async () => {
+		const manager = makeManager();
+		const runtime = await makeRuntime(manager);
+		const gate = deferred<typeof manager>();
+		createCliCoreMock.mockReturnValue(gate.promise);
+		const commands = expect(runtime.getPluginCommandsApi()).rejects.toThrow(
+			"shutdown requested",
+		);
+		const cleanup = runtime.cleanup();
+		gate.resolve(manager);
+		await commands;
+		await cleanup;
+		expect(manager.dispose).toHaveBeenCalledExactlyOnceWith(
+			"cli_interactive_startup_cancelled",
+		);
+		await expect(runtime.getPluginCommandsApi()).rejects.toThrow(
+			"shutdown requested",
+		);
+		expect(createCliCoreMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("manual compact updates the active session sidecar without restarting", async () => {

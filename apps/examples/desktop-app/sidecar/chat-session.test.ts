@@ -9,7 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionNotFoundError } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveClineDir, setClineDir } from "@cline/shared/storage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -116,7 +117,7 @@ function localRuntimeContext(
 					workspaceRoot,
 					sessionManager,
 					hubClient: {
-						command: vi.fn(async () => undefined),
+						command: vi.fn(async () => ({ ok: true, payload: {} })),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
@@ -2233,8 +2234,18 @@ describe("workspace metadata prewarming", () => {
 
 describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
+	let originalClineDir: string;
+	beforeEach(() => {
+		originalClineDir = resolveClineDir();
+		const settingsRoot = mkdtempSync(
+			join(tmpdir(), "desktop-command-settings-"),
+		);
+		tempRoots.push(settingsRoot);
+		setClineDir(settingsRoot);
+	});
 
 	afterEach(() => {
+		setClineDir(originalClineDir);
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -2328,26 +2339,49 @@ Follow the desktop send workflow instructions.`,
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
-	it("still sends a skill command when a workspace plugin fails to load", async () => {
+	it.each([
+		"local",
+		"ssh",
+	] as const)("dispatches plugin commands through the owning %s hub", async (kind) => {
 		const workspace = createWorkspaceWithSkill();
-		const pluginsDir = join(workspace, ".cline", "plugins");
-		mkdirSync(pluginsDir, { recursive: true });
-		writeFileSync(
-			join(pluginsDir, "broken.js"),
-			"export default { name: 'broken', manifest: { capabilities: ['bogus'] }, setup() {} };",
-		);
 		const { ctx, send, sessionId } = createContext(workspace);
-
-		await handleChatSessionCommand(ctx, {
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		binding.kind = kind;
+		const liveSession = ctx.liveSessions.get(sessionId);
+		if (liveSession) liveSession.config.apiKey = "test-key";
+		binding.sessionManager.updateSessionConnection = vi.fn(async () => {});
+		const command = vi.fn(async () => ({
+			version: "v1" as const,
+			ok: true,
+			payload: {
+				result: {
+					reply: "Goal set",
+					submitPrompt: "expanded  goal\nnext line",
+				},
+			},
+		}));
+		binding.hubClient.command = command;
+		const result = await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId,
-			prompt: "/desktop-send-skill write the docs",
+			prompt: "/goal original",
 		});
-
-		expect(send).toHaveBeenCalledWith(
+		expect(result).toMatchObject({
+			result: { finishReason: "completed", text: "done" },
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
 			expect.objectContaining({
-				prompt: "/desktop-send-skill write the docs",
+				workspacePath: workspace,
+				sessionId,
+				prompt: "/goal original",
 			}),
+			sessionId,
+			{ timeoutMs: null },
+		);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({ prompt: "expanded  goal\nnext line" }),
 		);
 	});
 
