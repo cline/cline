@@ -2,6 +2,7 @@ import {
 	type ClineCore,
 	type ManagedHubBuildMismatchEvent,
 	resolveAgentPluginPathsWithDiagnostics,
+	type WatchManagedHubBuildOptions,
 } from "@cline/core";
 import type {
 	HubCapabilityName,
@@ -61,6 +62,32 @@ export function visibleHubBuildMismatch(
 
 export function broadcastHubBuildMismatch(ctx: SidecarContext): void {
 	broadcastEvent(ctx, "hub_build_mismatch", visibleHubBuildMismatch(ctx));
+}
+
+/** Shows the managed Hub watcher's findings in every connected webview. */
+export function hubBuildWatchCallbacks(
+	ctx: SidecarContext,
+): Pick<WatchManagedHubBuildOptions, "onMismatch" | "onResolved"> {
+	return {
+		onMismatch: (mismatch) => {
+			ctx.hubBuildMismatch = mismatch;
+			ctx.logger?.log("Managed hub build mismatch detected", {
+				hubBuildId: mismatch.hubBuildId,
+				hubCoreVersion: mismatch.hubCoreVersion,
+				reason: mismatch.reason,
+				missingCapabilities: mismatch.missingCapabilities,
+			});
+			broadcastHubBuildMismatch(ctx);
+		},
+		// Another Cline app can replace the Hub without going through this
+		// app's Restart Hub, so its notice is withdrawn once the Hub is fixed.
+		onResolved: () => {
+			if (!ctx.hubBuildMismatch) return;
+			ctx.hubBuildMismatch = null;
+			ctx.logger?.log("Managed hub build mismatch resolved");
+			broadcastEvent(ctx, "hub_build_mismatch", null);
+		},
+	};
 }
 
 /** Shows or withdraws the plugin UI notice after the enabled plugins changed. */

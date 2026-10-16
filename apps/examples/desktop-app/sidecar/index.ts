@@ -30,6 +30,7 @@ import { configurePluginBootstrap } from "./plugin-bootstrap";
 import {
 	broadcastHubBuildMismatch,
 	DESKTOP_REQUIRED_HUB_CAPABILITIES,
+	hubBuildWatchCallbacks,
 } from "./plugin-ui";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
@@ -180,16 +181,7 @@ async function main(desktopCliPath?: string) {
 	// can prompt the user to update or restart the Hub.
 	watchManagedHubBuildMismatch({
 		requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
-		onMismatch: (mismatch) => {
-			ctx.hubBuildMismatch = mismatch;
-			observability.logger.log("Managed hub build mismatch detected", {
-				hubBuildId: mismatch.hubBuildId,
-				hubCoreVersion: mismatch.hubCoreVersion,
-				reason: mismatch.reason,
-				missingCapabilities: mismatch.missingCapabilities,
-			});
-			broadcastHubBuildMismatch(ctx);
-		},
+		...hubBuildWatchCallbacks(ctx),
 	});
 	// The watcher's first check only runs after its interval, but a mismatch
 	// that already exists at startup - an older Hub this app attached to

@@ -1665,17 +1665,37 @@ async function recoverSessionAfterHubLoss(
 	return outcome;
 }
 
-// Restarts that load changed plugins, by session. A prompt sent meanwhile
-// waits for the restarted session instead of reaching the one being replaced.
+// Restarts that load changed plugins, by session. A send that may restart a
+// stale chat claims the restart before it expands its prompt, and every other
+// send to that chat waits for the claim before it reaches the Hub, so it lands
+// in the restarted session instead of the one being replaced.
 const pluginReloads = new Map<string, Promise<void>>();
 
-function trackPluginReload(sessionId: string, reload: Promise<void>): void {
-	pluginReloads.set(sessionId, reload);
-	const forget = () => {
-		if (pluginReloads.get(sessionId) === reload)
+function claimPluginReload(sessionId: string): () => void {
+	const claim = Promise.withResolvers<void>();
+	pluginReloads.set(sessionId, claim.promise);
+	return () => {
+		if (pluginReloads.get(sessionId) === claim.promise) {
 			pluginReloads.delete(sessionId);
+		}
+		claim.resolve();
 	};
-	reload.then(forget, forget);
+}
+
+/**
+ * True only when the Hub confirms the chat has no queued prompts. Asks the Hub
+ * directly because ClineCore's list turns a Hub error reply into an empty
+ * queue.
+ */
+async function isPromptQueueEmpty(
+	binding: SessionRuntimeBinding,
+	sessionId: string,
+): Promise<boolean> {
+	const reply = await binding.hubClient
+		.command("session.pending_prompts", { sessionId })
+		.catch(() => undefined);
+	const prompts = reply?.ok ? reply.payload?.prompts : undefined;
+	return Array.isArray(prompts) && prompts.length === 0;
 }
 
 async function handleSend(
@@ -1684,6 +1704,25 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	while (pluginReloads.has(sessionId)) await pluginReloads.get(sessionId);
+	const session = ctx.liveSessions.get(sessionId);
+	const releasePluginReload =
+		session?.pluginsStale && !session.busy && !request.delivery
+			? claimPluginReload(sessionId)
+			: undefined;
+	try {
+		return await sendPrompt(ctx, request, sessionId, releasePluginReload);
+	} finally {
+		releasePluginReload?.();
+	}
+}
+
+async function sendPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	releasePluginReload: (() => void) | undefined,
+): Promise<unknown> {
 	const prompt = request.prompt?.trim() ?? "";
 	const hasAttachments =
 		(request.attachments?.userImages?.length ?? 0) > 0 ||
@@ -1691,8 +1730,6 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
-	const pluginReload = pluginReloads.get(sessionId);
-	if (pluginReload) await pluginReload.catch(() => undefined);
 	const session = ctx.liveSessions.get(sessionId);
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -1772,6 +1809,14 @@ async function handleSend(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
+	if (!releasePluginReload) {
+		while (pluginReloads.has(sessionId)) await pluginReloads.get(sessionId);
+	}
+	// A restart replaces the Hub session together with the prompts queued on
+	// it, so a chat with queued prompts keeps its old plugins until they drain.
+	const queueAllowsPluginReload =
+		releasePluginReload !== undefined &&
+		(await isPromptQueueEmpty(binding, sessionId));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -1790,7 +1835,8 @@ async function handleSend(
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
 	);
-	const reloadsPlugins = ownsBusyState && session?.pluginsStale === true;
+	const reloadsPlugins =
+		queueAllowsPluginReload && ownsBusyState && session?.pluginsStale === true;
 	if (session) {
 		if (ownsBusyState) {
 			session.prompt = prompt;
@@ -1801,20 +1847,28 @@ async function handleSend(
 			session.transitioningProvider = true;
 		}
 	}
+	if (!reloadsPlugins) releasePluginReload?.();
 	try {
 		if (session && nextConfig && (providerChanged || reloadsPlugins)) {
+			// Cleared before the restart so a plugin added while it runs, which
+			// the restarted session may not have loaded, keeps the chat stale.
+			const pluginsWereStale = session.pluginsStale === true;
 			session.pluginsStale = false;
-			const rebuilt = rebuildSessionForProviderChange(
-				ctx,
-				binding,
-				sessionId,
-				session.config,
-				nextConfig,
-			);
-			if (reloadsPlugins) trackPluginReload(sessionId, rebuilt);
-			await rebuilt;
+			try {
+				await rebuildSessionForProviderChange(
+					ctx,
+					binding,
+					sessionId,
+					session.config,
+					nextConfig,
+				);
+			} catch (error) {
+				if (pluginsWereStale) session.pluginsStale = true;
+				throw error;
+			}
 			session.config = nextConfig;
 			session.attachedViaHub = false;
+			releasePluginReload?.();
 		} else if ((request.config || binding.kind === "ssh") && nextConfig) {
 			if (
 				binding.kind === "ssh" ||

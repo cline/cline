@@ -365,12 +365,12 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
-			// Replay a pending mismatch so webviews that connect (or reload)
-			// after detection still prompt the user to update and restart.
-			const hubBuildMismatch = visibleHubBuildMismatch(ctx);
-			if (hubBuildMismatch) {
-				ws.send(encodeSidecarEvent("hub_build_mismatch", hubBuildMismatch));
-			}
+			// Replay the current mismatch, null included: a webview that
+			// reconnects in place keeps its notice mounted, so it needs the
+			// withdrawal it missed as much as a mismatch detected meanwhile.
+			ws.send(
+				encodeSidecarEvent("hub_build_mismatch", visibleHubBuildMismatch(ctx)),
+			);
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {
 			let request: DesktopTransportRequest;
