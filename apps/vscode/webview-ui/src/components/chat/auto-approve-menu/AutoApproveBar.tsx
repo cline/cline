@@ -1,22 +1,16 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { useRef, useState } from "react"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { editorName } from "@/utils/editorName"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA } from "./constants"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
-	cloudAutoApprove?: boolean
 }
 
-const cloudAutoApproveTooltip = (editor: string) =>
-	`Cloud sessions always auto-approve actions so they can continue running when ${editor} is closed. Your local auto-approve settings are unchanged.`
-
-const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps) => {
-	const { autoApprovalSettings, hostName } = useExtensionState()
+const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
+	const { autoApprovalSettings } = useExtensionState()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -25,11 +19,9 @@ const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps
 		const baseClasses = isModalVisible
 			? "text-foreground truncate"
 			: "text-muted-foreground group-hover:text-foreground truncate"
-		const enabledActionsNames = cloudAutoApprove
-			? ACTION_METADATA.map((action) => action.id)
-			: Object.keys(autoApprovalSettings.actions).filter(
-					(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
-				)
+		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
+			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
+		)
 		const enabledActions = enabledActionsNames.map((action) => {
 			return ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === action)
 		})
@@ -98,37 +90,31 @@ const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps
 				}}
 			/>
 
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<div
-						aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
-						className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
-						onClick={() => {
-							setIsModalVisible((prev) => !prev)
-						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault()
-								e.stopPropagation()
-								setIsModalVisible((prev) => !prev)
-							}
-						}}
-						ref={buttonRef}
-						tabIndex={0}>
-						<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
-							<span className="whitespace-nowrap">Auto-approve:</span>
-							{getEnabledActionsText()}
-						</div>
-						{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-					</div>
-				</TooltipTrigger>
-				{cloudAutoApprove && <TooltipContent side="top">{cloudAutoApproveTooltip(editorName(hostName))}</TooltipContent>}
-			</Tooltip>
+			<div
+				aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
+				className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
+				onClick={() => {
+					setIsModalVisible((prev) => !prev)
+				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault()
+						e.stopPropagation()
+						setIsModalVisible((prev) => !prev)
+					}
+				}}
+				ref={buttonRef}
+				tabIndex={0}>
+				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
+					<span className="whitespace-nowrap">Auto-approve:</span>
+					{getEnabledActionsText()}
+				</div>
+				{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+			</div>
 
 			<AutoApproveModal
 				ACTION_METADATA={ACTION_METADATA}
 				buttonRef={buttonRef}
-				cloudAutoApprove={cloudAutoApprove}
 				isVisible={isModalVisible}
 				setIsVisible={setIsModalVisible}
 			/>
