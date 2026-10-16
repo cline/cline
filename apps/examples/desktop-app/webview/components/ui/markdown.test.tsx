@@ -2,6 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import { createDesktopMarkdownPlugins, MemoizedMarkdown } from "./markdown";
 
+const chipTexts = (html: string) =>
+	[...html.matchAll(/<span class="[^"]*inset-ring[^"]*">([^<]*)<\/span>/g)].map(
+		(match) => match[1],
+	);
+
 describe("MemoizedMarkdown", () => {
 	test("renders structured GFM content and blocks remote images", () => {
 		const html = renderToStaticMarkup(
@@ -70,12 +75,23 @@ const ready = true;
 			/>,
 		);
 
-		const chips = [...html.matchAll(/<span class="[^"]*inset-ring[^"]*">([^<]*)<\/span>/g)].map(
-			(match) => match[1],
-		);
-		expect(chips).toEqual(["/compact", "@src/app.ts"]);
+		expect(chipTexts(html)).toEqual(["/compact", "@src/app.ts"]);
 		expect(html).toContain("<code");
 		expect(html).toContain("and /compact");
+	});
+
+	test("chips each message with its own tokens", () => {
+		const render = (tokens: string[], content: string) =>
+			chipTexts(
+				renderToStaticMarkup(
+					<MemoizedMarkdown chipTokens={new Set(tokens)} content={content} />,
+				),
+			);
+
+		expect(render(["/team"], "/team plan it")).toEqual(["/team"]);
+		expect(render(["@src/app.ts"], "look at @src/app.ts")).toEqual([
+			"@src/app.ts",
+		]);
 	});
 
 	test("names the diagram from the fence title", () => {

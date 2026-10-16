@@ -57,9 +57,13 @@ function splitText(
 /**
  * Wraps the given exact tokens (a leading `/command`, `@path` mentions) in
  * {@link CHIP_TOKEN_TAG} elements, leaving code and links untouched.
+ *
+ * Use as `[remarkChipTokens, { tokens }]`: Streamdown caches processors by
+ * plugin name and options, so the tokens must travel as options.
  */
-export function remarkChipTokens(tokens: ReadonlySet<string>) {
-	return () => (tree: MarkdownNode) => {
+export function remarkChipTokens(options: { tokens: string[] }) {
+	const tokens = new Set(options.tokens);
+	return (tree: MarkdownNode) => {
 		let atDocumentStart = true;
 		const walk = (node: MarkdownNode) => {
 			if (!node.children) return;

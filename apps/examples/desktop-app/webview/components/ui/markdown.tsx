@@ -406,7 +406,7 @@ export const MemoizedMarkdown = memo(
 				chipTokens?.size
 					? [
 							...Object.values(defaultRemarkPlugins),
-							remarkChipTokens(chipTokens),
+							[remarkChipTokens, { tokens: [...chipTokens] }],
 						]
 					: undefined,
 			[chipTokens],
