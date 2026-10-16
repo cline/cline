@@ -87,15 +87,51 @@ describe("StreamableHttpReconnectHandler", () => {
 		handler.attemptCount.should.equal(0)
 	})
 
-	it("should skip reconnect when server is already connecting", async () => {
+	it("should NOT skip reconnect when a brand-new connection is still in its pre-connect 'connecting' state", async () => {
+		// A freshly created connection also starts with status "connecting"
+		// before its first client.connect() call ever resolves (see
+		// McpHub.connectToServer). If the transport's onerror fires during
+		// that very first attempt, this must not be mistaken for "already
+		// mid-reconnect" — doing so was the original bug: the retry loop
+		// never started and the server was stuck on "Restarting..." forever.
 		const conn = makeConnection({ status: "connecting" })
 		const cbs = makeCallbacks(conn)
 		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
 
 		await handler.handleError(new Error("boom"))
 
+		cbs.stubs.deleteConnection.calledOnce.should.be.true()
+		cbs.stubs.connectToServer.calledOnce.should.be.true()
+	})
+
+	it("should skip a re-entrant handleError call while already mid-reconnect", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		// Park the first call mid-delay so a second, re-entrant call arrives
+		// while the handler's own isHandling flag is still true.
+		let releaseDelay: () => void = () => {}
+		cbs.stubs.delay.callsFake(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseDelay = resolve
+				}),
+		)
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		const first = handler.handleError(new Error("first"))
+		// Let the microtask queue advance so the first call sets isHandling
+		// and reaches the (still-pending) delay call.
+		await Promise.resolve()
+		await Promise.resolve()
+
+		// A second, re-entrant call must be a no-op — it must not start its
+		// own delete/connect cycle.
+		await handler.handleError(new Error("second (re-entrant)"))
 		cbs.stubs.deleteConnection.called.should.be.false()
-		handler.attemptCount.should.equal(0)
+
+		releaseDelay()
+		await first
+		cbs.stubs.deleteConnection.calledOnce.should.be.true()
 	})
 
 	// ── successful reconnect ────────────────────────────────────────────
