@@ -91,6 +91,31 @@ describe("useGitHubConnection", () => {
 		await waitFor(() => expect(result.current.connection).toEqual(disconnected))
 	})
 
+	it("re-checks in the background without showing loading until the user refreshes", async () => {
+		const recheck = deferred<typeof connected>()
+		mocks.getGitHubConnection.mockResolvedValueOnce(disconnected).mockReturnValueOnce(recheck.promise)
+		const { result } = renderHook(() => useGitHubConnection(true))
+		await waitFor(() => expect(result.current.connection).toEqual(disconnected))
+
+		act(() => {
+			window.dispatchEvent(new Event("focus"))
+		})
+		expect(mocks.getGitHubConnection).toHaveBeenCalledTimes(2)
+		expect(result.current.loading).toBe(false)
+
+		act(() => {
+			void result.current.refresh()
+		})
+		expect(mocks.getGitHubConnection).toHaveBeenCalledTimes(2)
+		expect(result.current.loading).toBe(true)
+
+		await act(async () => {
+			recheck.resolve(connected)
+		})
+		expect(result.current.connection).toEqual(connected)
+		expect(result.current.loading).toBe(false)
+	})
+
 	it("hides repositories during a switch and refetches even if the switch is refused", async () => {
 		mocks.getGitHubConnection.mockResolvedValueOnce(connected).mockResolvedValueOnce(disconnected)
 		const { result, rerender } = renderHook(() => useGitHubConnection(true))

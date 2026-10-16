@@ -25,14 +25,16 @@ export function useGitHubConnection(enabled: boolean) {
 	const inFlight = useRef<{ scope: object; promise: Promise<void> } | undefined>(undefined)
 
 	const load = useCallback(
-		async (refresh: boolean) => {
+		async (refresh: boolean, background = false) => {
 			if (!available) {
 				return
+			}
+			if (!background) {
+				setLoading(true)
 			}
 			if (inFlight.current?.scope === scope) {
 				return inFlight.current.promise
 			}
-			setLoading(true)
 			const request = {
 				scope,
 				promise: CloudServiceClient.getGitHubConnection(GitHubConnectionRequest.create({ refresh }))
@@ -89,14 +91,15 @@ export function useGitHubConnection(enabled: boolean) {
 		if (!needsPolling) {
 			return
 		}
-		const timer = setInterval(() => void refresh(), DISCONNECTED_POLL_MS)
-		const onFocus = () => void refresh()
-		window.addEventListener("focus", onFocus)
+		// Background re-checks stay silent; only the user's own refresh shows a spinner.
+		const recheck = () => void load(true, true)
+		const timer = setInterval(recheck, DISCONNECTED_POLL_MS)
+		window.addEventListener("focus", recheck)
 		return () => {
 			clearInterval(timer)
-			window.removeEventListener("focus", onFocus)
+			window.removeEventListener("focus", recheck)
 		}
-	}, [needsPolling, refresh])
+	}, [needsPolling, load])
 
 	return { connection, loading, refresh }
 }
