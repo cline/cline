@@ -4,6 +4,7 @@ import type { HubTransportContext } from "./handlers/context";
 import {
 	createHubClientContributionRuntime,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	toHookWireValue,
 } from "./hub-client-contributions";
 
 type ClientContributionRequest = Parameters<
@@ -389,5 +390,60 @@ describe("hub client runtime capabilities", () => {
 			{},
 			"client-1",
 		);
+	});
+
+	it("keeps error details when proxying hook contexts to the client", async () => {
+		const request: ClientContributionRequest = vi.fn(async () => ({}));
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "hook",
+					name: "afterRun",
+					capabilityName: "hook.afterRun",
+				},
+			],
+			requestCapability: request,
+		});
+		const error = Object.assign(new Error("Unauthorized"), {
+			name: "AuthError",
+			status: 401,
+		});
+
+		await runtime.localRuntime.hooks?.afterRun?.({
+			snapshot: { agentId: "agent-1" },
+			result: { status: "failed", error },
+		} as never);
+
+		const payload = vi.mocked(request).mock.calls[0]?.[2] as {
+			context: { result: { error: unknown } };
+		};
+		// The payload is published as JSON; an Error would serialize to {}.
+		expect(JSON.parse(JSON.stringify(payload)).context.result.error).toEqual(
+			expect.objectContaining({
+				name: "AuthError",
+				message: "Unauthorized",
+				status: 401,
+				stack: expect.any(String),
+			}),
+		);
+	});
+
+	it("converts errors without copying error-free values or looping on cycles", () => {
+		const plain = { a: [1, { b: "c" }] };
+		expect(toHookWireValue(plain)).toBe(plain);
+
+		const shared = new Error("boom", { cause: new Error("root") });
+		const cyclic: Record<string, unknown> = { first: shared, second: shared };
+		cyclic.self = cyclic;
+		const wire = toHookWireValue(cyclic) as Record<string, unknown>;
+		expect(wire.first).toBe(wire.second);
+		expect(wire.first).toMatchObject({
+			name: "Error",
+			message: "boom",
+			cause: { message: "root" },
+		});
+		expect(cyclic.first).toBe(shared);
 	});
 });
