@@ -132,6 +132,7 @@ import {
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { isHubIndependentCommand } from "./hub-startup";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
@@ -1879,6 +1880,21 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	if (command === "get_hub_status") return ctx.hubStartup?.status ?? null;
+	if (command === "retry_hub") {
+		ctx.hubStartup?.start();
+		return ctx.hubStartup?.status ?? null;
+	}
+	// The transport is published before the Hub is ready. Hold Hub-backed
+	// commands until startup settles, as they waited for the transport before.
+	if (ctx.hubStartup && !isHubIndependentCommand(command)) {
+		await ctx.hubStartup.waitUntilSettled();
+		// Its close cleanup already ran, so nothing could cancel work (such as a
+		// browser sign-in) started for a connection that left while waiting.
+		if (options?.connection && !ctx.wsClients.has(options.connection)) {
+			throw new Error("The connection closed while Cline Hub was starting.");
+		}
+	}
 	const explicitEnvironment = requestedEnvironmentId(args);
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);

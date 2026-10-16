@@ -8,6 +8,7 @@ import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
+	Activity,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -17,6 +18,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubStartupScreen } from "@/components/hub-startup-screen";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
@@ -57,6 +59,7 @@ import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useHubStartup } from "@/hooks/use-hub-startup";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -299,6 +302,32 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	const startup = useHubStartup();
+	const hubReady =
+		startup.transport === "connected" && startup.hub.state === "ready";
+	// Mount the app once the Hub is first ready, then hide it with Activity
+	// whenever the Hub is not ready. Hidden Activity content keeps its state
+	// (open conversations) but unmounts effects, so its dialogs, including
+	// portaled ones, release focus traps and body pointer-events.
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		if (hubReady) setLoaded(true);
+	}, [hubReady]);
+	return (
+		<>
+			{loaded ? (
+				<Activity mode={hubReady ? "visible" : "hidden"}>
+					<App />
+				</Activity>
+			) : null}
+			{hubReady ? null : <HubStartupScreen {...startup} />}
+			{/* Outside the gate: the startup mismatch check can fire before App mounts. */}
+			<HubUpdateRequiredDialog />
+		</>
+	);
+}
+
+function App() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
 	const { current: promptDrafts } = useRef(new Map<string, string>());
@@ -1055,7 +1084,6 @@ export default function Home() {
 				onOpenChange={setExportDiagnosticsOpen}
 				open={exportDiagnosticsOpen}
 			/>
-			<HubUpdateRequiredDialog />
 			{whatsNew ? (
 				<WhatsNewDialog
 					onOpenChange={(open) => {

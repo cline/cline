@@ -364,6 +364,9 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
+			if (ctx.hubStartup) {
+				ws.send(encodeSidecarEvent("hub_status", ctx.hubStartup.status));
+			}
 			// Replay a pending mismatch so webviews that connect (or reload)
 			// after detection still prompt the user to update and restart.
 			if (ctx.hubBuildMismatch) {
