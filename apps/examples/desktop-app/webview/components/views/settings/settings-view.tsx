@@ -227,12 +227,13 @@ export function SettingsView({
 	}, [activeNav, loadProviderCatalog]);
 
 	useEffect(() => {
-		return subscribeToProviderCatalogInvalidation(() => {
+		return subscribeToProviderCatalogInvalidation((reason) => {
 			providerCatalogCache = null;
-			// Navigation triggers the next load; refetching here would loop when
-			// this view publishes a provider-model refresh through the same event.
-			// Discard an in-flight response from before the invalidation so it
-			// cannot restore stale provider connection state.
+			// Model discovery does not change connection state and must not
+			// discard a catalog reload already fetching that state.
+			if (reason === "models") return;
+			// Navigation triggers the next load. Discard an in-flight response
+			// from before the invalidation so it cannot restore stale connection state.
 			catalogGenerationRef.current += 1;
 		});
 	}, []);
@@ -282,6 +283,9 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Notify other catalog consumers before the resync claims its
+				// generation, so this view does not discard its own response.
+				invalidateProviderCatalogCache();
 				// Pick up sidecar-computed readiness (`configured`) for the
 				// just-saved settings so the Configured badge and count update
 				// without a remount.
@@ -290,6 +294,7 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				invalidateProviderCatalogCache();
 				// The optimistic list update no longer matches disk: resync from
 				// the authoritative catalog. Retry when a concurrent edit
 				// superseded the in-flight response (that edit performs no
@@ -304,10 +309,6 @@ export function SettingsView({
 				}
 				setDetailResetToken((token) => token + 1);
 				return false;
-			} finally {
-				// Keep the shared short-lived catalog cache (composer model
-				// selector, onboarding) in sync with the just-saved settings.
-				invalidateProviderCatalogCache();
 			}
 		},
 		[loadProviderCatalog, resyncProviderCatalog],
@@ -713,32 +714,6 @@ function GeneralSettingsContent({
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
-	const [cloudSessionsEnabled, setCloudSessionsEnabled] = useState(false);
-	const [cloudSessionsLoading, setCloudSessionsLoading] = useState(true);
-	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
-	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
-		null,
-	);
-	// The environment override can differ from the stored opt-in.
-	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
-		boolean | null
-	>(null);
-	// Keep the preview hidden until the rollout service explicitly enables it.
-	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(false);
-
-	const refreshCloudSessionsEffective = useCallback(async () => {
-		try {
-			const flags = await desktopClient.invoke<{
-				cloudAgents?: boolean;
-				cloudAgentsAvailable?: boolean;
-			}>("get_feature_flags");
-			setCloudSessionsEffective(Boolean(flags.cloudAgents));
-			setCloudSessionsAvailable(flags.cloudAgentsAvailable === true);
-		} catch {
-			setCloudSessionsEffective(null);
-			setCloudSessionsAvailable(false);
-		}
-	}, []);
 
 	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
@@ -748,45 +723,21 @@ function GeneralSettingsContent({
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
-		setCloudSessionsLoading(true);
-		setCloudSessionsError(null);
-		await Promise.all([
-			(async () => {
-				try {
-					const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-						"get_global_settings",
-					);
-					setTelemetryOptOut(settings.telemetryOptOut);
-					setAutoUpdateEnabled(settings.autoUpdateEnabled);
-				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : String(error);
-					setTelemetryError(message);
-					setAutoUpdateError(message);
-				} finally {
-					setTelemetryLoading(false);
-					setAutoUpdateLoading(false);
-				}
-			})(),
-			(async () => {
-				try {
-					const desktopSettings = await desktopClient.invoke<{
-						cloudSessionsEnabled: boolean;
-					}>("get_desktop_settings");
-					setCloudSessionsEnabled(
-						Boolean(desktopSettings.cloudSessionsEnabled),
-					);
-				} catch (error) {
-					setCloudSessionsError(
-						error instanceof Error ? error.message : String(error),
-					);
-				} finally {
-					setCloudSessionsLoading(false);
-				}
-			})(),
-			refreshCloudSessionsEffective(),
-		]);
-	}, [refreshCloudSessionsEffective]);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"get_global_settings",
+			);
+			setTelemetryOptOut(settings.telemetryOptOut);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setTelemetryError(message);
+			setAutoUpdateError(message);
+		} finally {
+			setTelemetryLoading(false);
+			setAutoUpdateLoading(false);
+		}
+	}, []);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -832,26 +783,6 @@ function GeneralSettingsContent({
 			setAutoUpdateError(message);
 		} finally {
 			setAutoUpdateSaving(false);
-		}
-	};
-
-	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
-		const previousValue = cloudSessionsEnabled;
-		setCloudSessionsEnabled(nextValue);
-		setCloudSessionsSaving(true);
-		setCloudSessionsError(null);
-		try {
-			const settings = await desktopClient.invoke<{
-				cloudSessionsEnabled: boolean;
-			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
-			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
-			await refreshCloudSessionsEffective();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setCloudSessionsEnabled(previousValue);
-			setCloudSessionsError(message);
-		} finally {
-			setCloudSessionsSaving(false);
 		}
 	};
 
@@ -1065,46 +996,6 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
-				{cloudSessionsAvailable ? (
-					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-						<div className="flex flex-col gap-1">
-							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
-								Cloud sessions
-								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
-									Preview
-								</span>
-							</p>
-							<p className="text-sm text-muted-foreground">
-								Run Cline on your GitHub repositories in secure cloud sandboxes.
-								Adds a Cloud option to the new-session composer. Requires a
-								Cline account with GitHub connected.
-							</p>
-							{cloudSessionsError ? (
-								<p className="mt-2 text-xs text-destructive" role="alert">
-									Failed to update cloud sessions setting: {cloudSessionsError}
-								</p>
-							) : null}
-							{cloudSessionsEffective !== null &&
-							!cloudSessionsLoading &&
-							cloudSessionsEffective !== cloudSessionsEnabled ? (
-								<p className="mt-2 text-xs text-muted-foreground">
-									Cloud sessions are currently{" "}
-									{cloudSessionsEffective ? "enabled" : "disabled"} by the
-									CLINE_CODE_CLOUD_AGENTS environment override, which takes
-									precedence over this setting.
-								</p>
-							) : null}
-						</div>
-						<Switch
-							aria-label="Cloud sessions"
-							checked={cloudSessionsEnabled}
-							disabled={cloudSessionsLoading || cloudSessionsSaving}
-							onCheckedChange={(checked) =>
-								void updateCloudSessionsEnabled(checked)
-							}
-						/>
-					</div>
-				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>

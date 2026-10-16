@@ -1,6 +1,14 @@
 import * as childProcess from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -210,14 +218,14 @@ describe("RemoteEnvironmentService", () => {
 				}
 				if (helperMissing && command.includes("'test' '-x'"))
 					return { stdout: "", stderr: "", exitCode: 1 };
-				if (helperMissing && command.includes("--remote-hub-stop"))
+				if (helperMissing && command.includes("'hub' 'stop'"))
 					throw new Error("Helper missing");
 				if (requiredIdentity && !args.includes(requiredIdentity)) {
 					throw new Error("Obsolete SSH identity");
 				}
 				if (command.includes("uname -s"))
 					return inspection("Linux", "x86_64", "/home/dev");
-				if (command.includes("--remote-hub-ensure"))
+				if (command.includes("'hub' 'ensure'"))
 					return success(
 						'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}',
 					);
@@ -243,7 +251,7 @@ describe("RemoteEnvironmentService", () => {
 		await service.connect(first.id);
 		await service.connect(second.id);
 		const ensures = commands.filter((command) =>
-			command.includes("--remote-hub-ensure"),
+			command.includes("'hub' 'ensure'"),
 		);
 		expect(ensures).toHaveLength(2);
 		expect(ensures[0]).not.toBe(ensures[1]);
@@ -262,11 +270,37 @@ describe("RemoteEnvironmentService", () => {
 		await restarted.dispose();
 		expect(await readdir(`${profilesPath}.cleanup`)).toEqual([]);
 		const stop = commands
-			.filter((command) => command.includes("--remote-hub-stop"))
+			.filter((command) => command.includes("'hub' 'stop'"))
 			.at(-1);
 		expect(stop?.split("'--discovery-path' ")[1]).toBe(
 			ensures[0]?.split("'--discovery-path' ")[1],
 		);
+	});
+
+	it("stops a Hub recorded by an earlier dedicated helper with its own flag", async () => {
+		const commands: string[] = [];
+		const service = createService({
+			runProcess: async (_executable, args) => {
+				commands.push(args.at(-1) ?? "");
+				return success();
+			},
+		});
+		const profile = await service.upsert({ name: "Old", host: "old-host" });
+		const legacyHelper =
+			"/home/dev/.cline/remote/cline-remote-helper-linux-x64-0123456789abcdef";
+		const discoveryPath = "/home/dev/.cline/data/remote/owner.json";
+		await mkdir(`${profilesPath}.cleanup`, { recursive: true });
+		await writeFile(
+			join(`${profilesPath}.cleanup`, "legacy.json"),
+			JSON.stringify({ profile, helper: legacyHelper, discoveryPath }),
+		);
+
+		await expect(service.disconnect(profile.id)).resolves.toBe(false);
+
+		expect(commands).toContain(
+			`exec '${legacyHelper}' '--remote-hub-stop' '--discovery-path' '${discoveryPath}'`,
+		);
+		expect(await readdir(`${profilesPath}.cleanup`)).toEqual([]);
 	});
 
 	it("persists profiles atomically with private permissions and updates in place", async () => {
@@ -421,7 +455,7 @@ describe("RemoteEnvironmentService", () => {
 				if (command.includes("'test' '-x'")) {
 					return { stdout: "", stderr: "", exitCode: 1 };
 				}
-				if (command.includes("--remote-hub-ensure")) {
+				if (command.includes("'hub' 'ensure'")) {
 					return success(
 						'{"url":"ws://127.0.0.1:25463/hub","authToken":"remote-secret"}\n',
 					);
@@ -478,11 +512,14 @@ describe("RemoteEnvironmentService", () => {
 		});
 		expect(upload?.args.at(-1)).toContain("umask 077; cat >");
 		const ensure = invocations.find((invocation) =>
-			invocation.args.at(-1)?.includes("--remote-hub-ensure"),
+			invocation.args.at(-1)?.includes("'hub' 'ensure'"),
 		);
 		expect(ensure?.args.at(-1)).toContain("'/home/dev'");
 		expect(ensure?.args.at(-1)).toMatch(
 			/\/home\/dev\/\.cline\/data\/remote\/[a-f0-9-]+\.json/,
+		);
+		expect(ensure?.args.at(-1)).toContain(
+			"exec 'env' 'CLINE_NO_AUTO_UPDATE=1' '/home/dev/.cline/remote/cline-linux-arm64-abcdef0123456789' 'hub' 'ensure' '--json' '--allow-port-fallback' '--no-connectors' '--login-shell-path' '--cwd' '/home/dev' '--host' '127.0.0.1' '--port' '0' '--pathname' '/hub' '--discovery-path' ",
 		);
 		expect(spawnTunnel).toHaveBeenCalledWith(
 			"ssh",
@@ -521,7 +558,7 @@ describe("RemoteEnvironmentService", () => {
 				commands.push(command);
 				if (command.includes("uname -s"))
 					return inspection("Linux", "aarch64", "/home/dev");
-				if (command.includes("--remote-hub-ensure"))
+				if (command.includes("'hub' 'ensure'"))
 					return success(
 						'{"url":"ws://127.0.0.1:25463/hub","authToken":"secret"}',
 					);
@@ -541,11 +578,9 @@ describe("RemoteEnvironmentService", () => {
 			"tunnel setup failed",
 		);
 		const ensure = commands.find((command) =>
-			command.includes("--remote-hub-ensure"),
+			command.includes("'hub' 'ensure'"),
 		);
-		const stop = commands.find((command) =>
-			command.includes("--remote-hub-stop"),
-		);
+		const stop = commands.find((command) => command.includes("'hub' 'stop'"));
 		expect(stop).toBeDefined();
 		expect(stop?.split("'--discovery-path' ")[1]).toBe(
 			ensure?.split("'--discovery-path' ")[1],
@@ -566,7 +601,7 @@ describe("RemoteEnvironmentService", () => {
 					if (command.includes("uname -s")) {
 						return inspection("Linux", "aarch64", "/home/pi");
 					}
-					if (command.includes("--remote-hub-ensure")) {
+					if (command.includes("'hub' 'ensure'")) {
 						return success(
 							'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}\n',
 						);
@@ -600,7 +635,7 @@ describe("RemoteEnvironmentService", () => {
 				if (command.includes("uname -s")) {
 					return inspection("Darwin", "arm64", "/Users/dev");
 				}
-				if (command.includes("--remote-hub-ensure")) {
+				if (command.includes("'hub' 'ensure'")) {
 					return success(
 						'{"url":"ws://localhost:29000/hub","authToken":"token"}\n',
 					);
@@ -634,7 +669,7 @@ describe("RemoteEnvironmentService", () => {
 				if (command.includes("uname -s")) {
 					return inspection("Linux", "aarch64", "/home/pi");
 				}
-				if (command.includes("--remote-hub-ensure")) {
+				if (command.includes("'hub' 'ensure'")) {
 					return success(
 						'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}\n',
 					);
@@ -716,7 +751,7 @@ describe("RemoteEnvironmentService", () => {
 		});
 
 		await expect(service.connect(profile.id)).rejects.toThrow(
-			"unsupported in SSH: no compatible remote helper binary",
+			"unsupported in SSH: no compatible Cline CLI binary",
 		);
 		expect(invocations.some((invocation) => invocation.options.inputFile)).toBe(
 			false,
@@ -733,7 +768,7 @@ describe("RemoteEnvironmentService", () => {
 				if (command.includes("uname -s")) {
 					return inspection("Linux", "aarch64", "/home/dev");
 				}
-				if (command.includes("--remote-hub-ensure")) {
+				if (command.includes("'hub' 'ensure'")) {
 					return destination === "host-b"
 						? { stdout: "", stderr: "bootstrap failed", exitCode: 1 }
 						: success(
@@ -781,7 +816,7 @@ describe("RemoteEnvironmentService", () => {
 				if (command.includes("uname -s")) {
 					return inspection("Linux", "aarch64", `/home/${destination}`);
 				}
-				if (command.includes("--remote-hub-ensure")) {
+				if (command.includes("'hub' 'ensure'")) {
 					return success(
 						`{"url":"ws://127.0.0.1:25463/hub","authToken":"${destination}-token"}\n`,
 					);
@@ -840,7 +875,7 @@ describe("RemoteEnvironmentService", () => {
 					if (command.includes("uname -s")) {
 						return inspection("Linux", "x86_64", "/home/dev");
 					}
-					if (command.includes("--remote-hub-ensure")) {
+					if (command.includes("'hub' 'ensure'")) {
 						return success(
 							'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}\n',
 						);

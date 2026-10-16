@@ -8,7 +8,10 @@ import {
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
-import type { ProviderCatalogResponse } from "@/lib/provider-schema";
+import type {
+	ProviderCatalogResponse,
+	ProviderModelsResponse,
+} from "@/lib/provider-schema";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -52,7 +55,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	await act(async () => root.unmount());
+	await act(async () => {
+		invalidateProviderCatalogCache();
+		root.unmount();
+	});
 	container.remove();
 });
 
@@ -115,36 +121,147 @@ describe("SettingsView font size", () => {
 	});
 });
 
-describe("SettingsView cloud sessions rollout", () => {
-	it.each([
-		{
-			caseName: "the rollout explicitly enables it",
-			featureFlags: { cloudAgents: false, cloudAgentsAvailable: true },
-			visible: true,
-		},
-		{
-			caseName: "feature flags are unavailable",
-			featureFlags: new Error("feature flags unavailable"),
-			visible: false,
-		},
-	])("shows the preview setting only when $caseName", async ({
-		featureFlags,
-		visible,
-	}) => {
-		invoke.mockImplementation(async (command: string) => {
-			if (command === "get_feature_flags") {
-				if (featureFlags instanceof Error) throw featureFlags;
-				return featureFlags;
-			}
-			if (command === "get_desktop_settings") {
-				return { cloudSessionsEnabled: false };
-			}
-			return {
-				telemetryOptOut: false,
-				autoUpdateEnabled: true,
-			};
+describe("SettingsView provider catalog invalidation", () => {
+	it("refreshes the configured badge and count after connecting a provider", async () => {
+		let resolveSavedCatalog:
+			| ((catalog: ProviderCatalogResponse) => void)
+			| undefined;
+		let settingsSaved = false;
+		const catalog = (configured: boolean): ProviderCatalogResponse => ({
+			providers: [
+				{
+					id: "ollama",
+					name: "Ollama",
+					models: null,
+					color: "",
+					letter: "O",
+					enabled: configured,
+					configured,
+				},
+			],
+			settingsPath: "/tmp/providers.json",
 		});
 
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_provider_catalog") {
+				if (!settingsSaved) return catalog(false);
+				return new Promise<ProviderCatalogResponse>((resolve) => {
+					resolveSavedCatalog = resolve;
+				});
+			}
+			if (command === "save_provider_settings") {
+				settingsSaved = true;
+				return {};
+			}
+			if (command === "list_provider_models") {
+				return { providerId: "ollama", models: [] };
+			}
+			return {};
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="Providers"
+				/>,
+			);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Not configured");
+			expect(invoke).toHaveBeenCalledWith("list_provider_models", {
+				provider: "ollama",
+			});
+			expect(
+				container.querySelector<HTMLButtonElement>(
+					'button[aria-label="Refresh models"]',
+				)?.disabled,
+			).toBe(false);
+		});
+
+		const connectButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.trim() === "Connect",
+		);
+		expect(connectButton).toBeDefined();
+		await act(async () => connectButton?.click());
+		await vi.waitFor(() => {
+			expect(invoke).toHaveBeenCalledWith(
+				"save_provider_settings",
+				expect.objectContaining({ provider: "ollama", enabled: true }),
+			);
+			expect(resolveSavedCatalog).toBeDefined();
+		});
+
+		// The save's authoritative response must survive the shared cache
+		// invalidation and update the current screen without navigating away.
+		await act(async () => resolveSavedCatalog?.(catalog(true)));
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("1 configured · 1 available");
+			expect(container.textContent).not.toContain("Not configured");
+			expect(
+				Array.from(container.querySelectorAll("button")).some(
+					(button) => button.textContent?.trim() === "Disconnect",
+				),
+			).toBe(true);
+		});
+	});
+
+	it("keeps a catalog reload active when an earlier model request completes", async () => {
+		let catalogCalls = 0;
+		let resolveFreshCatalog:
+			| ((catalog: ProviderCatalogResponse) => void)
+			| undefined;
+		let resolveEarlierModels:
+			| ((response: ProviderModelsResponse) => void)
+			| undefined;
+		const catalog = (configured: boolean): ProviderCatalogResponse => ({
+			providers: [
+				{
+					id: "ollama",
+					name: "Ollama",
+					models: null,
+					color: "",
+					letter: "O",
+					enabled: configured,
+					configured,
+				},
+			],
+			settingsPath: "/tmp/providers.json",
+		});
+
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_provider_catalog") {
+				catalogCalls += 1;
+				if (catalogCalls === 1) return catalog(true);
+				return new Promise<ProviderCatalogResponse>((resolve) => {
+					resolveFreshCatalog = resolve;
+				});
+			}
+			if (command === "list_provider_models") {
+				return new Promise<ProviderModelsResponse>((resolve) => {
+					resolveEarlierModels = resolve;
+				});
+			}
+			return {};
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="Providers"
+				/>,
+			);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("1 configured · 1 available");
+			expect(resolveEarlierModels).toBeDefined();
+		});
+
+		// Another settings section invalidates connection state while the
+		// first provider's model request is still outstanding.
 		await act(async () => {
 			root.render(
 				<SettingsView
@@ -153,18 +270,36 @@ describe("SettingsView cloud sessions rollout", () => {
 					section="General"
 				/>,
 			);
+			invalidateProviderCatalogCache();
 		});
-		await vi.waitFor(() =>
-			expect(
-				container.querySelector(
-					'[role="switch"][aria-label="Cloud sessions"]',
-				) !== null,
-			).toBe(visible),
-		);
-	});
-});
+		await act(async () => {
+			root.render(
+				<SettingsView
+					onExportDiagnostics={vi.fn()}
+					onNavigateSection={vi.fn()}
+					section="Providers"
+				/>,
+			);
+		});
+		await vi.waitFor(() => {
+			expect(catalogCalls).toBe(2);
+			expect(resolveFreshCatalog).toBeDefined();
+			expect(container.textContent).toContain("Loading providers...");
+		});
 
-describe("SettingsView provider catalog invalidation", () => {
+		await act(async () => {
+			resolveEarlierModels?.({ providerId: "ollama", models: [] });
+		});
+		await act(async () => resolveFreshCatalog?.(catalog(false)));
+
+		await vi.waitFor(() => {
+			expect(container.textContent).not.toContain("Loading providers...");
+			expect(container.textContent).toContain("Not configured");
+			expect(container.textContent).not.toContain("1 configured · 1 available");
+		});
+		expect(catalogCalls).toBe(2);
+	});
+
 	it("reloads provider connection state and ignores an older response", async () => {
 		let catalogCalls = 0;
 		let modelLoads = 0;

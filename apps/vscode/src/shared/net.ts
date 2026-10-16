@@ -97,7 +97,8 @@
  * ```
  */
 
-import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import { BlockList, isIP } from "node:net"
+import { Agent, type Dispatcher, EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 
 type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
@@ -130,6 +131,73 @@ export const fetch: typeof globalThis.fetch = (() => {
 	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> =>
 		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
 })()
+
+const NO_IDLE_TIMEOUTS = { headersTimeout: 0, bodyTimeout: 0 }
+let directDispatcher: Agent | undefined
+let proxiedDispatcher: EnvHttpProxyAgent | undefined
+
+// The same hosts VS Code's proxy resolver always connects to directly.
+// `EnvHttpProxyAgent` would otherwise send them through `http_proxy` whenever
+// `no_proxy` is unset, which is exactly the shape of a corporate environment.
+// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`, which the URL
+// parser rewrites to `[::ffff:7f00:1]`) against the IPv4 rules.
+const LOOPBACK_ADDRESSES = new BlockList()
+LOOPBACK_ADDRESSES.addSubnet("127.0.0.0", 8, "ipv4")
+LOOPBACK_ADDRESSES.addAddress("0.0.0.0", "ipv4")
+LOOPBACK_ADDRESSES.addAddress("::1", "ipv6")
+
+function isLoopbackHost(input: string | URL | Request): boolean {
+	try {
+		const host = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).hostname
+			.replace(/^\[|\]$/g, "")
+			.toLowerCase()
+		if (host === "localhost") {
+			return true
+		}
+		const family = isIP(host)
+		return family !== 0 && LOOPBACK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Fetch for providers that may point at a local model server, with undici's
+ * idle timeouts disabled.
+ *
+ * undici aborts a response after `headersTimeout` / `bodyTimeout` (300s
+ * each) of silence on the wire. A local model processing a large prompt
+ * sends its headers at once and then nothing until the first token, often
+ * for longer than that, so the request dies with `UND_ERR_BODY_TIMEOUT`
+ * while the server is still generating (cline/cline#13371, #13464).
+ * Cancellation stays with the request's AbortSignal, i.e. the stop button.
+ *
+ * This goes through undici's own fetch rather than global fetch: the VS Code
+ * extension host wraps global fetch and swaps any caller-supplied dispatcher
+ * for its own default-timeout Agent, so the override would be dropped. The
+ * trade-off is that these requests honour `http_proxy` / `https_proxy` /
+ * `no_proxy` rather than VS Code's `http.proxy` setting, except that loopback
+ * always goes direct, as it does in VS Code. On the standalone build the
+ * proxy agent is the same one installed globally above.
+ */
+export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
+	input: string | URL | Request,
+	init?: RequestInit,
+): Promise<Response> => {
+	if (mockFetch) {
+		return mockFetch(input, init)
+	}
+	let dispatcher: Dispatcher
+	if (isLoopbackHost(input)) {
+		dispatcher = directDispatcher ??= new Agent(NO_IDLE_TIMEOUTS)
+	} else {
+		dispatcher = proxiedDispatcher ??= new EnvHttpProxyAgent(NO_IDLE_TIMEOUTS)
+	}
+	return undiciFetch(
+		input as Parameters<typeof undiciFetch>[0],
+		{ ...init, dispatcher } as Parameters<typeof undiciFetch>[1],
+	) as unknown as Promise<Response>
+}) as typeof globalThis.fetch
 
 /**
  * Mocks `fetch` for testing and calls `callback`. Then restores `fetch`. If the

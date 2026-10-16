@@ -206,7 +206,7 @@ export function publishProviderModels(
 	providerId: string,
 	models: ProviderModel[],
 ): void {
-	invalidateProviderCatalogCache();
+	invalidateProviderCatalogCache("models");
 	const chatModels = filterChatModels(models);
 	for (const listener of providerModelsListeners) {
 		listener(providerId, chatModels);
@@ -249,7 +249,10 @@ export function fetchProviderCatalog(options?: {
 	return promise;
 }
 
-type ProviderCatalogInvalidationListener = () => void;
+type ProviderCatalogInvalidationReason = "settings" | "models";
+type ProviderCatalogInvalidationListener = (
+	reason: ProviderCatalogInvalidationReason,
+) => void;
 const providerCatalogInvalidationListeners =
 	new Set<ProviderCatalogInvalidationListener>();
 
@@ -258,6 +261,8 @@ const providerCatalogInvalidationListeners =
  * saved, providers toggled, OAuth completed) so long-lived consumers — e.g.
  * the chat pane's "connect a model" notice — can refetch instead of showing
  * stale connection state until they happen to remount.
+ * Model-only updates are distinguished so consumers can retain an in-flight
+ * connection-state load while still dropping cached model data.
  */
 export function subscribeToProviderCatalogInvalidation(
 	listener: ProviderCatalogInvalidationListener,
@@ -266,7 +271,9 @@ export function subscribeToProviderCatalogInvalidation(
 	return () => providerCatalogInvalidationListeners.delete(listener);
 }
 
-export function invalidateProviderCatalogCache(): void {
+export function invalidateProviderCatalogCache(
+	reason: ProviderCatalogInvalidationReason = "settings",
+): void {
 	providerCatalogCache = null;
 	providerCatalogPayload = null;
 	transcriptionModelsCache.clear();
@@ -274,7 +281,7 @@ export function invalidateProviderCatalogCache(): void {
 	// must not act on the old keys, so drop it until a fresh load lands.
 	providerCatalogSnapshot = null;
 	for (const listener of providerCatalogInvalidationListeners) {
-		listener();
+		listener(reason);
 	}
 }
 
