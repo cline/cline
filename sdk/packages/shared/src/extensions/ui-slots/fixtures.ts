@@ -1,8 +1,8 @@
 import type {
 	ComposerSuggestionItem,
 	ComposerSuggestionsState,
-	PluginUiStateNormalization,
-} from "./ui-slots";
+} from "./contracts";
+import type { PluginUiStateNormalization } from "./normalize/state";
 
 /** An input a plugin (or a newer core) might push, and what `normalizePluginUiState` makes of it. */
 export interface PluginUiHostileFixture {

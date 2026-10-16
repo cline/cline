@@ -82,7 +82,8 @@ Tuning levers (timeouts, budgets, cadences, limits) live in
 write). They are the plugin's own: the label record, the environment
 manifest, and Next's internal tray state (`NextTurnSet`, `NextTurnTrayPush`,
 `NextTurnTrayAction`). The schema hosts render, the `composer.suggestions`
-state and its verbs, belongs to Cline (`@cline/shared`'s `ui-slots.ts`);
+state and its verbs, belongs to Cline
+(`@cline/shared`'s `extensions/ui-slots/contracts.ts`);
 [`src/planner/tray-view.ts`](src/planner/tray-view.ts) projects Next's tray
 state into it and maps its verbs onto Next's actions. The plugin imports
 that contract as types only, so declaring the slot adds no runtime

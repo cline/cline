@@ -794,8 +794,9 @@ A plugin can fill a Cline-owned UI slot (v1 has one, `composer.suggestions`)
 that each host renders with its own components. Plugins publish JSON state and
 receive typed verbs; no plugin code, markup, or styles run in a host. The
 contract (slot ids, state and verb types, the envelope, the zod normalizers,
-and the ordering helpers) lives in `@cline/shared` `extensions/ui-slots.ts`,
-and hosts share the pure view model in `extensions/ui-slots-view.ts`.
+and the ordering helpers) lives in `@cline/shared` `extensions/ui-slots/`
+(normalizers under `normalize/`), and hosts share the pure view model in
+`extensions/ui-slots/view/`.
 
 **The session's slot catalog.** The client that starts a session declares the
 slots it renders: `StartSessionInput.uiSlots`, carried as `uiSlots` on
