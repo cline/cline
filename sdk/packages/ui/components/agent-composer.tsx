@@ -97,6 +97,10 @@ export const AgentComposerField = forwardRef<
 	);
 });
 
+/** Chip style for composer tokens; hosts reuse it where sent messages echo them. */
+export const agentComposerTokenClassName =
+	"-mx-0.5 rounded-cline-ui-md bg-cline-ui-primary/25 px-0.5 py-px inset-ring inset-ring-cline-ui-primary/50";
+
 export type AgentComposerTextareaProps = ComponentPropsWithoutRef<"textarea"> &
 	VariantProps & {
 		/**
@@ -145,10 +149,7 @@ export const AgentComposerTextarea = forwardRef<
 							renderedUpTo = end;
 							return [
 								before,
-								<span
-									className="-mx-0.5 rounded-cline-ui-md bg-cline-ui-primary/25 px-0.5 py-px inset-ring inset-ring-cline-ui-primary/50"
-									key={start}
-								>
+								<span className={agentComposerTokenClassName} key={start}>
 									{value.slice(start, end)}
 								</span>,
 							];
