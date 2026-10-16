@@ -2,6 +2,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { editorName } from "@/utils/editorName"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA } from "./constants"
@@ -11,11 +12,11 @@ interface AutoApproveBarProps {
 	cloudAutoApprove?: boolean
 }
 
-export const CLOUD_AUTO_APPROVE_TOOLTIP =
-	"Cloud sessions always auto-approve actions so they can continue running when your editor is closed. Your local auto-approve settings are unchanged."
+const cloudAutoApproveTooltip = (editor: string) =>
+	`Cloud sessions always auto-approve actions so they can continue running when ${editor} is closed. Your local auto-approve settings are unchanged.`
 
 const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+	const { autoApprovalSettings, hostName } = useExtensionState()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -121,7 +122,7 @@ const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps
 						{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
 					</div>
 				</TooltipTrigger>
-				{cloudAutoApprove && <TooltipContent side="top">{CLOUD_AUTO_APPROVE_TOOLTIP}</TooltipContent>}
+				{cloudAutoApprove && <TooltipContent side="top">{cloudAutoApproveTooltip(editorName(hostName))}</TooltipContent>}
 			</Tooltip>
 
 			<AutoApproveModal

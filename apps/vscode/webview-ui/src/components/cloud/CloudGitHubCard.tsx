@@ -2,9 +2,11 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { CheckCircle2Icon, CloudIcon, LoaderCircleIcon, RefreshCcwIcon } from "lucide-react"
 import { useEffect, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useGitHubConnection } from "@/hooks/useGitHubConnection"
 import { cn } from "@/lib/utils"
 import { CloudServiceClient } from "@/services/grpc-client"
+import { editorName } from "@/utils/editorName"
 
 /**
  * Account view card answering "is my account set up for cloud sessions?":
@@ -12,6 +14,7 @@ import { CloudServiceClient } from "@/services/grpc-client"
  * it can reach. Repository selection itself happens on the home screen.
  */
 export function CloudGitHubCard() {
+	const { hostName } = useExtensionState()
 	const { connection, loading, refresh } = useGitHubConnection(true)
 	const [waiting, setWaiting] = useState(false)
 
@@ -63,7 +66,8 @@ export function CloudGitHubCard() {
 					</span>
 				) : (
 					<span className="text-description">
-						Connect GitHub to run tasks in isolated cloud sandboxes that keep working after you close your editor.
+						Connect GitHub to run tasks in isolated cloud sandboxes that keep working after you close{" "}
+						{editorName(hostName)}.
 					</span>
 				)}
 			</div>
