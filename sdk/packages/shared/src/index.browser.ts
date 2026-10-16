@@ -322,7 +322,10 @@ export {
 	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "./provider-auth";
-export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export {
+	ANTHROPIC_DEFAULT_MODEL_ID,
+	CLINE_DEFAULT_MODEL_ID,
+} from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
