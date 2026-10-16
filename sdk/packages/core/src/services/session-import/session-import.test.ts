@@ -533,7 +533,13 @@ describe("CodexImportAdapter", () => {
 // opencode fixtures
 // ---------------------------------------------------------------------------
 
-function writeOpencodeFixture(dataDir: string): void {
+/**
+ * `endsWithTool` adds a second assistant row that ends on a tool call: opencode
+ * closes such a turn with a `step-finish` part, so the row has no content part
+ * after the tool and the trailing `flushAssistant(true)` has nothing to attach
+ * the row's usage to.
+ */
+function writeOpencodeFixture(dataDir: string, endsWithTool = false): void {
 	mkdirSync(dataDir, { recursive: true });
 	const db = loadSqliteDb(join(dataDir, "opencode.db"));
 	db.exec(`
@@ -651,6 +657,59 @@ function writeOpencodeFixture(dataDir: string): void {
 		t0,
 		JSON.stringify({ type: "text", text: "Done — navbar is sticky." }),
 	);
+	if (endsWithTool) {
+		insertMessage.run(
+			"msg_3",
+			"ses_1",
+			t0 + 2000,
+			t0 + 2000,
+			JSON.stringify({
+				role: "assistant",
+				providerID: "anthropic",
+				modelID: "claude-sonnet-5",
+				cost: 0.34,
+				tokens: { input: 900, output: 40, cache: { read: 200, write: 10 } },
+				time: { created: t0 + 2000 },
+			}),
+		);
+		insertPart.run(
+			"prt_6",
+			"msg_3",
+			"ses_1",
+			t0,
+			t0,
+			JSON.stringify({ type: "text", text: "Now re-running the build." }),
+		);
+		insertPart.run(
+			"prt_7",
+			"msg_3",
+			"ses_1",
+			t0,
+			t0,
+			JSON.stringify({
+				type: "tool",
+				tool: "bash",
+				callID: "call_b",
+				state: {
+					status: "completed",
+					input: { command: "bun run build" },
+					output: "ok",
+				},
+			}),
+		);
+		insertPart.run(
+			"prt_8",
+			"msg_3",
+			"ses_1",
+			t0,
+			t0,
+			JSON.stringify({
+				type: "step-finish",
+				reason: "tool-calls",
+				tokens: { input: 900, output: 40, cache: { read: 200, write: 10 } },
+			}),
+		);
+	}
 	db.close?.();
 }
 
@@ -693,6 +752,31 @@ describe("OpencodeImportAdapter", () => {
 			cacheReadTokens: 100,
 			cacheWriteTokens: 5,
 			cost: 0.12,
+		});
+	});
+
+	it("stamps metrics when an assistant row ends on its tool part", () => {
+		const dataDir = tempDir("oc-import-");
+		writeOpencodeFixture(dataDir, true);
+		const adapter = new OpencodeImportAdapter({ dataDir });
+
+		const converted = adapter.convert("ses_1");
+		const stamped = converted.messages.filter(
+			(message) => message.role === "assistant" && message.metrics,
+		);
+		expect(stamped).toHaveLength(2);
+
+		const tail = stamped[1];
+		expect(blocks(tail).map((block) => block.type)).toEqual([
+			"text",
+			"tool_use",
+		]);
+		expect(tail.metrics).toEqual({
+			inputTokens: 900,
+			outputTokens: 40,
+			cacheReadTokens: 200,
+			cacheWriteTokens: 10,
+			cost: 0.34,
 		});
 	});
 });
