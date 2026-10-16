@@ -524,6 +524,25 @@ describe("vscode-to-file-migration", () => {
 				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
 			)
 		})
+
+		it("neutralizes leftover empty legacy MCP settings so agents are not misled", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			const legacyPath = path.join(extensionStorage, "settings", "cline_mcp_settings.json")
+			fs.mkdirSync(path.dirname(legacyPath), { recursive: true })
+			fs.writeFileSync(legacyPath, JSON.stringify({ mcpServers: {} }))
+
+			await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext)
+
+			const neutralized = JSON.parse(fs.readFileSync(legacyPath, "utf8")) as {
+				mcpServers: Record<string, unknown>
+				_deprecated?: string
+			}
+			neutralized.mcpServers.should.deepEqual({})
+			;(typeof neutralized._deprecated).should.equal("string")
+			neutralized._deprecated!.includes(sharedMcpSettingsPath()).should.be.true()
+		})
 	})
 
 	describe("secrets migration", () => {
