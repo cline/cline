@@ -122,6 +122,10 @@ describe("createHubDaemonTelemetry", () => {
 			// A desktop session hosted by a CLI-started hub (or the reverse)
 			// is only attributable through the daemon's resource, since the
 			// span's clientName describes the session's client, not the host.
+			// Claimed, not read: hosted sessions must not inherit the stamp.
+			expect(process.env.CLINE_HUB_LAUNCHER_CLIENT).toBeUndefined();
+			expect(process.env.CLINE_HUB_LAUNCHER_VERSION).toBeUndefined();
+			expect(process.env.CLINE_HUB_LAUNCHER_TRANSPORT).toBeUndefined();
 			expect(mockCreateConfiguredTelemetryHandle).toHaveBeenCalledWith(
 				expect.objectContaining({
 					resourceAttributes: expect.objectContaining({

@@ -24,26 +24,48 @@ export interface HubLauncherIdentity {
 }
 
 /**
- * Stamp the launcher identity onto a daemon environment. Values already in
- * `env` win: an embedding host (the desktop app running `cline-cli hub
- * ensure`) sets them before handing the spawn to the CLI, whose own identity
- * would otherwise be recorded.
+ * Stamp the launcher identity onto a daemon environment. A launcher already
+ * in `env` is kept as a whole: an embedding host (the desktop app running
+ * `cline-cli hub ensure`) stamps itself before handing the spawn to the CLI,
+ * and filling in fields it left unset from the CLI's identity would pair the
+ * host's name with another build's version.
  */
 export function withHubLauncherIdentity<
 	T extends Record<string, string | undefined>,
 >(env: T, identity: HubLauncherIdentity | undefined): T {
+	if (env[CLINE_HUB_LAUNCHER_CLIENT_ENV]?.trim()) {
+		return env;
+	}
 	const client = identity?.client?.trim();
 	if (!client) {
 		return env;
 	}
-	const stamped: Record<string, string | undefined> = { ...env };
-	stamped[CLINE_HUB_LAUNCHER_CLIENT_ENV] ??= client;
 	const version = identity?.version?.trim();
-	if (version) {
-		stamped[CLINE_HUB_LAUNCHER_VERSION_ENV] ??= version;
-	}
-	stamped[CLINE_HUB_LAUNCHER_TRANSPORT_ENV] ??= identity?.transport ?? "local";
-	return stamped as T;
+	return {
+		...env,
+		[CLINE_HUB_LAUNCHER_CLIENT_ENV]: client,
+		...(version ? { [CLINE_HUB_LAUNCHER_VERSION_ENV]: version } : {}),
+		[CLINE_HUB_LAUNCHER_TRANSPORT_ENV]: identity?.transport ?? "local",
+	};
+}
+
+/**
+ * Take the launcher stamp out of a daemon's environment, returning it.
+ *
+ * Same hazard as {@link claimHubDaemonProcess}: everything a hub-hosted
+ * session spawns inherits the daemon's environment. A shell command that
+ * starts its own hub (`cline hub ensure --discovery-path ...`) would
+ * otherwise keep the outer hub's stamp, and a local CLI hub started inside
+ * an SSH-hosted session would report the desktop launcher and `ssh`.
+ */
+export function claimHubLauncherIdentity(
+	env: Record<string, string | undefined> = process.env,
+): HubLauncherIdentity | undefined {
+	const identity = readHubLauncherIdentity(env);
+	delete env[CLINE_HUB_LAUNCHER_CLIENT_ENV];
+	delete env[CLINE_HUB_LAUNCHER_VERSION_ENV];
+	delete env[CLINE_HUB_LAUNCHER_TRANSPORT_ENV];
+	return identity;
 }
 
 export function readHubLauncherIdentity(

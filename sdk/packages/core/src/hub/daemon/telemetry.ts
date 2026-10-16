@@ -1,5 +1,6 @@
 import { release } from "node:os";
 import {
+	claimHubLauncherIdentity,
 	createClineTelemetryServiceConfig,
 	type HubLauncherIdentity,
 	type ITelemetryService,
@@ -69,7 +70,10 @@ export function hubDaemonResourceAttributes(
  * periodically rather than only once at startup.
  */
 export function createHubDaemonTelemetry(): HubDaemonTelemetry {
-	const launcher = readHubLauncherIdentity();
+	// Claim rather than read: sessions this daemon hosts spawn processes that
+	// inherit its environment, and a hub one of them starts must record its
+	// own launcher, not this one's.
+	const launcher = claimHubLauncherIdentity();
 	const config = createClineTelemetryServiceConfig({
 		// Spans carry only the OTel resource, not per-event metadata, so the
 		// daemon needs its own service identity: it ships in the same binary

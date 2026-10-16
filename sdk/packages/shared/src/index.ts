@@ -528,6 +528,7 @@ export {
 	CLINE_HUB_LAUNCHER_VERSION_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	claimHubDaemonProcess,
+	claimHubLauncherIdentity,
 	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
 	isSupervisedConnectorProcess,
