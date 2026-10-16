@@ -492,6 +492,63 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe(secondSessionId);
 	});
 
+	it("rolls the config mode back when the restart after a mode switch fails", async () => {
+		const manager = {
+			start: vi
+				.fn()
+				.mockResolvedValueOnce({
+					sessionId: "sess-mode-fail",
+					manifest: createManifest("sess-mode-fail"),
+					manifestPath: "/tmp/session.json",
+					messagesPath: "/tmp/session.messages.json",
+				})
+				.mockRejectedValueOnce(
+					Object.assign(new Error("session already exists: sess-mode-fail"), {
+						code: "session_already_exists",
+					}),
+				),
+			readMessages: vi.fn().mockResolvedValue([]),
+			readSessionCompactionState: vi.fn().mockResolvedValue(undefined),
+			updateSessionCompactionState: vi
+				.fn()
+				.mockResolvedValue({ updated: true }),
+			stop: vi.fn().mockResolvedValue(undefined),
+			dispose: vi.fn().mockResolvedValue(undefined),
+			ingestHookEvent: vi.fn().mockResolvedValue(undefined),
+			get: vi.fn(),
+			list: vi.fn(),
+			delete: vi.fn(),
+			send: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+		};
+		createCliCoreMock.mockResolvedValue(manager);
+		const { createInteractiveSessionRuntime } = await importRuntime();
+		const config = createConfig();
+		config.mode = "act";
+		const runtime = createInteractiveSessionRuntime({
+			config,
+			providerSettingsManager: createProviderSettingsManager(),
+			chatCommandState: createChatCommandState(),
+			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
+			askQuestionRef: { current: null },
+			resolveMistakeLimitDecision: undefined,
+			switchToActModeTool: {} as never,
+			onAgentEvent: vi.fn(),
+			onTeamEvent: vi.fn(),
+			onPendingPrompts: vi.fn(),
+			onPendingPromptSubmitted: vi.fn(),
+		});
+
+		await runtime.ensureReady();
+		await expect(runtime.applyMode("plan")).rejects.toThrow(
+			"session already exists",
+		);
+		// The switch did not happen: the next session to start must not be
+		// silently created in the mode the user was told they could not enter.
+		expect(config.mode).toBe("act");
+	});
+
 	it("defers creating the replacement session after a new-session reset", async () => {
 		let startCount = 0;
 		const manager = {
