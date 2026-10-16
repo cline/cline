@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import { InvalidGrantError, InvalidTokenError, OAuthError, ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js"
 import {
 	CallToolResultSchema,
 	ErrorCode,
@@ -676,9 +677,25 @@ export class McpHub {
 				const timeout = resolveMcpServerTimeoutMs(connection.server.config)
 				await client.connect(transport, { timeout })
 			} catch (error) {
-				if (error instanceof UnauthorizedError) {
-					// Server requires OAuth authentication
-					Logger.log(`Server "${name}" requires OAuth authentication`)
+				// Expired refresh tokens surface as InvalidGrantError or InvalidTokenError;
+				// treat them like UnauthorizedError but clear the stale tokens first so
+				// the next auth attempt starts fresh rather than looping on the bad token.
+				const isExpiredTokenError =
+					(error instanceof OAuthError && !(error instanceof ServerError) && !(error instanceof UnauthorizedError)) ||
+					error instanceof InvalidGrantError ||
+					error instanceof InvalidTokenError
+
+				if (error instanceof UnauthorizedError || isExpiredTokenError) {
+					const isInitialAuth = error instanceof UnauthorizedError
+					Logger.log(
+						`Server "${name}" requires OAuth ${isInitialAuth ? "authentication" : "re-authentication (token expired)"}`,
+					)
+
+					// For expired tokens: clear stale token state so the auth flow restarts cleanly
+					if (!isInitialAuth && authProvider) {
+						await (authProvider as any).invalidateCredentials("tokens")
+					}
+
 					const unauthConnection: McpConnection = {
 						server: {
 							name,
@@ -687,7 +704,9 @@ export class McpHub {
 							disabled: false,
 							oauthRequired: true,
 							oauthAuthStatus: "unauthenticated",
-							error: "This MCP server requires authentication to get started.",
+							error: isInitialAuth
+								? "This MCP server requires authentication to get started."
+								: "Authentication expired. Please re-authenticate.",
 						},
 						client,
 						transport,
@@ -1739,6 +1758,28 @@ export class McpHub {
 				content: result.content ?? [],
 			}
 		} catch (error) {
+			// If the tool call fails with an auth error (e.g. expired token that the SDK
+			// couldn't auto-refresh), clear the stale tokens and mark the server as
+			// needing re-authentication. Look up the connection fresh to avoid acting on
+			// a stale reference if a reconnect already replaced it.
+			const isExpiredTokenError =
+				(error instanceof OAuthError && !(error instanceof ServerError) && !(error instanceof UnauthorizedError)) ||
+				error instanceof InvalidGrantError ||
+				error instanceof InvalidTokenError
+
+			if (isExpiredTokenError || error instanceof UnauthorizedError) {
+				const liveConnection = this.connections.find((conn) => conn.server.name === serverName)
+				if (liveConnection?.authProvider) {
+					await (liveConnection.authProvider as any).invalidateCredentials("tokens")
+					liveConnection.server.oauthRequired = true
+					liveConnection.server.oauthAuthStatus = "unauthenticated"
+					liveConnection.server.status = "disconnected"
+					liveConnection.server.error = "Authentication expired. Please re-authenticate."
+					await this.notifyWebviewOfServerChanges()
+				}
+				throw new Error(`Authentication failed for "${serverName}". Please click "Authenticate" to re-authenticate.`)
+			}
+
 			this.telemetryService.captureMcpToolCall(
 				ulid,
 				serverName,
