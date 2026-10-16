@@ -291,6 +291,61 @@ describe("installGitHubSkill", () => {
 		expect(result.skippedPaths).toEqual(["skills/data/skills/chdb-sql"]);
 	});
 
+	it("skips links that loop back into a directory being copied", async () => {
+		// Twenty links to "." would otherwise re-expand the skill directory for
+		// each of them; a link to ".." would copy the whole repository into it.
+		const loops = Array.from({ length: 20 }, (_, i) => ({
+			path: `skills/loop/self-${i}`,
+			link: ".",
+		}));
+		const archive = githubTarball([
+			{ path: "shared/a.md", content: "a" },
+			{ path: "skills/loop/SKILL.md", content: skillMd("loop") },
+			...loops,
+			{ path: "skills/loop/parent", link: ".." },
+			{ path: "skills/loop/shared", link: "../../shared" },
+		]);
+
+		const started = Date.now();
+		const result = await installGitHubSkill(
+			{ owner: "o", repo: "r" },
+			{ skillsDir, fetch: fetchReturning(archive) },
+		);
+
+		expect(Date.now() - started).toBeLessThan(2_000);
+		expect(listFiles(result.installPath)).toEqual(["SKILL.md", "shared/a.md"]);
+		expect(result.skippedPaths).toEqual([
+			...loops.map((l) => l.path),
+			"skills/loop/parent",
+		]);
+	});
+
+	it("reads skill names with the same YAML rules as Cline's loader", async () => {
+		const archive = githubTarball([
+			{
+				path: "skills/rt/SKILL.md",
+				content:
+					"---\nname: review-team # public name\ndescription: d\n---\n\nBody\n",
+			},
+			{
+				path: "skills/q/SKILL.md",
+				content: '---\nname: "Quoted Name"\n---\n\nBody\n',
+			},
+		]);
+
+		const byName = await installGitHubSkill(
+			{ owner: "o", repo: "r", skill: "review-team" },
+			{ skillsDir, fetch: fetchReturning(archive) },
+		);
+		expect(byName.name).toBe("review-team");
+
+		const quoted = await installGitHubSkill(
+			{ owner: "o", repo: "r", skill: "quoted-name" },
+			{ skillsDir, fetch: fetchReturning(archive) },
+		);
+		expect(quoted.name).toBe("quoted-name");
+	});
+
 	it("reads pax long paths and ignores entries that escape the repository", async () => {
 		const deep = `skills/long/${"nested-directory/".repeat(8)}file.md`;
 		const archive = githubTarball([
@@ -365,7 +420,7 @@ describe("installGitHubSkill", () => {
 		expect(nestedResult.name).toBe("plain");
 
 		const root = githubTarball([
-			{ path: "SKILL.md", content: "---\ndescription: no name\n---\n" },
+			{ path: "SKILL.md", content: "---\ndescription: no name\n---\n\nBody\n" },
 		]);
 		const rootResult = await installGitHubSkill(
 			{ owner: "o", repo: "root-skill" },

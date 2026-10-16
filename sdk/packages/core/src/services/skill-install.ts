@@ -9,6 +9,7 @@ import {
 import { homedir } from "node:os";
 import { dirname, join, posix } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { parseSkillConfigFromMarkdown } from "../extensions/config";
 
 // Installs a skill from a GitHub repository without shelling out. The
 // marketplace used to run `npx skills add`, which fails in the packaged
@@ -55,6 +56,9 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024;
 const MAX_SKILL_BYTES = 50 * 1024 * 1024;
 const MAX_LINK_DEPTH = 8;
+// Directory links are expanded by rescanning the tree; this bounds a hostile
+// archive full of links to each other.
+const MAX_LINK_EXPANSIONS = 200;
 // Mirrors the skills CLI: directories never searched for SKILL.md, and
 // entries never copied into an installed skill.
 const SEARCH_SKIP_DIRS = new Set([
@@ -439,12 +443,14 @@ function selectSkill(
 		if (dir.split("/").some((segment) => SEARCH_SKIP_DIRS.has(segment))) {
 			continue;
 		}
-		// Cline's skill loader falls back to the directory name when the
-		// frontmatter has none, so accept those skills the same way.
-		const name =
-			readFrontmatterName(entry.data.toString("utf8")) ??
-			(dir ? posix.basename(dir) : source.repo);
-		candidates.push({ dir, name });
+		// Parsed with Cline's own skill loader rules (YAML frontmatter, directory
+		// name as the fallback), so the installer accepts exactly the skills Cline
+		// can load and skips the ones it would reject.
+		const name = readSkillName(
+			entry.data.toString("utf8"),
+			dir ? posix.basename(dir) : source.repo,
+		);
+		if (name) candidates.push({ dir, name });
 	}
 	const label = `${repoLabel(source)}${searchRoot ? `/${searchRoot}` : ""}`;
 	if (candidates.length === 0) {
@@ -476,20 +482,15 @@ function selectSkill(
 	);
 }
 
-function readFrontmatterName(content: string): string | undefined {
-	const lines = content.replace(/^﻿/, "").split("\n");
-	if (lines[0]?.trim() !== "---") return undefined;
-	for (const line of lines.slice(1)) {
-		if (line.trim() === "---") return undefined;
-		if (!line.startsWith("name:")) continue;
-		let value = line.slice("name:".length).trim();
-		const quote = value[0];
-		if ((quote === '"' || quote === "'") && value.endsWith(quote)) {
-			value = value.slice(1, -1).trim();
-		}
-		return value || undefined;
+function readSkillName(
+	content: string,
+	fallbackName: string,
+): string | undefined {
+	try {
+		return parseSkillConfigFromMarkdown(content, fallbackName).name;
+	} catch {
+		return undefined;
 	}
-	return undefined;
 }
 
 type SkillFile = { relativePath: string; mode: number; data: Buffer };
@@ -522,27 +523,39 @@ function collectSkillFiles(
 	// with dereference). Links that leave the archive - typically into git
 	// submodules, which GitHub tarballs don't include - are skipped, as a git
 	// clone without submodules would leave them broken too.
+	// A link whose target is a directory already being copied (or an ancestor
+	// of one) would copy that directory into itself; such links are skipped.
+	let expansions = 0;
 	const addLinked = (
 		relativePath: string,
 		repoPath: string,
 		target: string,
-		depth: number,
+		chain: ReadonlySet<string>,
 	) => {
 		const resolved = normalizeRelativePath(
 			posix.join(posix.dirname(repoPath), target),
 		);
-		const entry = resolved === undefined ? undefined : tree.get(resolved);
-		if (resolved === undefined || depth > MAX_LINK_DEPTH) {
+		const loops =
+			resolved !== undefined &&
+			[...chain].some(
+				(dir) => dir === resolved || dir.startsWith(`${resolved}/`),
+			);
+		if (resolved === undefined || loops || chain.size > MAX_LINK_DEPTH) {
 			skippedPaths.push(repoPath);
 			return;
 		}
+		const entry = tree.get(resolved);
 		if (entry?.type === "file") {
 			add(relativePath, entry);
 			return;
 		}
+		const nextChain = new Set(chain).add(resolved);
 		if (entry?.type === "symlink") {
-			addLinked(relativePath, resolved, entry.target, depth + 1);
+			addLinked(relativePath, resolved, entry.target, nextChain);
 			return;
+		}
+		if (++expansions > MAX_LINK_EXPANSIONS) {
+			throw new Error("Skill contains too many linked directories to install.");
 		}
 		const dirPrefix = `${resolved}/`;
 		let found = false;
@@ -553,19 +566,20 @@ function collectSkillFiles(
 			if (child.type === "file") {
 				add(childRelative, child);
 			} else {
-				addLinked(childRelative, path, child.target, depth + 1);
+				addLinked(childRelative, path, child.target, nextChain);
 			}
 		}
 		if (!found) skippedPaths.push(repoPath);
 	};
 
+	const rootChain: ReadonlySet<string> = new Set([skillDir]);
 	for (const [path, entry] of tree) {
 		if (!path.startsWith(prefix)) continue;
 		const relativePath = path.slice(prefix.length);
 		if (entry.type === "file") {
 			add(relativePath, entry);
 		} else {
-			addLinked(relativePath, path, entry.target, 0);
+			addLinked(relativePath, path, entry.target, rootChain);
 		}
 	}
 	return { files, skippedPaths };
