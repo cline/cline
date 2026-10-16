@@ -63,9 +63,9 @@ import {
 } from "./organizations";
 import { requestAcpToolApproval } from "./permissions";
 import { replaySessionHistory } from "./session-load";
+import { AcpStreamForwarder } from "./frame-forwarder";
 import {
 	describeAgentError,
-	forwardAgentEvent,
 	sendConfigOptionUpdate,
 	sendCurrentModeUpdate,
 	sendSessionInfoUpdate,
@@ -729,6 +729,10 @@ export class AcpAgent implements Agent {
 			session.pendingInitialMessages = undefined;
 		}
 
+		// v2 frame stream (Phase 3b): ACP updates are emitted from
+		// assembler sinks; the v1 translator stays as the differential
+		// reference in session-updates.ts.
+		const streamForwarder = new AcpStreamForwarder(this.conn, acpSessionId);
 		session.unsubscribe = subscribeToAgentEvents(
 			sessionManager,
 			(event: AgentEvent) => {
@@ -739,7 +743,7 @@ export class AcpAgent implements Agent {
 							? event.error
 							: new Error(describeAgentError(event.error));
 				}
-				forwardAgentEvent(this.conn, acpSessionId, event);
+				streamForwarder.pushEvent(event);
 			},
 		);
 
