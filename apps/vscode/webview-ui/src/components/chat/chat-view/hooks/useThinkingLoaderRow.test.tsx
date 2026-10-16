@@ -53,6 +53,15 @@ describe("computeIsWaitingForResponse (turnState path)", () => {
 		// phase to "completed"; the loader must not flash during that gap.
 		expect(computeIsWaitingForResponse(inputsFor([say(1, "completion_result", false)], streaming()))).toBe(false)
 	})
+
+	it("does not wait while a cloud sandbox is provisioning, which shows its own progress", () => {
+		expect(computeIsWaitingForResponse(inputsFor([say(1, "cloud_provisioning", false)], streaming()))).toBe(false)
+		expect(
+			computeIsWaitingForResponse(
+				inputsFor([say(1, "cloud_provisioning", false), say(2, "api_req_started", false)], streaming()),
+			),
+		).toBe(true)
+	})
 })
 
 describe("computeIsWaitingForResponse (legacy path)", () => {

@@ -52,6 +52,11 @@ export function computeIsWaitingForResponse({
 }: ThinkingLoaderInputs): boolean {
 	const lastMsg = modifiedMessages[modifiedMessages.length - 1]
 
+	// A provisioning cloud sandbox shows its own progress card.
+	if (lastRawMessage?.type === "say" && lastRawMessage.say === "cloud_provisioning") {
+		return false
+	}
+
 	// AUTHORITATIVE PATH: when the backend provides a TurnState, the agent is only "thinking"
 	// while phase === "streaming". Any other phase (awaiting_approval/followup, completed,
 	// error, resumable, idle) is never a thinking state — this is what makes the footer
