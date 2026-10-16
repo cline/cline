@@ -432,7 +432,10 @@ Envelopes carry `(epoch, seq)`. The epoch is minted when the session starts,
 and a restart under the same id always gets a later one; `seq` counts the
 states stored for a slot within an epoch. On every bind, renderers clear local
 state, then apply `get` and live events through `applyPluginUiState`, and
-re-attach when they see a newer epoch for their session. Live states arrive as
+re-attach when they see a newer epoch for their session. After an `attach`
+whose reply carried no epoch (the session was not resident yet) or timed out,
+they also re-attach on the first state at or above that epoch, and when the
+next run ends, each once per epoch. Live states arrive as
 `plugin_ui_state` events through `subscribe`, only once the session is
 resident. They are ephemeral and never written to a durable log. Pushes are
 coalesced per slot (100 ms) and identical states are dropped. Telemetry

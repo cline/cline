@@ -4,6 +4,7 @@ import {
 	type ComposerSuggestionsState,
 	comparePluginUiOrder,
 	PLUGIN_UI_LIMITS,
+	type PluginUiInvokeOutcome,
 	type PluginUiInvokeResult,
 	type PluginUiOrder,
 	type PluginUiStateEnvelope,
@@ -47,9 +48,17 @@ export interface SuggestionsLocal {
 	freshAfter?: PluginUiOrder;
 	/** Epoch from the last attach reply that carried one; a newer envelope sets attachDue. */
 	boundEpoch?: number;
+	/**
+	 * The last attach reply carried no epoch or timed out, so the viewer may
+	 * never have reached the plugin: an envelope at or above `boundEpoch` sets
+	 * attachDue too, and so does the next run end.
+	 */
+	attachUnconfirmed: boolean;
 	attachDue: boolean;
 	/** Highest epoch that has set attachDue, so a re-attach is due at most once per epoch even when its reply carries no epoch. */
 	attachDueFor?: number;
+	/** Epoch whose unconfirmed attach a run end already retried, so that retry happens once per epoch. */
+	attachRetriedAfterRunFor?: number;
 	highlightId?: string;
 	used?: SuggestionRef;
 	/** Carries the ItemRef so hosts can build `undo`. */
@@ -70,10 +79,17 @@ export interface SuggestionsLocal {
 
 export type SuggestionsLocalEvent =
 	| { type: "bind"; sessionId: string }
-	/** `sessionId`: the session the attach named. */
-	| { type: "attached"; sessionId: string; epoch?: number }
+	/** `sessionId`: the session the attach named; `outcome` and `epoch`: its reply's. */
+	| {
+			type: "attached";
+			sessionId: string;
+			outcome: PluginUiInvokeOutcome;
+			epoch?: number;
+	  }
 	| { type: "state"; envelope: SuggestionsEnvelope; now: number }
 	| { type: "run_started" }
+	/** The run in progress ended; extensions are initialized by then. */
+	| { type: "run_ended" }
 	/** Host feedback: the derived mode is `ready` and the tray is on screen. */
 	| { type: "view"; ready: boolean; now: number }
 	| { type: "move"; delta: 1 | -1 }
@@ -162,6 +178,7 @@ export type SuggestionsView =
 
 export function createSuggestionsLocal(): SuggestionsLocal {
 	return {
+		attachUnconfirmed: false,
 		attachDue: false,
 		pendingSkipIds: [],
 		refreshing: false,
@@ -208,6 +225,36 @@ function endsSentLine(
 	}
 }
 
+/**
+ * At most once per epoch, and never before the first attach reply. An
+ * unconfirmed attach re-attaches within its own epoch as well; an old hub
+ * sends no envelopes, so that cannot loop.
+ */
+function makesAttachDue(local: SuggestionsLocal, epoch: number): boolean {
+	if (epoch <= (local.attachDueFor ?? Number.NEGATIVE_INFINITY)) return false;
+	if (local.attachUnconfirmed)
+		return epoch >= (local.boundEpoch ?? Number.NEGATIVE_INFINITY);
+	return local.boundEpoch !== undefined && epoch > local.boundEpoch;
+}
+
+/**
+ * A timed-out attach can leave the plugin without its viewer while the
+ * plugin's state is already held, so no later envelope makes a re-attach
+ * due. A run cannot end before the session's extensions are initialized, so
+ * its end retries the attach once per epoch.
+ */
+function retryAttachAfterRun(local: SuggestionsLocal): SuggestionsLocal {
+	const epoch = local.boundEpoch ?? local.envelope?.epoch;
+	if (
+		!local.attachUnconfirmed ||
+		local.attachDue ||
+		epoch === undefined ||
+		epoch === local.attachRetriedAfterRunFor
+	)
+		return local;
+	return { ...local, attachDue: true, attachRetriedAfterRunFor: epoch };
+}
+
 function withoutOptimisticPaint(local: SuggestionsLocal): SuggestionsLocal {
 	if (local.pendingSkipIds.length === 0 && !local.refreshing) return local;
 	return { ...local, pendingSkipIds: [], refreshing: false };
@@ -228,11 +275,7 @@ function applyEnvelope(
 	const applied = applyPluginUiState(local.envelope, envelope);
 	if (applied === local.envelope) return local;
 	const next: SuggestionsLocal = { ...local, envelope: applied };
-	if (
-		local.boundEpoch !== undefined &&
-		applied.epoch > local.boundEpoch &&
-		applied.epoch > (local.attachDueFor ?? Number.NEGATIVE_INFINITY)
-	) {
+	if (makesAttachDue(local, applied.epoch)) {
 		next.attachDue = true;
 		next.attachDueFor = applied.epoch;
 	}
@@ -329,8 +372,15 @@ export function reduceSuggestionsLocal(
 		case "attached": {
 			if (event.sessionId !== local.sessionId) return local;
 			const boundEpoch = event.epoch ?? local.boundEpoch;
-			if (!local.attachDue && boundEpoch === local.boundEpoch) return local;
-			return { ...local, boundEpoch, attachDue: false };
+			const attachUnconfirmed =
+				event.epoch === undefined || event.outcome === "timeout";
+			if (
+				!local.attachDue &&
+				boundEpoch === local.boundEpoch &&
+				attachUnconfirmed === local.attachUnconfirmed
+			)
+				return local;
+			return { ...local, boundEpoch, attachUnconfirmed, attachDue: false };
 		}
 		case "state":
 			return applyEnvelope(local, event.envelope, event.now);
@@ -348,6 +398,8 @@ export function reduceSuggestionsLocal(
 				return local;
 			return { ...local, freshAfter, highlightId: undefined };
 		}
+		case "run_ended":
+			return retryAttachAfterRun(local);
 		case "view":
 			if (event.ready)
 				return local.readyAt === undefined

@@ -839,7 +839,11 @@ supersedes the previous copy, even after the clock steps back. Core owns `seq`,
 so a worker reinitialized after idle reclaim cannot run it backwards.
 Renderers clear their slot state on every bind, apply `get` and live events
 through `applyPluginUiState` (the highest `(epoch, seq)` wins), and re-attach
-when they see a newer epoch for their session.
+when they see a newer epoch for their session. An `attach` whose reply carried
+no epoch or timed out may never have reached the plugin, so renderers also
+re-attach on the first state at or above that epoch, and when the next run
+ends, each once per epoch: a run cannot end before the session's extensions
+are initialized, and a dormant plugin may push nothing newer.
 
 **Ephemeral publish and re-issue.** The Hub projects `plugin_ui_state` as the
 `plugins.ui.state` event through `publishEphemeral`: live fan-out only, with
@@ -883,6 +887,11 @@ optional members. An older Hub ignores `uiSlots`, so its sessions offer no slot
 API, and answers `plugins.ui.*` with `unsupported_command`, which the client
 API treats as "no slots" until the next registration. Unknown state keys are
 stripped, unknown enum values degrade, and unknown verbs are `rejected`.
+Builds of one release can share a Hub identity, so a client that needs the
+slot API can pass `requiredCapabilities: ["plugins.ui"]` to the build-mismatch
+watcher: a Hub that lacks it and is not newer than the client is reported as
+`missing_capability`. `upgradeManagedHub` with the same list replaces that Hub,
+but only when the user asks; nothing replaces it automatically.
 
 **Errors and telemetry.** A bad push is dropped and counted, never thrown into
 the plugin. A throwing handler replies `rejected` with no plugin text; the
