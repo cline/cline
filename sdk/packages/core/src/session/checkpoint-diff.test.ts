@@ -16,6 +16,44 @@ function git(cwd: string, args: string[]): string {
 	}).trim();
 }
 
+/**
+ * Replicates createWorktreeStashCommit: a plain `git stash create` (requires
+ * tracked changes) plus the given cwd-relative untracked files captured in a
+ * third-parent commit.
+ */
+function createStashSnapshot(cwd: string, untrackedPaths: string[]): string {
+	const indexFile = join(
+		git(cwd, ["rev-parse", "--absolute-git-dir"]),
+		"checkpoint-test-index",
+	);
+	const gitWithIndex = (args: string[]) =>
+		execFileSync("git", ["-C", cwd, ...args], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+			env: { ...process.env, GIT_INDEX_FILE: indexFile },
+		}).trim();
+	gitWithIndex(["add", "--force", ...untrackedPaths]);
+	const untrackedParent = git(cwd, [
+		"commit-tree",
+		gitWithIndex(["write-tree"]),
+		"-m",
+		"untracked files on cline checkpoint",
+	]);
+	const stashRef = git(cwd, ["stash", "create", "cline checkpoint test"]);
+	return git(cwd, [
+		"commit-tree",
+		`${stashRef}^{tree}`,
+		"-p",
+		git(cwd, ["rev-parse", `${stashRef}^1`]),
+		"-p",
+		git(cwd, ["rev-parse", `${stashRef}^2`]),
+		"-p",
+		untrackedParent,
+		"-m",
+		"cline checkpoint test",
+	]);
+}
+
 describe("checkpoint workspace comparison", () => {
 	let dir = "";
 	let checkpointRef = "";
@@ -95,46 +133,14 @@ describe("checkpoint workspace comparison", () => {
 	});
 
 	it("reads untracked-at-snapshot files from the stash third parent", async () => {
-		// Replicate createWorktreeStashCommit: capture untracked files in a
-		// third-parent commit alongside a plain `git stash create`.
 		writeFileSync(join(dir, "pre-existing.txt"), "untouched\n", "utf8");
 		writeFileSync(join(dir, "edited-later.txt"), "original\n", "utf8");
 		writeFileSync(join(dir, "deleted-later.txt"), "will be deleted\n", "utf8");
 		writeFileSync(join(dir, "tracked.txt"), "checkpoint dirty\n", "utf8");
-
-		const indexFile = join(dir, ".git", "checkpoint-test-index");
-		const gitWithIndex = (args: string[]) =>
-			execFileSync("git", ["-C", dir, ...args], {
-				encoding: "utf8",
-				stdio: ["ignore", "pipe", "pipe"],
-				env: { ...process.env, GIT_INDEX_FILE: indexFile },
-			}).trim();
-		gitWithIndex([
-			"add",
-			"--force",
+		const snapshotRef = createStashSnapshot(dir, [
 			"pre-existing.txt",
 			"edited-later.txt",
 			"deleted-later.txt",
-		]);
-		const untrackedTree = gitWithIndex(["write-tree"]);
-		const untrackedParent = git(dir, [
-			"commit-tree",
-			untrackedTree,
-			"-m",
-			"untracked files on cline checkpoint",
-		]);
-		const stashRef = git(dir, ["stash", "create", "cline checkpoint test"]);
-		const snapshotRef = git(dir, [
-			"commit-tree",
-			`${stashRef}^{tree}`,
-			"-p",
-			git(dir, ["rev-parse", `${stashRef}^1`]),
-			"-p",
-			git(dir, ["rev-parse", `${stashRef}^2`]),
-			"-p",
-			untrackedParent,
-			"-m",
-			"cline checkpoint test",
 		]);
 
 		writeFileSync(join(dir, "edited-later.txt"), "changed\n", "utf8");
@@ -163,6 +169,57 @@ describe("checkpoint workspace comparison", () => {
 			leftContent: "will be deleted\n",
 			rightContent: "",
 		});
+	});
+
+	it("compares only cwd when cwd is a subdirectory of the repo", async () => {
+		const cwd = join(dir, "pkg");
+		mkdirSync(cwd);
+		writeFileSync(join(cwd, "tracked.txt"), "base\n", "utf8");
+		git(dir, ["add", "."]);
+		git(dir, ["commit", "-m", "add pkg"]);
+		writeFileSync(join(cwd, "tracked.txt"), "checkpoint dirty\n", "utf8");
+		writeFileSync(join(cwd, "pre-existing.txt"), "untouched\n", "utf8");
+		const snapshotRef = createStashSnapshot(cwd, ["pre-existing.txt"]);
+
+		writeFileSync(join(cwd, "tracked.txt"), "current dirty\n", "utf8");
+		writeFileSync(join(cwd, "new.txt"), "new file\n", "utf8");
+		writeFileSync(join(dir, "tracked.txt"), "outside cwd\n", "utf8");
+
+		const diffs = await buildCheckpointWorkspaceDiff(cwd, {
+			ref: snapshotRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "stash",
+		});
+
+		expect(diffs).toEqual([
+			{
+				filePath: join(cwd, "new.txt"),
+				leftContent: "",
+				rightContent: "new file\n",
+			},
+			{
+				filePath: join(cwd, "tracked.txt"),
+				leftContent: "checkpoint dirty\n",
+				rightContent: "current dirty\n",
+			},
+		]);
+	});
+
+	it("does not report files whose only difference is core.autocrlf conversion", async () => {
+		git(dir, ["config", "core.autocrlf", "true"]);
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint dirty\r\n", "utf8");
+		writeFileSync(join(dir, "pre-existing.txt"), "untouched\r\n", "utf8");
+		const snapshotRef = createStashSnapshot(dir, ["pre-existing.txt"]);
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref: snapshotRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "stash",
+		});
+
+		expect(diffs).toEqual([]);
 	});
 
 	it("selects the nearest checkpoint at or before the requested run", async () => {

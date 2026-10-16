@@ -55,15 +55,26 @@ async function readCheckpointFile(
 	ref: string,
 	relativePath: string,
 ): Promise<string> {
+	// `./` resolves the path against cwd, which may be a subdirectory of the
+	// repo. `--filters` returns the checked-out form (e.g. CRLF under
+	// core.autocrlf) so unchanged files compare equal to the worktree copy.
 	try {
-		return await runGit(cwd, ["show", `${ref}:${relativePath}`]);
+		return await runGit(cwd, [
+			"cat-file",
+			"--filters",
+			`${ref}:./${relativePath}`,
+		]);
 	} catch {
 		// Stash-shaped checkpoints keep files that were untracked at snapshot
 		// time in a third-parent commit (see createWorktreeStashCommit), not in
 		// the stash commit's own tree. Fall back to it so pre-existing
 		// untracked files don't falsely appear as newly added.
 		try {
-			return await runGit(cwd, ["show", `${ref}^3:${relativePath}`]);
+			return await runGit(cwd, [
+				"cat-file",
+				"--filters",
+				`${ref}^3:./${relativePath}`,
+			]);
 		} catch {
 			return "";
 		}
@@ -104,7 +115,15 @@ async function listChangedPaths(
 	await runGit(cwd, ["cat-file", "-e", `${checkpoint.ref}^{tree}`]);
 	const [trackedOutput, untrackedOutput, checkpointUntracked] =
 		await Promise.all([
-			runGit(cwd, ["diff", "--name-only", "-z", checkpoint.ref, "--"]),
+			// --relative keeps paths cwd-relative like the other two listings.
+			runGit(cwd, [
+				"diff",
+				"--name-only",
+				"--relative",
+				"-z",
+				checkpoint.ref,
+				"--",
+			]),
 			runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
 			listCheckpointUntrackedPaths(cwd, checkpoint.ref),
 		]);
