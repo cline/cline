@@ -42,7 +42,6 @@ import type { ResolvedCliReasoning } from "../utils/reasoning";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,
-	type AcpAuthMethodId,
 	type AcpAuthResult,
 	authenticateAcpProvider,
 	isAcpAuthMethodId,
@@ -199,11 +198,10 @@ export class AcpAgent implements Agent {
 		// Model ids are provider-scoped, so the default must come from the
 		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
 		// nothing to `cline`, and vice versa.
-		const defaultModelId = await resolveDefaultModelId(
-			providerId,
-			process.env.CLINE_MODEL,
-			providerModels,
-		);
+		const defaultModelId =
+			process.env.CLINE_MODEL ??
+			this.providerSettingsManager.getProviderSettings(providerId)?.model ??
+			(await resolveDefaultModelId(providerId, undefined, providerModels));
 
 		this.sessions.set(sessionId, {
 			id: sessionId,
@@ -222,6 +220,13 @@ export class AcpAgent implements Agent {
 				description: info.description,
 			}),
 		);
+		if (defaultModelId && !(defaultModelId in providerModels)) {
+			availableModels.push({
+				modelId: defaultModelId,
+				name: defaultModelId,
+				description: undefined,
+			});
+		}
 
 		const organizationOption =
 			await this.getOrganizationConfigOption(providerId);
@@ -260,10 +265,10 @@ export class AcpAgent implements Agent {
 				[];
 		} else {
 			if (!session) {
-				// Provider/model are not persisted per session — a session
-				// loaded on a fresh connection starts from the same defaults
-				// as a new session, with the model resolved against the
-				// provider's own catalog just like newSession.
+				// Fresh connections use configured defaults rather than recovering
+				// the session's provider/model selection: environment/restored provider,
+				// then model precedence CLINE_MODEL, that provider's saved model,
+				// and finally its provider-scoped catalog default.
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 				const providerModels = await Llms.getModelsForProvider(
@@ -276,11 +281,15 @@ export class AcpAgent implements Agent {
 					mcpServers: params.mcpServers,
 					currentMode: "act",
 					currentProviderId: providerId,
-					currentModelId: await resolveDefaultModelId(
-						providerId,
-						process.env.CLINE_MODEL,
-						providerModels,
-					),
+					currentModelId:
+						process.env.CLINE_MODEL ??
+						this.providerSettingsManager.getProviderSettings(providerId)
+							?.model ??
+						(await resolveDefaultModelId(
+							providerId,
+							undefined,
+							providerModels,
+						)),
 					autoApproveTools: this.defaultAutoApproveTools,
 				};
 				this.sessions.set(params.sessionId, session);
@@ -311,6 +320,13 @@ export class AcpAgent implements Agent {
 				description: info.description,
 			}),
 		);
+		if (session.currentModelId && !(session.currentModelId in providerModels)) {
+			availableModels.push({
+				modelId: session.currentModelId,
+				name: session.currentModelId,
+				description: undefined,
+			});
+		}
 
 		return {
 			modes: {
@@ -464,6 +480,11 @@ export class AcpAgent implements Agent {
 
 		switch (params.configId) {
 			case "provider": {
+				// Selecting the advertised current provider is idempotent, including
+				// restored BYOK providers and provider-scoped private model IDs.
+				if (value === session.currentProviderId) {
+					break;
+				}
 				if (process.env.CLINE_PROVIDER) {
 					throw RequestError.invalidParams(
 						undefined,
@@ -610,7 +631,16 @@ export class AcpAgent implements Agent {
 	}
 
 	private get accountApiKey(): string {
-		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+		return (
+			process.env.CLINE_API_KEY ??
+			(this.authResult && usesClineAccount(this.authResult.providerId)
+				? this.authResult.apiKey
+				: getPersistedProviderApiKey(
+						"cline",
+						this.providerSettingsManager.getProviderSettings("cline"),
+					)) ??
+			""
+		);
 	}
 
 	private async getOrganizationConfigOption(
@@ -631,19 +661,23 @@ export class AcpAgent implements Agent {
 	/**
 	 * Attempt to restore authentication from persisted provider settings.
 	 *
-	 * When a previous session already completed an OAuth login the credentials
-	 * are saved to disk via `ProviderSettingsManager`.  On a fresh ACP
-	 * connection we check each known auth method for a persisted API key so
-	 * the client doesn't have to re-authenticate every time.
+	 * Reuse the provider selected by `cline auth`, including API-key providers.
+	 * An explicit provider must not borrow credentials from another provider.
+	 * Keep the OAuth fallback for installations without a last-used provider.
 	 */
 	private tryRestoreAuth(): AcpAuthResult | undefined {
-		for (const method of ACP_AUTH_METHODS) {
-			const settings = this.providerSettingsManager.getProviderSettings(
-				method.id,
-			);
-			const apiKey = getPersistedProviderApiKey(method.id, settings);
+		const selectedProvider =
+			process.env.CLINE_PROVIDER ??
+			this.providerSettingsManager.getLastUsedProviderSettings()?.provider;
+		const providerIds = selectedProvider
+			? [selectedProvider]
+			: ACP_AUTH_METHODS.map((method) => method.id);
+		for (const providerId of providerIds) {
+			const settings =
+				this.providerSettingsManager.getProviderSettings(providerId);
+			const apiKey = getPersistedProviderApiKey(providerId, settings);
 			if (apiKey) {
-				return { providerId: method.id as AcpAuthMethodId, apiKey };
+				return { providerId, apiKey };
 			}
 		}
 		return undefined;
@@ -766,7 +800,15 @@ export class AcpAgent implements Agent {
 		const workspaceRoot = resolveWorkspaceRoot(cwd);
 		// Resolve credentials: env vars take precedence, then session provider.
 		const providerId = process.env.CLINE_PROVIDER ?? session.currentProviderId;
-		const apiKey = process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+		const apiKey =
+			process.env.CLINE_API_KEY ??
+			getPersistedProviderApiKey(
+				providerId,
+				this.providerSettingsManager.getProviderSettings(providerId),
+			) ??
+			(this.authResult?.providerId === providerId
+				? this.authResult.apiKey
+				: "");
 		const systemPrompt = await resolveSystemPrompt({
 			cwd,
 			providerId,
@@ -860,12 +902,16 @@ function toAcpPromptError(error: Error): RequestError {
 async function buildProviderConfigOption(
 	currentProviderId: string,
 ): Promise<SessionConfigOption> {
+	const providerIds: string[] = ACP_AUTH_METHODS.map((method) => method.id);
+	if (!providerIds.includes(currentProviderId)) {
+		providerIds.push(currentProviderId);
+	}
 	const options = await Promise.all(
-		ACP_AUTH_METHODS.map(async (m) => {
-			const provider = await Llms.getProvider(m.id);
+		providerIds.map(async (providerId) => {
+			const provider = await Llms.getProvider(providerId);
 			return {
-				value: m.id,
-				name: provider?.name ?? m.id,
+				value: providerId,
+				name: provider?.name ?? providerId,
 			};
 		}),
 	);
@@ -884,13 +930,17 @@ function buildModelConfigOption(
 	currentModelId: string,
 	providerModels: Record<string, { name?: string; description?: string }>,
 ): SessionConfigOption {
+	const models =
+		currentModelId && !(currentModelId in providerModels)
+			? { ...providerModels, [currentModelId]: { name: currentModelId } }
+			: providerModels;
 	return {
 		type: "select",
 		id: "model",
 		name: "Model",
 		category: "model",
 		currentValue: currentModelId,
-		options: Object.entries(providerModels).map(([modelId, info]) => ({
+		options: Object.entries(models).map(([modelId, info]) => ({
 			value: modelId,
 			name: info.name ?? modelId,
 			description: info.description,

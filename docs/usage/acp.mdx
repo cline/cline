@@ -11,6 +11,13 @@ Cline CLI speaks the [Agent Client Protocol (ACP)](https://agentclientprotocol.c
 - Cline CLI installed (install via `npm i -g cline`)
 - Credentials are optional up front — most clients let you sign in when the first session starts, and credentials saved by `cline auth` are reused automatically
 
+For an API-key provider, run `cline auth -p <provider> -k <key> -m <model>`
+before connecting your ACP client. New sessions and cold-loaded conversations
+reuse that last-used provider and its saved model. `CLINE_PROVIDER` selects a
+different saved provider, and `CLINE_MODEL` overrides its saved model.
+Selecting the current provider again preserves private model IDs. Credentials
+for one provider do not authenticate another.
+
 ## How it works
 
 ACP mode is started with the `--acp` flag:
@@ -130,7 +137,7 @@ Set these under `env` in the client's agent server config to preconfigure the ag
 |---|---|
 | `CLINE_API_KEY` | Authenticate with an API key instead of interactive sign-in |
 | `CLINE_PROVIDER` | Pin the provider (disables provider switching in the client) |
-| `CLINE_MODEL` | Default model for new sessions |
+| `CLINE_MODEL` | Default model for new and cold-loaded sessions |
 
 ## Next Steps
 
