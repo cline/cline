@@ -1461,10 +1461,15 @@ async function refreshProviderModelsFromSourceUnlocked(
 ): Promise<{ providerId: string; refreshed: boolean; modelsCount?: number }> {
 	const id = providerId.trim();
 	const settings = manager.getProviderSettings(id);
-	const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id] as
-		| LlmsModels.ModelCollection
-		| undefined;
-	const provider = collection?.provider;
+	const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
+		id
+	] as LlmsModels.ModelCollection | undefined;
+	// Persisted model registries are allowed to overlay built-in providers, but
+	// their source URL may be stale after an application update. Refresh built-ins
+	// from the current bundled metadata so URL changes also migrate local state.
+	const provider =
+		LlmsModels.getBuiltInProviderCollectionSync(id)?.provider ??
+		registeredCollection?.provider;
 	const baseUrl = settings?.baseUrl?.trim() || provider?.baseUrl?.trim();
 	const modelsSourceUrl = resolveModelsSourceUrl(
 		baseUrl,

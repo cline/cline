@@ -147,6 +147,36 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers aimlapi.com as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("aimlapi");
+
+		await expect(getProvider("aimlapi")).resolves.toMatchObject({
+			id: "aimlapi",
+			name: "aimlapi.com",
+			baseUrl: "https://api.aimlapi.com/v1",
+			modelsSourceUrl:
+				"https://api.aimlapi.com/v1/models?type=openai%2Fchat-completions",
+			defaultModelId: "anthropic/claude-sonnet-5",
+			client: "openai-compatible",
+			env: ["AIMLAPI_API_KEY"],
+			capabilities: expect.arrayContaining(["popular", "reasoning", "tools"]),
+			metadata: expect.objectContaining({ popularRank: 3 }),
+		});
+		await expect(getModelsForProvider("aimlapi")).resolves.toHaveProperty(
+			"anthropic/claude-sonnet-5",
+		);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "aimlapi",
+		);
+		// No static attribution: it would leave with any baseUrl override. It is
+		// added per request for api.aimlapi.com only (aimlapi/attribution.ts).
+		expect(registration?.defaults?.headers).toBeUndefined();
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		const provider = await getProvider("kilo");
 		expect(provider).toMatchObject({

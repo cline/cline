@@ -3331,4 +3331,57 @@ describe("refreshProviderModelsFromSource", () => {
 			modelsState,
 		);
 	});
+
+	it("migrates a stale built-in modelsSourceUrl from the local registry", async () => {
+		const builtIn = LlmsModels.getBuiltInProviderCollectionSync("aimlapi");
+		if (!builtIn) {
+			throw new Error("aimlapi is missing from the built-in provider catalog");
+		}
+		LlmsModels.registerProvider({
+			provider: {
+				...builtIn.provider,
+				modelsSourceUrl: "https://api.aimlapi.com/v1/models",
+				source: "file",
+			},
+			models: {
+				"stale-image-model": {
+					id: "stale-image-model",
+					name: "stale-image-model",
+				},
+			},
+		});
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ data: [{ id: "chat-model" }] }),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		saveLocalProviderSettings(manager, {
+			providerId: "aimlapi",
+			baseUrl: "https://api.aimlapi.com/v1",
+		});
+
+		const result = await refreshProviderModelsFromSource(manager, "aimlapi");
+
+		expect(result).toMatchObject({
+			providerId: "aimlapi",
+			refreshed: true,
+			modelsCount: 1,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.aimlapi.com/v1/models?type=openai%2Fchat-completions",
+			{
+				method: "GET",
+				signal: expect.any(AbortSignal),
+			},
+		);
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		expect(modelsState.providers.aimlapi?.provider?.modelsSourceUrl).toBe(
+			"https://api.aimlapi.com/v1/models?type=openai%2Fchat-completions",
+		);
+		expect(Object.keys(modelsState.providers.aimlapi?.models ?? {})).toEqual([
+			"chat-model",
+		]);
+	});
 });

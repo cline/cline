@@ -940,6 +940,22 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
 	},
 	{
+		id: "aimlapi",
+		name: "aimlapi.com",
+		description: "AI model gateway with an OpenAI-compatible API",
+		family: "openai-compatible",
+		popular: 3,
+		capabilities: ["reasoning", "tools"],
+		defaultModelId: "anthropic/claude-sonnet-5",
+		apiKeyEnv: ["AIMLAPI_API_KEY"],
+		// Attribution is NOT a static default header: those would be sent to
+		// whatever baseUrl the provider is pointed at. It is added per request,
+		// only for api.aimlapi.com, by wrapFetchForAimlapiAttribution.
+		defaults: { baseUrl: "https://api.aimlapi.com/v1" },
+		modelsSourceUrl:
+			"https://api.aimlapi.com/v1/models?type=openai%2Fchat-completions",
+	},
+	{
 		id: "nousResearch",
 		name: "Nous Research",
 		description: "Open-source AI research lab",
