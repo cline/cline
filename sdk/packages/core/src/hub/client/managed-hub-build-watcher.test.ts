@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 type DiscoveryMockOptions = {
 	record?: Record<string, unknown>;
+	/** What the unauthenticated health probe reports; it never lists capabilities. */
 	probe?: Record<string, unknown> | undefined;
+	/**
+	 * What the authenticated status probe reports, the only probe that lists
+	 * the hub's capabilities; omitted means it reports the same as `probe`.
+	 */
+	status?: Record<string, unknown> | undefined;
 	expectedBuildId?: string;
 	/**
 	 * What the session-activity query reports for an outdated hub; omitted
@@ -51,7 +57,12 @@ function mockDiscovery(options: DiscoveryMockOptions): void {
 				? { resolveHubBuildIdentity: () => options.selfIdentity }
 				: {}),
 			readHubDiscovery: vi.fn(async () => options.record),
-			probeHubServer: vi.fn(async () => options.probe),
+			probeHubServer: vi.fn(
+				async (_url: string, probeOptions?: { authToken?: string }) =>
+					probeOptions?.authToken && "status" in options
+						? options.status
+						: options.probe,
+			),
 		};
 	});
 }
@@ -66,6 +77,17 @@ const liveRecord = {
 	url: "ws://127.0.0.1:59999/hub",
 	startedAt: new Date().toISOString(),
 	updatedAt: new Date().toISOString(),
+};
+
+const sameBuildSelf = { buildId: "current-build", coreVersion: "0.0.93" };
+
+const sameBuildHub = {
+	protocolVersion: "v1",
+	buildId: "current-build",
+	coreVersion: "0.0.93",
+	host: "127.0.0.1",
+	port: 59999,
+	url: "ws://127.0.0.1:59999/hub",
 };
 
 describe("checkManagedHubBuildMismatch", () => {
@@ -315,6 +337,248 @@ describe("checkManagedHubBuildMismatch", () => {
 	});
 });
 
+// Every build of one release can report the same hub identity, so a client
+// that serves a newer capability can land on an older hub of its own release
+// that the build tiers treat as current.
+describe("checkManagedHubBuildMismatch with required capabilities", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.resetModules();
+	});
+
+	it("reports a same-build hub that lacks a required capability", async () => {
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: { ...sameBuildHub, capabilities: ["session.create"] },
+			activity: { activeSessionCount: 1, participantClientCount: 2 },
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({ requiredCapabilities: ["plugins.ui"] }),
+		).resolves.toEqual({
+			url: "ws://127.0.0.1:59999/hub",
+			reason: "missing_capability",
+			hubBuildId: "current-build",
+			hubCoreVersion: "0.0.93",
+			expectedBuildId: "current-build",
+			missingCapabilities: ["plugins.ui"],
+			activeSessionCount: 1,
+			participantClientCount: 2,
+		});
+	});
+
+	it("reads capabilities from the authenticated status probe", async () => {
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: { ...sameBuildHub, capabilities: ["plugins.ui"] },
+		});
+		const discovery = await import("../discovery");
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({ requiredCapabilities: ["plugins.ui"] }),
+		).resolves.toBeUndefined();
+		expect(discovery.probeHubServer).toHaveBeenCalledWith(
+			"ws://127.0.0.1:59999/hub",
+			{ authToken: "token" },
+		);
+	});
+
+	it("reports a same-release hub of an older fingerprint that lacks a required capability", async () => {
+		const olderFingerprintHub = {
+			protocolVersion: "v1",
+			buildId: "cli-fingerprint",
+			buildEpochMs: 1_000,
+			coreVersion: "0.0.82",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+		};
+		mockDiscovery({
+			expectedBuildId: "desktop-fingerprint",
+			selfIdentity: {
+				buildId: "desktop-fingerprint",
+				buildEpochMs: 2_000,
+				coreVersion: "0.0.82",
+			},
+			record: liveRecord,
+			probe: olderFingerprintHub,
+			status: { ...olderFingerprintHub, capabilities: ["session.create"] },
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({ requiredCapabilities: ["plugins.ui"] }),
+		).resolves.toMatchObject({
+			reason: "missing_capability",
+			hubBuildId: "cli-fingerprint",
+			missingCapabilities: ["plugins.ui"],
+		});
+	});
+
+	it("counts a hub that lists no capabilities as lacking them", async () => {
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: sameBuildHub,
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({
+				requiredCapabilities: ["plugins.ui", "plugins.status"],
+			}),
+		).resolves.toMatchObject({
+			reason: "missing_capability",
+			missingCapabilities: ["plugins.ui", "plugins.status"],
+		});
+	});
+
+	it("stays silent when no capability is required", async () => {
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: { ...sameBuildHub, capabilities: ["session.create"] },
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+	});
+
+	it("stays silent when the hub has every required capability", async () => {
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: {
+				...sameBuildHub,
+				capabilities: ["session.create", "plugins.ui"],
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({ requiredCapabilities: ["plugins.ui"] }),
+		).resolves.toBeUndefined();
+	});
+
+	it("stays silent when the hub does not answer the authenticated status probe", async () => {
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: undefined,
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({ requiredCapabilities: ["plugins.ui"] }),
+		).resolves.toBeUndefined();
+	});
+
+	// Replacing a newer hub would downgrade another install's daemon; updating
+	// this client is the fix there, not a restart.
+	it("never reports a newer hub of the same release", async () => {
+		const newerFingerprintHub = {
+			protocolVersion: "v1",
+			buildId: "cli-fingerprint",
+			buildEpochMs: 2_000,
+			coreVersion: "0.0.82",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+		};
+		mockDiscovery({
+			expectedBuildId: "desktop-fingerprint",
+			selfIdentity: {
+				buildId: "desktop-fingerprint",
+				buildEpochMs: 1_000,
+				coreVersion: "0.0.82",
+			},
+			record: liveRecord,
+			probe: newerFingerprintHub,
+			status: { ...newerFingerprintHub, capabilities: ["session.create"] },
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(
+			checkManagedHubBuildMismatch({ requiredCapabilities: ["plugins.ui"] }),
+		).resolves.toBeUndefined();
+	});
+
+	it.each([
+		{
+			reason: "build_mismatch",
+			hub: {
+				buildId: "newer-build",
+				buildEpochMs: 2_000,
+				coreVersion: "0.0.94",
+			},
+		},
+		{
+			reason: "outdated_hub",
+			hub: { buildId: "old-build", buildEpochMs: 500, coreVersion: "0.0.92" },
+		},
+		{
+			reason: "unsupported_protocol",
+			hub: { protocolVersion: "v99", buildId: "future-build" },
+		},
+	])("keeps reporting $reason when a capability is also missing", async ({
+		reason,
+		hub,
+	}) => {
+		const probe = {
+			protocolVersion: "v1",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+			...hub,
+		};
+		mockDiscovery({
+			selfIdentity: {
+				buildId: "current-build",
+				buildEpochMs: 1_000,
+				coreVersion: "0.0.93",
+			},
+			record: liveRecord,
+			probe,
+			status: { ...probe, capabilities: ["session.create"] },
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const mismatch = await checkManagedHubBuildMismatch({
+			requiredCapabilities: ["plugins.ui"],
+		});
+		expect(mismatch).toMatchObject({ reason });
+		expect(mismatch?.missingCapabilities).toBeUndefined();
+	});
+});
+
 describe("watchManagedHubBuildMismatch", () => {
 	afterEach(() => {
 		vi.useRealTimers();
@@ -516,6 +780,68 @@ describe("watchManagedHubBuildMismatch", () => {
 			expect(onMismatch).toHaveBeenLastCalledWith(
 				expect.objectContaining({ hubBuildId: "even-newer-build" }),
 			);
+		} finally {
+			stop();
+		}
+	});
+
+	// Nothing replaces a hub for a missing capability automatically, so there is
+	// no replacement to wait out before telling the user.
+	it("reports a hub lacking a required capability on its first sighting, once", async () => {
+		vi.useFakeTimers();
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: { ...sameBuildHub, capabilities: ["session.create"] },
+		});
+		const { watchManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const onMismatch = vi.fn();
+		const stop = watchManagedHubBuildMismatch({
+			onMismatch,
+			intervalMs: 1_000,
+			requiredCapabilities: ["plugins.ui"],
+		});
+		try {
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).toHaveBeenCalledTimes(1);
+			expect(onMismatch).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					reason: "missing_capability",
+					missingCapabilities: ["plugins.ui"],
+				}),
+			);
+
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(onMismatch).toHaveBeenCalledTimes(1);
+		} finally {
+			stop();
+		}
+	});
+
+	it("ignores missing capabilities the watcher was not asked to require", async () => {
+		vi.useFakeTimers();
+		mockDiscovery({
+			selfIdentity: sameBuildSelf,
+			record: liveRecord,
+			probe: sameBuildHub,
+			status: { ...sameBuildHub, capabilities: ["session.create"] },
+		});
+		const { watchManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const onMismatch = vi.fn();
+		const stop = watchManagedHubBuildMismatch({
+			onMismatch,
+			intervalMs: 1_000,
+		});
+		try {
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(onMismatch).not.toHaveBeenCalled();
 		} finally {
 			stop();
 		}

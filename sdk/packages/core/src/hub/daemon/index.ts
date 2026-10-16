@@ -824,6 +824,11 @@ export interface UpgradeManagedHubOptions {
 	force?: boolean;
 	/** Recorded as the hub's drain reason, visible in `hub.status`. */
 	reason?: string;
+	/**
+	 * Hub capabilities this client cannot work without. A hub of this build,
+	 * or an older one, that lacks one is replaced like an older build.
+	 */
+	requiredCapabilities?: readonly string[];
 }
 
 export type UpgradeManagedHubOutcome =
@@ -831,7 +836,10 @@ export type UpgradeManagedHubOutcome =
 	| "replaced"
 	/** No live hub was found; a current-build hub was started. */
 	| "started"
-	/** The running hub already matches this build; nothing to do. */
+	/**
+	 * The running hub already matches this build and serves every required
+	 * capability; nothing to do.
+	 */
 	| "already_current"
 	/**
 	 * The running hub is newer than (or unorderable against) this build.
@@ -879,7 +887,11 @@ export interface UpgradeManagedHubResult {
  * Never replaces a hub this build is not strictly newer than - the build
  * total order guarantees at most one side of any install pair can reach the
  * retire step, which is what keeps two mixed installs from taking turns
- * "upgrading" the hub to their own build.
+ * "upgrading" the hub to their own build. The one exception is a hub of the
+ * same identity that lacks one of `requiredCapabilities`. That replacement
+ * also happens only on this explicit request, and it cannot loop: every
+ * other install sees the replacement as the same or a newer identity and
+ * reuses it.
  */
 export async function upgradeManagedHub(
 	options: UpgradeManagedHubOptions = {},
@@ -899,14 +911,23 @@ export async function upgradeManagedHub(
 		authToken: live.authToken ?? discovered?.authToken,
 		pid: live.pid ?? discovered?.pid,
 	};
-	if (getManagedHubCompatibility(live).compatible) {
+	const self = resolveHubBuildIdentity();
+	const lacksRequiredCapability = (options.requiredCapabilities ?? []).some(
+		(capability) => !live.capabilities?.includes(capability),
+	);
+	const replacingForMissingCapability =
+		lacksRequiredCapability && compareHubBuilds(self, live) >= 0;
+	if (
+		!replacingForMissingCapability &&
+		getManagedHubCompatibility(live).compatible
+	) {
 		return {
 			outcome: "already_current",
 			url: live.url,
 			authToken: record.authToken,
 		};
 	}
-	if (compareHubBuilds(resolveHubBuildIdentity(), live) <= 0) {
+	if (!replacingForMissingCapability && compareHubBuilds(self, live) <= 0) {
 		return {
 			outcome: "hub_not_older",
 			url: live.url,
@@ -926,8 +947,12 @@ export async function upgradeManagedHub(
 	// too old or too wedged to accept the drain is still replaced by the
 	// automatic ensure path once it is idle at the next client startup.
 	if (!drained) {
+		// The ensure path reuses a hub of this identity, so one replaced only
+		// for a missing capability is never replaced automatically.
 		throw new Error(
-			`The running Cline Hub at ${record.url} did not accept a drain request, so it was not replaced. It is replaced automatically once idle when a Cline client next starts, or run 'cline doctor fix' to stop it now.`,
+			replacingForMissingCapability
+				? `The running Cline Hub at ${record.url} did not accept a drain request, so it was not restarted. Quit the other Cline apps using it, or run 'cline doctor fix' to stop it, then try again.`
+				: `The running Cline Hub at ${record.url} did not accept a drain request, so it was not replaced. It is replaced automatically once idle when a Cline client next starts, or run 'cline doctor fix' to stop it now.`,
 		);
 	}
 	// An aborted upgrade must hand the hub back: leaving it draining refuses

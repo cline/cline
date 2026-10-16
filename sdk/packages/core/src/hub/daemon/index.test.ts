@@ -1086,6 +1086,142 @@ describe("upgradeManagedHub", () => {
 		expect(spawn).not.toHaveBeenCalled();
 	});
 
+	it("drains and replaces a same-build hub that lacks a required capability", async () => {
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			// The live probe: this build's identity, but without plugins.ui.
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				capabilities: ["session.create"],
+				pid: 12345,
+			})
+			// The retire wait: the hub is gone.
+			.mockResolvedValueOnce(undefined)
+			// The ensure probe of the replacement.
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				capabilities: ["session.create", "plugins.ui"],
+			});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			workspaceRoot: "/workspace",
+			waitForIdleMs: 0,
+			reason: "restart for plugin suggestions",
+			requiredCapabilities: ["plugins.ui"],
+		});
+
+		expect(result).toEqual({
+			outcome: "replaced",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+			activeSessionCount: 0,
+		});
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"restart for plugin suggestions",
+		);
+		expect(requestHubShutdown).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+		);
+		expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+	});
+
+	it("leaves a same-build hub lacking a capability alone when none is required", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "current-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+			capabilities: ["session.create"],
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub();
+
+		expect(result).toEqual({
+			outcome: "already_current",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "current-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("leaves a same-build hub alone when it has every required capability", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "current-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+			capabilities: ["session.create", "plugins.ui"],
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			requiredCapabilities: ["plugins.ui"],
+		});
+
+		expect(result).toEqual({
+			outcome: "already_current",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "current-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("refuses to replace a newer hub even when it lacks a required capability", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "newer-hub-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "newer-build",
+			buildEpochMs: 2_000_000,
+			capabilities: ["session.create"],
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			force: true,
+			requiredCapabilities: ["plugins.ui"],
+		});
+
+		expect(result).toEqual({
+			outcome: "hub_not_older",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "newer-hub-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
 	it("starts a hub when none is running", async () => {
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1134,6 +1270,34 @@ describe("upgradeManagedHub", () => {
 		// after it would die in a retire the consent prompt never covered.
 		expect(queryHubSessionActivity).not.toHaveBeenCalled();
 		expect(requestHubDrain).toHaveBeenCalledTimes(1);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	// The ensure path reuses a same-identity hub however long it stays idle, so
+	// the automatic replacement the older-build message promises never comes.
+	it("tells the person how to free a same-build hub lacking a capability that refuses the drain", async () => {
+		requestHubDrain.mockResolvedValue(false);
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+			capabilities: ["session.create"],
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const upgrade = upgradeManagedHub({
+			force: true,
+			requiredCapabilities: ["plugins.ui"],
+		});
+
+		await expect(upgrade).rejects.toThrow(
+			"The running Cline Hub at ws://127.0.0.1:25463/hub did not accept a drain request, so it was not restarted. Quit the other Cline apps using it, or run 'cline doctor fix' to stop it, then try again.",
+		);
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
 	});
