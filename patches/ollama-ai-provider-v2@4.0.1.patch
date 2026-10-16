@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244c0c03be1 100644
+index aafa72c4167302af45db22e41a227cbaf02f792f..56a426e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -154,7 +154,7 @@ function resolveOllamaThinkFlag({
@@ -82,8 +82,34 @@ index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244
                  content: formatOllamaToolResultOutput(toolResponse.output)
                });
                break;
+@@ -1406,13 +1423,13 @@ var OllamaStreamProcessor = class {
+         ...getResponseMetadata(value)
+       });
+     }
+-    if (value.done) {
+-      this.handleDoneChunk(value, controller);
+-    }
+     const delta = value == null ? void 0 : value.message;
+     if (delta) {
+       this.processDelta(delta, controller);
+     }
++    if (value.done) {
++      this.handleDoneChunk(value, controller);
++    }
+   }
+   handleDoneChunk(value, controller) {
+     this.state.finishReason = mapOllamaFinishReason(value.done_reason);
+@@ -1444,7 +1461,7 @@ var OllamaStreamProcessor = class {
+     this.processToolCalls(delta, controller);
+   }
+   processTextContent(delta, controller) {
+-    if ((delta == null ? void 0 : delta.content) != null) {
++    if (delta == null ? void 0 : delta.content) {
+       if (!this.state.hasTextStarted) {
+         controller.enqueue({ type: "text-start", id: this.state.textId });
+         this.state.hasTextStarted = true;
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1fcd29838e 100644
+index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..626a8e6 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -143,7 +143,7 @@ function resolveOllamaThinkFlag({
@@ -166,3 +192,29 @@ index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1f
                  content: formatOllamaToolResultOutput(toolResponse.output)
                });
                break;
+@@ -1416,13 +1433,13 @@ var OllamaStreamProcessor = class {
+         ...getResponseMetadata(value)
+       });
+     }
+-    if (value.done) {
+-      this.handleDoneChunk(value, controller);
+-    }
+     const delta = value == null ? void 0 : value.message;
+     if (delta) {
+       this.processDelta(delta, controller);
+     }
++    if (value.done) {
++      this.handleDoneChunk(value, controller);
++    }
+   }
+   handleDoneChunk(value, controller) {
+     this.state.finishReason = mapOllamaFinishReason(value.done_reason);
+@@ -1454,7 +1471,7 @@ var OllamaStreamProcessor = class {
+     this.processToolCalls(delta, controller);
+   }
+   processTextContent(delta, controller) {
+-    if ((delta == null ? void 0 : delta.content) != null) {
++    if (delta == null ? void 0 : delta.content) {
+       if (!this.state.hasTextStarted) {
+         controller.enqueue({ type: "text-start", id: this.state.textId });
+         this.state.hasTextStarted = true;

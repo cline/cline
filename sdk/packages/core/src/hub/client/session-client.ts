@@ -775,6 +775,18 @@ export class HubSessionClient {
 			: [];
 	}
 
+	async createSchedule(input: {
+		name: string;
+		cronExpression: string;
+		command: string;
+		description?: string;
+		workspaceRoot?: string;
+	}): Promise<Record<string, unknown>> {
+		await this.client.connect();
+		const reply = await this.client.command("schedule.create", input);
+		return reply.payload as Record<string, unknown> | {};
+	}
+
 	async getUpcomingScheduledRuns(
 		limit?: number,
 	): Promise<Array<Record<string, unknown>>> {
@@ -784,6 +796,7 @@ export class HubSessionClient {
 			? (reply.payload?.upcoming as Array<Record<string, unknown>>)
 			: [];
 	}
+
 
 	async createTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
 		const result = await this.taskCommand("task.create", input);

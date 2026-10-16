@@ -113,9 +113,14 @@ interface ProviderLaunchAuth {
 }
 
 interface SidecarCommand {
-	type: "new_chat" | "shutdown_hub" | "abort_session";
+	type: "new_chat" | "shutdown_hub" | "abort_session" | "schedule";
 	prompt?: string;
 	sessionId?: string;
+	name?: string;
+	cronExpression?: string;
+	command?: string;
+	description?: string;
+	workspaceRoot?: string;
 }
 
 function isVisibleClient(clientType: string): boolean {
