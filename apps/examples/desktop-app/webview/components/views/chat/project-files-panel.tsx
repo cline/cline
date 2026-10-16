@@ -42,7 +42,10 @@ import {
 	readWorkspacePanelWidth,
 	writeWorkspacePanelWidth,
 } from "@/lib/workspace-panel";
-import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
+import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
+	resolveWorkspaceFilePath,
+} from "@/lib/workspace-paths";
 import { FileIcon, FolderIcon } from "./file-icons";
 import { CodeDiff, CodeFile } from "./highlighted-code";
 import {
@@ -123,6 +126,8 @@ type ProjectFilesPanelProps = {
 };
 
 const COLUMN_WIDTH = 280;
+const LOCAL_DIRECTORY_POLL_MS = 5_000;
+const REMOTE_DIRECTORY_POLL_MS = 15_000;
 const VIEWS: Array<{ id: PanelView; label: string }> = [
 	{ id: "source-control", label: "Git" },
 	{ id: "files", label: "Files" },
@@ -256,8 +261,18 @@ export function ProjectFilesPanel({
 		[repoRoot, workspaceRoot],
 	);
 
+	// Listings carry a per-path generation so a slow response (SSH) cannot
+	// overwrite a newer one. Polls skip folders still loading instead of
+	// superseding them, so a listing slower than the poll still lands.
+	const loadingDirectoriesRef = useRef(new Set<string>());
 	const loadDirectory = useCallback(
-		async (path: string) => {
+		async (path: string, options?: { ifIdle?: boolean }) => {
+			if (options?.ifIdle && loadingDirectoriesRef.current.has(path)) return;
+			const key = `dir:${path}`;
+			const generation = (readGenerationRef.current.get(key) ?? 0) + 1;
+			readGenerationRef.current.set(key, generation);
+			const isCurrent = () => readGenerationRef.current.get(key) === generation;
+			loadingDirectoriesRef.current.add(path);
 			setDirectories((current) => {
 				const next = new Map(current);
 				next.set(path, {
@@ -272,6 +287,7 @@ export function ProjectFilesPanel({
 					entries: ProjectEntry[];
 					truncated: boolean;
 				}>("list_project_entries", { environmentId, workspaceRoot, path });
+				if (!isCurrent()) return;
 				setDirectories((current) => {
 					const next = new Map(current);
 					next.set(path, {
@@ -282,6 +298,7 @@ export function ProjectFilesPanel({
 					return next;
 				});
 			} catch (error) {
+				if (!isCurrent()) return;
 				setDirectories((current) => {
 					const next = new Map(current);
 					next.set(path, {
@@ -291,6 +308,8 @@ export function ProjectFilesPanel({
 					});
 					return next;
 				});
+			} finally {
+				if (isCurrent()) loadingDirectoriesRef.current.delete(path);
 			}
 		},
 		[environmentId, workspaceRoot],
@@ -302,25 +321,45 @@ export function ProjectFilesPanel({
 	// by which time the user may have expanded more folders.
 	const expandedRef = useRef(expanded);
 	expandedRef.current = expanded;
-	const reloadDirectories = useCallback(() => {
-		const open = expandedRef.current;
-		setDirectories((current) => {
-			const next = new Map<string, DirectoryState>();
-			for (const path of open) {
-				const entry = current.get(path);
-				if (entry) next.set(path, entry);
+	const reloadDirectories = useCallback(
+		(options?: { ifIdle?: boolean }) => {
+			const open = expandedRef.current;
+			setDirectories((current) => {
+				const next = new Map<string, DirectoryState>();
+				for (const path of open) {
+					const entry = current.get(path);
+					if (entry) next.set(path, entry);
+				}
+				return next;
+			});
+			for (const path of open) void loadDirectory(path, options);
+		},
+		[loadDirectory],
+	);
+	// There is no refresh button: while the tree is showing, expanded folders
+	// re-list on their own interval (independent of git, which may be
+	// failing or absent), and again right after each git snapshot so the
+	// tree follows actions and agent edits without waiting for a tick.
+	useEffect(() => {
+		if (view !== "files") return;
+		const relistIfVisible = () => {
+			if (document.visibilityState === "visible") {
+				reloadDirectories({ ifIdle: true });
 			}
-			return next;
-		});
-		for (const path of open) void loadDirectory(path);
-	}, [loadDirectory]);
-	// There is no refresh button: git state polls while the panel is open
-	// (see useSourceControl), and each snapshot re-lists the expanded folders
-	// while the tree is showing, so files created or removed outside the app
-	// appear on their own.
+		};
+		const interval = window.setInterval(
+			relistIfVisible,
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+				? LOCAL_DIRECTORY_POLL_MS
+				: REMOTE_DIRECTORY_POLL_MS,
+		);
+		return () => window.clearInterval(interval);
+	}, [environmentId, reloadDirectories, view]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: the snapshot object is the trigger
 	useEffect(() => {
-		if (view === "files" && sourceControl.state) reloadDirectories();
+		if (view === "files" && sourceControl.state) {
+			reloadDirectories({ ifIdle: true });
+		}
 	}, [sourceControl.state]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-list when the tree is shown again
 	useEffect(() => {
@@ -645,9 +684,11 @@ export function ProjectFilesPanel({
 		async (action: SourceControlAction): Promise<boolean> => {
 			try {
 				await sourceControl.runAction(action);
-				// Discards and commits change what is on disk and in the index.
+				// Discards change what is on disk and in the index.
 				setFiles(markStale);
 				setGitDiffs(markStale);
+				// A discard can delete untracked files from the tree.
+				if (action.type === "discard") reloadDirectories();
 				return true;
 			} catch (error) {
 				toast({
@@ -658,7 +699,7 @@ export function ProjectFilesPanel({
 				return false;
 			}
 		},
-		[sourceControl.runAction],
+		[reloadDirectories, sourceControl.runAction],
 	);
 	const confirmDiscard = useCallback(async () => {
 		const files = pendingDiscard;

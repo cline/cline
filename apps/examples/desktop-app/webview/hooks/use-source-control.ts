@@ -98,29 +98,60 @@ export function useSourceControl({
 	const fetchRef = useRef<Promise<void> | null>(null);
 	const busyRef = useRef(false);
 
-	const refresh = useCallback(async () => {
-		if (!enabled || !cwd) return;
-		const requestId = ++requestRef.current;
-		setLoading(true);
-		try {
-			const next = await desktopClient.invoke<SourceControlState>(
-				"get_source_control_state",
-				{ environmentId, cwd },
-			);
-			if (requestId !== requestRef.current) return;
-			setState(next);
-			setError(null);
-		} catch (caught) {
-			if (requestId !== requestRef.current) return;
-			setError(caught instanceof Error ? caught.message : String(caught));
-		} finally {
-			if (requestId === requestRef.current) setLoading(false);
-		}
-	}, [cwd, enabled, environmentId]);
+	// A refresh already in flight answers for later polls too; otherwise a
+	// status read slower than the poll interval would be discarded forever.
+	// Forced refreshes (after an action or an agent edit) must reflect what
+	// just changed, so they queue one more read behind the pending one.
+	const inFlightRef = useRef<{ key: string; promise: Promise<void> } | null>(
+		null,
+	);
+	const rerunRef = useRef(false);
+	const refresh = useCallback(
+		async (options?: { force?: boolean }) => {
+			if (!enabled || !cwd) return;
+			const key = `${environmentId}\0${cwd}`;
+			const pending = inFlightRef.current;
+			if (pending?.key === key) {
+				if (options?.force) rerunRef.current = true;
+				return pending.promise;
+			}
+			const start = (): Promise<void> => {
+				const run = load().finally(() => {
+					if (inFlightRef.current?.promise === run) inFlightRef.current = null;
+					if (rerunRef.current) {
+						rerunRef.current = false;
+						void start();
+					}
+				});
+				inFlightRef.current = { key, promise: run };
+				return run;
+			};
+			return start();
+			async function load() {
+				const requestId = ++requestRef.current;
+				setLoading(true);
+				try {
+					const next = await desktopClient.invoke<SourceControlState>(
+						"get_source_control_state",
+						{ environmentId, cwd },
+					);
+					if (requestId !== requestRef.current) return;
+					setState(next);
+					setError(null);
+				} catch (caught) {
+					if (requestId !== requestRef.current) return;
+					setError(caught instanceof Error ? caught.message : String(caught));
+				} finally {
+					if (requestId === requestRef.current) setLoading(false);
+				}
+			}
+		},
+		[cwd, enabled, environmentId],
+	);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an explicit trigger
 	useEffect(() => {
-		void refresh();
+		void refresh({ force: true });
 	}, [refresh, refreshKey]);
 
 	useEffect(() => {
@@ -156,7 +187,7 @@ export function useSourceControl({
 				})
 				.then(
 					() => {
-						if (!cancelled) void refresh();
+						if (!cancelled) void refresh({ force: true });
 					},
 					() => {
 						// Offline, no credentials, or no remote: the next tick retries.
@@ -192,7 +223,7 @@ export function useSourceControl({
 			} finally {
 				setBusy(false);
 				busyRef.current = false;
-				void refresh();
+				void refresh({ force: true });
 			}
 		},
 		[cwd, environmentId, refresh],

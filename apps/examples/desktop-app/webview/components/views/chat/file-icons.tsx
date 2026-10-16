@@ -194,13 +194,22 @@ const BY_FOLDER: Record<string, IconSpec> = {
 	assets: { icon: Palette, className: "text-muted-foreground" },
 };
 
+// Filenames are arbitrary text: `constructor` or `__proto__` must not
+// resolve to an inherited Object property.
+function lookup(
+	table: Record<string, IconSpec>,
+	key: string,
+): IconSpec | undefined {
+	return Object.hasOwn(table, key) ? table[key] : undefined;
+}
+
 function baseName(path: string): string {
 	return path.split(/[\\/]/).pop() ?? path;
 }
 
 export function fileIconSpec(path: string): IconSpec {
 	const name = baseName(path).toLowerCase();
-	const byName = BY_NAME[name];
+	const byName = lookup(BY_NAME, name);
 	if (byName) return byName;
 	if (name.startsWith(".env")) {
 		return {
@@ -213,7 +222,7 @@ export function fileIconSpec(path: string): IconSpec {
 	}
 	const extension = name.includes(".") ? (name.split(".").pop() ?? "") : "";
 	return (
-		BY_EXTENSION[extension] ?? {
+		lookup(BY_EXTENSION, extension) ?? {
 			icon: FileText,
 			className: "text-muted-foreground",
 		}
@@ -242,7 +251,7 @@ export function FolderIcon({
 	open: boolean;
 	className?: string;
 }) {
-	const special = BY_FOLDER[baseName(path).toLowerCase()];
+	const special = lookup(BY_FOLDER, baseName(path).toLowerCase());
 	const Icon = special?.icon ?? (open ? FolderOpen : Folder);
 	const tint =
 		special?.className ??

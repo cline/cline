@@ -469,6 +469,140 @@ describe("unstagePaths", () => {
 	});
 });
 
+describe("ProjectFilesPanel polling", () => {
+	function withHeldCommand(name: string) {
+		const fallback = invokeMock.getMockImplementation();
+		const resolvers: Array<(value: unknown) => void> = [];
+		let calls = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === name) {
+					calls++;
+					return new Promise((resolve) => {
+						resolvers.push((value) =>
+							resolve(value ?? fallback?.(command, args)),
+						);
+					});
+				}
+				return fallback?.(command, args);
+			},
+		);
+		return {
+			calls: () => calls,
+			resolveAll: () => {
+				for (const resolve of resolvers.splice(0)) resolve(undefined);
+			},
+			restore: () => invokeMock.mockImplementation(fallback as never),
+		};
+	}
+
+	it("lets a status read slower than the poll land, then re-reads after an action", async () => {
+		vi.useFakeTimers();
+		const held = withHeldCommand("get_source_control_state");
+		try {
+			await render();
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(15_000);
+			});
+			// Polls joined the pending read instead of superseding it.
+			expect(held.calls()).toBe(1);
+			await act(async () => {
+				held.resolveAll();
+				await vi.advanceTimersByTimeAsync(0);
+			});
+			expect(container.textContent).toContain("Staged changes");
+
+			// An action while a poll is pending queues one fresh read behind it.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5_000);
+			});
+			const before = held.calls();
+			await click(byLabel("Stage README.md", container));
+			await act(async () => {
+				held.resolveAll();
+				await vi.advanceTimersByTimeAsync(0);
+			});
+			expect(held.calls()).toBe(before + 1);
+		} finally {
+			held.restore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps re-listing folders while git status is failing", async () => {
+		vi.useFakeTimers();
+		const fallback = invokeMock.getMockImplementation();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_source_control_state") {
+					throw new Error("index file corrupt");
+				}
+				return fallback?.(command, args);
+			},
+		);
+		try {
+			await render();
+			await click(button(/^Files$/));
+			const listings = () =>
+				invokeMock.mock.calls.filter(
+					([command]) => command === "list_project_entries",
+				).length;
+			const before = listings();
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5_000);
+			});
+			expect(listings()).toBeGreaterThan(before);
+		} finally {
+			invokeMock.mockImplementation(fallback as never);
+			vi.useRealTimers();
+		}
+	});
+
+	it("ignores a folder listing superseded by a newer one", async () => {
+		const fallback = invokeMock.getMockImplementation();
+		const pending: Array<(value: unknown) => void> = [];
+		let listing = 0;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "list_project_entries" && args?.path === "/repo") {
+					listing++;
+					if (listing === 2) {
+						// Held: the stale listing from before the tree was re-shown.
+						return new Promise((resolve) => pending.push(resolve));
+					}
+					if (listing >= 3) {
+						return {
+							entries: [
+								{ name: "fresh.ts", path: "/repo/fresh.ts", kind: "file" },
+							],
+							truncated: false,
+						};
+					}
+				}
+				return fallback?.(command, args);
+			},
+		);
+		try {
+			await render();
+			await click(button(/^Files$/));
+			await click(button(/^Git$/));
+			await click(button(/^Files$/));
+			expect(container.textContent).toContain("fresh.ts");
+			await act(async () => {
+				pending[0]?.({
+					entries: [{ name: "stale.ts", path: "/repo/stale.ts", kind: "file" }],
+					truncated: false,
+				});
+				await Promise.resolve();
+			});
+			expect(container.textContent).toContain("fresh.ts");
+			expect(container.textContent).not.toContain("stale.ts");
+		} finally {
+			invokeMock.mockImplementation(fallback as never);
+		}
+	});
+});
+
 describe("ProjectFilesPanel files view", () => {
 	async function showFiles() {
 		await click(button(/^Files$/));

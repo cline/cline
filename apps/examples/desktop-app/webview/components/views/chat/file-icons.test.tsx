@@ -21,6 +21,17 @@ describe("fileIconSpec", () => {
 		expect(fileIconSpec(".env.local").icon).toBe(FileKey2);
 	});
 
+	it("ignores inherited object keys in filenames", () => {
+		for (const name of [
+			"constructor",
+			"__proto__",
+			"toString",
+			"x.constructor",
+		]) {
+			expect(fileIconSpec(name).icon).toBe(FileText);
+		}
+	});
+
 	it("falls back to a neutral document", () => {
 		const spec = fileIconSpec("NOTICE");
 		expect(spec.icon).toBe(FileText);
