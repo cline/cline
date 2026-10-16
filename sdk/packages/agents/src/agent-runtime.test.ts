@@ -3791,6 +3791,206 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("correlates model request starts with issued requests and assigns new IDs per request", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel(
+			[0, 1].map(() => () => [
+				{ type: "text-delta", text: "hello" } as AgentModelEvent,
+				{ type: "finish", reason: "stop" } as AgentModelEvent,
+			]),
+		);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			sessionId: "session-test",
+		});
+		await runtime.run("first");
+		await runtime.continue("second");
+		const starts = capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) => call.event === TASK_PROVIDER_REQUEST_STARTED_EVENT);
+		expect(starts).toHaveLength(2);
+		const ids = model.requests.map(
+			(request) =>
+				(request.options?.metadata as Record<string, unknown>).modelRequestId,
+		);
+		expect(ids.every((id) => typeof id === "string")).toBe(true);
+		expect(new Set(ids).size).toBe(2);
+		expect(starts.map((event) => event.properties.modelRequestId)).toEqual(ids);
+		for (const event of capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) =>
+				[
+					TASK_PROVIDER_STREAM_STARTED_EVENT,
+					TASK_FIRST_CHUNK_RECEIVED_EVENT,
+				].includes(call.event),
+			)) {
+			expect(ids).toContain(event.properties.modelRequestId);
+		}
+	});
+
+	it.each([
+		"completed",
+		"failed",
+	])("preserves request correlation after a boundary model replacement ends %s", async (outcome) => {
+		const { capture, telemetry } = createTelemetryMock();
+		const originalModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_refresh",
+					toolName: "echo",
+					inputText: '{"text":"refresh"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const refreshedModel = new ScriptedModel(
+			outcome === "completed"
+				? [
+						() => [
+							{ type: "text-delta", text: "refreshed" },
+							{ type: "finish", reason: "stop" },
+						],
+					]
+				: [],
+		);
+		let requestBoundary = 0;
+		const runtime = new AgentRuntime({
+			model: originalModel,
+			messageModelInfo: { provider: "lmstudio", id: "original-model" },
+			modelOptions: { metadata: { modelRequestId: "stale-original-id" } },
+			tools: [createEchoTool()],
+			telemetry,
+			sessionId: "session-correlation",
+			beforeModelRequest: () => {
+				if (++requestBoundary !== 3) return;
+				runtime.replaceModelBetweenRequests(refreshedModel, {
+					messageModelInfo: { provider: "openrouter", id: "refreshed-model" },
+					modelOptions: {
+						metadata: {
+							modelRequestId: "stale-refreshed-id",
+							connection: "new",
+						},
+					},
+				});
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe(outcome);
+		expect(originalModel.requests).toHaveLength(1);
+		expect(refreshedModel.requests).toHaveLength(1);
+		const originalRequest = originalModel.requests[0];
+		const refreshedRequest = refreshedModel.requests[0];
+		const originalMetadata = originalRequest.options?.metadata as Record<
+			string,
+			unknown
+		>;
+		const refreshedMetadata = refreshedRequest.options?.metadata as Record<
+			string,
+			unknown
+		>;
+		const requestIds = [
+			originalMetadata.modelRequestId,
+			refreshedMetadata.modelRequestId,
+		];
+		expect(requestIds.every((id) => typeof id === "string")).toBe(true);
+		expect(new Set(requestIds).size).toBe(2);
+		expect(requestIds).not.toContain("stale-original-id");
+		expect(requestIds).not.toContain("stale-refreshed-id");
+		expect(refreshedMetadata.connection).toBe("new");
+		expect(refreshedMetadata.runId).toBe(originalMetadata.runId);
+		const lifecycleEvents = capture.mock.calls
+			.map(([event]) => event)
+			.filter((event) =>
+				[
+					TASK_PROVIDER_REQUEST_STARTED_EVENT,
+					TASK_PROVIDER_STREAM_STARTED_EVENT,
+					TASK_FIRST_CHUNK_RECEIVED_EVENT,
+					TASK_PROVIDER_STREAM_FAILED_EVENT,
+				].includes(event.event),
+			);
+		const expectedEvents = [
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+			TASK_FIRST_CHUNK_RECEIVED_EVENT,
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			...(outcome === "completed"
+				? [TASK_PROVIDER_STREAM_STARTED_EVENT, TASK_FIRST_CHUNK_RECEIVED_EVENT]
+				: [TASK_PROVIDER_STREAM_FAILED_EVENT]),
+		];
+		expect(lifecycleEvents.map((event) => event.event)).toEqual(expectedEvents);
+		for (const [index, event] of lifecycleEvents.entries()) {
+			const original = index < 3;
+			expect(event.properties).toMatchObject({
+				modelRequestId: requestIds[original ? 0 : 1],
+				providerId: original ? "lmstudio" : "openrouter",
+				modelId: original ? "original-model" : "refreshed-model",
+				sessionId: "session-correlation",
+			});
+		}
+	});
+
+	it("clears stale telemetry identity while correlating a replacement without model info", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const originalModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_clear_identity",
+					toolName: "echo",
+					inputText: '{"text":"refresh"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const refreshedModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "refreshed" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		let requestBoundary = 0;
+		const runtime = new AgentRuntime({
+			model: originalModel,
+			messageModelInfo: { provider: "lmstudio", id: "original-model" },
+			tools: [createEchoTool()],
+			telemetry,
+			beforeModelRequest: () => {
+				if (++requestBoundary === 3) {
+					runtime.replaceModelBetweenRequests(refreshedModel);
+				}
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(originalModel.requests).toHaveLength(1);
+		expect(refreshedModel.requests).toHaveLength(1);
+		const starts = capture.mock.calls
+			.map(([event]) => event)
+			.filter((event) => event.event === TASK_PROVIDER_REQUEST_STARTED_EVENT);
+		expect(starts).toHaveLength(2);
+		const ids = [originalModel, refreshedModel].map(
+			(model) =>
+				(model.requests[0].options?.metadata as Record<string, unknown>)
+					.modelRequestId,
+		);
+		expect(ids.every((id) => typeof id === "string")).toBe(true);
+		expect(new Set(ids).size).toBe(2);
+		expect(starts.map((event) => event.properties.modelRequestId)).toEqual(ids);
+		expect(starts[0].properties).toMatchObject({
+			providerId: "lmstudio",
+			modelId: "original-model",
+		});
+		for (const key of ["provider", "providerId", "model", "modelId"]) {
+			expect(starts[1].properties).not.toHaveProperty(key);
+		}
+	});
+
 	it("captures task lifecycle telemetry around a successful model stream", async () => {
 		const { capture, telemetry } = createTelemetryMock();
 		const model = new ScriptedModel([

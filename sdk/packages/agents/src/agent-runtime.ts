@@ -607,6 +607,7 @@ export class AgentRuntime {
 	private modelSteerController?: AbortController;
 	private telemetryProviderId?: string;
 	private telemetryModelId?: string;
+	private modelRequestId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		this.telemetryProviderId =
@@ -833,6 +834,7 @@ export class AgentRuntime {
 
 		this.abortController = new AbortController();
 		this.state.runId = createUID("run");
+		this.modelRequestId = undefined;
 		this.state.status = "running";
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
@@ -1847,6 +1849,13 @@ export class AgentRuntime {
 		}
 
 		this.throwIfAborted();
+		this.modelRequestId = createUID("model_request", 21);
+		request = {
+			...request,
+			options: mergeModelOptions(request.options, {
+				metadata: { modelRequestId: this.modelRequestId },
+			}),
+		};
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
 			durationMs: getTaskLifecycleDurationMs(),
 			phase: "provider_request_started",
@@ -2247,6 +2256,7 @@ export class AgentRuntime {
 		const sessionId = trimNonEmpty(this.config.sessionId);
 		captureTaskLifecycleEvent(this.config.telemetry, {
 			event,
+			modelRequestId: this.modelRequestId,
 			sessionId,
 			ulid: sessionId,
 			agentId: this.state.agentId,
@@ -2820,6 +2830,7 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							modelRequestId: this.modelRequestId,
 							...(this.state.lastFinishReason
 								? { finishReason: this.state.lastFinishReason }
 								: {}),
