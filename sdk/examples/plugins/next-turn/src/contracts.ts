@@ -23,7 +23,7 @@ import {
 	PLANNERS,
 	TOKEN_PATTERN,
 	TRIGGERS,
-} from "./planner/labels";
+} from "./planner/labels/schema";
 import {
 	COMPUTING_FOR,
 	MODEL_STATUSES,
@@ -32,7 +32,7 @@ import {
 	TRAY_STATES,
 	type TrayPush,
 	trayActionSchema,
-} from "./planner/tray";
+} from "./planner/tray/tray";
 
 /**
  * What Next Turn publishes as JSON Schema (generated into `contracts/` by

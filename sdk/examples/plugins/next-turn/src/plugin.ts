@@ -13,13 +13,10 @@ import type {
 import { PLUGIN_NAME } from "./config";
 import { PluginLifecycle } from "./lifecycle";
 import { type Log, pluginLog } from "./log";
-import type { NextSession } from "./planner/next";
-import type { OfferedSet, TrayPush } from "./planner/tray";
-import {
-	dormantState,
-	toSuggestionsState,
-	toTrayActions,
-} from "./planner/tray-view";
+import type { NextSession } from "./planner/session/session";
+import type { OfferedSet, TrayPush } from "./planner/tray/tray";
+import { toTrayActions } from "./planner/tray/verbs";
+import { dormantState, toSuggestionsState } from "./planner/tray/view";
 import {
 	type SessionRuntime,
 	type SetupContext,

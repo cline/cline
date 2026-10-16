@@ -9,7 +9,7 @@ import {
 	HISTORY_TITLE_MAX,
 	SEARCH_TERM_MIN_LENGTH,
 } from "../../config";
-import type { HubFold } from "../../hub/fold";
+import type { HubFold } from "../../hub/fold/state";
 import type { HubLink } from "../../hub/link";
 import { sessionRowState } from "../../model/session-rows";
 import { isoMillis, isRecord, listOf, num } from "../../values";

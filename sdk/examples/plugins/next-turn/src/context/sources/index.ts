@@ -1,4 +1,4 @@
-import type { HubFold } from "../../hub/fold";
+import type { HubFold } from "../../hub/fold/state";
 import type { HubLink, HubLinkScope } from "../../hub/link";
 import type { Log } from "../../log";
 import type { ContextSource } from "../source";

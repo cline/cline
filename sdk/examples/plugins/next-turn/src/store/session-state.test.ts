@@ -5,10 +5,11 @@ import * as fsPromises from "node:fs/promises";
 import { join } from "node:path";
 import { SESSION_STATE_TTL_MS } from "../config";
 import { EMPTY_BACKLOG } from "../planner/backlog";
-import { LabelLog } from "../planner/labels";
-import { NextSession } from "../planner/next";
+import { LabelLog } from "../planner/labels/labels";
+import { NextSession } from "../planner/session/session";
 import { defaultSettings } from "../settings/settings";
-import { editRun, message, useTempDirs } from "../test-support";
+import { editRun, message } from "../test-support/agent-runs";
+import { useTempDirs } from "../test-support/temp-dirs";
 import {
 	FileSessionStateStore,
 	pruneSessionStates,

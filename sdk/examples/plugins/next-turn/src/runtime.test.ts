@@ -8,14 +8,13 @@ import {
 import { defaultSettings, type Settings } from "./settings/settings";
 import { nextTurnPaths } from "./store/data-dir";
 import { FileSessionStateStore } from "./store/session-state";
+import { editRun, message } from "./test-support/agent-runs";
 import {
-	editRun,
 	flushDetached,
-	message,
 	noCommands,
 	offlineHub,
-	useTempDirs,
-} from "./test-support";
+} from "./test-support/plugin-host";
+import { useTempDirs } from "./test-support/temp-dirs";
 
 const tempDir = useTempDirs("next-turn-runtime-");
 

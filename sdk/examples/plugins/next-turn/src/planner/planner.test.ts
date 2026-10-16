@@ -1,13 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import type { Manifest } from "../context/manifest";
 import { clineSources } from "../context/sources/index";
-import { emptyFold } from "../hub/fold";
+import { emptyFold } from "../hub/fold/state";
 import { HubLink } from "../hub/link";
 import { EMPTY_BACKLOG } from "./backlog";
 import { REVIEW_PROMPT, suggestion, type TurnFacts } from "./candidates";
-import { buildPlannerInput, plannerSystemPrompt, unreadSources } from "./input";
 import { CORE_KINDS, offerableKinds } from "./kinds";
-import { buildModelSet, parsePlannerOutput } from "./output";
+import {
+	buildPlannerInput,
+	plannerSystemPrompt,
+	unreadSources,
+} from "./model/input";
+import { buildModelSet, parsePlannerOutput } from "./model/output";
 
 /** How the Cline-first sources name themselves, as `NextSession` hands them to the planner. */
 function clineSourceNames(): Record<string, string> {

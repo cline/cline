@@ -1,5 +1,5 @@
 import { URGENT_TASK_PRIORITY_MAX } from "../config";
-import type { HubFold } from "../hub/fold";
+import type { HubFold } from "../hub/fold/state";
 import { lastRunFailed, scheduleWorkspace } from "./schedules";
 import {
 	type BoardScope,

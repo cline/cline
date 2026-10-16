@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { eventLog } from "../hub/event-log.fixture";
-import { emptyFold, foldEvent } from "../hub/fold";
-import { seedUpcoming } from "../hub/seed";
+import { eventLog } from "../hub/event-log.fixtures";
+import { foldEvent } from "../hub/fold/fold";
+import { seedUpcoming } from "../hub/fold/seed";
+import { emptyFold } from "../hub/fold/state";
 import { needsYou } from "./needs-you";
 import { teamSummary, upcomingRuns } from "./schedules";
 import { statusBoard } from "./session-rows";

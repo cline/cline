@@ -11,19 +11,29 @@ import { Agent } from "@cline/core";
 import { Refresher } from "./connectors/refresher";
 import { PluginLifecycle } from "./lifecycle";
 import { EMPTY_BACKLOG } from "./planner/backlog";
-import { LabelLog } from "./planner/labels";
-import { NextSession } from "./planner/next";
+import { LabelLog } from "./planner/labels/labels";
+import { NextSession } from "./planner/session/session";
 import { createNextTurnPlugin } from "./plugin";
-import { type SetupContext, sessionEnv } from "./runtime";
+import {
+	type SessionRuntime,
+	type SetupContext,
+	sessionEnv,
+	startSessionRuntime,
+} from "./runtime";
 import { defaultSettings } from "./settings/settings";
 import { FileSessionStateStore } from "./store/session-state";
+import { editorTool, editRun } from "./test-support/agent-runs";
 import {
-	editorTool,
-	editRun,
+	agentFor,
+	cliSetupContext,
 	fakeRuntime,
 	fakeSlotHost,
-	useTempDirs,
-} from "./test-support";
+	noCommands,
+	offlineHub,
+	presence,
+	slotContext,
+} from "./test-support/plugin-host";
+import { useTempDirs } from "./test-support/temp-dirs";
 
 const tempDir = useTempDirs("next-turn-lifecycle-");
 
@@ -248,5 +258,137 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 		expect(lifecycle.active()).toBe(false);
 		rmSync(settingsPath);
 		expect(lifecycle.active()).toBe(true);
+	});
+});
+
+describe("Next Turn on a host that renders the composer.suggestions slot", () => {
+	test("a disabled plugin answers every verb by showing the tray as disabled and refuses Use and Send as stale, whether or not Next started", async () => {
+		let enabled = true;
+		const lifecycle = { active: () => enabled };
+		const host = fakeSlotHost();
+		const runtime = fakeRuntime();
+		const plugin = createNextTurnPlugin({
+			startRuntime: () => runtime,
+			lifecycle,
+		});
+		await plugin.setup?.(host.api as never, slotContext(host));
+		enabled = false;
+		const row = { revision: "r1", itemId: "a1", input: "key" } as const;
+		for (const verb of ["use", "send"] as const)
+			expect([verb, host.invoke({ verb, ...row })]).toEqual([
+				verb,
+				{ outcome: "refused", reason: "stale" },
+			]);
+		expect(host.invoke({ verb: "skip", ...row })).toEqual({ outcome: "ok" });
+		expect(host.latest()).toMatchObject({
+			status: "hidden",
+			hiddenReason: "disabled",
+			revision: "none",
+		});
+		const unbound = new NextSession({
+			sessionId: "sess_1",
+			settings: defaultSettings,
+			env: sessionEnv(cliSetupContext, { tools: () => [] }),
+			sources: () => [{ id: "turn", tier: "T0", probe: () => "present" }],
+			backlog: async () => EMPTY_BACKLOG,
+		});
+		const onScreen = await unbound.afterRun(editRun().result);
+		runtime.next = unbound;
+		host.states.splice(0);
+		expect(
+			host.invoke({
+				verb: "send",
+				revision: onScreen?.offerId ?? "",
+				itemId: onScreen?.candidates[0]?.id ?? "",
+				input: "key",
+			}),
+		).toEqual({ outcome: "refused", reason: "stale" });
+		expect(unbound.currentPush()).toMatchObject({
+			state: "off",
+			offReason: "disabled",
+		});
+		expect(host.states).toEqual([
+			expect.objectContaining({ status: "hidden", hiddenReason: "disabled" }),
+		]);
+		expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+			outcome: "ok",
+		});
+		expect(host.latest()?.hiddenReason).toBe("disabled");
+	});
+
+	test("re-enabling the plugin restarts the connector refresher only for a viewed chat", async () => {
+		for (const viewed of [false, true]) {
+			let enabled = true;
+			const refresher = { starts: 0, stops: 0 };
+			const connectors = {
+				refresher: {
+					start: async () => {
+						refresher.starts += 1;
+					},
+					stop: () => {
+						refresher.stops += 1;
+					},
+				},
+			} as unknown as SessionRuntime["connectors"];
+			const host = fakeSlotHost();
+			const { start } = presence({}, { connectors });
+			const plugin = createNextTurnPlugin({
+				startRuntime: start,
+				lifecycle: { active: () => enabled },
+			});
+			await plugin.setup?.(host.api as never, slotContext(host));
+			if (viewed) host.invoke({ verb: "attach", surface: "desktop" });
+			const exposed = { verb: "exposed", revision: "r1", itemIds: [] } as const;
+			enabled = false;
+			host.invoke({ ...exposed, itemIds: [] });
+			enabled = true;
+			host.invoke({ ...exposed, itemIds: [] });
+			expect([viewed, refresher]).toEqual([
+				viewed,
+				{ starts: viewed ? 1 : 0, stops: 1 },
+			]);
+		}
+	});
+
+	test("a viewer that attaches while the plugin is disabled starts nothing, and is served once the plugin is enabled again", async () => {
+		const settings = defaultSettings();
+		settings.notify.needsYou = false;
+		settings.planner.callsPerHour = 0;
+		let enabled = false;
+		let started: SessionRuntime | undefined;
+		const host = fakeSlotHost();
+		const plugin = createNextTurnPlugin({
+			startRuntime: (startContext, { active }) => {
+				started = startSessionRuntime(startContext, {
+					settings: () => settings,
+					active,
+					pluginActive: () => enabled,
+					hubLink: offlineHub,
+					runCommand: noCommands,
+				});
+				return started;
+			},
+			lifecycle: { active: () => enabled },
+		});
+		await plugin.setup?.(
+			host.api as never,
+			slotContext(host, {
+				session: { sessionId: "sess_attached_while_disabled" },
+				workspaceInfo: { rootPath: tempDir() },
+			}),
+		);
+		try {
+			expect(host.invoke({ verb: "attach", surface: "desktop" })).toEqual({
+				outcome: "ok",
+			});
+			expect(host.latest()?.hiddenReason).toBe("disabled");
+			expect([started?.viewed(), started?.next]).toEqual([true, undefined]);
+			enabled = true;
+			await agentFor(plugin).run("Add a retry to the client");
+			await started?.next?.settled();
+			expect(host.latest()?.status).toBe("ready");
+		} finally {
+			await started?.stop();
+		}
 	});
 });

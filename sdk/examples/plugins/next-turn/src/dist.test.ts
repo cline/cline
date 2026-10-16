@@ -15,7 +15,7 @@ import {
 	PLUGIN_DIST_ENTRY,
 	PLUGIN_ROOT,
 } from "../scripts/build";
-import { useTempDirs } from "./test-support";
+import { useTempDirs } from "./test-support/temp-dirs";
 
 const tempDir = useTempDirs("next-turn-dist-", { restoreClineDir: true });
 

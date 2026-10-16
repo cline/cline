@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { nextTurnPaths, writeFileAtomic } from "../store/data-dir";
-import { useTempDirs } from "../test-support";
+import { useTempDirs } from "../test-support/temp-dirs";
 import { modelChoices } from "./models";
 import {
 	defaultSettings,

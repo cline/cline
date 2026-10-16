@@ -6,7 +6,7 @@ import {
 } from "../config";
 import { isPresent, type Manifest } from "../context/manifest";
 import { withinBudget } from "../deadline";
-import type { HubFold } from "../hub/fold";
+import type { HubFold } from "../hub/fold/state";
 import {
 	type BoardScope,
 	type ExplicitStatus,

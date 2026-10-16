@@ -6,7 +6,6 @@ import {
 } from "../settings/settings";
 import { connectorAccess } from "./access";
 import type { ClineConnections } from "./cline-connections";
-import { COMPOSIO_ROUTE, GITHUB_TOOLKIT } from "./composio";
 import {
 	composioConnectorId,
 	mcpConnectorId,
@@ -14,7 +13,8 @@ import {
 	type Route,
 } from "./connector";
 import { GITHUB_SCOPES } from "./github/github";
-import { mcpRoute } from "./mcp";
+import { COMPOSIO_ROUTE, GITHUB_TOOLKIT } from "./pinned/composio";
+import { mcpRoute } from "./pinned/mcp";
 
 /**
  * "Connected to Next Turn": one row per connection the person already has in

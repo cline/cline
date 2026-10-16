@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { emptyFold, foldEvent } from "../../hub/fold";
+import { foldEvent } from "../../hub/fold/fold";
+import { emptyFold } from "../../hub/fold/state";
 import type { HubEvent, HubLinkStatus } from "../../hub/link";
-import { useTempDirs } from "../../test-support";
+import { useTempDirs } from "../../test-support/temp-dirs";
 import { ageLabel } from "../facts";
 import { redactSecrets } from "../redact";
 import type { Facts, SourceEnv } from "../source";

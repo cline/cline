@@ -3,27 +3,29 @@ import type { AgentRunResult, PluginUiSurface } from "@cline/shared";
 import { clineConnectionLoaders } from "./connectors/cline-connections";
 import { GhReader } from "./connectors/github/gh";
 import { Connectors } from "./connectors/index";
-import { clineMcpRunnerDeps } from "./connectors/runners";
+import { clineMcpRunnerDeps } from "./connectors/pinned/runners";
 import type { ContextSource, SourceEnv } from "./context/source";
 import { clineSources } from "./context/sources/index";
 import { dirtyFileCounter } from "./context/sources/workspace";
 import { NextTurnEngine } from "./engine/engine";
 import { NotifyGate } from "./engine/notify";
-import { CursorWriter } from "./hub/cursor";
-import { HubLink, type HubLinkDeps, nodeHubLinkDeps } from "./hub/link";
+import { CursorWriter } from "./hub/fold/cursor";
+import { HubLink, type HubLinkDeps } from "./hub/link";
+import { nodeHubLinkDeps } from "./hub/node-deps";
 import { pluginLog } from "./log";
-import { PlannerLedger } from "./planner/allowance";
 import { backlogReader, type PlanAdapter } from "./planner/backlog";
-import { LabelLog } from "./planner/labels";
-import { clineCompleter, plannerProvider } from "./planner/model";
-import { NextSession } from "./planner/next";
+import { LabelLog } from "./planner/labels/labels";
 import {
 	captureLabel,
 	clientSurfaceOf,
 	legacySurfaceOf,
 	surfaceOf,
-} from "./planner/telemetry";
-import { deriveTurn, type MessageLike } from "./planner/turn";
+} from "./planner/labels/telemetry";
+import { PlannerLedger } from "./planner/model/allowance";
+import { clineCompleter, plannerProvider } from "./planner/model/model";
+import { NextSession } from "./planner/session/session";
+import type { MessageLike } from "./planner/turn/run-count";
+import { deriveTurn } from "./planner/turn/turn";
 import { type RunCommand, runCommand } from "./run";
 import type { Settings } from "./settings/settings";
 import { nextTurnPaths } from "./store/data-dir";

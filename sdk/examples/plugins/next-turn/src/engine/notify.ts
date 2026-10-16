@@ -1,6 +1,6 @@
 import type { HubUINotifyPayload } from "@cline/shared";
 import { NOTIFY_MIN_INTERVAL_MS } from "../config";
-import type { SessionFold } from "../hub/fold";
+import type { SessionFold } from "../hub/fold/state";
 
 /**
  * Needs-you notifications, sent as the hub's `ui.notify`; today the menubar

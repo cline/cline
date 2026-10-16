@@ -2,15 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { buildManifest } from "./context/manifest";
 import { EMPTY_BACKLOG } from "./planner/backlog";
 import { suggestion } from "./planner/candidates";
-import { buildLabelRecord, offerRecord } from "./planner/labels";
-import { NextSession } from "./planner/next";
+import { buildLabelRecord, offerRecord } from "./planner/labels/labels";
+import { NextSession } from "./planner/session/session";
 import { defaultSettings } from "./settings/settings";
-import {
-	contractSchema,
-	message,
-	runResult,
-	schemaErrors,
-} from "./test-support";
+import { message, runResult } from "./test-support/agent-runs";
+import { contractSchema, schemaErrors } from "./test-support/schema";
 
 function contractErrors(name: string, value: unknown): string[] {
 	return schemaErrors(contractSchema(name), value);

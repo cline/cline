@@ -1,4 +1,4 @@
-import type { HubFold, RunState, SessionFold } from "../hub/fold";
+import type { HubFold, RunState, SessionFold } from "../hub/fold/state";
 import {
 	lastRunFailed,
 	scheduleWorkspace,

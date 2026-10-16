@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { emptyFold } from "../hub/fold";
+import { emptyFold } from "../hub/fold/state";
 import { HubLink } from "../hub/link";
 import { defaultSettings } from "../settings/settings";
 import { sourceOff } from "./policy";

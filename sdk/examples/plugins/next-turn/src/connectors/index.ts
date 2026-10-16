@@ -7,7 +7,6 @@ import {
 	type ConnectionLoaders,
 	readClineConnections,
 } from "./cline-connections";
-import { composioConnector, composioToolkits } from "./composio";
 import {
 	type Access,
 	type Connector,
@@ -16,10 +15,11 @@ import {
 } from "./connector";
 import type { GhReader } from "./github/gh";
 import { GitHubConnector } from "./github/github";
-import { mcpConnector } from "./mcp";
-import type { PinnedReadConnector, PinnedReadDeps } from "./pinned";
+import { composioConnector, composioToolkits } from "./pinned/composio";
+import { mcpConnector } from "./pinned/mcp";
+import type { PinnedReadConnector, PinnedReadDeps } from "./pinned/pinned";
+import { type McpRunnerDeps, mcpRunner } from "./pinned/runners";
 import { Refresher } from "./refresher";
-import { type McpRunnerDeps, mcpRunner } from "./runners";
 import { type ConnectorRow, connectorRows } from "./settings-view";
 
 type ConnectorsOptions = {

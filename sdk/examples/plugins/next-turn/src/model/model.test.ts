@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { eventLog } from "../hub/event-log.fixture";
-import { emptyFold, foldEvent } from "../hub/fold";
+import { eventLog } from "../hub/event-log.fixtures";
+import { foldEvent } from "../hub/fold/fold";
+import { emptyFold } from "../hub/fold/state";
 import { needsYou, newItems } from "./needs-you";
 import {
 	type ExplicitStatus,

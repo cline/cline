@@ -11,9 +11,9 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { PluginUiSurface } from "@cline/shared";
 import { SESSION_STATE_TTL_MS } from "../config";
-import type { TurnSnapshot } from "../planner/next";
-import type { TrayPush } from "../planner/tray";
-import type { Turn } from "../planner/turn";
+import type { TurnSnapshot } from "../planner/session/turn-state";
+import type { TrayPush } from "../planner/tray/tray";
+import type { Turn } from "../planner/turn/turn";
 import { isRecord } from "../values";
 import { readJsonFile, sha256Hex, writeFileAtomic } from "./data-dir";
 

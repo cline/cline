@@ -1,14 +1,9 @@
 import type { HubEventName } from "@cline/shared";
-import type { CursorWriter } from "../hub/cursor";
-import {
-	emptyFold,
-	FOLDED_EVENTS,
-	foldEvent,
-	type HubFold,
-	type SessionFold,
-} from "../hub/fold";
+import type { CursorWriter } from "../hub/fold/cursor";
+import { FOLDED_EVENTS, foldEvent } from "../hub/fold/fold";
+import { HUB_SEEDS, seedUpcoming, UPCOMING_READS } from "../hub/fold/seed";
+import { emptyFold, type HubFold, type SessionFold } from "../hub/fold/state";
 import type { HubLink } from "../hub/link";
-import { HUB_SEEDS, seedUpcoming, UPCOMING_READS } from "../hub/seed";
 import type { Log } from "../log";
 import { type NeedsYouItem, needsYou } from "../model/needs-you";
 import { type UpcomingRun, upcomingRuns } from "../model/schedules";

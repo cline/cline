@@ -66,7 +66,7 @@ first `beforeModel` of the next run. Every served set and label goes to
 | [`src/model/`](src/model/needs-you.ts) | The Status Hub model a host UI can render: session rows with their `report_status` rows, Needs you (approvals, questions, tasks awaiting approval, blocked or urgent status rows, and scheduled runs whose latest execution failed), schedules and teams |
 | [`src/context/`](src/context/source.ts) | The source interface, the environment manifest, facts under per-tier budgets, source policy and redaction, and the Cline-first sources: the turn, git, repository commands, the person's Cline setup (names only), their other chats in this workspace, and the hub's tasks |
 | [`src/connectors/`](src/connectors/index.ts) | Connectors over the connections the person already gave Cline; Next Turn never signs in to anything. GitHub reads through `gh`; MCP servers read only through pinned reads; Composio toolkits are Mention only until Cline exposes its Composio tools to plugins |
-| [`src/planner/`](src/planner/next.ts) | Next: the rule set, the planner prompt, output invariants and its one bounded model call, the allowance, the label log and its telemetry mirror, one chat's sets and tray actions, its tray state, and that state's projection into the slot. The `plan` and `status` inputs have no host entry point yet, so both sources are absent outside tests |
+| [`src/planner/`](src/planner/session/session.ts) | Next: the rule set, the planner prompt, output invariants and its one bounded model call, the allowance, the label log and its telemetry mirror, one chat's sets and tray actions, its tray state, and that state's projection into the slot. The `plan` and `status` inputs have no host entry point yet, so both sources are absent outside tests |
 | [`src/settings/`](src/settings/settings.ts), [`src/store/`](src/store/data-dir.ts) | The settings file and the planner's model choices; `<Cline data dir>/plugins/next-turn/` with atomic, owner-only writes, and each chat's tray state kept across sandbox idle reclaims |
 | [`src/tasks/`](src/tasks/tasks.ts) | Tasks on the hub's agenda: edits, approve and cancel with the revision the person saw, and proposals written as spec files so they wait for approval |
 | [`src/plugin.ts`](src/plugin.ts), [`src/runtime.ts`](src/runtime.ts), [`src/lifecycle.ts`](src/lifecycle.ts) | The plugin's hooks and its `composer.suggestions` slot handler, none of which can fail the person's run; one chat's runtime and whether a viewer is attached; and the disable and uninstall check |
@@ -84,8 +84,9 @@ manifest, and Next's internal tray state (`NextTurnSet`, `NextTurnTrayPush`,
 `NextTurnTrayAction`). The schema hosts render, the `composer.suggestions`
 state and its verbs, belongs to Cline
 (`@cline/shared`'s `extensions/ui-slots/contracts.ts`);
-[`src/planner/tray-view.ts`](src/planner/tray-view.ts) projects Next's tray
-state into it and maps its verbs onto Next's actions. The plugin imports
+[`src/planner/tray/view.ts`](src/planner/tray/view.ts) projects Next's tray
+state into it and [`src/planner/tray/verbs.ts`](src/planner/tray/verbs.ts)
+maps its verbs onto Next's actions. The plugin imports
 that contract as types only, so declaring the slot adds no runtime
 dependency. It does import path helpers from `@cline/shared/storage` at
 runtime, so it loads only on a host that provides the Cline SDK to plugins.

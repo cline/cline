@@ -1,4 +1,4 @@
-import type { HubFold, ScheduleFold, TeamFold } from "../hub/fold";
+import type { HubFold, ScheduleFold, TeamFold } from "../hub/fold/state";
 
 /** Execution statuses that mean a scheduled run needs the person. `aborted` is someone stopping it. */
 const FAILED_EXECUTION_STATUSES: ReadonlySet<string> = new Set([

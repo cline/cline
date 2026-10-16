@@ -14,7 +14,6 @@ import { clip } from "../../context/redact";
 import type { Facts, SourceEnv, SourceState } from "../../context/source";
 import type { GitHubEvidence } from "../../planner/rules";
 import type { ClineConnections, McpServer } from "../cline-connections";
-import { COMPOSIO_ROUTE, GITHUB_TOOLKIT } from "../composio";
 import {
 	type Access,
 	type Connector,
@@ -22,7 +21,8 @@ import {
 	type ReadScope,
 	type Route,
 } from "../connector";
-import { mcpServerLabel } from "../mcp";
+import { COMPOSIO_ROUTE, GITHUB_TOOLKIT } from "../pinned/composio";
+import { mcpServerLabel } from "../pinned/mcp";
 import {
 	type DefaultCiFact,
 	type GhReader,
