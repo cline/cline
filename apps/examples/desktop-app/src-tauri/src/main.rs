@@ -545,7 +545,13 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         resolve_desktop_backend_bundle_path(context),
     ) {
         let mut command = Command::new(cli_path);
-        command.arg("run").arg("--no-env-file").arg(&bundle_path);
+        // Under BUN_BE_BUN the CLI's baked-in --use-system-ca does not apply,
+        // so pass it again or the backend only trusts Bun's bundled roots.
+        command
+            .arg("run")
+            .arg("--use-system-ca")
+            .arg("--no-env-file")
+            .arg(&bundle_path);
         // Run from the bundle's own directory so the runtime cannot pick up
         // a workspace .env or bunfig.toml; the backend moves to the
         // workspace root itself (CLINE_DESKTOP_WORKSPACE_ROOT).
