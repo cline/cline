@@ -740,7 +740,11 @@ export default {
 		});
 		expect(optedOut.issues).toEqual([]);
 	}, 30_000);
-	it("times out and stops commands, rule content, and message builders", async () => {
+	it.each([
+		"command",
+		"rule",
+		"messageBuilder",
+	] as const)("counts one timeout for a %s callback", async (kind) => {
 		const path = await write(
 			"callbacks.mjs",
 			`export default {
@@ -748,9 +752,8 @@ export default {
 	manifest: { capabilities: ["commands", "rules", "messageBuilders"] },
 	setup(api) {
 		api.registerCommand({ name: "hang", handler: () => new Promise(() => {}) });
-		api.registerCommand({ name: "boom", handler: () => { throw new Error("command broke"); } });
 		api.registerRule({ id: "slow-rule", content: () => new Promise(() => {}) });
-		api.registerMessageBuilder({ name: "bad-builder", build: () => { throw new Error("builder broke"); } });
+		api.registerMessageBuilder({ name: "slow-builder", build: () => new Promise(() => {}) });
 	},
 };`,
 		);
@@ -775,22 +778,74 @@ export default {
 			{},
 		);
 
-		const hang = commands.find((command) => command.name === "hang");
-		await expect(hang?.handler?.("")).rejects.toBeInstanceOf(
-			PluginCallTimeoutError,
+		// Each case owns a fresh worker. After a timeout that worker is stopped,
+		// so a following callback could fail during shutdown instead of timing out.
+		if (kind === "command") {
+			await expect(commands[0]?.handler?.("")).rejects.toBeInstanceOf(
+				PluginCallTimeoutError,
+			);
+		} else if (kind === "rule") {
+			const content = rules[0]?.content as () => Promise<string>;
+			await expect(content()).resolves.toBe("");
+		} else {
+			const messages = [{ role: "user", content: "hi" }] as Message[];
+			await expect(builders[0]?.build(messages)).resolves.toBe(messages);
+		}
+		expect(registry.get(path)[0]).toMatchObject({
+			state: "degraded",
+			errorCount: 1,
+			timeoutCount: 1,
+			lastError: {
+				phase: {
+					command: "command:hang",
+					rule: "rule:slow-rule",
+					messageBuilder: "messageBuilder:slow-builder",
+				}[kind],
+				timedOut: true,
+			},
+		});
+	});
+
+	it("disables commands after failures in commands, rules, and message builders", async () => {
+		const path = await write(
+			"failing-callbacks.mjs",
+			`export default {
+	name: "failing-callbacks",
+	manifest: { capabilities: ["commands", "rules", "messageBuilders"] },
+	setup(api) {
+		api.registerCommand({ name: "boom", handler: () => { throw new Error("command broke"); } });
+		api.registerRule({ id: "bad-rule", content: () => { throw new Error("rule broke"); } });
+		api.registerMessageBuilder({ name: "bad-builder", build: () => { throw new Error("builder broke"); } });
+	},
+};`,
 		);
+		const session = await load({ sessionId: "s1", pluginPaths: [path] });
+		const commands: Array<{ handler?: (input: string) => unknown }> = [];
+		const rules: Array<{ content: unknown }> = [];
+		const builders: Array<{ build: (messages: Message[]) => unknown }> = [];
+		await session.extensions[0]?.setup?.(
+			{
+				...noopApi(),
+				registerCommand: (command) => commands.push(command),
+				registerRule: (rule) => rules.push(rule),
+				registerMessageBuilder: (builder) => builders.push(builder),
+			},
+			{},
+		);
+		await expect(commands[0]?.handler?.("")).rejects.toThrow("command broke");
 		const content = rules[0]?.content as () => Promise<string>;
 		await expect(content()).resolves.toBe("");
 		const messages = [{ role: "user", content: "hi" }] as Message[];
 		await expect(builders[0]?.build(messages)).resolves.toBe(messages);
 		expect(registry.get(path)[0]).toMatchObject({
 			state: "failed",
-			timeoutCount: 2,
+			errorCount: 3,
+			timeoutCount: 0,
+			lastError: { phase: "messageBuilder:bad-builder" },
 		});
 
 		// Turned off after repeated failures: commands are refused.
-		const boom = commands.find((command) => command.name === "boom");
-		await expect(boom?.handler?.("")).rejects.toThrow(/is unavailable/);
+		await expect(commands[0]?.handler?.("")).rejects.toThrow(/is unavailable/);
 	}, 30_000);
 
 	it("treats a registration the host rejects as a setup failure", async () => {
