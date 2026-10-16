@@ -60,6 +60,24 @@ const ready = true;
 		expect(html).not.toContain("flowchart LR");
 	});
 
+	test("renders chip tokens in prose but not in code or mid-sentence commands", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				chipTokens={new Set(["/compact", "@src/app.ts"])}
+				content={
+					"/compact focus on @src/app.ts, then `@src/app.ts` and /compact"
+				}
+			/>,
+		);
+
+		const chips = [...html.matchAll(/<span class="[^"]*inset-ring[^"]*">([^<]*)<\/span>/g)].map(
+			(match) => match[1],
+		);
+		expect(chips).toEqual(["/compact", "@src/app.ts"]);
+		expect(html).toContain("<code");
+		expect(html).toContain("and /compact");
+	});
+
 	test("names the diagram from the fence title", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
