@@ -17,6 +17,6 @@ describe("editorName", () => {
 	})
 
 	it.each([undefined, "", "  "])("falls back to a generic name for %j", (hostName) => {
-		expect(editorName(hostName)).toBe("your editor")
+		expect(editorName(hostName)).toBe("your IDE")
 	})
 })

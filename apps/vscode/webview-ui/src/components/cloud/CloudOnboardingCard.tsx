@@ -29,7 +29,7 @@ export function CloudOnboardingCard({
 	/** True after the user opened the connect flow and we are polling for completion. */
 	waiting?: boolean
 	errorMessage?: string
-	/** How the copy names the editor, e.g. "PyCharm" or "your editor". */
+	/** How the copy names the editor, e.g. "PyCharm" or "your IDE". */
 	editor: string
 }) {
 	if (variant === "error") {
