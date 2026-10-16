@@ -5,6 +5,7 @@ import {
 	type SlashCommandRegistryEntry,
 } from "../commands/slash-command-registry";
 import { COMPLETION_DEBOUNCE_MS, MAX_COMPLETION_RESULTS } from "../types";
+import { createMentionSearchController } from "./mention-search-controller";
 
 export type AutocompleteMode = false | "@" | "/";
 
@@ -122,11 +123,11 @@ export function getFirstSelectableIndex(
 }
 
 export function useAutocomplete(opts: {
-	workspaceRoot: string;
+	initialWorkspaceRoot: string;
 	systemCommands: SlashCommandRegistryEntry[];
 	skillCommands: SlashCommandRegistryEntry[];
 }) {
-	const { workspaceRoot, systemCommands, skillCommands } = opts;
+	const { initialWorkspaceRoot, systemCommands, skillCommands } = opts;
 
 	const [mode, setMode] = useState<AutocompleteMode>(false);
 	const [filter, setFilter] = useState("");
@@ -134,7 +135,26 @@ export function useAutocomplete(opts: {
 	const [mentionResults, setMentionResults] = useState<string[]>([]);
 
 	const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
-	const searchCounterRef = useRef(0);
+	const mentionSearchControllerRef = useRef(
+		createMentionSearchController(initialWorkspaceRoot),
+	);
+
+	const setWorkspaceRoot = useCallback((nextWorkspaceRoot: string) => {
+		// The workspace notifier is the transition boundary: invalidate searches
+		// before React processes the catalog updates triggered by the same snapshot.
+		if (
+			!mentionSearchControllerRef.current.setWorkspaceRoot(nextWorkspaceRoot)
+		) {
+			return;
+		}
+		if (searchTimerRef.current) {
+			clearTimeout(searchTimerRef.current);
+			searchTimerRef.current = null;
+		}
+		setMentionResults([]);
+		setMode(false);
+		setFilter("");
+	}, []);
 
 	const systemOptions: AutocompleteOption[] = systemCommands.map((cmd) => ({
 		display: `/${cmd.name}`,
@@ -229,15 +249,15 @@ export function useAutocomplete(opts: {
 					clearTimeout(searchTimerRef.current);
 				}
 				setMentionResults([]);
-				const counter = ++searchCounterRef.current;
+				const search = mentionSearchControllerRef.current.startSearch();
 				searchTimerRef.current = setTimeout(() => {
 					searchWorkspaceFilesForMention({
-						workspaceRoot,
+						workspaceRoot: search.workspaceRoot,
 						query: mention.query,
 						limit: MAX_COMPLETION_RESULTS,
 					})
 						.then((results) => {
-							if (counter === searchCounterRef.current) {
+							if (mentionSearchControllerRef.current.isCurrent(search)) {
 								setMentionResults(results);
 							}
 						})
@@ -249,7 +269,7 @@ export function useAutocomplete(opts: {
 			setMode(false);
 			setFilter("");
 		},
-		[workspaceRoot, getFilteredSlashOptions],
+		[getFilteredSlashOptions],
 	);
 
 	const getFilteredOptions = useCallback((): AutocompleteOption[] => {
@@ -273,5 +293,6 @@ export function useAutocomplete(opts: {
 		getFilteredOptions,
 		close,
 		setMode,
+		setWorkspaceRoot,
 	};
 }

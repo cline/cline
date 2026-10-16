@@ -122,7 +122,6 @@ function App(props: TuiProps) {
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
 
-	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
 	const terminalTitle = useMemo(
 		() =>
@@ -143,6 +142,7 @@ function App(props: TuiProps) {
 		systemCommands,
 		skillCommands,
 		invokableSkillCommands,
+		setAdditionalSlashCommands,
 	} = useSlashCommands({
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
@@ -150,10 +150,25 @@ function App(props: TuiProps) {
 	});
 
 	const autocomplete = useAutocomplete({
-		workspaceRoot,
+		initialWorkspaceRoot:
+			props.config.workspaceRoot?.trim() || props.config.cwd,
 		systemCommands,
 		skillCommands,
 	});
+	const setAutocompleteWorkspaceRoot = autocomplete.setWorkspaceRoot;
+
+	useEffect(() => {
+		props.setWorkspaceCommandNotifier((snapshot) => {
+			setAutocompleteWorkspaceRoot(snapshot.location.workspaceRoot);
+			setWorkflowSlashCommands(snapshot.workflowSlashCommands);
+			setAdditionalSlashCommands(snapshot.pluginSlashCommands);
+		});
+		return () => props.setWorkspaceCommandNotifier(null);
+	}, [
+		props.setWorkspaceCommandNotifier,
+		setAdditionalSlashCommands,
+		setAutocompleteWorkspaceRoot,
+	]);
 
 	const repoStatusInFlightRef = useRef(false);
 	const refreshRepoStatus = useCallback(() => {
