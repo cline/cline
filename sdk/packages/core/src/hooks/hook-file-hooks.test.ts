@@ -13,6 +13,7 @@ import {
 	createHookConfigFileExtension,
 	createHookConfigFileHooks,
 	getWindowsPythonFallbackCommand,
+	inferHookCommand,
 	mergeAgentHooks,
 } from "./hook-file-hooks";
 
@@ -690,6 +691,28 @@ describe("createHookConfigFileHooks", () => {
 				code: "EACCES",
 			}),
 		).toBeUndefined();
+	});
+
+	it("infers PowerShell hook launch command with execution policy bypass flags", () => {
+		const expectedExe = process.platform === "win32" ? "powershell" : "pwsh";
+		expect(inferHookCommand("TaskStart.ps1")).toEqual([
+			expectedExe,
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			"TaskStart.ps1",
+		]);
+		expect(inferHookCommand("/path/to/my-hook.PS1")).toEqual([
+			expectedExe,
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			"/path/to/my-hook.PS1",
+		]);
 	});
 
 	it.runIf(process.platform === "win32")(
