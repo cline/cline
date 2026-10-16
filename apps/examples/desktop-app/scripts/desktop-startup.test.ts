@@ -200,18 +200,21 @@ async function runStartupScenario(
 
 		// The backend bundle on the CLI's runtime, started outside the
 		// workspace like the packaged app does.
-		child = Bun.spawn([cli, "run", "--no-env-file", bundle], {
-			cwd: dirname(bundle),
-			env: {
-				...env,
-				BUN_BE_BUN: "1",
-				CLINE_DESKTOP_CLI_PATH: cli,
-				CLINE_DESKTOP_WORKSPACE_ROOT: root,
+		child = Bun.spawn(
+			[cli, "run", "--use-system-ca", "--no-env-file", bundle],
+			{
+				cwd: dirname(bundle),
+				env: {
+					...env,
+					BUN_BE_BUN: "1",
+					CLINE_DESKTOP_CLI_PATH: cli,
+					CLINE_DESKTOP_WORKSPACE_ROOT: root,
+				},
+				stdin: "ignore",
+				stdout,
+				stderr,
 			},
-			stdin: "ignore",
-			stdout,
-			stderr,
-		});
+		);
 		let endpoint: string | undefined;
 		const deadline = Date.now() + 30_000;
 		while (Date.now() < deadline) {
