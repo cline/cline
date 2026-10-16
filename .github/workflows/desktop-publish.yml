@@ -312,6 +312,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -346,6 +348,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -480,6 +484,12 @@ jobs:
               echo "endpoint is missing, unparseable, or not an http(s) URL, so"
               echo "every event would be dropped at runtime. Check the"
               echo "OTEL_EXPORTER_OTLP_ENDPOINT secret."
+              exit 1
+            fi
+            if ! printf '%s' "$SELFCHECK" | grep -q '"traces_exporter":"otlp"'; then
+              echo "Packaged $COMPONENT has no OTLP traces exporter inlined, so"
+              echo "cline-provider spans would never reach the collector (and"
+              echo "Langfuse). Check OTEL_TRACES_EXPORTER on the build step."
               exit 1
             fi
           done
@@ -681,6 +691,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -743,6 +755,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -826,6 +840,12 @@ jobs:
               echo "Packaged $COMPONENT reports telemetry enabled but its OTLP"
               echo "endpoint is missing, unparseable, or not an http(s) URL."
               echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+              exit 1
+            fi
+            if ! printf '%s' "$SELFCHECK" | grep -q '"traces_exporter":"otlp"'; then
+              echo "Packaged $COMPONENT has no OTLP traces exporter inlined, so"
+              echo "cline-provider spans would never reach the collector (and"
+              echo "Langfuse). Check OTEL_TRACES_EXPORTER on the build step."
               exit 1
             fi
           done
@@ -1008,6 +1028,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -1027,6 +1049,8 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
+          OTEL_TRACES_EXPORTER: otlp
+          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -1097,6 +1121,12 @@ jobs:
               echo "Packaged $COMPONENT reports telemetry enabled but its OTLP"
               echo "endpoint is missing, unparseable, or not an http(s) URL."
               echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+              exit 1
+            fi
+            if ! printf '%s' "$SELFCHECK" | grep -q '"traces_exporter":"otlp"'; then
+              echo "Packaged $COMPONENT has no OTLP traces exporter inlined, so"
+              echo "cline-provider spans would never reach the collector (and"
+              echo "Langfuse). Check OTEL_TRACES_EXPORTER on the build step."
               exit 1
             fi
           done

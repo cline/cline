@@ -15,6 +15,12 @@ import {
 import { createConnection, createServer } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import {
+	CLINE_HUB_LAUNCHER_CLIENT_ENV,
+	CLINE_HUB_LAUNCHER_TRANSPORT_ENV,
+	CLINE_HUB_LAUNCHER_VERSION_ENV,
+	getClineClientIdentity,
+} from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
 
@@ -999,10 +1005,18 @@ function remoteHubEnsureCommand(
 	cwd: string,
 	discoveryPath: string,
 ): RemoteCommandInput {
+	const launcher = getClineClientIdentity();
 	return {
 		command: "env",
 		args: [
 			"CLINE_NO_AUTO_UPDATE=1",
+			// The remote daemon's telemetry records who started it; the staged
+			// CLI would otherwise report itself.
+			`${CLINE_HUB_LAUNCHER_CLIENT_ENV}=${launcher?.name?.trim() || "cline"}`,
+			...(launcher?.version?.trim()
+				? [`${CLINE_HUB_LAUNCHER_VERSION_ENV}=${launcher.version.trim()}`]
+				: []),
+			`${CLINE_HUB_LAUNCHER_TRANSPORT_ENV}=ssh`,
 			cli,
 			"hub",
 			"ensure",

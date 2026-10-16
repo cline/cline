@@ -19,7 +19,13 @@ describe("ensureHubWithDesktopCli", () => {
 			["hub", "ensure", "--json", "--cwd", "/work"],
 			{
 				cwd: "/work",
-				env: { PATH: "/usr/bin", CLINE_NO_AUTO_UPDATE: "1" },
+				env: {
+					PATH: "/usr/bin",
+					CLINE_NO_AUTO_UPDATE: "1",
+					CLINE_HUB_LAUNCHER_CLIENT: "cline-desktop",
+					CLINE_HUB_LAUNCHER_VERSION: expect.stringMatching(/^\d+\.\d+\.\d+/),
+					CLINE_HUB_LAUNCHER_TRANSPORT: "local",
+				},
 				timeoutMs: 60_000,
 			},
 		);

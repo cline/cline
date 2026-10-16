@@ -107,6 +107,7 @@ test("the shipped CLI and backend report telemetry without starting a hub", asyn
 			otlp_endpoint_host: expect.any(String),
 			logs_exporter: expect.any(String),
 			metrics_exporter: expect.any(String),
+			traces_exporter: expect.any(String),
 		});
 	}
 }, 120_000);
