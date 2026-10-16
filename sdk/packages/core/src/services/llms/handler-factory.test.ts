@@ -606,9 +606,12 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.operations.language(
-			"anthropic--claude-4.6-sonnet",
-		) as {
+		// The /v4 entrypoint wraps the V3 model that holds the resolved SAP config.
+		const model = (
+			provider.operations.language("anthropic--claude-4.6-sonnet") as {
+				internalModel?: unknown;
+			}
+		).internalModel as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;
