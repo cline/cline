@@ -11,6 +11,7 @@ import {
 	getOfficialPluginInstallPath,
 	installMarketplaceEntry,
 	listMarketplaceInstalledEntries,
+	MarketplaceInstallFailure,
 } from "./marketplace";
 import type { JsonRecord } from "./types";
 
@@ -323,6 +324,7 @@ describe("marketplace skill install", () => {
 		expect(result).toMatchObject({
 			status: "installed",
 			message: "Installed Review Team globally for Cline.",
+			details: { method: "skills-cli" },
 		});
 	});
 
@@ -330,6 +332,7 @@ describe("marketplace skill install", () => {
 		[
 			"npx missing from PATH",
 			() => Promise.reject(new Error("spawn npx ENOENT")),
+			"npx-missing",
 		],
 		[
 			"npx not recognized (Windows cmd)",
@@ -339,6 +342,7 @@ describe("marketplace skill install", () => {
 				stderr:
 					"'npx' is not recognized as an internal or external command, operable program or batch file.",
 			}),
+			"npx-missing",
 		],
 		[
 			"Node too old for skills@latest",
@@ -348,6 +352,7 @@ describe("marketplace skill install", () => {
 				stderr:
 					"npm warn EBADENGINE Unsupported engine { required: { node: '>=22.20.0' } }\nSyntaxError: The requested module 'node:zlib' does not provide an export named 'crc32'",
 			}),
+			"node-too-old",
 		],
 		[
 			"git missing",
@@ -357,8 +362,9 @@ describe("marketplace skill install", () => {
 				stderr:
 					"Failed to clone https://github.com/cline/skills.git: Error: spawn git ENOENT",
 			}),
+			"git-missing",
 		],
-	])("falls back to installing from GitHub when the skills CLI fails: %s", async (_case, spawn) => {
+	])("falls back to installing from GitHub when the skills CLI fails: %s", async (_case, spawn, cliFailure) => {
 		const spawnCommand = vi.fn(spawn);
 
 		const result = await installMarketplaceEntry(
@@ -376,6 +382,7 @@ describe("marketplace skill install", () => {
 		expect(result).toMatchObject({
 			status: "installed",
 			message: "Installed Review Team globally for Cline.",
+			details: { method: "github-download", cli_failure: cliFailure },
 		});
 		expect(result.output).toContain(
 			"Installed from the GitHub repository instead.",
@@ -393,11 +400,20 @@ describe("marketplace skill install", () => {
 			new Error("Could not download cline/skills from GitHub: HTTP 503"),
 		);
 
-		await expect(
-			installMarketplaceEntry({ entry: REVIEW_TEAM_ENTRY }, { spawnCommand }),
-		).rejects.toThrow(
+		const failure = await installMarketplaceEntry(
+			{ entry: REVIEW_TEAM_ENTRY },
+			{ spawnCommand },
+		).catch((error: unknown) => error);
+
+		expect(failure).toBeInstanceOf(MarketplaceInstallFailure);
+		expect((failure as Error).message).toMatch(
 			/Skill install failed\.\n\nskills CLI: Skill install failed with exit code 1:\nGit is required[\s\S]*\n\nDownload from GitHub: Could not download cline\/skills from GitHub: HTTP 503/,
 		);
+		expect((failure as MarketplaceInstallFailure).telemetry).toEqual({
+			method: "github-download",
+			cli_failure: "git-missing",
+			fallback_failed: true,
+		});
 	});
 
 	it("has no fallback for sources that are not on GitHub", async () => {

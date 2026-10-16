@@ -780,6 +780,7 @@ async function installSkill(
 			type: entry.type,
 			status: "installed",
 			message: `${entry.name ?? entry.id} is already installed.`,
+			details: { method: "already-installed" },
 		};
 	}
 	ensureGlobalSkillsDirWritable();
@@ -787,15 +788,24 @@ async function installSkill(
 	// needs Node (>=22.20, on the app's PATH) and git, which many Desktop users
 	// don't have; a GUI app can also inherit a stale PATH. When it fails for a
 	// GitHub-hosted skill, install from the repository archive ourselves. The
-	// failure isn't classified: the CLI's output is localized and changes
-	// between releases, and if the fallback fails too the user sees both.
+	// decision isn't based on classifying the failure: the CLI's output is
+	// localized and changes between releases, and if the fallback fails too the
+	// user sees both. (The coarse class in `details` is for telemetry only.)
 	const githubSource = parseGitHubSkillSource(entry.install.args ?? []);
 	let output: string | undefined;
+	let details: JsonRecord = { method: "skills-cli" };
 	try {
 		output = await installSkillWithSkillsCli(entry, spawnCommand);
 	} catch (cliError) {
-		if (!githubSource) throw cliError;
 		const cliMessage = errorMessage(cliError);
+		const cliFailure = classifySkillsCliFailure(cliMessage);
+		if (!githubSource) {
+			throw new MarketplaceInstallFailure(cliMessage, {
+				method: "skills-cli",
+				cli_failure: cliFailure,
+			});
+		}
+		details = { method: "github-download", cli_failure: cliFailure };
 		try {
 			output = [
 				cliMessage,
@@ -804,8 +814,9 @@ async function installSkill(
 				await installSkillFromGitHub(entry, githubSource),
 			].join("\n");
 		} catch (fallbackError) {
-			throw new Error(
+			throw new MarketplaceInstallFailure(
 				`Skill install failed.\n\nskills CLI: ${cliMessage}\n\nDownload from GitHub: ${errorMessage(fallbackError)}`,
+				{ ...details, fallback_failed: true },
 			);
 		}
 	}
@@ -814,8 +825,49 @@ async function installSkill(
 		type: entry.type,
 		status: "installed",
 		message: `Installed ${entry.name ?? entry.id} globally for Cline.`,
+		details,
 		output,
 	};
+}
+
+/** A failed install that still knows which path it took, for telemetry. */
+export class MarketplaceInstallFailure extends Error {
+	constructor(
+		message: string,
+		readonly telemetry: JsonRecord,
+	) {
+		super(message);
+		this.name = "MarketplaceInstallFailure";
+	}
+}
+
+export type SkillsCliFailureClass =
+	| "git-missing"
+	| "node-too-old"
+	| "npx-missing"
+	| "other";
+
+// Best effort and for telemetry only (never the raw output): the messages
+// are localized and change between skills CLI releases.
+export function classifySkillsCliFailure(
+	message: string,
+): SkillsCliFailureClass {
+	if (/\bspawn\s+git\s+ENOENT\b/i.test(message)) return "git-missing";
+	if (
+		/EBADENGINE|Unsupported engine|does not provide an export named|\bSyntaxError\b/i.test(
+			message,
+		)
+	) {
+		return "node-too-old";
+	}
+	if (
+		/could not run the skills CLI|spawn npx ENOENT|not recognized as an internal or external command|command not found/i.test(
+			message,
+		)
+	) {
+		return "npx-missing";
+	}
+	return "other";
 }
 
 function errorMessage(error: unknown): string {
