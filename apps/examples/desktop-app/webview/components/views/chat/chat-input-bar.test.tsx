@@ -1482,7 +1482,7 @@ describe("ChatInputBar", () => {
 			expect(
 				trigger?.querySelector('[data-slot="select-value"]')?.parentElement
 					?.className,
-			).toContain("max-[560px]:sr-only");
+			).toContain("group-data-[compact]/composer:sr-only");
 		});
 		const compactModelTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Model and provider"]',
@@ -1539,13 +1539,15 @@ describe("ChatInputBar", () => {
 		);
 		expect(
 			providerTrigger?.parentElement?.parentElement?.parentElement?.className,
-		).toContain("max-[560px]:hidden");
+		).toContain("group-data-[compact]/composer:hidden");
 		const modelTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label^="Model:"]',
 		);
 		expect(modelTrigger?.className).toContain("max-w-full");
 		expect(modelTrigger?.className).not.toMatch(/max-w-\d/);
-		expect(compactModelTrigger?.className).toContain("max-[560px]:inline-flex");
+		expect(compactModelTrigger?.className).toContain(
+			"group-data-[compact]/composer:inline-flex",
+		);
 		expect(compactModelTrigger?.querySelector(".lucide-cpu")).not.toBeNull();
 		const workspaceTrigger =
 			container.querySelector<HTMLButtonElement>("#git-branch-btn");
@@ -3169,5 +3171,89 @@ describe("ChatInputBar token ring", () => {
 		);
 		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+	});
+});
+
+describe("ChatInputBar compact layout", () => {
+	it("compacts by the composer's own width, not the window's", async () => {
+		const observers: Array<(width: number) => void> = [];
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				constructor(callback: ResizeObserverCallback) {
+					observers.push((width) =>
+						callback(
+							[{ contentRect: { width } } as ResizeObserverEntry],
+							this as unknown as ResizeObserver,
+						),
+					);
+				}
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
+		try {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider
+						value={{
+							workspaceRoot: "/workspace/cline",
+							workspaces: ["/workspace/cline"],
+							listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+							refreshWorkspaces: vi.fn(async () => undefined),
+							switchWorkspace: vi.fn(async () => true),
+							pickWorkspaceDirectory: vi.fn(async () => null),
+							selectChat: vi.fn(async () => true),
+						}}
+					>
+						<ChatInputBar
+							attachments={[]}
+							environmentId="local"
+							gitBranch="main"
+							mode="act"
+							model="test-model"
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider="cline"
+							reasoningEffort="low"
+							status="idle"
+							summary={{ additions: 0, deletions: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+			const composer = container.querySelector(".group\\/composer");
+			expect(composer?.hasAttribute("data-compact")).toBe(false);
+			await act(async () => {
+				for (const notify of observers) notify(440);
+			});
+			expect(composer?.hasAttribute("data-compact")).toBe(true);
+			await act(async () => {
+				for (const notify of observers) notify(700);
+			});
+			expect(composer?.hasAttribute("data-compact")).toBe(false);
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 });

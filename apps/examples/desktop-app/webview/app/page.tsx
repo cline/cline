@@ -145,6 +145,7 @@ import {
 	type RemoteWorkspaceEnvironment,
 	remoteWorkspaceEnvironmentFromContext,
 } from "@/lib/workspace-environment";
+import { readWorkspacePanelWidth } from "@/lib/workspace-panel";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -193,12 +194,23 @@ const OnboardingView = dynamic(
 	},
 );
 
-const DiffView = dynamic(
-	() =>
-		import("@/components/views/chat/diff-view").then(
-			(module) => module.DiffView,
+const loadProjectFilesPanel = () =>
+	import("@/components/views/chat/project-files-panel");
+
+const ProjectFilesPanel = dynamic(
+	() => loadProjectFilesPanel().then((module) => module.ProjectFilesPanel),
+	{
+		// Holds the panel's grid cell at its final width while the chunk loads;
+		// an empty cell would let the composer flow into it for a few frames.
+		loading: () => (
+			<aside
+				aria-hidden
+				className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
+				style={{ width: readWorkspacePanelWidth() }}
+			/>
 		),
-	{ loading: viewLoading, ssr: false },
+		ssr: false,
+	},
 );
 
 function makeThreadId(): string {
@@ -1218,7 +1230,11 @@ function ChatThreadPane({
 		setWorkInSelection(next);
 		writeWorkInToWindow(next);
 	}, []);
-	const [showDiffView, setShowDiffView] = useState(false);
+	const [showFilesPanel, setShowFilesPanel] = useState(false);
+	const toggleFilesPanel = useCallback(
+		() => setShowFilesPanel((current) => !current),
+		[],
+	);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2110,7 +2126,6 @@ function ChatThreadPane({
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
-			setShowDiffView(false);
 			void reset();
 		} catch (error) {
 			const description =
@@ -2188,7 +2203,6 @@ function ChatThreadPane({
 			});
 			if (target === "cloud") {
 				setPendingAttachments([]);
-				setShowDiffView(false);
 			}
 		},
 		[
@@ -2341,7 +2355,6 @@ function ChatThreadPane({
 			? undefined
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
-	const hasDiffChanges = summary.additions + summary.deletions > 0;
 	const headerDiff = useMemo(
 		() => ({
 			additions: summary.additions,
@@ -2349,11 +2362,6 @@ function ChatThreadPane({
 		}),
 		[summary.additions, summary.deletions],
 	);
-	const handleOpenDiff = useCallback(() => {
-		if (summary.additions + summary.deletions > 0) {
-			setShowDiffView(true);
-		}
-	}, [summary.additions, summary.deletions]);
 
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
@@ -2468,12 +2476,6 @@ function ChatThreadPane({
 		],
 	);
 
-	useEffect(() => {
-		if (!hasDiffChanges) {
-			setShowDiffView(false);
-		}
-	}, [hasDiffChanges]);
-
 	const resolvedWorkspaceRoot = config.workspaceRoot || config.cwd || "";
 	const workspaceContextValue = useMemo(
 		() => ({
@@ -2495,6 +2497,14 @@ function ChatThreadPane({
 			selectChat,
 		],
 	);
+
+	// Fetch the panel's code as soon as a session could show it, so the first
+	// toggle opens it without waiting on the chunk.
+	const mayBrowseFiles =
+		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	useEffect(() => {
+		if (mayBrowseFiles) void loadProjectFilesPanel();
+	}, [mayBrowseFiles]);
 
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
@@ -2563,6 +2573,10 @@ function ChatThreadPane({
 		cloudSessionError?.code === "github_not_connected"
 			? cloudSessionError.connectUrl
 			: undefined;
+	// Cloud runs have no reachable workspace, and the welcome state has no
+	// session to browse alongside yet.
+	const canBrowseFiles = mayBrowseFiles;
+	const filesPanelVisible = canBrowseFiles && showFilesPanel;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -2571,7 +2585,11 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: filesPanelVisible
+							? // The panel is placed explicitly in column 2 spanning both
+								// rows, so the transcript and composer auto-flow into column 1.
+								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				disabled={isCloudSessionExpired}
 				description={
@@ -2599,7 +2617,8 @@ function ChatThreadPane({
 								diff={isCloudSession ? undefined : headerDiff}
 								onDeleteSession={requestDeleteSession}
 								onNewThread={onNewThread}
-								onOpenDiff={handleOpenDiff}
+								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
+								filesOpen={filesPanelVisible}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
 								status={headerStatus}
@@ -2616,13 +2635,6 @@ function ChatThreadPane({
 						displayedMessages.length === 0 ? (
 							// Keep opening an existing cloud session visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
-						) : showDiffView && !isCloudSession ? (
-							<DiffView
-								cwd={config.cwd || config.workspaceRoot}
-								environmentId={environmentId}
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
 						) : (
 							<ChatMessages
 								onAnswerAskQuestion={handleAnswerAskQuestion}
@@ -2709,6 +2721,15 @@ function ChatThreadPane({
 					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 				/>
+				{filesPanelVisible ? (
+					<ProjectFilesPanel
+						cwd={config.cwd || config.workspaceRoot}
+						environmentId={environmentId}
+						fileDiffs={fileDiffs}
+						onClose={toggleFilesPanel}
+						workspaceRoot={resolvedWorkspaceRoot}
+					/>
+				) : null}
 			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
