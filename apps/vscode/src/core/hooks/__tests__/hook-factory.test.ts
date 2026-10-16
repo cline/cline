@@ -4,9 +4,17 @@ import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
+import { Logger } from "@/shared/services/Logger"
 import { stubWorkspacePaths } from "../../../test/host-provider-test-utils"
 import { HookFactory, isPathWithin } from "../hook-factory"
-import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
+import {
+	createHookTestEnv,
+	createTestHook,
+	HookTestEnv,
+	stubHookDirs,
+	withPlatform,
+	writeHookScriptForPlatform,
+} from "./test-utils"
 
 describe("Hook System", () => {
 	let tempDir: string
@@ -265,6 +273,27 @@ console.log("not valid json")`
 			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
 			result.cancel.should.be.false()
 			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
+		})
+
+		it("should log empty successful output at debug level", async () => {
+			await createTestHook(tempDir, "PreToolUse", {}, { exitWithoutOutput: true })
+			const debugStub = sandbox.stub(Logger, "debug")
+			const warnStub = sandbox.stub(Logger, "warn")
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+				},
+			})
+
+			result.cancel.should.be.false()
+			debugStub.calledOnce.should.be.true()
+			debugStub.firstCall.args[0].should.equal("[Hook PreToolUse] Completed successfully but no JSON response found")
+			warnStub.called.should.be.false()
 		})
 
 		it("should pass hook input via stdin", async () => {
