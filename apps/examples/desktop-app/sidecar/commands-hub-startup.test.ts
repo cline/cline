@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleCommand } from "./commands";
 import { HubStartup } from "./hub-startup";
-import type { SidecarContext } from "./types";
+import type { SidecarContext, SidecarWebSocketClient } from "./types";
 
 function contextWith(hubStartup: HubStartup): SidecarContext {
 	return {
@@ -54,5 +54,32 @@ describe("commands during Hub startup", () => {
 		finishSetup();
 		await expect(pending).rejects.toThrow();
 		expect(settled).toBe(true);
+	});
+
+	it("drops a waiting command whose connection closed during startup", async () => {
+		let finishSetup!: () => void;
+		const startup = new HubStartup(
+			() =>
+				new Promise<void>((resolve) => {
+					finishSetup = resolve;
+				}),
+			vi.fn(),
+			vi.fn(),
+		);
+		startup.start();
+		const ctx = contextWith(startup);
+		const connection = {} as SidecarWebSocketClient;
+		ctx.wsClients.add(connection);
+		const pending = handleCommand(
+			ctx,
+			"run_provider_oauth_login",
+			{ providerId: "cline" },
+			{ connection },
+		);
+		ctx.wsClients.delete(connection);
+		finishSetup();
+		await expect(pending).rejects.toThrow(
+			"The connection closed while Cline Hub was starting.",
+		);
 	});
 });

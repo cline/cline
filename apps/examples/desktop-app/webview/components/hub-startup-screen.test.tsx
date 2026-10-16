@@ -7,6 +7,7 @@ import { HubStartupScreen } from "./hub-startup-screen";
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke },
+	isTauriAvailable: () => false,
 }));
 
 const container = document.createElement("div");
@@ -36,6 +37,10 @@ it("shows only a spinner while the Hub is starting", () => {
 	);
 	expect(container.textContent).toContain("Starting Cline…");
 	expect(buttons()).toEqual([]);
+	// The window stays draggable (and closable on frameless Windows) without the app.
+	expect(
+		container.querySelector('[data-slot="window-title-bar"]'),
+	).not.toBeNull();
 });
 
 it("offers Retry and diagnostics export when the Hub fails", async () => {

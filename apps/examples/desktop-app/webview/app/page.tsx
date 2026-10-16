@@ -304,22 +304,19 @@ export default function Home() {
 	const startup = useHubStartup();
 	const hubReady =
 		startup.transport === "connected" && startup.hub.state === "ready";
-	// Mount the app once the Hub is first ready. After that, keep it mounted
-	// and cover it only if Hub startup fails again (e.g. after a sidecar restart).
+	// Show the app once the Hub is first ready. A later restart that is still
+	// starting keeps it up (its commands wait in the sidecar); a failed one
+	// replaces it, so none of its dialogs can trap focus behind the screen.
 	const [loaded, setLoaded] = useState(false);
 	useEffect(() => {
 		if (hubReady) setLoaded(true);
 	}, [hubReady]);
 	const hubFailed =
 		startup.transport === "connected" && startup.hub.state === "failed";
+	const showApp = loaded && !hubFailed;
 	return (
 		<>
-			{loaded ? (
-				<div className="contents" inert={hubFailed}>
-					<App />
-				</div>
-			) : null}
-			{!loaded || hubFailed ? <HubStartupScreen {...startup} /> : null}
+			{showApp ? <App /> : <HubStartupScreen {...startup} />}
 			{/* Outside the gate: the startup mismatch check can fire before App mounts. */}
 			<HubUpdateRequiredDialog />
 		</>

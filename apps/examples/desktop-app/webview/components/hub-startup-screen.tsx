@@ -3,13 +3,17 @@
 import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	WindowTitleBar,
+	WindowTitleBarProvider,
+} from "@/components/window-title-bar";
 import type { useHubStartup } from "@/hooks/use-hub-startup";
 import { desktopClient } from "@/lib/desktop-client";
 
 const BACKEND_UNRESPONSIVE_MS = 30_000;
 
 /**
- * Covers the app while local Hub startup is in progress or has failed, so the
+ * Replaces the app while local Hub startup is in progress or has failed, so the
  * user gets Retry and a diagnostics export instead of Hub errors from
  * whichever feature they tried first.
  */
@@ -97,8 +101,16 @@ export function HubStartupScreen({
 		);
 	}
 
+	// Below dialogs (z-50) so the Hub update prompt stays on top. The title bar
+	// keeps the drag region and, on frameless Windows, the window controls.
 	return (
-		<main className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+		<main className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+			<WindowTitleBarProvider contentEnabled={false}>
+				<WindowTitleBar
+					className="absolute inset-x-0 top-0"
+					hostContent={false}
+				/>
+			</WindowTitleBarProvider>
 			<div className="flex max-w-md flex-col items-center gap-4">{content}</div>
 		</main>
 	);
