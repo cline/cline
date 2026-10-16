@@ -1,6 +1,6 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -11,7 +11,6 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
@@ -31,7 +30,6 @@ interface AnthropicProviderProps {
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
 
 	// Get the normalized configuration
@@ -55,8 +53,6 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 		write,
 	})
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
-	const adaptiveThinkingDefaultEffort =
-		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
 	const handleBaseUrlChange = (value: string) => {
 		void write({ baseUrl: value }).catch((err) => console.error("Failed to update Anthropic base URL:", err))

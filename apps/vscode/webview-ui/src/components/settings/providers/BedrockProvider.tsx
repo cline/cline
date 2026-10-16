@@ -1,7 +1,7 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import BedrockData from "@shared/providers/bedrock.json"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import {
 	VSCodeCheckbox,
 	VSCodeDropdown,
@@ -65,18 +65,6 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 		selectedModelInfo.supportsGlobalEndpoint ||
 		selectedModelId.startsWith("global.") ||
 		Boolean(bedrockModels[`global.${selectedModelId}`])
-	const modeFields =
-		currentMode === "plan"
-			? {
-					reasoningEffort: apiConfiguration?.planModeReasoningEffort,
-					thinkingBudgetTokens: apiConfiguration?.planModeThinkingBudgetTokens,
-				}
-			: {
-					reasoningEffort: apiConfiguration?.actModeReasoningEffort,
-					thinkingBudgetTokens: apiConfiguration?.actModeThinkingBudgetTokens,
-				}
-	const adaptiveThinkingDefaultEffort =
-		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
 		void write(reasoningEffortPatch(effort)).catch((err) => console.error("Failed to update Bedrock reasoning effort:", err))
 	}

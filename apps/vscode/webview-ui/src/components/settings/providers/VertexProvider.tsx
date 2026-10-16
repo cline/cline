@@ -1,6 +1,6 @@
 import VertexData from "@shared/providers/vertex.json"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -13,7 +13,6 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
@@ -60,7 +59,6 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 		commitSelection,
 	})
 	const hideUsageCost = useProviderUsageCostDisplay("vertex") === "hide"
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const vertexProjectId = config?.gcp?.projectId ?? apiConfiguration?.vertexProjectId ?? ""
 	const vertexRegion = config?.gcp?.region ?? config?.region ?? apiConfiguration?.vertexRegion ?? ""
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
@@ -189,8 +187,6 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	// describeVertexGlobalRegionError in src/sdk/message-translator.ts).
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 
-	const adaptiveThinkingDefaultEffort =
-		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
 		writeProviderConfig(reasoningEffortPatch(effort), "reasoning effort")
 	}

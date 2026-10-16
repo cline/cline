@@ -51,16 +51,29 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 }
 
 /**
+ * The SDK gateway's level for reasoning that is enabled without one (the CLI
+ * saves `{ enabled: true }` for a bare `--thinking`).
+ */
+const ENABLED_WITHOUT_LEVEL_EFFORT: SupportedReasoningEffort = "medium"
+
+/**
  * The effort level a session started now would request, for settings UIs to
- * display. `undefined` means no level is requested and the provider or model
- * default applies, so a UI must not present it as any specific level.
+ * display. `undefined` means nothing is saved and the provider or model
+ * default applies, so a UI must not present it as any specific level; any
+ * saved setting maps to a level, so the UI can always clear it.
  */
 export function effectiveProviderReasoningEffort(
 	reasoning: ProviderReasoningSettings | undefined,
 ): "none" | SupportedReasoningEffort | undefined {
+	if (!reasoning) {
+		return undefined
+	}
 	const normalized = normalizeProviderReasoningSettings(reasoning)
 	if (normalized.thinking === false) {
 		return "none"
 	}
-	return isReasoningEffort(normalized.reasoningEffort) ? normalized.reasoningEffort : undefined
+	if (isReasoningEffort(normalized.reasoningEffort)) {
+		return normalized.reasoningEffort
+	}
+	return normalized.thinking === true ? ENABLED_WITHOUT_LEVEL_EFFORT : undefined
 }

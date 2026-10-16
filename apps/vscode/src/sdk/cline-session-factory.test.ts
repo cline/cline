@@ -761,6 +761,11 @@ describe("buildSessionConfig", () => {
 		store.write(providerId, { reasoning: null })
 		expect(await shownAndRequested()).toEqual({ shown: undefined, thinking: undefined, reasoningEffort: undefined })
 		expect(realManager.getProviderSettings("openai-compatible")).not.toHaveProperty("reasoning")
+
+		// The CLI saves a bare `{ enabled: true }`; the gateway requests medium
+		// for it, so it must not read as Default (which could then not clear it).
+		store.write(providerId, { reasoning: { enabled: true } })
+		expect(await shownAndRequested()).toEqual({ shown: "medium", thinking: true, reasoningEffort: undefined })
 	})
 
 	it("does not rewrite providers.json when the stored Azure settings already match", () => {

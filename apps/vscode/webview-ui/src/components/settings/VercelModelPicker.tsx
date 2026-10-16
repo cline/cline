@@ -1,6 +1,6 @@
 import type { ModelInfo } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -164,10 +164,6 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 	}, [selectedIndex])
 
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
-	const adaptiveThinkingDefaultEffort = useMemo(
-		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
-		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
-	)
 	// Reasoning support comes from the SDK catalog (models.dev), not model-id
 	// heuristics: any reasoning-capable model gets the effort selector. Prefer
 	// the live catalog entry over the committed legacy snapshot — the snapshot

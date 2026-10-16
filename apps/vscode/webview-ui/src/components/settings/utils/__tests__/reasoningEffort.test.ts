@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest"
 import { reasoningEffortPatch, savedReasoningEffort } from "../reasoningEffort"
 
 describe("savedReasoningEffort", () => {
-	it("is Default while the config is loading or nothing is saved", () => {
-		expect(savedReasoningEffort(undefined)).toBe("default")
+	it("is null while the config is loading", () => {
+		expect(savedReasoningEffort(undefined)).toBeNull()
+	})
+
+	it("is Default when nothing is saved", () => {
 		expect(savedReasoningEffort(ProviderConfigResponse.create({ providerId: "openai" }))).toBe("default")
 	})
 

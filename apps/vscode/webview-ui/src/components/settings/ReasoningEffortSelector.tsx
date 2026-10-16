@@ -18,8 +18,10 @@ interface ReasoningEffortSelectorProps {
 	 * The provider's saved effort, for providers that persist reasoning in their
 	 * own settings. When passed, it is what the selector shows, and a "Default"
 	 * entry stands for nothing saved, so every listed level is a real change.
+	 * `null` means the saved effort is still loading: the selector shows no
+	 * level and is disabled, since a pick could match a stale display.
 	 */
-	value?: ReasoningEffortSelection
+	value?: ReasoningEffortSelection | null
 	/** Optional callback invoked after the effort value changes. Use to persist to provider-specific stores. */
 	onEffortChange?: (effort: ReasoningEffortSelection) => void
 }
@@ -38,19 +40,23 @@ const ReasoningEffortSelector = ({
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const options: readonly ReasoningEffortSelection[] =
 		value === undefined ? allowedEfforts : [DEFAULT_REASONING_EFFORT_OPTION, ...allowedEfforts]
+	const isLoading = value === null
 	const selectedEffort =
-		value !== undefined
-			? options.includes(value)
-				? value
-				: DEFAULT_REASONING_EFFORT_OPTION
-			: isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
-				? modeFields.reasoningEffort
-				: defaultEffort
+		value === null
+			? ""
+			: value !== undefined
+				? options.includes(value)
+					? value
+					: DEFAULT_REASONING_EFFORT_OPTION
+				: isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
+					? modeFields.reasoningEffort
+					: defaultEffort
 
 	return (
 		<div style={{ marginTop: 10, marginBottom: 5 }}>
 			<Label className="text-xs font-medium">{label}</Label>
 			<Select
+				disabled={isLoading}
 				onValueChange={(next) => {
 					if (isOpenaiReasoningEffort(next)) {
 						handleModeFieldChange(

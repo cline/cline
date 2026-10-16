@@ -144,7 +144,7 @@ describe("buildEffectiveProviderConfig", () => {
 		["an enabled effort", { enabled: true, effort: "high" }, "high"],
 		["a bare effort", { effort: "low" }, "low"],
 		["a legacy thinking budget", { budgetTokens: 4096 }, "medium"],
-		["enabled with no level", { enabled: true }, undefined],
+		["enabled with no level", { enabled: true }, "medium"],
 	])("exposes the reasoning effort the session will request for %s", async (_label, reasoning, expected) => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({

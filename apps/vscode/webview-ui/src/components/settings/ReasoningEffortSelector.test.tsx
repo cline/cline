@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import type { ChangeEvent, ReactNode } from "react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { useState } from "react"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
+import type { ReasoningEffortSelection } from "./utils/reasoningEffort"
 
 const mockExtensionState = vi.hoisted(() => ({
 	state: { apiConfiguration: {} as Record<string, unknown>, planActSeparateModelsSetting: false },
@@ -15,75 +17,82 @@ vi.mock("@/services/grpc-client", () => ({
 	ModelsServiceClient: { updateApiConfigurationProto: vi.fn(async () => undefined) },
 }))
 
-// Render the Radix select as a native one so the shown value and change events
-// are observable in jsdom. Like Radix, a native select reports no change when
-// the already-shown option is picked again.
-vi.mock("@/components/ui/select", () => ({
-	Select: ({
-		children,
-		onValueChange,
-		value,
-	}: {
-		children?: ReactNode
-		onValueChange?: (value: string) => void
-		value?: string
-	}) => (
-		<select
-			aria-label="Reasoning Effort"
-			onChange={(event: ChangeEvent<HTMLSelectElement>) => onValueChange?.(event.target.value)}
-			value={value}>
-			{children}
-		</select>
-	),
-	SelectTrigger: () => null,
-	SelectValue: () => null,
-	SelectContent: ({ children }: { children?: ReactNode }) => <>{children}</>,
-	SelectItem: ({ children, value }: { children?: ReactNode; value: string }) => <option value={value}>{children}</option>,
-}))
-
-function shownEffort(): string {
-	return (screen.getByLabelText("Reasoning Effort") as HTMLSelectElement).value
-}
-
-function pick(effort: string) {
-	fireEvent.change(screen.getByLabelText("Reasoning Effort"), { target: { value: effort } })
-}
+// These tests drive the real Radix select: its controlled value reports a
+// change only when the pick differs from the value shown, which is the
+// behavior that left "None" unsavable. jsdom lacks the pointer-capture and
+// scroll APIs Radix calls while opening the list.
+beforeAll(() => {
+	Element.prototype.hasPointerCapture ??= () => false
+	Element.prototype.releasePointerCapture ??= () => {}
+	Element.prototype.scrollIntoView ??= () => {}
+})
 
 beforeEach(() => {
 	mockExtensionState.state = { apiConfiguration: {}, planActSeparateModelsSetting: false }
 })
 
+function shownEffort(): string {
+	return screen.getByRole("combobox").textContent ?? ""
+}
+
+async function pick(user: ReturnType<typeof userEvent.setup>, label: string) {
+	await user.click(screen.getByRole("combobox"))
+	await user.click(await screen.findByRole("option", { name: label }))
+}
+
+/** A provider settings component in miniature: the saved value round-trips through onEffortChange. */
+function SavedEffortHarness({
+	initial,
+	onSave,
+}: {
+	initial: ReasoningEffortSelection
+	onSave: (effort: ReasoningEffortSelection) => void
+}) {
+	const [saved, setSaved] = useState<ReasoningEffortSelection>(initial)
+	return (
+		<ReasoningEffortSelector
+			currentMode="act"
+			defaultEffort="none"
+			onEffortChange={(effort) => {
+				onSave(effort)
+				setSaved(effort)
+			}}
+			value={saved}
+		/>
+	)
+}
+
 describe("ReasoningEffortSelector with a provider-saved value", () => {
-	it("shows Default when nothing is saved, so picking None saves it", () => {
-		const onEffortChange = vi.fn()
-		render(<ReasoningEffortSelector currentMode="act" defaultEffort="none" onEffortChange={onEffortChange} value="default" />)
+	it("saves None picked from Default, then clears back to Default", async () => {
+		const user = userEvent.setup()
+		const onSave = vi.fn()
+		render(<SavedEffortHarness initial="default" onSave={onSave} />)
 
-		expect(shownEffort()).toBe("default")
-		pick("none")
+		expect(shownEffort()).toBe("Default")
+		await pick(user, "None")
+		expect(onSave).toHaveBeenLastCalledWith("none")
+		expect(shownEffort()).toBe("None")
 
-		expect(onEffortChange).toHaveBeenCalledWith("none")
+		await pick(user, "Default")
+		expect(onSave).toHaveBeenLastCalledWith("default")
+		expect(shownEffort()).toBe("Default")
+	})
+
+	it("reports nothing when the shown level is picked again", async () => {
+		const user = userEvent.setup()
+		const onSave = vi.fn()
+		render(<SavedEffortHarness initial="none" onSave={onSave} />)
+
+		await pick(user, "None")
+
+		expect(onSave).not.toHaveBeenCalled()
 	})
 
 	it("shows the provider's saved effort rather than the shared per-mode field", () => {
 		mockExtensionState.state.apiConfiguration = { actModeReasoningEffort: "none" }
 		render(<ReasoningEffortSelector currentMode="act" onEffortChange={vi.fn()} value="default" />)
 
-		expect(shownEffort()).toBe("default")
-	})
-
-	it("shows a saved level", () => {
-		render(<ReasoningEffortSelector currentMode="act" onEffortChange={vi.fn()} value="high" />)
-
-		expect(shownEffort()).toBe("high")
-	})
-
-	it("reports Default when the user picks it to clear a saved level", () => {
-		const onEffortChange = vi.fn()
-		render(<ReasoningEffortSelector currentMode="act" onEffortChange={onEffortChange} value="high" />)
-
-		pick("default")
-
-		expect(onEffortChange).toHaveBeenCalledWith("default")
+		expect(shownEffort()).toBe("Default")
 	})
 
 	it("falls back to Default for a saved level outside the allowed list", () => {
@@ -96,16 +105,26 @@ describe("ReasoningEffortSelector with a provider-saved value", () => {
 			/>,
 		)
 
-		expect(shownEffort()).toBe("default")
+		expect(shownEffort()).toBe("Default")
+	})
+
+	it("is disabled and shows no level while the saved value loads", () => {
+		render(<ReasoningEffortSelector currentMode="act" onEffortChange={vi.fn()} value={null} />)
+
+		expect(screen.getByRole("combobox")).toBeDisabled()
+		expect(shownEffort()).toBe("")
 	})
 })
 
 describe("ReasoningEffortSelector without a provider-saved value", () => {
-	it("keeps showing the shared per-mode field and offers no Default entry", () => {
+	it("keeps showing the shared per-mode field and offers no Default entry", async () => {
+		const user = userEvent.setup()
 		mockExtensionState.state.apiConfiguration = { actModeReasoningEffort: "low" }
 		render(<ReasoningEffortSelector currentMode="act" />)
 
-		expect(shownEffort()).toBe("low")
+		expect(shownEffort()).toBe("Low")
+		await user.click(screen.getByRole("combobox"))
+		expect(await screen.findByRole("option", { name: "Low" })).toBeInTheDocument()
 		expect(screen.queryByRole("option", { name: "Default" })).not.toBeInTheDocument()
 	})
 })
