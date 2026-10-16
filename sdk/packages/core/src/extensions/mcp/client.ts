@@ -7,6 +7,7 @@ import {
 	isMcpTimeoutConfigured,
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
 	createMcpOAuthClientInformation,
@@ -77,6 +78,28 @@ const STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * A streamable HTTP server answers a POST that carries a session id it no
+ * longer knows with HTTP 404 (`Session not found`). That happens whenever the
+ * server process is replaced under a live client (restart, deploy/rollout) or
+ * its session TTL sweeps — the socket stays healthy, so the transport reports
+ * nothing, and the session id is simply dead. Nothing in the stack
+ * re-initializes on it (the SDK only reconnects SSE *streams*), so the client
+ * would keep posting the dead id until a human restarts it. The MCP spec puts
+ * this recovery on the client: recognize the error and re-handshake.
+ */
+const MCP_SESSION_LOST_MESSAGE =
+	/session (?:not found|expired|terminated)|(?:invalid|unknown|missing) session/i;
+
+export function isMcpSessionLostError(error: unknown): boolean {
+	if (MCP_SESSION_LOST_MESSAGE.test(toErrorMessage(error))) {
+		return true;
+	}
+	// A server may 404 a stale session with an empty body; the typed transport
+	// 404 is the fallback signal, and it is bounded: the caller replays once.
+	return error instanceof StreamableHTTPError && error.code === 404;
 }
 
 async function settlesWithin(
@@ -812,8 +835,7 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
-		const client = await this.ensureConnectedClient();
-		try {
+		return await this.withSessionRecovery(async (client) => {
 			const result = await client.listTools(undefined, {
 				timeout: this.requestTimeoutMs,
 			});
@@ -827,9 +849,7 @@ class SdkUrlMcpClient implements McpServerClient {
 						? tool.inputSchema
 						: {},
 			}));
-		} catch (error) {
-			return await this.handleOperationError(error);
-		}
+		});
 	}
 
 	async callTool(request: {
@@ -837,9 +857,8 @@ class SdkUrlMcpClient implements McpServerClient {
 		arguments?: Record<string, unknown>;
 		context?: AgentToolContext;
 	}): Promise<McpToolCallResult> {
-		const client = await this.ensureConnectedClient();
-		try {
-			return await client.callTool(
+		return await this.withSessionRecovery((client) =>
+			client.callTool(
 				{
 					name: request.name,
 					arguments: request.arguments ?? {},
@@ -849,10 +868,8 @@ class SdkUrlMcpClient implements McpServerClient {
 					timeout: this.requestTimeoutMs,
 					signal: request.context?.signal,
 				},
-			);
-		} catch (error) {
-			return await this.handleOperationError(error);
-		}
+			),
+		);
 	}
 
 	private async ensureConnectedClient(): Promise<Client> {
@@ -865,6 +882,35 @@ class SdkUrlMcpClient implements McpServerClient {
 			);
 		}
 		return this.client;
+	}
+
+	/**
+	 * Runs one operation against the live session and, when the server has
+	 * forgotten that session, re-handshakes and replays it once. A session id
+	 * dies with the server process while the socket stays healthy, so the
+	 * failure arrives as a plain application error and nothing upstream would
+	 * ever reconnect: without this the client wedges until a human restarts it.
+	 */
+	private async withSessionRecovery<T>(
+		operation: (client: Client) => Promise<T>,
+	): Promise<T> {
+		const client = await this.ensureConnectedClient();
+		try {
+			return await operation(client);
+		} catch (error) {
+			if (!isMcpSessionLostError(error)) {
+				return await this.handleOperationError(error);
+			}
+			// Drop the dead session before reconnecting: connect() returns early
+			// while this.client is set, so it has to go first.
+			await this.disconnect().catch(() => {});
+			const reconnected = await this.ensureConnectedClient();
+			try {
+				return await operation(reconnected);
+			} catch (retryError) {
+				return await this.handleOperationError(retryError);
+			}
+		}
 	}
 
 	private formatUnauthorizedMessage(authUrl: string | undefined): string {

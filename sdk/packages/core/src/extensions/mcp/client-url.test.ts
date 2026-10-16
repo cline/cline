@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { SseError } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,7 +21,9 @@ const clientState = vi.hoisted(() => ({
 	listToolsOptions: undefined as unknown,
 	callToolOptions: undefined as unknown,
 	callToolError: undefined as unknown,
+	callToolErrorOnce: undefined as unknown,
 	connectError: undefined as unknown,
+	connectCount: 0,
 	closeCount: 0,
 }));
 
@@ -28,6 +31,7 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	Client: class {
 		async connect(_transport: unknown, options: unknown): Promise<void> {
 			clientState.connectOptions = options;
+			clientState.connectCount += 1;
 			if (clientState.connectError) {
 				throw clientState.connectError;
 			}
@@ -50,6 +54,11 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 			clientState.callToolOptions = options;
 			if (clientState.callToolError) {
 				throw clientState.callToolError;
+			}
+			if (clientState.callToolErrorOnce) {
+				const error = clientState.callToolErrorOnce;
+				clientState.callToolErrorOnce = undefined;
+				throw error;
 			}
 			return { content: [] };
 		}
@@ -335,5 +344,66 @@ describe("SDK URL MCP client authorization persistence", () => {
 			authorizationRequired: false,
 			lastError: "SSE error: Non-200 status code (404)",
 		});
+	});
+});
+
+describe("SDK URL MCP client session recovery", () => {
+	beforeEach(() => {
+		clientState.connectError = undefined;
+		clientState.callToolError = undefined;
+		clientState.callToolErrorOnce = undefined;
+		clientState.connectCount = 0;
+		clientState.closeCount = 0;
+	});
+
+	async function createClient() {
+		return createDefaultMcpServerClientFactory()({
+			name: "remote",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.example.test",
+			},
+			timeoutSeconds: 12,
+		});
+	}
+
+	it("re-handshakes and replays a call the server answered with a lost session", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolErrorOnce = new StreamableHTTPError(
+			404,
+			"Error POSTing to endpoint: Not Found: Session not found",
+		);
+
+		await expect(client.callTool({ name: "memory_get" })).resolves.toEqual({
+			content: [],
+		});
+		expect(clientState.connectCount).toBe(2);
+		expect(clientState.closeCount).toBe(1);
+	});
+
+	it("gives up after one replay when the fresh session is lost too", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolError = new StreamableHTTPError(
+			404,
+			"Error POSTing to endpoint: Not Found: Session not found",
+		);
+
+		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
+			/Session not found/,
+		);
+		expect(clientState.connectCount).toBe(2);
+	});
+
+	it("keeps an unrelated call failure as a connection error", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolError = new McpError(ErrorCode.InternalError, "boom");
+
+		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
+			/boom/,
+		);
+		expect(clientState.connectCount).toBe(1);
 	});
 });
