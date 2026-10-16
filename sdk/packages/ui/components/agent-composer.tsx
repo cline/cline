@@ -130,7 +130,8 @@ export const AgentComposerTextarea = forwardRef<
 	const value = typeof props.value === "string" ? props.value : "";
 	let renderedUpTo = 0;
 	// The wrapper is always rendered so toggling the highlight never remounts
-	// (and blurs) the textarea mid-typing.
+	// (and blurs) the textarea mid-typing. Both layers reserve the scrollbar
+	// gutter so text wraps identically once the textarea scrolls.
 	return (
 		<div
 			className={clsx(
@@ -141,7 +142,7 @@ export const AgentComposerTextarea = forwardRef<
 			{highlights && highlights.length > 0 && (
 				<div
 					aria-hidden
-					className="pointer-events-none absolute inset-0 overflow-y-clip whitespace-pre-wrap break-words text-cline-ui-sm leading-5 text-transparent"
+					className="pointer-events-none absolute inset-0 overflow-y-hidden [scrollbar-gutter:stable] whitespace-pre-wrap break-words text-cline-ui-sm leading-5 text-transparent"
 				>
 					<div style={{ transform: `translateY(${-scrollTop}px)` }}>
 						{highlights.map(({ start, end }) => {
@@ -187,7 +188,7 @@ export const AgentComposerTextarea = forwardRef<
 					onScroll?.(event);
 				}}
 				className={clsx(
-					"relative field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none",
+					"relative field-sizing-content flex-1 resize-none overflow-y-auto [scrollbar-gutter:stable] bg-transparent text-cline-ui-sm leading-5 text-cline-ui-foreground placeholder:text-cline-ui-muted-foreground outline-none",
 					className,
 				)}
 			/>
