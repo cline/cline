@@ -51,11 +51,11 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 
 ### Example: Linkrra Synap
 
-[Linkrra Synap](https://linkrra.com) is a GPU-backed inference router with OpenAI-compatible endpoints. Its `synap-v1` model automatically routes each request inside the models Linkrra runs on its own GPUs and picks the cheapest that can do the job (tools/code/reasoning), billed at the price of whichever model actually ran; `synap-v1-pro` extends routing to its external model catalog.
+[Linkrra Synap](https://linkrra.com) is a GPU-backed inference router with OpenAI-compatible endpoints. Its `synap-v1` model routes each request to the cheapest model that can do the job (tools/code/reasoning), billed at the price of whichever model actually ran; `synap-v1-pro` routes across a larger premium catalog.
 
 1.  With the OpenAI Compatible provider selected, set the Base URL to `https://pool.linkrra.com/v1`.
 2.  Paste in your Linkrra API key.
-3.  Set the Model ID: `synap-v1` (or `synap-v1-pro` for the extended catalog).
+3.  Set the Model ID: `synap-v1` (or `synap-v1-pro` for the premium catalog).
 4.  Click Verify to confirm the connection. `GET https://pool.linkrra.com/v1/models` is public and can be used to confirm the endpoint is reachable.
 
 ### Troubleshooting
