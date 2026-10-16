@@ -43,6 +43,17 @@ export type ModelStreamPartClass =
 	/** An upstream error surfaced as a stream part. */
 	| "error";
 
+/**
+ * Custom part kinds that carry metadata rather than model output.
+ * `anthropic.message_start` reports usage at the start of every message, and
+ * `anthropic.fallback` marks a server-side switch to a fallback model. A turn
+ * containing only these is still empty.
+ */
+const STRUCTURAL_CUSTOM_KINDS: ReadonlySet<string> = new Set([
+	"anthropic.message_start",
+	"anthropic.fallback",
+]);
+
 export function classifyModelStreamPart(
 	part: LanguageModelV4StreamPart,
 ): ModelStreamPartClass {
@@ -70,11 +81,15 @@ export function classifyModelStreamPart(
 		case "tool-approval-request":
 		// Opaque reasoning blobs (e.g. encrypted/redacted thinking files).
 		case "reasoning-file":
-		// Provider-specific content in `{provider}.{type}` envelopes.
-		case "custom":
 		// URL citations attached to generated text.
 		case "source":
 			return "unsupported-output";
+		// Provider-specific parts in `{provider}.{type}` envelopes: content,
+		// unless the kind is a known marker.
+		case "custom":
+			return STRUCTURAL_CUSTOM_KINDS.has(part.kind)
+				? "structural"
+				: "unsupported-output";
 		case "text-start":
 		case "text-end":
 		case "reasoning-start":
