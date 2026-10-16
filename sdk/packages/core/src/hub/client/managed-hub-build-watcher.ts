@@ -118,12 +118,12 @@ function isHubStartupLockHeld(discoveryPath: string): boolean {
 async function findMissingHubCapabilities(
 	record: { url: string; authToken?: string },
 	requiredCapabilities: readonly string[],
-): Promise<string[]> {
+): Promise<string[] | undefined> {
 	const status = await probeHubServer(record.url, {
 		authToken: record.authToken,
 	}).catch(() => undefined);
 	if (!status) {
-		return [];
+		return undefined;
 	}
 	return requiredCapabilities.filter(
 		(capability) => !status.capabilities?.includes(capability),
@@ -149,19 +149,38 @@ async function findMissingHubCapabilities(
 export async function checkManagedHubBuildMismatch(
 	options: CheckManagedHubBuildOptions = {},
 ): Promise<ManagedHubBuildMismatchEvent | undefined> {
+	const inspection = await inspectManagedHubBuild(options);
+	return inspection.status === "mismatch" ? inspection.mismatch : undefined;
+}
+
+type ManagedHubBuildInspection =
+	| { status: "mismatch"; mismatch: ManagedHubBuildMismatchEvent }
+	| { status: "match" }
+	| { status: "inconclusive" };
+
+const MATCH: ManagedHubBuildInspection = { status: "match" };
+const INCONCLUSIVE: ManagedHubBuildInspection = { status: "inconclusive" };
+
+/**
+ * `checkManagedHubBuildMismatch`, telling a Hub confirmed to match apart from
+ * one the check could not reach or read.
+ */
+async function inspectManagedHubBuild(
+	options: CheckManagedHubBuildOptions,
+): Promise<ManagedHubBuildInspection> {
 	const owner = resolveDefaultHubOwnerContext();
 	if (isHubStartupLockHeld(owner.discoveryPath)) {
-		return undefined;
+		return INCONCLUSIVE;
 	}
 	const record = await readHubDiscovery(owner.discoveryPath).catch(
 		() => undefined,
 	);
 	if (!record?.url) {
-		return undefined;
+		return INCONCLUSIVE;
 	}
 	const healthy = await probeHubServer(record.url).catch(() => undefined);
 	if (!healthy?.url) {
-		return undefined;
+		return INCONCLUSIVE;
 	}
 	const expectedBuildId = resolveHubBuildId();
 	const self = resolveHubBuildIdentity();
@@ -174,35 +193,41 @@ export async function checkManagedHubBuildMismatch(
 		hubCoreVersion: healthy.coreVersion,
 		expectedBuildId,
 	});
+	const mismatch = (
+		event: ManagedHubBuildMismatchEvent,
+	): ManagedHubBuildInspection => ({ status: "mismatch", mismatch: event });
 	// The build checks accept a Hub of this client's own build or release, but
 	// every build of a release can report the same identity, so that Hub can
 	// predate a capability this client depends on. A newer Hub is never
 	// reported: replacing it would downgrade another install's daemon.
-	const reportMissingCapabilities = async (): Promise<
-		ManagedHubBuildMismatchEvent | undefined
-	> => {
+	const inspectCapabilities = async (): Promise<ManagedHubBuildInspection> => {
 		const requiredCapabilities = options.requiredCapabilities ?? [];
 		if (
 			requiredCapabilities.length === 0 ||
 			compareHubBuilds(self, healthy) < 0
 		) {
-			return undefined;
+			return MATCH;
 		}
 		const missingCapabilities = await findMissingHubCapabilities(
 			record,
 			requiredCapabilities,
 		);
-		if (missingCapabilities.length === 0) {
-			return undefined;
+		if (!missingCapabilities) {
+			return INCONCLUSIVE;
 		}
-		return await withHubSessionActivity(
-			{ ...report("missing_capability"), missingCapabilities },
-			record.authToken,
+		if (missingCapabilities.length === 0) {
+			return MATCH;
+		}
+		return mismatch(
+			await withHubSessionActivity(
+				{ ...report("missing_capability"), missingCapabilities },
+				record.authToken,
+			),
 		);
 	};
 	const compatibility = getManagedHubCompatibility(healthy, expectedBuildId);
 	if (compatibility.compatible) {
-		return await reportMissingCapabilities();
+		return await inspectCapabilities();
 	}
 	// Prompt for mismatches that persist: a newer reusable Hub this client
 	// stays attached to, a Hub whose protocol this client cannot speak, or an
@@ -211,7 +236,7 @@ export async function checkManagedHubBuildMismatch(
 	// would only flash a stale dialog - the caller filters that case by
 	// requiring the mismatch to survive consecutive checks.
 	if (compatibility.reason === "unsupported_protocol") {
-		return report("unsupported_protocol");
+		return mismatch(report("unsupported_protocol"));
 	}
 	// Two independently built artifacts of the same release never share a
 	// build fingerprint: a CLI and a desktop app cut from different commits
@@ -227,7 +252,7 @@ export async function checkManagedHubBuildMismatch(
 		healthy.coreVersion &&
 		self.coreVersion === healthy.coreVersion
 	) {
-		return await reportMissingCapabilities();
+		return await inspectCapabilities();
 	}
 	// Only a Hub this client is strictly newer than gets the "older Hub" copy;
 	// that is the case the retire path defers while sessions are live. A newer
@@ -235,17 +260,23 @@ export async function checkManagedHubBuildMismatch(
 	// this client is what supplies the missing ordering - is a client-update
 	// prompt as before.
 	if (compareHubBuilds(self, healthy) > 0) {
-		return await withHubSessionActivity(
-			report("outdated_hub"),
-			record.authToken,
+		return mismatch(
+			await withHubSessionActivity(report("outdated_hub"), record.authToken),
 		);
 	}
-	return report("build_mismatch");
+	return mismatch(report("build_mismatch"));
 }
 
 export interface WatchManagedHubBuildOptions
 	extends CheckManagedHubBuildOptions {
 	onMismatch: (event: ManagedHubBuildMismatchEvent) => void;
+	/**
+	 * Called when a check confirms the Hub matches this build and serves every
+	 * required capability: on the first confirmation, and on the first after
+	 * each reported mismatch. A check that cannot reach the Hub or read its
+	 * status confirms nothing.
+	 */
+	onResolved?: () => void;
 	intervalMs?: number;
 }
 
@@ -256,6 +287,8 @@ export interface WatchManagedHubBuildOptions
  * `requiredCapabilities`. Fires once per observed Hub build (it will fire
  * again only if the Hub changes to yet another mismatched build after a
  * compatible one was seen, or a different mismatch reason appears).
+ * `onResolved` lets the caller withdraw a mismatch it is still showing once
+ * the Hub is fixed, however it was fixed.
  *
  * Start this only for managed Hub usage. Hosts configured with an explicit
  * Hub endpoint keep protocol-only compatibility and must not show update
@@ -274,21 +307,29 @@ export function watchManagedHubBuildMismatch(
 	const intervalMs = options.intervalMs ?? resolveDefaultWatchIntervalMs();
 	let notifiedKey: string | undefined;
 	let pendingKey: string | undefined;
+	// Starts set because the caller may hold a mismatch from its own check
+	// that this watcher never reported.
+	let callerMayHoldMismatch = true;
 	let checking = false;
 	const timer = setInterval(() => {
 		if (checking) {
 			return;
 		}
 		checking = true;
-		void checkManagedHubBuildMismatch({
+		void inspectManagedHubBuild({
 			requiredCapabilities: options.requiredCapabilities,
 		})
-			.then((mismatch) => {
-				if (!mismatch) {
+			.then((inspection) => {
+				if (inspection.status !== "mismatch") {
 					notifiedKey = undefined;
 					pendingKey = undefined;
+					if (inspection.status === "match" && callerMayHoldMismatch) {
+						callerMayHoldMismatch = false;
+						options.onResolved?.();
+					}
 					return;
 				}
+				const { mismatch } = inspection;
 				const key = `${mismatch.reason}:${mismatch.hubBuildId ?? ""}`;
 				if (key === notifiedKey) {
 					return;
@@ -302,6 +343,7 @@ export function watchManagedHubBuildMismatch(
 				}
 				pendingKey = undefined;
 				notifiedKey = key;
+				callerMayHoldMismatch = true;
 				options.onMismatch(mismatch);
 			})
 			.catch(() => undefined)

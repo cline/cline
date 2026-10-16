@@ -684,12 +684,15 @@ describe("watchManagedHubBuildMismatch", () => {
 		);
 
 		const onMismatch = vi.fn();
+		const onResolved = vi.fn();
 		const stop = watchManagedHubBuildMismatch({
 			onMismatch,
+			onResolved,
 			intervalMs: 1_000,
 		});
 		try {
 			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onResolved).not.toHaveBeenCalled();
 			// Replaced by this build before the next check.
 			probeResult = {
 				protocolVersion: "v1",
@@ -700,6 +703,7 @@ describe("watchManagedHubBuildMismatch", () => {
 			};
 			await vi.advanceTimersByTimeAsync(3_000);
 			expect(onMismatch).not.toHaveBeenCalled();
+			expect(onResolved).toHaveBeenCalledTimes(1);
 		} finally {
 			stop();
 		}
@@ -820,6 +824,132 @@ describe("watchManagedHubBuildMismatch", () => {
 		} finally {
 			stop();
 		}
+	});
+
+	describe("reporting a resolved mismatch", () => {
+		const lackingPluginUi = {
+			...sameBuildHub,
+			capabilities: ["session.create"],
+		};
+		const servingPluginUi = {
+			...sameBuildHub,
+			capabilities: ["session.create", "plugins.ui"],
+		};
+
+		async function watchHub(hub: DiscoveryMockOptions) {
+			vi.useFakeTimers();
+			mockDiscovery(hub);
+			const { watchManagedHubBuildMismatch } = await import(
+				"./managed-hub-build-watcher"
+			);
+			const onMismatch = vi.fn();
+			const onResolved = vi.fn();
+			const stop = watchManagedHubBuildMismatch({
+				onMismatch,
+				onResolved,
+				intervalMs: 1_000,
+				requiredCapabilities: ["plugins.ui"],
+			});
+			return { onMismatch, onResolved, stop };
+		}
+
+		it("reports once that a Hub now serves a missing capability", async () => {
+			const hub: DiscoveryMockOptions = {
+				selfIdentity: sameBuildSelf,
+				record: liveRecord,
+				probe: sameBuildHub,
+				status: lackingPluginUi,
+			};
+			const { onMismatch, onResolved, stop } = await watchHub(hub);
+			try {
+				await vi.advanceTimersByTimeAsync(1_000);
+				expect(onMismatch).toHaveBeenCalledTimes(1);
+				expect(onResolved).not.toHaveBeenCalled();
+
+				hub.status = servingPluginUi;
+				await vi.advanceTimersByTimeAsync(1_000);
+				expect(onResolved).toHaveBeenCalledTimes(1);
+
+				await vi.advanceTimersByTimeAsync(3_000);
+				expect(onResolved).toHaveBeenCalledTimes(1);
+				expect(onMismatch).toHaveBeenCalledTimes(1);
+			} finally {
+				stop();
+			}
+		});
+
+		it("does not report a resolution the check could not confirm", async () => {
+			const hub: DiscoveryMockOptions = {
+				selfIdentity: sameBuildSelf,
+				record: liveRecord,
+				probe: sameBuildHub,
+				status: lackingPluginUi,
+			};
+			const { onMismatch, onResolved, stop } = await watchHub(hub);
+			try {
+				await vi.advanceTimersByTimeAsync(1_000);
+				expect(onMismatch).toHaveBeenCalledTimes(1);
+
+				hub.status = undefined;
+				await vi.advanceTimersByTimeAsync(2_000);
+				hub.status = servingPluginUi;
+				hub.record = undefined;
+				await vi.advanceTimersByTimeAsync(2_000);
+				hub.record = liveRecord;
+				hub.probe = undefined;
+				await vi.advanceTimersByTimeAsync(2_000);
+				expect(onResolved).not.toHaveBeenCalled();
+
+				hub.probe = sameBuildHub;
+				await vi.advanceTimersByTimeAsync(1_000);
+				expect(onResolved).toHaveBeenCalledTimes(1);
+			} finally {
+				stop();
+			}
+		});
+
+		it("reports each resolution after a mismatch returns", async () => {
+			const hub: DiscoveryMockOptions = {
+				selfIdentity: sameBuildSelf,
+				record: liveRecord,
+				probe: sameBuildHub,
+				status: lackingPluginUi,
+			};
+			const { onMismatch, onResolved, stop } = await watchHub(hub);
+			try {
+				await vi.advanceTimersByTimeAsync(1_000);
+				hub.status = servingPluginUi;
+				await vi.advanceTimersByTimeAsync(1_000);
+				hub.status = lackingPluginUi;
+				await vi.advanceTimersByTimeAsync(1_000);
+				expect(onMismatch).toHaveBeenCalledTimes(2);
+				expect(onResolved).toHaveBeenCalledTimes(1);
+
+				hub.status = servingPluginUi;
+				await vi.advanceTimersByTimeAsync(1_000);
+				expect(onResolved).toHaveBeenCalledTimes(2);
+			} finally {
+				stop();
+			}
+		});
+
+		// The caller can record a mismatch from its own one-off check before
+		// the watcher's first tick, so the first confirmed match reports too.
+		it("reports the first confirmed match even without a mismatch of its own", async () => {
+			const { onMismatch, onResolved, stop } = await watchHub({
+				selfIdentity: sameBuildSelf,
+				record: liveRecord,
+				probe: sameBuildHub,
+				status: servingPluginUi,
+			});
+			try {
+				await vi.advanceTimersByTimeAsync(3_000);
+				expect(onResolved).toHaveBeenCalledTimes(1);
+				expect(onMismatch).not.toHaveBeenCalled();
+			} finally {
+				stop();
+			}
+		});
 	});
 
 	it("ignores missing capabilities the watcher was not asked to require", async () => {
