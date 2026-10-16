@@ -93,6 +93,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Resolve live connection settings immediately before agentic compaction. */
+	getProviderConfig?: () => ProviderConfig | undefined;
 	/** Overrides layered over `config.compaction`. */
 	compaction?: Partial<CoreCompactionConfig>;
 }
@@ -292,6 +294,7 @@ export function createContextCompactionPrepareTurn(
 		return undefined;
 	}
 
+	const initialProviderConfig = resolveConnectionProviderConfig(config);
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
@@ -301,6 +304,43 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
+		const liveProviderConfig =
+			options.getProviderConfig?.() ?? resolveConnectionProviderConfig(config);
+		// Connection edits may carry a model selected for the next turn. The
+		// sidecar must keep this turn's model, including its metadata and limits.
+		const matchingModelConfig = [
+			liveProviderConfig,
+			initialProviderConfig,
+		].find(
+			(candidate) =>
+				candidate.providerId === context.model.provider &&
+				candidate.modelId === context.model.id,
+		);
+		const modelInfo =
+			(context.model.settings ? context.model.info : undefined) ??
+			matchingModelConfig?.modelInfo ??
+			matchingModelConfig?.knownModels?.[context.model.id];
+		const modelSettings = context.model.settings ?? matchingModelConfig;
+		const connectionConfig =
+			liveProviderConfig.providerId === context.model.provider
+				? liveProviderConfig
+				: initialProviderConfig;
+		const providerConfig = context.model.settings
+			? ({
+					...connectionConfig,
+					providerId: context.model.provider,
+					modelId: context.model.id,
+					modelInfo,
+					knownModels: {
+						...connectionConfig.knownModels,
+						...(modelInfo ? { [context.model.id]: modelInfo } : {}),
+					},
+					maxInputTokens: modelSettings?.maxInputTokens,
+					maxOutputTokens: modelSettings?.maxOutputTokens,
+					temperature: modelSettings?.temperature,
+					capabilities: modelSettings?.capabilities,
+				} as ProviderConfig)
+			: liveProviderConfig;
 		const effectiveMode: CoreCompactionMode = context.overflowRecovery
 			? "overflow_recovery"
 			: mode;
@@ -464,11 +504,10 @@ export function createContextCompactionPrepareTurn(
 
 		const builtinOptions = {
 			context: compactionContext,
-			// Resolved per turn from the live session config, with the same
-			// precedence as the main request, so the summarizer never sends
-			// credentials the host has since refreshed or replaced.
+			// Resolve live credentials with main-request precedence while preserving
+			// the active turn model when the runtime supplied a settings snapshot.
 			providerConfig: {
-				...resolveConnectionProviderConfig(config),
+				...providerConfig,
 				abortSignal: context.abortSignal,
 			},
 			compaction: userCompaction,
