@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, StrictMode } from "react";
+import { Activity, act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -433,6 +433,84 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("keeps flushing streamed text after the app is hidden and restored", async () => {
+		vi.useFakeTimers();
+		try {
+			const sendResponse = deferred<unknown>();
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (command === "get_process_context") {
+						return {
+							environmentId: "local",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+							taskWorktreeRoot: "/home/host/cline-dir/worktrees",
+						};
+					}
+					if (command === "chat_session_command") {
+						if (request?.action === "start")
+							return { sessionId: request.config?.sessionId };
+						if (request?.action === "send") return await sendResponse.promise;
+						return { ok: true, prompts: [] };
+					}
+					return [];
+				},
+			);
+			const renderIn = (mode: "visible" | "hidden") =>
+				act(async () =>
+					root.render(
+						<Activity mode={mode}>
+							<HookHarness />
+						</Activity>,
+					),
+				);
+			const latestChatHandler = () =>
+				subscribeMock.mock.calls
+					.filter(([eventName]) => eventName === "chat_event")
+					.at(-1)?.[1] as (payload: unknown) => void;
+
+			await renderIn("visible");
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(0);
+			});
+			await act(async () => {
+				void current.sendPrompt("Say hello");
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+			const sessionId = current.sessionId;
+			await act(async () => {
+				latestChatHandler()({
+					sessionId,
+					stream: "chat_text",
+					chunk: "Hel",
+					ts: 1,
+					index: 1,
+				});
+			});
+			// Hiding runs effect cleanups while the pending flush timer is armed.
+			await renderIn("hidden");
+			await renderIn("visible");
+			await act(async () => {
+				latestChatHandler()({
+					sessionId,
+					stream: "chat_text",
+					chunk: "lo",
+					ts: 2,
+					index: 2,
+				});
+				await vi.advanceTimersByTimeAsync(200);
+			});
+			expect(
+				current.messages.filter((message) => message.role === "assistant"),
+			).toEqual([expect.objectContaining({ content: "Hello" })]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
 		const drafts = new Map<string, string>();
 		let draft!: ReturnType<typeof usePromptDraft>;
