@@ -4,6 +4,7 @@
 mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
+mod terminal;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -1550,6 +1551,7 @@ fn main() {
         .manage(desktop_backend)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
+        .manage(terminal::TerminalState::default())
         .setup(move |app| {
             app.manage(AppContext {
                 launch_cwd: launch_cwd.clone(),
@@ -1637,7 +1639,11 @@ fn main() {
             drain_desktop_actions,
             set_tray_status,
             relaunch_app,
-            quit_app
+            quit_app,
+            terminal::terminal_spawn,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_kill
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -1648,6 +1654,7 @@ fn main() {
                 ..
             } => show_main_window(app_handle),
             RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+                app_handle.state::<terminal::TerminalState>().kill_all();
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
