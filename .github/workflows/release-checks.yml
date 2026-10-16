@@ -1,0 +1,39 @@
+name: release-checks
+
+on:
+  pull_request:
+    paths:
+      - .github/release-plan.json
+      - .github/scripts/release/**
+      - .github/workflows/publish-new-version.yml
+      - .github/workflows/release-checks.yml
+      - .github/workflows/sdk-publish.yml
+      - .github/workflows/sdk-test.yml
+      - .github/workflows/cli-publish.yml
+      - .github/workflows/desktop-publish.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/release/**
+      - .github/workflows/release-checks.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+      - name: Test release preparation and validation
+        run: bun test ./.github/scripts/release/plan.test.ts
+      - name: Validate release PR against current base
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'bee/release-')
+        run: |
+          git fetch origin +main:refs/remotes/origin/main
+          RELEASE_SHA=$(git rev-parse HEAD) bun .github/scripts/release/plan.ts validate

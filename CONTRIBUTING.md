@@ -182,6 +182,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
     - Contributors do not need to create changelog-entry files as part of PRs.
     - Maintainers handle release versioning and changelog curation during the release process.
+    - To rehearse coordinated release preparation locally, run `bun run release:dry-run` from the repository root. See [the release guide](.github/RELEASING.md#local-dry-run) for bump options, generated artifacts, and validation scope.
 
 5. **Commit Guidelines**
 
