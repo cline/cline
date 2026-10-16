@@ -126,6 +126,21 @@ vi.mock("@cline/shared", () => ({
 	},
 	resolveClineBuildEnv: () => "production",
 	withResolvedClineBuildEnv: (env: NodeJS.ProcessEnv) => env,
+	getClineClientIdentity: () => ({ name: "cline-cli", version: "0.0.0" }),
+	withHubLauncherIdentity: (
+		env: NodeJS.ProcessEnv,
+		identity?: { client: string; version?: string; transport?: string },
+	) =>
+		env.CLINE_HUB_LAUNCHER_CLIENT || !identity
+			? env
+			: {
+					...env,
+					CLINE_HUB_LAUNCHER_CLIENT: identity.client,
+					...(identity.version
+						? { CLINE_HUB_LAUNCHER_VERSION: identity.version }
+						: {}),
+					CLINE_HUB_LAUNCHER_TRANSPORT: identity.transport ?? "local",
+				},
 }));
 
 vi.mock("../client", () => ({
