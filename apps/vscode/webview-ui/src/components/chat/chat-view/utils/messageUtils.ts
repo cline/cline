@@ -63,7 +63,7 @@ function isDuplicateAskOptionEcho(message: ClineMessage, previousMessage: ClineM
 
 	try {
 		const parsed = JSON.parse(previousMessage.text || "{}") as ClineAskQuestion | ClinePlanModeResponse
-		if (!parsed.options?.includes(responseText)) {
+		if (!Array.isArray(parsed.options) || !parsed.options.includes(responseText)) {
 			return false
 		}
 
