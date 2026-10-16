@@ -434,6 +434,7 @@ message UpdateSettingsRequest {
   optional string compaction_strategy = 44;
   optional bool web_search_enabled = 45;
   optional bool cloud_sessions_enabled = 46;
+  optional bool keep_changes_in_project = 47;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

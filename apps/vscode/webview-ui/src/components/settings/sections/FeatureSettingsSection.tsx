@@ -150,6 +150,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		useAutoCondense,
 		compactionStrategy,
 		webSearchEnabled,
+		keepChangesInProject,
 		subagentsEnabled,
 		worktreesEnabled,
 		backgroundEditEnabled,
@@ -217,6 +218,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								description="Let the model search the web when the selected provider and model support it. Applies to new tasks."
 								label="Web Search"
 								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
+							/>
+							<FeatureRow
+								checked={keepChangesInProject}
+								description="Cline can still read files anywhere on your computer, but commands can only change files in this project. Recommended if you auto-approve commands or use local models."
+								label="Only allow edits in project directory"
+								onChange={(checked) => updateSetting("keepChangesInProject", checked)}
 							/>
 							<FeatureRow
 								checked={cloudSessionsEnabled}

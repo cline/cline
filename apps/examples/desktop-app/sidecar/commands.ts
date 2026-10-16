@@ -67,6 +67,7 @@ import {
 	saveLocalProviderSettings,
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
+	setKeepChangesInProjectGlobally,
 	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
@@ -3208,6 +3209,13 @@ export async function handleCommand(
 			throw new Error("auto_update_enabled must be a boolean");
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
+		return readGlobalSettings();
+	}
+	if (command === "set_keep_changes_in_project") {
+		if (typeof args?.keep_changes_in_project !== "boolean") {
+			throw new Error("keep_changes_in_project must be a boolean");
+		}
+		setKeepChangesInProjectGlobally(args.keep_changes_in_project);
 		return readGlobalSettings();
 	}
 	if (command === "export_diagnostics") {

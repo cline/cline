@@ -15,6 +15,7 @@ import {
 	CommandExitError,
 	createShellExecutor,
 	createShellTool,
+	isKeepChangesInProjectEnabledGlobally,
 	MAX_COMMAND_OUTPUT_CHARS,
 	type ShellExecutor,
 	type StructuredCommandInput,
@@ -559,7 +560,9 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 		// tool call, not the setting's current value (see createVscodeRunCommandsTool).
 		const { profileId, shell } = state.snapshot
 
-		if (executionMode === "backgroundExec") {
+		// Commands typed into a VS Code terminal cannot be sandboxed, so
+		// "Only allow edits in project directory" always runs them in the background.
+		if (executionMode === "backgroundExec" || isKeepChangesInProjectEnabledGlobally()) {
 			// Background path — use SDK's createShellExecutor.
 			// Recreate the executor if the shell has changed
 			if (!bgExecutor || bgExecutorShell !== shell) {

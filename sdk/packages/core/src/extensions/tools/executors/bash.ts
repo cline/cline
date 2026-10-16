@@ -28,12 +28,17 @@ import {
 	type ProcessStartTokenProbeResult,
 	probeProcessStartTokenAsync,
 } from "../../../runtime/process-start-token";
+import { isKeepChangesInProjectEnabledGlobally } from "../../../services/global-settings";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	truncateCommandOutput,
 } from "./output-limits";
+import {
+	PROJECT_SANDBOX_SETTING_LABEL,
+	spawnInProjectSandbox,
+} from "./project-sandbox";
 import type { RunCommandExecutionController } from "./run-command-execution-controller";
 
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
@@ -448,7 +453,13 @@ interface SpawnConfig {
 	cwd: string;
 	env: Record<string, string>;
 	input?: string;
+	sandboxed?: boolean;
 }
+
+const SANDBOX_DENIAL_PATTERN =
+	/read-only file system|operation not permitted|permission denied|access is denied|EROFS|EPERM|EACCES/i;
+
+const SANDBOX_DENIAL_NOTE = `[This command ran with "${PROJECT_SANDBOX_SETTING_LABEL}" turned on, so it can only change files in this project. If it failed because it tried to change files outside the project, tell the user they can turn this off in Settings.]`;
 
 /**
  * Collects stream output with bounded memory: the first half of the budget
@@ -730,16 +741,18 @@ function spawnAndCollect(
 	return new Promise((resolve, reject) => {
 		const isWindows = process.platform === "win32";
 
-		const child = spawn(config.executable, config.args, {
-			cwd: config.cwd,
-			env: { ...process.env, ...config.env },
-			stdio: ["pipe", "pipe", "pipe"],
-			detached: !isWindows,
-			// Prevent a console window from flashing on Windows when the
-			// parent process has no console (or a different console).
-			// No-op on non-Windows platforms.
-			windowsHide: true,
-		});
+		const child = config.sandboxed
+			? spawnInProjectSandbox(config)
+			: spawn(config.executable, config.args, {
+					cwd: config.cwd,
+					env: { ...process.env, ...config.env },
+					stdio: ["pipe", "pipe", "pipe"],
+					detached: !isWindows,
+					// Prevent a console window from flashing on Windows when the
+					// parent process has no console (or a different console).
+					// No-op on non-Windows platforms.
+					windowsHide: true,
+				});
 		const childPid = child.pid;
 
 		const stdout = createRollingCollector(maxOutputChars);
@@ -771,7 +784,10 @@ function spawnAndCollect(
 		};
 
 		const killProcessTree = async (): Promise<void> => {
-			if (!childPid) return;
+			if (!childPid) {
+				child.kill();
+				return;
+			}
 			if (isWindows) {
 				await new Promise<void>((done) => {
 					let finished = false;
@@ -998,7 +1014,11 @@ function spawnAndCollect(
 				const notice = `[${commandCompletionMessage(code, signal)}]`;
 				const result =
 					failureOutput.length > 0 ? `${notice}\n${failureOutput}` : notice;
-				const output = trailingNote ? `${result}\n${trailingNote}` : result;
+				const note =
+					config.sandboxed && SANDBOX_DENIAL_PATTERN.test(failureOutput)
+						? [trailingNote, SANDBOX_DENIAL_NOTE].filter(Boolean).join("\n")
+						: trailingNote;
+				const output = note ? `${result}\n${note}` : result;
 				settle(() =>
 					reject(
 						code === null
@@ -1169,6 +1189,7 @@ export function createShellExecutor(
 				cwd,
 				env,
 				input: invocation.input,
+				sandboxed: isKeepChangesInProjectEnabledGlobally(),
 			},
 			context,
 			timeoutMs,

@@ -89,6 +89,7 @@ export {
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
+	keepChangesInProject?: boolean;
 };
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
@@ -699,6 +700,12 @@ function GeneralSettingsContent({
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const [keepChangesInProject, setKeepChangesInProject] = useState(false);
+	const [keepChangesInProjectSaving, setKeepChangesInProjectSaving] =
+		useState(false);
+	const [keepChangesInProjectError, setKeepChangesInProjectError] = useState<
+		string | null
+	>(null);
 
 	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
@@ -714,6 +721,7 @@ function GeneralSettingsContent({
 			);
 			setTelemetryOptOut(settings.telemetryOptOut);
 			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+			setKeepChangesInProject(settings.keepChangesInProject === true);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setTelemetryError(message);
@@ -768,6 +776,26 @@ function GeneralSettingsContent({
 			setAutoUpdateError(message);
 		} finally {
 			setAutoUpdateSaving(false);
+		}
+	};
+
+	const updateKeepChangesInProject = async (nextValue: boolean) => {
+		const previousValue = keepChangesInProject;
+		setKeepChangesInProject(nextValue);
+		setKeepChangesInProjectSaving(true);
+		setKeepChangesInProjectError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_keep_changes_in_project",
+				{ keep_changes_in_project: nextValue },
+			);
+			setKeepChangesInProject(settings.keepChangesInProject === true);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setKeepChangesInProject(previousValue);
+			setKeepChangesInProjectError(message);
+		} finally {
+			setKeepChangesInProjectSaving(false);
 		}
 	};
 
@@ -979,6 +1007,31 @@ function GeneralSettingsContent({
 						checked={autoUpdateEnabled}
 						disabled={autoUpdateLoading || autoUpdateSaving}
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
+					/>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Only allow edits in project directory
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Cline can still read files anywhere on your computer, but commands
+							can only change files in this project. Recommended if you
+							auto-approve commands or use local models.
+						</p>
+						{keepChangesInProjectError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update this setting: {keepChangesInProjectError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Only allow edits in project directory"
+						checked={keepChangesInProject}
+						disabled={telemetryLoading || keepChangesInProjectSaving}
+						onCheckedChange={(checked) =>
+							void updateKeepChangesInProject(checked)
+						}
 					/>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
