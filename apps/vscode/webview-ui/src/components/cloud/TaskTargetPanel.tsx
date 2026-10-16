@@ -135,7 +135,7 @@ export function TaskTargetPanel() {
 				<span className="text-[11px] font-medium uppercase tracking-wide text-description">Run task</span>
 				<div
 					aria-label="Where to run the task"
-					className="inline-flex rounded-sm border border-input-foreground/20 p-0.5"
+					className="inline-flex gap-0.5 rounded-md border border-input-foreground/20 p-1"
 					role="radiogroup">
 					<TargetButton
 						active={!isCloud}
