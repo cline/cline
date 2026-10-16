@@ -52,6 +52,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		STARTED: "session.started",
 		ENDED: "session.ended",
 		ERROR_RECORDED: "session.error_recorded",
+		PENDING_PROMPTS_DISCARDED: "session.pending_prompts_discarded",
 	},
 	AGENT: {
 		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
@@ -975,6 +976,22 @@ export function captureSessionErrorRecorded(
 	},
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.SESSION.ERROR_RECORDED, details);
+}
+
+/** Queued prompts removed without being sent; counts only, never the text. */
+export function capturePendingPromptsDiscarded(
+	telemetry: ITelemetryService | undefined,
+	details: {
+		sessionId: string;
+		count: number;
+		reason: "queue_abort" | "session_teardown";
+	},
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.SESSION.PENDING_PROMPTS_DISCARDED,
+		details,
+	);
 }
 
 /** Bounded scheduler diagnostics; never include prompts, paths, or raw errors. */
