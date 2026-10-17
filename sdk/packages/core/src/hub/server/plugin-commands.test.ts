@@ -265,6 +265,27 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 		});
 		stop();
 	});
+	it("treats a Hub without plugin command RPCs as having no plugin commands", async () => {
+		const api = createHubPluginCommandsApi({
+			command: async (name) => ({
+				version: "v1",
+				ok: false,
+				error: {
+					code: "unsupported_command",
+					message: `Unsupported hub schedule command: ${name}`,
+				},
+			}),
+			subscribe: () => () => {},
+		});
+		expect(await api.list({ workspacePath: root })).toEqual({
+			workspacePath: root,
+			status: "ready",
+			commands: [],
+		});
+		expect(
+			await api.run({ workspacePath: root, prompt: "/counter" }),
+		).toBeUndefined();
+	});
 	it("shares a workspace sandbox across client requests and preserves arguments", async () => {
 		const first = await command("plugins.commands.list", {
 			workspacePath: root,

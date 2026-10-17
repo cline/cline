@@ -1,9 +1,15 @@
+import type { HubReplyEnvelope } from "@cline/shared";
 import type {
 	PluginCommandCatalog,
 	PluginCommandResult,
 	PluginCommandsApi,
 } from "../../services/plugin-command-api";
 import type { NodeHubClient } from "./index";
+
+/** A Hub that predates plugin command RPCs, kept alive while it has active work. */
+function isUnsupported(reply: HubReplyEnvelope): boolean {
+	return !reply.ok && reply.error?.code === "unsupported_command";
+}
 
 /** Uses the caller's existing connection and subscription lifecycle. */
 export function createHubPluginCommandsApi(
@@ -17,6 +23,8 @@ export function createHubPluginCommandsApi(
 				target.sessionId,
 				{ timeoutMs: null },
 			);
+			if (isUnsupported(reply))
+				return { ...target, status: "ready", commands: [] };
 			if (!reply.ok)
 				throw new Error(
 					reply.error?.message ?? "Plugin command discovery failed",
@@ -30,6 +38,7 @@ export function createHubPluginCommandsApi(
 				input.sessionId,
 				{ timeoutMs: null },
 			);
+			if (isUnsupported(reply)) return undefined;
 			if (!reply.ok)
 				throw new Error(
 					reply.error?.message ?? "Plugin command execution failed",
