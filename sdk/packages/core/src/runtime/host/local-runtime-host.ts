@@ -21,7 +21,10 @@ import {
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
-import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
+import {
+	formatSessionPluginIssue,
+	isPluginCommand,
+} from "../../extensions/plugin/plugin-registry";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -358,7 +361,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 						: ("ready" as const),
 					error: session.pluginCommandError,
 					commands: listPluginCommands(
-						session.agent.getExtensionRegistry().commands,
+						session.agent
+							.getExtensionRegistry()
+							.commands.filter(isPluginCommand),
 					),
 				}));
 			},
@@ -374,7 +379,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 					);
 				return this.withSessionPluginCommands(session, () =>
 					executePluginCommand(
-						session.agent.getExtensionRegistry().commands,
+						session.agent
+							.getExtensionRegistry()
+							.commands.filter(isPluginCommand),
 						input.prompt,
 						{
 							telemetry: session.config.telemetry ?? this.defaultTelemetry,
