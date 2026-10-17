@@ -22,6 +22,7 @@ const clientState = vi.hoisted(() => ({
 	callToolOptions: undefined as unknown,
 	callToolError: undefined as unknown,
 	callToolErrorOnce: undefined as unknown,
+	callToolErrors: [] as Array<{ error: unknown; delayMs?: number }>,
 	connectError: undefined as unknown,
 	connectCount: 0,
 	closeCount: 0,
@@ -29,6 +30,8 @@ const clientState = vi.hoisted(() => ({
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	Client: class {
+		private closed = false;
+
 		async connect(_transport: unknown, options: unknown): Promise<void> {
 			clientState.connectOptions = options;
 			clientState.connectCount += 1;
@@ -38,6 +41,7 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 		}
 
 		async close(): Promise<void> {
+			this.closed = true;
 			clientState.closeCount += 1;
 		}
 
@@ -51,6 +55,9 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 			_resultSchema: unknown,
 			options: unknown,
 		) {
+			if (this.closed) {
+				throw new Error("MCP error -32000: Connection closed");
+			}
 			clientState.callToolOptions = options;
 			if (clientState.callToolError) {
 				throw clientState.callToolError;
@@ -59,6 +66,13 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 				const error = clientState.callToolErrorOnce;
 				clientState.callToolErrorOnce = undefined;
 				throw error;
+			}
+			const scripted = clientState.callToolErrors.shift();
+			if (scripted) {
+				if (scripted.delayMs) {
+					await new Promise((resolve) => setTimeout(resolve, scripted.delayMs));
+				}
+				throw scripted.error;
 			}
 			return { content: [] };
 		}
@@ -352,6 +366,7 @@ describe("SDK URL MCP client session recovery", () => {
 		clientState.connectError = undefined;
 		clientState.callToolError = undefined;
 		clientState.callToolErrorOnce = undefined;
+		clientState.callToolErrors = [];
 		clientState.connectCount = 0;
 		clientState.closeCount = 0;
 	});
@@ -404,6 +419,101 @@ describe("SDK URL MCP client session recovery", () => {
 		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
 			/boom/,
 		);
+		expect(clientState.connectCount).toBe(1);
+	});
+
+	it("recovers concurrent callers through one shared handshake", async () => {
+		const client = await createClient();
+		await client.connect();
+		const lost = () =>
+			new StreamableHTTPError(
+				404,
+				"Error POSTing to endpoint: Not Found: Session not found",
+			);
+		clientState.callToolErrors.push({ error: lost() }, { error: lost() });
+
+		const results = await Promise.allSettled([
+			client.callTool({ name: "first" }),
+			client.callTool({ name: "second" }),
+		]);
+
+		expect(results.map((result) => result.status)).toEqual([
+			"fulfilled",
+			"fulfilled",
+		]);
+		expect(clientState.connectCount).toBe(2);
+		expect(clientState.closeCount).toBe(1);
+	});
+
+	it("does not close a session another caller reconnected", async () => {
+		const client = await createClient();
+		await client.connect();
+		const lost = () =>
+			new StreamableHTTPError(404, "Not Found: Session not found");
+		// The slow caller notices the dead session only after the fast one recovered.
+		clientState.callToolErrors.push(
+			{ error: lost() },
+			{ error: lost(), delayMs: 5 },
+		);
+
+		const results = await Promise.allSettled([
+			client.callTool({ name: "fast" }),
+			client.callTool({ name: "slow" }),
+		]);
+
+		expect(results.map((result) => result.status)).toEqual([
+			"fulfilled",
+			"fulfilled",
+		]);
+		expect(clientState.connectCount).toBe(2);
+		expect(clientState.closeCount).toBe(1);
+	});
+
+	it("recovers a transport 404 that names no session", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolErrors.push({
+			error: makeSseError(404, "Non-200 status code (404)"),
+		});
+
+		await expect(client.callTool({ name: "memory_get" })).resolves.toEqual({
+			content: [],
+		});
+		expect(clientState.connectCount).toBe(2);
+	});
+
+	it("does not replay an application error that mentions a session", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolErrors.push({
+			error: new McpError(ErrorCode.InternalError, "Invalid session"),
+		});
+
+		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
+			/Invalid session/,
+		);
+		expect(clientState.connectCount).toBe(1);
+	});
+
+	it("does not replay a call the caller already cancelled", async () => {
+		const client = await createClient();
+		await client.connect();
+		const controller = new AbortController();
+		controller.abort();
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await expect(
+			client.callTool({
+				name: "memory_get",
+				context: {
+					agentId: "test",
+					iteration: 0,
+					signal: controller.signal,
+				},
+			}),
+		).rejects.toThrow(/Session not found/);
 		expect(clientState.connectCount).toBe(1);
 	});
 });

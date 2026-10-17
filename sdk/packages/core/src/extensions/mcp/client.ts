@@ -7,8 +7,10 @@ import {
 	isMcpTimeoutConfigured,
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SseError } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
@@ -94,12 +96,16 @@ const MCP_SESSION_LOST_MESSAGE =
 	/session (?:not found|expired|terminated)|(?:invalid|unknown|missing) session/i;
 
 export function isMcpSessionLostError(error: unknown): boolean {
-	if (MCP_SESSION_LOST_MESSAGE.test(toErrorMessage(error))) {
-		return true;
+	// Both transports carry the status; a stale session is a transport 404,
+	// not a JSON-RPC error.
+	if (error instanceof StreamableHTTPError || error instanceof SseError) {
+		return error.code === 404;
 	}
-	// A server may 404 a stale session with an empty body; the typed transport
-	// 404 is the fallback signal, and it is bounded: the caller replays once.
-	return error instanceof StreamableHTTPError && error.code === 404;
+	// Never replay an application error: the tool may already have run.
+	if (error instanceof McpError) {
+		return false;
+	}
+	return MCP_SESSION_LOST_MESSAGE.test(toErrorMessage(error));
 }
 
 async function settlesWithin(
@@ -742,6 +748,8 @@ export interface ProbeMcpServerConnectionResult {
 
 class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
+	private connectPromise?: Promise<Client>;
+	private readonly closedClients = new WeakSet<Client>();
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
@@ -764,9 +772,11 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	async connect(): Promise<void> {
-		if (this.client) {
-			return;
-		}
+		await this.ensureConnectedClient();
+	}
+
+	/** Opens one session; callers share it through ensureConnectedClient. */
+	private async openClient(): Promise<Client> {
 		if (this.registration.transport.type === "stdio") {
 			throw new Error(
 				`Unsupported MCP transport for "${this.registration.name}": ${this.registration.transport.type}`,
@@ -808,6 +818,7 @@ class SdkUrlMcpClient implements McpServerClient {
 			});
 			await authContext.clearError();
 			this.client = client;
+			return client;
 		} catch (error) {
 			await client?.close().catch(() => {});
 			const effectiveError = augmentMcpTimeoutError(
@@ -857,31 +868,45 @@ class SdkUrlMcpClient implements McpServerClient {
 		arguments?: Record<string, unknown>;
 		context?: AgentToolContext;
 	}): Promise<McpToolCallResult> {
-		return await this.withSessionRecovery((client) =>
-			client.callTool(
-				{
-					name: request.name,
-					arguments: request.arguments ?? {},
-				},
-				undefined,
-				{
-					timeout: this.requestTimeoutMs,
-					signal: request.context?.signal,
-				},
-			),
+		return await this.withSessionRecovery(
+			(client) =>
+				client.callTool(
+					{
+						name: request.name,
+						arguments: request.arguments ?? {},
+					},
+					undefined,
+					{
+						timeout: this.requestTimeoutMs,
+						signal: request.context?.signal,
+					},
+				),
+			{ signal: request.context?.signal },
 		);
 	}
 
 	private async ensureConnectedClient(): Promise<Client> {
-		if (!this.client) {
-			await this.connect();
+		if (this.client) {
+			return this.client;
 		}
-		if (!this.client) {
-			throw new Error(
-				`MCP server "${this.registration.name}" is not connected.`,
-			);
+		// One handshake at a time: a second caller joins the in-flight session
+		// instead of opening its own and overwriting the first.
+		this.connectPromise ??= this.openClient().finally(() => {
+			this.connectPromise = undefined;
+		});
+		return await this.connectPromise;
+	}
+
+	/** Drops the client that failed; never one a sibling just reconnected. */
+	private async dropFailedClient(failed: Client): Promise<void> {
+		if (this.client === failed) {
+			this.client = undefined;
 		}
-		return this.client;
+		if (this.closedClients.has(failed)) {
+			return;
+		}
+		this.closedClients.add(failed);
+		await failed.close().catch(() => {});
 	}
 
 	/**
@@ -893,6 +918,7 @@ class SdkUrlMcpClient implements McpServerClient {
 	 */
 	private async withSessionRecovery<T>(
 		operation: (client: Client) => Promise<T>,
+		options?: { signal?: AbortSignal },
 	): Promise<T> {
 		const client = await this.ensureConnectedClient();
 		try {
@@ -901,9 +927,11 @@ class SdkUrlMcpClient implements McpServerClient {
 			if (!isMcpSessionLostError(error)) {
 				return await this.handleOperationError(error);
 			}
-			// Drop the dead session before reconnecting: connect() returns early
-			// while this.client is set, so it has to go first.
-			await this.disconnect().catch(() => {});
+			// A cancelled call has nothing to replay.
+			if (options?.signal?.aborted) {
+				return await this.handleOperationError(error);
+			}
+			await this.dropFailedClient(client);
 			const reconnected = await this.ensureConnectedClient();
 			try {
 				return await operation(reconnected);
