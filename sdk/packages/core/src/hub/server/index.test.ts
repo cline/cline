@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
+import { hubHasLiveSessions } from "../daemon";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import {
 	clearHubDiscovery,
@@ -652,6 +653,35 @@ describe("hub server startup", () => {
 			expect(await readHubDiscovery(owner.discoveryPath)).toBeUndefined();
 		});
 		servers.delete(server);
+	});
+
+	it("reports a hub busy when session.list fails on a contended session store", async () => {
+		const owner = createInMemoryHubOwnerContext(
+			"hub-server-test-busy-check-command-failed",
+		);
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			sessionHost: {
+				subscribe: () => () => undefined,
+				dispose: async () => undefined,
+				listSessions: async () => {
+					throw new Error("SQLITE_BUSY: database is locked");
+				},
+			} as never,
+		});
+		servers.add(requireServer(result.server));
+		const discovery = await readHubDiscovery(owner.discoveryPath);
+		if (!discovery) {
+			throw new Error("Expected hub discovery to be written");
+		}
+
+		await expect(
+			hubHasLiveSessions({ url: result.url, authToken: discovery.authToken }),
+		).resolves.toBe(true);
 	});
 
 	it("rejects shutdown request with 401 when no auth token is provided", async () => {
