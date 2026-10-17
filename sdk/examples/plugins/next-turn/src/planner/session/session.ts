@@ -134,8 +134,9 @@ export class NextSession {
 
 	/**
 	 * Stops in-flight serves from pushing, aborts a planner call still
-	 * answering, and detaches every listener. A turn still waiting on the planner gets its rule-based set
-	 * first, so a one-shot run whose sandbox closes at once still offers one.
+	 * answering, and detaches every listener. A turn still waiting on the
+	 * planner gets its rule-based set first, so a one-shot run whose sandbox
+	 * closes at once still offers one.
 	 */
 	dispose(): void {
 		const state = this.core.state;
