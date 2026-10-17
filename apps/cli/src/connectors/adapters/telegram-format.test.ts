@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import type { ConnectorThreadState } from "../thread-bindings";
 import {
+	buildTelegramDocumentCaption,
+	buildTelegramDocumentName,
 	buildTelegramFormattedPayload,
 	buildTelegramFormattedPayloads,
 	parseTelegramThreadId,
@@ -153,9 +155,9 @@ describe("telegram formatted replies", () => {
 		expect(thread.post).not.toHaveBeenCalled();
 	});
 
-	it("sends long formatted replies as multiple Telegram messages", async () => {
-		const { thread } = createThread("telegram:123");
-		const text = `${"a".repeat(4096)}tail`;
+	it("sends a reply too long for one message as a single .md document", async () => {
+		const { thread } = createThread("telegram:-100123:7");
+		const text = `# Pesquisa de filas\n\n${"palavra ".repeat(700)}`;
 		const fetchImpl = vi.fn(async (_url: string | URL, _init?: RequestInit) => {
 			return new Response(JSON.stringify({ ok: true, result: {} }), {
 				status: 200,
@@ -170,12 +172,100 @@ describe("telegram formatted replies", () => {
 			fetchImpl,
 		});
 
-		const bodies = fetchImpl.mock.calls.map(([, init]) =>
-			JSON.parse(String((init as RequestInit | undefined)?.body)),
-		);
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+		const [url, init] = fetchImpl.mock.calls[0] ?? [];
+		expect(url).toBe("https://api.telegram.org/bottoken/sendDocument");
+		const form = (init as RequestInit).body as FormData;
+		expect(form.get("chat_id")).toBe("-100123");
+		expect(form.get("message_thread_id")).toBe("7");
+		const document = form.get("document") as File;
+		expect(document.name).toBe("pesquisa-de-filas.md");
+		expect(await document.text()).toBe(text);
+		const caption = String(form.get("caption"));
+		expect(caption.length).toBeLessThanOrEqual(1024);
+		expect(caption.startsWith("Pesquisa de filas")).toBe(true);
+		expect(caption).toMatch(/palavra… \(resposta completa no arquivo\)$/);
+		expect(form.get("parse_mode")).toBeNull();
+		expect(thread.post).not.toHaveBeenCalled();
+	});
+
+	it("still sends the whole reply as messages when the document is refused", async () => {
+		const { thread } = createThread("telegram:123");
+		const text = `${"a".repeat(4096)}tail`;
+		const logger = createLogger();
+		const fetchImpl = vi.fn(async (url: string | URL, _init?: RequestInit) => {
+			if (String(url).endsWith("/sendDocument")) {
+				return new Response(
+					JSON.stringify({ ok: false, description: "Bad Request: file" }),
+					{ status: 400, statusText: "Bad Request" },
+				);
+			}
+			return new Response(JSON.stringify({ ok: true, result: {} }), {
+				status: 200,
+			});
+		});
+
+		await postTelegramFormattedReply({
+			thread,
+			text,
+			botToken: "token",
+			logger,
+			fetchImpl,
+		});
+
+		const bodies = fetchImpl.mock.calls
+			.filter(([url]) => String(url).endsWith("/sendMessage"))
+			.map(([, init]) => JSON.parse(String((init as RequestInit).body)));
 		expect(bodies.map((body) => body.text).join("")).toBe(text);
 		expect(bodies).toHaveLength(2);
+		expect(logger.core.log).toHaveBeenCalledWith(
+			"Telegram document reply failed; sending as messages",
+			expect.objectContaining({ severity: "warn", transport: "telegram" }),
+		);
 		expect(thread.post).not.toHaveBeenCalled();
+	});
+
+	it("names the document after the first heading, without accents", () => {
+		expect(
+			buildTelegramDocumentName(
+				"Intro\n\n## Análise de Ações & Riscos\n\ncorpo",
+				new Date(2026, 9, 12, 9, 30),
+			),
+		).toBe("analise-de-acoes-riscos.md");
+	});
+
+	it("ignores a # line inside a code block when naming the document", () => {
+		expect(
+			buildTelegramDocumentName(
+				"```bash\n# instala tudo\nbun install\n```\n\n# Guia real\n",
+				new Date(2026, 9, 12, 9, 30),
+			),
+		).toBe("guia-real.md");
+	});
+
+	it("names the document by date when the reply has no heading", () => {
+		expect(
+			buildTelegramDocumentName("só texto", new Date(2026, 9, 12, 9, 5)),
+		).toBe("resposta-2026-10-12-0905.md");
+	});
+
+	it("keeps a long heading to 60 characters without a trailing dash", () => {
+		const name = buildTelegramDocumentName(
+			`# ${"palavra ".repeat(20)}`,
+			new Date(2026, 9, 12, 9, 30),
+		);
+		const slug = name.replace(/\.md$/, "");
+		expect(slug.length).toBeLessThanOrEqual(60);
+		expect(slug.endsWith("-")).toBe(false);
+	});
+
+	it("captions the document with its start as plain text", () => {
+		const caption = buildTelegramDocumentCaption(
+			`**Resumo** com \`código\`\n\n${"palavra ".repeat(300)}`,
+		);
+		expect(caption.startsWith("Resumo com código")).toBe(true);
+		expect(caption.length).toBeLessThanOrEqual(1024);
+		expect(caption.endsWith("… (resposta completa no arquivo)")).toBe(true);
 	});
 
 	it("falls back to raw text when formatted send fails", async () => {

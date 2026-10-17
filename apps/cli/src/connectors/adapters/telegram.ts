@@ -1,4 +1,7 @@
-import { createTelegramAdapter } from "@chat-adapter/telegram";
+import {
+	createTelegramAdapter,
+	type TelegramRawMessage,
+} from "@chat-adapter/telegram";
 import type { ChatStartSessionRequest } from "@cline/core";
 import {
 	createUserInstructionConfigService,
@@ -6,9 +9,10 @@ import {
 } from "@cline/core";
 import type {
 	ConnectTelegramOptions,
+	HubUINotifyAction,
 	TelegramConnectorState,
 } from "@cline/shared";
-import { Chat, ConsoleLogger, type Thread } from "chat";
+import { Chat, ConsoleLogger, type SentMessage, type Thread } from "chat";
 import type { Command } from "commander";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
@@ -19,6 +23,23 @@ import {
 } from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
+import { buildCardAnchorText } from "../card-anchor";
+import { parseNotifiedOptions, resolveCardAnswer } from "../card-answer";
+import {
+	buildClosingButtons,
+	handleClosingTap,
+	parseClosingActionId,
+	readClosingConfirm,
+	runClosingAction,
+} from "../card-closing-actions";
+import {
+	buildAnsweredQuestionText,
+	buildQuestionButtons,
+	buildQuestionCard,
+	type CardButton,
+	formatQuestionBody,
+	parseCardActionId,
+} from "../card-question-message";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
 import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
@@ -27,6 +48,16 @@ import {
 	maybeHandleConnectorApprovalReply,
 } from "../connector-host";
 import { dispatchConnectorHook } from "../hooks";
+import {
+	answerKanbanCard,
+	findRememberedCard,
+	rememberCardMessage,
+} from "../kanban-card-reply";
+import {
+	type MessageAttachmentLike,
+	pruneOldImageDirs,
+	saveMessageImages,
+} from "../message-images";
 import {
 	type PendingConnectorApproval,
 	truncateConnectorText,
@@ -39,6 +70,12 @@ import {
 import { InMemoryStateAdapter } from "../stores/memory-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
+	editTelegramCardMessage,
+	postTelegramCardReply,
+	resolveTelegramTopicId,
+	splitTelegramMessageId,
+} from "../telegram-card-reply";
+import {
 	type ConnectorBindingStore,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
@@ -47,8 +84,11 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadBindingKey,
 	resolveThreadTurnQueueKey,
+	writeBindings,
 } from "../thread-bindings";
+import { collectThreadKeysToResubscribe } from "../thread-resubscription";
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
@@ -56,11 +96,23 @@ import type {
 	ConnectStopResult,
 } from "../types";
 import {
+	resolveNotifyMessageKey,
+	shouldTrackForSuperseding,
+} from "../ui-notify-delivery";
+import { startUiNotifyDelivery } from "../ui-notify-subscription";
+import {
 	getConnectorFirstContactMessage,
 	getConnectorSystemPrompt,
 	getConnectorSystemRules,
 } from "./prompts";
 import { postTelegramFormattedReply } from "./telegram-format";
+import {
+	sendLongMessagesAsDocuments,
+	splitLongCardNotice,
+} from "./telegram-long-messages";
+
+/** Pictures a command never used are removed after this long. */
+const TASK_IMAGES_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const TELEGRAM_SYSTEM_RULES = getConnectorSystemRules("Telegram");
 
@@ -290,7 +342,18 @@ function createTelegramSlashCommandHandler(input: {
 	handleTurn: (
 		thread: Thread<TelegramThreadState>,
 		text: string,
+		incomingMessageId?: string,
+		attachments?: readonly MessageAttachmentLike[],
 	) => Promise<void>;
+	/**
+	 * The adapter's own reading of the raw message. A photo captioned `/task …` arrives here, not
+	 * as an ordinary message, so this is the only place its picture can be picked up.
+	 */
+	parseMessage?: (
+		raw: unknown,
+	) =>
+		| { id: string; attachments?: readonly MessageAttachmentLike[] }
+		| undefined;
 }): (event: TelegramSlashCommandEvent) => Promise<void> {
 	return async (event) => {
 		const raw = asRecord(event.raw);
@@ -312,7 +375,12 @@ function createTelegramSlashCommandHandler(input: {
 			rawMessage: event.raw,
 			errorLabel: "Telegram",
 		});
-		await input.handleTurn(thread, commandText);
+		const parsed = input.parseMessage?.(event.raw);
+		if (!parsed) {
+			await input.handleTurn(thread, commandText);
+			return;
+		}
+		await input.handleTurn(thread, commandText, parsed.id, parsed.attachments);
 	};
 }
 
@@ -737,6 +805,10 @@ class TelegramConnector extends ConnectorBase<
 		context.setPersistenceInstanceId(options.botUsername);
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
+		// Pictures a command saved and has not handed on yet: `/task --brainstorm` keeps them for
+		// the agent. Anything a week old was never used.
+		const taskImagesPath = this.resolveConnectorPath("task-images");
+		void pruneOldImageDirs(taskImagesPath, TASK_IMAGES_MAX_AGE_MS);
 		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
@@ -777,6 +849,8 @@ class TelegramConnector extends ConnectorBase<
 			userName: options.botUsername,
 			logger,
 		});
+		// The adapter cuts anything past 4096 characters; a long message goes out as a file.
+		sendLongMessagesAsDocuments(telegram);
 		const bot = new Chat({
 			userName: options.botUsername,
 			adapters: { telegram },
@@ -785,6 +859,8 @@ class TelegramConnector extends ConnectorBase<
 			fallbackStreamingPlaceholderText: null,
 			streamingUpdateIntervalMs: 500,
 		}).registerSingleton();
+		// Captured here because the notify callback shadows `options` with its own.
+		const botToken = options.botToken;
 		const threadQueues = new Map<string, Promise<void>>();
 		const activeTurns = new Map<string, ActiveConnectorTurn>();
 		const pendingApprovals = new Map<string, PendingConnectorApproval>();
@@ -860,6 +936,334 @@ class TelegramConnector extends ConnectorBase<
 			loggerAdapter,
 		);
 
+		// The hub has broadcast `ui.notify` for a while with only the menubar app listening.
+		// Subscribing here is what makes a background completion -- a `--zen` run, a Kanban
+		// card entering review -- reach the conversation it belongs to. Best-effort: a hub we
+		// cannot reach is a normal condition and must never stop the connector from serving
+		// chat, which is its actual job.
+		// Subscriptions live in the chat library's in-memory state, so this restart forgot every
+		// one of them. In a group that silences ordinary messages entirely -- including a reply
+		// to something this bot posted -- with no log, until a slash command or a mention
+		// happens to subscribe the thread again.
+		for (const threadKey of collectThreadKeysToResubscribe(
+			readBindings<TelegramThreadState>(bindingsPath),
+		)) {
+			try {
+				const serialized =
+					readBindings<TelegramThreadState>(bindingsPath)[threadKey]
+						?.serializedThread;
+				if (!serialized) {
+					continue;
+				}
+				const thread = JSON.parse(
+					serialized,
+					bot.reviver(),
+				) as Thread<TelegramThreadState>;
+				await thread.subscribe();
+			} catch (error) {
+				loggerAdapter.core.log("Telegram thread resubscription failed", {
+					severity: "warn",
+					transport: "telegram",
+					threadKey,
+					error: String(error),
+				});
+			}
+		}
+
+		let notifySubscription:
+			| Awaited<ReturnType<typeof startUiNotifyDelivery>>
+			| undefined;
+		// Lives only as long as the connector: after a restart the first update posts a new
+		// message, which is the honest outcome -- the old one is no longer ours to touch.
+		const notifyMessages = new Map<string, SentMessage>();
+		// Closing taps still running, by message id: a second tap on a slow push is dropped.
+		const closingInFlight = new Set<string>();
+		// Questions awaiting a tap, by the id of the message carrying them. In memory only: a
+		// question that outlives the process keeps its text in the bindings file, and the worst
+		// case is a button that cannot be struck through, not an answer that is lost.
+		const questionMessages = new Map<
+			string,
+			{
+				text: string;
+				edit: (next: string, buttons?: CardButton[]) => Promise<boolean>;
+			}
+		>();
+		/**
+		 * Remembers, on disk, which card each delivered notification belongs to, so a reply *to*
+		 * that message can be carried back into the card's session. Telegram's own affordance is
+		 * the signal; nothing is inferred from timing.
+		 *
+		 * On disk and not in a map because the first version used a map, and a connector restart
+		 * between the question and the answer made the reply unrecognizable -- the answer then
+		 * fell through to an ordinary chat turn, silently.
+		 */
+		const rememberCardFor = (
+			threadKey: string,
+			entry: {
+				messageId: string;
+				taskId: string;
+				projectPath: string;
+				options?: string[];
+				actions?: HubUINotifyAction[];
+				text?: string;
+			},
+		): void => {
+			const bindings = readBindings<TelegramThreadState>(bindingsPath);
+			const binding = bindings[threadKey];
+			if (!binding) {
+				return;
+			}
+			binding.cardMessages = rememberCardMessage(binding.cardMessages, entry);
+			writeBindings(bindingsPath, bindings);
+		};
+		try {
+			notifySubscription = await startUiNotifyDelivery<TelegramThreadState>({
+				address: rpcAddress,
+				authToken: rpcAuthToken,
+				displayName: `telegram notifications (${options.botUsername})`,
+				// Read fresh per event: bindings change while the connector runs.
+				readBindings: () => readBindings<TelegramThreadState>(bindingsPath),
+				deliver: async (threadKey, text, options) => {
+					const bindings = readBindings<TelegramThreadState>(bindingsPath);
+					const serialized = bindings[threadKey]?.serializedThread;
+					if (!serialized) {
+						// The workspace matched but the conversation has no thread to post into.
+						// Worth a line: silence here is indistinguishable from "nothing matched".
+						loggerAdapter.core.log(
+							"Telegram notification has no thread to post to",
+							{
+								severity: "warn",
+								transport: "telegram",
+								threadKey,
+							},
+						);
+						return;
+					}
+					const thread = JSON.parse(
+						serialized,
+						bot.reviver(),
+					) as Thread<TelegramThreadState>;
+					// A task reporting what it is doing sends one of these every few seconds.
+					// Updating the message it already has keeps a working agent from becoming a
+					// flood; a notification that asks for something never supersedes, so it
+					// still arrives on its own.
+					const messageKey = resolveNotifyMessageKey(threadKey, options.itemId);
+					const previous = messageKey
+						? notifyMessages.get(messageKey)
+						: undefined;
+					// A card dragged across the board has something to update and nothing to
+					// announce: someone watching it already has it on screen, and someone who
+					// never asked about that card should not be handed a message because a
+					// board was tidied.
+					if (options.updateOnly && !previous) {
+						return;
+					}
+					// One message per card, edited for its whole life: the dot carries the
+					// column, the line below carries what it is doing. Five unrelated messages
+					// in a row was the thing nobody could read.
+					const anchorText =
+						options.itemId && options.title
+							? buildCardAnchorText({
+									title: options.title,
+									taskId: options.itemId,
+									column: options.column,
+									detail: options.body,
+								})
+							: text;
+					if (options.supersedesPrevious && previous) {
+						try {
+							const edited = await previous.edit({ raw: anchorText });
+							notifyMessages.set(messageKey as string, edited);
+							if (options.itemId && options.workspacePath) {
+								// An edit keeps the message id, but re-registering costs nothing
+								// and survives a transport that does not.
+								rememberCardFor(threadKey, {
+									messageId: edited.id,
+									taskId: options.itemId,
+									projectPath: options.workspacePath,
+									options: parseNotifiedOptions(text),
+								});
+							}
+							loggerAdapter.core.log("Telegram notification updated", {
+								transport: "telegram",
+								threadKey,
+							});
+							return;
+						} catch {
+							// Telegram refuses an edit whose text is unchanged, and refuses one
+							// on a message too old to touch. Falling through to a new message is
+							// better than losing the update.
+							notifyMessages.delete(messageKey as string);
+						}
+					}
+					// With choices, the question goes out as buttons: the answer is then a tap,
+					// not a list to read and a number to type. `fallbackText` keeps the plain
+					// version for anything that cannot render a card.
+					// Choices only for a card that is waiting right now. A completed question
+					// still carries its options in the text, and offering them again sends a tap
+					// nowhere while looking, to the person, like being asked twice.
+					const notifiedOptions = options.awaitingAnswer
+						? parseNotifiedOptions(text)
+						: [];
+					// A finished card is offered what is still missing to close it instead; a card
+					// that is asking gets only its question's choices, never both sets at once.
+					const closingActions =
+						!options.awaitingAnswer && options.itemId
+							? (options.actions ?? [])
+							: [];
+					const buttons: CardButton[] = options.itemId
+						? notifiedOptions.length > 0
+							? buildQuestionButtons(options.itemId, notifiedOptions)
+							: buildClosingButtons(options.itemId, closingActions)
+						: [];
+					// Anything that is not the running commentary names the card it belongs
+					// to, so a conversation running several cards at once can be read. The
+					// reference goes in before the card is built: a rendered card is what the
+					// surface shows, and a line added only to the fallback is never seen.
+					// The options are parsed from the text before it is cleaned: they are what
+					// becomes the buttons, and with buttons on screen the written list is the
+					// same choices twice.
+					const questionText = formatQuestionBody(text, {
+						hasChoices: notifiedOptions.length > 0,
+					});
+					let bodyText = options.supersedesPrevious ? anchorText : questionText;
+					// A long notice -- a card's report, a long question -- would be cut. Its full
+					// text goes first as a file; the notice keeps its opening, and with it the
+					// buttons, the reply to the card and the edits that follow. The running
+					// commentary is edited every few seconds and stays as it is.
+					if (!options.supersedesPrevious) {
+						const notice = splitLongCardNotice(bodyText, new Date());
+						if (notice.document) {
+							try {
+								await thread.post(notice.document);
+								bodyText = notice.text;
+							} catch (error) {
+								loggerAdapter.core.log(
+									"Telegram notice file refused; sending the notice as it is",
+									{
+										severity: "warn",
+										transport: "telegram",
+										threadKey,
+										error: String(error),
+									},
+								);
+							}
+						}
+					}
+					// A real reply, so the message links back to the card's own message. The
+					// library cannot make one -- its Telegram adapter has no `reply` -- and a
+					// tap is routed from the incoming update alone, so a message sent straight
+					// to the Bot API is as answerable as one the library posted.
+					const anchorRef =
+						!options.supersedesPrevious && previous && options.itemId
+							? splitTelegramMessageId(previous.id)
+							: undefined;
+					if (anchorRef && options.itemId) {
+						const taskId = options.itemId;
+						const replied = await postTelegramCardReply({
+							botToken,
+							request: {
+								chatId: anchorRef.chatId,
+								messageThreadId: resolveTelegramTopicId(threadKey),
+								replyToMessageId: anchorRef.messageId,
+								text: bodyText,
+								buttons,
+							},
+						});
+						if (replied) {
+							if (buttons.length > 0) {
+								questionMessages.set(replied.messageId, {
+									text: bodyText,
+									edit: (next, nextButtons) =>
+										editTelegramCardMessage({
+											botToken,
+											messageRef: replied.messageId,
+											text: next,
+											buttons: nextButtons,
+										}),
+								});
+							}
+							if (options.workspacePath) {
+								rememberCardFor(threadKey, {
+									messageId: replied.messageId,
+									taskId,
+									projectPath: options.workspacePath,
+									options: notifiedOptions,
+									actions: closingActions,
+									text: bodyText,
+								});
+							}
+							loggerAdapter.core.log("Telegram notification delivered", {
+								transport: "telegram",
+								threadKey,
+							});
+							return;
+						}
+						// Telegram refused it; fall through and post through the library rather
+						// than drop the message.
+					}
+					const card = buildQuestionCard({ text: bodyText, buttons });
+					// Anything that is not the running commentary hangs off the anchor as a
+					// reply, so the question, its answer and the review notice stay attached to
+					// the card they belong to instead of scrolling away as loose messages.
+					const sent = await (card
+						? thread.post({ card, fallbackText: bodyText })
+						: // Markdown, as the agent wrote it: the adapter renders it for Telegram.
+							thread.post({ markdown: bodyText }));
+					if (messageKey && shouldTrackForSuperseding(options)) {
+						notifyMessages.set(messageKey, sent);
+					}
+					// Kept so the question can be rewritten once it is answered: editing it is
+					// what clears the keyboard, and a live button on an answered question can
+					// be tapped again with nowhere for the tap to go.
+					if (card) {
+						questionMessages.set(sent.id, {
+							text: bodyText,
+							edit: async (next, nextButtons) => {
+								const nextCard =
+									nextButtons && nextButtons.length > 0
+										? buildQuestionCard({ text: next, buttons: nextButtons })
+										: undefined;
+								await sent.edit(
+									nextCard
+										? { card: nextCard, fallbackText: next }
+										: { markdown: next },
+								);
+								return true;
+							},
+						});
+					}
+					if (options.itemId && options.workspacePath) {
+						rememberCardFor(threadKey, {
+							messageId: sent.id,
+							taskId: options.itemId,
+							projectPath: options.workspacePath,
+							options: notifiedOptions,
+							actions: closingActions,
+							text: bodyText,
+						});
+					}
+					loggerAdapter.core.log("Telegram notification delivered", {
+						transport: "telegram",
+						threadKey,
+					});
+				},
+				onError: (error) => {
+					loggerAdapter.core.log("Telegram notification delivery failed", {
+						severity: "warn",
+						transport: "telegram",
+						error: String(error),
+					});
+				},
+			});
+		} catch (error) {
+			loggerAdapter.core.log("Telegram notification subscription unavailable", {
+				severity: "warn",
+				transport: "telegram",
+				error: String(error),
+			});
+		}
+
 		let stopping = false;
 		let resolveStop: (() => void) | undefined;
 		const stopPromise = new Promise<void>((resolve) => {
@@ -882,6 +1286,10 @@ class TelegramConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<TelegramThreadState>,
 			text: string,
+			/** Id of the message that started the turn, so a command can mark it as taken. */
+			incomingMessageId?: string,
+			/** What the message carried besides its text: a photo captioned `/task …`. */
+			attachments?: readonly MessageAttachmentLike[],
 		) => {
 			const queueKey = resolveThreadTurnQueueKey(thread);
 			const enqueueTurn = (work: () => Promise<void>) =>
@@ -900,6 +1308,23 @@ class TelegramConnector extends ConnectorBase<
 						clientId,
 						logger: loggerAdapter,
 						transport: "telegram",
+						react: incomingMessageId
+							? async (emoji) => {
+									await telegram.addReaction(
+										thread.id,
+										incomingMessageId,
+										emoji,
+									);
+								}
+							: undefined,
+						images:
+							attachments && attachments.length > 0
+								? () =>
+										saveMessageImages({
+											attachments,
+											rootDir: taskImagesPath,
+										})
+								: undefined,
 						botUserName: options.botUsername,
 						requestStop,
 						bindingsPath,
@@ -1025,6 +1450,159 @@ class TelegramConnector extends ConnectorBase<
 			await enqueueTurn(runTurn);
 		};
 
+		/**
+		 * A reply to a card's notification is an answer for that card's agent, not a new request
+		 * for this connector. Replying to anything else is an ordinary message.
+		 */
+		const maybeAnswerCard = async (
+			thread: Thread<TelegramThreadState>,
+			message: { text: string; replyTo?: { id: string } },
+		): Promise<boolean> => {
+			const threadKey = resolveThreadBindingKey(thread);
+			const card = findRememberedCard(
+				readBindings<TelegramThreadState>(bindingsPath)[threadKey]
+					?.cardMessages,
+				message.replyTo?.id,
+			);
+			if (!card) {
+				return false;
+			}
+			// The card's prompt may only accept a choice. Saying "passed it on" for an answer
+			// that will be ignored is worse than saying nothing, so an answer that cannot be
+			// placed comes back with the choices instead of travelling.
+			const answer = resolveCardAnswer(message.text, card.options ?? []);
+			if (answer.kind === "ask") {
+				await thread.post({ raw: answer.message });
+				return true;
+			}
+			const result = await answerKanbanCard(card, answer.text);
+			await thread.post({ raw: result.message });
+			loggerAdapter.core.log(
+				result.ok
+					? "Telegram card answer delivered"
+					: "Telegram card answer refused",
+				{
+					...(result.ok ? {} : { severity: "warn" as const }),
+					transport: "telegram",
+					taskId: card.taskId,
+				},
+			);
+			return true;
+		};
+
+		// A tap on one of our buttons is an answer for that card's agent. The button carries
+		// which card and which choice, and the message it belongs to is remembered on disk, so
+		// a restart between question and tap does not lose it.
+		bot.onAction(async (event) => {
+			// Closing a finished card: a tap runs a Kanban command instead of typing an answer
+			// into the card's session.
+			const closing = parseClosingActionId(event.actionId);
+			if (closing) {
+				const thread = event.thread as Thread<TelegramThreadState> | null;
+				if (!thread) {
+					return;
+				}
+				const threadKey = resolveThreadBindingKey(thread);
+				const card = findRememberedCard(
+					readBindings<TelegramThreadState>(bindingsPath)[threadKey]
+						?.cardMessages,
+					event.messageId,
+				);
+				await handleClosingTap({
+					card,
+					tap: closing,
+					messageId: event.messageId,
+					inFlight: closingInFlight,
+					effects: {
+						// Through the Bot API rather than the copy kept in memory, so a tap after a
+						// restart can still rewrite its message.
+						edit: (text, buttons) =>
+							editTelegramCardMessage({
+								botToken,
+								messageRef: event.messageId,
+								text,
+								buttons,
+							}),
+						post: async (text) => {
+							await thread.post({ raw: text });
+						},
+						run: async (action) => {
+							const result = card
+								? await runClosingAction(card, action)
+								: { ok: false, message: "" };
+							loggerAdapter.core.log(
+								result.ok
+									? "Telegram closing action ran"
+									: "Telegram closing action refused",
+								{
+									...(result.ok ? {} : { severity: "warn" as const }),
+									transport: "telegram",
+									taskId: closing.taskId,
+									action,
+								},
+							);
+							return result;
+						},
+						readConfirm: () =>
+							card ? readClosingConfirm(card) : Promise.resolve({ ok: false }),
+					},
+				});
+				return;
+			}
+			const action = parseCardActionId(event.actionId);
+			if (!action) {
+				return;
+			}
+			const thread = event.thread as Thread<TelegramThreadState> | null;
+			if (!thread) {
+				return;
+			}
+			const threadKey = resolveThreadBindingKey(thread);
+			const card = findRememberedCard(
+				readBindings<TelegramThreadState>(bindingsPath)[threadKey]
+					?.cardMessages,
+				event.messageId,
+			);
+			if (!card || card.taskId !== action.taskId) {
+				await thread.post({
+					raw: "I no longer know which card that button belongs to.",
+				});
+				return;
+			}
+			const result = await answerKanbanCard(card, String(action.optionIndex));
+			const chosen = card.options?.[action.optionIndex - 1];
+			if (result.ok && chosen) {
+				// The question stops being a question: struck through with what was picked, and
+				// edited -- which is what removes the keyboard. Reported from use: "I can click
+				// several times because the button stays active and there is no indication it
+				// was answered."
+				const asked = questionMessages.get(event.messageId);
+				if (asked) {
+					try {
+						await asked.edit(buildAnsweredQuestionText(asked.text, chosen));
+						questionMessages.delete(event.messageId);
+					} catch {
+						// An edit can be refused on a message too old to touch. The question
+						// then keeps its buttons; answering again is refused by the card.
+					}
+				}
+				// No separate line for the choice: the question now shows it, and a second
+				// message saying the same thing is the noise this set out to remove.
+			} else {
+				await thread.post({ raw: result.message });
+			}
+			loggerAdapter.core.log(
+				result.ok
+					? "Telegram card button delivered"
+					: "Telegram card button refused",
+				{
+					...(result.ok ? {} : { severity: "warn" as const }),
+					transport: "telegram",
+					taskId: card.taskId,
+				},
+			);
+		});
+
 		bot.onNewMention(async (thread, message) => {
 			await thread.subscribe();
 			await persistTelegramThreadContext({
@@ -1047,7 +1625,10 @@ class TelegramConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			if (await maybeAnswerCard(thread, message)) {
+				return;
+			}
+			await handleTurn(thread, message.text, message.id, message.attachments);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -1071,7 +1652,10 @@ class TelegramConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			if (await maybeAnswerCard(thread, message)) {
+				return;
+			}
+			await handleTurn(thread, message.text, message.id, message.attachments);
 		});
 
 		bot.onSlashCommand(
@@ -1080,6 +1664,14 @@ class TelegramConnector extends ConnectorBase<
 				bindingsPath,
 				baseStartRequest: startRequest,
 				handleTurn,
+				parseMessage: (raw) => {
+					try {
+						return telegram.parseMessage(raw as TelegramRawMessage);
+					} catch {
+						// A payload the adapter cannot read still runs as the command it says.
+						return undefined;
+					}
+				},
 			}),
 		);
 
@@ -1213,6 +1805,7 @@ class TelegramConnector extends ConnectorBase<
 		);
 		await telegram.stopPolling().catch(() => undefined);
 		await bot.shutdown().catch(() => undefined);
+		await notifySubscription?.stop().catch(() => undefined);
 		client.close();
 		this.removeStateFile(statePath);
 		loggerAdapter.core.log("Telegram connector stopped", {

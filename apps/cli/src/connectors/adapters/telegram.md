@@ -55,6 +55,7 @@ The Telegram connector uses the shared connector command parser:
 - `/help` or `/start` - show connector help
 - `/new` or `/clear` - start a fresh session for the current thread
 - `/whereami` - show thread, cwd, tools, and yolo state
+- `/chat <question>` - ask, research or work something out in this topic's session without filing a Kanban card; the agent keeps the conversation's context, so a later `/task` can build on it
 - `/tools [on|off|toggle]` - allow or block repo/file/shell tools
 - `/yolo [on|off|toggle]` - auto-approve tool use
 - `/cwd <path>` - change working directory
@@ -90,7 +91,9 @@ You can also pass a manual `--hook-command` that returns `{"action":"deny"}` for
 
 Telegram final assistant replies are sent directly through Telegram `sendMessage` payloads with message entities. This avoids Telegram markdown parse failures for raw model text. If entity sending fails, the connector falls back to raw text.
 
-Long final assistant replies are split across Telegram messages. Tool/status updates and scheduled delivery messages use the adapter's raw thread posting path.
+A final assistant reply too long for one Telegram message (4096 characters) arrives as a single `.md` file holding the full reply, captioned with its opening lines. The file is named after the reply's first heading, or `resposta-YYYY-MM-DD-HHmm.md` when it has none. If Telegram refuses the file, the reply is split across messages instead.
+
+Every other message the connector posts — command answers such as `/task`, Kanban card notices, scheduled results and task updates — follows the same rule: past 4096 characters it goes out as a `.md` file instead of being cut. A card notice that carries buttons keeps them: its full text goes first as a file, and the notice follows as a short message with its opening, so taps, replies and edits work as before. Messages edited in place (the card's running status line, tool progress) are not turned into files.
 
 Telegram final assistant replies are sent after the runtime turn completes. Google Chat and WhatsApp use the shared connector runtime streaming path for incremental assistant text.
 

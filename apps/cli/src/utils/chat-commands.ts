@@ -1,6 +1,14 @@
-import { stat } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { IncomingImages } from "../connectors/message-images";
+import { buildChatPrompt } from "./chat-prompt";
 import { resolveWorkspaceRoot } from "./helpers";
+import {
+	buildBrainstormPrompt,
+	createKanbanTask,
+	describeAttachedImages,
+	parseTaskCommand,
+} from "./kanban-task";
 
 export type ChatCommandState = {
 	enableTools: boolean;
@@ -31,12 +39,21 @@ export type MuteCommandInput = {
 
 export type ChatCommandContext = {
 	enabled: boolean;
+	/** The surface this command arrived on: "telegram", "slack", and so on. */
+	transport?: string;
 	botUserName?: string;
 	requireBotMention?: boolean;
 	host?: ChatCommandHost;
 	getState: () => Promise<ChatCommandState> | ChatCommandState;
 	setState: (next: ChatCommandState) => Promise<void> | void;
 	reply: (text: string) => Promise<void> | void;
+	/** Mark the message that issued the command, on a surface that has reactions. */
+	react?: (emoji: string) => Promise<void>;
+	/**
+	 * The pictures the message carried, saved to disk. Lazy, so only a command that wants them
+	 * downloads them; undefined when the message had none.
+	 */
+	images?: () => Promise<IncomingImages | undefined>;
 	submitPrompt?: (prompt: string) => Promise<void> | void;
 	reset?: () => Promise<void> | void;
 	abort?: () => Promise<void> | void;
@@ -283,6 +300,8 @@ function formatHelp(state: ChatCommandState): string {
 		"/tools [on|off|toggle] - allow repo/file/shell tools",
 		"/yolo [on|off|toggle] - auto-approve tool use",
 		"/cwd <path> - change working directory",
+		"/task [--start] [--brainstorm] [--tags a,b] [--category x] [--priority p] <what needs doing> - add it to the Kanban backlog",
+		"/chat <question> - ask, research or work something out here, without filing a card",
 		"/schedule create/list/trigger/delete - manage scheduled workflows",
 		"/abort - stop the current task",
 		"/mute [target] - ignore this thread or target until /unmute",
@@ -420,6 +439,139 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 					workspaceRoot,
 				});
 				await context.reply(`cwd=${nextCwd}\nworkspaceRoot=${workspaceRoot}`);
+			},
+		})
+		.register("command", {
+			names: ["/task"],
+			run: async ({ args, state }, context) => {
+				const {
+					start,
+					brainstorm,
+					tags,
+					category,
+					priority,
+					agentId,
+					description,
+				} = parseTaskCommand(args);
+				if (!description) {
+					await context.reply(
+						[
+							"Usage: /task [--start] [--brainstorm] <what needs doing>",
+							"Adds it to the Kanban backlog for this workspace.",
+							"  --start       run it as soon as the card exists",
+							"  --brainstorm  work the demand out with me first, then file it",
+							"  --tags a,b    tags for finding it later",
+							"  --category x  one category, e.g. bug | feature | infra",
+							"  --priority p  high | medium | low",
+							"  --agent a     which agent runs it, e.g. claude | cline",
+						].join("\n"),
+					);
+					return;
+				}
+				// The conversation's repository, never its cwd when that is a worktree: a card
+				// belongs to the project, and its ready-for-review notification routes back by
+				// this same path.
+				const projectPath = state.workspaceRoot || state.cwd;
+				// The picture the demand came with, when it came with one: saved to disk only now
+				// that a command wants it.
+				const images = await context.images?.();
+				if (brainstorm) {
+					if (!context.submitPrompt) {
+						await context.reply(
+							"I cannot brainstorm here -- this surface has no agent to hand the demand to. Use /task without --brainstorm to file it as written.",
+						);
+						return;
+					}
+					await context.submitPrompt(
+						buildBrainstormPrompt({
+							description,
+							projectPath,
+							start,
+							tags,
+							category,
+							priority,
+							agentId,
+							// Kept on disk: the agent has not filed the card yet.
+							images: images?.paths,
+						}),
+					);
+					return;
+				}
+				// Reactions rather than another message: the conversation already carries the
+				// card's own anchor, and "I have this" does not deserve a line of its own.
+				// Telegram only keeps one reaction per message from a bot, so these read as a
+				// single mark changing: seen, working, filed.
+				await context.react?.("👀");
+				await context.react?.("✍");
+				let result: Awaited<ReturnType<typeof createKanbanTask>>;
+				try {
+					result = await createKanbanTask({
+						description,
+						projectPath,
+						start,
+						tags,
+						category,
+						priority,
+						agentId,
+						// Where it came from, so the board can show it. An avatar on a board one
+						// person works says nothing; the origin does.
+						source: context.transport,
+						images: images?.paths,
+					});
+				} finally {
+					// The card holds the bytes once it exists, and a refused one has no use for them.
+					if (images) {
+						await rm(images.dir, { recursive: true, force: true }).catch(
+							() => undefined,
+						);
+					}
+				}
+				if (!result.ok) {
+					await context.reply(result.message);
+					return;
+				}
+				await context.react?.("👍");
+				const note = describeAttachedImages(images);
+				const message = note
+					? result.message.replace(/\)$/, `${note})`)
+					: result.message;
+				// A started card announces itself: its own message appears and then keeps
+				// itself current. A card parked in the backlog has nothing coming, so the id
+				// still has to be said here or it is lost -- and so does a picture that never
+				// made it, started or not.
+				if (!start || (images?.failed ?? 0) > 0 || (images?.refused ?? 0) > 0) {
+					await context.reply(message);
+				}
+			},
+		})
+		.register("command", {
+			names: ["/chat"],
+			run: async ({ trimmed, state }, context) => {
+				// From the message itself, not `args`: those are split on whitespace, and a
+				// question written over several lines would reach the agent as one.
+				const question = trimmed.replace(/^\S+\s*/, "").trim();
+				if (!question) {
+					await context.reply(
+						"Usage: /chat <pergunta> - conversa aberta, sem criar card",
+					);
+					return;
+				}
+				// Before the pictures: nothing should be saved for an agent that is not there.
+				if (!context.submitPrompt) {
+					await context.reply(
+						"I cannot chat here -- this surface has no agent to hand the question to.",
+					);
+					return;
+				}
+				const images = await context.images?.();
+				await context.submitPrompt(
+					buildChatPrompt({
+						question,
+						projectPath: state.workspaceRoot || state.cwd,
+						images: images?.paths,
+						missingImages: (images?.failed ?? 0) + (images?.refused ?? 0),
+					}),
+				);
 			},
 		})
 		.register("command", {

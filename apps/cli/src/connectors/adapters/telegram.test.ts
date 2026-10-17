@@ -661,6 +661,59 @@ describe("telegram slash command delivery", () => {
 		expect(getState().participantKey).toBe("telegram:id:999");
 	});
 
+	// The defect: a screenshot captioned "/task …" is a slash command to the adapter (the
+	// caption's leading bot_command entity), and this handler forwarded only its text -- so the
+	// picture never reached /task, which was the whole point of attaching it.
+	it("forwards a captioned photo's attachments and message id with the command", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-telegram-slash-"));
+		tempDataDirs.push(dir);
+		const { thread } = createSlashTestThread({
+			id: "telegram:-100200",
+			channelId: "telegram:-100200",
+			isDM: false,
+		});
+		const handleTurn = vi.fn(async () => undefined);
+		const photo = {
+			type: "image",
+			mimeType: "image/jpeg",
+			fetchData: async () => Buffer.from([1]),
+		};
+		const raw = {
+			message_id: 9,
+			chat: { id: -100200, type: "supergroup" },
+			from: { id: 999, username: "alice" },
+			caption: "/task desativar a mensagem",
+			caption_entities: [{ type: "bot_command", offset: 0, length: 5 }],
+			photo: [{ file_id: "f1", file_unique_id: "u1", width: 10, height: 10 }],
+		};
+		const parseMessage = vi.fn(() => ({
+			id: "-100200:9",
+			attachments: [photo],
+		}));
+		const handler = __test__.createTelegramSlashCommandHandler({
+			bot: { thread: () => thread } as never,
+			bindingsPath: join(dir, "threads.json"),
+			baseStartRequest: slashTestStartRequest() as never,
+			handleTurn: handleTurn as never,
+			parseMessage,
+		});
+
+		await handler({
+			channel: { id: "telegram:-100200" },
+			command: "/task",
+			text: "desativar a mensagem",
+			raw,
+		});
+
+		expect(parseMessage).toHaveBeenCalledWith(raw);
+		expect(handleTurn).toHaveBeenCalledWith(
+			thread,
+			"/task desativar a mensagem",
+			"-100200:9",
+			[photo],
+		);
+	});
+
 	it("preserves group-chat bot addressing in the forwarded command text", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "cline-telegram-slash-"));
 		tempDataDirs.push(dir);

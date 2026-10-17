@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createChatCommandHost } from "../utils/chat-commands";
 import { enqueueThreadTurn } from "./chat-runtime";
 import { handleConnectorUserTurn } from "./connector-host";
 
@@ -222,6 +223,96 @@ describe("handleConnectorUserTurn", () => {
 		expect(messageText(posts.at(-1))).toContain(
 			"participantKey=slack:user:alice",
 		);
+	});
+
+	it("answers an unaddressed command in a group when an authorization hook gates access", async () => {
+		// Telegram's "address me explicitly in groups" etiquette keeps several bots in one room
+		// from all answering the same /start. A connector with an authorization hook already
+		// decides who may talk to it, so the etiquette only cost: an unaddressed /cwd in a
+		// topic vanished with no reply at all, while plain text in that same thread was
+		// answered normally. Eleven commands were lost that way before anyone noticed.
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread(
+			{
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "telegram:946217355",
+				participantLabel: "filipe",
+			},
+			false,
+		);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			client: {} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "fsrezende_cline_bot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			hookCommand: "true",
+			text: "/whereami",
+		});
+
+		expect(messageText(posts.at(-1))).toContain(
+			"participantKey=telegram:946217355",
+		);
+	});
+
+	it("still ignores an unaddressed command in a group with no gate on access", async () => {
+		// Without a hook the connector cannot tell who is entitled to it, so a bare /start in a
+		// shared room is not ours to answer.
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread(
+			{
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "telegram:946217355",
+				participantLabel: "filipe",
+			},
+			false,
+		);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			client: {} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "fsrezende_cline_bot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			text: "/whereami",
+		});
+
+		expect(posts).toEqual([]);
 	});
 
 	it("sends a first-contact message only once per persisted thread state", async () => {
@@ -2061,5 +2152,107 @@ describe("handleConnectorUserTurn", () => {
 		);
 		expect(getState().sessionId).toBe("session-1");
 		expect(posts.at(-1)).toEqual({ raw: "fresh reply" });
+	});
+
+	describe("a command that submits a prompt", () => {
+		it("runs the turn with the command's prompt instead of stopping at the reply", async () => {
+			// `/task --brainstorm` needs the agent to interview the person before filing a card.
+			// The capability was declared in the context type and never provided by connectors, so
+			// such a command had nowhere to send its prompt and the turn simply ended.
+			const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+			tempDirs.push(dir);
+			const bindingsPath = join(dir, "threads.json");
+			const { thread, posts } = createThread({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				welcomeSentAt: new Date().toISOString(),
+			});
+			const runtime = createRuntimeClient("interviewing you now");
+			const chatCommandHost = createChatCommandHost().register("command", {
+				names: ["/probe"],
+				run: async (_parsed, context) => {
+					await context.submitPrompt?.("INTERVIEW THE PERSON");
+				},
+			});
+
+			await handleConnectorUserTurn({
+				thread: thread as never,
+				text: "/probe",
+				client: runtime.client as never,
+				pendingApprovals: new Map(),
+				baseStartRequest: baseStartRequest() as never,
+				explicitSystemPrompt: undefined,
+				clientId: "client-1",
+				logger: {
+					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+				} as never,
+				transport: "slack",
+				botUserName: "ClineAdapterBot",
+				requestStop: vi.fn(),
+				bindingsPath,
+				systemRules: "rules",
+				errorLabel: "Slack",
+				getSessionMetadata: () => ({}),
+				reusedLogMessage: "reused",
+				startedLogMessage: "started",
+				chatCommandHost,
+			});
+
+			const sent = runtime.sendRuntimeSession.mock.calls[0]?.[1] as
+				| { prompt?: unknown }
+				| undefined;
+			expect(sent?.prompt).toBe("INTERVIEW THE PERSON");
+			// The point is that the agent gets the command's prompt and not the line the
+			// person typed, which on its own means nothing to a model.
+			expect(sent?.prompt).not.toBe("/probe");
+			expect(messageText(posts.at(-1))).toBe("interviewing you now");
+		});
+
+		it("still stops at the reply for a command that submits nothing", async () => {
+			const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+			tempDirs.push(dir);
+			const bindingsPath = join(dir, "threads.json");
+			const { thread } = createThread({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				welcomeSentAt: new Date().toISOString(),
+			});
+			const runtime = createRuntimeClient("should not run");
+			const chatCommandHost = createChatCommandHost().register("command", {
+				names: ["/probe"],
+				run: async (_parsed, context) => {
+					await context.reply("just answering");
+				},
+			});
+
+			await handleConnectorUserTurn({
+				thread: thread as never,
+				text: "/probe",
+				client: runtime.client as never,
+				pendingApprovals: new Map(),
+				baseStartRequest: baseStartRequest() as never,
+				explicitSystemPrompt: undefined,
+				clientId: "client-1",
+				logger: {
+					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+				} as never,
+				transport: "slack",
+				botUserName: "ClineAdapterBot",
+				requestStop: vi.fn(),
+				bindingsPath,
+				systemRules: "rules",
+				errorLabel: "Slack",
+				getSessionMetadata: () => ({}),
+				reusedLogMessage: "reused",
+				startedLogMessage: "started",
+				chatCommandHost,
+			});
+
+			expect(runtime.startRuntimeSession).not.toHaveBeenCalled();
+		});
 	});
 });

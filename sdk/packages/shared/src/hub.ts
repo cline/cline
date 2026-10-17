@@ -1094,12 +1094,67 @@ export type HubTransportFrame =
 	| { kind: "stream.unsubscribe"; clientId: string; sessionId?: string }
 	| { kind: "event"; envelope: HubEventEnvelope };
 
+/**
+ * Where a notification came from, so a subscriber can route it instead of guessing.
+ *
+ * Without this, every consumer of `ui.notify` has the same problem: it knows a thing
+ * happened but not where, so it can only broadcast to everything or deliver to whatever
+ * conversation was most recently active. Both are wrong once more than one workspace is in
+ * play, and both fail silently -- the notification goes somewhere, just not where it belongs.
+ *
+ * Optional on purpose: existing publishers keep working unchanged, and a subscriber that does
+ * not care can ignore it.
+ */
+export interface HubUINotifySource {
+	/** Absolute path of the workspace the notification is about, when it is about one. */
+	workspacePath?: string;
+	/** Opaque id of the thing inside that workspace (a task, a card, a run). */
+	itemId?: string;
+}
+
+/**
+ * Something the person can do about the item from where they read the notification. The
+ * subscriber renders it however its surface allows (Telegram: a button) and routes the choice
+ * back to the publisher's own tooling. `confirm`, when present, is asked before acting.
+ */
+export interface HubUINotifyAction {
+	id: "integrate" | "push" | "done";
+	label: string;
+	confirm?: string;
+}
+
 export interface HubUINotifyPayload {
 	title: string;
 	body: string;
 	severity?: "info" | "warning" | "error";
 	sessionId?: string;
 	clientId?: string;
+	/** Origin of the notification, for subscribers that route by workspace. */
+	source?: HubUINotifySource;
+	/**
+	 * Whether this notification supersedes the previous one about the same `source.itemId`
+	 * instead of adding to it. A long-running task that reports what it is doing produces a
+	 * stream of these, and a subscriber that shows each one separately turns a working agent
+	 * into a flood; one that updates a single notification turns it into a status line.
+	 *
+	 * Subscribers that cannot update an already-delivered notification may ignore this and
+	 * show every one, or show none but the ones without it. A notification that asks the
+	 * person for something must not set it: that one has to arrive on its own.
+	 */
+	supersedesPrevious?: boolean;
+	/**
+	 * Whether the thing this is about is waiting on the person right now, as opposed to
+	 * reporting something it already did. A subscriber that can offer choices should offer them
+	 * only for this: a second set of buttons for a question already answered sends the answer
+	 * nowhere, and looks to the person like being asked twice.
+	 */
+	awaitingAnswer?: boolean;
+	/** Column the item sits in, for a subscriber that keeps one message per item current. */
+	column?: string;
+	/** Update what is already shown, or do nothing. Never start a new conversation. */
+	updateOnly?: boolean;
+	/** What can be done about the item, offered only when it is not waiting on an answer. */
+	actions?: HubUINotifyAction[];
 }
 
 export interface HubUIShowWindowPayload {
