@@ -4,7 +4,6 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
-	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -287,14 +286,7 @@ describe("marketplace installer", () => {
 		const skillDir = join(homeDir, ".agents", "skills", "cline-sdk");
 		mkdirSync(skillDir, { recursive: true });
 		writeFileSync(join(skillDir, "SKILL.md"), "---\nname: cline-sdk\n---\n");
-		const spawnCommand = vi.fn(async () => {
-			rmSync(skillDir, { recursive: true, force: true });
-			return {
-				exitCode: 0,
-				stdout: "removed",
-				stderr: "",
-			};
-		});
+		const spawnCommand = vi.fn();
 
 		await expect(
 			uninstallMarketplaceEntry(
@@ -312,14 +304,8 @@ describe("marketplace installer", () => {
 			status: "uninstalled",
 			message: "Uninstalled Cline SDK.",
 		});
-		expect(spawnCommand).toHaveBeenCalledWith("npx", [
-			"-y",
-			"skills@latest",
-			"remove",
-			"cline-sdk",
-			"-g",
-			"-y",
-		]);
+		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(existsSync(skillDir)).toBe(false);
 	});
 
 	it("does not report project-local skills as marketplace-installed globals", () => {

@@ -1,6 +1,5 @@
-import { spawn } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
-import { homedir, platform } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import { updateMcpSettingsFileSync } from "../extensions/mcp";
@@ -40,20 +39,10 @@ export type MarketplaceSpawnCommand = (
 export type UninstallMarketplaceEntryOptions = {
 	deleteMcpServer?: (name: string) => void | Promise<void>;
 	mcpSettingsPath?: string;
+	/** @deprecated Ignored: marketplace skills are removed in-process. */
 	spawnCommand?: MarketplaceSpawnCommand;
 	workspaceRoot?: string;
 };
-
-const MARKETPLACE_COMMAND_TIMEOUT_MS = 120_000;
-const MAX_OUTPUT_CHARS = 12_000;
-const SECRET_PATTERN =
-	/(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)/i;
-const SECRET_KEY_VALUE_PATTERN =
-	/((?:^|[^\w])(?:[a-z0-9_]*?(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|credential)[a-z0-9_]*)\s*[:=]\s*)(.+)$/gi;
-const SECRET_BEARER_VALUE_PATTERN =
-	/((?:^|[^\w])authorization\s*[:=]\s*)bearer\s+([^\s,"'}\]]+)/gi;
-const SECRET_AUTHORIZATION_VALUE_PATTERN =
-	/((?:^|[^\w])authorization\s*[:=])(?!\s*bearer\b)\s*(.+)$/gi;
 
 function getMarketplaceEntryArgs(entry: MarketplaceEntryInput): string[] {
 	return entry.install?.args ?? [];
@@ -83,101 +72,6 @@ function sanitizeSkillSegment(value: string): string {
 	).slice(0, 255);
 	return sanitized || "skill";
 }
-
-function redactOutput(value: string): string {
-	return value
-		.split(/\r?\n/)
-		.map((line) => {
-			if (!SECRET_PATTERN.test(line)) return line;
-			return line
-				.replace(SECRET_KEY_VALUE_PATTERN, "$1[redacted]")
-				.replace(SECRET_BEARER_VALUE_PATTERN, "$1Bearer [redacted]")
-				.replace(
-					/\b(Bearer)\s+(?!\[redacted\])([^\s,"'}\]]+)/gi,
-					"$1 [redacted]",
-				)
-				.replace(SECRET_AUTHORIZATION_VALUE_PATTERN, "$1 [redacted]")
-				.replace(
-					/((?:^|[^\w])(?:api\s+key|access\s+token|refresh\s+token|auth(?:orization)?\s+token|secret|password|credential)\s+(?:is\s+)?)(\S+)/gi,
-					"$1[redacted]",
-				);
-		})
-		.join("\n")
-		.slice(-MAX_OUTPUT_CHARS);
-}
-
-function commandOutput(result: MarketplaceSpawnResult): string | undefined {
-	const output = redactOutput(
-		[result.stdout, result.stderr].filter(Boolean).join("\n"),
-	).trim();
-	return output.length > 0 ? output : undefined;
-}
-
-function quoteCommandPart(value: string): string {
-	if (value === "") return '""';
-	if (/^[a-zA-Z0-9_./:=@%+,-]+$/.test(value)) return value;
-	return JSON.stringify(value);
-}
-
-function formatCommand(command: string, args: string[]): string {
-	return [command, ...args]
-		.map((part) => quoteCommandPart(redactOutput(part).trim()))
-		.join(" ");
-}
-
-const defaultMarketplaceSpawnCommand: MarketplaceSpawnCommand = async (
-	command,
-	args,
-) =>
-	new Promise<MarketplaceSpawnResult>((resolve, reject) => {
-		let settled = false;
-		let timedOut = false;
-		const child = spawn(command, args, {
-			env: process.env,
-			shell: platform() === "win32",
-			stdio: ["ignore", "pipe", "pipe"],
-			windowsHide: true,
-		});
-		let stdout = "";
-		let stderr = "";
-		const forceKillTimeout = setTimeout(() => {
-			if (!settled) child.kill("SIGKILL");
-		}, MARKETPLACE_COMMAND_TIMEOUT_MS + 5_000);
-		const timeout = setTimeout(() => {
-			timedOut = true;
-			stderr += `\nTimed out after ${MARKETPLACE_COMMAND_TIMEOUT_MS / 1000}s.`;
-			child.kill("SIGTERM");
-		}, MARKETPLACE_COMMAND_TIMEOUT_MS);
-		forceKillTimeout.unref?.();
-		timeout.unref?.();
-		child.stdout?.on("data", (chunk) => {
-			stdout += String(chunk);
-			if (stdout.length > MAX_OUTPUT_CHARS * 2) {
-				stdout = stdout.slice(-MAX_OUTPUT_CHARS);
-			}
-		});
-		child.stderr?.on("data", (chunk) => {
-			stderr += String(chunk);
-			if (stderr.length > MAX_OUTPUT_CHARS * 2) {
-				stderr = stderr.slice(-MAX_OUTPUT_CHARS);
-			}
-		});
-		child.once("error", (error) => {
-			clearTimeout(timeout);
-			clearTimeout(forceKillTimeout);
-			reject(error);
-		});
-		child.once("close", (code, signal) => {
-			settled = true;
-			clearTimeout(timeout);
-			clearTimeout(forceKillTimeout);
-			resolve({
-				exitCode: timedOut ? 124 : (code ?? (signal === "SIGINT" ? 130 : 1)),
-				stdout,
-				stderr,
-			});
-		});
-	});
 
 export function marketplaceEntryKey(
 	entry: Pick<MarketplaceEntryInput, "id" | "type">,
@@ -284,12 +178,33 @@ function removeRemainingMarketplaceSkillPaths(
 	return removedPaths;
 }
 
+// Skills installed by the skills CLI (the marketplace's previous installer)
+// have an entry in its lock file; drop it so that CLI doesn't keep offering
+// updates for a skill that is gone.
+function removeSkillsCliLockEntries(names: string[]): void {
+	const stateHome = process.env.XDG_STATE_HOME?.trim();
+	const lockPath = stateHome
+		? join(stateHome, "skills", ".skill-lock.json")
+		: join(resolveHomeDir(), ".agents", ".skill-lock.json");
+	try {
+		if (!existsSync(lockPath)) return;
+		const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+		const skills = lock?.skills;
+		if (!skills || typeof skills !== "object") return;
+		const present = names.filter((name) => name in skills);
+		if (present.length === 0) return;
+		for (const name of present) delete skills[name];
+		writeFileSync(lockPath, JSON.stringify(lock, null, 2), "utf8");
+	} catch {
+		// The lock file belongs to another tool; a stale entry is harmless.
+	}
+}
+
 export async function uninstallMarketplaceSkill(
 	entry: MarketplaceEntryInput,
-	options: Pick<UninstallMarketplaceEntryOptions, "spawnCommand"> = {},
+	_options: Pick<UninstallMarketplaceEntryOptions, "spawnCommand"> = {},
 ): Promise<MarketplaceActionResult> {
-	const installedName = findInstalledGlobalMarketplaceSkillName(entry);
-	if (!installedName) {
+	if (!isMarketplaceSkillInstalled(entry)) {
 		return {
 			id: entry.id,
 			type: "skill",
@@ -297,36 +212,8 @@ export async function uninstallMarketplaceSkill(
 			message: `${entry.name ?? entry.id} is not installed.`,
 		};
 	}
-	const command = "npx";
-	const commandArgs = [
-		"-y",
-		"skills@latest",
-		"remove",
-		installedName,
-		"-g",
-		"-y",
-	];
-	const displayCommand = formatCommand(command, commandArgs);
-	const spawnCommand = options.spawnCommand ?? defaultMarketplaceSpawnCommand;
-	let result: MarketplaceSpawnResult;
-	try {
-		result = await spawnCommand(command, commandArgs);
-	} catch (error) {
-		throw new Error(
-			`Failed to start ${entry.name ?? entry.id} uninstall command:\n${displayCommand}\n${
-				error instanceof Error ? error.message : String(error)
-			}`,
-		);
-	}
-	const output = commandOutput(result);
-	if (result.exitCode !== 0) {
-		throw new Error(
-			`${entry.name ?? entry.id} uninstall failed with exit code ${result.exitCode}.\nCommand:\n${displayCommand}${
-				output ? `\n\n${output}` : ""
-			}`,
-		);
-	}
 	const removedPaths = removeRemainingMarketplaceSkillPaths(entry);
+	removeSkillsCliLockEntries(getMarketplaceSkillCandidates(entry));
 	if (isMarketplaceSkillInstalled(entry)) {
 		throw new Error(
 			`Skill uninstall completed, but ${entry.name ?? entry.id} is still present in Cline's global skills directories.`,
@@ -338,9 +225,7 @@ export async function uninstallMarketplaceSkill(
 		status: "uninstalled",
 		message: `Uninstalled ${entry.name ?? entry.id}.`,
 		output:
-			[output, ...removedPaths.map((path) => `Removed: ${path}`)]
-				.filter(Boolean)
-				.join("\n") || undefined,
+			removedPaths.map((path) => `Removed: ${path}`).join("\n") || undefined,
 	};
 }
 
