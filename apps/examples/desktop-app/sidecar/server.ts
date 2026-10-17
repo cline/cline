@@ -11,6 +11,7 @@ import {
 } from "./context";
 import { abandonComposioConnectsForOwner } from "./composio";
 import { fetchMarketplaceCatalog } from "./marketplace";
+import { readSessionBlobFile } from "./session-data/blobs";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import {
@@ -229,6 +230,38 @@ export function createFetchHandler(
 				}),
 				{ headers: jsonHeaders(req) },
 			);
+		}
+
+		// Session history image blobs are referenced, not inlined, so the UI
+		// fetches each one on demand. Only trusted origins may read them.
+		if (url.pathname.startsWith("/blob/") && req.method === "GET") {
+			if (!isTrustedRequestOrigin(req)) {
+				return new Response(null, { status: 403 });
+			}
+			const [, sessionId = "", filename = ""] = url.pathname
+				.slice("/blob/".length)
+				.split("/");
+			// Malformed percent-encoding must degrade to 404, not a 500.
+			let blob: ReturnType<typeof readSessionBlobFile>;
+			try {
+				blob = readSessionBlobFile(
+					decodeURIComponent(sessionId),
+					decodeURIComponent(filename),
+				);
+			} catch {
+				blob = undefined;
+			}
+			if (!blob) {
+				return createJsonResponse(req, { ok: false }, 404);
+			}
+			return new Response(new Uint8Array(blob.bytes), {
+				headers: {
+					"content-type": blob.mediaType,
+					// Content-addressed files never change during a session.
+					"cache-control": "public, max-age=31536000, immutable",
+					...corsHeaders(req),
+				},
+			});
 		}
 
 		if (

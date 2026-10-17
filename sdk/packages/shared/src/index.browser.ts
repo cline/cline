@@ -172,6 +172,7 @@ export type {
 	ContentBlock,
 	FileContent,
 	ImageContent,
+	ImageRefContent,
 	MediaContent,
 	Message,
 	MessageRole,
