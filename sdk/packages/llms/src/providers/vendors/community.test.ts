@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createSapAiCoreProviderModule } from "./community";
+import {
+	createOpenCodeProviderModule,
+	createSapAiCoreProviderModule,
+} from "./community";
 
 const originalServiceKey = process.env.AICORE_SERVICE_KEY;
 
@@ -269,3 +272,30 @@ describe("createSapAiCoreProviderModule", () => {
 		).rejects.toThrow(/baseUrl/);
 	});
 });
+
+describe("createOpenCodeProviderModule", () => {
+	it("normalizes bare model ID with opencode prefix", async () => {
+		const provider = await createOpenCodeProviderModule({
+			providerId: "opencode",
+			options: {},
+		});
+
+		const model = provider.operations.language("longcat-2.5-preview-free") as {
+			modelId?: string;
+		};
+		expect(model.modelId).toBe("opencode/longcat-2.5-preview-free");
+	});
+
+	it("preserves model ID when already provider-prefixed", async () => {
+		const provider = await createOpenCodeProviderModule({
+			providerId: "opencode",
+			options: {},
+		});
+
+		const model = provider.operations.language("anthropic/claude-3-5-sonnet") as {
+			modelId?: string;
+		};
+		expect(model.modelId).toBe("anthropic/claude-3-5-sonnet");
+	});
+});
+
