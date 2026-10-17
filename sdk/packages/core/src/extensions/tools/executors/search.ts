@@ -242,6 +242,7 @@ function searchWithRipgrep(
 			if (code === 0 || code === 1) {
 				try {
 					const matches: SearchMatch[] = [];
+					const fileLines = new Map<string, Map<number, string>>();
 					// Drop the trailing partial event left behind by the stdout cap.
 					const lines = stdout
 						.slice(0, stdout.lastIndexOf("\n") + 1)
@@ -249,30 +250,45 @@ function searchWithRipgrep(
 						.filter((line) => line.trim());
 
 					for (const line of lines) {
-						if (matches.length >= maxResults) break;
-
 						const json = JSON.parse(line);
-						if (json.type === "match") {
-							const matchData = json.data;
-							const contextLines: string[] = [];
+						if (json.type !== "match" && json.type !== "context") continue;
 
-							if (json.data.submatches && json.data.submatches.length > 0) {
-								const submatch = json.data.submatches[0];
+						const data = json.data;
+						const file = data.path.text;
+						let context = fileLines.get(file);
+						if (!context) {
+							context = new Map<number, string>();
+							fileLines.set(file, context);
+						}
+						context.set(
+							data.line_number,
+							(data.lines?.text ?? data.line?.text ?? "")
+								.replace(/\r?\n$/, "")
+								.slice(0, MAX_LINE_CHARS),
+						);
+
+						if (json.type === "match" && matches.length < maxResults) {
+							const submatch = data.submatches?.[0];
+							if (submatch) {
 								matches.push({
-									file: matchData.path.text,
-									line: matchData.line_number,
-									column: (submatch?.start ?? 0) + 1,
-									match: submatch?.match?.text ?? "",
-									context: contextLines,
+									file,
+									line: data.line_number,
+									column: (submatch.start ?? 0) + 1,
+									match: submatch.match?.text ?? "",
+									context: [],
 								});
 							}
-						} else if (json.type === "context" && matches.length > 0) {
-							const lastMatch = matches[matches.length - 1];
-							const prefix =
-								json.data.line_number === lastMatch.line ? ">" : " ";
-							lastMatch.context.push(
-								`${prefix} ${json.data.line_number}: ${json.data.lines?.text ?? json.data.line?.text ?? ""}`,
-							);
+						}
+					}
+
+					// Leading context precedes match events. Collect all emitted lines,
+					// even at the result limit, then select each match's own file/range.
+					for (const match of matches) {
+						for (const [lineNumber, text] of fileLines.get(match.file) ?? []) {
+							if (Math.abs(lineNumber - match.line) <= contextLines) {
+								const prefix = lineNumber === match.line ? ">" : " ";
+								match.context.push(`${prefix} ${lineNumber}: ${text}`);
+							}
 						}
 					}
 
