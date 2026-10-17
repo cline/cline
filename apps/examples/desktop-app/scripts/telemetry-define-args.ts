@@ -20,14 +20,20 @@ const OPTIONAL_FEATURE_ENV_VARS = ["CLINE_CODE_CLOUD_AGENTS"] as const;
 
 /**
  * Every env var `getTelemetryBuildTimeConfig` reads
- * (sdk/packages/shared/src/services/telemetry-config.ts). Always inlined,
+ * (sdk/packages/shared/src/services/telemetry-config.ts), plus the trace
+ * policy vars the Langfuse relay reads literally
+ * (sdk/packages/llms/src/services/langfuse-telemetry.ts). Always inlined,
  * defaulting to "", so a packaged binary never falls back to runtime env.
+ * Mirrors BUILD_TIME_INLINED_ENV_VARS in apps/cli/script/compile-binary.ts,
+ * which bakes the same set into the bundled Cline CLI (the Hub daemon).
  */
 const OTEL_ENV_VARS = [
 	"OTEL_TELEMETRY_ENABLED",
 	"OTEL_METRICS_EXPORTER",
 	"OTEL_LOGS_EXPORTER",
 	"OTEL_TRACES_EXPORTER",
+	"CLINE_TRACE_SAMPLE_PERCENT",
+	"CLINE_TRACE_RECORD_CONTENT",
 	"OTEL_EXPORTER_OTLP_PROTOCOL",
 	"OTEL_EXPORTER_OTLP_ENDPOINT",
 	"OTEL_EXPORTER_OTLP_HEADERS",

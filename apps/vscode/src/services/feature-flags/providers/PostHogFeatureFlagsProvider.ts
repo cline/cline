@@ -42,13 +42,17 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		return getDistinctId()
 	}
 
-	async getAllFlagsAndPayloads(options: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
+	async getAllFlagsAndPayloads(options: {
+		distinctId?: string
+		flagKeys?: string[]
+	}): Promise<FeatureFlagsAndPayloads | undefined> {
 		if (!this.isEnabled()) {
 			return undefined
 		}
 
 		try {
-			return await this.client.getAllFlagsAndPayloads(this.distinctId, options)
+			const { distinctId = this.distinctId, ...flagOptions } = options
+			return await this.client.getAllFlagsAndPayloads(distinctId, flagOptions)
 		} catch (error) {
 			Logger.error(`Error getting feature flags`, error)
 			return {}

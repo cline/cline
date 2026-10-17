@@ -199,7 +199,7 @@ describe("OpenCode Go HTTP integration", () => {
 		["kimi-k2.6", "chat/completions", chatResponse],
 		["muse-spark-1.3-contributor", "responses", responsesResponse],
 		["muse-spark-1.2-contributor", "responses", responsesResponse],
-		["minimax-m2.7", "messages", messagesResponse],
+		["minimax-m3", "messages", messagesResponse],
 		["qwen3.7-plus", "messages", messagesResponse],
 	])("routes %s with conversation headers, tools, and stream decoding", async (modelId, endpoint, response) => {
 		const fetchMock = vi.fn(

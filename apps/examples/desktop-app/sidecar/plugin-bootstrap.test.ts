@@ -28,7 +28,7 @@ function withLayout(
 it("finds the bootstrap in the macOS app bundle resources", () => {
 	withLayout(
 		(root) => join(root, "Cline.app", "Contents", "Resources"),
-		(root) => join(root, "Cline.app", "Contents", "MacOS", "code-sidecar"),
+		(root) => join(root, "Cline.app", "Contents", "MacOS", "cline-cli"),
 		(bootstrap, execPath) => {
 			expect(resolveDesktopPluginBootstrap({ execPath, cwd: tmpdir() })).toBe(
 				bootstrap,
@@ -40,7 +40,7 @@ it("finds the bootstrap in the macOS app bundle resources", () => {
 it("finds the bootstrap in the Linux and Windows resource layouts", () => {
 	withLayout(
 		(root) => join(root, "usr", "lib", "Cline"),
-		(root) => join(root, "usr", "bin", "code-sidecar"),
+		(root) => join(root, "usr", "bin", "cline-cli"),
 		(bootstrap, execPath) => {
 			expect(resolveDesktopPluginBootstrap({ execPath, cwd: tmpdir() })).toBe(
 				bootstrap,
@@ -49,7 +49,7 @@ it("finds the bootstrap in the Linux and Windows resource layouts", () => {
 	);
 	withLayout(
 		(root) => root,
-		(root) => join(root, "code-sidecar.exe"),
+		(root) => join(root, "cline-cli.exe"),
 		(bootstrap, execPath) => {
 			expect(resolveDesktopPluginBootstrap({ execPath, cwd: tmpdir() })).toBe(
 				bootstrap,

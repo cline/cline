@@ -5,6 +5,7 @@ import ChatTextArea from "./ChatTextArea"
 const mocks = vi.hoisted(() => ({
 	supportsImages: true as boolean | undefined,
 	navigateToSettingsModelPicker: vi.fn(),
+	cloudState: {} as Record<string, unknown>,
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		remoteConfigSettings: undefined,
 		navigateToSettingsModelPicker: mocks.navigateToSettingsModelPicker,
 		mcpServers: [],
+		...mocks.cloudState,
 	}),
 }))
 
@@ -83,10 +85,38 @@ function pasteImage(target: HTMLElement) {
 	})
 }
 
+describe("ChatTextArea model label", () => {
+	beforeEach(() => {
+		mocks.cloudState = {}
+	})
+
+	it("shows the local provider and model for a local task", () => {
+		renderTextArea()
+		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("anthropic:text-only-model")
+	})
+
+	it.each([
+		["a new task targets Cloud", { cloudSessionsEnabled: true, cloudTaskTarget: { target: "cloud" } }],
+		["a cloud task is shown", { currentCloudTask: { sessionId: "ses-1", status: "running" } }],
+	])("shows the cloud model when %s", (_case, cloudState) => {
+		mocks.cloudState = { ...cloudState, cloudModelId: "anthropic/claude-sonnet-4.5" }
+		renderTextArea()
+		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("cline:anthropic/claude-sonnet-4.5")
+	})
+})
+
 describe("ChatTextArea image attachments vs. model capability", () => {
 	beforeEach(() => {
 		mocks.supportsImages = true
+		mocks.cloudState = {}
 		mocks.navigateToSettingsModelPicker.mockReset()
+	})
+
+	it("renders before optional cloud state has hydrated", () => {
+		renderTextArea()
+
+		expect(screen.getByPlaceholderText("Type a message")).toBeInTheDocument()
+		expect(screen.getByTestId("mode-switch")).toHaveAttribute("aria-disabled", "false")
 	})
 
 	it("still takes the image attach path on paste for a text-only model, without a refusal message", () => {

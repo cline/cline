@@ -778,7 +778,13 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "opencode-go",
 		docsUrl: "https://opencode.ai/docs/go/",
-		defaults: { headers: { "User-Agent": "Cline/SDK" } },
+		defaults: {
+			// models.dev lists the OpenAI-only path (/inference/go/openai/v1),
+			// which 404s on /messages. Routing appends per-model protocol
+			// endpoints, so pin the shared root that serves all of them.
+			baseUrl: "https://opencode.ai/inference/go/v1",
+			headers: { "User-Agent": "Cline/SDK" },
+		},
 		metadata: {
 			routing: { modelApiProtocol: true },
 			stickySession: {

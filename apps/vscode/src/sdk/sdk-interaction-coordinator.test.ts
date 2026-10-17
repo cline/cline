@@ -1,5 +1,6 @@
 import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
+import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator, type ToolApprovalRequest } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -12,6 +13,10 @@ vi.mock("./webview-grpc-bridge", () => ({
 
 vi.mock("@core/storage/disk", () => ({
 	saveClineMessages: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock("@/integrations/misc/extract-text", () => ({
+	processFilesIntoText: vi.fn(async (files: string[]) => `Files attached by the user:\n\n${files.join("\n")}`),
 }))
 
 describe("SdkInteractionCoordinator", () => {
@@ -356,6 +361,59 @@ describe("SdkInteractionCoordinator", () => {
 			{ type: "ask", ask: "followup" },
 			{ type: "say", say: "user_feedback", text: "yes" },
 		])
+	})
+
+	it.each([
+		{ prompt: "Use this design", expectedText: [{ type: "text", text: "Use this design" }] },
+		{ prompt: undefined, expectedText: [] },
+	])("resolves ask_question with attached images and files: $prompt", async ({ prompt, expectedText }) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		const images = ["data:image/jpeg;base64,abc"]
+		const files = ["/workspace/spec.md"]
+
+		const answerPromise = coordinator.handleAskQuestion("Which layout?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingAskQuestion(prompt, images, files)).toBe(true)
+		await expect(answerPromise).resolves.toEqual([
+			...expectedText,
+			{ type: "image", mediaType: "image/jpeg", data: "abc" },
+			{ type: "text", text: "Files attached by the user:\n\n/workspace/spec.md" },
+		])
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+			{ type: "ask", ask: "followup" },
+			{ type: "say", say: "user_feedback", text: prompt ?? "", images, files },
+		])
+	})
+
+	it("settles an answered ask_question on cancel while its attachments are still loading", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		let finishLoading!: (text: string) => void
+		vi.mocked(processFilesIntoText).mockImplementationOnce(
+			() =>
+				new Promise<string>((resolve) => {
+					finishLoading = resolve
+				}),
+		)
+
+		const answerPromise = coordinator.handleAskQuestion("Which spec?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		expect(coordinator.resolvePendingAskQuestion("Use this spec", undefined, ["/workspace/huge.pdf"])).toBe(true)
+
+		coordinator.clearPending("Cancelled")
+		await expect(answerPromise).resolves.toBe("")
+		finishLoading("Files attached by the user:\n\n/workspace/huge.pdf")
+		await expect(answerPromise).resolves.toBe("")
 	})
 
 	it("shows an error row and stops immediately when the mistake limit is reached", async () => {

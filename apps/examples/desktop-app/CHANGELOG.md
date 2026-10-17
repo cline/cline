@@ -1,5 +1,19 @@
 # Cline Desktop Changelog
 
+## 0.0.48
+
+- GPT-6 models (such as `gpt-6-sol` and `gpt-6.1-sol`) work on OpenAI and Azure OpenAI-compatible endpoints. Before, every request was rejected because Cline sent `max_tokens` instead of `max_completion_tokens`
+- The Cline provider's default model is Claude Sonnet 5.5 again, which is back at the top of Cline's recommended list
+- Refreshed the model catalog. Adds the CommandCode and Reflection providers. Default models change for 302.AI (Gemini 4 Argon), Eden AI and Prime Inference (Muse Spark Open), CoreWeave (Reflection Beam 1.0), NanoGPT, Pioneer (Nemotron 3.5 Super VL), and Scaleway (DeepSeek V4.1 Flash)
+
+## 0.0.47
+
+- Marketplace plugins such as goal load again. In 0.0.46 they failed with `Cannot find module '@cline/sdk'` because the packaged app didn't include the SDK packages plugins import
+- The Cloud sessions toggle is gone from Settings. Cloud sessions are on wherever they are available
+- When a provider error interrupts a response mid-stream, Cline retries it up to 3 times before failing the turn
+- The Cline provider's default model is now Gemini 4 Argon, the new first model in Cline's recommended list
+- Refreshed the model catalog. Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova
+
 ## 0.0.46
 
 - A new outline along the left edge of the conversation lists each prompt you sent. Hover a mark to preview the prompt, and click it to jump there
