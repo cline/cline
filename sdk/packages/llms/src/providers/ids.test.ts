@@ -147,6 +147,48 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers AI/ML API first after Cline's own providers, with no static attribution", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("aimlapi");
+
+		await expect(getProvider("aimlapi")).resolves.toMatchObject({
+			id: "aimlapi",
+			name: "AI/ML API",
+			baseUrl: "https://api.aimlapi.com/v1",
+			defaultModelId: "anthropic/claude-sonnet-5",
+			client: "openai-compatible",
+			env: ["AIMLAPI_API_KEY"],
+			// "popular" puts it in the picker's Popular section; the rank orders it
+			capabilities: expect.arrayContaining(["popular"]),
+			metadata: expect.objectContaining({ popularRank: 3 }),
+		});
+		// the default must be a model this provider actually lists
+		const models = await getModelsForProvider("aimlapi");
+		expect(Object.hasOwn(models, "anthropic/claude-sonnet-5")).toBe(true);
+
+		// only Cline's own Usage-Billing and ClinePass rank above it
+		const ahead = (
+			await Promise.all(getProviderIds().map((id) => getProvider(id)))
+		)
+			.filter((provider) => {
+				const rank = provider?.metadata?.popularRank;
+				return typeof rank === "number" && rank < 3;
+			})
+			.map((provider) => provider?.id)
+			.sort();
+		expect(ahead).toEqual(["cline", "cline-pass"].sort());
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "aimlapi",
+		);
+		// Attribution is added per request for api.aimlapi.com only
+		// (aimlapi/attribution.ts); a static header would leave with any
+		// baseUrl override.
+		expect(registration?.defaults?.headers).toBeUndefined();
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		const provider = await getProvider("kilo");
 		expect(provider).toMatchObject({
