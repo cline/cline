@@ -378,3 +378,34 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## Scheduled results in the originating conversation
+
+The Hub-hosted `tasks` tool accepts `delivery: "current_session"` for
+`kind: "scheduled"` creation and updates. For example:
+
+```json
+{
+  "kind": "scheduled",
+  "operation": "create",
+  "name": "Daily CI check",
+  "schedule_type": "recurring",
+  "cron_pattern": "0 9 * * 1-5",
+  "prompt": "Check CI for /absolute/path/to/repository and summarize failures.",
+  "delivery": "current_session"
+}
+```
+
+Work runs in a separate scheduled session. Its completion or failure is then
+queued as a follow-up agent turn in the conversation that created the schedule.
+The Hub restores that conversation from saved history if its runtime is closed,
+using the same session ID. A busy conversation receives the result after its
+current turn finishes. The Hub must be running to execute schedules and deliver
+results; queued deliveries survive a restart. Deleted destination conversations
+are not recreated. An interrupted follow-up turn is recorded as interrupted and
+is not automatically replayed.
+
+Omit `delivery`, or use `"new_session"`, to keep results in the scheduled run
+session and report. Updating a schedule to `"new_session"` stops future result
+handoffs to the originating conversation. This setting applies to schedules;
+Todo items do not execute on a timer.

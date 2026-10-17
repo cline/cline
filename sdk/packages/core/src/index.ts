@@ -508,6 +508,7 @@ export {
 	isUnusableSessionError,
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
+	SessionRunInProgressError,
 	splitCoreSessionConfig,
 } from "./runtime/host/runtime-host";
 export {

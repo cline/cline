@@ -94,6 +94,74 @@ function scheduleOperations(options: ScheduleTaskOperationOptions) {
 }
 
 describe("schedule agent tool", () => {
+	it("captures this session as the result destination only when requested", async () => {
+		const schedules = serviceMock();
+		const tool = scheduleOperations({
+			schedules,
+			resolveSessionDefaults: async () => ({
+				workspaceRoot: WORKSPACE_ROOT,
+				interactive: true,
+			}),
+		});
+		const input: ScheduledTaskInput = {
+			operation: "create",
+			schedule_type: "once",
+			name: "Check CI",
+			prompt: "Check CI",
+			run_at: new Date(Date.now() + 60_000).toISOString(),
+		};
+		await tool.execute({ ...input, delivery: "current_session" });
+		expect(schedules.createSchedule).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					__hubScheduleResultSessionId: "session_1",
+					[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: expect.any(Number),
+				}),
+			}),
+		);
+		await tool.execute(input);
+		expect(schedules.createSchedule).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				metadata: {
+					[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: expect.any(Number),
+				},
+			}),
+		);
+	});
+
+	it("updates or removes the result destination without changing schedule timing", async () => {
+		const schedules = serviceMock();
+		const tool = scheduleOperations({
+			schedules,
+			resolveSessionDefaults: async () => ({
+				workspaceRoot: WORKSPACE_ROOT,
+				interactive: true,
+			}),
+		});
+		await tool.execute({
+			operation: "update",
+			schedule_id: "sched_1",
+			delivery: "current_session",
+		});
+		expect(schedules.updateSchedule).toHaveBeenLastCalledWith(
+			"sched_1",
+			expect.objectContaining({
+				metadata: { __hubScheduleResultSessionId: "session_1" },
+			}),
+		);
+		await tool.execute({
+			operation: "update",
+			schedule_id: "sched_1",
+			delivery: "new_session",
+		});
+		expect(schedules.updateSchedule).toHaveBeenLastCalledWith(
+			"sched_1",
+			expect.objectContaining({
+				metadata: { __hubScheduleResultSessionId: null },
+			}),
+		);
+	});
+
 	it("creates a one-time schedule using current session defaults", async () => {
 		const schedules = serviceMock();
 		const publish = vi.fn();

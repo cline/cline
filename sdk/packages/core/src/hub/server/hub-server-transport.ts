@@ -119,6 +119,10 @@ import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
 import {
+	prepareScheduleResultSession,
+	SCHEDULE_RESULT_RUN_PREFIX,
+} from "./schedule-result-session";
+import {
 	HubAgendaTaskCommandService,
 	isAgendaTaskCommand,
 } from "./task-command-service";
@@ -392,6 +396,29 @@ export class HubServerTransport implements NativeHubTransport {
 			...options.scheduleOptions,
 			telemetry: options.telemetry,
 			runtimeHandlers: options.runtimeHandlers,
+			deliverResult: async (delivery) => {
+				if (this.draining || !this.runQueue || !this.runExecutor)
+					throw new Error("Hub result delivery queue is unavailable");
+				const accepted = this.runQueue.admit(
+					delivery.sessionId,
+					{ prompt: delivery.prompt, delivery: "immediate" },
+					undefined,
+					`${SCHEDULE_RESULT_RUN_PREFIX}${delivery.runId}`,
+				);
+				this.publish(
+					buildHubEvent(
+						"run.enqueued",
+						{
+							runId: accepted.runId,
+							acceptedAt: accepted.acceptedAt,
+							queuePosition: accepted.queuePosition,
+							source: "schedule",
+						},
+						delivery.sessionId,
+					),
+				);
+				this.runExecutor.pump(delivery.sessionId);
+			},
 			eventPublisher: (eventType, payload) => {
 				const mapped =
 					eventType === "schedule.execution.completed"
@@ -660,6 +687,8 @@ export class HubServerTransport implements NativeHubTransport {
 	async start(): Promise<void> {
 		this.sessionSearch.start();
 		await this.tasks.start();
+		this.startEventLog();
+		this.startRunQueue();
 		await this.schedules.start();
 		if (this.cronService) {
 			try {
@@ -668,8 +697,6 @@ export class HubServerTransport implements NativeHubTransport {
 				console.error("[hub] cron service start failed", err);
 			}
 		}
-		this.startEventLog();
-		this.startRunQueue();
 	}
 
 	private startEventLog(): void {
@@ -710,7 +737,11 @@ export class HubServerTransport implements NativeHubTransport {
 				ownerId: this.options.owner?.ownerId,
 				...(this.options.runQueue ?? {}),
 			});
-			this.runExecutor = new HubRunExecutor(this.ctx, this.runQueue);
+			this.runExecutor = new HubRunExecutor(this.ctx, this.runQueue, (run) =>
+				prepareScheduleResultSession(this.ctx, run, (request) =>
+					requestToolApprovalHandler(this.ctx, request),
+				),
+			);
 			const recovered = this.runQueue.recoverOnStartup();
 			for (const run of recovered.interrupted) {
 				this.publish(
@@ -760,7 +791,10 @@ export class HubServerTransport implements NativeHubTransport {
 		);
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
+		const executorStopped = this.runExecutor?.stop();
+		await this.runExecutor?.waitForPreparations();
 		await this.sessionHost.dispose("hub_server_stop");
+		await executorStopped;
 		await this.schedules.dispose();
 		if (this.cronService) {
 			try {

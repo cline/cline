@@ -24,6 +24,14 @@ import type { ConnectionUpdate } from "../config/connection-update";
 
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
+export class SessionRunInProgressError extends Error {
+	readonly code = "session_run_in_progress";
+	constructor() {
+		super("Session already has a running turn");
+		this.name = "SessionRunInProgressError";
+	}
+}
+
 export class SessionNotFoundError extends Error {
 	readonly code = SESSION_NOT_FOUND_ERROR_CODE;
 
@@ -150,6 +158,8 @@ export interface LocalRuntimeStartOptions {
 
 export interface StartSessionInput {
 	config: StartSessionConfig;
+	/** Resume a saved session, reusing its resident runtime when already active. Missing sessions are rejected. */
+	resumeExistingSession?: boolean;
 	/** The process/client that starts the session. E.g., "vscode", "cli". */
 	source?: SessionSource;
 	/** How the session was initiated, such as user, automation, or subagent. */
@@ -246,6 +256,8 @@ export function splitCoreSessionConfig(config: ClineCoreStartConfig): {
 }
 
 export interface StartSessionResult {
+	/** No runtime was created because the requested session was already resident. */
+	reusedActiveSession?: boolean;
 	sessionId: string;
 	manifest: SessionManifest;
 	manifestPath: string;
@@ -264,7 +276,7 @@ export interface SendSessionInput {
 	mode?: AgentMode;
 	userImages?: string[];
 	userFiles?: string[];
-	delivery?: "queue" | "steer";
+	delivery?: "queue" | "steer" | "immediate";
 	timeoutMs?: number;
 }
 

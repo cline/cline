@@ -143,7 +143,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import { SessionNotFoundError } from "./runtime-host";
+import {
+	SessionNotFoundError,
+	SessionRunInProgressError,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -288,6 +291,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly sessionStarts = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -422,8 +429,46 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		const pendingStart = this.sessionStarts.get(sessionId);
+		if (pendingStart) {
+			return { ...(await pendingStart), reusedActiveSession: true };
+		}
+		const start = this.startOrReuseSession(
+			input,
+			sessionId,
+			requestedSessionId.length > 0,
+		);
+		this.sessionStarts.set(sessionId, start);
+		try {
+			return await start;
+		} finally {
+			this.sessionStarts.delete(sessionId);
+		}
+	}
+
+	private async startOrReuseSession(
+		input: StartSessionInput,
+		sessionId: string,
+		wasSessionIdRequested: boolean,
+	): Promise<StartSessionResult> {
+		const active = this.sessions.get(sessionId);
+		if (active && input.resumeExistingSession) {
+			await this.ensureSessionPersisted(active);
+			const artifacts = active.artifacts;
+			if (!artifacts) throw new Error("Session artifacts were not persisted");
+			return {
+				sessionId,
+				reusedActiveSession: true,
+				manifest: artifacts.manifest,
+				manifestPath: artifacts.manifestPath,
+				messagesPath: artifacts.messagesPath,
+			};
+		}
+		if (input.resumeExistingSession && !(await this.getSession(sessionId))) {
+			throw new SessionNotFoundError(sessionId);
+		}
 		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
+			wasSessionIdRequested &&
 			(input.initialMessages?.length ?? 0) > 0 &&
 			!input.prompt?.trim();
 		const hasRequestedWorkspace = Boolean(
@@ -446,7 +491,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return await this.startResolvedSession(
 			{ ...input, config },
 			sessionId,
-			requestedSessionId.length > 0,
+			wasSessionIdRequested,
 			existingResumeManifest,
 		);
 	}
@@ -963,6 +1008,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			runtime,
 			agent,
 			started: false,
+			turnInFlight: Boolean(startInput.prompt?.trim()),
 			status:
 				resumedArtifacts?.manifest.status ??
 				(startsWithoutTurn ? "idle" : "running"),
@@ -1091,8 +1137,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				}
 				throw error;
 			}
+		} finally {
+			active.turnInFlight = false;
 		}
-
+		if (result && result.finishReason !== "error")
+			this.pendingPromptsController.scheduleDrain(sessionId, active);
 		return {
 			sessionId,
 			manifest,
@@ -1141,7 +1190,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
-		const canStartRun = session.agent.canStartRun();
+		const canStartRun = !session.turnInFlight && session.agent.canStartRun();
+		if (
+			!canStartRun &&
+			(input.delivery === "immediate" ||
+				(!session.interactive &&
+					input.delivery !== "queue" &&
+					input.delivery !== "steer"))
+		) {
+			throw new SessionRunInProgressError();
+		}
 		const delivery =
 			input.delivery ??
 			(session.interactive && !canStartRun ? ("queue" as const) : undefined);
@@ -1165,6 +1223,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 			return undefined;
 		}
+		let drainPending = false;
+		session.turnInFlight = true;
 		try {
 			const result = await this.executeTurn(session, {
 				prompt: input.prompt,
@@ -1177,22 +1237,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 			} else {
 				await this.completeInteractiveTurn(session, result.finishReason);
 			}
-			// Drain after "aborted" finishes too: both internal stops (loop
-			// detector / mistake limit) and user-initiated aborts keep the
-			// queue intact, so without a drain here the user-queued prompts
-			// would be stranded forever. "error" finishes deliberately do NOT
-			// drain — auto-running queued prompts into a failing provider
-			// would consume them; they stay queued and drain on the next
-			// enqueue/update or successful turn.
-			if (result.finishReason !== "error") {
-				queueMicrotask(() => {
-					void this.pendingPromptsController.drain(input.sessionId);
-				});
-			}
+			// Drain only after releasing the turn reservation, including on abort.
+			drainPending = result.finishReason !== "error";
 			return result;
 		} catch (error) {
 			if (session.interactive && session.aborting) {
-				return await this.completeAbortedInteractiveTurn(session);
+				const result = await this.completeAbortedInteractiveTurn(session);
+				drainPending = true;
+				return result;
 			}
 			captureSdkError(session.config.telemetry, {
 				component: "core",
@@ -1208,6 +1260,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 			await this.failSession(session);
 			throw error;
+		} finally {
+			session.turnInFlight = false;
+			if (drainPending)
+				this.pendingPromptsController.scheduleDrain(input.sessionId, session);
 		}
 	}
 
@@ -1942,13 +1998,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			usage,
 		});
 		await this.completeInteractiveTurn(session, "aborted");
-		// The abort is fully settled (aborting flag reset above), so prompts
-		// the user queued behind the stopped turn can run now. This mirrors
-		// the drain in runTurn() for turns that resolve with an "aborted"
-		// finish; this path handles turns that end by throwing instead.
-		queueMicrotask(() => {
-			void this.pendingPromptsController.drain(session.sessionId);
-		});
+
 		return {
 			text: "",
 			usage,
