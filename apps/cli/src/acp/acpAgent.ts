@@ -857,7 +857,7 @@ function toAcpPromptError(error: Error): RequestError {
 		: RequestError.internalError({ message }, message);
 }
 
-async function buildProviderConfigOption(
+export async function buildProviderConfigOption(
 	currentProviderId: string,
 ): Promise<SessionConfigOption> {
 	const options = await Promise.all(
@@ -874,13 +874,15 @@ async function buildProviderConfigOption(
 		id: "provider",
 		name: "Provider",
 		description: "The authentication provider to use",
-		category: "model",
+		// `model` is the model selector's category; clients break ties within a
+		// category by array order, and this option comes first.
+		category: "_provider",
 		currentValue: currentProviderId,
 		options,
 	};
 }
 
-function buildModelConfigOption(
+export function buildModelConfigOption(
 	currentModelId: string,
 	providerModels: Record<string, { name?: string; description?: string }>,
 ): SessionConfigOption {
