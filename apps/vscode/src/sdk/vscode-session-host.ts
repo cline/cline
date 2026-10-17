@@ -6,6 +6,7 @@
 
 import {
 	type ApplyPatchExecutor,
+	type AskQuestionExecutor,
 	ClineCore,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
@@ -33,13 +34,7 @@ import {
 	type ToolExecutors,
 	toClineCoreStartInput,
 } from "@cline/core"
-import {
-	type AgentToolContext,
-	RUNTIME_CONFIG_EXTENSION_KINDS,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-	type ToolPolicy,
-} from "@cline/shared"
+import { RUNTIME_CONFIG_EXTENSION_KINDS, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -63,7 +58,7 @@ export interface VscodeSessionHostOptions {
 		policy: { enabled: boolean; autoApprove: boolean }
 	}) => Promise<{ approved: boolean; reason?: string }>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
-	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
+	askQuestion?: AskQuestionExecutor
 	/**
 	 * Custom `editor` tool executor (diff-view edit pipeline). Fully replaces the SDK's
 	 * default disk-writing executor.

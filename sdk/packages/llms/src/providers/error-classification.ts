@@ -443,8 +443,9 @@ export function isRetryableProviderError(error: unknown): boolean {
  * exhausted, surfaces a `RetryError`. Re-running such a turn would multiply
  * the SDK's attempts by the agent's, so a `RetryError` is terminal here even
  * when its final attempt looks transient. Everything else (most importantly a
- * provider error emitted mid-stream, which the SDK never retries) is judged by
- * {@link isRetryableProviderError}.
+ * raw stream-reader failures) is judged by {@link isRetryableProviderError}.
+ * Callers must separately disable whole-turn retries for error parts that
+ * already exhausted AI SDK stream recovery.
  */
 export function isRetryableBeyondSdkRetries(error: unknown): boolean {
 	// Guarded like the other typed checks: `RetryError.isInstance` throws when

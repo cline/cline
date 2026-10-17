@@ -10,6 +10,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	ITelemetryService,
 	JsonValue,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -587,6 +588,8 @@ function hubReplyErrorMessage(
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
+	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
+	resolveConnectionHeaders?: HubClientOptions["resolveConnectionHeaders"];
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
@@ -788,6 +791,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveConnectionHeaders: options.resolveConnectionHeaders,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
@@ -900,6 +904,11 @@ export class HubRuntimeHost implements RuntimeHost {
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
+				...(input.plugins
+					? {
+							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
+						}
+					: {}),
 				initialMessages: input.initialMessages,
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
@@ -956,12 +965,16 @@ export class HubRuntimeHost implements RuntimeHost {
 			);
 		}
 
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as SessionPluginIssue[])
+			: undefined;
 		return {
 			sessionId,
 			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -1049,6 +1062,13 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.plugins
+									? {
+											plugins: toJsonRecord(
+												startConfig.plugins as Record<string, unknown>,
+											),
+										}
+									: {}),
 								...(startConfig.initialCompactionState
 									? {
 											initialCompactionState:

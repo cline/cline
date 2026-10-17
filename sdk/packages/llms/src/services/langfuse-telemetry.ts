@@ -1,5 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
-import type { Telemetry } from "ai";
+import type { StreamAttemptTelemetry } from "./stream-error-telemetry";
 
 type DirectLangfuseTelemetryConfig = {
 	baseUrl: string;
@@ -10,7 +10,7 @@ type DirectLangfuseTelemetryConfig = {
 };
 
 type DirectLangfuseTelemetryRuntime = {
-	integration: Telemetry;
+	integration: StreamAttemptTelemetry;
 	tracerProvider: {
 		forceFlush(): Promise<void>;
 		shutdown(): Promise<void>;
@@ -173,7 +173,7 @@ function isClineProviderId(providerId: string): boolean {
 
 export type AiSdkTelemetryDecision = {
 	isEnabled: boolean;
-	integrations?: Telemetry;
+	integrations?: StreamAttemptTelemetry | StreamAttemptTelemetry[];
 	recordInputs?: boolean;
 	recordOutputs?: boolean;
 };
@@ -250,14 +250,12 @@ export async function resolveAiSdkTelemetry(
 			return TELEMETRY_DISABLED;
 		}
 	}
-	const { LangfuseVercelAiSdkIntegration } = await import(
-		"@langfuse/vercel-ai-sdk"
+	const { LangfuseStreamTelemetry } = await import(
+		"./langfuse-stream-telemetry"
 	);
 	// Resolve the host tracer per call so remote-config replacement cannot
 	// leave a cached integration attached to a shut-down provider.
-	const integration = new LangfuseVercelAiSdkIntegration({
-		tracer: relayTracer,
-	});
+	const integration = new LangfuseStreamTelemetry(relayTracer);
 	const recordContent = isEnvTruthy(process.env.CLINE_TRACE_RECORD_CONTENT);
 	return {
 		isEnabled: true,
@@ -344,7 +342,7 @@ function fnv1a32(value: string): number {
 async function ensureDirectLangfuseIntegration(
 	providerId: string,
 	config: DirectLangfuseTelemetryConfig,
-): Promise<Telemetry | undefined> {
+): Promise<StreamAttemptTelemetry | undefined> {
 	const configKey = JSON.stringify(config);
 	let runtimePromise = directLangfuseRuntimes.get(configKey);
 	if (!runtimePromise) {
@@ -403,11 +401,11 @@ async function initializeDirectLangfuseTelemetry(
 		await ensureLangfuseContextManager();
 		const [
 			{ LangfuseSpanProcessor },
-			{ LangfuseVercelAiSdkIntegration },
+			{ LangfuseStreamTelemetry },
 			{ NodeTracerProvider },
 		] = await Promise.all([
 			import("@langfuse/otel"),
-			import("@langfuse/vercel-ai-sdk"),
+			import("./langfuse-stream-telemetry"),
 			import("@opentelemetry/sdk-trace-node"),
 		]);
 
@@ -415,9 +413,9 @@ async function initializeDirectLangfuseTelemetry(
 		const tracerProvider = new NodeTracerProvider({
 			spanProcessors: [spanProcessor],
 		});
-		const integration = new LangfuseVercelAiSdkIntegration({
-			tracer: tracerProvider.getTracer("cline-langfuse-direct"),
-		});
+		const integration = new LangfuseStreamTelemetry(
+			tracerProvider.getTracer("cline-langfuse-direct"),
+		);
 		debugLangfuse(
 			`created isolated direct exporter baseUrl=${config.baseUrl} environment=${config.environment ?? ""}`,
 		);
