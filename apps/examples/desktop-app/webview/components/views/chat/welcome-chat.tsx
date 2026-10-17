@@ -114,6 +114,7 @@ export function WelcomeScreen({
 		signingIn,
 		cancelling,
 		error: signInError,
+		clearError: clearSignInError,
 	} = useClineSignIn({
 		onSuccess: async () => {
 			invalidateProviderCatalogCache();
@@ -217,6 +218,9 @@ export function WelcomeScreen({
 		active && cloudAgentsEnabled && executionTarget === "cloud";
 	const signedIn = Boolean(user);
 	const accountUserId = user?.id ?? null;
+	useEffect(() => {
+		if (signedIn) clearSignInError();
+	}, [clearSignInError, signedIn]);
 	// Read by the poll interval without making the state updater impure or
 	// re-subscribing the effect on every status change.
 	const cloudSetupStatusRef = useRef(cloudSetup.status);

@@ -212,6 +212,34 @@ describe("WelcomeScreen", () => {
 		).toHaveLength(2);
 	});
 
+	it("clears a stale sign-in error after authentication succeeds elsewhere", async () => {
+		invokeMock.mockReset();
+		invokeMock.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login") {
+				throw new Error("Browser closed");
+			}
+			return {};
+		});
+		const props = {
+			workspaceRoot: "",
+			workspaces: [],
+			executionTarget: "cloud" as const,
+			cloudAgentsEnabled: true,
+		};
+
+		await renderWelcomeScreen(props);
+		await clickButton("Sign in with Cline");
+		expect(container.textContent).toContain("Sign in failed: Browser closed");
+
+		accountRef.user = { id: "user-1" };
+		await renderWelcomeScreen(props);
+		expect(container.textContent).not.toContain("Sign in failed");
+
+		accountRef.user = null;
+		await renderWelcomeScreen(props);
+		expect(container.textContent).not.toContain("Sign in failed");
+	});
+
 	it.each([
 		"none",
 		"retry",
