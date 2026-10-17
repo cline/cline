@@ -29,6 +29,7 @@ export interface PendingPromptQueueState {
 export interface PendingPromptsControllerDeps {
 	getSession(sessionId: string): ActiveSession | undefined;
 	emit(event: CoreSessionEvent): void;
+	onMutation?(): void;
 	send(input: {
 		sessionId: string;
 		prompt: string;
@@ -230,6 +231,7 @@ export class PendingPromptsController {
 			return { sessionId: input.sessionId, prompts: [], updated: false };
 		}
 		const result = this.service.update(session, input);
+		if (result.updated) this.deps.onMutation?.();
 		this.emitPrompts(session);
 		if (
 			result.updated &&
@@ -248,6 +250,7 @@ export class PendingPromptsController {
 			return { sessionId: input.sessionId, prompts: [], removed: false };
 		}
 		const result = this.service.delete(session, input);
+		if (result.removed) this.deps.onMutation?.();
 		this.emitPrompts(session);
 		this.scheduleDrain(input.sessionId, session);
 		return result;
@@ -272,6 +275,7 @@ export class PendingPromptsController {
 		// they auto-run. scheduleDrain/drain still refuse to run while the
 		// abort is settling.
 		this.service.enqueue(session, entry);
+		this.deps.onMutation?.();
 		this.emitPrompts(session);
 		if (entry.delivery === "steer" && !session.aborting) {
 			session.agent.notifyPendingUserMessage();
@@ -284,6 +288,7 @@ export class PendingPromptsController {
 		if (!session) return undefined;
 		const { entry: steer } = this.service.consumeSteer(session);
 		if (!steer) return undefined;
+		this.deps.onMutation?.();
 		this.emitPrompts(session);
 		this.emitSubmitted(session, steer);
 		return steer;
@@ -297,6 +302,7 @@ export class PendingPromptsController {
 	discardQueue(session: ActiveSession): void {
 		if (session.pendingPrompts.length === 0) return;
 		this.service.clear(session);
+		this.deps.onMutation?.();
 		this.emitPrompts(session);
 	}
 
@@ -335,6 +341,7 @@ export class PendingPromptsController {
 		}
 		const { entry: next } = this.service.shiftNext(session);
 		if (!next) return;
+		this.deps.onMutation?.();
 		this.emitPrompts(session);
 		this.emitSubmitted(session, next);
 		session.drainingPendingPrompts = true;
@@ -358,6 +365,7 @@ export class PendingPromptsController {
 		} catch {
 			continueDrain = false;
 			this.service.requeueFront(session, next);
+			this.deps.onMutation?.();
 			this.emitPrompts(session);
 		} finally {
 			session.drainingPendingPrompts = false;

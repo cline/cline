@@ -288,6 +288,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private pendingActivityOperations = 0;
+	private lastActivityAt = Date.now();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -340,6 +342,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
 			emit: (event) => this.emit(event),
+			onMutation: () => {
+				this.lastActivityAt = Date.now();
+			},
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
@@ -419,7 +424,45 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	// ── Public API ──────────────────────────────────────────────────────
 
+	getActivity() {
+		return {
+			busy:
+				this.pendingActivityOperations > 0 ||
+				[...this.sessions.values()].some(
+					(session) =>
+						session.agent.hasActiveRun() ||
+						session.runtime.teamRuntime?.hasPendingWork() ||
+						hasPendingTeamRunWork(session) ||
+						session.pendingPrompts.length > 0 ||
+						session.drainingPendingPrompts,
+				),
+			lastActivityAt: this.lastActivityAt,
+		};
+	}
+
+	private async observeActivity<T>(
+		operation: () => Promise<T>,
+		{ recordActivity = true }: { recordActivity?: boolean } = {},
+	): Promise<T> {
+		this.pendingActivityOperations++;
+		if (recordActivity) this.lastActivityAt = Date.now();
+		try {
+			return await operation();
+		} finally {
+			this.pendingActivityOperations--;
+			if (recordActivity) this.lastActivityAt = Date.now();
+		}
+	}
+
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
+		return this.observeActivity(() => this.startSessionOperation(input), {
+			recordActivity: Boolean(input.prompt?.trim()),
+		});
+	}
+
+	private async startSessionOperation(
+		input: StartSessionInput,
+	): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
 		const isReadOnlyResumeStart =
@@ -639,6 +682,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 				});
 			},
 			onTeamEvent: (event: TeamEvent) => {
+				if (
+					event.type === "task_start" ||
+					event.type === "task_end" ||
+					event.type === "run_queued" ||
+					event.type === "run_started" ||
+					event.type === "run_completed" ||
+					event.type === "run_failed" ||
+					event.type === "run_cancelled" ||
+					event.type === "run_interrupted"
+				) {
+					this.lastActivityAt = Date.now();
+				}
 				void this.eventBridge.handleTeamEvent(sessionId, event);
 				bootstrap.config.onTeamEvent?.(event);
 			},
@@ -1141,6 +1196,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		return this.observeActivity(() => this.runTurnOperation(session, input));
+	}
+
+	private async runTurnOperation(
+		session: ActiveSession,
+		input: SendSessionInput,
+	): Promise<AgentResult | undefined> {
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -2768,6 +2830,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	private emit(event: CoreSessionEvent): void {
+		if (event.type === "agent_event" && event.payload.event.type !== "notice") {
+			this.lastActivityAt = Date.now();
+		}
 		this.events.emit(event);
 	}
 
