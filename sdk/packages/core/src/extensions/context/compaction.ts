@@ -40,6 +40,12 @@ export interface ContextPipelinePrepareTurnInput {
 	iteration: number;
 	messages: CoreCompactionContext["messages"];
 	apiMessages: CoreCompactionContext["messages"];
+	/** Reuse the runtime's provider projection for compacted history. */
+	buildApiMessages?: (
+		messages: CoreCompactionContext["messages"],
+	) =>
+		| CoreCompactionContext["messages"]
+		| Promise<CoreCompactionContext["messages"]>;
 	abortSignal: AbortSignal;
 	systemPrompt: string;
 	tools: unknown[];
@@ -771,7 +777,9 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: projectedMessages,
+						apiMessages: context.buildApiMessages
+							? await context.buildApiMessages(projectedMessages)
+							: projectedMessages,
 					})
 				: undefined;
 			if (result?.messages) {

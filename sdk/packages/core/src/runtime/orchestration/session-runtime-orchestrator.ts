@@ -1220,6 +1220,8 @@ export class SessionRuntime {
 				iteration: context.iteration,
 				messages,
 				apiMessages,
+				buildApiMessages: (projectedMessages) =>
+					this.prepareProviderMessagesForApi(projectedMessages),
 				abortSignal: context.signal ?? new AbortController().signal,
 				systemPrompt: context.systemPrompt ?? "",
 				tools,
