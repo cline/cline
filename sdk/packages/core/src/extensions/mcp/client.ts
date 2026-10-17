@@ -108,6 +108,52 @@ export function isMcpSessionLostError(error: unknown): boolean {
 	return MCP_SESSION_LOST_MESSAGE.test(toErrorMessage(error));
 }
 
+export interface McpToolSurfaceChange {
+	added: readonly string[];
+	removed: readonly string[];
+	/** Same name, different description or input schema. */
+	changed: readonly string[];
+}
+
+export interface McpSessionRecoveryEvent {
+	serverName: string;
+	/** Present only when the surface differs from the one this session saw. */
+	surface?: McpToolSurfaceChange;
+}
+
+function sortKeys(value: unknown): unknown {
+	if (value == null || typeof value !== "object") return value;
+	if (Array.isArray(value)) return value.map(sortKeys);
+	const sorted: Record<string, unknown> = {};
+	for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+		sorted[key] = sortKeys((value as Record<string, unknown>)[key]);
+	}
+	return sorted;
+}
+
+function canonicalTool(tool: McpToolDescriptor): string {
+	return JSON.stringify({
+		name: tool.name,
+		description: tool.description ?? "",
+		inputSchema: sortKeys(tool.inputSchema),
+	});
+}
+
+function diffSurface(
+	before: Map<string, string>,
+	after: Map<string, string>,
+): McpToolSurfaceChange | undefined {
+	const added = [...after.keys()].filter((name) => !before.has(name)).sort();
+	const removed = [...before.keys()].filter((name) => !after.has(name)).sort();
+	const changed = [...after.keys()]
+		.filter((name) => before.has(name) && before.get(name) !== after.get(name))
+		.sort();
+	if (added.length === 0 && removed.length === 0 && changed.length === 0) {
+		return undefined;
+	}
+	return { added, removed, changed };
+}
+
 async function settlesWithin(
 	promise: Promise<void>,
 	timeoutMs: number,
@@ -731,6 +777,8 @@ export interface DefaultMcpServerClientFactoryOptions {
 	fetch?: FetchLike;
 	/** Keep literal configured headers on the declared MCP origin only. */
 	restrictConfiguredHeadersToOrigin?: boolean;
+	/** Diagnostics only: fires once per recovered session, before the replay. */
+	onSessionRecovered?: (event: McpSessionRecoveryEvent) => void;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -750,6 +798,8 @@ class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
 	private connectPromise?: Promise<Client>;
 	private readonly closedClients = new WeakSet<Client>();
+	private surface?: Map<string, string>;
+	private surfaceClient?: Client;
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
@@ -846,21 +896,29 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
-		return await this.withSessionRecovery(async (client) => {
-			const result = await client.listTools(undefined, {
-				timeout: this.requestTimeoutMs,
-			});
-			return result.tools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				inputSchema:
-					tool.inputSchema &&
-					typeof tool.inputSchema === "object" &&
-					!Array.isArray(tool.inputSchema)
-						? tool.inputSchema
-						: {},
-			}));
+		return await this.withSessionRecovery((client) => this.readTools(client));
+	}
+
+	private async readTools(
+		client: Client,
+	): Promise<readonly McpToolDescriptor[]> {
+		const result = await client.listTools(undefined, {
+			timeout: this.requestTimeoutMs,
 		});
+		const tools = result.tools.map((tool) => ({
+			name: tool.name,
+			description: tool.description,
+			inputSchema:
+				tool.inputSchema &&
+				typeof tool.inputSchema === "object" &&
+				!Array.isArray(tool.inputSchema)
+					? tool.inputSchema
+					: {},
+		}));
+		this.surface = new Map(
+			tools.map((tool) => [tool.name, canonicalTool(tool)]),
+		);
+		return tools;
 	}
 
 	async callTool(request: {
@@ -902,6 +960,9 @@ class SdkUrlMcpClient implements McpServerClient {
 		if (this.client === failed) {
 			this.client = undefined;
 		}
+		if (this.surfaceClient === failed) {
+			this.surfaceClient = undefined;
+		}
 		if (this.closedClients.has(failed)) {
 			return;
 		}
@@ -931,14 +992,47 @@ class SdkUrlMcpClient implements McpServerClient {
 			if (options?.signal?.aborted) {
 				return await this.handleOperationError(error);
 			}
-			await this.dropFailedClient(client);
-			const reconnected = await this.ensureConnectedClient();
+			const reconnected = await this.recoverSession(client);
 			try {
 				return await operation(reconnected);
 			} catch (retryError) {
 				return await this.handleOperationError(retryError);
 			}
 		}
+	}
+
+	/** One fresh session per failed client, however many callers noticed. */
+	private async recoverSession(failed: Client): Promise<Client> {
+		await this.dropFailedClient(failed);
+		const client = await this.ensureConnectedClient();
+		if (this.surfaceClient !== client) {
+			this.surfaceClient = client;
+			await this.reportSurface(client);
+		}
+		return client;
+	}
+
+	/** Best effort: a failed comparison must never fail the recovery. */
+	private async reportSurface(client: Client): Promise<void> {
+		const before = this.surface;
+		let surface: McpToolSurfaceChange | undefined;
+		if (before) {
+			try {
+				const tools = await this.readTools(client);
+				surface = diffSurface(
+					before,
+					new Map(tools.map((tool) => [tool.name, canonicalTool(tool)])),
+				);
+			} catch {
+				// The comparison is a diagnostic; the replay reports real failures.
+			}
+		}
+		try {
+			this.options.onSessionRecovered?.({
+				serverName: this.registration.name,
+				...(surface ? { surface } : {}),
+			});
+		} catch {}
 	}
 
 	private formatUnauthorizedMessage(authUrl: string | undefined): string {

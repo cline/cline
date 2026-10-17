@@ -23,6 +23,12 @@ const clientState = vi.hoisted(() => ({
 	callToolError: undefined as unknown,
 	callToolErrorOnce: undefined as unknown,
 	callToolErrors: [] as Array<{ error: unknown; delayMs?: number }>,
+	tools: [] as Array<{
+		name: string;
+		description?: string;
+		inputSchema: Record<string, unknown>;
+	}>,
+	listToolsError: undefined as unknown,
 	connectError: undefined as unknown,
 	connectCount: 0,
 	closeCount: 0,
@@ -47,7 +53,10 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 
 		async listTools(_params: unknown, options: unknown) {
 			clientState.listToolsOptions = options;
-			return { tools: [] };
+			if (clientState.listToolsError) {
+				throw clientState.listToolsError;
+			}
+			return { tools: clientState.tools };
 		}
 
 		async callTool(
@@ -79,7 +88,10 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	},
 }));
 
-import { createDefaultMcpServerClientFactory } from "./client";
+import {
+	createDefaultMcpServerClientFactory,
+	type McpSessionRecoveryEvent,
+} from "./client";
 import { listMcpServerOAuthStatuses } from "./config-loader";
 import {
 	createMcpSdkTransport,
@@ -367,12 +379,16 @@ describe("SDK URL MCP client session recovery", () => {
 		clientState.callToolError = undefined;
 		clientState.callToolErrorOnce = undefined;
 		clientState.callToolErrors = [];
+		clientState.tools = [];
+		clientState.listToolsError = undefined;
 		clientState.connectCount = 0;
 		clientState.closeCount = 0;
 	});
 
-	async function createClient() {
-		return createDefaultMcpServerClientFactory()({
+	async function createClient(
+		options: Parameters<typeof createDefaultMcpServerClientFactory>[0] = {},
+	) {
+		return createDefaultMcpServerClientFactory(options)({
 			name: "remote",
 			transport: {
 				type: "streamableHttp",
@@ -515,5 +531,104 @@ describe("SDK URL MCP client session recovery", () => {
 			}),
 		).rejects.toThrow(/Session not found/);
 		expect(clientState.connectCount).toBe(1);
+	});
+
+	it("reports a tool surface that changed while the session was lost", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+			{ name: "b", description: "two", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+
+		clientState.tools = [
+			{
+				name: "a",
+				description: "one",
+				inputSchema: {
+					type: "object",
+					properties: { x: { type: "string" } },
+				},
+			},
+			{ name: "c", description: "three", inputSchema: { type: "object" } },
+		];
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await client.callTool({ name: "a" });
+
+		expect(changes).toEqual([
+			{
+				serverName: "remote",
+				surface: { added: ["c"], removed: ["b"], changed: ["a"] },
+			},
+		]);
+	});
+
+	it("reports a recovery without a change when the surface held", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await client.callTool({ name: "a" });
+
+		expect(changes).toEqual([{ serverName: "remote" }]);
+	});
+
+	it("recovers when the surface comparison itself fails", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+		clientState.listToolsError = new Error("listTools unavailable");
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await expect(client.callTool({ name: "a" })).resolves.toEqual({
+			content: [],
+		});
+		expect(changes).toEqual([{ serverName: "remote" }]);
+	});
+
+	it("reports one recovery when callers race", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+		const lost = () =>
+			new StreamableHTTPError(404, "Not Found: Session not found");
+		clientState.callToolErrors.push({ error: lost() }, { error: lost() });
+
+		await Promise.allSettled([
+			client.callTool({ name: "a" }),
+			client.callTool({ name: "a" }),
+		]);
+
+		expect(changes).toHaveLength(1);
 	});
 });
