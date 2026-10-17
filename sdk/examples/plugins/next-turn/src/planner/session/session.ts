@@ -133,8 +133,8 @@ export class NextSession {
 	}
 
 	/**
-	 * Stops in-flight serves and planner calls from pushing, and detaches every
-	 * listener. A turn still waiting on the planner gets its rule-based set
+	 * Stops in-flight serves from pushing, aborts a planner call still
+	 * answering, and detaches every listener. A turn still waiting on the planner gets its rule-based set
 	 * first, so a one-shot run whose sandbox closes at once still offers one.
 	 */
 	dispose(): void {
@@ -147,7 +147,7 @@ export class NextSession {
 			this.core.isCurrent(this.core.generation)
 		)
 			this.core.serve(state, { status: "pending" });
-		this.core.generation += 1;
+		this.core.advance();
 		this.core.listeners.clear();
 	}
 
@@ -218,7 +218,7 @@ export class NextSession {
 	 * turn rather than the set before it, with no set, planner call or push.
 	 */
 	private recordUnviewedTurn(turn: Turn): void {
-		this.core.generation += 1;
+		this.core.advance();
 		this.core.state = undefined;
 		this.core.lastTurn = turn;
 		this.core.lastTurnFromStore = false;
@@ -240,8 +240,7 @@ export class NextSession {
 		this.core.lastTurnFromStore = false;
 		if (turn.chat) this.core.lastChat = turn.chat;
 		const endedAt = Date.now();
-		this.core.generation += 1;
-		const gen = this.core.generation;
+		const gen = this.core.advance();
 		// The last turn's set leaves the screen now, so a message sent while this
 		// one loads is not labelled against it.
 		this.core.state = undefined;

@@ -112,7 +112,14 @@ async function requestModelSet(
 		});
 		const slot = core.options.ledger?.reserve(core.options.sessionId);
 		const startedAt = Date.now();
-		const attempt = await generatePool(complete, input, kinds, settings);
+		const attempt = await generatePool(
+			complete,
+			input,
+			kinds,
+			settings,
+			undefined,
+			core.generationSignal,
+		);
 		const chat = state.turn.chat ?? core.lastChat;
 		if ("reason" in attempt && attempt.reason === "no_provider")
 			slot?.release();

@@ -78,30 +78,46 @@ export class PoolCache {
 	}
 }
 
-export type PoolFailure = "no_provider" | "timeout" | "unparseable" | "error";
+export type PoolFailure =
+	| "no_provider"
+	| "timeout"
+	| "aborted"
+	| "unparseable"
+	| "error";
 
 type PoolAttempt = Omit<Completion, "text"> &
 	({ pool: Suggestion[] } | { reason: PoolFailure; error?: string });
 
-/** Races the call against the deadline; a call that loses is aborted and its late failure ignored. */
+/**
+ * Races the call against the deadline; a call that loses is aborted and its
+ * late failure ignored. `stale` aborts it too, once nobody will see its answer.
+ */
 export async function generatePool(
 	complete: Complete,
 	input: PlannerInput,
 	kinds: readonly SuggestionKind[],
 	settings: Settings,
 	timeoutMs: number = PLANNER_TIMEOUT_MS,
+	stale?: AbortSignal,
 ): Promise<PoolAttempt> {
 	try {
 		const answer = await withDeadline(
-			(signal) => complete(input, signal, settings),
+			(deadline) =>
+				complete(
+					input,
+					stale ? AbortSignal.any([deadline, stale]) : deadline,
+					settings,
+				),
 			timeoutMs,
 		);
+		if (stale?.aborted) return { reason: "aborted" };
 		if (answer === TIMED_OUT) return { reason: "timeout" };
 		if (answer === null) return { reason: "no_provider" };
 		const { text, ...meta } = answer;
 		const pool = parsePlannerOutput(text, kinds);
 		return pool ? { pool, ...meta } : { reason: "unparseable", ...meta };
 	} catch (error) {
+		if (stale?.aborted) return { reason: "aborted" };
 		return { reason: "error", error: errorMessage(error) };
 	}
 }

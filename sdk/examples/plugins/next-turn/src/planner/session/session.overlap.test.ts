@@ -386,6 +386,34 @@ describe("Next under overlapping actions", () => {
 		expect((await viewed.session.ensureCurrent()).state).toBe("unavailable");
 	});
 
+	test("the next run's first request aborts a planner call still answering for the last turn, and the ledger says so", async () => {
+		let signal: AbortSignal | undefined;
+		let dispatched: () => void = () => {};
+		const asking = new Promise<void>((resolve) => {
+			dispatched = resolve;
+		});
+		const { session, sets, ledgerCalls } = harness({
+			complete: (_input, callSignal) => {
+				signal = callSignal;
+				dispatched();
+				return new Promise((_resolve, reject) => {
+					callSignal.addEventListener("abort", () =>
+						reject(new Error("aborted by the caller")),
+					);
+				});
+			},
+		});
+		const run = editRun();
+		await session.afterRun(run.result);
+		await asking;
+		expect(signal?.aborted).toBe(false);
+		session.outgoing([...run.messages, message("user", "Now the docs")]);
+		expect(signal?.aborted).toBe(true);
+		await session.settled();
+		expect(sets.filter(Boolean)).toEqual([]);
+		expect(ledgerCalls()).toMatchObject([{ outcome: "aborted" }]);
+	});
+
 	test("each planner call goes to the ledger with its path, outcome, timings and token counts", async () => {
 		const usage = {
 			inputTokens: 3_000,

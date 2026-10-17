@@ -70,6 +70,25 @@ describe("one planner call", () => {
 		expect(aborted).toBe(true);
 	});
 
+	test("a call gone stale is aborted and says so, even when it answers anyway", async () => {
+		const stale = new AbortController();
+		const answersAnyway: Complete = (_input, signal) =>
+			new Promise((resolve) => {
+				signal.addEventListener("abort", () => resolve({ text: answer }));
+				stale.abort();
+			});
+		expect(
+			await generatePool(
+				answersAnyway,
+				input,
+				CORE_KINDS,
+				defaults,
+				1_000,
+				stale.signal,
+			),
+		).toEqual({ reason: "aborted" });
+	});
+
 	test("pools are kept per turn position, oldest dropped first", () => {
 		const cache = new PoolCache();
 		const pool = [suggestion("verify", "model", "Run it.", "why")];

@@ -7,8 +7,8 @@ import { rowFields, type TurnState } from "./turn-state";
 
 /**
  * A root run's first model request is about to go out, so the turn on screen
- * is no longer the chat's latest: its set, and any serve or planner call for
- * it, is dropped until this run ends. When the request carries a new message
+ * is no longer the chat's latest: its set and any serve for it are dropped,
+ * and a planner call for it is aborted. When the request carries a new message
  * from the person, that message is labelled against the set (or the explicit
  * Use/Send intent); a run on the same message (a resume, an approved plan, a
  * retry) labels nothing of the person's.
@@ -23,7 +23,7 @@ export function outgoing(
 			? message
 			: undefined;
 	core.runUnderway = true;
-	core.generation += 1;
+	core.advance();
 	const set = core.shown;
 	const state = core.state;
 	if (set && state) {

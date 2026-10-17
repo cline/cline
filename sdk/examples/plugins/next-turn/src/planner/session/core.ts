@@ -36,13 +36,31 @@ export class SessionCore {
 	 */
 	lastTurnFromStore = false;
 	seq = 0;
-	generation = 0;
+	private currentGeneration = 0;
+	private generationEnd = new AbortController();
 	pending: Promise<void> = Promise.resolve();
 	serving: { turnKey: string; gen: number; done: Promise<unknown> } | undefined;
 	readonly cache = new PoolCache();
 	readonly listeners = new Set<(push: TrayPush) => void>();
 
 	constructor(readonly options: NextOptions) {}
+
+	get generation(): number {
+		return this.currentGeneration;
+	}
+
+	/** Aborts once the generation it was read under ends, so a planner call nobody will see stops spending. */
+	get generationSignal(): AbortSignal {
+		return this.generationEnd.signal;
+	}
+
+	/** Hands the tray to new work: anything started under the old generation stops pushing, and its planner call is aborted. */
+	advance(): number {
+		this.currentGeneration += 1;
+		this.generationEnd.abort();
+		this.generationEnd = new AbortController();
+		return this.currentGeneration;
+	}
 
 	/** The set on screen: the turn's latest offer. */
 	get shown(): OfferedSet | undefined {
@@ -81,7 +99,7 @@ export class SessionCore {
 	 * is already off for the same reason gets no second push.
 	 */
 	off(reason?: OffReason): TrayPush {
-		this.generation += 1;
+		this.advance();
 		if (
 			!this.state &&
 			this.lastPush?.state === "off" &&
