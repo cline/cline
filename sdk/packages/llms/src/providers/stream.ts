@@ -64,6 +64,16 @@ export interface ApiStreamReasoningChunk {
 
 /**
  * Usage/token count chunk
+ *
+ * The values reported by the provider are **cumulative request totals**, not
+ * per-chunk deltas: a provider that attaches usage to every streamed chunk
+ * (e.g. vLLM with `--enable-force-include-usage`, ik_llama.cpp, z.ai) sends
+ * running totals, and the last snapshot seen is the request's final usage.
+ * Consumers of a raw `ApiStreamChunk` stream must therefore never sum
+ * repeated `usage` chunks. SDK adapters (`createAgentModelFromApiHandler`,
+ * the gateway's AI-SDK adapter) coalesce these chunks and forward a single
+ * final snapshot per request, so a consumer of `AgentModelEvent` sees exactly
+ * one usage event per request whose semantics are request-total.
  */
 export interface ApiStreamUsageChunk {
 	type: "usage";

@@ -138,6 +138,16 @@ export function createAgentModelFromApiHandler(
 		async *stream(request: AgentModelRequest): AsyncGenerator<AgentModelEvent> {
 			let sawFinish = false;
 			let sawToolCall = false;
+			// Some OpenAI-compatible providers attach usage to every streamed
+			// chunk with running totals (e.g. vLLM `--enable-force-include-usage`,
+			// ik_llama.cpp, z.ai). `ApiStreamUsageChunk` documents those values as
+			// the totals reported by the provider so far, so only the last
+			// snapshot is the request's usage. Hold it and emit it right before
+			// the terminal finish — the same one-snapshot-per-request shape the
+			// gateway's AI-SDK adapter produces. Forwarding each chunk would make
+			// the runtime's usage accounting multiply the request's tokens by the
+			// chunk count (see issue #10148).
+			let pendingUsage: Extract<AgentModelEvent, { type: "usage" }> | undefined;
 			try {
 				// Resolving the handler (e.g. `createHandlerAsync`) can reject — for
 				// instance when the host API is unavailable at stream time — so it
@@ -160,6 +170,15 @@ export function createAgentModelFromApiHandler(
 					tools,
 				)) {
 					for (const event of toAgentModelEvents(chunk)) {
+						if (event.type === "usage") {
+							pendingUsage = event;
+							continue;
+						}
+						if (event.type === "finish" && pendingUsage) {
+							// Flush the coalesced snapshot ahead of the terminal event.
+							yield pendingUsage;
+							pendingUsage = undefined;
+						}
 						if (event.type === "finish") {
 							sawFinish = true;
 						} else if (event.type === "tool-call-delta") {
@@ -167,6 +186,10 @@ export function createAgentModelFromApiHandler(
 						}
 						yield event;
 					}
+				}
+				if (pendingUsage) {
+					yield pendingUsage;
+					pendingUsage = undefined;
 				}
 				if (!sawFinish) {
 					// Terminating with tool calls is a tool-calls turn (matching the
@@ -177,6 +200,9 @@ export function createAgentModelFromApiHandler(
 					};
 				}
 			} catch (error) {
+				// `pendingUsage` is intentionally dropped here: a request that died
+				// mid-stream never produced its final totals, and forwarding an
+				// intermediate cumulative snapshot would miscount the request.
 				if (!sawFinish) {
 					const aborted = request.signal?.aborted === true;
 					yield {
