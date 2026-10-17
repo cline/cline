@@ -1,3 +1,5 @@
+import { stat } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import process from "node:process";
 import {
 	type ClineCoreStartInput,
@@ -69,7 +71,11 @@ export function resolveLaunchContext(
 	}
 	return {
 		workspaceRoot: root,
-		cwd: override?.cwd ?? ctx.lastSessionContext?.cwd ?? root,
+		cwd:
+			override?.cwd ??
+			(root === ctx.lastSessionContext?.workspaceRoot
+				? ctx.lastSessionContext.cwd
+				: root),
 		providerId,
 		modelId,
 	};
@@ -193,6 +199,8 @@ export async function selectSession(
 	peer.selectedSessionId = sessionId;
 	const tracked = ctx.sessions.get(sessionId);
 	const history = await loadHistoryFor(ctx, sessionId);
+	// Another attach or reset may have superseded this asynchronous read.
+	if (peer.selectedSessionId !== sessionId) return;
 	ctx.send(peer, { type: "session_started", sessionId });
 	ctx.send(peer, {
 		type: "session_hydrated",
@@ -213,6 +221,15 @@ export async function createSession(
 ): Promise<void> {
 	if (!ctx.cline) throw new Error("Hub is not connected.");
 	const context = resolveLaunchContext(ctx, config);
+	if (!isAbsolute(context.workspaceRoot)) {
+		throw new Error("Workspace must be an absolute directory path.");
+	}
+	const directory = await stat(context.workspaceRoot).catch(() => undefined);
+	if (!directory?.isDirectory()) {
+		throw new Error(
+			`Workspace directory does not exist: ${context.workspaceRoot}`,
+		);
+	}
 	const mode = config?.mode === "plan" ? "plan" : "act";
 	const result = await ctx.cline.start(
 		buildSessionStartInput(context, {
