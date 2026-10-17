@@ -74,6 +74,14 @@ type HookCommandStopErrorContext = HookContextBase & {
 };
 type HookCommandSessionShutdownContext = HookContextBase & {
 	reason?: string;
+	/**
+	 * Whether the run that triggered the shutdown was aborted. Callers that
+	 * already know the run status (e.g. `result.status === "aborted"`) pass
+	 * it here so the TaskCancel (agent_abort) hooks run without relying on
+	 * `reason` carrying a recognizable abort marker — which keeps the
+	 * `reason` payload for SessionShutdown hooks unchanged.
+	 */
+	aborted?: boolean;
 };
 
 /**
@@ -949,7 +957,7 @@ export function createHookConfigFileHooks(
 	const runSessionShutdown = async (
 		ctx: HookCommandSessionShutdownContext,
 	): Promise<void> => {
-		if (isAbortReason(ctx.reason)) {
+		if (ctx.aborted || isAbortReason(ctx.reason)) {
 			const abortCommands = commandMap.agent_abort ?? [];
 			if (abortCommands.length > 0) {
 				await runAsyncHookCommands({
@@ -1073,6 +1081,12 @@ export function createHookConfigFileHooks(
 			if (result.status === "aborted" || isAbortReason(result.error?.message)) {
 				await runSessionShutdown({
 					...baseContextFromSnapshot(snapshot),
+					// A real abort carries no error (AgentRuntime sets error
+					// only for "failed"), so `reason` is undefined here. Pass
+					// the abort decision explicitly instead of encoding it in
+					// `reason`: that way the TaskCancel (agent_abort) hooks run
+					// while SessionShutdown hooks keep the reason they saw before.
+					aborted: result.status === "aborted",
 					reason: result.error?.message,
 				});
 				return;
