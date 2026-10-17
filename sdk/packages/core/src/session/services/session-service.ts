@@ -196,7 +196,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			params.push(statusLock);
 		}
 		fields.push("updated_at = ?");
-		params.push(nowIso());
+		params.push(input.updatedAt ?? nowIso());
 
 		let sql = `UPDATE sessions SET ${fields.join(", ")} WHERE session_id = ?`;
 		params.push(input.sessionId);
