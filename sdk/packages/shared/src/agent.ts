@@ -462,6 +462,17 @@ export interface AgentAfterToolResult {
 
 export interface AgentRunLifecycleContext {
 	snapshot: AgentRuntimeStateSnapshot;
+	/**
+	 * How the run was entered. `run` starts a new user turn; `continue` resumes
+	 * without one. Only set for `beforeRun`.
+	 */
+	entry?: "run" | "continue";
+	/**
+	 * True when the run was given no input of its own because the host already
+	 * seeded the user's prompt into the runtime's initial messages. Only set
+	 * for `beforeRun`.
+	 */
+	promptSeeded?: boolean;
 }
 
 // =============================================================================
