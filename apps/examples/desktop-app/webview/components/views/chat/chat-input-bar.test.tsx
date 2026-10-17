@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
-import { act, type MouseEvent as ReactMouseEvent } from "react";
+import { act, type MouseEvent as ReactMouseEvent, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -197,6 +198,8 @@ async function renderVoiceComposer({
 	status = "idle",
 	readOnly = false,
 	executionTarget,
+	environmentId = "local",
+	workspaceRoot = workspaceValue.workspaceRoot,
 	onAttachFiles = vi.fn(),
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
@@ -210,12 +213,15 @@ async function renderVoiceComposer({
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
+	environmentId?: string;
+	workspaceRoot?: string;
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
 	await act(async () => {
 		root.render(
-			<WorkspaceProvider value={workspaceValue}>
+			<WorkspaceProvider value={{ ...workspaceValue, workspaceRoot }}>
 				<ChatInputBar
+					environmentId={environmentId}
 					readOnly={readOnly}
 					executionTarget={executionTarget}
 					attachments={attachments}
@@ -372,6 +378,215 @@ describe("ChatInputBar draft navigation", () => {
 		);
 		await showThread("new-session");
 		expect(container.querySelector("textarea")?.value).toBe("");
+	});
+});
+
+describe("ChatInputBar file mentions", () => {
+	const searchFiles =
+		vi.fn<(args?: Record<string, unknown>) => Promise<string[]>>();
+	const fileOptions = () =>
+		Array.from(
+			container.querySelectorAll('#mention-file-suggestions [role="option"]'),
+			(option) => option.textContent,
+		);
+	const mentionMenu = () =>
+		container.querySelector("#mention-file-suggestions");
+	const advanceSearch = async (milliseconds = 120) => {
+		await act(async () => vi.advanceTimersByTimeAsync(milliseconds));
+	};
+	const typePrompt = async (value: string) => {
+		const textarea = container.querySelector("textarea");
+		if (!textarea) throw new Error("Prompt input missing");
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set?.call(textarea, value);
+			textarea.setSelectionRange(value.length, value.length);
+			textarea.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+	};
+	const pressKey = async (key: string) => {
+		await act(async () => {
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+		});
+	};
+
+	beforeEach(() => {
+		vi.useFakeTimers();
+		searchFiles.mockReset().mockResolvedValue(["src/app.ts", "src/main.ts"]);
+		vi.spyOn(desktopClient, "invoke").mockImplementation(
+			async <T,>(command: string, args?: Record<string, unknown>) =>
+				(command === "search_workspace_files"
+					? await searchFiles(args)
+					: undefined) as T,
+		);
+	});
+
+	afterEach(() => vi.useRealTimers());
+
+	it("searches a restored mention after StrictMode replays its effect", async () => {
+		await act(async () => {
+			root.render(
+				<StrictMode>
+					<DraftComposer drafts={new Map([["draft", "@"]])} threadId="draft" />
+				</StrictMode>,
+			);
+		});
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenCalledOnce();
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+	});
+
+	it.each([
+		"",
+		"src",
+	])("restores @%s suggestions after clearing a query or an inserted file", async (query) => {
+		await renderVoiceComposer();
+		await typePrompt(`@${query}`);
+		await advanceSearch();
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+		expect(searchFiles).toHaveBeenCalledWith({
+			environmentId: "local",
+			workspaceRoot: "/workspace/cline",
+			query,
+			limit: 10,
+		});
+
+		await typePrompt("");
+		expect(mentionMenu()).toBeNull();
+		await typePrompt(`@${query}`);
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+		await pressKey("ArrowDown");
+		expect(
+			container.querySelector('button[aria-selected="true"]')?.textContent,
+		).toBe("src/main.ts");
+		await pressKey("Enter");
+		await advanceSearch(16);
+		expect(container.querySelector("textarea")?.value).toBe("@src/main.ts ");
+		expect(mentionMenu()).toBeNull();
+
+		await typePrompt("");
+		await typePrompt(`@${query}`);
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenCalledOnce();
+	});
+
+	it("restarts the debounce when the same mention closes before searching", async () => {
+		await renderVoiceComposer();
+		await typePrompt("@src");
+		await advanceSearch(60);
+		await typePrompt("");
+		await typePrompt("@src");
+		expect(mentionMenu()?.textContent).toBe("Searching files...");
+		await advanceSearch(119);
+		expect(searchFiles).not.toHaveBeenCalled();
+		await advanceSearch(1);
+		expect(searchFiles).toHaveBeenCalledOnce();
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+	});
+
+	it.each([
+		"",
+		"@other",
+	])("ignores an in-flight response after switching through %j", async (nextPrompt) => {
+		const stale = deferred<string[]>();
+		const current = deferred<string[]>();
+		searchFiles
+			.mockReturnValueOnce(stale.promise)
+			.mockReturnValueOnce(current.promise);
+		await renderVoiceComposer();
+		await typePrompt("@src");
+		await advanceSearch();
+		await typePrompt(nextPrompt);
+		if (!nextPrompt) await typePrompt("@src");
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenCalledTimes(2);
+		await act(async () => current.resolve(["current.ts"]));
+		await act(async () => stale.resolve(["stale.ts"]));
+		expect(fileOptions()).toEqual(["current.ts"]);
+	});
+
+	it.each([
+		"debouncing",
+		"in flight",
+	])("preserves a %s search when the same query moves within the prompt", async (phase) => {
+		const response = deferred<string[]>();
+		searchFiles.mockReturnValue(response.promise);
+		await renderVoiceComposer();
+		await typePrompt("@src");
+		if (phase === "in flight") await advanceSearch();
+		await typePrompt("Please inspect @src");
+		await advanceSearch();
+		await act(async () => response.resolve(["src/app.ts"]));
+		expect(searchFiles).toHaveBeenCalledOnce();
+		expect(fileOptions()).toEqual(["src/app.ts"]);
+	});
+
+	it("retries a failed search when the same mention reopens", async () => {
+		searchFiles.mockRejectedValueOnce(new Error("Search unavailable"));
+		await renderVoiceComposer();
+		await typePrompt("@src");
+		await advanceSearch();
+		expect(mentionMenu()?.textContent).toBe("No matching files");
+		await typePrompt("");
+		await typePrompt("@src");
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenCalledTimes(2);
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+	});
+
+	it.each([
+		{ environmentId: "remote", workspaceRoot: "/workspace/cline" },
+		{ environmentId: "local", workspaceRoot: "/workspace/other" },
+	])("isolates suggestions when switching to $environmentId:$workspaceRoot", async (target) => {
+		await renderVoiceComposer();
+		await typePrompt("@src");
+		await advanceSearch();
+		searchFiles.mockResolvedValue(["src/other.ts"]);
+		await renderVoiceComposer(target);
+		expect(fileOptions()).toEqual([]);
+		expect(mentionMenu()?.textContent).toBe("Searching files...");
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenLastCalledWith({
+			...target,
+			query: "src",
+			limit: 10,
+		});
+		expect(fileOptions()).toEqual(["src/other.ts"]);
+		await renderVoiceComposer();
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenCalledTimes(2);
+	});
+
+	it("displays and caches an empty search result", async () => {
+		searchFiles.mockResolvedValue([]);
+		await renderVoiceComposer();
+		await typePrompt("@missing");
+		expect(mentionMenu()?.textContent).toBe("Searching files...");
+		await advanceSearch();
+		expect(mentionMenu()?.textContent).toBe("No matching files");
+		await typePrompt("");
+		await typePrompt("@missing");
+		expect(mentionMenu()?.textContent).toBe("No matching files");
+		await advanceSearch();
+		expect(searchFiles).toHaveBeenCalledOnce();
+	});
+
+	it("reopens a dismissed mention after deleting and retyping it", async () => {
+		await renderVoiceComposer();
+		await typePrompt("@");
+		await advanceSearch();
+		await pressKey("Escape");
+		expect(mentionMenu()).toBeNull();
+		await typePrompt("");
+		await typePrompt("@");
+		expect(fileOptions()).toEqual(["src/app.ts", "src/main.ts"]);
+		expect(searchFiles).toHaveBeenCalledOnce();
 	});
 });
 
