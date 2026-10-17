@@ -44,6 +44,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
+import { type ClaudeCodeProviderConfig, buildClaudeCodeProviderConfig } from "./claude-code-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
@@ -930,6 +931,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
 	// region/project/auth fields for inference calls.
 	let bedrockProviderConfig: BedrockProviderConfig | undefined
+	let claudeCodeProviderConfig: ClaudeCodeProviderConfig | undefined
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
@@ -968,6 +970,14 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			// providers.json).
 			if (providerId === "bedrock") {
 				bedrockProviderConfig = buildBedrockProviderConfig(apiConfig, mode)
+			}
+
+			// Resolve the Claude Code CLI path from the legacy ApiConfiguration.
+			// Without this, the SDK gateway never receives the user-configured
+			// path and falls back to PATH lookup, which can fail to spawn
+			// (spawn EINVAL) on Windows.
+			if (providerId === "claude-code") {
+				claudeCodeProviderConfig = buildClaudeCodeProviderConfig(apiConfig)
 			}
 
 			if (providerId === "vertex") {
@@ -1143,7 +1153,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
 	// additionally need structured options (region/project/auth/SAP OAuth), which core
 	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? ollamaProviderConfig
+	const cloudProviderConfig =
+		bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? ollamaProviderConfig ?? claudeCodeProviderConfig
 	// Spread the cloud config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
