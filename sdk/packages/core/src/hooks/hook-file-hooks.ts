@@ -1,5 +1,5 @@
-import { appendFileSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type {
 	AgentAfterToolContext,
 	AgentBeforeToolContext,
@@ -630,6 +630,13 @@ export function createHookAuditHooks(options: {
 	rootSessionId?: string;
 	workspacePath: string;
 	workspaceInfo?: WorkspaceInfo;
+	/**
+	 * Per-session copy of the audit log for the session tree rooted at
+	 * `rootSessionId`. Lines are identical to the global log's; the global
+	 * log is still written.
+	 */
+	sessionLogPath?: string;
+	logger?: BasicLogger;
 }): AgentHooks {
 	const runtimeOptions: HookRuntimeOptions = {
 		cwd: options.workspacePath,
@@ -637,6 +644,7 @@ export function createHookAuditHooks(options: {
 		rootSessionId: options.rootSessionId,
 		workspaceInfo: options.workspaceInfo,
 	};
+	const sessionLogPath = options.sessionLogPath?.trim() || undefined;
 
 	const append = (payload: HookEventPayload): void => {
 		const line = `${JSON.stringify({
@@ -647,6 +655,18 @@ export function createHookAuditHooks(options: {
 		const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
 		ensureHookLogDir(logPath);
 		appendFileSync(logPath, line, "utf8");
+		if (sessionLogPath) {
+			try {
+				mkdirSync(dirname(sessionLogPath), { recursive: true });
+				appendFileSync(sessionLogPath, line, "utf8");
+			} catch (error) {
+				logHookError(
+					options.logger,
+					`failed to append per-session hook log ${sessionLogPath}`,
+					error,
+				);
+			}
+		}
 	};
 
 	return {
