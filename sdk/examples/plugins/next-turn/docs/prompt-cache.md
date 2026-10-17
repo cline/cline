@@ -231,7 +231,9 @@ message appended after the final reply. It read at least 50% from cache in
 - in 13 nothing was read;
 - in 16 the read was partial.
 
-The fork's real hit rate goes to `planner.jsonl` once instrumentation lands.
+`planner.jsonl` already records each planner call's path, timings and
+token counts. The fork will record its real hit rate there under its own
+path.
 
 ### What a miss costs
 
@@ -249,8 +251,8 @@ input tokens, for a turn's first request with under 2K output:
 A fork pays the warm price, plus a write on the amber blocks and its own
 output, thinking included. The chat's reasoning settings must stay
 unchanged, so the fork thinks the way the chat does. That cost and latency,
-against the summary planner with reasoning off, is what instrumentation will
-measure. Section 5 covers the full cost model.
+against the summary planner with reasoning off, is what `planner.jsonl`
+compares. Section 5 covers the full cost model.
 
 ### Findings outside the plugin
 

@@ -42,6 +42,14 @@ describe("the ledger", () => {
 			costUsd: 0.5,
 			providerId: "cline",
 			modelId: "claude-sonnet",
+			path: "summary",
+			outcome: "ok",
+			totalMs: 4_200,
+			firstTokenMs: 1_100,
+			inputTokens: 3_000,
+			outputTokens: 200,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
 		});
 		appendFileSync(path, '{"sessionId":"b","at":\n{"note":"not a call"}\n');
 		ledger.record("b");
@@ -52,6 +60,14 @@ describe("the ledger", () => {
 				costUsd: 0.5,
 				providerId: "cline",
 				modelId: "claude-sonnet",
+				path: "summary",
+				outcome: "ok",
+				totalMs: 4_200,
+				firstTokenMs: 1_100,
+				inputTokens: 3_000,
+				outputTokens: 200,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
 			},
 			{ sessionId: "b", at: 42 },
 		]);

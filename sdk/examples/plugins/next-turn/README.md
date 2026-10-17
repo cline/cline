@@ -60,7 +60,9 @@ is left). Only Skip and Reroll serve another set for the turn. The first
 `beforeModel` of the next root run takes the set down, including a run on
 the same message (a retry, a resume, an approved plan), and labels the
 person's new message against it. Every served set and label goes to
-`labels.jsonl` (schema v3) and the host's telemetry.
+`labels.jsonl` (schema v3) and the host's telemetry. Every planner call goes
+to `planner.jsonl` with its outcome, total time, time to first token, and
+the input, cache-read, cache-write and output tokens the provider reported.
 
 ## Layout
 

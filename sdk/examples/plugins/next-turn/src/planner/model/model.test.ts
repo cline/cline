@@ -250,21 +250,28 @@ describe("the planner's provider", () => {
 		});
 	});
 
-	test("streams the answer and sums the reported cost; a failed stream throws", async () => {
+	test("streams the answer, sums the reported usage and cost, and times the first token; a failed stream throws", async () => {
 		const handler = (chunks: unknown[]) =>
 			({
 				async *createMessage() {
 					for (const chunk of chunks) yield chunk;
 				},
 			}) as unknown as ApiHandler;
+		let clock = 100;
+		const tick = () => {
+			clock += 250;
+			return clock;
+		};
 		expect(
 			await streamCompletion(
 				handler([
+					{ type: "reasoning", reasoning: "thinking", id: "r" },
 					{ type: "text", text: '{"sugg' },
 					{
 						type: "usage",
-						inputTokens: 1,
-						outputTokens: 1,
+						inputTokens: 1_000,
+						outputTokens: 10,
+						cacheReadTokens: 800,
 						totalCost: 0.001,
 						id: "r",
 					},
@@ -272,14 +279,26 @@ describe("the planner's provider", () => {
 					{
 						type: "usage",
 						inputTokens: 1,
-						outputTokens: 1,
+						outputTokens: 5,
+						cacheWriteTokens: 40,
 						totalCost: 0.002,
 						id: "r",
 					},
 				]),
 				input,
+				tick,
 			),
-		).toEqual({ text: '{"suggestions":[]}', costUsd: 0.003 });
+		).toEqual({
+			text: '{"suggestions":[]}',
+			costUsd: 0.003,
+			usage: {
+				inputTokens: 1_001,
+				outputTokens: 15,
+				cacheReadTokens: 800,
+				cacheWriteTokens: 40,
+			},
+			firstTokenMs: 250,
+		});
 		await expect(
 			streamCompletion(
 				handler([{ type: "done", success: false, error: "overloaded" }]),
@@ -318,10 +337,11 @@ describe("the planner's provider", () => {
 		});
 		expect(
 			await complete(input, new AbortController().signal, defaults),
-		).toEqual({
+		).toMatchObject({
 			text: answer,
 			providerId: "anthropic",
 			modelId: "m",
+			firstTokenMs: expect.any(Number),
 		});
 		expect(configs[0]).toMatchObject({
 			providerId: "anthropic",
@@ -372,7 +392,7 @@ describe("the planner's provider", () => {
 		const refusesOff = completer("m");
 		expect(
 			await refusesOff(input, new AbortController().signal, defaults),
-		).toEqual({
+		).toMatchObject({
 			text: answer,
 			providerId: "cline",
 			modelId: "m",
@@ -385,7 +405,7 @@ describe("the planner's provider", () => {
 		configs.length = 0;
 		expect(
 			await refusesOff(input, new AbortController().signal, defaults),
-		).toEqual({
+		).toMatchObject({
 			text: answer,
 			providerId: "cline",
 			modelId: "m",

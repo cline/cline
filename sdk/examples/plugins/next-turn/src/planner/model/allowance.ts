@@ -2,14 +2,16 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import { HOUR_MS, PLANNER_LEDGER_TAIL_BYTES } from "../../config";
 import { appendJsonLine } from "../../store/data-dir";
 import { isRecord, num } from "../../values";
+import type { CallUsage, PoolFailure } from "./model";
 
 /**
  * The planner's own spend and the per-chat allowance.
  *
  * A planner call is a separate model call, so its cost is not in the
- * session's usage. Each call is appended to a JSONL ledger. Every chat's
- * sandbox appends to the same file; lines are short and appends do not
- * rewrite, so no sandbox can lose another's line.
+ * session's usage. Each call is appended to a JSONL ledger with its outcome,
+ * timings and token counts, so the planner's speed and cache use can be read
+ * back. Every chat's sandbox appends to the same file; lines are short and
+ * appends do not rewrite, so no sandbox can lose another's line.
  *
  * When a chat has used its allowance its sets are served paused; the
  * rule-based set keeps working, because it costs nothing.
@@ -21,7 +23,14 @@ export type PlannerCall = {
 	costUsd?: number;
 	providerId?: string;
 	modelId?: string;
-};
+	/** How the planner asked: one tool-less call over a summary of the turn. */
+	path?: "summary";
+	/** A call that found no provider is released, not recorded. */
+	outcome?: "ok" | PoolFailure;
+	/** From sending the call to its answer or failure, a low-reasoning retry included. */
+	totalMs?: number;
+	firstTokenMs?: number;
+} & Partial<CallUsage>;
 
 function isCall(value: unknown): value is PlannerCall {
 	return (

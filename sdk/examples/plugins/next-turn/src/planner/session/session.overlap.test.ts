@@ -386,6 +386,39 @@ describe("Next under overlapping actions", () => {
 		expect((await viewed.session.ensureCurrent()).state).toBe("unavailable");
 	});
 
+	test("each planner call goes to the ledger with its path, outcome, timings and token counts", async () => {
+		const usage = {
+			inputTokens: 3_000,
+			outputTokens: 120,
+			cacheReadTokens: 2_400,
+			cacheWriteTokens: 0,
+		};
+		const { session, ledgerCalls } = harness({
+			complete: async () => ({
+				text: "not json",
+				costUsd: 0.002,
+				usage,
+				firstTokenMs: 900,
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-5.5",
+			}),
+		});
+		await session.afterRun(editRun().result);
+		await session.settled();
+		const [call] = ledgerCalls();
+		expect(call).toMatchObject({
+			sessionId: "sess_1",
+			path: "summary",
+			outcome: "unparseable",
+			firstTokenMs: 900,
+			costUsd: 0.002,
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-5.5",
+			...usage,
+		});
+		expect(call?.totalMs).toBeGreaterThanOrEqual(0);
+	});
+
 	test("when the planner fails, the set on screen keeps its tray state and reports the error, and a reroll waiting on it gets the rules' next page", async () => {
 		let asked = 0;
 		const { session, sets } = harness({

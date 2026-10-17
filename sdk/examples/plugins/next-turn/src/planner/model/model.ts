@@ -31,11 +31,22 @@ import { parsePlannerOutput } from "./output";
  * chat refreshes it. The key never leaves this module.
  */
 
+/** Token counts the provider reported for one call, summed over its usage chunks. */
+export type CallUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
+};
+
 type Completion = {
 	text: string;
 	costUsd?: number;
 	providerId?: string;
 	modelId?: string;
+	usage?: CallUsage;
+	/** From sending the request to its first text or reasoning chunk. */
+	firstTokenMs?: number;
 };
 
 /**
@@ -67,7 +78,7 @@ export class PoolCache {
 	}
 }
 
-type PoolFailure = "no_provider" | "timeout" | "unparseable" | "error";
+export type PoolFailure = "no_provider" | "timeout" | "unparseable" | "error";
 
 type PoolAttempt = Omit<Completion, "text"> &
 	({ pool: Suggestion[] } | { reason: PoolFailure; error?: string });
@@ -173,25 +184,50 @@ export function providerResolver(
 	};
 }
 
-/** Streams one answer, summing text and the cost the provider reports. */
+function addUsage(
+	total: CallUsage | undefined,
+	chunk: Extract<ApiStreamChunk, { type: "usage" }>,
+): CallUsage {
+	return {
+		inputTokens: (total?.inputTokens ?? 0) + chunk.inputTokens,
+		outputTokens: (total?.outputTokens ?? 0) + chunk.outputTokens,
+		cacheReadTokens:
+			(total?.cacheReadTokens ?? 0) + (chunk.cacheReadTokens ?? 0),
+		cacheWriteTokens:
+			(total?.cacheWriteTokens ?? 0) + (chunk.cacheWriteTokens ?? 0),
+	};
+}
+
+/** Streams one answer, summing its text and the usage and cost the provider reports, and timing its first token. */
 export async function streamCompletion(
 	handler: ApiHandler,
 	input: PlannerInput,
+	now: () => number = Date.now,
 ): Promise<Completion> {
+	const startedAt = now();
 	let text = "";
 	let costUsd: number | undefined;
+	let usage: CallUsage | undefined;
+	let firstTokenMs: number | undefined;
 	const stream: AsyncIterable<ApiStreamChunk> = handler.createMessage(
 		input.system,
 		[{ role: "user", content: input.user }],
 	);
 	for await (const chunk of stream) {
+		if (
+			firstTokenMs === undefined &&
+			(chunk.type === "text" || chunk.type === "reasoning")
+		)
+			firstTokenMs = now() - startedAt;
 		if (chunk.type === "text") text += chunk.text;
-		else if (chunk.type === "usage" && chunk.totalCost !== undefined)
-			costUsd = (costUsd ?? 0) + chunk.totalCost;
-		else if (chunk.type === "done" && !chunk.success)
+		else if (chunk.type === "usage") {
+			usage = addUsage(usage, chunk);
+			if (chunk.totalCost !== undefined)
+				costUsd = (costUsd ?? 0) + chunk.totalCost;
+		} else if (chunk.type === "done" && !chunk.success)
 			throw new Error(chunk.error ?? "the model stream failed");
 	}
-	return { text, costUsd };
+	return { text, costUsd, usage, firstTokenMs };
 }
 
 /** The first call's bounds: reasoning off, so the answer fits the planner's deadline. */
