@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preserveRoutineCron } from "./routine-schedule-cron";
+import { expandCronDays, preserveRoutineCron } from "./routine-schedule-cron";
 
 const daily = {
 	scheduleType: "daily",
@@ -57,5 +57,40 @@ describe("routine cron editing", () => {
 				"0 9 * * 1",
 			),
 		).toBe("0 9 * * 1");
+	});
+});
+
+describe("expandCronDays", () => {
+	it.each([
+		["*", ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]],
+		["MON-FRI", ["MON", "TUE", "WED", "THU", "FRI"]],
+		["fri,mon", ["MON", "FRI"]],
+		["SUN-TUE", ["MON", "TUE", "SUN"]],
+	])("reads day names in %s", (field, days) => {
+		expect(expandCronDays(field)).toEqual(days);
+	});
+
+	it.each([
+		["1", ["MON"]],
+		["0", ["SUN"]],
+		["1-5", ["MON", "TUE", "WED", "THU", "FRI"]],
+		["6,0", ["SAT", "SUN"]],
+		["1,3,5", ["MON", "WED", "FRI"]],
+		["*/2", ["TUE", "THU", "SAT", "SUN"]],
+		["1-5/2", ["MON", "WED", "FRI"]],
+		["MON,6", ["MON", "SAT"]],
+	])("reads numeric days in %s like the scheduler does", (field, days) => {
+		expect(expandCronDays(field)).toEqual(days);
+	});
+
+	it.each([
+		"7",
+		"8",
+		"FRI-MON",
+		"5-1",
+		"*/0",
+		"1-x",
+	])("ignores %s, which the scheduler rejects", (field) => {
+		expect(expandCronDays(field)).toEqual([]);
 	});
 });
