@@ -22,6 +22,9 @@ const clientState = vi.hoisted(() => ({
 	callToolError: undefined as unknown,
 	connectError: undefined as unknown,
 	closeCount: 0,
+	notificationHandlers: [] as Array<
+		[unknown, (notification: unknown) => void | Promise<void>]
+	>,
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
@@ -31,6 +34,13 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 			if (clientState.connectError) {
 				throw clientState.connectError;
 			}
+		}
+
+		setNotificationHandler(
+			schema: unknown,
+			handler: (notification: unknown) => void | Promise<void>,
+		): void {
+			clientState.notificationHandlers.push([schema, handler]);
 		}
 
 		async close(): Promise<void> {
@@ -197,6 +207,7 @@ describe("SDK URL MCP client timeout", () => {
 		clientState.callToolError = undefined;
 		clientState.connectError = undefined;
 		clientState.closeCount = 0;
+		clientState.notificationHandlers = [];
 	});
 
 	async function createClient(timeoutSeconds = 12) {
@@ -209,6 +220,22 @@ describe("SDK URL MCP client timeout", () => {
 			timeoutSeconds,
 		});
 	}
+
+	it("subscribes to tools list_changed notifications when connected", async () => {
+		const client = await createClient();
+		if (!client.onToolsChanged) {
+			throw new Error("client does not support onToolsChanged");
+		}
+		const onToolsChanged = vi.fn();
+		client.onToolsChanged(onToolsChanged);
+
+		await client.connect();
+
+		expect(clientState.notificationHandlers).toHaveLength(1);
+		const [, handler] = clientState.notificationHandlers[0] ?? [];
+		await handler?.({});
+		expect(onToolsChanged).toHaveBeenCalledTimes(1);
+	});
 
 	it("uses one timeout snapshot for initialize, list, and call", async () => {
 		const client = await createClient();

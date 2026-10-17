@@ -8,6 +8,7 @@ import {
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
@@ -22,6 +23,7 @@ import type {
 	McpServerRegistration,
 	McpToolCallResult,
 	McpToolDescriptor,
+	McpToolsChangedHandler,
 } from "./types";
 
 type JsonRpcRequest = {
@@ -224,6 +226,7 @@ class StdioMcpClient implements McpServerClient {
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private toolsChangedHandler?: McpToolsChangedHandler;
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
@@ -354,6 +357,10 @@ class StdioMcpClient implements McpServerClient {
 				`MCP process for "${this.registration.name}" did not exit during disconnect.`,
 			);
 		}
+	}
+
+	onToolsChanged(handler: McpToolsChangedHandler): void {
+		this.toolsChangedHandler = handler;
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
@@ -513,6 +520,12 @@ class StdioMcpClient implements McpServerClient {
 			for (const messageText of messages) {
 				const message = JSON.parse(messageText) as JsonRpcMessage;
 				if (typeof message.id !== "number") {
+					// A server-side notification (no id). The only one the client
+					// reacts to is the tools-list-changed signal; everything else
+					// has no handler on this side.
+					if (message.method === "notifications/tools/list_changed") {
+						this.toolsChangedHandler?.();
+					}
 					continue;
 				}
 				const pending = this.takePending(message.id);
@@ -722,6 +735,7 @@ class SdkUrlMcpClient implements McpServerClient {
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private toolsChangedHandler?: McpToolsChangedHandler;
 
 	constructor(
 		private readonly registration: McpServerRegistration,
@@ -783,6 +797,9 @@ class SdkUrlMcpClient implements McpServerClient {
 			await client.connect(transport, {
 				timeout: this.connectAttemptTimeoutMs,
 			});
+			client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+				this.toolsChangedHandler?.();
+			});
 			await authContext.clearError();
 			this.client = client;
 		} catch (error) {
@@ -809,6 +826,10 @@ class SdkUrlMcpClient implements McpServerClient {
 		const activeClient = this.client;
 		this.client = undefined;
 		await activeClient?.close();
+	}
+
+	onToolsChanged(handler: McpToolsChangedHandler): void {
+		this.toolsChangedHandler = handler;
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
