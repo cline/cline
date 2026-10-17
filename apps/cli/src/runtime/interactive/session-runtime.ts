@@ -268,6 +268,7 @@ export function createInteractiveSessionRuntime(input: {
 			},
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
+			resumed: true,
 			initialMessages: initial,
 			localRuntime: {
 				onTeamRestored: () => {},
