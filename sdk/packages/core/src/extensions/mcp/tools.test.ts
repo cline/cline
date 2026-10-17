@@ -20,3 +20,27 @@ describe("MCP result policy", () => {
 		);
 	});
 });
+
+describe("MCP Apps tool visibility", () => {
+	it("leaves app-only tools out of the model's tool list", async () => {
+		const tools = await createMcpTools({
+			serverName: "weather",
+			provider: {
+				listTools: async () => [
+					{
+						name: "show_weather",
+						inputSchema: { type: "object" },
+						_meta: { ui: { resourceUri: "ui://weather/view.html" } },
+					},
+					{
+						name: "refresh_view",
+						inputSchema: { type: "object" },
+						_meta: { ui: { visibility: ["app"] } },
+					},
+				],
+				callTool: async () => ({ content: [] }),
+			},
+		});
+		expect(tools.map((tool) => tool.name)).toEqual(["weather__show_weather"]);
+	});
+});

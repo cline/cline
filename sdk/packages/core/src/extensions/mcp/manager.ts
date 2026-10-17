@@ -6,6 +6,8 @@ import type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpResourceReadRequest,
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerRegistration,
 	McpServerSnapshot,
@@ -37,6 +39,7 @@ function cloneTools(
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.inputSchema,
+		...(tool._meta ? { _meta: tool._meta } : {}),
 	}));
 }
 
@@ -173,6 +176,25 @@ export class InMemoryMcpManager implements McpManager {
 			return client.callTool({
 				name: request.toolName,
 				arguments: request.arguments,
+				context: request.context,
+			});
+		});
+	}
+
+	async readResource(
+		request: McpResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		return this.runExclusive(request.serverName, async () => {
+			const state = this.requireServer(request.serverName);
+			const client = await this.ensureConnectedClient(state);
+			if (!client.readResource) {
+				throw new Error(
+					`MCP server "${request.serverName}" client does not support reading resources.`,
+				);
+			}
+			state.updatedAt = nowMs();
+			return client.readResource({
+				uri: request.uri,
 				context: request.context,
 			});
 		});

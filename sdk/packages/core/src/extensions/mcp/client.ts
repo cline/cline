@@ -8,6 +8,7 @@ import {
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { createMcpAppsClientCapabilities } from "./apps";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
@@ -17,6 +18,7 @@ import {
 } from "./oauth";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
 import type {
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerClientFactory,
 	McpServerRegistration,
@@ -224,9 +226,11 @@ class StdioMcpClient implements McpServerClient {
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private readonly mcpApps: boolean;
 
-	constructor(registration: McpServerRegistration) {
+	constructor(registration: McpServerRegistration, mcpApps = false) {
 		this.registration = registration;
+		this.mcpApps = mcpApps;
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
@@ -252,7 +256,7 @@ class StdioMcpClient implements McpServerClient {
 
 		const initializeParams = {
 			protocolVersion: MCP_PROTOCOL_VERSION,
-			capabilities: {},
+			capabilities: this.mcpApps ? createMcpAppsClientCapabilities() : {},
 			clientInfo: { name: "@cline/core", version: "0.0.0" },
 		};
 		await this.ensureAgentPluginDataDirectory();
@@ -362,6 +366,7 @@ class StdioMcpClient implements McpServerClient {
 				name?: string;
 				description?: string;
 				inputSchema?: Record<string, unknown>;
+				_meta?: Record<string, unknown>;
 			}>;
 		};
 		return (result.tools ?? [])
@@ -372,6 +377,7 @@ class StdioMcpClient implements McpServerClient {
 					name: string;
 					description?: string;
 					inputSchema: Record<string, unknown>;
+					_meta?: Record<string, unknown>;
 				} =>
 					typeof tool?.name === "string" &&
 					typeof tool.inputSchema === "object" &&
@@ -381,6 +387,11 @@ class StdioMcpClient implements McpServerClient {
 				name: tool.name,
 				description: tool.description,
 				inputSchema: tool.inputSchema,
+				...(tool._meta &&
+				typeof tool._meta === "object" &&
+				!Array.isArray(tool._meta)
+					? { _meta: tool._meta }
+					: {}),
 			}));
 	}
 
@@ -398,6 +409,19 @@ class StdioMcpClient implements McpServerClient {
 			undefined,
 			request.context?.signal,
 		);
+	}
+
+	async readResource(request: {
+		uri: string;
+		context?: AgentToolContext;
+	}): Promise<McpResourceReadResult> {
+		const result = (await this.request(
+			"resources/read",
+			{ uri: request.uri },
+			undefined,
+			request.context?.signal,
+		)) as Partial<McpResourceReadResult> | undefined;
+		return { ...result, contents: result?.contents ?? [] };
 	}
 
 	private spawnProcess(protocolMode: StdioProtocolMode): void {
@@ -702,6 +726,7 @@ export interface DefaultMcpServerClientFactoryOptions {
 	fetch?: FetchLike;
 	/** Keep literal configured headers on the declared MCP origin only. */
 	restrictConfiguredHeadersToOrigin?: boolean;
+	mcpApps?: boolean;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -769,10 +794,15 @@ class SdkUrlMcpClient implements McpServerClient {
 			: undefined;
 		let client: Client | undefined;
 		try {
-			client = new Client({
-				name: this.options.clientName?.trim() || "@cline/core",
-				version: this.options.clientVersion?.trim() || "0.0.0",
-			});
+			client = new Client(
+				{
+					name: this.options.clientName?.trim() || "@cline/core",
+					version: this.options.clientVersion?.trim() || "0.0.0",
+				},
+				this.options.mcpApps
+					? { capabilities: createMcpAppsClientCapabilities() }
+					: undefined,
+			);
 			const transport = createMcpSdkTransport({
 				registration: this.registration,
 				oauthProvider,
@@ -826,6 +856,7 @@ class SdkUrlMcpClient implements McpServerClient {
 					!Array.isArray(tool.inputSchema)
 						? tool.inputSchema
 						: {},
+				...(tool._meta ? { _meta: tool._meta } : {}),
 			}));
 		} catch (error) {
 			return await this.handleOperationError(error);
@@ -845,6 +876,24 @@ class SdkUrlMcpClient implements McpServerClient {
 					arguments: request.arguments ?? {},
 				},
 				undefined,
+				{
+					timeout: this.requestTimeoutMs,
+					signal: request.context?.signal,
+				},
+			);
+		} catch (error) {
+			return await this.handleOperationError(error);
+		}
+	}
+
+	async readResource(request: {
+		uri: string;
+		context?: AgentToolContext;
+	}): Promise<McpResourceReadResult> {
+		const client = await this.ensureConnectedClient();
+		try {
+			return await client.readResource(
+				{ uri: request.uri },
 				{
 					timeout: this.requestTimeoutMs,
 					signal: request.context?.signal,
@@ -923,7 +972,7 @@ export function createDefaultMcpServerClientFactory(
 ): McpServerClientFactory {
 	return (registration) =>
 		registration.transport.type === "stdio"
-			? new StdioMcpClient(registration)
+			? new StdioMcpClient(registration, options.mcpApps)
 			: new SdkUrlMcpClient(registration, options);
 }
 
