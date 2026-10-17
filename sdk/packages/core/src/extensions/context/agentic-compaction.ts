@@ -28,6 +28,41 @@ import {
 
 const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
 
+// Fraction of the available summary-input budget used for the single retry after
+// the provider reports the summary was cut off.
+const TRUNCATED_SUMMARY_RETRY_INPUT_RATIO = 0.5;
+
+function logTruncatedSummary(options: {
+	attempt: 1 | 2;
+	reason: string;
+	reasoningChars: number;
+	summaryChars: number;
+	messagesFolded: number;
+	targetTokens: number;
+	summarizerProviderConfig: ProviderConfig;
+	logger?: BasicLogger;
+}): void {
+	options.logger?.log(
+		`Agentic compaction summarizer returned an incomplete summary (attempt ${options.attempt})`,
+		{
+			severity: "warn",
+			incompleteReason: options.reason,
+			summaryChars: options.summaryChars,
+			reasoningChars: options.reasoningChars,
+			messagesFolded: options.messagesFolded,
+			summaryInputTargetTokens: options.targetTokens,
+			summarizerProviderId: options.summarizerProviderConfig.providerId,
+			summarizerModelId: options.summarizerProviderConfig.modelId,
+			summarizerMaxOutputTokens:
+				options.summarizerProviderConfig.maxOutputTokens,
+			likelyCause:
+				options.reasoningChars > 0
+					? "output_budget_consumed_by_reasoning"
+					: "output_budget_exhausted",
+		},
+	);
+}
+
 function resolveProviderMaxInputTokens(
 	providerConfig: ProviderConfig,
 ): number | undefined {
@@ -201,20 +236,38 @@ export async function runAgenticCompaction(options: {
 		);
 		return undefined;
 	}
-	const summaryInputBudget = buildAgenticSummaryInputBudget({
-		messages: newMessagesToFold,
-		targetTokens: availableSummaryInputTokens,
-		estimateMessageTokens: options.estimateMessageTokens,
-	});
-	if (summaryInputBudget.status === "failed") {
+	// Build one summarizer attempt for a given summary-input target. `request` is
+	// undefined when the projection cannot be made to fit at all; the budget is
+	// always returned so the caller can report why.
+	const buildAttemptForTarget = (targetTokens: number) => {
+		const budget = buildAgenticSummaryInputBudget({
+			messages: newMessagesToFold,
+			targetTokens,
+			estimateMessageTokens: options.estimateMessageTokens,
+		});
+		if (budget.status === "failed") {
+			return { budget, fileOps: undefined, request: undefined };
+		}
+		const ops = extractFileOps(budget.messages);
+		return {
+			budget,
+			fileOps: ops,
+			request: buildSummaryRequest({
+				previousSummary,
+				conversationText: serializeConversation(budget.messages),
+				fileOps: ops,
+			}),
+		};
+	};
+
+	const attempt = buildAttemptForTarget(availableSummaryInputTokens);
+	if (attempt.request === undefined) {
 		options.logger?.log(
 			"Skipped agentic compaction: summary input budget failed",
 			{
 				severity: "warn",
-				budgetWarnings: summaryInputBudget.warnings.map(
-					(warning) => warning.code,
-				),
-				summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
+				budgetWarnings: attempt.budget.warnings.map((warning) => warning.code),
+				summaryInputEstimatedTokens: attempt.budget.estimatedTokens,
 				targetTokens: availableSummaryInputTokens,
 				summarizerProviderId: summarizerProviderConfig.providerId,
 				summarizerModelId: summarizerProviderConfig.modelId,
@@ -222,19 +275,16 @@ export async function runAgenticCompaction(options: {
 		);
 		return undefined;
 	}
-	const fileOps = extractFileOps(summaryInputBudget.messages);
-	const conversationText = serializeConversation(summaryInputBudget.messages);
-	const summaryRequest = buildSummaryRequest({
-		previousSummary,
-		conversationText,
-		fileOps,
-	});
+	let summaryInputBudget = attempt.budget;
+	let fileOps = attempt.fileOps;
+	let summaryRequest = attempt.request;
 	options.logger?.debug("Agentic compaction summarizer diagnostics", {
 		messagesToSummarize: messagesToSummarize.length,
 		newMessagesToFold: newMessagesToFold.length,
 		preservedMessages: messages.length - cutIndex,
 		previousSummaryChars: previousSummary?.length ?? 0,
-		conversationTextChars: conversationText.length,
+		conversationTextChars: serializeConversation(summaryInputBudget.messages)
+			.length,
 		summaryRequestChars: summaryRequest.length,
 		summaryRequestEstimatedTokens: estimateTokens(summaryRequest.length),
 		newMessagesJsonChars: safeJsonSize(newMessagesToFold),
@@ -250,11 +300,63 @@ export async function runAgenticCompaction(options: {
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 		triggerTokens: options.context.budget.request.triggerTokens,
 	});
-	const summaryResult = await generateSummary({
+	let summaryResult = await generateSummary({
 		providerConfig: summarizerProviderConfig,
 		request: summaryRequest,
 		logger: options.logger,
 	});
+	// A summary the provider reports as incomplete was cut off mid-sentence. It is
+	// still usable text, but installing it silently is what makes the truncation
+	// invisible: an empty summary gets a warning and this path got none.
+	let truncatedReason = summaryResult.incompleteReason;
+	let retriedAfterTruncation = false;
+	if (truncatedReason) {
+		logTruncatedSummary({
+			attempt: 1,
+			reason: truncatedReason,
+			reasoningChars: summaryResult.reasoningChars,
+			summaryChars: summaryResult.text.length,
+			messagesFolded: summaryInputBudget.messages.length,
+			targetTokens: availableSummaryInputTokens,
+			summarizerProviderConfig,
+			logger: options.logger,
+		});
+
+		// `max_output_tokens` caps the summary itself, so fewer source messages is
+		// what makes a shorter summary more likely. Retry once with a reduced input
+		// budget before accepting a cut-off summary.
+		const retryTargetTokens = Math.max(
+			Math.floor(
+				availableSummaryInputTokens * TRUNCATED_SUMMARY_RETRY_INPUT_RATIO,
+			),
+			1,
+		);
+		const retry = buildAttemptForTarget(retryTargetTokens);
+		if (retry.request !== undefined && retry.request !== summaryRequest) {
+			retriedAfterTruncation = true;
+			summaryInputBudget = retry.budget;
+			fileOps = retry.fileOps;
+			summaryRequest = retry.request;
+			summaryResult = await generateSummary({
+				providerConfig: summarizerProviderConfig,
+				request: summaryRequest,
+				logger: options.logger,
+			});
+			truncatedReason = summaryResult.incompleteReason;
+			if (truncatedReason) {
+				logTruncatedSummary({
+					attempt: 2,
+					reason: truncatedReason,
+					reasoningChars: summaryResult.reasoningChars,
+					summaryChars: summaryResult.text.length,
+					messagesFolded: retry.budget.messages.length,
+					targetTokens: retryTargetTokens,
+					summarizerProviderConfig,
+					logger: options.logger,
+				});
+			}
+		}
+	}
 	const rawSummary = summaryResult.text;
 	if (!rawSummary) {
 		options.logger?.log(
@@ -286,6 +388,9 @@ export async function runAgenticCompaction(options: {
 			fileOps,
 			tokensBefore,
 			userRunSpan: countUserRunMessages(messagesToSummarize),
+			truncated: truncatedReason !== undefined,
+			truncatedReason,
+			retriedAfterTruncation,
 		}),
 		...messages.slice(cutIndex),
 	];
@@ -301,6 +406,9 @@ export async function runAgenticCompaction(options: {
 		tokensBefore,
 		tokensAfter,
 		maxInputTokens: options.context.budget.request.maxInputTokens,
+		summaryTruncated: truncatedReason !== undefined,
+		summaryTruncatedReason: truncatedReason,
+		summaryRetriedAfterTruncation: retriedAfterTruncation,
 	});
 	const budgetActionCount = summaryInputBudget.actions.filter(
 		(action) =>
