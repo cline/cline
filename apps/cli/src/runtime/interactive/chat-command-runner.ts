@@ -1,4 +1,3 @@
-import { createTeamName } from "@cline/core";
 import type { InteractiveTurnResult } from "../../tui/types";
 import type { ChatCommandHost } from "../../utils/chat-commands";
 import {
@@ -6,6 +5,7 @@ import {
 	maybeHandleChatCommand,
 } from "../../utils/chat-commands";
 import {
+	enableTeamsForPrompt,
 	rewriteTeamPrompt,
 	TEAM_COMMAND_USAGE,
 } from "../../utils/team-command";
@@ -22,6 +22,7 @@ export type InteractiveChatCommandRuntime = Pick<
 	| "getActiveSessionId"
 	| "resetForNewSession"
 	| "restartEmpty"
+	| "withLocalMutation"
 >;
 
 export type InteractiveChatCommandResult =
@@ -44,6 +45,7 @@ export async function runInteractiveChatCommand(input: {
 	chatCommandState: ChatCommandState;
 	autoApproveAllRef: AutoApproveRef;
 	setInteractiveAutoApprove: (enabled: boolean) => void;
+	refreshPolicies: () => Promise<void>;
 	sessionRuntime: InteractiveChatCommandRuntime;
 	stop: () => void;
 	onCommandOutput?: (text: string) => void;
@@ -58,9 +60,10 @@ export async function runInteractiveChatCommand(input: {
 			};
 		}
 		if (!input.config.enableAgentTeams) {
-			input.config.enableAgentTeams = true;
-			input.config.teamName = input.config.teamName?.trim() || createTeamName();
-			await input.sessionRuntime.restartEmpty();
+			await input.sessionRuntime.withLocalMutation(async () => {
+				await enableTeamsForPrompt(input.config);
+				await input.sessionRuntime.restartEmpty();
+			});
 		}
 		prompt = rewrittenTeamPrompt.prompt;
 	}
@@ -75,11 +78,14 @@ export async function runInteractiveChatCommand(input: {
 			autoApproveTools: input.autoApproveAllRef.current,
 		}),
 		setState: async (next) => {
-			input.chatCommandState.enableTools = next.enableTools;
-			input.chatCommandState.autoApproveTools = next.autoApproveTools;
-			input.chatCommandState.cwd = next.cwd;
-			input.chatCommandState.workspaceRoot = next.workspaceRoot;
-			input.setInteractiveAutoApprove(next.autoApproveTools);
+			await input.sessionRuntime.withLocalMutation(async () => {
+				input.chatCommandState.enableTools = next.enableTools;
+				input.chatCommandState.autoApproveTools = next.autoApproveTools;
+				input.chatCommandState.cwd = next.cwd;
+				input.chatCommandState.workspaceRoot = next.workspaceRoot;
+				input.setInteractiveAutoApprove(next.autoApproveTools);
+				await input.refreshPolicies();
+			});
 		},
 		reply: async (text) => {
 			commandOutput = text;

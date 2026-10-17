@@ -28,10 +28,18 @@ function countWrappedLines(value: string, width: number): number {
 export function CommandPaletteContent(
 	props: ChoiceContext<CommandPaletteResult> & {
 		canForkSession: boolean;
+		cloudEnabled?: boolean;
 		contentWidth: number;
 	},
 ) {
-	const { resolve, dismiss, dialogId, canForkSession, contentWidth } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		canForkSession,
+		cloudEnabled,
+		contentWidth,
+	} = props;
 	const palette = useDialogPalette();
 	const { height } = useTerminalDimensions();
 	const [query, setQuery] = useState("");
@@ -41,8 +49,9 @@ export function CommandPaletteContent(
 		() =>
 			buildCommandPaletteItems({
 				canForkSession,
+				cloudEnabled,
 			}),
-		[canForkSession],
+		[canForkSession, cloudEnabled],
 	);
 	const filtered = useMemo(
 		() => filterCommandPaletteItems(allItems, query),

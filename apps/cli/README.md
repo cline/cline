@@ -31,6 +31,25 @@
 
 Run Cline in your terminal. Interactive chat for paired sessions, or fully headless for CI/CD and scripting. The CLI shares its agent core with the [Cline VS Code extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev), JetBrains plugin, and SDK, so plan/act modes, MCP servers, checkpoints, rules, skills, and provider configuration all behave the same across surfaces.
 
+## Cloud agents
+
+Requires a signed-in Cline account and the `cli-cloud-agents` rollout flag (off by default).
+
+Use `/cloud` to open tasks, **Ctrl+N** to create one, and **Ctrl+P** for approvals,
+queues, Stop, and recovery actions. `/local` returns to local chat; closing the
+terminal leaves remote work running. New tasks default to manual tool approval.
+Cloud prompts are literal text; local files, attachments, skills, workflows, and
+plugin commands are not expanded.
+
+To transfer an open local conversation, choose **Continue this conversation in cloud**.
+Handoff preserves history, mode, and model. It requires an idle conversation with no
+queued prompts, a cloud-supported model, and a clean GitHub branch pushed at the
+current commit. Uncommitted files are not uploaded.
+
+Retry interrupted handoffs from the source conversation's `/cloud` menu. Recovery
+does not automatically resend uncertain prompts. After completion, fork the local
+conversation to continue locally.
+
 ## Install
 
 ```sh

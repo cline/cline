@@ -41,6 +41,7 @@ function makeState(config: Config): ChatCommandState {
 
 function makeRuntime(): InteractiveChatCommandRuntime {
 	return {
+		withLocalMutation: async (mutate) => await mutate(),
 		forkCurrentSession: vi.fn(async () => undefined),
 		getActiveSessionId: vi.fn(() => "session-1"),
 		resetForNewSession: vi.fn(async () => {}),
@@ -62,6 +63,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 		});
 
@@ -90,6 +92,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 		});
 
@@ -101,6 +104,39 @@ describe("runInteractiveChatCommand", () => {
 		expect(config.enableAgentTeams).toBe(true);
 		expect(config.teamName).toBeTruthy();
 		expect(runtime.restartEmpty).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		"/tools off",
+		"/team inspect the TUI",
+	])("rejects %s before changing source config or chat state", async (prompt) => {
+		const config = makeConfig();
+		const state = makeState(config);
+		const before = { ...config };
+		const stateBefore = { ...state };
+		const runtime = makeRuntime();
+		runtime.withLocalMutation = async () => {
+			throw new Error("handoff locked");
+		};
+		const setInteractiveAutoApprove = vi.fn();
+		await expect(
+			runInteractiveChatCommand({
+				prompt,
+				enabled: true,
+				config,
+				host: chatCommandHost,
+				chatCommandState: state,
+				autoApproveAllRef: { current: false },
+				setInteractiveAutoApprove,
+				sessionRuntime: runtime,
+				refreshPolicies: async () => {},
+				stop: () => {},
+			}),
+		).rejects.toThrow("handoff locked");
+		expect(config).toEqual(before);
+		expect(state).toEqual(stateBefore);
+		expect(setInteractiveAutoApprove).not.toHaveBeenCalled();
+		expect(runtime.restartEmpty).not.toHaveBeenCalled();
 	});
 
 	it("resets slash new without eagerly restarting the runtime", async () => {
@@ -116,6 +152,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 		});
 
@@ -139,6 +176,7 @@ describe("runInteractiveChatCommand", () => {
 		const setInteractiveAutoApprove = vi.fn((enabled: boolean) => {
 			autoApproveAllRef.current = enabled;
 		});
+		const refreshPolicies = vi.fn(async () => {});
 
 		const result = await runInteractiveChatCommand({
 			prompt: "/yolo on",
@@ -149,6 +187,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef,
 			setInteractiveAutoApprove,
 			sessionRuntime: runtime,
+			refreshPolicies,
 			stop: () => {},
 		});
 
@@ -162,6 +201,45 @@ describe("runInteractiveChatCommand", () => {
 		});
 		expect(state.autoApproveTools).toBe(true);
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
+		expect(refreshPolicies).toHaveBeenCalledOnce();
+	});
+
+	it("keeps chat state mutations reserved until the runtime refresh finishes", async () => {
+		const config = makeConfig();
+		const runtime = makeRuntime();
+		let reserved = false;
+		let finishRefresh!: () => void;
+		const refresh = new Promise<void>((resolve) => {
+			finishRefresh = resolve;
+		});
+		runtime.withLocalMutation = async (mutate) => {
+			reserved = true;
+			try {
+				return await mutate();
+			} finally {
+				reserved = false;
+			}
+		};
+		const refreshPolicies = vi.fn(() => refresh);
+		const state = makeState(config);
+		const changing = runInteractiveChatCommand({
+			prompt: "/tools off",
+			enabled: true,
+			config,
+			host: chatCommandHost,
+			chatCommandState: state,
+			autoApproveAllRef: { current: false },
+			setInteractiveAutoApprove: vi.fn(),
+			sessionRuntime: runtime,
+			refreshPolicies,
+			stop: () => {},
+		});
+		await vi.waitFor(() => expect(refreshPolicies).toHaveBeenCalledOnce());
+		expect(reserved).toBe(true);
+		expect(state.enableTools).toBe(false);
+		finishRefresh();
+		await changing;
+		expect(reserved).toBe(false);
 	});
 
 	it("returns plugin command submit prompts as model input", async () => {
@@ -185,6 +263,7 @@ describe("runInteractiveChatCommand", () => {
 			autoApproveAllRef: { current: false },
 			setInteractiveAutoApprove: () => {},
 			sessionRuntime: runtime,
+			refreshPolicies: async () => {},
 			stop: () => {},
 			onCommandOutput,
 		});

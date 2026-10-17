@@ -65,7 +65,7 @@ export function useRootKeyboard(input: {
 	const lastEscapeRef = useRef(0);
 
 	useKeyboard((key) => {
-		if (session.isExitRequested) return;
+		if (session.isExitRequested || input.appView === "cloud") return;
 
 		const hasInputText = input.getCurrentInputText().trim().length > 0;
 
