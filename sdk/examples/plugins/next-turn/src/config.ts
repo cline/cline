@@ -133,11 +133,12 @@ export const PINNED_SUMMARY_MAX = 240;
  * exclude, and the bounds on what a suggestion says.
  */
 export const SET_SIZE = 3;
-export const POOL_SIZE = 6;
+/** One set's worth: the planner's wait is mostly output, so it writes three rows, not six; Skip tops up from the rules and Reroll asks again. */
+export const POOL_SIZE = 3;
 export const POOL_CACHE_LIMIT = 8;
 export const EXCLUDED_LIMIT = 12;
 export const REROLL_LIMIT = 2;
-/** Offers kept per turn, so an action on a rules row still resolves after the model set replaces it. */
+/** Offers kept per turn, so an action on the set Skip or Reroll just replaced still resolves. */
 export const RETAINED_OFFERS_LIMIT = 2;
 export const PLANNER_LEDGER_TAIL_BYTES = 262_144;
 export const PROMPT_MIN_CHARS = 8;
@@ -160,7 +161,7 @@ export const TURN_PATH_LIMIT = 8;
  * rule-based set is the turn's one set.
  */
 export const PLANNER_TIMEOUT_MS = 20_000;
-export const PLANNER_MAX_OUTPUT_TOKENS = 600;
+export const PLANNER_MAX_OUTPUT_TOKENS = 400;
 export const PLANNER_TEMPERATURE = 0.3;
 
 /**

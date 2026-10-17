@@ -170,6 +170,21 @@ describe("the planner's output", () => {
 		expect(parsePlannerOutput('{"suggestions":[]}', CORE_KINDS)).toBeNull();
 	});
 
+	test("an answer the output budget cut off keeps its complete rows, braces and quotes in strings included", () => {
+		const cut = `{"suggestions":[{"kind":"verify","source":"turn","prompt":"Run bun test src/retry.test.ts {fast}","why":"a \\"quoted\\" } brace"},{"kind":"wrap_up","source":"turn","prompt":"Summarize the re`;
+		expect(
+			parsePlannerOutput(cut, CORE_KINDS)?.map((row) => [row.prompt, row.why]),
+		).toEqual([
+			["Run bun test src/retry.test.ts {fast}", 'a "quoted" } brace'],
+		]);
+		expect(
+			parsePlannerOutput(
+				'{"suggestions":[{"kind":"verify","prompt":"Run the',
+				CORE_KINDS,
+			),
+		).toBeNull();
+	});
+
 	test("blocking rows lead, a failed turn's fix comes next on the first set only, then the model, then the rules", () => {
 		const blocking = suggestion(
 			"fix_failure",

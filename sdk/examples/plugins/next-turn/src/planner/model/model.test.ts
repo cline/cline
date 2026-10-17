@@ -5,7 +5,7 @@ import {
 	isRetryableProviderError,
 	resolveProviderRequestHeaders,
 } from "@cline/llms";
-import { POOL_CACHE_LIMIT } from "../../config";
+import { PLANNER_MAX_OUTPUT_TOKENS, POOL_CACHE_LIMIT } from "../../config";
 import { defaultSettings } from "../../settings/settings";
 import { suggestion } from "../candidates";
 import { CORE_KINDS } from "../kinds";
@@ -326,7 +326,7 @@ describe("the planner's provider", () => {
 		expect(configs[0]).toMatchObject({
 			providerId: "anthropic",
 			thinking: false,
-			maxOutputTokens: 600,
+			maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
 		});
 		await complete(input, new AbortController().signal, defaults);
 		expect(loads).toBe(1);

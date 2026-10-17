@@ -41,15 +41,39 @@ function oneLine(value: unknown, limit: number): string {
 		: "";
 }
 
-function jsonObjectIn(text: string): unknown {
-	const start = text.indexOf("{");
-	const end = text.lastIndexOf("}");
-	if (start === -1 || end <= start) return null;
-	try {
-		return JSON.parse(text.slice(start, end + 1));
-	} catch {
-		return null;
+/**
+ * Each complete `{…}` row of the `suggestions` array, so an answer the output
+ * budget cut off mid-row keeps the rows before the cut, and prose around the
+ * JSON is ignored.
+ */
+function rowsIn(text: string): unknown[] {
+	const array = /"suggestions"\s*:\s*\[/.exec(text);
+	if (!array) return [];
+	const rows: unknown[] = [];
+	let depth = 0;
+	let rowStart = 0;
+	let inString = false;
+	let escaped = false;
+	for (let at = array.index + array[0].length; at < text.length; at += 1) {
+		const char = text[at];
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === '"') inString = false;
+		} else if (char === '"') inString = true;
+		else if (char === "{") {
+			if (depth === 0) rowStart = at;
+			depth += 1;
+		} else if (char === "}" && depth > 0) {
+			depth -= 1;
+			if (depth === 0) {
+				try {
+					rows.push(JSON.parse(text.slice(rowStart, at + 1)));
+				} catch {}
+			}
+		} else if (char === "]" && depth === 0) break;
 	}
+	return rows;
 }
 
 function poolRow(
@@ -75,19 +99,17 @@ function poolRow(
 
 /**
  * The model's pool, or null when its answer is not a usable one. A partly bad
- * answer keeps its good rows; an answer with none is a failure, not an empty
- * set, so the rules answer instead of a blank tray. A kind this environment
- * does not offer is dropped, whatever the model claims.
+ * or cut-off answer keeps its good rows; an answer with none is a failure, not
+ * an empty set, so the rules answer instead of a blank tray. A kind this
+ * environment does not offer is dropped, whatever the model claims.
  */
 export function parsePlannerOutput(
 	text: string,
 	kinds: readonly SuggestionKind[],
 ): Suggestion[] | null {
-	const parsed = jsonObjectIn(text);
-	if (!isRecord(parsed) || !Array.isArray(parsed.suggestions)) return null;
 	const allowed = new Set<string>(kinds);
 	const pool = uniqueByPrompt(
-		parsed.suggestions.map((row) => poolRow(row, allowed)),
+		rowsIn(text).map((row) => poolRow(row, allowed)),
 		undefined,
 		POOL_SIZE,
 	);
