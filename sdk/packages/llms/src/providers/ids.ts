@@ -36,6 +36,7 @@ export enum BUILT_IN_PROVIDER {
 	GROQ = "groq",
 	POOLSIDE = "poolside",
 	CEREBRAS = "cerebras",
+	CHEAPER_INFERENCE = "cheaperinference",
 	SAMBANOVA = "sambanova",
 	NEBIUS = "nebius",
 	CRUSOE = "crusoe",
