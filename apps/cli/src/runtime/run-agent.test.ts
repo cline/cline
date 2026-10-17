@@ -1,3 +1,7 @@
+import type {
+	ConsecutiveMistakeLimitContext,
+	ConsecutiveMistakeLimitDecision,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
 
@@ -532,6 +536,168 @@ describe("runAgent", () => {
 		expect(outputMocks.writeErr).not.toHaveBeenCalledWith(
 			"hook shutdown failed",
 		);
+	});
+
+	it("reports an internal mistake-limit stop as internal_abort in json mode", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		const { resolveMistakeLimitDecision } = await import("./format");
+		vi.mocked(resolveMistakeLimitDecision).mockResolvedValue({
+			action: "stop",
+			reason: "mistake_limit_reached: tool_execution_failed at iteration 5",
+		});
+
+		sessionManagerMocks.start.mockImplementation(
+			async (options: {
+				config: {
+					onConsecutiveMistakeLimitReached: (
+						context: ConsecutiveMistakeLimitContext,
+					) => Promise<ConsecutiveMistakeLimitDecision>;
+				};
+			}) => {
+				// The loop detector / mistake tracker fires mid-run, before the
+				// session result resolves — mirror that ordering here.
+				const decision = await options.config.onConsecutiveMistakeLimitReached({
+					iteration: 5,
+					consecutiveMistakes: 3,
+					maxConsecutiveMistakes: 3,
+					reason: "tool_execution_failed",
+					details:
+						"Detected repeated tool calls to `read_file`; stopping to avoid a loop.",
+				});
+				expect(decision).toEqual({
+					action: "stop",
+					reason: "mistake_limit_reached: tool_execution_failed at iteration 5",
+				});
+				return {
+					sessionId: "session-1",
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest: {
+						session_id: "session-1",
+					},
+					result: {
+						text: "aborted",
+						usage: {
+							inputTokens: 0,
+							outputTokens: 0,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost: undefined,
+						},
+						messages: [],
+						toolCalls: [],
+						iterations: 5,
+						finishReason: "aborted",
+						model: {
+							id: "gemini",
+							provider: "openrouter",
+							info: {},
+						},
+						startedAt,
+						endedAt,
+						durationMs: 1000,
+					},
+				};
+			},
+		);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "yolo",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "json",
+				providerId: "openrouter",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		// cline/cline#15138: an internal stop must not be reported as
+		// "external_abort" / "aborted by another client".
+		expect(outputMocks.emitJsonLine).toHaveBeenCalledWith("stdout", {
+			type: "run_aborted",
+			reason: "internal_abort",
+			message: "mistake_limit_reached: tool_execution_failed at iteration 5",
+		});
+	});
+
+	it("keeps reporting external_abort for aborts without an internal stop", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "aborted",
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 0,
+				finishReason: "aborted",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "yolo",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "json",
+				providerId: "openrouter",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(outputMocks.emitJsonLine).toHaveBeenCalledWith("stdout", {
+			type: "run_aborted",
+			reason: "external_abort",
+			message: "aborted",
+		});
 	});
 
 	it("sets a failing exit code when session startup throws", async () => {
