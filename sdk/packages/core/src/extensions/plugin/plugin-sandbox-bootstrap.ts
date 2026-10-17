@@ -775,7 +775,7 @@ async function loadPluginDescriptor(args: {
 					},
 					// Only offered when the host actually has a telemetry service:
 					// the feature-detection contract (`ctx.telemetry?.capture`) must
-					// mean "someone is listening", matching in-process behavior.
+					// mean "someone is listening".
 					...(args.telemetryEnabled
 						? { telemetry: createPluginTelemetry(plugin.name) }
 						: {}),
