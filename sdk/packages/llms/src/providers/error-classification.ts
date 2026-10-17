@@ -321,13 +321,17 @@ const RETRYABLE_STATUSES = new Set([
 ]);
 
 /**
- * The sole message fallback. OpenRouter forwards an upstream failure mid-stream
- * as a bare "Provider returned error" string with no HTTP status and no typed
- * error to inspect, so there is nothing else to key on. Every other decision
- * comes from the AI SDK's typed `isRetryable` flag or the HTTP status — not
- * from matching free-form message text.
+ * The sole message fallback, for gateways that forward an upstream failure
+ * mid-stream as a bare message with no HTTP status and no typed error to
+ * inspect, so there is nothing else to key on:
+ * - OpenRouter: "Provider returned error".
+ * - Cline API: "Stream failed: upstream timeout" (its body carries code "504",
+ *   but `@ai-sdk/openai-compatible` forwards only `error.message`).
+ * Every other decision comes from the AI SDK's typed `isRetryable` flag or the
+ * HTTP status — not from matching free-form message text.
  */
-const PROVIDER_RETURNED_ERROR_PATTERN = /provider returned error/i;
+const RETRYABLE_STATUSLESS_MESSAGE_PATTERN =
+	/provider returned error|stream failed: upstream timeout/i;
 
 /**
  * Retryability taken from a real AI SDK error instance via its own typed
@@ -408,7 +412,7 @@ function isRetryableFromSignals(value: unknown): boolean {
 	}
 	// No typed error and no status: the one provider quirk we special-case.
 	return signals.messages.some((message) =>
-		PROVIDER_RETURNED_ERROR_PATTERN.test(message),
+		RETRYABLE_STATUSLESS_MESSAGE_PATTERN.test(message),
 	);
 }
 
