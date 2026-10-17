@@ -149,7 +149,7 @@ export const REF_MAX_CHARS = 200;
 export const TRACKED_LIMIT = 8;
 export const OTHER_STATUS_SHOWN = 5;
 
-/** What the planner sees of the turn: the request and reply, tools run, one error each, and edited paths. */
+/** What the planner sees of the turn: the request, the reply's start and end, tools run, one error each, and edited paths. */
 export const TURN_TEXT_LIMIT = 1_500;
 export const TURN_TOOL_LIMIT = 8;
 export const TURN_ERROR_LIMIT = 300;

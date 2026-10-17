@@ -81,6 +81,20 @@ function clampRedacted(text: string, limit: number): string {
 	return redactSecrets(text).trim().slice(0, limit);
 }
 
+const ELISION = "\n[…]\n";
+
+/**
+ * A long reply's start and end, redacted first like `clampRedacted`: the
+ * agent's summary and closing question sit at the end, which a plain cut drops.
+ */
+function clampEnds(text: string, limit: number): string {
+	const clean = redactSecrets(text).trim();
+	if (clean.length <= limit) return clean;
+	const tail = Math.floor(((limit - ELISION.length) * 2) / 3);
+	const head = limit - ELISION.length - tail;
+	return `${clean.slice(0, head).trimEnd()}${ELISION}${clean.slice(-tail).trimStart()}`;
+}
+
 function chatOf(message: MessageLike): Turn["chat"] {
 	const { modelInfo } = message;
 	return isRecord(modelInfo) &&
@@ -203,7 +217,7 @@ function turnFrom(
 		},
 		context: {
 			request: clampRedacted(textOf(user), TURN_TEXT_LIMIT),
-			reply: clampRedacted(run.reply ?? lastAssistantText, TURN_TEXT_LIMIT),
+			reply: clampEnds(run.reply ?? lastAssistantText, TURN_TEXT_LIMIT),
 			tools: toolFacts.slice(-TURN_TOOL_LIMIT),
 			editedPaths: [...paths].slice(0, TURN_PATH_LIMIT),
 		},

@@ -131,6 +131,17 @@ describe("the planner's input", () => {
 		);
 	});
 
+	test("the agent's closing question is answered first after a failure, and generic suggestions are ruled out", () => {
+		const prompt = plannerSystemPrompt(CORE_KINDS, "act");
+		const failure = prompt.indexOf("1. A command or the turn itself failed");
+		const question = prompt.indexOf("2. The agent's answer ends by asking");
+		const verify = prompt.indexOf("5. The turn left its own work unfinished");
+		expect(failure).toBeGreaterThan(-1);
+		expect(question).toBeGreaterThan(failure);
+		expect(verify).toBeGreaterThan(question);
+		expect(prompt).toContain("would fit any turn");
+	});
+
 	test("plan mode asks for planning prompts", () => {
 		expect(plannerSystemPrompt(CORE_KINDS, "plan")).toContain(
 			"The chat is in plan mode",

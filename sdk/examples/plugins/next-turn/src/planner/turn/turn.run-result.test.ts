@@ -458,6 +458,35 @@ describe("the turn, from the run result", () => {
 		expect(turn?.context.request).not.toContain("0123");
 		expect(turn?.context.request.length).toBeLessThanOrEqual(TURN_TEXT_LIMIT);
 	});
+
+	test("a long reply keeps its start and its closing question, and a secret at the cut is redacted whole", () => {
+		const secret = "sk-ant-0123456789abcdefghijklmnop";
+		const reply = [
+			"Added the retry to src/client.ts.",
+			"x".repeat(TURN_TEXT_LIMIT / 3 - 40),
+			secret,
+			"y".repeat(TURN_TEXT_LIMIT * 2),
+			"Want me to run bun test src/client.test.ts next?",
+		].join(" ");
+		const turn = deriveTurn(
+			"s",
+			runResult([message("user", "Go"), message("assistant", reply)], {
+				outputText: reply,
+			}),
+		);
+		const kept = turn?.context.reply ?? "";
+		expect(kept.length).toBeLessThanOrEqual(TURN_TEXT_LIMIT);
+		expect(kept.startsWith("Added the retry to src/client.ts.")).toBe(true);
+		expect(kept.endsWith("run bun test src/client.test.ts next?")).toBe(true);
+		expect(kept).toContain("[…]");
+		expect(kept).not.toContain("0123");
+		expect(
+			deriveTurn(
+				"s",
+				runResult([message("user", "Go")], { outputText: "Done." }),
+			)?.context.reply,
+		).toBe("Done.");
+	});
 });
 
 function toolOutputs(messages: readonly AgentMessage[]): unknown[] {
