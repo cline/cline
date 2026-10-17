@@ -599,7 +599,15 @@ describe("handleConnectorUserTurn", () => {
 			expect.objectContaining({
 				prompt: expect.stringContaining("/tools@OtherBot on"),
 				config: expect.objectContaining({
-					enableTools: false,
+					enableTools: true,
+					enableSubmitAndExit: true,
+					toolPolicies: expect.objectContaining({
+						"*": expect.objectContaining({ enabled: false }),
+						submit_and_exit: expect.objectContaining({
+							enabled: true,
+							autoApprove: true,
+						}),
+					}),
 					autoApproveTools: false,
 				}),
 			}),
@@ -1701,7 +1709,7 @@ describe("handleConnectorUserTurn", () => {
 		]);
 	});
 
-	it("posts adapter fallback replies when the runtime stream is empty", async () => {
+	it("does not recover assistant text from history when the runtime stream is empty", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
 		const bindingsPath = join(dir, "threads.json");
@@ -1712,12 +1720,6 @@ describe("handleConnectorUserTurn", () => {
 			workspaceRoot: "/tmp/work",
 		});
 		const runtime = createRuntimeClient("");
-		const resolveFallbackText = vi.fn(
-			async () => "Summary from adapter fallback.",
-		);
-		const createEmptyRuntimeReplyResolver = vi.fn(
-			async () => resolveFallbackText,
-		);
 
 		await handleConnectorUserTurn({
 			thread: thread as never,
@@ -1742,19 +1744,13 @@ describe("handleConnectorUserTurn", () => {
 			getSessionMetadata: () => ({}),
 			reusedLogMessage: "reused",
 			startedLogMessage: "started",
-			createEmptyRuntimeReplyResolver,
 		});
 
-		expect(createEmptyRuntimeReplyResolver).toHaveBeenCalledWith({
-			client: runtime.client,
-			sessionId: "session-1",
-		});
-		expect(resolveFallbackText).toHaveBeenCalledTimes(1);
 		expect(runtime.readMessages).not.toHaveBeenCalled();
-		expect(posts.at(-1)).toBe("Summary from adapter fallback.");
+		expect(posts).toEqual([]);
 	});
 
-	it("does not post stale fallback replies when no current-turn reply exists", async () => {
+	it("silently suppresses turns with no submit_and_exit output", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
 		const bindingsPath = join(dir, "threads.json");
@@ -1765,46 +1761,33 @@ describe("handleConnectorUserTurn", () => {
 			workspaceRoot: "/tmp/work",
 		});
 		const runtime = createRuntimeClient("");
-		const resolveFallbackText = vi.fn(async () => undefined);
-		const createEmptyRuntimeReplyResolver = vi.fn(
-			async () => resolveFallbackText,
-		);
-
-		await expect(
-			handleConnectorUserTurn({
-				thread: thread as never,
-				text: "run ls /tmp",
-				client: runtime.client as never,
-				pendingApprovals: new Map(),
-				baseStartRequest: baseStartRequest({
-					enableTools: true,
-					autoApproveTools: true,
-				}) as never,
-				explicitSystemPrompt: undefined,
-				clientId: "client-1",
-				logger: {
-					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
-				} as never,
-				transport: "discord",
-				botUserName: "ClineAdapterBot",
-				requestStop: vi.fn(),
-				bindingsPath,
-				systemRules: "rules",
-				errorLabel: "Discord",
-				getSessionMetadata: () => ({}),
-				reusedLogMessage: "reused",
-				startedLogMessage: "started",
-				createEmptyRuntimeReplyResolver,
-			}),
-		).rejects.toThrow("Runtime completed without assistant reply text.");
-
-		expect(createEmptyRuntimeReplyResolver).toHaveBeenCalledWith({
-			client: runtime.client,
-			sessionId: "session-1",
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "run ls /tmp",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: true,
+				autoApproveTools: true,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
 		});
-		expect(resolveFallbackText).toHaveBeenCalledTimes(1);
+
 		expect(runtime.readMessages).not.toHaveBeenCalled();
-		expect(posts).not.toContain("Previous reply.");
+		expect(posts).toEqual([]);
 	});
 
 	it("keeps Telegram empty-stream behavior from reading session history", async () => {

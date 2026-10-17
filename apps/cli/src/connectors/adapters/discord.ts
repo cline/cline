@@ -41,7 +41,6 @@ import {
 } from "../runtime-turn";
 import {
 	buildConnectorStartRequest,
-	readSessionMessageCount,
 	readSessionReplyText,
 	stopConnectorSessions,
 } from "../session-runtime";
@@ -143,23 +142,6 @@ async function buildDiscordStartRequest(
 		loggerConfig,
 		systemRules: DISCORD_SYSTEM_RULES,
 	});
-}
-
-async function createDiscordEmptyRuntimeReplyResolver(input: {
-	client: HubSessionClient;
-	sessionId: string;
-}): Promise<(() => Promise<string | undefined>) | undefined> {
-	const minMessageIndex = await readSessionMessageCount(
-		input.client,
-		input.sessionId,
-	);
-	if (minMessageIndex === undefined) {
-		return async () => undefined;
-	}
-	return () =>
-		readSessionReplyText(input.client, input.sessionId, {
-			minMessageIndex,
-		});
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -1176,8 +1158,6 @@ class DiscordConnector extends ConnectorBase<
 						enqueueTurn,
 						turnKey: queueKey,
 						resolveMuteTarget: ({ target }) => resolveDiscordMuteTarget(target),
-						createEmptyRuntimeReplyResolver:
-							createDiscordEmptyRuntimeReplyResolver,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
 							applicationId: options.applicationId,
@@ -1587,7 +1567,6 @@ export const discordConnector: ConnectCommandDefinition =
 
 export const __test__ = {
 	DISCORD_SYSTEM_RULES,
-	createDiscordEmptyRuntimeReplyResolver,
 	formatDiscordRuntimeText,
 	resolveDiscordMuteTarget,
 	findBindingForThread: (
