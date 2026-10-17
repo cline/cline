@@ -188,6 +188,25 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 				</DebouncedTextField>
 			)}
 
+				{/* Наше добавление поля Max Output Tokens (num_predict) */}
+			{config !== undefined && (
+				<DebouncedTextField
+					initialValue={config?.maxTokens ? String(config.maxTokens) : ""}
+					onChange={(v) => {
+						const maxTokens = Number.parseInt(v, 10)
+						const numPredict = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+						
+						void write({ maxTokens: numPredict ?? 0 }).catch((error) =>
+							console.error("Failed to update Ollama max tokens:", error),
+						)
+					}}
+					placeholder={"Default: -1 (Unlimited)"}
+					style={{ width: "100%" }}>
+					<span className="font-semibold">Max Output Tokens (num_predict)</span>
+				</DebouncedTextField>
+			)}
+
+
 			{showModelOptions && (
 				<>
 					<DebouncedTextField
