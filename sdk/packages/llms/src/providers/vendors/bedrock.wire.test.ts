@@ -15,7 +15,11 @@
 //   3. the families the adapter does classify keep their native shapes from
 //      the id alone even when the catalog does not list the model, so a
 //      catalog that lags a model launch never switches thinking off.
-import type { GatewayStreamRequest, ModelReasoningOption } from "@cline/shared";
+import type {
+	AgentMessage,
+	GatewayStreamRequest,
+	ModelReasoningOption,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { createGateway } from "../gateway";
 
@@ -121,6 +125,91 @@ async function wireRequest(
 	}
 	return { path, sent };
 }
+
+describe("Bedrock prompt-cache wire contract", () => {
+	it("puts a cachePoint after the last two tool results, not only after the person's message", async () => {
+		let body: { messages?: Array<{ content: Record<string, unknown>[] }> } = {};
+		const fetchStub = (async (_input, init) => {
+			body = JSON.parse((init?.body as string) ?? "{}");
+			return new Response(JSON.stringify({ message: "stub" }), {
+				status: 400,
+				headers: { "content-type": "application/json" },
+			});
+		}) as typeof fetch;
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "bedrock",
+					apiKey: "test-bearer-key",
+					fetch: fetchStub,
+					options: { region: "us-east-1", authentication: "apikey" },
+				},
+			],
+		});
+		const step = (id: string): AgentMessage[] => [
+			{
+				id: `a${id}`,
+				role: "assistant",
+				createdAt: 1,
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: id,
+						toolName: "read_files",
+						input: { paths: [`${id}.ts`] },
+					},
+				],
+			},
+			{
+				id: `r${id}`,
+				role: "tool",
+				createdAt: 2,
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: id,
+						toolName: "read_files",
+						output: "contents",
+					},
+				],
+			},
+		];
+		for await (const _event of await gateway.stream({
+			providerId: "bedrock",
+			modelId: "us.anthropic.claude-sonnet-4-6",
+			maxTokens: 16,
+			tools: [
+				{
+					name: "read_files",
+					description: "Read files",
+					inputSchema: { type: "object" },
+				},
+			],
+			messages: [
+				{
+					id: "u",
+					role: "user",
+					createdAt: 0,
+					content: [{ type: "text", text: "Read the files" }],
+				},
+				...step("t1"),
+				...step("t2"),
+			],
+		})) {
+			// drain
+		}
+		const blocks = (body.messages ?? []).map((message) =>
+			message.content.map((block) => Object.keys(block)[0]),
+		);
+		expect(blocks).toEqual([
+			["text"],
+			["toolUse"],
+			["toolResult", "cachePoint"],
+			["toolUse"],
+			["toolResult", "cachePoint"],
+		]);
+	});
+});
 
 describe("Bedrock reasoning wire contract", () => {
 	it.each([

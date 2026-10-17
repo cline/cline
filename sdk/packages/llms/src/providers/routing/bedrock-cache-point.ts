@@ -58,23 +58,30 @@ export function createBedrockCachePointProviderOptions() {
 }
 
 /**
- * Attach a message-level cache-point marker to the last user message. The
- * Bedrock message converter appends the `cachePoint` block after that
- * message's content, caching the whole prefix (tools, system, and history)
- * up to it — mirroring the Anthropic writer's checkpoint placement.
+ * Attach a message-level cache-point marker to the last two user or tool
+ * messages. The Bedrock message converter appends each `cachePoint` block
+ * after that message's content, caching the prefix (tools, system, and
+ * history) up to it.
+ *
+ * Tool results are `role: "tool"`, so marking only user messages would leave
+ * every step of a turn cached no further than the person's message. The
+ * newest mark writes at the end of the request; the one before it sits where
+ * the previous request wrote, so the read holds even when a step with many
+ * parallel tool calls adds more than Bedrock's ~20-block lookback.
  */
-export function applyBedrockCachePointToLastUserMessage(
+export function applyBedrockCachePoints(
 	messages: Array<Record<string, unknown>>,
 ): void {
-	for (let i = messages.length - 1; i >= 0; i--) {
+	let marked = 0;
+	for (let i = messages.length - 1; i >= 0 && marked < 2; i--) {
 		const message = messages[i];
-		if (message?.role !== "user") {
+		if (message?.role !== "user" && message?.role !== "tool") {
 			continue;
 		}
 		message.providerOptions = {
 			...(message.providerOptions as Record<string, unknown> | undefined),
 			...createBedrockCachePointProviderOptions(),
 		};
-		return;
+		marked += 1;
 	}
 }
