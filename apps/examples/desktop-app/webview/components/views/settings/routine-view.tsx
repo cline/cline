@@ -574,6 +574,12 @@ export function RoutineSchedulesContent({
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_MODELS);
+	const [providerNames, setProviderNames] = useState<Record<string, string>>(
+		{},
+	);
+	// The pickers portal into the dialog: Radix's dialog scroll lock blocks
+	// wheel scrolling in a list portaled outside its content.
+	const createDialogContentRef = useRef<HTMLDivElement>(null);
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>(() =>
 		Object.keys(FALLBACK_PROVIDER_MODELS),
 	);
@@ -633,6 +639,7 @@ export function RoutineSchedulesContent({
 					return;
 				}
 				setProviderModels(payload.providerModels);
+				setProviderNames(payload.providerNames);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
 					if (normalizedProvider) {
@@ -1657,7 +1664,10 @@ export function RoutineSchedulesContent({
 					}
 				}}
 			>
-				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+				<DialogContent
+					className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+					ref={createDialogContentRef}
+				>
 					<DialogHeader>
 						<DialogTitle>Schedule</DialogTitle>
 						<DialogDescription>
@@ -1874,6 +1884,7 @@ export function RoutineSchedulesContent({
 									}));
 								}}
 								value={createForm.provider}
+								itemToStringLabel={(item) => providerNames[item] ?? item}
 							>
 								<ComboboxInput
 									className="h-9 w-full"
@@ -1881,12 +1892,12 @@ export function RoutineSchedulesContent({
 									showClear={false}
 									showTrigger
 								/>
-								<ComboboxContent>
+								<ComboboxContent container={createDialogContentRef}>
 									<ComboboxEmpty>No providers found.</ComboboxEmpty>
 									<ComboboxList>
 										{(item) => (
 											<ComboboxItem key={item} value={item}>
-												{item}
+												{providerNames[item] ?? item}
 											</ComboboxItem>
 										)}
 									</ComboboxList>
@@ -1912,7 +1923,7 @@ export function RoutineSchedulesContent({
 									showClear={false}
 									showTrigger
 								/>
-								<ComboboxContent>
+								<ComboboxContent container={createDialogContentRef}>
 									<ComboboxEmpty>No models found.</ComboboxEmpty>
 									<ComboboxList>
 										{(item) => (
