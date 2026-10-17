@@ -1,0 +1,1448 @@
+{
+	"rows": {
+		"plan": {
+			"id": "3c6ffd70",
+			"kind": "next_step",
+			"prompt": "Plan the next few tasks for this work.",
+			"why": "Nothing is tracked for this chat yet, so the next step is to plan some."
+		},
+		"wrap-up": {
+			"id": "18322cef",
+			"kind": "wrap_up",
+			"prompt": "Summarize what the last turn did and what is left to do.",
+			"why": "The last turn completed without changing files."
+		},
+		"verify-1": {
+			"id": "c6d3af54",
+			"kind": "verify",
+			"prompt": "Run the checks for the files the last turn changed.",
+			"why": "1 file changed this turn."
+		},
+		"verify-3": {
+			"id": "c6d3af54",
+			"kind": "verify",
+			"prompt": "Run the checks for the files the last turn changed.",
+			"why": "3 files changed this turn."
+		},
+		"fix-failure": {
+			"id": "260720ae",
+			"kind": "fix_failure",
+			"prompt": "Fix the failure from the last turn and run it again.",
+			"why": "A command in the last turn failed."
+		},
+		"review-after-failure": {
+			"id": "2a82b8b7",
+			"kind": "review_diff",
+			"prompt": "Review the changes from the last turn before going on.",
+			"why": "A command failed and files changed this turn."
+		},
+		"continue-stopped": {
+			"id": "6ec02d73",
+			"kind": "continue",
+			"prompt": "Pick up the work the stopped turn left unfinished.",
+			"why": "The last turn was stopped before it finished."
+		},
+		"retry-error": {
+			"id": "126d953c",
+			"kind": "fix_failure",
+			"prompt": "Retry the last turn — it ended in an error.",
+			"why": "The last turn ended in an error."
+		},
+		"task-in-progress": {
+			"id": "314f36cf",
+			"kind": "continue",
+			"prompt": "Do the next task: Ship the tray",
+			"why": "Task in progress on the agenda."
+		},
+		"task-approved": {
+			"id": "7bc9b5c6",
+			"kind": "continue",
+			"prompt": "Do the next task: Wire the planner",
+			"why": "Approved task waiting on the agenda."
+		},
+		"task-proposed": {
+			"id": "958719ca",
+			"kind": "continue",
+			"prompt": "Approve and start: Proposal",
+			"why": "Proposed on the agenda, waiting for your approval."
+		},
+		"unblock-status": {
+			"id": "0dc3749d",
+			"kind": "fix_failure",
+			"prompt": "Unblock migration/auth: needs a schema decision",
+			"why": "The Status Hub reports blocked: needs a schema decision"
+		},
+		"plan-current": {
+			"id": "007fc9c5",
+			"kind": "continue",
+			"prompt": "Continue the current task: Move the rules",
+			"why": "The current step in the plan."
+		},
+		"plan-next": {
+			"id": "1fd0d432",
+			"kind": "next_step",
+			"prompt": "Do the next task: Move the labels",
+			"why": "The next step in the plan."
+		},
+		"commit-1": {
+			"id": "c73139f0",
+			"kind": "commit",
+			"prompt": "Commit these changes with a message that says why they were made.",
+			"why": "1 file has uncommitted changes."
+		},
+		"commit-4": {
+			"id": "c73139f0",
+			"kind": "commit",
+			"prompt": "Commit these changes with a message that says why they were made.",
+			"why": "4 files have uncommitted changes."
+		},
+		"review-1": {
+			"id": "2a82b8b7",
+			"kind": "review_diff",
+			"prompt": "Review the changes from the last turn before going on.",
+			"why": "1 file changed this turn."
+		},
+		"review-3": {
+			"id": "2a82b8b7",
+			"kind": "review_diff",
+			"prompt": "Review the changes from the last turn before going on.",
+			"why": "3 files changed this turn."
+		}
+	},
+	"desktop": [
+		{
+			"b": 0,
+			"turn": 0,
+			"x": 0,
+			"set": ["plan", "wrap-up"]
+		},
+		{
+			"b": 0,
+			"turn": 0,
+			"x": 1,
+			"set": ["wrap-up"]
+		},
+		{
+			"b": 0,
+			"turn": 1,
+			"x": 0,
+			"set": ["plan", "verify-1"]
+		},
+		{
+			"b": 0,
+			"turn": 1,
+			"x": 1,
+			"set": ["verify-1"]
+		},
+		{
+			"b": 0,
+			"turn": 2,
+			"x": 0,
+			"set": ["plan", "verify-3"]
+		},
+		{
+			"b": 0,
+			"turn": 2,
+			"x": 1,
+			"set": ["verify-3"]
+		},
+		{
+			"b": 0,
+			"turn": 3,
+			"x": 0,
+			"set": ["fix-failure", "plan", "wrap-up"]
+		},
+		{
+			"b": 0,
+			"turn": 3,
+			"x": 1,
+			"set": ["plan", "wrap-up"]
+		},
+		{
+			"b": 0,
+			"turn": 4,
+			"x": 0,
+			"set": ["fix-failure", "plan", "review-after-failure"]
+		},
+		{
+			"b": 0,
+			"turn": 4,
+			"x": 1,
+			"set": ["plan", "review-after-failure"]
+		},
+		{
+			"b": 0,
+			"turn": 5,
+			"x": 0,
+			"set": ["fix-failure", "plan", "review-after-failure"]
+		},
+		{
+			"b": 0,
+			"turn": 5,
+			"x": 1,
+			"set": ["plan", "review-after-failure"]
+		},
+		{
+			"b": 0,
+			"turn": 6,
+			"x": 0,
+			"set": ["continue-stopped", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 6,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 7,
+			"x": 0,
+			"set": ["continue-stopped", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 7,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 8,
+			"x": 0,
+			"set": ["continue-stopped", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 8,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 9,
+			"x": 0,
+			"set": ["continue-stopped", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 9,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 10,
+			"x": 0,
+			"set": ["continue-stopped", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 10,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 11,
+			"x": 0,
+			"set": ["continue-stopped", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 11,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 12,
+			"x": 0,
+			"set": ["retry-error", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 12,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 13,
+			"x": 0,
+			"set": ["retry-error", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 13,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 14,
+			"x": 0,
+			"set": ["retry-error", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 14,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 15,
+			"x": 0,
+			"set": ["retry-error", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 15,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 16,
+			"x": 0,
+			"set": ["retry-error", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 16,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 0,
+			"turn": 17,
+			"x": 0,
+			"set": ["retry-error", "plan"]
+		},
+		{
+			"b": 0,
+			"turn": 17,
+			"x": 1,
+			"set": ["plan"]
+		},
+		{
+			"b": 1,
+			"turn": 0,
+			"x": 0,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 0,
+			"x": 1,
+			"set": ["task-approved", "task-proposed", "wrap-up"]
+		},
+		{
+			"b": 1,
+			"turn": 1,
+			"x": 0,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 1,
+			"x": 1,
+			"set": ["task-approved", "task-proposed", "verify-1"]
+		},
+		{
+			"b": 1,
+			"turn": 2,
+			"x": 0,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 2,
+			"x": 1,
+			"set": ["task-approved", "task-proposed", "verify-3"]
+		},
+		{
+			"b": 1,
+			"turn": 3,
+			"x": 0,
+			"set": ["fix-failure", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 3,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 4,
+			"x": 0,
+			"set": ["fix-failure", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 4,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 5,
+			"x": 0,
+			"set": ["fix-failure", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 5,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 6,
+			"x": 0,
+			"set": ["continue-stopped", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 6,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 7,
+			"x": 0,
+			"set": ["continue-stopped", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 7,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 8,
+			"x": 0,
+			"set": ["continue-stopped", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 8,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 9,
+			"x": 0,
+			"set": ["continue-stopped", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 9,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 10,
+			"x": 0,
+			"set": ["continue-stopped", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 10,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 11,
+			"x": 0,
+			"set": ["continue-stopped", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 11,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 12,
+			"x": 0,
+			"set": ["retry-error", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 12,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 13,
+			"x": 0,
+			"set": ["retry-error", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 13,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 14,
+			"x": 0,
+			"set": ["retry-error", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 14,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 15,
+			"x": 0,
+			"set": ["retry-error", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 15,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 16,
+			"x": 0,
+			"set": ["retry-error", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 16,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 1,
+			"turn": 17,
+			"x": 0,
+			"set": ["retry-error", "task-in-progress", "task-approved"]
+		},
+		{
+			"b": 1,
+			"turn": 17,
+			"x": 1,
+			"set": ["task-in-progress", "task-approved", "task-proposed"]
+		},
+		{
+			"b": 2,
+			"turn": 0,
+			"x": 0,
+			"set": ["unblock-status", "task-approved", "wrap-up"]
+		},
+		{
+			"b": 2,
+			"turn": 0,
+			"x": 1,
+			"set": ["task-approved", "wrap-up"]
+		},
+		{
+			"b": 2,
+			"turn": 1,
+			"x": 0,
+			"set": ["unblock-status", "task-approved", "verify-1"]
+		},
+		{
+			"b": 2,
+			"turn": 1,
+			"x": 1,
+			"set": ["task-approved", "verify-1"]
+		},
+		{
+			"b": 2,
+			"turn": 2,
+			"x": 0,
+			"set": ["unblock-status", "task-approved", "verify-3"]
+		},
+		{
+			"b": 2,
+			"turn": 2,
+			"x": 1,
+			"set": ["task-approved", "verify-3"]
+		},
+		{
+			"b": 2,
+			"turn": 3,
+			"x": 0,
+			"set": ["unblock-status", "fix-failure", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 3,
+			"x": 1,
+			"set": ["fix-failure", "task-approved", "wrap-up"]
+		},
+		{
+			"b": 2,
+			"turn": 4,
+			"x": 0,
+			"set": ["unblock-status", "fix-failure", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 4,
+			"x": 1,
+			"set": ["fix-failure", "task-approved", "review-after-failure"]
+		},
+		{
+			"b": 2,
+			"turn": 5,
+			"x": 0,
+			"set": ["unblock-status", "fix-failure", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 5,
+			"x": 1,
+			"set": ["fix-failure", "task-approved", "review-after-failure"]
+		},
+		{
+			"b": 2,
+			"turn": 6,
+			"x": 0,
+			"set": ["unblock-status", "continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 6,
+			"x": 1,
+			"set": ["continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 7,
+			"x": 0,
+			"set": ["unblock-status", "continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 7,
+			"x": 1,
+			"set": ["continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 8,
+			"x": 0,
+			"set": ["unblock-status", "continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 8,
+			"x": 1,
+			"set": ["continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 9,
+			"x": 0,
+			"set": ["unblock-status", "continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 9,
+			"x": 1,
+			"set": ["continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 10,
+			"x": 0,
+			"set": ["unblock-status", "continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 10,
+			"x": 1,
+			"set": ["continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 11,
+			"x": 0,
+			"set": ["unblock-status", "continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 11,
+			"x": 1,
+			"set": ["continue-stopped", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 12,
+			"x": 0,
+			"set": ["unblock-status", "retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 12,
+			"x": 1,
+			"set": ["retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 13,
+			"x": 0,
+			"set": ["unblock-status", "retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 13,
+			"x": 1,
+			"set": ["retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 14,
+			"x": 0,
+			"set": ["unblock-status", "retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 14,
+			"x": 1,
+			"set": ["retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 15,
+			"x": 0,
+			"set": ["unblock-status", "retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 15,
+			"x": 1,
+			"set": ["retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 16,
+			"x": 0,
+			"set": ["unblock-status", "retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 16,
+			"x": 1,
+			"set": ["retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 17,
+			"x": 0,
+			"set": ["unblock-status", "retry-error", "task-approved"]
+		},
+		{
+			"b": 2,
+			"turn": 17,
+			"x": 1,
+			"set": ["retry-error", "task-approved"]
+		},
+		{
+			"b": 3,
+			"turn": 0,
+			"x": 0,
+			"set": ["plan-current", "plan-next", "wrap-up"]
+		},
+		{
+			"b": 3,
+			"turn": 0,
+			"x": 1,
+			"set": ["plan-next", "wrap-up"]
+		},
+		{
+			"b": 3,
+			"turn": 1,
+			"x": 0,
+			"set": ["plan-current", "plan-next", "verify-1"]
+		},
+		{
+			"b": 3,
+			"turn": 1,
+			"x": 1,
+			"set": ["plan-next", "verify-1"]
+		},
+		{
+			"b": 3,
+			"turn": 2,
+			"x": 0,
+			"set": ["plan-current", "plan-next", "verify-3"]
+		},
+		{
+			"b": 3,
+			"turn": 2,
+			"x": 1,
+			"set": ["plan-next", "verify-3"]
+		},
+		{
+			"b": 3,
+			"turn": 3,
+			"x": 0,
+			"set": ["fix-failure", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 3,
+			"x": 1,
+			"set": ["plan-current", "plan-next", "wrap-up"]
+		},
+		{
+			"b": 3,
+			"turn": 4,
+			"x": 0,
+			"set": ["fix-failure", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 4,
+			"x": 1,
+			"set": ["plan-current", "plan-next", "review-after-failure"]
+		},
+		{
+			"b": 3,
+			"turn": 5,
+			"x": 0,
+			"set": ["fix-failure", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 5,
+			"x": 1,
+			"set": ["plan-current", "plan-next", "review-after-failure"]
+		},
+		{
+			"b": 3,
+			"turn": 6,
+			"x": 0,
+			"set": ["continue-stopped", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 6,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 7,
+			"x": 0,
+			"set": ["continue-stopped", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 7,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 8,
+			"x": 0,
+			"set": ["continue-stopped", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 8,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 9,
+			"x": 0,
+			"set": ["continue-stopped", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 9,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 10,
+			"x": 0,
+			"set": ["continue-stopped", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 10,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 11,
+			"x": 0,
+			"set": ["continue-stopped", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 11,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 12,
+			"x": 0,
+			"set": ["retry-error", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 12,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 13,
+			"x": 0,
+			"set": ["retry-error", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 13,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 14,
+			"x": 0,
+			"set": ["retry-error", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 14,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 15,
+			"x": 0,
+			"set": ["retry-error", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 15,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 16,
+			"x": 0,
+			"set": ["retry-error", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 16,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 17,
+			"x": 0,
+			"set": ["retry-error", "plan-current", "plan-next"]
+		},
+		{
+			"b": 3,
+			"turn": 17,
+			"x": 1,
+			"set": ["plan-current", "plan-next"]
+		}
+	],
+	"cli": [
+		{
+			"turn": 0,
+			"repo": null,
+			"pool": ["wrap-up", "plan"]
+		},
+		{
+			"turn": 0,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["wrap-up", "plan"]
+		},
+		{
+			"turn": 0,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["wrap-up", "commit-1", "plan"]
+		},
+		{
+			"turn": 0,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["wrap-up", "commit-4", "plan"]
+		},
+		{
+			"turn": 1,
+			"repo": null,
+			"pool": ["verify-1", "review-1", "plan"]
+		},
+		{
+			"turn": 1,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["verify-1", "review-1", "plan"]
+		},
+		{
+			"turn": 1,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["verify-1", "review-1", "commit-1", "plan"]
+		},
+		{
+			"turn": 1,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["verify-1", "review-1", "commit-4", "plan"]
+		},
+		{
+			"turn": 2,
+			"repo": null,
+			"pool": ["verify-3", "review-3", "plan"]
+		},
+		{
+			"turn": 2,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["verify-3", "review-3", "plan"]
+		},
+		{
+			"turn": 2,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["verify-3", "review-3", "commit-1", "plan"]
+		},
+		{
+			"turn": 2,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["verify-3", "review-3", "commit-4", "plan"]
+		},
+		{
+			"turn": 3,
+			"repo": null,
+			"pool": ["fix-failure", "wrap-up", "plan"]
+		},
+		{
+			"turn": 3,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["fix-failure", "wrap-up", "plan"]
+		},
+		{
+			"turn": 3,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["fix-failure", "wrap-up", "plan"]
+		},
+		{
+			"turn": 3,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["fix-failure", "wrap-up", "plan"]
+		},
+		{
+			"turn": 4,
+			"repo": null,
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 4,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 4,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 4,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 5,
+			"repo": null,
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 5,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 5,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 5,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["fix-failure", "review-after-failure", "plan"]
+		},
+		{
+			"turn": 6,
+			"repo": null,
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 6,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 6,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 6,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 7,
+			"repo": null,
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 7,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 7,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 7,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 8,
+			"repo": null,
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 8,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 8,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 8,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 9,
+			"repo": null,
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 9,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 9,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 9,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 10,
+			"repo": null,
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 10,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 10,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 10,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 11,
+			"repo": null,
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 11,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 11,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 11,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["continue-stopped", "plan"]
+		},
+		{
+			"turn": 12,
+			"repo": null,
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 12,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 12,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 12,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 13,
+			"repo": null,
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 13,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 13,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 13,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 14,
+			"repo": null,
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 14,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 14,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 14,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 15,
+			"repo": null,
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 15,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 15,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 15,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 16,
+			"repo": null,
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 16,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 16,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 16,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 17,
+			"repo": null,
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 17,
+			"repo": {
+				"files": 0
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 17,
+			"repo": {
+				"files": 1
+			},
+			"pool": ["retry-error", "plan"]
+		},
+		{
+			"turn": 17,
+			"repo": {
+				"files": 4
+			},
+			"pool": ["retry-error", "plan"]
+		}
+	]
+}

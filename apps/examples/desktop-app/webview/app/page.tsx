@@ -17,6 +17,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubCapabilityNotice } from "@/components/hub-capability-notice/hub-capability-notice";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
@@ -57,6 +58,7 @@ import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useComposerSuggestions } from "@/hooks/use-composer-suggestions";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -948,6 +950,7 @@ export default function Home() {
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
+							<HubCapabilityNotice className="mx-4 my-2 shrink-0" />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
 									<SessionsView
@@ -2378,6 +2381,21 @@ function ChatThreadPane({
 		!displayedError &&
 		!isProvisioningCloudSession &&
 		!historySession;
+	const composerSuggestions = useComposerSuggestions({
+		enabled:
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID && !isCloudSession,
+		environmentId,
+		sessionId: displayedSessionId,
+		status: displayedStatus,
+		loadingChat: displayedIsSwitching,
+		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
+		messages: displayedMessages,
+		promptsInQueue,
+		onSend: handleSendPrompt,
+		onUndoTurn: handleEditMessage,
+		onRemoveQueuedPrompt: removePromptInQueue,
+		abort,
+	});
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
@@ -2555,6 +2573,7 @@ function ChatThreadPane({
 			status={status}
 			summary={summary}
 			thinking={config.thinking}
+			suggestions={composerSuggestions}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
 	);

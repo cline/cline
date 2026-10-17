@@ -1,0 +1,238 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://cline.bot/next-turn/NextTurnLabelRecord.schema.json",
+	"title": "NextTurnLabelRecord",
+	"description": "One line of the label log (schema v3). Ids, kinds and numbers only, never prose",
+	"type": "object",
+	"required": ["v", "at", "sessionId", "event"],
+	"properties": {
+		"v": {
+			"const": 3
+		},
+		"at": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"sessionId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"event": {
+			"enum": [
+				"offer",
+				"lineage",
+				"set_ready",
+				"exposed",
+				"highlight_move",
+				"do",
+				"adjust",
+				"adjust_sent",
+				"adjust_abandoned",
+				"skip",
+				"undo_skip",
+				"undo_adjust",
+				"undo_turn",
+				"reroll",
+				"cancel_pending",
+				"refused_stale",
+				"key_inert",
+				"superseded",
+				"typed_instead",
+				"ignored",
+				"hidden_by_user"
+			]
+		},
+		"messageHash": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$",
+			"description": "sha256 of what the person typed; the text itself is never written"
+		},
+		"bucket": {
+			"enum": ["same", "small", "large"]
+		},
+		"setId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"candidateId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"kind": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"reason": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"verb": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"cause": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"input": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"key": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"scope": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"turnKey": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"offerId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"runId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"userMessageId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"forkedFromSessionId": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"cueCode": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"turnStatus": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"planner": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+		},
+		"trigger": {
+			"enum": ["after_run", "on_demand"]
+		},
+		"rank": {
+			"type": "number"
+		},
+		"position": {
+			"type": "number"
+		},
+		"fromPosition": {
+			"type": "number"
+		},
+		"toPosition": {
+			"type": "number"
+		},
+		"rerollIndex": {
+			"type": "number"
+		},
+		"msSinceExposed": {
+			"type": "number"
+		},
+		"msToSend": {
+			"type": "number"
+		},
+		"msIntoCountdown": {
+			"type": "number"
+		},
+		"msSinceTurnEnd": {
+			"type": "number"
+		},
+		"msSinceSent": {
+			"type": "number"
+		},
+		"chars": {
+			"type": "number"
+		},
+		"runCount": {
+			"type": "number"
+		},
+		"beforeRunCount": {
+			"type": "number"
+		},
+		"candidateCount": {
+			"type": "number"
+		},
+		"filesEdited": {
+			"type": "number"
+		},
+		"latencyMs": {
+			"type": "number"
+		},
+		"excludedCount": {
+			"type": "number"
+		},
+		"exposedFirst": {
+			"type": "boolean"
+		},
+		"turnWasRunning": {
+			"type": "boolean"
+		},
+		"interleaved": {
+			"type": "boolean"
+		},
+		"beforeInput": {
+			"type": "boolean"
+		},
+		"toolErrored": {
+			"type": "boolean"
+		},
+		"fallback": {
+			"type": "boolean"
+		},
+		"reroll": {
+			"type": "boolean"
+		},
+		"excluded": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+			},
+			"maxItems": 12
+		},
+		"candidateIds": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+			},
+			"maxItems": 12
+		},
+		"kinds": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+			},
+			"maxItems": 12
+		},
+		"sources": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+			},
+			"maxItems": 12
+		},
+		"tags": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,63}$"
+			},
+			"maxItems": 48
+		}
+	},
+	"additionalProperties": false
+}

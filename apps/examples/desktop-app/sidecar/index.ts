@@ -20,14 +20,18 @@ import { adoptDesktopCliRuntime, ensureHubWithDesktopCli } from "./cli-runtime";
 import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
-	broadcastEvent,
 	createSidecarContext,
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import {
+	broadcastHubBuildMismatch,
+	DESKTOP_REQUIRED_HUB_CAPABILITIES,
+	hubBuildWatchCallbacks,
+} from "./hub-capability";
 import { createDesktopObservability } from "./observability";
-import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { resolveWorkspaceRoot } from "./paths";
+import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
@@ -172,18 +176,12 @@ async function main(desktopCliPath?: string) {
 	});
 
 	// Another Cline installation (e.g. an updated CLI) can replace the shared
-	// Hub daemon while this app is running. Surface that to the webview so it
-	// can prompt the user to update and restart.
+	// Hub daemon while this app is running, and a Hub of the same release can
+	// predate the plugin suggestion tray. Surface either to the webview so it
+	// can prompt the user to update or restart the Hub.
 	watchManagedHubBuildMismatch({
-		onMismatch: (mismatch) => {
-			ctx.hubBuildMismatch = mismatch;
-			observability.logger.log("Managed hub build mismatch detected", {
-				hubBuildId: mismatch.hubBuildId,
-				hubCoreVersion: mismatch.hubCoreVersion,
-				reason: mismatch.reason,
-			});
-			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
-		},
+		requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
+		...hubBuildWatchCallbacks(ctx),
 	});
 	// The watcher's first check only runs after its interval, but a mismatch
 	// that already exists at startup - an older Hub this app attached to
@@ -195,7 +193,9 @@ async function main(desktopCliPath?: string) {
 	// CLINE_HUB_PORT pins an explicit endpoint, matching the watcher: such
 	// hosts keep protocol-only compatibility and must not show update prompts.
 	if (!process.env.CLINE_HUB_PORT?.trim()) {
-		void checkManagedHubBuildMismatch()
+		void checkManagedHubBuildMismatch({
+			requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
+		})
 			.then((mismatch) => {
 				if (!mismatch || ctx.hubBuildMismatch) {
 					return;
@@ -207,9 +207,10 @@ async function main(desktopCliPath?: string) {
 						hubBuildId: mismatch.hubBuildId,
 						hubCoreVersion: mismatch.hubCoreVersion,
 						reason: mismatch.reason,
+						missingCapabilities: mismatch.missingCapabilities,
 					},
 				);
-				broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+				broadcastHubBuildMismatch(ctx);
 			})
 			.catch(() => undefined);
 	}

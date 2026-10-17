@@ -30,6 +30,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import type { PluginUiHostRuntimeService } from "../../services/plugin-ui-api";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
@@ -78,6 +79,11 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
+import {
+	handlePluginUiCommand,
+	reissuePluginUiState,
+	releasePluginUiViewer,
+} from "./handlers/plugin-ui-handlers";
 import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
@@ -281,7 +287,11 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionSearch: SessionHistorySearchService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
+		Partial<
+			PendingPromptsRuntimeService &
+				CommandExecutionRuntimeService &
+				PluginUiHostRuntimeService
+		>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
 	/** Durable event log; created on start(), absent in never-started tests. */
@@ -339,6 +349,7 @@ export class HubServerTransport implements NativeHubTransport {
 			sessionExtensions: this.sessionExtensions,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
+			publishEphemeral: (event) => this.fanOut(event),
 			buildEvent: buildHubEvent,
 			requestCapability: (
 				sessionId,
@@ -797,7 +808,17 @@ export class HubServerTransport implements NativeHubTransport {
 							}
 						: undefined
 					: (authority ?? undefined);
-			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
+			const unregisteredSocket = authority === null;
+			// Before registration the adapter accepts any envelope clientId, so
+			// such a socket could act as another client's plugin UI viewer.
+			if (unregisteredSocket && envelope.command === "plugins.ui.invoke") {
+				return okReply(envelope, { outcome: "unavailable" });
+			}
+			const reply = await this.dispatchCommand(
+				envelope,
+				effectiveAuthority,
+				unregisteredSocket,
+			);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -815,7 +836,8 @@ export class HubServerTransport implements NativeHubTransport {
 
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		authority: HubConnectionAuthority | undefined,
+		unregisteredSocket: boolean,
 	): Promise<HubReplyEnvelope> {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
@@ -838,6 +860,16 @@ export class HubServerTransport implements NativeHubTransport {
 				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);
+					// A socket that has not registered can name any clientId, so it
+					// never ends that client's plugin UI leases.
+					if (!unregisteredSocket) {
+						releasePluginUiViewer(
+							this.ctx,
+							clientId,
+							authority,
+							envelope.payload,
+						);
+					}
 				});
 				this.tasks.notifyAutomationReadinessChanged();
 				return reply;
@@ -946,6 +978,9 @@ export class HubServerTransport implements NativeHubTransport {
 			case "ui.show_window":
 				this.publish(buildHubEvent("ui.show_window", envelope.payload ?? {}));
 				return okReply(envelope);
+			case "plugins.ui.get":
+			case "plugins.ui.invoke":
+				return await handlePluginUiCommand(this.ctx, envelope, authority);
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":
@@ -1209,6 +1244,16 @@ export class HubServerTransport implements NativeHubTransport {
 				}
 			});
 		}
+		// Plugin UI state is never logged for replay, so a session-scoped
+		// subscriber gets each slot's current state from the runtime instead.
+		if (options?.sessionId) {
+			reissuePluginUiState(
+				this.ctx,
+				options.sessionId,
+				() => this.listeners.get(clientId)?.has(entry) === true,
+				(event) => entry.listener(event),
+			);
+		}
 		return () => {
 			const listeners = this.listeners.get(clientId);
 			if (!listeners) {
@@ -1242,16 +1287,23 @@ export class HubServerTransport implements NativeHubTransport {
 		// Durability before delivery: append to the event log and fan out the
 		// sequence-stamped envelope, so live listeners and replaying clients
 		// observe identical frames and the cursor is always meaningful.
-		if (this.eventLog) {
-			try {
-				event = this.eventLog.append(event);
-			} catch (error) {
-				logHubBoundaryError(
-					`event log append failed for ${event.event}`,
-					error,
-				);
-			}
+		this.fanOut(this.append(event));
+	}
+
+	private append(event: HubEventEnvelope): HubEventEnvelope {
+		if (!this.eventLog) {
+			return event;
 		}
+		try {
+			return this.eventLog.append(event);
+		} catch (error) {
+			logHubBoundaryError(`event log append failed for ${event.event}`, error);
+			return event;
+		}
+	}
+
+	/** Live delivery only; `publishEphemeral` uses it directly so nothing is logged. */
+	private fanOut(event: HubEventEnvelope): void {
 		for (const entries of this.listeners.values()) {
 			for (const entry of entries) {
 				if (entry.sessionId && entry.sessionId !== event.sessionId) {

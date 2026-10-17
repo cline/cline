@@ -1,0 +1,24 @@
+{
+	"cases": [
+		{
+			"sample": "key sk-ant-api03-abcdefghijklmnopqrstuv in the paste",
+			"expected": "key [redacted] in the paste"
+		},
+		{
+			"sample": "token: ghp_abcdefghijklmnopqrstuvwxyz0123",
+			"expected": "token: [redacted]"
+		},
+		{
+			"sample": "export API_KEY=supersecretvalue123",
+			"expected": "export API_KEY=[redacted]"
+		},
+		{
+			"sample": "Authorization: Bearer abcdefghijklmnopqrstuvwx",
+			"expected": "Authorization: [redacted]"
+		},
+		{
+			"sample": "plain words stay",
+			"expected": "plain words stay"
+		}
+	]
+}

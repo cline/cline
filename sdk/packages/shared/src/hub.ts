@@ -1,4 +1,9 @@
 import type { AgentMessage } from "./agent";
+import type {
+	PluginUiInvokeInput,
+	PluginUiInvokeResult,
+	PluginUiStateEnvelope,
+} from "./extensions/ui-slots";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
@@ -48,7 +53,8 @@ export type HubCapabilityName =
 	| "plugins.list"
 	| "plugins.status"
 	| "plugins.reload"
-	| "stream.replay";
+	| "stream.replay"
+	| "plugins.ui";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
@@ -82,6 +88,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"plugins.status",
 	"plugins.reload",
 	"stream.replay",
+	"plugins.ui",
 ];
 
 export interface HubProtocolMetadata {
@@ -508,8 +515,8 @@ export type PluginRuntimeState =
 /**
  * Where a plugin error happened: `discover`, `import`, `setup`, `dispose`,
  * `hook:<name>`, `tool:<name>`, `command:<name>`, `rule:<id>`,
- * `messageBuilder:<name>`, or `uncaught` for a stray exception or rejection
- * the host attributed to the plugin from its stack.
+ * `messageBuilder:<name>`, `ui:<slot>`, or `uncaught` for a stray exception
+ * or rejection the host attributed to the plugin from its stack.
  */
 export type PluginErrorPhase =
 	| "discover"
@@ -521,7 +528,8 @@ export type PluginErrorPhase =
 	| `tool:${string}`
 	| `command:${string}`
 	| `rule:${string}`
-	| `messageBuilder:${string}`;
+	| `messageBuilder:${string}`
+	| `ui:${string}`;
 
 export interface PluginErrorRecord {
 	phase: PluginErrorPhase;
@@ -576,6 +584,12 @@ export interface HubPluginsReloadInput {
 	plugin: string;
 }
 
+/** The session is `envelope.sessionId`; the hub stamps the viewer from the registered connection. */
+export type HubPluginUiInvokeInput = Pick<
+	PluginUiInvokeInput,
+	"slot" | "action"
+>;
+
 /**
  * Strongly typed task command payloads. This map is intentionally extensible so
  * other Hub command families can adopt typed payloads without changing the wire
@@ -595,6 +609,8 @@ export interface HubCommandInputMap {
 	"plugins.list": Record<string, never>;
 	"plugins.status": Record<string, never>;
 	"plugins.reload": HubPluginsReloadInput;
+	"plugins.ui.get": Record<string, never>;
+	"plugins.ui.invoke": HubPluginUiInvokeInput;
 }
 
 /** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
@@ -612,6 +628,8 @@ export interface HubCommandOutputMap {
 	"plugins.list": { plugins: PluginStatusRecord[] };
 	"plugins.status": { plugins: PluginStatusRecord[] };
 	"plugins.reload": { plugins: PluginStatusRecord[] };
+	"plugins.ui.get": { states: PluginUiStateEnvelope[] };
+	"plugins.ui.invoke": PluginUiInvokeResult;
 }
 
 export type HubTypedCommandName = keyof HubCommandInputMap & HubCommandName;
@@ -705,7 +723,9 @@ export type HubCommandName =
 	| "cron.event.list"
 	| "cron.event.get"
 	| "ui.notify"
-	| "ui.show_window";
+	| "ui.show_window"
+	| "plugins.ui.get"
+	| "plugins.ui.invoke";
 
 export const HUB_DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 export const HUB_COMMAND_SLOW_LOG_MS = 5_000;
@@ -814,6 +834,7 @@ export type HubEventName =
 	| "plugin.status_changed"
 	| "ui.notify"
 	| "ui.show_window"
+	| "plugins.ui.state"
 	| "hub.client.updated";
 
 export interface HubEventEnvelope {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type {
 	HubClientRegistration,
@@ -123,6 +124,7 @@ export class BrowserWebSocketHubAdapter {
 	): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
+		const connectionId = randomUUID();
 		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
@@ -299,7 +301,7 @@ export class BrowserWebSocketHubAdapter {
 						if (frame.envelope.command === "client.register" && reply.ok) {
 							if (registration) {
 								registeredClientIds.add(registration.clientId);
-								authority = registration;
+								authority = { ...registration, connectionId };
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&
@@ -484,6 +486,7 @@ export class BrowserWebSocketHubAdapter {
 					version: "v1",
 					command: "client.unregister",
 					clientId,
+					payload: { connectionId },
 				});
 			}
 			registeredClientIds.clear();

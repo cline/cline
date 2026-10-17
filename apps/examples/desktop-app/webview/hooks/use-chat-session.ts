@@ -113,11 +113,8 @@ const RELEVANT_STREAMS = new Set([
 	"chat_done",
 ]);
 
-const BUSY_STATUSES = new Set<ChatSessionStatus>([
-	"starting",
-	"running",
-	"stopping",
-]);
+export const BUSY_STATUSES: ReadonlySet<ChatSessionStatus> =
+	new Set<ChatSessionStatus>(["starting", "running", "stopping"]);
 
 // Stale-stream fallback cadence for attached sessions (see the polling
 // effect below): only poll after the live stream has been quiet this long,

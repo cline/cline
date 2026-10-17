@@ -1883,3 +1883,42 @@ describe("Chat chunk pipe selection", () => {
 		expect(second.bootId).not.toBe(first.bootId);
 	});
 });
+
+describe("plugin UI state forwarding", () => {
+	it("sends one webview event per core plugin_ui_state, with the envelope nested", async () => {
+		const { createSidecarContext, handleCoreSessionEvent, handleHubLiveEvent } =
+			await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		const envelope = {
+			sessionId: "session-1",
+			slot: "composer.suggestions" as const,
+			plugin: "demo",
+			epoch: 5,
+			seq: 2,
+			state: null,
+		};
+
+		handleCoreSessionEvent(ctx, { type: "plugin_ui_state", payload: envelope });
+		// The hub's observer copy is never forwarded: ClineCore's subscription
+		// already moved this session's events onto the core path.
+		handleHubLiveEvent(ctx, {
+			event: "plugins.ui.state",
+			sessionId: "session-1",
+			payload: envelope,
+		});
+
+		const events = readEvents(ctx).filter(
+			(message) => message.event.name === "plugin_ui_state",
+		);
+		expect(events).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "plugin_ui_state",
+					payload: { environmentId: "local", sessionId: "session-1", envelope },
+				},
+			},
+		]);
+	});
+});

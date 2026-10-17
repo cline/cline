@@ -646,6 +646,23 @@ export function handleCoreSessionEvent(
 			sendEvent(ctx, "team_progress", event.payload);
 			break;
 		}
+		case "plugin_ui_state": {
+			// Nested, so the envelope's own fields never override the
+			// environmentId this event is stamped with.
+			try {
+				sendEvent(ctx, "plugin_ui_state", {
+					sessionId: event.payload.sessionId,
+					envelope: event.payload,
+				});
+			} catch (error) {
+				ctx.logger?.log("Failed to forward plugin UI state", {
+					sessionId: event.payload.sessionId,
+					error,
+					severity: "warn",
+				});
+			}
+			break;
+		}
 	}
 }
 
@@ -679,6 +696,7 @@ export function createSidecarContext(
 		telemetryUser: observability.telemetryUser,
 		cloudSessionManager: null,
 		hubBuildMismatch: null,
+		pluginUiViews: new Map(),
 	};
 }
 

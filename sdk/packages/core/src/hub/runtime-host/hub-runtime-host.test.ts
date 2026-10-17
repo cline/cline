@@ -8,6 +8,7 @@ import { projectSessionEvent } from "../server/handlers/session-event-projector"
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const onRegisteredMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
 const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
@@ -23,6 +24,7 @@ vi.mock("../client", () => ({
 
 		command = commandMock;
 		subscribe = subscribeMock;
+		onRegistered = onRegisteredMock;
 		close = closeMock;
 		dispose = disposeMock;
 		getClientId = getClientIdMock;
@@ -76,6 +78,7 @@ describe("HubRuntimeHost", () => {
 	afterEach(() => {
 		commandMock.mockReset();
 		subscribeMock.mockReset();
+		onRegisteredMock.mockReset();
 		closeMock.mockReset();
 		disposeMock.mockReset();
 		getClientIdMock.mockClear();

@@ -1,0 +1,117 @@
+{
+	"events": [
+		"offer",
+		"lineage",
+		"set_ready",
+		"exposed",
+		"highlight_move",
+		"do",
+		"adjust",
+		"adjust_sent",
+		"adjust_abandoned",
+		"skip",
+		"undo_skip",
+		"undo_adjust",
+		"undo_turn",
+		"reroll",
+		"cancel_pending",
+		"refused_stale",
+		"key_inert",
+		"superseded",
+		"typed_instead",
+		"ignored",
+		"hidden_by_user"
+	],
+	"cases": [
+		{
+			"sample": {
+				"event": "do",
+				"candidateId": "abc12345",
+				"kind": "verify",
+				"rank": 1,
+				"offerId": "offer_1",
+				"turnKey": "sess_1:2"
+			},
+			"record": {
+				"v": 2,
+				"at": "2026-10-08T00:00:00.000Z",
+				"sessionId": "sess_1",
+				"event": "do",
+				"candidateId": "abc12345",
+				"kind": "verify",
+				"turnKey": "sess_1:2",
+				"offerId": "offer_1",
+				"rank": 1
+			}
+		},
+		{
+			"sample": {
+				"event": "typed_instead",
+				"typedText": "do something else entirely"
+			},
+			"record": {
+				"v": 2,
+				"at": "2026-10-08T00:00:00.000Z",
+				"sessionId": "sess_1",
+				"event": "typed_instead",
+				"messageHash": "e98d968b0544ded6e11a38ed0e467672cef436e1fb54f79ecff54358e1571402",
+				"chars": 26
+			}
+		},
+		{
+			"sample": {
+				"event": "adjust",
+				"bucket": "small",
+				"runId": "run_si9HsPkJ"
+			},
+			"record": {
+				"v": 2,
+				"at": "2026-10-08T00:00:00.000Z",
+				"sessionId": "sess_1",
+				"event": "adjust",
+				"bucket": "small",
+				"runId": "run_si9HsPkJ"
+			}
+		},
+		{
+			"sample": {
+				"event": "skip",
+				"excluded": ["a", "b"]
+			},
+			"record": {
+				"v": 2,
+				"at": "2026-10-08T00:00:00.000Z",
+				"sessionId": "sess_1",
+				"event": "skip",
+				"excluded": ["a", "b"]
+			}
+		},
+		{
+			"sample": {
+				"event": "do",
+				"prompt": "Run the tests"
+			},
+			"record": "refused"
+		},
+		{
+			"sample": {
+				"event": "do",
+				"kind": "two words"
+			},
+			"record": "refused"
+		},
+		{
+			"sample": {
+				"event": "do",
+				"bucket": "medium"
+			},
+			"record": "refused"
+		},
+		{
+			"sample": {
+				"event": "nope"
+			},
+			"record": "refused"
+		}
+	]
+}
