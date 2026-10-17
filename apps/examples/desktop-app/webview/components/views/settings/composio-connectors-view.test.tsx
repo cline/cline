@@ -452,6 +452,45 @@ describe("installed connectors", () => {
 		expect(mocks.openExternalUrl).toHaveBeenCalledWith("https://app.cline.bot");
 	});
 
+	it("lets a signed-out user cancel a pending Cline sign-in", async () => {
+		let rejectLogin!: (error: Error) => void;
+		mocks.configured = false;
+		mocks.invoke.mockImplementation((command: string) => {
+			if (command === "run_provider_oauth_login") {
+				return new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			}
+			if (command === "cancel_provider_oauth_login") {
+				rejectLogin(new Error("Sign-in cancelled"));
+				return Promise.resolve({ provider: "cline", cancelled: true });
+			}
+			return Promise.resolve({
+				signedIn: false,
+				code: "ACCOUNT_NOT_AUTHENTICATED",
+			});
+		});
+		await act(async () =>
+			root.render(
+				<AccountProvider>
+					<ComposioConnectorsView variant="installed" />
+				</AccountProvider>,
+			),
+		);
+
+		await act(async () => button("Sign in")?.click());
+		expect(button("Waiting for browser…")).toBeDefined();
+		expect(button("Cancel")).toBeDefined();
+
+		await act(async () => button("Cancel")?.click());
+		expect(mocks.invoke).toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		expect(button("Sign in")).toBeDefined();
+		expect(button("Create account")).toBeDefined();
+		expect(container.textContent).not.toContain("Sign-in cancelled");
+	});
+
 	it("explains the beta rollout when signed in without connector access", async () => {
 		mocks.configured = false;
 		mocks.invoke.mockResolvedValue({
