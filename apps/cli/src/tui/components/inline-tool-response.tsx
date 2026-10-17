@@ -1,9 +1,20 @@
-import type { ScrollBoxRenderable } from "@opentui/core";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import {
+	decodePasteBytes,
+	MouseButton,
+	type MouseEvent,
+	type PasteEvent,
+	type ScrollBoxRenderable,
+} from "@opentui/core";
+import { useKeyboard, usePaste, useTerminalDimensions } from "@opentui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../hooks/use-theme";
 import type { RuntimeToolInteraction } from "../types";
-import { getPrintableKeyText, removeLastGrapheme } from "./ask-question-input";
+import { readTextFromSystemClipboard } from "../utils/clipboard";
+import {
+	getPrintableKeyText,
+	normalizePastedAnswer,
+	removeLastGrapheme,
+} from "./ask-question-input";
 import { formatApprovalParams } from "./dialogs/tool-approval";
 
 export interface InlineToolResponseProps {
@@ -152,6 +163,17 @@ function Shell(
 	);
 }
 
+function readTextPaste(event: PasteEvent): string | null {
+	if (
+		event.metadata?.kind === "binary" ||
+		event.metadata?.mimeType?.startsWith("image/")
+	) {
+		return null;
+	}
+
+	return normalizePastedAnswer(decodePasteBytes(event.bytes));
+}
+
 function ChoiceButton(props: {
 	label: string;
 	selected: boolean;
@@ -164,7 +186,11 @@ function ChoiceButton(props: {
 		<box
 			paddingX={1}
 			backgroundColor={props.selected ? theme.selection : undefined}
-			onMouseDown={props.onPress}
+			onMouseDown={(event: MouseEvent) => {
+				if (event.button === undefined || event.button === MouseButton.LEFT) {
+					props.onPress();
+				}
+			}}
 		>
 			<text
 				fg={
@@ -266,6 +292,7 @@ function AskQuestionResponse(
 	const scrollRef = useRef<ScrollBoxRenderable | null>(null);
 	const selectedRef = useRef(0);
 	const customValueRef = useRef("");
+	const isPastingRef = useRef(false);
 	const interactionId = interaction.id;
 	const onResolveAskQuestion = props.onResolveAskQuestion;
 	const customIndex = interaction.options.length;
@@ -316,6 +343,61 @@ function AskQuestionResponse(
 		[interactionId, onResolveAskQuestion],
 	);
 
+	const appendPastedText = useCallback(
+		(text: string) => {
+			const cleaned = normalizePastedAnswer(text);
+			if (!cleaned) {
+				return;
+			}
+			selectIndex(customIndex);
+			setCustomText(`${customValueRef.current}${cleaned}`);
+		},
+		[customIndex, selectIndex, setCustomText],
+	);
+
+	usePaste((event: PasteEvent) => {
+		const text = readTextPaste(event);
+		if (text) {
+			appendPastedText(text);
+		}
+	});
+
+	// Bracketed-paste (`usePaste` above) delivers the text inline, but the mouse
+	// and Ctrl+V paths have to read the system clipboard asynchronously. Two
+	// rapid triggers can resolve with the same contents and append it twice, so
+	// both share this single in-flight guard (mirrors InputBar).
+	const pasteFromClipboard = useCallback(async () => {
+		if (isPastingRef.current) return;
+		isPastingRef.current = true;
+		try {
+			const text = await readTextFromSystemClipboard();
+			if (text) {
+				appendPastedText(text);
+			}
+		} finally {
+			setTimeout(() => {
+				isPastingRef.current = false;
+			}, 100);
+		}
+	}, [appendPastedText]);
+
+	const handleCustomMouseDown = useCallback(
+		(event: MouseEvent) => {
+			if (
+				event.button === MouseButton.RIGHT ||
+				event.button === MouseButton.MIDDLE
+			) {
+				event.preventDefault?.();
+				event.stopPropagation?.();
+				selectIndex(customIndex);
+				void pasteFromClipboard();
+				return;
+			}
+			selectIndex(customIndex);
+		},
+		[customIndex, pasteFromClipboard, selectIndex],
+	);
+
 	useEffect(() => {
 		const choiceId = getAskQuestionChoiceId(interactionId, selected);
 		let canceled = false;
@@ -338,6 +420,10 @@ function AskQuestionResponse(
 
 	useKeyboard((key) => {
 		const typing = selectedRef.current === customIndex;
+		if (key.ctrl && key.name === "v") {
+			void pasteFromClipboard();
+			return;
+		}
 		if (key.name === "escape") {
 			if (typing && customValueRef.current) {
 				setCustomText("");
@@ -435,7 +521,14 @@ function AskQuestionResponse(
 									flexShrink={0}
 									width="100%"
 									backgroundColor={optionSelected ? theme.selection : undefined}
-									onMouseDown={() => resolveAnswer(option)}
+									onMouseDown={(event: MouseEvent) => {
+										if (
+											event.button === undefined ||
+											event.button === MouseButton.LEFT
+										) {
+											resolveAnswer(option);
+										}
+									}}
 								>
 									<text
 										fg={optionSelected ? theme.textOnSelection : "gray"}
@@ -466,7 +559,7 @@ function AskQuestionResponse(
 							flexShrink={0}
 							width="100%"
 							backgroundColor={isTyping ? theme.selection : undefined}
-							onMouseDown={() => selectIndex(customIndex)}
+							onMouseDown={handleCustomMouseDown}
 						>
 							<text
 								fg={isTyping ? theme.textOnSelection : "gray"}

@@ -13,14 +13,17 @@ interface ChildProcessMockOptions {
 	error?: Error;
 	hangUntilKilled?: boolean;
 	hangUntilAborted?: boolean;
+	stdoutText?: string;
 }
 
 function createChildProcessMock(options: ChildProcessMockOptions = {}) {
 	const child = new EventEmitter() as EventEmitter & {
 		stdin: PassThrough;
+		stdout: PassThrough;
 		kill: ReturnType<typeof vi.fn>;
 	};
 	child.stdin = new PassThrough();
+	child.stdout = new PassThrough();
 	const chunks: Buffer[] = [];
 	child.stdin.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
 	child.kill = vi.fn(() => {
@@ -37,6 +40,32 @@ function createChildProcessMock(options: ChildProcessMockOptions = {}) {
 			}
 			child.emit("close", options.closeCode ?? 0);
 		});
+	});
+	child.on("newListener", (event) => {
+		if (event === "close" && options.stdoutText !== undefined) {
+			queueMicrotask(() => {
+				child.stdout.write(options.stdoutText);
+				child.stdout.end();
+				if (options.error) {
+					child.emit("error", options.error);
+					return;
+				}
+				if (!options.hangUntilKilled && !options.hangUntilAborted) {
+					child.emit("close", options.closeCode ?? 0);
+				}
+			});
+		} else if (
+			event === "close" &&
+			options.closeCode !== undefined &&
+			options.stdoutText === undefined
+		) {
+			queueMicrotask(() => {
+				child.stdout.end();
+				if (!options.hangUntilKilled && !options.hangUntilAborted) {
+					child.emit("close", options.closeCode);
+				}
+			});
+		}
 	});
 	return {
 		child,
@@ -363,5 +392,148 @@ describe("copyTextToSystemClipboard", () => {
 		).resolves.toBe(true);
 		expect(spawnMock).toHaveBeenCalledTimes(2);
 		expect(ok.getInput()).toBe("recover");
+	});
+});
+
+describe("readTextFromSystemClipboard", () => {
+	beforeEach(() => {
+		spawnMock.mockReset();
+	});
+
+	it("skips reading inside SSH sessions unless opt-in is set", async () => {
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		await expect(
+			readTextFromSystemClipboard({
+				platform: "linux",
+				env: { SSH_CONNECTION: "1.2.3.4 5678 5.6.7.8 22" },
+			}),
+		).resolves.toBeUndefined();
+		expect(spawnMock).not.toHaveBeenCalled();
+	});
+
+	it("reads clipboard via pbpaste on macOS", async () => {
+		const mock = createChildProcessMock({ stdoutText: "hello mac" });
+		spawnMock.mockReturnValueOnce(mock.child);
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		const result = await readTextFromSystemClipboard({
+			platform: "darwin",
+			env: ENV_WITHOUT_SSH,
+		});
+
+		expect(result).toBe("hello mac");
+		expect(spawnMock).toHaveBeenCalledWith(
+			"pbpaste",
+			[],
+			expect.objectContaining({
+				stdio: ["ignore", "pipe", "ignore"],
+			}),
+		);
+	});
+
+	it("normalizes carriage returns and strips ANSI sequences from pasted text", async () => {
+		const mock = createChildProcessMock({
+			stdoutText: "\x1b[31mhello\x1b[0m\r\nworld\r!",
+		});
+		spawnMock.mockReturnValueOnce(mock.child);
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		const result = await readTextFromSystemClipboard({
+			platform: "darwin",
+			env: ENV_WITHOUT_SSH,
+		});
+
+		expect(result).toBe("hello\nworld\n!");
+	});
+
+	it("falls back to next command on Linux when first command fails", async () => {
+		const failMock = createChildProcessMock({ closeCode: 1 });
+		const successMock = createChildProcessMock({ stdoutText: "from xclip" });
+		spawnMock
+			.mockReturnValueOnce(failMock.child)
+			.mockReturnValueOnce(successMock.child);
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		const result = await readTextFromSystemClipboard({
+			platform: "linux",
+			osRelease: "6.8.0-generic",
+			env: ENV_WITHOUT_SSH,
+		});
+
+		expect(result).toBe("from xclip");
+		expect(spawnMock).toHaveBeenCalledTimes(2);
+		expect(spawnMock).toHaveBeenNthCalledWith(
+			1,
+			"wl-paste",
+			["--no-newline"],
+			expect.any(Object),
+		);
+		expect(spawnMock).toHaveBeenNthCalledWith(
+			2,
+			"xclip",
+			["-selection", "clipboard", "-o"],
+			expect.any(Object),
+		);
+	});
+
+	it("reads clipboard on Windows via powershell", async () => {
+		const mock = createChildProcessMock({ stdoutText: "windows clipboard" });
+		spawnMock.mockReturnValueOnce(mock.child);
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		const result = await readTextFromSystemClipboard({
+			platform: "win32",
+			env: ENV_WITHOUT_SSH,
+		});
+
+		expect(result).toBe("windows clipboard");
+		expect(spawnMock).toHaveBeenCalledWith(
+			"powershell.exe",
+			expect.arrayContaining(["-Command"]),
+			expect.any(Object),
+		);
+	});
+
+	it("falls back to python3 X11 script on Linux when wl-paste, xclip, and xsel fail", async () => {
+		const failMock = () => createChildProcessMock({ closeCode: 1 }).child;
+		const successMock = createChildProcessMock({
+			stdoutText: "from python x11",
+		});
+		spawnMock
+			.mockReturnValueOnce(failMock())
+			.mockReturnValueOnce(failMock())
+			.mockReturnValueOnce(failMock())
+			.mockReturnValueOnce(successMock.child);
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		const result = await readTextFromSystemClipboard({
+			platform: "linux",
+			osRelease: "6.8.0-generic",
+			env: { ...ENV_WITHOUT_SSH, DISPLAY: ":0" },
+		});
+
+		expect(result).toBe("from python x11");
+		expect(spawnMock).toHaveBeenCalledTimes(4);
+		expect(spawnMock).toHaveBeenNthCalledWith(
+			4,
+			"python3",
+			expect.arrayContaining(["-c"]),
+			expect.any(Object),
+		);
+	});
+
+	it("returns undefined if all commands fail or return empty", async () => {
+		spawnMock.mockImplementation(
+			() => createChildProcessMock({ closeCode: 1 }).child,
+		);
+		const { readTextFromSystemClipboard } = await import("./clipboard");
+
+		const result = await readTextFromSystemClipboard({
+			platform: "darwin",
+			env: ENV_WITHOUT_SSH,
+		});
+
+		expect(result).toBeUndefined();
 	});
 });
