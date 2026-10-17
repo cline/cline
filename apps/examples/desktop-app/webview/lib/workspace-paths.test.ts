@@ -10,6 +10,7 @@ import {
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	parseWorkspaceSelectionStorage,
+	pruneMissingWorkspacePaths,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
 	registerTaskWorktreeRoot,
@@ -338,6 +339,28 @@ describe("workspace paths", () => {
 			lastWorkspace: "",
 			workspaces: ["/projects/app"],
 		});
+	});
+
+	it("drops workspaces whose folder no longer exists, keeping the order", async () => {
+		const existing = new Set(["/projects/app", "/projects/docs"]);
+
+		const pruned = await pruneMissingWorkspacePaths(
+			["/projects/app", "/projects/deleted", "/projects/docs"],
+			async (path) => existing.has(path),
+		);
+
+		expect(pruned).toEqual(["/projects/app", "/projects/docs"]);
+	});
+
+	it("keeps a workspace when its existence check fails", async () => {
+		const pruned = await pruneMissingWorkspacePaths(
+			["/projects/app"],
+			async () => {
+				throw new Error("sidecar unavailable");
+			},
+		);
+
+		expect(pruned).toEqual(["/projects/app"]);
 	});
 
 	describe("with a registered host home directory", () => {
