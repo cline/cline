@@ -4,7 +4,6 @@ import {
 	Llms,
 	ProviderSettingsManager,
 	refreshProviderModelsFromSource,
-	resolveProviderConfig,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -43,6 +42,7 @@ import {
 	type ThinkingLevel,
 	ThinkingLevelContent,
 } from "../components/model-selector/model-selector";
+import { resolveProviderKnownModels } from "../utils/provider-known-models";
 import { resolveProviderSetupRoute } from "../views/onboarding/model";
 
 export interface OpenModelSelectorOptions {
@@ -60,17 +60,12 @@ async function refreshCurrentProviderModels(config: Config): Promise<void> {
 	await refreshProviderModelsFromSource(manager, config.providerId).catch(
 		() => {},
 	);
-	const resolved = await resolveProviderConfig(
+	const knownModels = await resolveProviderKnownModels(
+		manager,
 		config.providerId,
-		{
-			loadLatestOnInit: true,
-			loadPrivateOnAuth: true,
-			failOnError: false,
-		},
-		manager.getProviderConfig(config.providerId, { includeKnownModels: false }),
 	);
-	if (resolved?.knownModels) {
-		config.knownModels = resolved.knownModels;
+	if (knownModels) {
+		config.knownModels = knownModels;
 	}
 }
 
@@ -307,17 +302,11 @@ async function runProviderChange(
 
 			config.providerId = newProviderId;
 			config.apiKey = newApiKey;
-			const resolved = await resolveProviderConfig(
+			config.knownModels = await resolveProviderKnownModels(
+				manager,
 				newProviderId,
-				{
-					loadLatestOnInit: true,
-					loadPrivateOnAuth: true,
-					failOnError: false,
-				},
-				manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
 			);
-			config.knownModels = resolved?.knownModels;
-			const modelIds = Object.keys(resolved?.knownModels ?? {});
+			const modelIds = Object.keys(config.knownModels ?? {});
 			if (newSettings?.model) {
 				config.modelId = newSettings.model;
 			} else if (modelIds[0]) {
