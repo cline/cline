@@ -748,8 +748,8 @@ export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: s
 /**
  * Providers whose base URL commonly points at a local model server. Those
  * can spend longer than undici's 300s idle timeouts producing the first
- * token, so they get `fetchWithoutIdleTimeouts` when the base URL is on the
- * local network. Remote gateways (and every other provider) keep the
+ * token, so they get `fetchWithoutIdleTimeouts` when the base URL is plain
+ * HTTP on the local network. Remote gateways (and every other provider) keep the
  * proxy-aware fetch: on VS Code it honours `http.proxy`, which
  * `fetchWithoutIdleTimeouts` cannot, and it keeps the dead-connection cap.
  */
@@ -772,16 +772,23 @@ LOCAL_NETWORK_ADDRESSES.addSubnet("fc00::", 7, "ipv6")
 LOCAL_NETWORK_ADDRESSES.addSubnet("fe80::", 10, "ipv6")
 
 // An unset base URL means the provider's localhost default.
-function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
+function isLocalHttpUrl(baseUrl: string | undefined): boolean {
 	if (!baseUrl) {
 		return true
 	}
-	let host: string
+	let url: URL
 	try {
-		host = new URL(baseUrl).hostname.replace(/^\[|\]$/g, "").toLowerCase()
+		url = new URL(baseUrl)
 	} catch {
 		return false
 	}
+	// `fetchWithoutIdleTimeouts` doesn't trust the OS certificate store that
+	// VS Code adds to its fetch, so HTTPS servers with a corporate or
+	// self-signed certificate would fail TLS through it.
+	if (url.protocol !== "http:") {
+		return false
+	}
+	const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase()
 	// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) against the
 	// IPv4 rules, so no unwrapping is needed.
 	const family = isIP(host)
@@ -792,7 +799,7 @@ function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
 }
 
 export function resolveProviderFetch(sdkProviderId: string, baseUrl: string | undefined): typeof globalThis.fetch {
-	return LOCAL_SERVER_PROVIDERS.has(sdkProviderId) && isLocalNetworkUrl(baseUrl) ? fetchWithoutIdleTimeouts : fetch
+	return LOCAL_SERVER_PROVIDERS.has(sdkProviderId) && isLocalHttpUrl(baseUrl) ? fetchWithoutIdleTimeouts : fetch
 }
 
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
