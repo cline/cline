@@ -76,6 +76,7 @@ person's new message against it. Every served set and label goes to
 | [`src/tasks/`](src/tasks/tasks.ts) | Tasks on the hub's agenda: edits, approve and cancel with the revision the person saw, and proposals written as spec files so they wait for approval |
 | [`src/plugin.ts`](src/plugin.ts), [`src/runtime.ts`](src/runtime.ts), [`src/lifecycle.ts`](src/lifecycle.ts) | The plugin's hooks and its `composer.suggestions` slot handler, none of which can fail the person's run; one chat's runtime and whether a viewer is attached; and the disable and uninstall check |
 | [`src/contracts.ts`](src/contracts.ts), [`scripts/`](scripts/build.ts) | The published JSON Schemas, and the scripts that bundle the plugin and generate `contracts/` |
+| [`docs/`](docs/prompt-cache.md) | Design notes: how the planner can reuse the chat's prompt cache |
 
 Tuning levers (timeouts, budgets, cadences, limits) live in
 [`src/config.ts`](src/config.ts).
