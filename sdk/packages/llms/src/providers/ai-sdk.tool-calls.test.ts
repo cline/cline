@@ -6,10 +6,93 @@ import type {
 } from "@cline/shared";
 import { NoSuchToolError } from "ai";
 import { describe, expect, it } from "vitest";
+import codexRecording from "../tests/provider-vcr/openai-codex-gpt-5-4.json";
 import {
 	createOpenAICompatibleProvider,
+	createOpenAIProvider,
 	repairMalformedToolCall,
 } from "./ai-sdk";
+
+describe("OpenAI Responses tool schemas", () => {
+	it.each([
+		["openai-codex", "https://chatgpt.com/backend-api/codex", true],
+		["openai-native", "https://api.openai.com/v1", true],
+		["openai-compatible", "https://compatible.example/v1", false],
+	] as const)("preserves optional and nullable fields for %s", async (providerId, baseUrl, responses) => {
+		const inputSchema = {
+			type: "object",
+			properties: {
+				cursor: { type: "string", minLength: 1 },
+				label: { type: ["string", "null"] },
+			},
+			required: [],
+			additionalProperties: false,
+		};
+		const originalSchema = structuredClone(inputSchema);
+		let requestBody: Record<string, unknown> | undefined;
+		const config = {
+			providerId,
+			apiKey: "test-key",
+			baseUrl,
+			fetch: (async (_input, init) => {
+				requestBody = JSON.parse(String(init?.body));
+				const body = responses
+					? codexRecording[0].response
+					: sseToolCall("list_records", "{}");
+				return new Response(body, {
+					status: 200,
+					headers: { "content-type": "text/event-stream" },
+				});
+			}) as typeof fetch,
+		};
+		const model = { id: "gpt-5.4", providerId, name: "GPT-5.4" };
+		const context = {
+			provider: { id: providerId, name: providerId, models: [model] },
+			model,
+			config,
+		} as GatewayProviderContext;
+		const request = {
+			providerId,
+			modelId: model.id,
+			messages: [
+				{
+					id: "user-1",
+					role: "user",
+					content: [{ type: "text", text: "List the first page." }],
+					createdAt: new Date(),
+				},
+			],
+			tools: [
+				{ name: "list_records", description: "List records", inputSchema },
+			],
+		} as GatewayStreamRequest;
+		const provider = await (responses
+			? createOpenAIProvider(config)
+			: createOpenAICompatibleProvider(config));
+		const events: AgentModelEvent[] = [];
+		for await (const event of await provider.stream(request, context)) {
+			events.push(event);
+		}
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "finish",
+				reason: responses ? "stop" : "tool-calls",
+			}),
+		);
+		const expectedFunction = {
+			name: "list_records",
+			description: "List records",
+			parameters: originalSchema,
+		};
+		expect(requestBody?.tools).toEqual(
+			responses
+				? [{ type: "function", ...expectedFunction, strict: false }]
+				: [{ type: "function", function: expectedFunction }],
+		);
+		expect(inputSchema).toEqual(originalSchema);
+	});
+});
 
 /**
  * Integration tests for malformed tool-call handling in the AI SDK adapter.
