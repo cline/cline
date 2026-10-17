@@ -6,15 +6,8 @@ import { fnv1a32 } from "../candidates";
 import { offerableKinds } from "../kinds";
 import { buildPlannerInput } from "../model/input";
 import { generatePool } from "../model/model";
-import type { OfferedSet } from "../tray/tray";
 import type { SessionCore } from "./core";
-import {
-	type PlannerStatus,
-	pausedOf,
-	rerollsLeft,
-	type TurnState,
-	trayState,
-} from "./turn-state";
+import type { TurnState } from "./turn-state";
 
 /** JSON with every object's keys sorted, so the same input always hashes the same. */
 function stableJson(value: unknown): string {
@@ -36,13 +29,10 @@ function stableJson(value: unknown): string {
  */
 export function resumePlanner(core: SessionCore, settings: Settings): void {
 	const state = core.state;
-	if (!state || state.planning) return;
-	const awaitingReroll = core.awaitingReroll();
-	if (!awaitingReroll && core.shown?.model?.status !== "pending") return;
+	if (!state || state.planning || !core.awaitingPlanner()) return;
 	const model = core.plannerModel(settings);
 	if (model?.status === "pending") startPlanner(core, state, core.generation);
-	else if (awaitingReroll) core.serve(state, model);
-	else if (model) reportPlannerStatus(core, state, model);
+	else core.serve(state, model);
 }
 
 export function startPlanner(
@@ -53,8 +43,8 @@ export function startPlanner(
 	core.track(
 		planModel(core, state, gen).catch((error: unknown) => {
 			core.options.log?.("the planner failed", error);
-			if (core.isCurrent(gen, state) && core.awaitingReroll())
-				reportPlannerStatus(core, state, { status: "error" });
+			if (core.isCurrent(gen, state) && core.awaitingPlanner())
+				core.serve(state, { status: "error" });
 		}),
 	);
 }
@@ -134,10 +124,10 @@ async function requestModelSet(
 		if (!core.isCurrent(gen, state)) return;
 		if ("reason" in attempt) {
 			core.options.log?.(
-				`model suggestions unavailable (${attempt.reason}); the rule-based set stays`,
+				`model suggestions unavailable (${attempt.reason}); the rules answer`,
 				attempt.error,
 			);
-			reportPlannerStatus(core, state, {
+			core.serve(state, {
 				status: attempt.reason === "no_provider" ? "no_provider" : "error",
 			});
 			return;
@@ -148,37 +138,4 @@ async function requestModelSet(
 	state.pool = pool;
 	state.poolManifest = manifest;
 	core.serve(state);
-}
-
-/**
- * The rule-based set stays on screen; only its model status changes. A
- * reroll that was waiting on the planner gets the rules' next page instead.
- */
-function reportPlannerStatus(
-	core: SessionCore,
-	state: TurnState,
-	model: PlannerStatus,
-): void {
-	if (core.awaitingReroll()) {
-		core.serve(state, model);
-		return;
-	}
-	const shown = core.shown;
-	if (shown?.turnKey !== state.turn.turnKey) return;
-	const { paused: _paused, ...rest } = shown;
-	const paused = pausedOf(model);
-	const updated: OfferedSet = {
-		...rest,
-		model,
-		...(paused ? { paused } : {}),
-	};
-	const index = state.offers.findIndex(
-		(offer) => offer.offerId === updated.offerId,
-	);
-	if (index !== -1) state.offers[index] = updated;
-	core.pushState(trayState(state, updated.candidates), {
-		turnKey: state.turn.turnKey,
-		rerollsLeft: rerollsLeft(state),
-		set: updated,
-	});
 }

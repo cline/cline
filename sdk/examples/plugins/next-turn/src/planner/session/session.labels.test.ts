@@ -12,8 +12,6 @@ describe("Next, for one chat", () => {
 		const sent = harness({ complete: undefined });
 		const run = editRun();
 		const set = await sent.session.afterRun(run.result);
-		sent.session.outgoing(run.messages);
-		expect(sent.session.current()).toBe(set);
 		sent.session.outgoing([
 			...run.messages,
 			message("user", set?.candidates[1]?.prompt ?? ""),

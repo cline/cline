@@ -107,9 +107,6 @@ export function rowFields(item: Suggestion, index: number) {
 	};
 }
 
-/** The planner's status on a set the rules answered. */
-export type PlannerStatus = NonNullable<OfferedSet["model"]>;
-
 export function pausedOf(model: OfferedSet["model"]): OfferedSet["paused"] {
 	return model?.status === "paused" && model.resetsAt !== undefined
 		? { resetsAt: model.resetsAt }

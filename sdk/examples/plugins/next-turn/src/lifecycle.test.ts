@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	existsSync,
 	mkdirSync,
 	readFileSync,
 	rmSync,
@@ -163,8 +164,8 @@ describe("plugin lifecycle: disable and uninstall in open chats", () => {
 		enabled = false;
 		release();
 		await next.settled();
-		expect(planners).toEqual([undefined, "rules"]);
-		expect(readFileSync(labelsPath, "utf8").trim().split("\n")).toHaveLength(1);
+		expect(planners).toEqual([undefined]);
+		expect(existsSync(labelsPath)).toBe(false);
 
 		const read: string[] = [];
 		let tick: () => void = () => {};

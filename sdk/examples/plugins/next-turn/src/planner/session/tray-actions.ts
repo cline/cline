@@ -69,8 +69,16 @@ export function invoke(
 	}
 	const state = core.state;
 	const current = core.shown;
-	if (!state || !current) return { push: core.currentPush(), refused: "stale" };
 	const computing = core.lastPush?.state === "computing";
+	if (!state || !current) {
+		if (computing && action.offerId)
+			core.labelFor(undefined, "refused_stale", {
+				offerId: action.offerId,
+				reason: "computing",
+				verb: STALE_VERB[action.type],
+			});
+		return { push: core.currentPush(), refused: "stale" };
+	}
 	const target = computing ? undefined : resolveOffer(core, action.offerId);
 	if (!target) {
 		core.labelFor(current, "refused_stale", {

@@ -217,18 +217,6 @@ export class SessionCore {
 	): OfferedSet {
 		const { turn } = state;
 		const planner = state.pool ? "model" : "rules";
-		const previous = this.shown;
-		if (
-			previous &&
-			planner === "model" &&
-			previous.planner === "rules" &&
-			previous.turnKey === turn.turnKey
-		) {
-			this.labelFor(previous, "superseded", {
-				cause: "model",
-				exposedFirst: state.exposedOffers.has(previous.offerId),
-			});
-		}
 		const rerollsLeft = rerollsLeftOf(state);
 		const paused = pausedOf(model);
 		const set: OfferedSet = {
@@ -274,11 +262,8 @@ export class SessionCore {
 		return set;
 	}
 
-	/** The tray shows a reroll's loading state until the planner answers it. */
-	awaitingReroll(): boolean {
-		return (
-			this.lastPush?.state === "computing" &&
-			this.lastPush.computingFor === "reroll"
-		);
+	/** The tray is loading until the planner answers: a turn's one set, or a reroll. */
+	awaitingPlanner(): boolean {
+		return this.lastPush?.state === "computing";
 	}
 }

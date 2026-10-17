@@ -103,14 +103,16 @@ export function defaultIsNextActive(
  * Next Turn as one plugin. Setup builds the session's runtime, and a hook
  * builds it later when setup needed none and the settings have since turned
  * a feature on. The run hooks feed it:
- * - `beforeModel` records the agent's tools, a capability source, and labels
- *   the person's new message against the set on screen once per `runId`.
+ * - `beforeModel` records the agent's tools, a capability source, and once
+ *   per `runId` takes the set down, since the turn it answered is no longer
+ *   the chat's latest, labelling the person's new message against it.
  *   `beforeRun` cannot: its snapshot predates the new message;
- * - `afterRun` derives the turn and waits for the rule-based set, which the
- *   source, git and backlog read budgets bound, since a one-shot run closes
- *   the sandbox as soon as the hook returns; the planner and the connectors'
- *   check for new connections and for a push follow without holding up the
- *   run.
+ * - `afterRun` derives the turn and waits for its context, which the source,
+ *   git and backlog read budgets bound; the planner then writes the turn's
+ *   one set, falling back to the rule-based set, and the connectors' check
+ *   for new connections and for a push follow without holding up the run.
+ *   A one-shot run that closes the sandbox before the planner answers is
+ *   served the rule-based set at dispose.
  *
  * On a host that renders the `composer.suggestions` slot, setup registers
  * it: sets stream to the slot, its verbs drive Next, and Next works only

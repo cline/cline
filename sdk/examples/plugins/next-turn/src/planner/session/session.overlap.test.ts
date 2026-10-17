@@ -227,11 +227,14 @@ describe("Next under overlapping actions", () => {
 		const off = session.off();
 		release();
 		await session.settled();
-		expect(sets.at(-1)).toBeUndefined();
+		expect(sets.filter(Boolean)).toEqual([]);
 		expect(session.currentPush().state).toBe("off");
 		const reply = await session.ensureCurrent();
-		expect(reply.state).toBe("ready");
+		expect(reply.state).toBe("computing");
 		expect(reply.seq).toBeGreaterThan(off.seq);
+		await session.settled();
+		expect(session.currentPush().state).toBe("ready");
+		expect(sets.filter(Boolean)).toHaveLength(1);
 	});
 
 	test("asking for the current set while the turn is still being served waits for that serve", async () => {
@@ -320,7 +323,9 @@ describe("Next under overlapping actions", () => {
 			messages: [...secondRun, message("assistant", "Done.")],
 			status: "idle",
 		};
-		expect(await started.session.ensureCurrent()).toMatchObject({
+		await started.session.ensureCurrent();
+		await started.session.settled();
+		expect(started.session.currentPush()).toMatchObject({
 			state: "ready",
 			set: { runCount: 2, trigger: "on_demand" },
 		});
@@ -332,7 +337,9 @@ describe("Next under overlapping actions", () => {
 				status: "idle",
 			}),
 		});
-		expect(await caughtUp.session.ensureCurrent()).toMatchObject({
+		await caughtUp.session.ensureCurrent();
+		await caughtUp.session.settled();
+		expect(caughtUp.session.currentPush()).toMatchObject({
 			state: "ready",
 			set: { runCount: 1, runId: first.result.runId },
 		});
@@ -345,6 +352,7 @@ describe("Next under overlapping actions", () => {
 		const reply = session.invoke({
 			type: "skip",
 			candidateId: first?.candidates[0]?.id ?? "",
+			offerId: first?.offerId,
 		});
 		expect(reply).toMatchObject({
 			push: { state: "computing", computingFor: "turn" },

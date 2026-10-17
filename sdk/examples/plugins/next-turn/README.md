@@ -1,10 +1,10 @@
 # Next Turn
 
 Next Turn is a Cline plugin that, after each completed turn, offers the
-person up to three things they could say next — a suggestion tray fed by a
-rule-based set first and, when a model is available, a planner set behind
-it. It also carries Tasks helpers and a Status Hub model (session rows,
-Needs you, schedules and teams) that a host UI can render.
+person up to three things they could say next — one set per turn, written
+by a planner model when one is available and by rules otherwise. It also
+carries Tasks helpers and a Status Hub model (session rows, Needs you,
+schedules and teams) that a host UI can render.
 
 This package is self-contained: it depends only on Cline's published
 packages (`@cline/sdk`, `@cline/shared`, `@cline/core`, `@cline/llms`, all
@@ -50,11 +50,15 @@ When a chat starts, the plugin's `setup` builds that chat's runtime:
 A chat set up with Next and notifications both off builds its runtime at the
 first hook after either is turned on.
 
-After each completed root run, `afterRun` serves the **rule-based set** at
-once: one rule set for every host. The planner call then runs detached, on
-the chat's own provider by default, and its set is served when it answers.
-The person's next message is labelled against the set on screen from the
-first `beforeModel` of the next run. Every served set and label goes to
+After each completed root run, `afterRun` reads the turn's context and the
+tray shows it loading. Each turn gets **one set**: when a planner call is
+due, it runs detached on the chat's own provider by default and writes the
+set; when it fails, times out or is held back, or no model or allowance is
+left, the rule-based set is the turn's set instead. A set is never replaced
+by a better one for the same turn; only Skip and Reroll serve another. The
+first `beforeModel` of the next root run takes the set down, including a
+run on the same message (a retry, a resume, an approved plan), and labels
+the person's new message against it. Every served set and label goes to
 `labels.jsonl` (schema v3) and the host's telemetry.
 
 ## Layout

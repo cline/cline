@@ -31,28 +31,40 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 			probe: () => "present",
 			capabilities: () => ["remote:github"],
 		};
-		const { session, labels } = harness({
+		const options = {
 			sources: () => [sources[0] as ContextSource, remote, slack, github],
 			backlog: async () => EMPTY_BACKLOG,
 			github: () => ({ failingChecks: ["build"] }),
-			complete: async () => ({
-				text: '{"suggestions":[{"kind":"post_update","source":"tasks","prompt":"Post the release note to the team.","why":"Slack is connected"}]}',
-			}),
-		});
-		const { result, messages } = editRun();
-		const rules = await session.afterRun(result);
+		};
+		const rulesOnly = harness({ ...options, complete: undefined });
+		const rules = await rulesOnly.session.afterRun(editRun().result);
 		const connectorRow = rules?.candidates.find(
 			(row) => row.source === "connector",
 		);
 		expect(connectorRow?.kind).toBe("check_ci");
 		expect(
-			session.invoke({
+			rulesOnly.session.invoke({
 				type: "send",
 				candidateId: connectorRow?.id ?? "",
 				offerId: rules?.offerId,
 				input: "key",
 			}).refused,
 		).toBe("unsendable");
+		expect(
+			rulesOnly
+				.labels()
+				.filter((record) => record.event === "key_inert")
+				.map((record) => [record.candidateId, record.reason]),
+		).toEqual([[connectorRow?.id, "unsendable"]]);
+
+		const { session, labels } = harness({
+			...options,
+			complete: async () => ({
+				text: '{"suggestions":[{"kind":"post_update","source":"tasks","prompt":"Post the release note to the team.","why":"Slack is connected"}]}',
+			}),
+		});
+		const { result, messages } = editRun();
+		await session.afterRun(result);
 		await session.settled();
 		const model = session.current();
 		const outwardRow = model?.candidates.find((row) => row.outward);
@@ -69,10 +81,7 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 			labels()
 				.filter((record) => record.event === "key_inert")
 				.map((record) => [record.candidateId, record.reason]),
-		).toEqual([
-			[connectorRow?.id, "unsendable"],
-			[outwardRow?.id, "unsendable"],
-		]);
+		).toEqual([[outwardRow?.id, "unsendable"]]);
 		expect(
 			session.invoke({
 				type: "use",
@@ -212,8 +221,9 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 		expect(session.current()).toBeUndefined();
 		expect(session.turn()?.runCount).toBe(2);
 		viewed = true;
-		const reply = await session.ensureCurrent();
-		expect(reply).toMatchObject({
+		await session.ensureCurrent();
+		await session.settled();
+		expect(session.currentPush()).toMatchObject({
 			state: "ready",
 			set: { runCount: 2, trigger: "on_demand" },
 		});
@@ -242,13 +252,14 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 		expect([sets.filter(Boolean), calls, ledgerCalls()]).toEqual([[], [], []]);
 
 		viewed = true;
-		expect((await session.ensureCurrent()).state).toBe("ready");
+		expect((await session.ensureCurrent()).state).toBe("computing");
 		await session.settled();
 		expect(calls).toHaveLength(1);
 		expect(session.current()?.planner).toBe("model");
+		expect(sets.filter(Boolean)).toHaveLength(1);
 	});
 
-	test("a viewer who leaves while a turn's serve reads git gets the rule-based set, and the planner waits for the next attach", async () => {
+	test("a viewer who leaves while a turn's serve reads git leaves the turn loading, and the next attach asks the planner for its one set", async () => {
 		let viewed = true;
 		let gitRead: () => void = () => {};
 		const reading = new Promise<void>((resolve) => {
@@ -268,13 +279,17 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 		await reading;
 		viewed = false;
 		releaseGit();
-		expect((await served)?.planner).toBe("rules");
+		expect(await served).toBeUndefined();
 		await session.settled();
 		expect([calls, ledgerCalls()]).toEqual([[], []]);
-		expect(session.current()?.model?.status).toBe("pending");
+		expect(session.current()).toBeUndefined();
+		expect(session.currentPush()).toMatchObject({
+			state: "computing",
+			computingFor: "turn",
+		});
 
 		viewed = true;
-		expect((await session.ensureCurrent()).set?.planner).toBe("rules");
+		expect((await session.ensureCurrent()).state).toBe("computing");
 		await session.settled();
 		expect(calls).toHaveLength(1);
 		expect(session.current()?.planner).toBe("model");
@@ -312,12 +327,11 @@ describe("Next behind Cline's composer.suggestions slot", () => {
 		});
 		await first.session.afterRun(editRun().result);
 		await first.session.settled();
-		first.session.invoke({ type: "reroll" });
-		await first.session.settled();
 		expect(first.session.currentPush()).toMatchObject({
 			state: "computing",
-			computingFor: "reroll",
+			computingFor: "turn",
 		});
+		expect(first.sets.filter(Boolean)).toEqual([]);
 
 		const respawned = harness({
 			store,

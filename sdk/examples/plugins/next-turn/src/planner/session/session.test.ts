@@ -11,34 +11,35 @@ const tempDir = useTempDirs("next-turn-session-");
 const harness = sessionHarness(tempDir);
 
 describe("Next, for one chat", () => {
-	test("afterRun serves the rule-based set at once, then the model's when it answers", async () => {
+	test("afterRun serves one set per turn: the tray loads until the planner answers, and the rule set never shows first", async () => {
 		const { session, sets, calls, labels, ledgerCalls } = harness();
 		const { result } = editRun();
-		const rules = await session.afterRun(result);
-		expect(rules?.planner).toBe("rules");
-		expect(rules?.candidates.map((row) => row.prompt)).toEqual([
-			"Do the next task: Ship the tray",
-			"Run the checks for the files the last turn changed.",
-			"Review the changes from the last turn before going on.",
-		]);
+		expect(await session.afterRun(result)).toBeUndefined();
+		expect(session.currentPush()).toMatchObject({
+			state: "computing",
+			computingFor: "turn",
+		});
+		expect(session.current()).toBeUndefined();
 		await session.settled();
 		const model = session.current();
 		expect(model?.planner).toBe("model");
 		expect(model?.candidates[0]?.prompt).toBe(
 			"Run bun test src/client.test.ts.",
 		);
-		expect(model?.offerId).not.toBe(rules?.offerId);
-		expect(sets.map((set) => set?.planner)).toEqual(["rules", "model"]);
+		expect(sets.map((set) => set?.planner)).toEqual(["model"]);
 		expect(calls[0]).toContain(
 			"## This repository's commands\n- bun run check",
 		);
 		expect(calls[0]).not.toContain("Status Hub");
 		const offers = labels().filter((record) => record.event === "offer");
-		expect(offers.map((record) => record.planner)).toEqual(["rules", "model"]);
+		expect(offers.map((record) => record.planner)).toEqual(["model"]);
+		expect(labels().some((record) => record.event === "superseded")).toBe(
+			false,
+		);
 		expect(offers[0]).toMatchObject({
 			runId: result.runId,
 			turnKey: "sess_1:1",
-			kinds: ["continue", "verify", "review_diff"],
+			kinds: ["verify", "wrap_up", "continue"],
 		});
 		expect(offers[0]?.tags).toEqual(
 			expect.arrayContaining([
@@ -72,9 +73,15 @@ describe("Next, for one chat", () => {
 		expect(calls[0]).toContain("- notes — treat as unknown, not empty.");
 	});
 
-	test("without a model the rules answer; with the allowance used the set says it is paused", async () => {
+	test("without a model the rules answer at once; with the allowance used the set says it is paused", async () => {
 		const rulesOnly = harness({ complete: undefined });
-		await rulesOnly.session.afterRun(editRun().result);
+		const rules = await rulesOnly.session.afterRun(editRun().result);
+		expect(rules?.planner).toBe("rules");
+		expect(rules?.candidates.map((row) => row.prompt)).toEqual([
+			"Do the next task: Ship the tray",
+			"Run the checks for the files the last turn changed.",
+			"Review the changes from the last turn before going on.",
+		]);
 		await rulesOnly.session.settled();
 		expect(rulesOnly.sets.map((set) => set?.planner)).toEqual(["rules"]);
 		const settings = defaultSettings();
@@ -146,29 +153,73 @@ describe("Next, for one chat", () => {
 		session.outgoing([...first.messages, message("user", "Something else")]);
 		release();
 		await session.settled();
-		expect(sets.map((set) => set?.planner ?? "none")).toEqual([
-			"rules",
-			"none",
-		]);
+		expect(sets.filter(Boolean)).toEqual([]);
+		expect(session.currentPush()).toMatchObject({
+			state: "off",
+			offReason: "message",
+		});
+	});
+
+	test("a follow-on run with no new message (a retry, a resume, an approved plan) takes the set down until it ends", async () => {
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let asked = 0;
+		const { session, sets, labels } = harness({
+			complete: async () => {
+				asked += 1;
+				if (asked === 1) await gate;
+				return { text: MODEL_ANSWER };
+			},
+		});
+		const failed = editRun();
+		await session.afterRun({ ...failed.result, status: "failed" });
+		session.outgoing(failed.messages);
+		release();
+		await session.settled();
+		expect(sets.filter(Boolean)).toEqual([]);
+		expect(session.currentPush().state).toBe("off");
+
+		await session.afterRun(failed.result);
+		await session.settled();
+		const shown = session.current();
+		expect(shown?.planner).toBe("model");
+		session.outgoing(failed.messages);
+		expect(session.current()).toBeUndefined();
+		expect(labels().at(-1)).toMatchObject({
+			event: "superseded",
+			cause: "run",
+			offerId: shown?.offerId,
+		});
+		expect(labels().some((record) => record.event === "typed_instead")).toBe(
+			false,
+		);
 	});
 
 	test("a run sent in plan mode drops the Commit row and asks for planning requests until the plan is approved", async () => {
 		const systems: string[] = [];
-		const { session, labels } = harness({
+		const options = {
 			sources: () => sources.filter((source) => source.id !== "tasks"),
 			backlog: async () => EMPTY_BACKLOG,
+		};
+		const planned = editRun(
+			'<user_input mode="plan">Plan the retry for the client</user_input>',
+		);
+		const modelled = harness({
+			...options,
 			complete: async (input) => {
 				systems.push(input.system);
 				return { text: MODEL_ANSWER };
 			},
 		});
-		const planned = editRun(
-			'<user_input mode="plan">Plan the retry for the client</user_input>',
-		);
-		const set = await session.afterRun(planned.result);
-		await session.settled();
-		expect(set?.candidates.map((row) => row.kind)).not.toContain("commit");
+		await modelled.session.afterRun(planned.result);
+		await modelled.session.settled();
 		expect(systems[0]).toContain("The chat is in plan mode");
+
+		const { session, labels } = harness({ ...options, complete: undefined });
+		const set = await session.afterRun(planned.result);
+		expect(set?.candidates.map((row) => row.kind)).not.toContain("commit");
 		expect(labels().find((record) => record.event === "offer")?.tags).toContain(
 			"mode:plan",
 		);
@@ -288,45 +339,46 @@ describe("Next, for one chat", () => {
 		expect(branches).toEqual(["feature-b", "feature-b"]);
 	});
 
-	test("offer-addressed actions: skipping or using a rules row after the model swap resolves against the rules offer, and a stale offerId is refused", async () => {
+	test("offer-addressed actions: an action naming the set before a skip resolves against it, and a stale offerId is refused", async () => {
 		const { session, labels } = harness();
 		const { result, messages } = editRun();
-		const rules = await session.afterRun(result);
+		await session.afterRun(result);
 		await session.settled();
-		const model = session.current();
-		expect(model?.planner).toBe("model");
-		expect(
-			labels().some(
-				(r) =>
-					r.event === "superseded" &&
-					r.offerId === rules?.offerId &&
-					r.cause === "model",
-			),
-		).toBe(true);
+		const first = session.current();
+		expect(first?.planner).toBe("model");
 
-		const rulesRow = rules?.candidates[0];
-		expect(rulesRow).toBeDefined();
+		const [skippedRow, laterRow] = first?.candidates ?? [];
 		const afterSkip = session.invoke({
 			type: "skip",
-			candidateId: rulesRow?.id ?? "",
-			offerId: rules?.offerId,
+			candidateId: skippedRow?.id ?? "",
+			offerId: first?.offerId,
 			input: "key",
 		}).push.set;
 		expect(afterSkip?.candidates.map((row) => row.id)).not.toContain(
-			rulesRow?.id,
+			skippedRow?.id,
 		);
-		expect(labels().find((r) => r.event === "skip")).toMatchObject({
-			offerId: rules?.offerId,
-			candidateId: rulesRow?.id,
+		session.invoke({
+			type: "skip",
+			candidateId: laterRow?.id ?? "",
+			offerId: first?.offerId,
+			input: "key",
 		});
+		expect(
+			labels()
+				.filter((r) => r.event === "skip")
+				.map((r) => [r.offerId, r.candidateId]),
+		).toEqual([
+			[first?.offerId, skippedRow?.id],
+			[first?.offerId, laterRow?.id],
+		]);
 
 		session.invoke({
 			type: "unskip",
-			candidateId: rulesRow?.id ?? "",
+			candidateId: skippedRow?.id ?? "",
 			offerId: afterSkip?.offerId,
 		});
 		expect(labels().find((r) => r.event === "undo_skip")).toMatchObject({
-			candidateId: rulesRow?.id,
+			candidateId: skippedRow?.id,
 		});
 
 		expect(
@@ -448,7 +500,7 @@ describe("Next, for one chat", () => {
 		expect(guarded.session.currentPush().state).toBe("off");
 	});
 
-	test("ensureCurrent serves a rules set then a model set on demand from the transcript, with trigger on_demand and no runId", async () => {
+	test("ensureCurrent serves one set on demand from the transcript, with trigger on_demand and no runId", async () => {
 		const { messages } = editRun("Forked chat turn");
 		const { session, labels, sets } = harness({
 			readTranscript: async () => ({
@@ -458,17 +510,15 @@ describe("Next, for one chat", () => {
 		});
 
 		const push = await session.ensureCurrent();
-		expect(push.state).toBe("ready");
-		expect(push.set?.planner).toBe("rules");
-		expect(push.set?.trigger).toBe("on_demand");
-		expect(push.set?.runId).toBeUndefined();
+		expect(push).toMatchObject({ state: "computing", computingFor: "turn" });
 
 		await session.settled();
-		expect(sets.map((s) => s?.planner)).toEqual(["rules", "model"]);
+		expect(sets.map((s) => s?.planner)).toEqual(["model"]);
+		expect(session.current()?.trigger).toBe("on_demand");
+		expect(session.current()?.runId).toBeUndefined();
 		const offerRecords = labels().filter((r) => r.event === "offer");
-		expect(offerRecords).toHaveLength(2);
+		expect(offerRecords).toHaveLength(1);
 		expect(offerRecords[0]?.trigger).toBe("on_demand");
 		expect(offerRecords[0]?.runId).toBeUndefined();
-		expect(offerRecords[1]?.trigger).toBe("on_demand");
 	});
 });

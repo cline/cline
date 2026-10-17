@@ -254,7 +254,7 @@ describe("Next Turn as a plugin", () => {
 		).toBe(false);
 	});
 
-	test("the afterRun hook waits for the rule-based set but not the planner or the connector refresh, so a one-shot run closed at once keeps its offer", async () => {
+	test("the afterRun hook waits for neither the planner nor the connector refresh, and a one-shot run closed before the planner answers still offers the rule-based set", async () => {
 		const labelsPath = join(tempDir(), "labels.jsonl");
 		const sets: (OfferedSet | undefined)[] = [];
 		const logged: string[] = [];
@@ -315,6 +315,8 @@ describe("Next Turn as a plugin", () => {
 			hooks: plugin.hooks,
 		});
 		await agent.run("Add a retry to the client");
+		expect(next.currentPush().state).toBe("computing");
+		expect(await setsServedAtRefresh).toBe(0);
 		await Promise.all(disposers.map((dispose) => dispose()));
 
 		expect(sets.map((set) => [set?.planner, set?.model?.status])).toEqual([
@@ -327,10 +329,10 @@ describe("Next Turn as a plugin", () => {
 			.map((line) => JSON.parse(line) as { event: string; planner: string })
 			.filter((record) => record.event === "offer");
 		expect(offers.map((record) => record.planner)).toEqual(["rules"]);
-		expect(await setsServedAtRefresh).toBe(1);
 		finishRefresh();
 		answerPlanner(null);
 		await next.settled();
+		expect(sets).toHaveLength(1);
 	});
 
 	test("setup registers teardown that stops the runtime, and a second setup stops the first runtime", async () => {

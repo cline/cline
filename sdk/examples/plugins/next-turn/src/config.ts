@@ -155,9 +155,9 @@ export const TURN_ERROR_LIMIT = 300;
 export const TURN_PATH_LIMIT = 8;
 
 /**
- * The planner's model call. It runs detached from `afterRun`, so the rule-based
- * set is already on screen while it works; the deadline only bounds how long
- * a late set may still swap in.
+ * The planner's model call. It runs detached from `afterRun` while the tray
+ * shows the turn loading, so the deadline bounds that wait: past it, the
+ * rule-based set is the turn's one set.
  */
 export const PLANNER_TIMEOUT_MS = 20_000;
 export const PLANNER_MAX_OUTPUT_TOKENS = 600;

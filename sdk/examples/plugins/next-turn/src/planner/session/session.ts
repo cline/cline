@@ -132,8 +132,21 @@ export class NextSession {
 		else this.core.persist();
 	}
 
-	/** Stops in-flight serves and planner calls from pushing, and detaches every listener. */
+	/**
+	 * Stops in-flight serves and planner calls from pushing, and detaches every
+	 * listener. A turn still waiting on the planner gets its rule-based set
+	 * first, so a one-shot run whose sandbox closes at once still offers one.
+	 */
 	dispose(): void {
+		const state = this.core.state;
+		if (
+			state &&
+			!this.core.shown &&
+			this.core.awaitingPlanner() &&
+			this.core.isViewed() &&
+			this.core.isCurrent(this.core.generation)
+		)
+			this.core.serve(state, { status: "pending" });
 		this.core.generation += 1;
 		this.core.listeners.clear();
 	}
@@ -178,9 +191,10 @@ export class NextSession {
 	}
 
 	/**
-	 * A completed root run. Resolves with the rule-based set once it is served,
-	 * or with nothing when Next is off, the run left no turn, or the serve is
-	 * dropped or fails; the planner call stays detached.
+	 * A completed root run. Resolves once the turn's context is read: with the
+	 * rule-based set when no planner call is due, or with nothing while the
+	 * detached planner writes the turn's one set, when Next is off, the run
+	 * left no turn, or the serve is dropped or fails.
 	 */
 	async afterRun(result: AgentRunResult): Promise<OfferedSet | undefined> {
 		this.core.runUnderway = false;
@@ -228,6 +242,9 @@ export class NextSession {
 		const endedAt = Date.now();
 		this.core.generation += 1;
 		const gen = this.core.generation;
+		// The last turn's set leaves the screen now, so a message sent while this
+		// one loads is not labelled against it.
+		this.core.state = undefined;
 		this.core.pushState("computing", {
 			turnKey: turn.turnKey,
 			rerollsLeft: REROLL_LIMIT,
@@ -256,13 +273,13 @@ export class NextSession {
 	 * chat has none (a forked chat after Undo, a reopened session) from the
 	 * last turn or the transcript `readTranscript` returns, whichever is newer.
 	 * A last turn from the store is served only once the hub says no run is
-	 * going. A planner answer the set on screen still waits for, which a detach
-	 * or a respawn left unasked, is asked for again.
+	 * going. A set the tray still waits on the planner for (the turn's one set
+	 * or a reroll), which a detach or a respawn left unasked, is asked for again.
 	 */
 	async ensureCurrent(): Promise<TrayPush> {
 		const settings = this.core.options.settings();
 		if (!this.core.isOn(settings)) return this.core.off(this.core.whyOff());
-		if (this.core.shown || this.core.runUnderway) {
+		if (this.core.state || this.core.runUnderway) {
 			resumePlanner(this.core, settings);
 			return this.core.currentPush();
 		}
@@ -350,9 +367,10 @@ export class NextSession {
 		};
 		this.core.state = state;
 		const model = this.core.plannerModel(settings);
-		const set = this.core.serve(state, model);
-		if (model?.status === "pending") startPlanner(this.core, state, gen);
-		return set;
+		if (model?.status !== "pending") return this.core.serve(state, model);
+		// One set per turn: the rule set stays back as the planner's fallback rather than showing before it.
+		startPlanner(this.core, state, gen);
+		return undefined;
 	}
 
 	outgoing(messages: readonly AgentMessage[]): void {

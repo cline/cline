@@ -6,24 +6,29 @@ import type { SessionCore } from "./core";
 import { rowFields, type TurnState } from "./turn-state";
 
 /**
- * A model request is about to go out. When it carries a new message from the
- * person, that message is labelled against the set on screen (or the explicit
- * Use/Send intent) and the set is superseded. Later requests in the same run,
- * and a run on the same message (a resume), find nothing new and label nothing.
+ * A root run's first model request is about to go out, so the turn on screen
+ * is no longer the chat's latest: its set, and any serve or planner call for
+ * it, is dropped until this run ends. When the request carries a new message
+ * from the person, that message is labelled against the set (or the explicit
+ * Use/Send intent); a run on the same message (a resume, an approved plan, a
+ * retry) labels nothing of the person's.
  */
 export function outgoing(
 	core: SessionCore,
 	messages: readonly AgentMessage[],
 ): void {
 	const message = lastPersonMessage(messages);
-	if (!message || message.id === core.lastTurn?.userMessageId) return;
+	const fresh =
+		message && message.id !== core.lastTurn?.userMessageId
+			? message
+			: undefined;
 	core.runUnderway = true;
 	core.generation += 1;
 	const set = core.shown;
 	const state = core.state;
 	if (set && state) {
-		labelMessage(core, set, state, message.text);
-		core.labelFor(set, "superseded", { cause: "message" });
+		if (fresh) labelMessage(core, set, state, fresh.text);
+		core.labelFor(set, "superseded", { cause: fresh ? "message" : "run" });
 	}
 	if (set || core.lastPush?.state === "computing") core.off("message");
 }

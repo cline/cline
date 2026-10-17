@@ -136,8 +136,8 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 			["hidden", "superseded"],
 			["loading", undefined],
 			["ready", undefined],
-			["ready", undefined],
 		]);
+		expect(next.current()?.planner).toBe("model");
 		const shown = host.latest();
 		expect(shown?.revision).toBe(next.current()?.offerId);
 		expect(shown?.cue).toEqual({ text: "after 1 file changed", tone: "check" });
@@ -466,7 +466,8 @@ describe("Next Turn on a host that renders the composer.suggestions slot", () =>
 		await next.settled();
 		await flushDetached();
 		expect([planned, refreshed]).toEqual([0, 0]);
-		expect(next.current()?.planner).toBe("rules");
+		expect(next.current()).toBeUndefined();
+		expect(next.currentPush().state).toBe("computing");
 	});
 
 	test("Send on a connector's row is refused as Use only", async () => {
