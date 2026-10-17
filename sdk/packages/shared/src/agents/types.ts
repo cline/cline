@@ -602,6 +602,10 @@ export interface AgentPrepareTurnContext {
 	iteration: number;
 	messages: MessageWithMetadata[];
 	apiMessages: MessageWithMetadata[];
+	/** Rebuild provider-ready messages after a prepare-turn history projection. */
+	buildApiMessages?: (
+		messages: MessageWithMetadata[],
+	) => MessageWithMetadata[] | Promise<MessageWithMetadata[]>;
 	abortSignal: AbortSignal;
 	systemPrompt: string;
 	tools: AgentTool[];
