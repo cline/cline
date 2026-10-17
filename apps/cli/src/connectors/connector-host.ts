@@ -1229,11 +1229,47 @@ async function runConnectorRuntimeTurn<
 	input.activeTurns?.set(turnKey, activeTurn);
 	await input.thread.startTyping();
 	let toolStatusMessage: SentMessage | undefined;
-	const postFinalReply = input.postFinalReply
-		? async (text: string) => {
-				await input.postFinalReply?.({ thread: input.thread, text });
+	let toolStatusMessageFinalized = false;
+	const postSlackFinalReply = async (text: string) => {
+		if (!text.trim()) {
+			return;
+		}
+		if (toolStatusMessage) {
+			try {
+				toolStatusMessage = await editConnectorText(
+					toolStatusMessage,
+					input.transport,
+					text,
+				);
+				toolStatusMessageFinalized = true;
+				return;
+			} catch (error) {
+				input.logger.core.log(
+					"Slack connector could not replace progress with the final reply",
+					{
+						severity: "warn",
+						transport: input.transport,
+						conversationId: input.thread.id,
+						sessionId,
+						error,
+					},
+				);
 			}
-		: undefined;
+		}
+		if (input.postFinalReply) {
+			await input.postFinalReply({ thread: input.thread, text });
+			return;
+		}
+		await postConnectorText(input.thread, input.transport, text);
+	};
+	const postFinalReply =
+		input.transport === "slack"
+			? postSlackFinalReply
+			: input.postFinalReply
+				? async (text: string) => {
+						await input.postFinalReply?.({ thread: input.thread, text });
+					}
+				: undefined;
 	try {
 		await postConnectorRuntimeReply(
 			input.thread,
@@ -1299,7 +1335,7 @@ async function runConnectorRuntimeTurn<
 		if (input.activeTurns?.get(turnKey) === activeTurn) {
 			input.activeTurns.delete(turnKey);
 		}
-		if (toolStatusMessage) {
+		if (toolStatusMessage && !toolStatusMessageFinalized) {
 			await toolStatusMessage.delete().catch(() => undefined);
 		}
 	}

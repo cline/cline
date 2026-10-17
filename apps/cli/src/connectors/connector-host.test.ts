@@ -29,9 +29,29 @@ type TestState = {
 	welcomeSentAt?: string;
 };
 
-function createThread(initialState: TestState = {}, isDM = true) {
+type TestRuntimeEvent = {
+	eventType: string;
+	payload: Record<string, unknown>;
+};
+
+type TestRuntimeEventHandlers = {
+	onEvent: (event: TestRuntimeEvent) => void;
+	onError: (error: Error) => void;
+};
+
+function createThread(
+	initialState: TestState = {},
+	isDM = true,
+	failEdits = false,
+) {
 	let state = { ...initialState };
 	const posts: unknown[] = [];
+	const messageOperations: Array<{
+		type: "post" | "edit" | "delete";
+		messageId: number;
+		message?: unknown;
+	}> = [];
+	let nextMessageId = 0;
 	return {
 		thread: {
 			id: "thread-1",
@@ -44,6 +64,7 @@ function createThread(initialState: TestState = {}, isDM = true) {
 				state = { ...nextState };
 			},
 			async post(message: unknown) {
+				const messageId = ++nextMessageId;
 				// Real thread implementations drain async-iterable replies; the
 				// connector streams runtime output straight into post() for
 				// transports without a custom final-reply hook.
@@ -57,15 +78,31 @@ function createThread(initialState: TestState = {}, isDM = true) {
 						streamed += chunk;
 					}
 					posts.push(streamed);
+					messageOperations.push({
+						type: "post",
+						messageId,
+						message: streamed,
+					});
 				} else {
 					posts.push(message);
+					messageOperations.push({ type: "post", messageId, message });
 				}
 				const sentMessage = {
 					edit: async (nextMessage: unknown) => {
+						messageOperations.push({
+							type: "edit",
+							messageId,
+							message: nextMessage,
+						});
+						if (failEdits) {
+							throw new Error("message edit failed");
+						}
 						posts.push(nextMessage);
 						return sentMessage as unknown as SentMessage;
 					},
-					delete: async () => undefined,
+					delete: async () => {
+						messageOperations.push({ type: "delete", messageId });
+					},
 				};
 				return sentMessage as unknown as SentMessage;
 			},
@@ -80,6 +117,7 @@ function createThread(initialState: TestState = {}, isDM = true) {
 			},
 		},
 		posts,
+		messageOperations,
 		getState: () => state,
 	};
 }
@@ -106,6 +144,7 @@ function createRuntimeClient(
 		},
 	],
 ) {
+	let runtimeEventHandlers: TestRuntimeEventHandlers | undefined;
 	const startRuntimeSession = vi.fn(async () => ({ sessionId: "session-1" }));
 	const updateSession = vi.fn(async () => undefined);
 	const getSession = vi.fn(
@@ -131,6 +170,12 @@ function createRuntimeClient(
 		}),
 	);
 	const readMessages = vi.fn(async () => messages);
+	const streamEvents = vi.fn(
+		(_request: unknown, handlers: TestRuntimeEventHandlers) => {
+			runtimeEventHandlers = handlers;
+			return () => undefined;
+		},
+	);
 	return {
 		client: {
 			startRuntimeSession,
@@ -141,14 +186,45 @@ function createRuntimeClient(
 			deleteSession,
 			sendRuntimeSession,
 			readMessages,
-			streamEvents: vi.fn(() => () => undefined),
+			streamEvents,
 		},
 		startRuntimeSession,
 		updateSession,
 		getSession,
 		sendRuntimeSession,
 		readMessages,
+		emitRuntimeEvent: (event: TestRuntimeEvent) =>
+			runtimeEventHandlers?.onEvent(event),
 	};
+}
+
+function emitProgressThenReply(
+	runtime: ReturnType<typeof createRuntimeClient>,
+	text: string,
+): void {
+	runtime.sendRuntimeSession.mockImplementationOnce(async () => {
+		runtime.emitRuntimeEvent({
+			eventType: "runtime.chat.tool_call_start",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "read_file",
+				input: { path: "/tmp/progress.ts" },
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		runtime.emitRuntimeEvent({
+			eventType: "runtime.chat.tool_call_end",
+			payload: { toolCallId: "call-1", toolName: "read_file" },
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		runtime.emitRuntimeEvent({
+			eventType: "runtime.chat.text_delta",
+			payload: { text },
+		});
+		return {
+			result: { text, finishReason: "stop", iterations: 1 },
+		};
+	});
 }
 
 function messageText(message: unknown): string {
@@ -1292,6 +1368,120 @@ describe("handleConnectorUserTurn", () => {
 			text: "**Formatted** reply",
 		});
 		expect(posts).not.toContainEqual({ raw: "**Formatted** reply" });
+	});
+
+	it("replaces Slack tool progress with the final reply in the same message", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, messageOperations } = createThread({
+			sessionId: "session-1",
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const runtime = createRuntimeClient("Final Slack answer");
+		emitProgressThenReply(runtime, "Final Slack answer");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		const progressPost = messageOperations.find(
+			(operation) =>
+				operation.type === "post" &&
+				messageText(operation.message).includes("Executing read_file"),
+		);
+		const finalOperations = messageOperations.filter((operation) =>
+			messageText(operation.message).includes("Final Slack answer"),
+		);
+		expect(progressPost).toBeDefined();
+		expect(finalOperations).toHaveLength(1);
+		expect(finalOperations[0].type).toBe("edit");
+		expect(finalOperations[0].messageId).toBe(progressPost?.messageId);
+		expect(
+			messageOperations.filter((operation) => operation.type === "delete"),
+		).toHaveLength(0);
+	});
+
+	it("posts Slack's final reply if replacing progress fails", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, messageOperations } = createThread(
+			{
+				sessionId: "session-1",
+				enableTools: true,
+				autoApproveTools: true,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+			},
+			true,
+			true,
+		);
+		const runtime = createRuntimeClient("Final Slack answer");
+		emitProgressThenReply(runtime, "Final Slack answer");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		const progressPost = messageOperations.find(
+			(operation) =>
+				operation.type === "post" &&
+				messageText(operation.message).includes("Executing read_file"),
+		);
+		const finalPosts = messageOperations.filter(
+			(operation) =>
+				operation.type === "post" &&
+				messageText(operation.message).includes("Final Slack answer"),
+		);
+		expect(progressPost).toBeDefined();
+		expect(finalPosts).toHaveLength(1);
+		expect(
+			messageOperations.some(
+				(operation) =>
+					operation.type === "delete" &&
+					operation.messageId === progressPost?.messageId,
+			),
+		).toBe(true);
 	});
 
 	it("suppresses connector /idle control replies", async () => {

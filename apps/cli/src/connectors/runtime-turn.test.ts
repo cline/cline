@@ -195,6 +195,69 @@ describe("createConnectorRuntimeTurnStream", () => {
 		expect(chunks.join("")).toBe("All tests pass.");
 	});
 
+	it.each([
+		{ transport: "slack", retainsPrevious: false },
+		{ transport: "discord", retainsPrevious: true },
+	])("renders completed tool history for $transport", async ({
+		transport,
+		retainsPrevious,
+	}) => {
+		let handlers: StreamHandlers | undefined;
+		const client = {
+			streamEvents: (_request: unknown, callbacks: StreamHandlers) => {
+				handlers = callbacks;
+				return () => {};
+			},
+			sendRuntimeSession: async () => {
+				for (const [toolCallId, path] of [
+					["call-1", "/tmp/first.ts"],
+					["call-2", "/tmp/second.ts"],
+				]) {
+					handlers?.onEvent({
+						eventType: "runtime.chat.tool_call_start",
+						payload: {
+							toolCallId,
+							toolName: "read_file",
+							input: { path },
+						},
+					});
+					await tick();
+					handlers?.onEvent({
+						eventType: "runtime.chat.tool_call_end",
+						payload: { toolCallId, toolName: "read_file" },
+					});
+					await tick();
+				}
+				return {
+					result: { text: "Done.", finishReason: "stop", iterations: 1 },
+				};
+			},
+		};
+
+		const statuses: string[] = [];
+		for await (const _chunk of createConnectorRuntimeTurnStream({
+			client: client as never,
+			sessionId: "session-1",
+			request: { config: {} as never, prompt: "hi" },
+			clientId: "client-1",
+			logger: { core: {} } as unknown as CliLoggerAdapter,
+			transport,
+			conversationId: "thread-1",
+			onToolStatus: async (message) => {
+				statuses.push(message);
+			},
+		})) {
+			// consume stream
+		}
+
+		const secondToolProgress = statuses.filter((status) =>
+			status.includes("/tmp/second.ts"),
+		);
+		expect(secondToolProgress.length).toBeGreaterThan(0);
+		expect(statuses.at(-1)).toContain("/tmp/second.ts");
+		expect(statuses.at(-1)?.includes("/tmp/first.ts")).toBe(retainsPrevious);
+	});
+
 	it("refreshes elapsed time on a heartbeat while a tool runs silently", async () => {
 		let handlers: StreamHandlers | undefined;
 		const client = {

@@ -427,6 +427,7 @@ export function createConnectorRuntimeTurnStream(input: {
 			let failed = false;
 			const activeTools = new Map<string, ActiveConnectorTool>();
 			const completedLines: string[] = [];
+			let latestCompletedLine = "";
 			let iterationLine = "";
 			let renderedStatus = "";
 			let pendingStatus: string | undefined;
@@ -516,9 +517,14 @@ export function createConnectorRuntimeTurnStream(input: {
 
 				// The status message is edited in place, so it has to stay inside the
 				// tightest transport limit (Telegram caps a message at 4096 chars).
-				// Shrink by dropping the oldest finished tools first, then the live
-				// output tail, rather than letting the edit fail.
-				let history = completedLines;
+				// Shrink by dropping the latest completion first, then the live output
+				// tail, rather than letting the edit fail.
+				let history =
+					input.transport === "slack"
+						? activeTools.size === 0 && !iterationLine && latestCompletedLine
+							? [latestCompletedLine]
+							: []
+						: completedLines;
 				const tailChars = TOOL_OUTPUT_RENDER_CHARS;
 				let message = render(history, tailChars);
 				while (
@@ -543,6 +549,10 @@ export function createConnectorRuntimeTurnStream(input: {
 
 			const recordCompletedLine = (line: string): void => {
 				if (!line.trim()) {
+					return;
+				}
+				if (input.transport === "slack") {
+					latestCompletedLine = line;
 					return;
 				}
 				completedLines.push(line);
