@@ -69,6 +69,10 @@ describe("interactive MCP OAuth timeout", () => {
 							url: "https://mcp.example.test",
 						},
 						timeout: 12,
+						oauth: {
+							clientInformation: { client_id: "fixture-client" },
+							tokens: { access_token: "fixture-token", token_type: "Bearer" },
+						},
 					},
 				},
 			}),

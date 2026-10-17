@@ -1,13 +1,17 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { authorizeMcpServerOAuth } from "./oauth";
+import { updateMcpServerOAuthStateAsync } from "./config-loader";
+import {
+	authorizeMcpServerOAuth,
+	createOriginBoundMcpHeadersFetch,
+} from "./oauth";
 
-const resource = "https://mcp.example.test/mcp";
 const issuer = "https://auth.example.test";
 
 describe("explicit MCP OAuth authorization", () => {
@@ -22,8 +26,14 @@ describe("explicit MCP OAuth authorization", () => {
 		config: {
 			headers?: Record<string, string>;
 			redirect?: "register" | "token";
+			customChallenge?: boolean;
+			accessOnly?: boolean;
+			resourceUrl?: string;
+			postChallengeOnly?: boolean;
+			rejectStaleAccess?: boolean;
 		} = {},
 	) {
+		const resource = config.resourceUrl ?? "https://mcp.example.test/mcp";
 		const root = await mkdtemp(join(tmpdir(), "mcp-authorization-"));
 		roots.push(root);
 		const filePath = join(root, "settings.json");
@@ -63,6 +73,7 @@ describe("explicit MCP OAuth authorization", () => {
 		let closed = 0;
 		let escaped = 0;
 		let gatewayRequests = 0;
+		let acceptedRequests = 0;
 		const fetchFixture: FetchLike = async (input, init) => {
 			const url = new URL(
 				input instanceof Request ? input.url : input.toString(),
@@ -72,6 +83,11 @@ describe("explicit MCP OAuth authorization", () => {
 					status,
 					headers: { "content-type": "application/json" },
 				});
+			const requestBody = init?.body
+				? await new Response(
+						init.body as ConstructorParameters<typeof Response>[0],
+					).text()
+				: "";
 			const headers = new Headers(
 				init?.headers ?? (input instanceof Request ? input.headers : undefined),
 			);
@@ -101,7 +117,15 @@ describe("explicit MCP OAuth authorization", () => {
 					});
 				}
 			}
-			if (url.pathname.includes("oauth-protected-resource"))
+			if (
+				config.customChallenge &&
+				url.pathname.includes("oauth-protected-resource")
+			)
+				return new Response(null, { status: 404 });
+			if (
+				url.pathname === "/tenant/protected-resource" ||
+				url.pathname.includes("oauth-protected-resource")
+			)
 				return json({ resource, authorization_servers: [issuer] });
 			if (url.origin === issuer && url.pathname.includes(".well-known")) {
 				metadataStarted();
@@ -119,10 +143,10 @@ describe("explicit MCP OAuth authorization", () => {
 			if (url.pathname === "/register")
 				return json({
 					client_id: "fixture-client",
-					...JSON.parse(String(init?.body)),
+					...JSON.parse(requestBody),
 				});
 			if (url.pathname === "/token") {
-				const body = new URLSearchParams(String(init?.body));
+				const body = new URLSearchParams(requestBody);
 				if (body.get("grant_type") === "refresh_token") {
 					expect(body.get("refresh_token")).toBe("fixture-refresh");
 					refreshes++;
@@ -137,24 +161,41 @@ describe("explicit MCP OAuth authorization", () => {
 				}
 				return json({
 					access_token: "fixture-access",
-					refresh_token: "fixture-refresh",
+					...(config.accessOnly ? {} : { refresh_token: "fixture-refresh" }),
 					token_type: "Bearer",
 					expires_in: 3600,
 				});
 			}
 			if (url.href === resource && init?.method === "GET") {
+				if (config.postChallengeOnly)
+					return new Response(null, { status: 405 });
 				if (new Headers(init.headers).has("authorization"))
 					return new Response(null, { status: 405 });
 				return new Response(null, {
 					status: 401,
 					headers: {
-						"www-authenticate": `Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource"`,
+						"www-authenticate": config.customChallenge
+							? `Bearer resource_metadata="https://mcp.example.test/tenant/protected-resource", scope="tenant:write"`
+							: `Bearer resource_metadata="${new URL("/.well-known/oauth-protected-resource", resource)}"`,
 					},
 				});
 			}
 			if (url.href === resource && init?.method === "POST") {
-				const body = JSON.parse(String(init.body));
+				if (
+					(config.postChallengeOnly && !headers.has("authorization")) ||
+					(config.rejectStaleAccess &&
+						headers.get("authorization") !== "Bearer fixture-access")
+				)
+					return new Response(null, {
+						status: 401,
+						headers: {
+							"www-authenticate": `Bearer resource_metadata="https://mcp.example.test/tenant/protected-resource", scope="tenant:write"`,
+						},
+					});
+				const body = JSON.parse(requestBody);
 				if (body.id === undefined) return new Response(null, { status: 202 });
+				if (headers.get("authorization") === "Bearer fixture-access")
+					acceptedRequests++;
 				return json({
 					jsonrpc: "2.0",
 					id: body.id,
@@ -179,7 +220,7 @@ describe("explicit MCP OAuth authorization", () => {
 			releaseMetadata,
 			metadataRequested,
 			counts: () => ({ tokenExchanges, refreshes, opened, closed }),
-			headerCounts: () => ({ escaped, gatewayRequests }),
+			headerCounts: () => ({ escaped, gatewayRequests, acceptedRequests }),
 			options: {
 				serverName: "remote",
 				filePath,
@@ -192,6 +233,8 @@ describe("explicit MCP OAuth authorization", () => {
 				openUrl: async (raw: string) => {
 					opened++;
 					const url = new URL(raw);
+					if (config.customChallenge)
+						expect(url.searchParams.get("scope")).toBe("tenant:write");
 					challenge = url.searchParams.get("code_challenge") ?? "";
 					const callback = new URL(url.searchParams.get("redirect_uri") ?? "");
 					// A live native callback listener must survive delayed discovery.
@@ -230,7 +273,7 @@ describe("explicit MCP OAuth authorization", () => {
 			});
 			expect(f.counts()).toEqual({
 				tokenExchanges: 1,
-				refreshes: 1,
+				refreshes: 0,
 				opened: 1,
 				closed: 2,
 			});
@@ -260,7 +303,7 @@ describe("explicit MCP OAuth authorization", () => {
 		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
 			authorized: true,
 		});
-		expect(f.counts().refreshes).toBe(1);
+		expect(f.counts().refreshes).toBe(0);
 	});
 
 	it.each(["register", "token"] as const)(
@@ -274,6 +317,179 @@ describe("explicit MCP OAuth authorization", () => {
 			await expect(authorizeMcpServerOAuth(f.options)).rejects.toThrow();
 			expect(f.headerCounts().escaped).toBe(0);
 			expect(f.counts().closed).toBe(1);
+		},
+	);
+
+	it("uses challenge-only resource metadata and scope throughout code exchange", async () => {
+		const f = await fixture({ customChallenge: true, postChallengeOnly: true });
+		f.releaseMetadata();
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.counts()).toMatchObject({ opened: 1, tokenExchanges: 1 });
+	});
+
+	it("checks accepted owned access tokens without requiring a refresh token or browser", async () => {
+		const f = await fixture({ accessOnly: true });
+		f.releaseMetadata();
+		await updateMcpServerOAuthStateAsync(
+			"remote",
+			() => ({
+				clientInformation: { client_id: "fixture-client" },
+				tokens: { access_token: "fixture-access", token_type: "Bearer" },
+			}),
+			{ filePath: f.filePath },
+		);
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.counts()).toEqual({
+			opened: 0,
+			tokenExchanges: 0,
+			refreshes: 0,
+			closed: 1,
+		});
+	});
+
+	it("refreshes a rejected owned access token without opening browser consent", async () => {
+		const f = await fixture({
+			headers: {
+				"X-Tenant": "fixture-tenant",
+				"Content-Type": "application/vnd.gateway+json",
+			},
+			customChallenge: true,
+			postChallengeOnly: true,
+			rejectStaleAccess: true,
+		});
+		f.releaseMetadata();
+		await updateMcpServerOAuthStateAsync(
+			"remote",
+			() => ({
+				clientInformation: { client_id: "fixture-client" },
+				tokens: {
+					access_token: "fixture-stale",
+					refresh_token: "fixture-refresh",
+					token_type: "Bearer",
+				},
+			}),
+			{ filePath: f.filePath },
+		);
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.counts()).toEqual({
+			opened: 0,
+			tokenExchanges: 0,
+			refreshes: 1,
+			closed: 1,
+		});
+		expect(f.headerCounts().acceptedRequests).toBe(2);
+	});
+
+	it("strips configured headers when the challenge probe follows a same-origin hop cross-origin", async () => {
+		const destinationHeaders: Headers[] = [];
+		const sameOriginHeaders: Headers[] = [];
+		const destination = createHttpServer((request, response) => {
+			destinationHeaders.push(
+				new Headers(request.headers as Record<string, string>),
+			);
+			response.statusCode = 401;
+			response.setHeader(
+				"www-authenticate",
+				`Bearer resource_metadata="https://mcp.example.test/tenant/protected-resource"`,
+			);
+			response.end();
+		});
+		const gateway = createHttpServer((request, response) => {
+			sameOriginHeaders.push(
+				new Headers(request.headers as Record<string, string>),
+			);
+			response.statusCode = 302;
+			response.setHeader(
+				"location",
+				request.url === "/hop" ? `${destinationOrigin}/metadata` : "/hop",
+			);
+			response.end();
+		});
+		async function listen(server: ReturnType<typeof createHttpServer>) {
+			await new Promise<void>((resolve) =>
+				server.listen(0, "127.0.0.1", resolve),
+			);
+			const address = server.address();
+			if (!address || typeof address === "string")
+				throw new Error("No fixture port");
+			return `http://127.0.0.1:${address.port}`;
+		}
+		const destinationOrigin = await listen(destination);
+		const gatewayOrigin = await listen(gateway);
+		const endpoint = `${gatewayOrigin}/mcp`;
+		try {
+			const f = await fixture({
+				resourceUrl: endpoint,
+				headers: { "X-Tenant": "fixture-tenant", Cookie: "fixture-cookie" },
+			});
+			f.releaseMetadata();
+			await expect(
+				authorizeMcpServerOAuth({
+					...f.options,
+					fetch: (input, init) => {
+						const url = new URL(
+							input instanceof Request ? input.url : input.toString(),
+						);
+						return (url.origin === gatewayOrigin &&
+							init?.method === "GET" &&
+							!new Headers(init.headers).has("authorization")) ||
+							url.origin === destinationOrigin
+							? fetch(input, init as RequestInit)
+							: f.fetchFixture(input, init);
+					},
+				}),
+			).resolves.toMatchObject({ authorized: true });
+			expect(sameOriginHeaders.length).toBeGreaterThanOrEqual(2);
+			for (const headers of sameOriginHeaders)
+				expect(headers.get("x-tenant")).toBe("fixture-tenant");
+			expect(destinationHeaders.length).toBeGreaterThanOrEqual(1);
+			for (const headers of destinationHeaders) {
+				expect(headers.has("x-tenant")).toBe(false);
+				expect(headers.has("cookie")).toBe(false);
+			}
+		} finally {
+			await Promise.all(
+				[gateway, destination].map(
+					(server) =>
+						new Promise<void>((resolve, reject) =>
+							server.close((error) => (error ? reject(error) : resolve())),
+						),
+				),
+			);
+		}
+	});
+
+	it.each(["manual", "error"] as const)(
+		"preserves the caller's %s redirect policy",
+		async (redirect) => {
+			let requests = 0;
+			const guardedFetch = createOriginBoundMcpHeadersFetch({
+				endpointUrl: "https://gateway.example.test/mcp",
+				configuredHeaders: { "X-Tenant": "fixture-tenant" },
+				baseFetch: async () => {
+					requests++;
+					return requests === 1
+						? new Response(null, {
+								status: 307,
+								headers: { location: "https://other.example.test/receive" },
+							})
+						: new Response(null);
+				},
+			});
+			const result = guardedFetch("https://gateway.example.test/token", {
+				method: "POST",
+				body: "fixture-body",
+				redirect,
+			});
+			if (redirect === "manual") expect((await result).status).toBe(307);
+			else await expect(result).rejects.toThrow("redirect");
+			expect(requests).toBe(1);
 		},
 	);
 
