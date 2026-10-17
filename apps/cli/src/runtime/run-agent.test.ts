@@ -606,6 +606,75 @@ describe("runAgent", () => {
 		);
 	});
 
+	it("emits run_start with the invocation's session id in JSON mode", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: 0,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "completed",
+				model: {
+					id: "anthropic/claude-sonnet-4.6",
+					provider: "cline",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await runAgent("test prompt", {
+			cwd: process.cwd(),
+			enableAgentTeams: false,
+			enableSpawnAgent: false,
+			enableTools: [],
+			execution: {
+				maxConsecutiveMistakes: 3,
+			},
+			logger: undefined,
+			mode: "yolo",
+			modelId: "anthropic/claude-sonnet-4.6",
+			outputMode: "json",
+			providerId: "cline",
+			systemPrompt: "system",
+			thinking: false,
+			toolPolicies: { "*": { autoApprove: true } },
+			verbose: false,
+			workspaceRoot: process.cwd(),
+		} as never);
+
+		const runStart = outputMocks.emitJsonLine.mock.calls.find(
+			([, payload]) =>
+				(payload as { type?: string } | undefined)?.type === "run_start",
+		)?.[1] as { sessionId?: string } | undefined;
+
+		const startInput = sessionManagerMocks.start.mock.calls[0]?.[0] as
+			| { config?: { sessionId?: string } }
+			| undefined;
+		expect(runStart?.sessionId).toBe(startInput?.config?.sessionId);
+		expect(runStart?.sessionId).toBeTruthy();
+	});
+
 	it("emits JSON error lines for non-completed results", async () => {
 		const startedAt = new Date("2026-03-22T00:00:00.000Z");
 		const endedAt = new Date("2026-03-22T00:00:01.000Z");
