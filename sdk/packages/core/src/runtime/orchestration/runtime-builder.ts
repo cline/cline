@@ -23,6 +23,7 @@ import {
 	createMcpTools,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	type McpSessionRecoveryEvent,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 } from "../../extensions/mcp";
@@ -204,6 +205,10 @@ function isSkillsToolEnabledForSession(input: {
 
 const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 
+function formatToolNames(names: readonly string[]): string {
+	return names.length > 0 ? names.join(", ") : "none";
+}
+
 async function loadConfiguredMcpTools(options: {
 	logger?: BasicLogger;
 	includeSettings: boolean;
@@ -219,11 +224,22 @@ async function loadConfiguredMcpTools(options: {
 		return { tools: [] };
 	}
 
+	const onSessionRecovered = (event: McpSessionRecoveryEvent): void => {
+		const surface = event.surface;
+		options.logger?.log(
+			surface
+				? `[mcp] Reconnected to "${event.serverName}" after its session was lost; tool surface changed (added: ${formatToolNames(surface.added)}; removed: ${formatToolNames(surface.removed)}; changed: ${formatToolNames(surface.changed)}). This session's tools were built from the earlier surface.`
+				: `[mcp] Reconnected to "${event.serverName}" after its session was lost; no tool surface change detected.`,
+			{ severity: surface ? "warn" : "info" },
+		);
+	};
 	const settingsClientFactory = createDefaultMcpServerClientFactory({
 		settingsPath,
+		onSessionRecovered,
 	});
 	const agentPluginClientFactory = createDefaultMcpServerClientFactory({
 		restrictConfiguredHeadersToOrigin: true,
+		onSessionRecovered,
 	});
 	const manager = new InMemoryMcpManager({
 		clientFactory: (registration) =>

@@ -7,7 +7,10 @@ import {
 	isMcpTimeoutConfigured,
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SseError } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import {
 	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
@@ -77,6 +80,78 @@ const STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * A streamable HTTP server answers a POST that carries a session id it no
+ * longer knows with HTTP 404 (`Session not found`). That happens whenever the
+ * server process is replaced under a live client (restart, deploy/rollout) or
+ * its session TTL sweeps — the socket stays healthy, so the transport reports
+ * nothing, and the session id is simply dead. Nothing in the stack
+ * re-initializes on it (the SDK only reconnects SSE *streams*), so the client
+ * would keep posting the dead id until a human restarts it. The MCP spec puts
+ * this recovery on the client: recognize the error and re-handshake.
+ */
+const MCP_SESSION_LOST_MESSAGE =
+	/session (?:not found|expired|terminated)|(?:invalid|unknown|missing) session/i;
+
+export function isMcpSessionLostError(error: unknown): boolean {
+	// Both transports carry the status; a stale session is a transport 404,
+	// not a JSON-RPC error.
+	if (error instanceof StreamableHTTPError || error instanceof SseError) {
+		return error.code === 404;
+	}
+	// Never replay an application error: the tool may already have run.
+	if (error instanceof McpError) {
+		return false;
+	}
+	return MCP_SESSION_LOST_MESSAGE.test(toErrorMessage(error));
+}
+
+export interface McpToolSurfaceChange {
+	added: readonly string[];
+	removed: readonly string[];
+	/** Same name, different description or input schema. */
+	changed: readonly string[];
+}
+
+export interface McpSessionRecoveryEvent {
+	serverName: string;
+	/** Present only when the surface differs from the one this session saw. */
+	surface?: McpToolSurfaceChange;
+}
+
+function sortKeys(value: unknown): unknown {
+	if (value == null || typeof value !== "object") return value;
+	if (Array.isArray(value)) return value.map(sortKeys);
+	const sorted: Record<string, unknown> = {};
+	for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+		sorted[key] = sortKeys((value as Record<string, unknown>)[key]);
+	}
+	return sorted;
+}
+
+function canonicalTool(tool: McpToolDescriptor): string {
+	return JSON.stringify({
+		name: tool.name,
+		description: tool.description ?? "",
+		inputSchema: sortKeys(tool.inputSchema),
+	});
+}
+
+function diffSurface(
+	before: Map<string, string>,
+	after: Map<string, string>,
+): McpToolSurfaceChange | undefined {
+	const added = [...after.keys()].filter((name) => !before.has(name)).sort();
+	const removed = [...before.keys()].filter((name) => !after.has(name)).sort();
+	const changed = [...after.keys()]
+		.filter((name) => before.has(name) && before.get(name) !== after.get(name))
+		.sort();
+	if (added.length === 0 && removed.length === 0 && changed.length === 0) {
+		return undefined;
+	}
+	return { added, removed, changed };
 }
 
 async function settlesWithin(
@@ -702,6 +777,8 @@ export interface DefaultMcpServerClientFactoryOptions {
 	fetch?: FetchLike;
 	/** Keep literal configured headers on the declared MCP origin only. */
 	restrictConfiguredHeadersToOrigin?: boolean;
+	/** Diagnostics only: fires once per recovered session, before the replay. */
+	onSessionRecovered?: (event: McpSessionRecoveryEvent) => void;
 }
 
 export interface ProbeMcpServerConnectionOptions
@@ -719,6 +796,10 @@ export interface ProbeMcpServerConnectionResult {
 
 class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
+	private connectPromise?: Promise<Client>;
+	private readonly closedClients = new WeakSet<Client>();
+	private surface?: Map<string, string>;
+	private surfaceClient?: Client;
 	private authContext?: McpOAuthProviderContext;
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
@@ -741,9 +822,11 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	async connect(): Promise<void> {
-		if (this.client) {
-			return;
-		}
+		await this.ensureConnectedClient();
+	}
+
+	/** Opens one session; callers share it through ensureConnectedClient. */
+	private async openClient(): Promise<Client> {
 		if (this.registration.transport.type === "stdio") {
 			throw new Error(
 				`Unsupported MCP transport for "${this.registration.name}": ${this.registration.transport.type}`,
@@ -785,6 +868,7 @@ class SdkUrlMcpClient implements McpServerClient {
 			});
 			await authContext.clearError();
 			this.client = client;
+			return client;
 		} catch (error) {
 			await client?.close().catch(() => {});
 			const effectiveError = augmentMcpTimeoutError(
@@ -812,24 +896,29 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
-		const client = await this.ensureConnectedClient();
-		try {
-			const result = await client.listTools(undefined, {
-				timeout: this.requestTimeoutMs,
-			});
-			return result.tools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				inputSchema:
-					tool.inputSchema &&
-					typeof tool.inputSchema === "object" &&
-					!Array.isArray(tool.inputSchema)
-						? tool.inputSchema
-						: {},
-			}));
-		} catch (error) {
-			return await this.handleOperationError(error);
-		}
+		return await this.withSessionRecovery((client) => this.readTools(client));
+	}
+
+	private async readTools(
+		client: Client,
+	): Promise<readonly McpToolDescriptor[]> {
+		const result = await client.listTools(undefined, {
+			timeout: this.requestTimeoutMs,
+		});
+		const tools = result.tools.map((tool) => ({
+			name: tool.name,
+			description: tool.description,
+			inputSchema:
+				tool.inputSchema &&
+				typeof tool.inputSchema === "object" &&
+				!Array.isArray(tool.inputSchema)
+					? tool.inputSchema
+					: {},
+		}));
+		this.surface = new Map(
+			tools.map((tool) => [tool.name, canonicalTool(tool)]),
+		);
+		return tools;
 	}
 
 	async callTool(request: {
@@ -837,34 +926,113 @@ class SdkUrlMcpClient implements McpServerClient {
 		arguments?: Record<string, unknown>;
 		context?: AgentToolContext;
 	}): Promise<McpToolCallResult> {
-		const client = await this.ensureConnectedClient();
-		try {
-			return await client.callTool(
-				{
-					name: request.name,
-					arguments: request.arguments ?? {},
-				},
-				undefined,
-				{
-					timeout: this.requestTimeoutMs,
-					signal: request.context?.signal,
-				},
-			);
-		} catch (error) {
-			return await this.handleOperationError(error);
-		}
+		return await this.withSessionRecovery(
+			(client) =>
+				client.callTool(
+					{
+						name: request.name,
+						arguments: request.arguments ?? {},
+					},
+					undefined,
+					{
+						timeout: this.requestTimeoutMs,
+						signal: request.context?.signal,
+					},
+				),
+			{ signal: request.context?.signal },
+		);
 	}
 
 	private async ensureConnectedClient(): Promise<Client> {
-		if (!this.client) {
-			await this.connect();
+		if (this.client) {
+			return this.client;
 		}
-		if (!this.client) {
-			throw new Error(
-				`MCP server "${this.registration.name}" is not connected.`,
-			);
+		// One handshake at a time: a second caller joins the in-flight session
+		// instead of opening its own and overwriting the first.
+		this.connectPromise ??= this.openClient().finally(() => {
+			this.connectPromise = undefined;
+		});
+		return await this.connectPromise;
+	}
+
+	/** Drops the client that failed; never one a sibling just reconnected. */
+	private async dropFailedClient(failed: Client): Promise<void> {
+		if (this.client === failed) {
+			this.client = undefined;
 		}
-		return this.client;
+		if (this.surfaceClient === failed) {
+			this.surfaceClient = undefined;
+		}
+		if (this.closedClients.has(failed)) {
+			return;
+		}
+		this.closedClients.add(failed);
+		await failed.close().catch(() => {});
+	}
+
+	/**
+	 * Runs one operation against the live session and, when the server has
+	 * forgotten that session, re-handshakes and replays it once. A session id
+	 * dies with the server process while the socket stays healthy, so the
+	 * failure arrives as a plain application error and nothing upstream would
+	 * ever reconnect: without this the client wedges until a human restarts it.
+	 */
+	private async withSessionRecovery<T>(
+		operation: (client: Client) => Promise<T>,
+		options?: { signal?: AbortSignal },
+	): Promise<T> {
+		const client = await this.ensureConnectedClient();
+		try {
+			return await operation(client);
+		} catch (error) {
+			if (!isMcpSessionLostError(error)) {
+				return await this.handleOperationError(error);
+			}
+			// A cancelled call has nothing to replay.
+			if (options?.signal?.aborted) {
+				return await this.handleOperationError(error);
+			}
+			const reconnected = await this.recoverSession(client);
+			try {
+				return await operation(reconnected);
+			} catch (retryError) {
+				return await this.handleOperationError(retryError);
+			}
+		}
+	}
+
+	/** One fresh session per failed client, however many callers noticed. */
+	private async recoverSession(failed: Client): Promise<Client> {
+		await this.dropFailedClient(failed);
+		const client = await this.ensureConnectedClient();
+		if (this.surfaceClient !== client) {
+			this.surfaceClient = client;
+			await this.reportSurface(client);
+		}
+		return client;
+	}
+
+	/** Best effort: a failed comparison must never fail the recovery. */
+	private async reportSurface(client: Client): Promise<void> {
+		const before = this.surface;
+		let surface: McpToolSurfaceChange | undefined;
+		if (before) {
+			try {
+				const tools = await this.readTools(client);
+				surface = diffSurface(
+					before,
+					new Map(tools.map((tool) => [tool.name, canonicalTool(tool)])),
+				);
+			} catch {
+				// The comparison is a diagnostic; the replay reports real failures.
+			}
+		}
+		try {
+			this.options.onSessionRecovered?.({
+				serverName: this.registration.name,
+				...(surface ? { surface } : {}),
+			});
+		} catch {}
 	}
 
 	private formatUnauthorizedMessage(authUrl: string | undefined): string {

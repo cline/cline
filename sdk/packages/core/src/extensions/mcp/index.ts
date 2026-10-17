@@ -1,5 +1,7 @@
 export type {
 	DefaultMcpServerClientFactoryOptions,
+	McpSessionRecoveryEvent,
+	McpToolSurfaceChange,
 	ProbeMcpServerConnectionOptions,
 	ProbeMcpServerConnectionResult,
 } from "./client";

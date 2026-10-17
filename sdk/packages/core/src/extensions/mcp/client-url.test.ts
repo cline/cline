@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { SseError } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,26 +21,42 @@ const clientState = vi.hoisted(() => ({
 	listToolsOptions: undefined as unknown,
 	callToolOptions: undefined as unknown,
 	callToolError: undefined as unknown,
+	callToolErrorOnce: undefined as unknown,
+	callToolErrors: [] as Array<{ error: unknown; delayMs?: number }>,
+	tools: [] as Array<{
+		name: string;
+		description?: string;
+		inputSchema: Record<string, unknown>;
+	}>,
+	listToolsError: undefined as unknown,
 	connectError: undefined as unknown,
+	connectCount: 0,
 	closeCount: 0,
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	Client: class {
+		private closed = false;
+
 		async connect(_transport: unknown, options: unknown): Promise<void> {
 			clientState.connectOptions = options;
+			clientState.connectCount += 1;
 			if (clientState.connectError) {
 				throw clientState.connectError;
 			}
 		}
 
 		async close(): Promise<void> {
+			this.closed = true;
 			clientState.closeCount += 1;
 		}
 
 		async listTools(_params: unknown, options: unknown) {
 			clientState.listToolsOptions = options;
-			return { tools: [] };
+			if (clientState.listToolsError) {
+				throw clientState.listToolsError;
+			}
+			return { tools: clientState.tools };
 		}
 
 		async callTool(
@@ -47,16 +64,34 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 			_resultSchema: unknown,
 			options: unknown,
 		) {
+			if (this.closed) {
+				throw new Error("MCP error -32000: Connection closed");
+			}
 			clientState.callToolOptions = options;
 			if (clientState.callToolError) {
 				throw clientState.callToolError;
+			}
+			if (clientState.callToolErrorOnce) {
+				const error = clientState.callToolErrorOnce;
+				clientState.callToolErrorOnce = undefined;
+				throw error;
+			}
+			const scripted = clientState.callToolErrors.shift();
+			if (scripted) {
+				if (scripted.delayMs) {
+					await new Promise((resolve) => setTimeout(resolve, scripted.delayMs));
+				}
+				throw scripted.error;
 			}
 			return { content: [] };
 		}
 	},
 }));
 
-import { createDefaultMcpServerClientFactory } from "./client";
+import {
+	createDefaultMcpServerClientFactory,
+	type McpSessionRecoveryEvent,
+} from "./client";
 import { listMcpServerOAuthStatuses } from "./config-loader";
 import {
 	createMcpSdkTransport,
@@ -335,5 +370,265 @@ describe("SDK URL MCP client authorization persistence", () => {
 			authorizationRequired: false,
 			lastError: "SSE error: Non-200 status code (404)",
 		});
+	});
+});
+
+describe("SDK URL MCP client session recovery", () => {
+	beforeEach(() => {
+		clientState.connectError = undefined;
+		clientState.callToolError = undefined;
+		clientState.callToolErrorOnce = undefined;
+		clientState.callToolErrors = [];
+		clientState.tools = [];
+		clientState.listToolsError = undefined;
+		clientState.connectCount = 0;
+		clientState.closeCount = 0;
+	});
+
+	async function createClient(
+		options: Parameters<typeof createDefaultMcpServerClientFactory>[0] = {},
+	) {
+		return createDefaultMcpServerClientFactory(options)({
+			name: "remote",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.example.test",
+			},
+			timeoutSeconds: 12,
+		});
+	}
+
+	it("re-handshakes and replays a call the server answered with a lost session", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolErrorOnce = new StreamableHTTPError(
+			404,
+			"Error POSTing to endpoint: Not Found: Session not found",
+		);
+
+		await expect(client.callTool({ name: "memory_get" })).resolves.toEqual({
+			content: [],
+		});
+		expect(clientState.connectCount).toBe(2);
+		expect(clientState.closeCount).toBe(1);
+	});
+
+	it("gives up after one replay when the fresh session is lost too", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolError = new StreamableHTTPError(
+			404,
+			"Error POSTing to endpoint: Not Found: Session not found",
+		);
+
+		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
+			/Session not found/,
+		);
+		expect(clientState.connectCount).toBe(2);
+	});
+
+	it("keeps an unrelated call failure as a connection error", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolError = new McpError(ErrorCode.InternalError, "boom");
+
+		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
+			/boom/,
+		);
+		expect(clientState.connectCount).toBe(1);
+	});
+
+	it("recovers concurrent callers through one shared handshake", async () => {
+		const client = await createClient();
+		await client.connect();
+		const lost = () =>
+			new StreamableHTTPError(
+				404,
+				"Error POSTing to endpoint: Not Found: Session not found",
+			);
+		clientState.callToolErrors.push({ error: lost() }, { error: lost() });
+
+		const results = await Promise.allSettled([
+			client.callTool({ name: "first" }),
+			client.callTool({ name: "second" }),
+		]);
+
+		expect(results.map((result) => result.status)).toEqual([
+			"fulfilled",
+			"fulfilled",
+		]);
+		expect(clientState.connectCount).toBe(2);
+		expect(clientState.closeCount).toBe(1);
+	});
+
+	it("does not close a session another caller reconnected", async () => {
+		const client = await createClient();
+		await client.connect();
+		const lost = () =>
+			new StreamableHTTPError(404, "Not Found: Session not found");
+		// The slow caller notices the dead session only after the fast one recovered.
+		clientState.callToolErrors.push(
+			{ error: lost() },
+			{ error: lost(), delayMs: 5 },
+		);
+
+		const results = await Promise.allSettled([
+			client.callTool({ name: "fast" }),
+			client.callTool({ name: "slow" }),
+		]);
+
+		expect(results.map((result) => result.status)).toEqual([
+			"fulfilled",
+			"fulfilled",
+		]);
+		expect(clientState.connectCount).toBe(2);
+		expect(clientState.closeCount).toBe(1);
+	});
+
+	it("recovers a transport 404 that names no session", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolErrors.push({
+			error: makeSseError(404, "Non-200 status code (404)"),
+		});
+
+		await expect(client.callTool({ name: "memory_get" })).resolves.toEqual({
+			content: [],
+		});
+		expect(clientState.connectCount).toBe(2);
+	});
+
+	it("does not replay an application error that mentions a session", async () => {
+		const client = await createClient();
+		await client.connect();
+		clientState.callToolErrors.push({
+			error: new McpError(ErrorCode.InternalError, "Invalid session"),
+		});
+
+		await expect(client.callTool({ name: "memory_get" })).rejects.toThrow(
+			/Invalid session/,
+		);
+		expect(clientState.connectCount).toBe(1);
+	});
+
+	it("does not replay a call the caller already cancelled", async () => {
+		const client = await createClient();
+		await client.connect();
+		const controller = new AbortController();
+		controller.abort();
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await expect(
+			client.callTool({
+				name: "memory_get",
+				context: {
+					agentId: "test",
+					iteration: 0,
+					signal: controller.signal,
+				},
+			}),
+		).rejects.toThrow(/Session not found/);
+		expect(clientState.connectCount).toBe(1);
+	});
+
+	it("reports a tool surface that changed while the session was lost", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+			{ name: "b", description: "two", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+
+		clientState.tools = [
+			{
+				name: "a",
+				description: "one",
+				inputSchema: {
+					type: "object",
+					properties: { x: { type: "string" } },
+				},
+			},
+			{ name: "c", description: "three", inputSchema: { type: "object" } },
+		];
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await client.callTool({ name: "a" });
+
+		expect(changes).toEqual([
+			{
+				serverName: "remote",
+				surface: { added: ["c"], removed: ["b"], changed: ["a"] },
+			},
+		]);
+	});
+
+	it("reports a recovery without a change when the surface held", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await client.callTool({ name: "a" });
+
+		expect(changes).toEqual([{ serverName: "remote" }]);
+	});
+
+	it("recovers when the surface comparison itself fails", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+		clientState.listToolsError = new Error("listTools unavailable");
+		clientState.callToolErrors.push({
+			error: new StreamableHTTPError(404, "Not Found: Session not found"),
+		});
+
+		await expect(client.callTool({ name: "a" })).resolves.toEqual({
+			content: [],
+		});
+		expect(changes).toEqual([{ serverName: "remote" }]);
+	});
+
+	it("reports one recovery when callers race", async () => {
+		const changes: McpSessionRecoveryEvent[] = [];
+		const client = await createClient({
+			onSessionRecovered: (event) => changes.push(event),
+		});
+		clientState.tools = [
+			{ name: "a", description: "one", inputSchema: { type: "object" } },
+		];
+		await client.connect();
+		await client.listTools();
+		const lost = () =>
+			new StreamableHTTPError(404, "Not Found: Session not found");
+		clientState.callToolErrors.push({ error: lost() }, { error: lost() });
+
+		await Promise.allSettled([
+			client.callTool({ name: "a" }),
+			client.callTool({ name: "a" }),
+		]);
+
+		expect(changes).toHaveLength(1);
 	});
 });
