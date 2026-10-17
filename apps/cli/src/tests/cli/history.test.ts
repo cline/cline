@@ -7,10 +7,10 @@
 //   - `cline history --help`     - help page
 // ---------------------------------------------------------------------------
 
-import { test } from "@microsoft/tui-test";
 import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import { expectVisible } from "../helpers/terminal.js";
+import { test } from "../helpers/test.js";
 
 test.describe("cline history --help", () => {
 	test.use({
