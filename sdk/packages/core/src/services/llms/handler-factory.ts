@@ -243,6 +243,7 @@ export function createAgentModelFromConfig(
 			{
 				providerId: normalizedProviderConfig.providerId,
 				apiKey: normalizedProviderConfig.apiKey,
+				authMetadata: config.authMetadata,
 				baseUrl: normalizedProviderConfig.baseUrl,
 				headers: normalizedProviderConfig.headers,
 				timeoutMs: normalizedProviderConfig.timeoutMs,
