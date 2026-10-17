@@ -12,10 +12,15 @@ boundary between catalog metadata and runtime request policy.
 
 Models.dev's model-level `provider.npm` is retained as `metadata.apiProtocol`
 for OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini.
-Providers opt into these model routes with `metadata.routing.modelApiProtocol`
-when they serve those protocols under a shared base URL. The selected adapter
-also owns request options, serialization, and stream parsing. Native providers
-and local CLI providers retain their own transports.
+Providers opt into these model routes with `metadata.routing.modelApiProtocol`.
+The selected adapter also owns request options, serialization, and stream
+parsing. Native providers and local CLI providers retain their own transports.
+
+Gateways may also serve each protocol from its own path. Models.dev's
+model-level `provider.api` is retained as `metadata.apiBaseUrl` when it differs
+from the provider's `api`, and opted-in providers send that model's requests
+there. A base URL the user changed from the provider default still wins, so
+proxies keep receiving every protocol.
 
 OpenCode Go opts in and sends `x-opencode-session` from request metadata's
 `sessionId`, plus a Cline User-Agent. Direct gateway callers should supply a

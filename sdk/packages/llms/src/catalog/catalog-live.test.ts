@@ -17,7 +17,18 @@ describe("models-dev-catalog", () => {
 	it("preserves model adapters and narrowly fills missing Go Qwen declarations", () => {
 		const models = {
 			muse: { tool_call: true, provider: { npm: "@ai-sdk/openai" } },
-			minimax: { tool_call: true, provider: { npm: "@ai-sdk/anthropic" } },
+			minimax: {
+				tool_call: true,
+				provider: {
+					npm: "@ai-sdk/anthropic",
+					api: "https://opencode.ai/inference/go/anthropic/v1",
+				},
+			},
+			kimi: {
+				tool_call: true,
+				family: "qwen",
+				provider: { api: "https://opencode.ai/inference/go/openai/v1/" },
+			},
 			google: { tool_call: true, provider: { npm: "@ai-sdk/google" } },
 			qwen: { tool_call: true, family: "qwen3.7-plus" },
 			explicitQwen: {
@@ -33,7 +44,11 @@ describe("models-dev-catalog", () => {
 			glm: { tool_call: true, family: "glm" },
 		};
 		const result = normalizeModelsDevProviderModels({
-			"opencode-go": { npm: "@ai-sdk/openai-compatible", models },
+			"opencode-go": {
+				npm: "@ai-sdk/openai-compatible",
+				api: "https://opencode.ai/inference/go/openai/v1",
+				models,
+			},
 			"other-gateway": { npm: "@ai-sdk/openai-compatible", models },
 		});
 		expect(result["opencode-go"].muse.metadata?.apiProtocol).toBe(
@@ -42,6 +57,12 @@ describe("models-dev-catalog", () => {
 		expect(result["opencode-go"].minimax.metadata?.apiProtocol).toBe(
 			"anthropic",
 		);
+		expect(result["opencode-go"].minimax.metadata?.apiBaseUrl).toBe(
+			"https://opencode.ai/inference/go/anthropic/v1",
+		);
+		// An endpoint equal to the provider's base URL is not repeated per model,
+		// and an explicit endpoint stops the Qwen Messages fallback.
+		expect(result["opencode-go"].kimi.metadata).toBeUndefined();
 		expect(result["opencode-go"].google.metadata?.apiProtocol).toBe("gemini");
 		expect(result["opencode-go"].qwen.metadata?.apiProtocol).toBe("anthropic");
 		expect(result["opencode-go"].explicitQwen.metadata?.apiProtocol).toBe(

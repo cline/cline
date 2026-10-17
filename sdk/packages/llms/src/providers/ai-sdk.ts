@@ -2247,6 +2247,7 @@ function createAiSdkProvider(
 					kind,
 					{
 						...config,
+						baseUrl: resolveModelBaseUrl(config.baseUrl, context),
 						fetch: wrapFetchForStickySession(
 							wrapFetchForProviderRequestCapture(config.fetch, request),
 							request,
@@ -2545,6 +2546,31 @@ function resolveModelProviderKind(
 		default:
 			return defaultKind;
 	}
+}
+
+/**
+ * Gateways that route by model protocol may also serve each protocol from its
+ * own path (OpenCode's /inference/go/anthropic/v1 vs /openai/v1), declared per
+ * model in the catalog. Use that path unless the user pointed the provider
+ * somewhere other than its default.
+ */
+function resolveModelBaseUrl(
+	baseUrl: string | undefined,
+	context: GatewayProviderContext,
+): string | undefined {
+	const modelBaseUrl = context.model.metadata?.apiBaseUrl;
+	if (
+		typeof modelBaseUrl !== "string" ||
+		!modelBaseUrl.trim() ||
+		!context.provider.metadata?.routing?.modelApiProtocol
+	)
+		return baseUrl;
+	const trimSlash = (url: string | undefined) =>
+		url?.trim().replace(/\/+$/, "") || undefined;
+	const configured = trimSlash(baseUrl);
+	return !configured || configured === trimSlash(context.provider.api)
+		? modelBaseUrl
+		: baseUrl;
 }
 
 export const createOpenAIProvider = createAiSdkProvider("openai");

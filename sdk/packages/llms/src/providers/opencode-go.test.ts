@@ -154,6 +154,51 @@ describe("OpenCode Go HTTP integration", () => {
 		);
 	});
 
+	it.each([
+		[undefined, "https://opencode.ai/inference/go/anthropic/v1/messages"],
+		[
+			"https://opencode.ai/inference/go/openai/v1/",
+			"https://opencode.ai/inference/go/anthropic/v1/messages",
+		],
+		["https://proxy.example/go/v1", "https://proxy.example/go/v1/messages"],
+	])("uses the model's endpoint unless the base URL is customized (%s)", async (baseUrl, expected) => {
+		const fetchMock = vi.fn(
+			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
+				new Response(messagesResponse, {
+					headers: { "content-type": "text/event-stream" },
+				}),
+		);
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "opencode-go",
+					apiKey: "test-key",
+					baseUrl,
+					models: [
+						{
+							id: "test-model",
+							name: "Test",
+							metadata: {
+								apiProtocol: "anthropic",
+								apiBaseUrl: "https://opencode.ai/inference/go/anthropic/v1",
+							},
+						},
+					],
+					fetch: fetchMock as unknown as typeof fetch,
+				},
+			],
+		});
+		for await (const _event of await gateway.stream({
+			providerId: "opencode-go",
+			modelId: "test-model",
+			metadata: { sessionId: "test-session" },
+			messages: [{ role: "user", content: [{ type: "text", text: "Hello" }] }],
+		})) {
+			/* Drain the real adapter stream. */
+		}
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(expected);
+	});
+
 	it("keeps a Go conversation header through Responses retries", async () => {
 		const fetchMock = vi.fn(
 			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) => {
@@ -195,13 +240,14 @@ describe("OpenCode Go HTTP integration", () => {
 	});
 
 	it.each([
-		["glm-5.3", "chat/completions", chatResponse],
-		["kimi-k2.6", "chat/completions", chatResponse],
-		["muse-spark-1.3-contributor", "responses", responsesResponse],
-		["muse-spark-1.2-contributor", "responses", responsesResponse],
-		["minimax-m3", "messages", messagesResponse],
-		["qwen3.7-plus", "messages", messagesResponse],
-	])("routes %s with conversation headers, tools, and stream decoding", async (modelId, endpoint, response) => {
+		["glm-5.3", "openai/v1/chat/completions", chatResponse],
+		["kimi-k2.6", "openai/v1/chat/completions", chatResponse],
+		["muse-spark-1.3-contributor", "openai/v1/responses", responsesResponse],
+		["muse-spark-1.2-contributor", "openai/v1/responses", responsesResponse],
+		["minimax-m3", "anthropic/v1/messages", messagesResponse],
+		["qwen3.7-plus", "anthropic/v1/messages", messagesResponse],
+	])("routes %s with conversation headers, tools, and stream decoding", async (modelId, path, response) => {
+		const endpoint = path.split("/").slice(2).join("/");
 		const fetchMock = vi.fn(
 			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
 				new Response(response, {
@@ -243,9 +289,7 @@ describe("OpenCode Go HTTP integration", () => {
 				expect.objectContaining({ type: "finish", reason: "stop" }),
 			);
 			const [url, init] = fetchMock.mock.calls.at(-1) ?? [];
-			expect(String(url)).toBe(
-				`https://opencode.ai/inference/go/v1/${endpoint}`,
-			);
+			expect(String(url)).toBe(`https://opencode.ai/inference/go/${path}`);
 			const headers = new Headers(init?.headers);
 			expect(headers.get("x-opencode-session")).toBe(sessionId);
 			expect(headers.get("user-agent")).toContain("Cline/");

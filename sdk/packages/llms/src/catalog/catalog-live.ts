@@ -19,7 +19,7 @@ import {
 import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
-	provider?: { npm?: string };
+	provider?: { npm?: string; api?: string };
 	name?: string;
 	tool_call?: boolean;
 	reasoning?: boolean;
@@ -360,6 +360,10 @@ const MODEL_API_PROTOCOLS: Record<
 	"@ai-sdk/google": "gemini",
 };
 
+function sameUrl(a: string, b: string | undefined): boolean {
+	return a.replace(/\/+$/, "") === b?.trim().replace(/\/+$/, "");
+}
+
 function isDeprecatedModel(model: ModelsDevModel): boolean {
 	return model.status === "deprecated";
 }
@@ -385,9 +389,16 @@ export function normalizeModelsDevProviderModels(
 			if (
 				targetProviderId === "opencode-go" &&
 				/^qwen(?:\d|$)/.test(model.family ?? "") &&
-				!model.provider?.npm
+				!model.provider?.npm &&
+				!model.provider?.api
 			) {
 				rawInfo.metadata = { ...rawInfo.metadata, apiProtocol: "anthropic" };
+			}
+			// Gateways like OpenCode serve each protocol from its own path and
+			// declare it per model; the provider-level api is only one of them.
+			const apiBaseUrl = model.provider?.api?.trim();
+			if (apiBaseUrl && !sameUrl(apiBaseUrl, source.api)) {
+				rawInfo.metadata = { ...rawInfo.metadata, apiBaseUrl };
 			}
 			const modalities = normalizeBuiltinModelOperationModalities({
 				providerId: targetProviderId,

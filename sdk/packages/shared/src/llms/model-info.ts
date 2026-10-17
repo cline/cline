@@ -70,6 +70,11 @@ export const ModelMetadataSchema = z
 		apiProtocol: z
 			.enum(["openai-chat", "openai-responses", "anthropic", "gemini"])
 			.optional(),
+		/**
+		 * Per-model base URL for gateways that serve each protocol from its own
+		 * path. Only set when it differs from the provider's base URL.
+		 */
+		apiBaseUrl: z.string().optional(),
 	})
 	.catchall(z.unknown());
 

@@ -73,6 +73,9 @@ function toGatewayModelDefinition(
 			...(model.metadata?.apiProtocol
 				? { apiProtocol: model.metadata.apiProtocol }
 				: {}),
+			...(model.metadata?.apiBaseUrl
+				? { apiBaseUrl: model.metadata.apiBaseUrl }
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,

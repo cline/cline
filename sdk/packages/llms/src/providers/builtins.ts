@@ -589,6 +589,9 @@ function modelInfoToGateway(
 	if (info.metadata?.apiProtocol) {
 		metadata.apiProtocol = info.metadata.apiProtocol;
 	}
+	if (info.metadata?.apiBaseUrl) {
+		metadata.apiBaseUrl = info.metadata.apiBaseUrl;
+	}
 	return {
 		id: info.id,
 		name: info.name ?? info.id,

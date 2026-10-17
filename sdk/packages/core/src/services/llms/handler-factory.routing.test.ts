@@ -5,10 +5,10 @@ import { toProviderConfig } from "./provider-settings";
 
 describe("core agent per-model protocol routing", () => {
 	it.each([
-		["muse-spark-1.3-contributor", "responses", "input"],
-		["minimax-m3", "messages", "messages"],
-		["qwen3.7-plus", "messages", "messages"],
-		["glm-5.3", "chat/completions", "messages"],
+		["muse-spark-1.3-contributor", "openai/v1/responses", "input"],
+		["minimax-m3", "anthropic/v1/messages", "messages"],
+		["qwen3.7-plus", "anthropic/v1/messages", "messages"],
+		["glm-5.3", "openai/v1/chat/completions", "messages"],
 	])("routes catalog model %s to %s without a provider-wide override", async (modelId, endpoint, inputField) => {
 		const providerConfig = toProviderConfig({
 			provider: "opencode-go",
@@ -21,32 +21,40 @@ describe("core agent per-model protocol routing", () => {
 
 	it.each<{
 		protocol: NonNullable<ModelInfo["metadata"]>["apiProtocol"];
+		apiBaseUrl?: string;
 		endpoint: string;
 		inputField: string;
 	}>([
 		{
 			protocol: "openai-responses",
-			endpoint: "responses",
+			endpoint: "openai/v1/responses",
 			inputField: "input",
 		},
-		{ protocol: "anthropic", endpoint: "messages", inputField: "messages" },
+		{
+			protocol: "anthropic",
+			apiBaseUrl: "https://opencode.ai/inference/go/anthropic/v1",
+			endpoint: "anthropic/v1/messages",
+			inputField: "messages",
+		},
 		{
 			protocol: "gemini",
-			endpoint: "models/live-model:streamGenerateContent?alt=sse",
+			apiBaseUrl: "https://opencode.ai/inference/go/google/v1beta",
+			endpoint: "google/v1beta/models/live-model:streamGenerateContent?alt=sse",
 			inputField: "contents",
 		},
 		{
 			protocol: "openai-chat",
-			endpoint: "chat/completions",
+			endpoint: "openai/v1/chat/completions",
 			inputField: "messages",
 		},
 		{
 			protocol: undefined,
-			endpoint: "chat/completions",
+			endpoint: "openai/v1/chat/completions",
 			inputField: "messages",
 		},
 	])("routes a dynamically supplied $protocol model to $endpoint", async ({
 		protocol,
+		apiBaseUrl,
 		endpoint,
 		inputField,
 	}) => {
@@ -60,7 +68,9 @@ describe("core agent per-model protocol routing", () => {
 				knownModels: {
 					"live-model": {
 						id: "live-model",
-						...(protocol ? { metadata: { apiProtocol: protocol } } : {}),
+						...(protocol
+							? { metadata: { apiProtocol: protocol, apiBaseUrl } }
+							: {}),
 					},
 				},
 			},
@@ -113,7 +123,7 @@ async function expectEndpoint(
 	);
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 	const [url, init] = fetchMock.mock.calls[0];
-	expect(String(url)).toBe(`https://opencode.ai/inference/go/v1/${endpoint}`);
+	expect(String(url)).toBe(`https://opencode.ai/inference/go/${endpoint}`);
 	const body = JSON.parse(String(init?.body));
 	expect(body[inputField]).toBeDefined();
 	if (inputField !== "contents") {

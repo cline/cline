@@ -159,9 +159,12 @@ function toGatewayConfiguredModel(
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			// Configured models replace gateway catalog entries, so retain the
-			// per-model protocol used by providers with mixed API endpoints.
+			// per-model protocol and endpoint used by providers with mixed APIs.
 			...(model.metadata?.apiProtocol
 				? { apiProtocol: model.metadata.apiProtocol }
+				: {}),
+			...(model.metadata?.apiBaseUrl
+				? { apiBaseUrl: model.metadata.apiBaseUrl }
 				: {}),
 			family: model.family,
 			pricing: model.pricing,
