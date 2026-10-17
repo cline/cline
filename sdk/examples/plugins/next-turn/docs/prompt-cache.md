@@ -68,16 +68,16 @@ then reading the request body.
 |---|---|---|
 | `cline`, `cline-pass` | top-level `cache_control` (automatic caching) and one on the person's message | the request's last block, so it moves with every step |
 | `openrouter` | the same, plus `session_id` | the same |
-| `anthropic` (direct) | one on the person's message only (see [Findings outside the plugin](#findings-outside-the-plugin)) | the person's message, for the whole turn |
-| `bedrock` | one `cachePoint` after the person's message | the person's message, for the whole turn |
+| `anthropic` (direct) | the same as `cline` (fixed on this branch; see [Findings outside the plugin](#findings-outside-the-plugin)) | the same as `cline` |
+| `bedrock` | a `cachePoint` after each of the last two user or tool messages (fixed on this branch) | the request's last message |
 | Models with no Anthropic-style route (GPT, GLM, Kimi, DeepSeek, Gemini) | none; the provider caches implicitly | the provider's longest matching prefix |
 
-Explicit markers go on the last `role: "user"` message
+The explicit `cache_control` marker goes on the last `role: "user"` message
 ([`buildAiSdkRequestMessages`](../../../../packages/llms/src/providers/ai-sdk.ts)).
 Tool results are `role: "tool"` messages in the AI SDK prompt, so within a
-turn the explicit marker stays on the message that opened the turn. On the
-Cline and OpenRouter routes, it is the top-level field that keeps tool steps
-cached.
+turn that marker stays on the message that opened the turn. On the Anthropic
+routes it is the top-level field that keeps tool steps cached; on Bedrock it
+is the marks on tool results.
 
 The chat's own usage bears this out. These are the chat requests of at least
 20K input tokens in this machine's 300 most recent sessions, all on the
@@ -197,12 +197,12 @@ Each check, and how the fork keeps it:
   are Anthropic models before Opus 4.5 and Sonnet 4.6, and Haiku through 4.5.
   For those, the fork's question changes the prefix from the first thinking
   block onward.
-- **Lookback.** On the Cline and OpenRouter routes, the fork adds about three
-  positions after W. On the direct `anthropic` and `bedrock` routes, W sits on
-  the person's message. Each tool step takes about three positions (thinking,
-  `tool_use`, `tool_result`), and the fork adds three more. So W is out of
-  reach once a turn has more than five tool steps, which is 56% of turns
-  (median 7, p75 20, n=1,032).
+- **Lookback.** The fork adds about three positions after W on every route
+  above. Before the SDK fixes on this branch, W sat on the person's message
+  on the direct `anthropic` and `bedrock` routes. Each tool step takes about
+  three positions (thinking, `tool_use`, `tool_result`), so W was out of reach
+  once a turn had more than five tool steps: 56% of turns (median 7, p75 20,
+  n=1,032).
 
 ### The gate
 
@@ -256,23 +256,24 @@ compares. Section 5 covers the full cost model.
 
 ### Findings outside the plugin
 
-Both affect every chat on these routes, not just the fork, and belong in a
-separate SDK change.
+Both affected every chat on these routes, not just the fork. Both are fixed
+on this branch, each with a wire test through the real AI SDK adapter.
 
-- **Direct `anthropic` sends no top-level `cache_control`.**
-  `buildAnthropicProviderOptions` puts `cache_control` in the `anthropic`
+- **Direct `anthropic` sent no top-level `cache_control`.**
+  `buildAnthropicProviderOptions` put `cache_control` in the `anthropic`
   provider-options bucket. `@ai-sdk/anthropic` reads only `cacheControl` for
-  the top-level field, and its options schema strips the snake-case key. With
-  a stubbed fetch, `{ cache_control }` sends no top-level field and
-  `{ cacheControl }` sends it. The block-level marker on the person's message
-  survives, because the per-block reader accepts both spellings.
-- **The breakpoint never reaches a tool result on `anthropic` or `bedrock`.**
-  The explicit marker goes on the last `role: "user"` message, and tool
-  results are `role: "tool"`. So within a turn the cached prefix stops at the
-  person's message, and every tool step pays full input for the turn's tool
-  history so far. This is inferred from request bodies, not measured: this
-  machine has no sessions on these routes. The pre-SDK Bedrock handler marked
-  the last two user messages, tool results included.
+  the top-level field, and its options schema strips the snake-case key. The
+  block-level marker on the person's message survived, because the per-block
+  reader accepts both spellings. The option is now `cacheControl`.
+- **Bedrock's cache point never reached a tool result.** The marker went on
+  the last `role: "user"` message, and tool results are `role: "tool"`. So
+  within a turn the cached prefix stopped at the person's message, and every
+  tool step paid full input for the turn's tool history so far.
+  `applyBedrockCachePoints` now marks the last two user or tool messages, as
+  the pre-SDK Bedrock handler did.
+
+Both effects are inferred from request bodies, not measured: this machine has
+no sessions on these routes.
 
 ### Not verified
 
