@@ -28,6 +28,29 @@ export function isAppZoomAction(value: unknown): value is AppZoomAction {
 	);
 }
 
+/**
+ * Maps a keyboard key to its zoom action, for the standard Cmd/Ctrl +/-/0
+ * shortcuts. Callers have already checked for the Cmd/Ctrl modifier.
+ *
+ * Shifted variants are accepted because "+" is Shift+"=" and "_" is Shift+"-"
+ * on most layouts, so insisting on an unshifted key would leave the Ctrl and
+ * Cmd "+" that users actually press unbound.
+ */
+export function appZoomActionForKey(key: string): AppZoomAction | null {
+	switch (key) {
+		case "=":
+		case "+":
+			return "zoom-in";
+		case "-":
+		case "_":
+			return "zoom-out";
+		case "0":
+			return "zoom-reset";
+		default:
+			return null;
+	}
+}
+
 function parseAppFontSize(value: string | null): AppFontSize | null {
 	if (value === null || value.trim() === "") {
 		return null;
