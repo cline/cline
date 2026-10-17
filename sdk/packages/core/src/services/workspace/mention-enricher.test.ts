@@ -128,4 +128,42 @@ describe("enrichPromptWithMentions", () => {
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});
+
+	it("matches mentions wrapped in parens, brackets, or quotes", async () => {
+		const cwd = await createTempWorkspace();
+		try {
+			const sourcePath = path.join(cwd, "src", "index.ts");
+			await mkdir(path.dirname(sourcePath), { recursive: true });
+			await writeFile(sourcePath, "export const answer = 42\n", "utf8");
+
+			const result = await enrichPromptWithMentions(
+				'Review (@src/index.ts) and [@src/index.ts] and "@src/index.ts"',
+				cwd,
+			);
+
+			expect(result.mentions).toEqual(["src/index.ts"]);
+			expect(result.matchedFiles).toEqual(["src/index.ts"]);
+			expect(result.ignoredMentions).toEqual([]);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("still ignores parenthesized emails", async () => {
+		const cwd = await createTempWorkspace();
+		try {
+			await writeFile(path.join(cwd, "README.md"), "# Demo\n", "utf8");
+
+			const result = await enrichPromptWithMentions(
+				"Contact (test@example.com) for help.",
+				cwd,
+			);
+
+			expect(result.mentions).toEqual([]);
+			expect(result.matchedFiles).toEqual([]);
+			expect(result.ignoredMentions).toEqual([]);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
 });
