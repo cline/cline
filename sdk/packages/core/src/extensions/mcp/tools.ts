@@ -20,7 +20,11 @@ export async function createMcpTools(
 	const descriptors = await options.provider.listTools(options.serverName);
 	const nameTransform = options.nameTransform ?? defaultMcpToolNameTransform;
 
-	return descriptors.filter(isMcpToolVisibleToModel).map((descriptor) => {
+	const visibleDescriptors = options.mcpApps
+		? descriptors.filter(isMcpToolVisibleToModel)
+		: descriptors;
+
+	return visibleDescriptors.map((descriptor) => {
 		const agentToolName = nameTransform({
 			serverName: options.serverName,
 			toolName: descriptor.name,

@@ -184,19 +184,24 @@ export class InMemoryMcpManager implements McpManager {
 	async readResource(
 		request: McpResourceReadRequest,
 	): Promise<McpResourceReadResult> {
-		return this.runExclusive(request.serverName, async () => {
-			const state = this.requireServer(request.serverName);
-			const client = await this.ensureConnectedClient(state);
-			if (!client.readResource) {
-				throw new Error(
-					`MCP server "${request.serverName}" client does not support reading resources.`,
-				);
-			}
-			state.updatedAt = nowMs();
-			return client.readResource({
-				uri: request.uri,
-				context: request.context,
-			});
+		const current = this.requireServer(request.serverName);
+		const client =
+			current.status === "connected" &&
+			current.client &&
+			!current.registration.disabled
+				? current.client
+				: await this.runExclusive(request.serverName, async () =>
+						this.ensureConnectedClient(this.requireServer(request.serverName)),
+					);
+		this.requireServer(request.serverName).updatedAt = nowMs();
+		if (!client.readResource) {
+			throw new Error(
+				`MCP server "${request.serverName}" client does not support reading resources.`,
+			);
+		}
+		return client.readResource({
+			uri: request.uri,
+			context: request.context,
 		});
 	}
 
@@ -266,12 +271,9 @@ export class InMemoryMcpManager implements McpManager {
 			return;
 		}
 
-		try {
-			await state.client.disconnect();
-		} finally {
-			state.status = "disconnected";
-			state.updatedAt = nowMs();
-		}
+		state.status = "disconnected";
+		state.updatedAt = nowMs();
+		await state.client.disconnect();
 	}
 
 	private requireServer(serverName: string): ManagedServerState {

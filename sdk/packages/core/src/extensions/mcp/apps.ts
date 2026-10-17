@@ -64,8 +64,5 @@ export function isMcpToolVisibleToModel(
 export function isMcpToolVisibleToApp(
 	tool: Pick<McpToolDescriptor, "_meta">,
 ): boolean {
-	return (
-		getMcpAppToolMeta(tool)?.visibility.includes("app") ??
-		DEFAULT_VISIBILITY.includes("app")
-	);
+	return getMcpAppToolMeta(tool)?.visibility.includes("app") ?? true;
 }

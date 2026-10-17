@@ -52,6 +52,7 @@ export interface CreateMcpToolsOptions {
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
+	mcpApps?: boolean;
 }
 
 export type McpConnectionStatus = "disconnected" | "connecting" | "connected";
@@ -172,6 +173,8 @@ export interface McpManager extends McpToolProvider {
 	listServers(): readonly McpServerSnapshot[];
 	refreshTools(serverName: string): Promise<readonly McpToolDescriptor[]>;
 	callTool(request: McpToolCallRequest): Promise<McpToolCallResult>;
-	readResource(request: McpResourceReadRequest): Promise<McpResourceReadResult>;
+	readResource?(
+		request: McpResourceReadRequest,
+	): Promise<McpResourceReadResult>;
 	dispose(): Promise<void>;
 }

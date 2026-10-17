@@ -64,4 +64,19 @@ describe("MCP Apps tool metadata", () => {
 			}),
 		).toEqual({ resourceUri: undefined, visibility: ["app"] });
 	});
+
+	it("falls back to the default visibility when visibility is not an array", () => {
+		const tool = { _meta: { ui: { visibility: "app" } } };
+		expect(getMcpAppToolMeta(tool)?.visibility).toEqual(["model", "app"]);
+		expect(isMcpToolVisibleToModel(tool)).toBe(true);
+	});
+
+	it("treats an explicit visibility array as authoritative even when empty", () => {
+		for (const visibility of [[], ["everyone"]]) {
+			const tool = { _meta: { ui: { visibility } } };
+			expect(getMcpAppToolMeta(tool)?.visibility).toEqual([]);
+			expect(isMcpToolVisibleToModel(tool)).toBe(false);
+			expect(isMcpToolVisibleToApp(tool)).toBe(false);
+		}
+	});
 });
