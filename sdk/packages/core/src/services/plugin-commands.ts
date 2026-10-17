@@ -16,6 +16,7 @@ import {
 	resolveAgentPluginPaths,
 	resolvePluginConfigSearchPaths,
 } from "../extensions/plugin/plugin-config-loader";
+import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
 import { PluginRegistry } from "../extensions/plugin/plugin-registry";
 import {
 	executePluginCommand,
@@ -42,6 +43,8 @@ type Entry = {
 	watchers: FSWatcher[];
 	watchRetry?: ReturnType<typeof setTimeout>;
 	fingerprint?: string;
+	/** Plugin paths and the sources they import; a reload is needed only when this changes. */
+	sourceKey?: string;
 	/** Serializes execution with reload/disposal so a handler cannot lose its sandbox. */
 	tail: Promise<unknown>;
 };
@@ -139,6 +142,18 @@ export class PluginCommandManager implements PluginCommandsApi {
 		for (const root of [...this.watchRoots(entry)].sort()) await visit(root);
 		return hash.digest("hex");
 	}
+	private sourceKey(entry: Entry): string | undefined {
+		try {
+			return resolveAgentPluginPaths({
+				cwd: entry.workspacePath,
+				workspacePath: entry.workspacePath,
+			})
+				.map((path) => `${path}:${fingerprintPluginSources(path)}`)
+				.join("\n");
+		} catch {
+			return undefined;
+		}
+	}
 	private reconnect(entry: Entry): void {
 		if (this.disposed) return;
 		clearTimeout(entry.watchRetry);
@@ -213,6 +228,14 @@ export class PluginCommandManager implements PluginCommandsApi {
 			.then(async () => {
 				if (this.disposed) return;
 				if (!retryOnly) {
+					const sourceKey = this.sourceKey(entry);
+					if (
+						sourceKey !== undefined &&
+						sourceKey === entry.sourceKey &&
+						entry.failedPaths?.length === 0
+					)
+						return;
+					entry.sourceKey = sourceKey;
 					await Promise.all(
 						entry.loaded.map((loaded) => loaded.shutdown?.().catch(() => {})),
 					);
