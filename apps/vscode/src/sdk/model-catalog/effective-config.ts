@@ -1,6 +1,7 @@
 import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
+import { effectiveProviderReasoningEffort, type ProviderReasoningSettings } from "../provider-reasoning"
 import type { AwsProviderConfig, EffectiveProviderConfig, GcpProviderConfig, ProviderId } from "./contracts"
 import { toSdkProviderId } from "./sdk-provider-id"
 
@@ -19,6 +20,7 @@ type ProviderSettingsLike = {
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
 	readonly contextWindow?: number
+	readonly reasoningEffort?: EffectiveProviderConfig["reasoningEffort"]
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
 }
@@ -215,6 +217,9 @@ function readProviderSettings(providerId: ProviderId): ConfigParts {
 			aws: readAws(settings),
 			gcp: readGcp(settings),
 			contextWindow: readPositiveInteger(settings.contextWindow),
+			reasoningEffort: isPlainRecord(settings.reasoning)
+				? effectiveProviderReasoningEffort(settings.reasoning as ProviderReasoningSettings)
+				: undefined,
 			auth: readAuth(settings),
 			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
 		} satisfies ProviderSettingsLike
@@ -396,6 +401,9 @@ export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveP
 	// Ollama StateManager key is a migration fallback (the store mirrors writes
 	// to both).
 	assignIfDefined(merged, "contextWindow", providerSettings.contextWindow ?? stateConfig.contextWindow)
+	// Reasoning lives only in providers.json; the legacy per-mode effort keys
+	// are not what the session reads.
+	assignIfDefined(merged, "reasoningEffort", providerSettings.reasoningEffort)
 	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
 	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
 

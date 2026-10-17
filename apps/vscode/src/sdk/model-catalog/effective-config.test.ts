@@ -133,6 +133,33 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	// The settings UI shows this value, so it must be the effort a session
+	// started now would request: the session factory reads the same
+	// providers.json `reasoning` through the same normalization.
+	it.each([
+		["nothing saved", undefined, undefined],
+		["reasoning disabled", { enabled: false }, "none"],
+		["disabled with a stale effort", { enabled: false, effort: "medium" }, "none"],
+		["effort none", { effort: "none" }, "none"],
+		["an enabled effort", { enabled: true, effort: "high" }, "high"],
+		["a bare effort", { effort: "low" }, "low"],
+		["a legacy thinking budget", { budgetTokens: 4096 }, "medium"],
+		["enabled with no level", { enabled: true }, "medium"],
+	])("exposes the reasoning effort the session will request for %s", async (_label, reasoning, expected) => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			"openai-compatible": {
+				provider: "openai-compatible",
+				...(reasoning ? { reasoning } : {}),
+			},
+		})
+
+		const config = buildEffectiveProviderConfig(parseProviderId("openai"))
+
+		expect(config.reasoningEffort).toBe(expected)
+		expect("reasoningEffort" in config).toBe(expected !== undefined)
+	})
+
 	it("reads normalized nousResearch API key from StateManager", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ nousResearch: { provider: "nousResearch", apiKey: "provider-nous-key" } })

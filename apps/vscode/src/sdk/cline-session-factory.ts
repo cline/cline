@@ -36,7 +36,6 @@ import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
-import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -52,6 +51,12 @@ import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
 import { getProviderSettingsManager } from "./provider-migration"
+import {
+	isReasoningEffort,
+	normalizeProviderReasoningSettings,
+	type ProviderReasoningSettings,
+	type SessionReasoningConfig,
+} from "./provider-reasoning"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
@@ -180,58 +185,12 @@ function resolveWorkspaceName(workspacePath: string): string {
 	return name || "workspace"
 }
 
-type ReasoningEffort = NonNullable<CoreSessionConfig["reasoningEffort"]>
-type ProviderReasoningSettings = NonNullable<ProviderSettings["reasoning"]>
-type SessionReasoningConfig = Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
-
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
-	return value === "low" || value === "medium" || value === "high" || value === "xhigh"
-}
-
 function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | undefined): boolean {
 	return reasoning?.enabled === false && (reasoning.effort !== undefined || reasoning.budgetTokens !== undefined)
 }
 
 function providerSettingsProviderId(providerId: string): string {
 	return toSdkProviderId(providerId)
-}
-
-/**
- * Convert SDK provider-level reasoning settings into the SDK session fields that
- * are actually forwarded as model options. Keep `thinking` and
- * `reasoningEffort` coherent: a disabled/none state must never carry an effort.
- *
- * A persisted `budgetTokens` without an effort (written by older extension
- * versions or the legacy-state migration) is honored by mapping the budget
- * onto the effort scale, so users who had extended thinking enabled keep it
- * enabled after upgrading to the effort-based control.
- */
-export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningSettings | undefined): SessionReasoningConfig {
-	if (!reasoning) {
-		return {}
-	}
-
-	if (reasoning.enabled === false || reasoning.effort === "none") {
-		return { thinking: false }
-	}
-
-	const effort = isReasoningEffort(reasoning.effort)
-		? reasoning.effort
-		: reasoningEffortFromThinkingBudget(reasoning.budgetTokens)
-
-	if (reasoning.enabled === true) {
-		return {
-			thinking: true,
-			...(effort ? { reasoningEffort: effort } : {}),
-		}
-	}
-
-	if (isReasoningEffort(reasoning.effort)) {
-		return { reasoningEffort: reasoning.effort }
-	}
-
-	// Legacy budget with no explicit enabled/effort: treat as thinking-on.
-	return effort ? { thinking: true, reasoningEffort: effort } : {}
 }
 
 function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {

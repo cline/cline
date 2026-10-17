@@ -16,6 +16,7 @@ import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import { ModelInfoView } from "../common/ModelInfoView"
 import FeaturedModelCard from "../FeaturedModelCard"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 interface ClinePassProviderProps {
@@ -216,13 +217,11 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: {
-										enabled: effort !== "none",
-										effort: effort !== "none" ? effort : undefined,
-									},
-								}).catch((err) => console.error("Failed to update ClinePass reasoning effort:", err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error("Failed to update ClinePass reasoning effort:", err),
+								)
 							}}
+							value={savedReasoningEffort(config)}
 						/>
 					)}
 

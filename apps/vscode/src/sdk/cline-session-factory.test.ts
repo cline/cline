@@ -14,7 +14,6 @@ import {
 	createHistoryItemFromSession,
 	getDefaultModelIdForProvider,
 	getHistoryItemById,
-	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
 	resolveApiKey,
 	resolveAzureProviderConfig,
@@ -23,6 +22,7 @@ import {
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
+import { normalizeProviderReasoningSettings } from "./provider-reasoning"
 
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
@@ -710,6 +710,62 @@ describe("buildSessionConfig", () => {
 		// manager persists to disk.
 		const onDisk = JSON.parse(fs.readFileSync(path.join(tempDir, "settings", "providers.json"), "utf8"))
 		expect(onDisk.providers["openai-compatible"].settings.azure).toEqual({ apiVersion: "2025-01-01-preview" })
+	})
+
+	it("requests the reasoning the settings UI shows, through the real ProviderSettingsManager", async () => {
+		// The settings UI shows `store.read().reasoningEffort` and saves the
+		// user's pick through `store.write`; the session must request exactly
+		// what is shown for every pick, including after clearing back to the
+		// provider default. Uses the real manager so the schema round-trip of
+		// each saved shape is exercised (see the Azure round-trip test above).
+		const { ProviderSettingsManager } = await import("../../node_modules/@cline/core/dist/index.js")
+		const realManager = new ProviderSettingsManager({
+			filePath: path.join(tempDir, "settings", "providers.json"),
+		})
+		realManager.saveProviderSettings(
+			{
+				provider: "openai-compatible",
+				apiKey: "azure-key",
+				model: "gpt-6-sol",
+				baseUrl: "https://example.openai.azure.com/openai/v1",
+			},
+			{ setLastUsed: false },
+		)
+		mocks.getProviderSettingsManager.mockReturnValue(realManager as never)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "gpt-6-sol",
+			openAiApiKey: "azure-key",
+			openAiBaseUrl: "https://example.openai.azure.com/openai/v1",
+		} as any)
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		const shownAndRequested = async () => {
+			const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+			return {
+				shown: store.read(providerId).reasoningEffort,
+				thinking: config.thinking,
+				reasoningEffort: config.reasoningEffort,
+			}
+		}
+
+		expect(await shownAndRequested()).toEqual({ shown: undefined, thinking: undefined, reasoningEffort: undefined })
+
+		store.write(providerId, { reasoning: { enabled: false, effort: "none" } })
+		expect(await shownAndRequested()).toEqual({ shown: "none", thinking: false, reasoningEffort: undefined })
+
+		store.write(providerId, { reasoning: { enabled: true, effort: "high" } })
+		expect(await shownAndRequested()).toEqual({ shown: "high", thinking: true, reasoningEffort: "high" })
+
+		store.write(providerId, { reasoning: null })
+		expect(await shownAndRequested()).toEqual({ shown: undefined, thinking: undefined, reasoningEffort: undefined })
+		expect(realManager.getProviderSettings("openai-compatible")).not.toHaveProperty("reasoning")
+
+		// The CLI saves a bare `{ enabled: true }`; the gateway requests medium
+		// for it, so it must not read as Default (which could then not clear it).
+		store.write(providerId, { reasoning: { enabled: true } })
+		expect(await shownAndRequested()).toEqual({ shown: "medium", thinking: true, reasoningEffort: undefined })
 	})
 
 	it("does not rewrite providers.json when the stored Azure settings already match", () => {
