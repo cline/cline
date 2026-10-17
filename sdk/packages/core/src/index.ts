@@ -1046,6 +1046,7 @@ export {
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./services/llms/cline-recommended-models";
+export { createAgentModelFromConfig } from "./services/llms/handler-factory";
 export {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
