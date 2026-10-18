@@ -1,6 +1,7 @@
 import { posix, win32 } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	agyConversationsDirs,
 	claudeCodeProjectsDir,
 	codexHomeDir,
 	opencodeDataDir,
@@ -177,5 +178,65 @@ describe("POSIX session import paths", () => {
 		expect(claudeCodeProjectsDir(environment)).toBe("/mnt/claude/projects");
 		expect(codexHomeDir(environment)).toBe("/mnt/codex");
 		expect(opencodeDataDir(environment)).toBe("/mnt/data/opencode");
+	});
+});
+
+describe("Antigravity (agy) conversation paths", () => {
+	it("includes desktop, IDE, and CLI directories", () => {
+		const environment = posixEnvironment({});
+		const dirs = agyConversationsDirs(environment);
+
+		expect(dirs).toHaveLength(3);
+		expect(dirs[0]).toBe("/home/alice/.gemini/antigravity/conversations");
+		expect(dirs[1]).toBe("/home/alice/.gemini/antigravity-ide/conversations");
+		expect(dirs[2]).toBe("/home/alice/.gemini/antigravity-cli/conversations");
+	});
+
+	it("respects GEMINI_HOME override", () => {
+		const environment = posixEnvironment({
+			GEMINI_HOME: "/custom/gemini",
+		});
+		const dirs = agyConversationsDirs(environment);
+
+		expect(dirs[0]).toBe("/custom/gemini/antigravity/conversations");
+		expect(dirs[1]).toBe("/custom/gemini/antigravity-ide/conversations");
+		expect(dirs[2]).toBe("/custom/gemini/antigravity-cli/conversations");
+	});
+
+	it("respects AGY_CONVERSATIONS_DIR override (pins to single directory)", () => {
+		const environment = posixEnvironment({
+			AGY_CONVERSATIONS_DIR: "/custom/agy-sessions",
+		});
+		const dirs = agyConversationsDirs(environment);
+
+		expect(dirs).toEqual(["/custom/agy-sessions"]);
+	});
+
+	it("ignores empty AGY_CONVERSATIONS_DIR override", () => {
+		const environment = posixEnvironment({
+			AGY_CONVERSATIONS_DIR: "",
+		});
+		const dirs = agyConversationsDirs(environment);
+
+		// Should fall back to default paths, not return empty override
+		expect(dirs).toHaveLength(3);
+		expect(dirs[0]).toBe("/home/alice/.gemini/antigravity/conversations");
+	});
+
+	it("works on Windows with USERPROFILE", () => {
+		const environment = windowsEnvironment({
+			USERPROFILE: String.raw`C:\Users\Alice`,
+		});
+		const dirs = agyConversationsDirs(environment);
+
+		expect(dirs[0]).toBe(
+			String.raw`C:\Users\Alice\.gemini\antigravity\conversations`,
+		);
+		expect(dirs[1]).toBe(
+			String.raw`C:\Users\Alice\.gemini\antigravity-ide\conversations`,
+		);
+		expect(dirs[2]).toBe(
+			String.raw`C:\Users\Alice\.gemini\antigravity-cli\conversations`,
+		);
 	});
 });
