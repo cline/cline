@@ -381,19 +381,14 @@ authentication. Omit it to retain local account authentication and rollout check
 
 ## MCP Apps (experimental)
 
-MCP Apps support is off by default. A host turns it on in two places, and the
-two must be set together:
+MCP Apps support is off by default.
+`createDefaultMcpServerClientFactory({ mcpApps: true })` turns it on by
+advertising the `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`)
+with the `text/html;profile=mcp-app` MIME type during `initialize`, for stdio
+and URL servers alike.
 
-- `createDefaultMcpServerClientFactory({ mcpApps: true })` advertises the
-  `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`) with the
-  `text/html;profile=mcp-app` MIME type during `initialize`, for stdio and URL
-  servers alike.
-- `createMcpTools({ mcpApps: true, ... })` leaves out tools whose
-  `_meta.ui.visibility` does not include `"model"`.
-
-Setting only the client flag lets servers send app-only tools that the model
-will then see, which the MCP Apps spec forbids. Setting only the tool flag hides
-app-only tools from servers that would not have sent them.
+`createMcpTools` always leaves out tools whose `_meta.ui.visibility` does not
+include `"model"`, whether or not the client advertised the extension.
 
 Tool descriptors keep the server's `_meta`. `getMcpAppToolMeta` reads
 `_meta.ui`: `resourceUri` is kept only for `ui://` URIs, and `visibility`

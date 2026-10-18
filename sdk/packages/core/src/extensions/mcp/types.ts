@@ -52,7 +52,6 @@ export interface CreateMcpToolsOptions {
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
-	mcpApps?: boolean;
 }
 
 export type McpConnectionStatus = "disconnected" | "connecting" | "connected";

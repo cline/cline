@@ -38,26 +38,11 @@ describe("MCP Apps tool visibility", () => {
 	it("leaves app-only tools out of the model's tool list", async () => {
 		const tools = await createMcpTools({
 			serverName: "weather",
-			mcpApps: true,
 			provider: {
 				listTools,
 				callTool: async () => ({ content: [] }),
 			},
 		});
 		expect(tools.map((tool) => tool.name)).toEqual(["weather__show_weather"]);
-	});
-
-	it("keeps app-only tools when MCP Apps is not enabled", async () => {
-		const tools = await createMcpTools({
-			serverName: "weather",
-			provider: {
-				listTools,
-				callTool: async () => ({ content: [] }),
-			},
-		});
-		expect(tools.map((tool) => tool.name)).toEqual([
-			"weather__show_weather",
-			"weather__refresh_view",
-		]);
 	});
 });
