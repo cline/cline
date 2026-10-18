@@ -84,7 +84,11 @@ function createThread(
 						message: streamed,
 					});
 				} else {
-					posts.push(message);
+					posts.push(
+						message && typeof message === "object" && "markdown" in message
+							? messageText(message)
+							: message,
+					);
 					messageOperations.push({ type: "post", messageId, message });
 				}
 				const sentMessage = {
@@ -97,7 +101,13 @@ function createThread(
 						if (failEdits) {
 							throw new Error("message edit failed");
 						}
-						posts.push(nextMessage);
+						posts.push(
+							nextMessage &&
+								typeof nextMessage === "object" &&
+								"markdown" in nextMessage
+								? messageText(nextMessage)
+								: nextMessage,
+						);
 						return sentMessage as unknown as SentMessage;
 					},
 					delete: async () => {
@@ -234,6 +244,10 @@ function messageText(message: unknown): string {
 	if (message && typeof message === "object" && "raw" in message) {
 		const raw = (message as { raw: unknown }).raw;
 		return typeof raw === "string" ? raw : String(raw);
+	}
+	if (message && typeof message === "object" && "markdown" in message) {
+		const markdown = (message as { markdown: unknown }).markdown;
+		return typeof markdown === "string" ? markdown : String(markdown);
 	}
 	return String(message);
 }
@@ -1381,8 +1395,9 @@ describe("handleConnectorUserTurn", () => {
 			cwd: "/tmp/work",
 			workspaceRoot: "/tmp/work",
 		});
-		const runtime = createRuntimeClient("Final Slack answer");
-		emitProgressThenReply(runtime, "Final Slack answer");
+		const finalText = "**Final**\n\n## Story status";
+		const runtime = createRuntimeClient(finalText);
+		emitProgressThenReply(runtime, finalText);
 
 		await handleConnectorUserTurn({
 			thread: thread as never,
@@ -1412,12 +1427,13 @@ describe("handleConnectorUserTurn", () => {
 				messageText(operation.message).includes("Executing read_file"),
 		);
 		const finalOperations = messageOperations.filter((operation) =>
-			messageText(operation.message).includes("Final Slack answer"),
+			messageText(operation.message).includes(finalText),
 		);
 		expect(progressPost).toBeDefined();
 		expect(finalOperations).toHaveLength(1);
 		expect(finalOperations[0].type).toBe("edit");
 		expect(finalOperations[0].messageId).toBe(progressPost?.messageId);
+		expect(finalOperations[0].message).toEqual({ markdown: finalText });
 		expect(
 			messageOperations.filter((operation) => operation.type === "delete"),
 		).toHaveLength(0);
@@ -1438,8 +1454,9 @@ describe("handleConnectorUserTurn", () => {
 			true,
 			true,
 		);
-		const runtime = createRuntimeClient("Final Slack answer");
-		emitProgressThenReply(runtime, "Final Slack answer");
+		const finalText = "**Final**\n\n## Story status";
+		const runtime = createRuntimeClient(finalText);
+		emitProgressThenReply(runtime, finalText);
 
 		await handleConnectorUserTurn({
 			thread: thread as never,
@@ -1471,10 +1488,11 @@ describe("handleConnectorUserTurn", () => {
 		const finalPosts = messageOperations.filter(
 			(operation) =>
 				operation.type === "post" &&
-				messageText(operation.message).includes("Final Slack answer"),
+				messageText(operation.message).includes(finalText),
 		);
 		expect(progressPost).toBeDefined();
 		expect(finalPosts).toHaveLength(1);
+		expect(finalPosts[0].message).toEqual({ markdown: finalText });
 		expect(
 			messageOperations.some(
 				(operation) =>

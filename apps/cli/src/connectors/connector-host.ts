@@ -1236,11 +1236,7 @@ async function runConnectorRuntimeTurn<
 		}
 		if (toolStatusMessage) {
 			try {
-				toolStatusMessage = await editConnectorText(
-					toolStatusMessage,
-					input.transport,
-					text,
-				);
+				toolStatusMessage = await toolStatusMessage.edit({ markdown: text });
 				toolStatusMessageFinalized = true;
 				return;
 			} catch (error) {
@@ -1260,7 +1256,7 @@ async function runConnectorRuntimeTurn<
 			await input.postFinalReply({ thread: input.thread, text });
 			return;
 		}
-		await postConnectorText(input.thread, input.transport, text);
+		await input.thread.post({ markdown: text });
 	};
 	const postFinalReply =
 		input.transport === "slack"
