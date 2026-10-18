@@ -1209,9 +1209,11 @@ export class SessionRuntime {
 			return undefined;
 		}
 
+		const prepareApiMessages = (messages: MessageWithMetadata[]) =>
+			this.prepareProviderMessagesForApi(messages);
 		return async (context) => {
 			const messages = agentMessagesToMessagesWithMetadata(context.messages);
-			const apiMessages = await this.prepareProviderMessagesForApi(messages);
+			const apiMessages = await prepareApiMessages(messages);
 			const result = await prepareTurn({
 				agentId: context.agentId,
 				conversationId:
@@ -1220,6 +1222,7 @@ export class SessionRuntime {
 				iteration: context.iteration,
 				messages,
 				apiMessages,
+				prepareApiMessages,
 				abortSignal: context.signal ?? new AbortController().signal,
 				systemPrompt: context.systemPrompt ?? "",
 				tools,
