@@ -62,6 +62,7 @@ import {
 	usesClineAccount,
 } from "./organizations";
 import { requestAcpToolApproval } from "./permissions";
+import { createProviderConfigOption } from "./provider-config";
 import { replaySessionHistory } from "./session-load";
 import {
 	describeAgentError,
@@ -869,15 +870,7 @@ async function buildProviderConfigOption(
 			};
 		}),
 	);
-	return {
-		type: "select",
-		id: "provider",
-		name: "Provider",
-		description: "The authentication provider to use",
-		category: "model",
-		currentValue: currentProviderId,
-		options,
-	};
+	return createProviderConfigOption(currentProviderId, options);
 }
 
 function buildModelConfigOption(
