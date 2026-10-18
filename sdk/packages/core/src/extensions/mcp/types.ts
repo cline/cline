@@ -4,6 +4,7 @@ export interface McpToolDescriptor {
 	name: string;
 	description?: string;
 	inputSchema: Record<string, unknown>;
+	_meta?: Record<string, unknown>;
 }
 
 export interface McpToolCallRequest {
@@ -14,6 +15,25 @@ export interface McpToolCallRequest {
 }
 
 export type McpToolCallResult = unknown;
+
+export interface McpResourceReadRequest {
+	serverName: string;
+	uri: string;
+	context?: AgentToolContext;
+}
+
+export interface McpResourceContents {
+	uri: string;
+	mimeType?: string;
+	text?: string;
+	blob?: string;
+	_meta?: Record<string, unknown>;
+}
+
+export interface McpResourceReadResult {
+	contents: McpResourceContents[];
+	_meta?: Record<string, unknown>;
+}
 
 export interface McpToolProvider {
 	listTools(serverName: string): Promise<readonly McpToolDescriptor[]>;
@@ -114,6 +134,10 @@ export interface McpServerClient {
 		arguments?: Record<string, unknown>;
 		context?: AgentToolContext;
 	}): Promise<McpToolCallResult>;
+	readResource?(request: {
+		uri: string;
+		context?: AgentToolContext;
+	}): Promise<McpResourceReadResult>;
 }
 
 export type McpServerClientFactory = (
@@ -148,5 +172,8 @@ export interface McpManager extends McpToolProvider {
 	listServers(): readonly McpServerSnapshot[];
 	refreshTools(serverName: string): Promise<readonly McpToolDescriptor[]>;
 	callTool(request: McpToolCallRequest): Promise<McpToolCallResult>;
+	readResource?(
+		request: McpResourceReadRequest,
+	): Promise<McpResourceReadResult>;
 	dispose(): Promise<void>;
 }
