@@ -69,7 +69,7 @@ function writeConversationDb(
 	const dbPath = join(conversationsDir, `${cascadeId}.db`);
 	const db = loadSqliteDb(dbPath);
 	db.exec(
-		`CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, step_payload BLOB)`,
+		`CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, step_payload BLOB, task_details BLOB, metadata BLOB)`,
 	);
 	const insert = db.prepare(
 		`INSERT INTO steps (idx, step_type, step_payload) VALUES (?, ?, ?)`,
