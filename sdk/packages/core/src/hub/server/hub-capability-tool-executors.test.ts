@@ -3,6 +3,7 @@ import { handleCapabilityProgress } from "./handlers/capability-handlers";
 import type { HubTransportContext } from "./handlers/context";
 import {
 	createHubClientContributionRuntime,
+	HOOK_CAPABILITY_TIMEOUT_MS,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 } from "./hub-client-contributions";
 
@@ -265,6 +266,8 @@ describe("hub client runtime capabilities", () => {
 				},
 			},
 			"client-1",
+			undefined,
+			HOOK_CAPABILITY_TIMEOUT_MS,
 		);
 	});
 
@@ -320,6 +323,8 @@ describe("hub client runtime capabilities", () => {
 			"hook.onEvent",
 			{ context: expect.objectContaining({ type: "message-added" }) },
 			"client-1",
+			undefined,
+			HOOK_CAPABILITY_TIMEOUT_MS,
 		);
 	});
 

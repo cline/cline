@@ -346,6 +346,7 @@ export class HubServerTransport implements NativeHubTransport {
 				payload,
 				targetClientId,
 				onProgress,
+				timeoutMs,
 			) =>
 				requestCapabilityHandler(
 					this.ctx,
@@ -354,6 +355,7 @@ export class HubServerTransport implements NativeHubTransport {
 					payload,
 					targetClientId,
 					onProgress,
+					timeoutMs,
 				),
 		};
 		this.tasks = new AgendaTaskManager({
