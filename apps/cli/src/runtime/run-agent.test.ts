@@ -159,6 +159,8 @@ describe("runAgent", () => {
 		outputMocks.writeErr.mockReset();
 		outputMocks.writeln.mockReset();
 		outputMocks.emitJsonLine.mockReset();
+		outputMocks.getActiveCliSession.mockReset();
+		outputMocks.getActiveCliSession.mockReturnValue(undefined);
 		outputMocks.setActiveCliSession.mockReset();
 		sessionEventsMocks.listener = undefined;
 		sessionEventsMocks.subscribeToAgentEvents.mockClear();
@@ -247,6 +249,85 @@ describe("runAgent", () => {
 		expect(startInput?.localRuntime).not.toHaveProperty(
 			"userInstructionService",
 		);
+	});
+
+	it("emits run_start with the planned session ID in JSON mode", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		outputMocks.getActiveCliSession.mockReturnValue({
+			manifest: { session_id: "stale-session" },
+		} as never);
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "completed",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "act",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "json",
+				providerId: "openrouter",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		const runStartCalls = outputMocks.emitJsonLine.mock.calls.filter(
+			([, payload]) =>
+				(payload as { type?: string } | undefined)?.type === "run_start",
+		);
+		const runStart = runStartCalls[0]?.[1] as
+			| { sessionId?: string }
+			| undefined;
+		const startInput = sessionManagerMocks.start.mock.calls[0]?.[0] as
+			| { config?: { sessionId?: string } }
+			| undefined;
+
+		expect(runStartCalls).toHaveLength(1);
+		expect(runStart?.sessionId).toBe(startInput?.config?.sessionId);
+		expect(runStart?.sessionId).toBeDefined();
+		expect(runStart?.sessionId).not.toBe("stale-session");
 	});
 
 	it("registers CLI capability factory through the CLI core facade", async () => {

@@ -28,7 +28,6 @@ import {
 	c,
 	emitJsonLine,
 	formatUsd,
-	getActiveCliSession,
 	setActiveCliSession,
 	writeErr,
 	writeln,
@@ -46,7 +45,7 @@ import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
 import { buildUserInputMessage } from "./prompt";
 import { subscribeToAgentEvents } from "./session-events";
 
-function printModelProviderInfo(config: Config): void {
+function printModelProviderInfo(config: Config, sessionId: string): void {
 	const catalog = config.knownModels ? "live" : "bundled";
 	const thinking = config.thinking ? "on" : "off";
 	const { mode, providerId, modelId } = config;
@@ -58,7 +57,7 @@ function printModelProviderInfo(config: Config): void {
 			catalog,
 			thinking,
 			mode,
-			sessionId: getActiveCliSession()?.manifest.session_id,
+			sessionId,
 		});
 		return;
 	}
@@ -272,8 +271,8 @@ export async function runAgent(
 
 	// --- Main execution ---
 	try {
-		if (config.verbose) {
-			printModelProviderInfo(config);
+		if (config.verbose || config.outputMode === "json") {
+			printModelProviderInfo(config, plannedSessionId);
 		}
 		const {
 			prompt: userInput,
