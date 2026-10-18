@@ -1,4 +1,5 @@
 import { type AgentTool, createTool } from "@cline/shared";
+import { isMcpToolVisibleToModel } from "./apps";
 import { defaultMcpToolNameTransform } from "./name-transform";
 import type { CreateMcpToolsOptions, McpToolDescriptor } from "./types";
 
@@ -19,7 +20,11 @@ export async function createMcpTools(
 	const descriptors = await options.provider.listTools(options.serverName);
 	const nameTransform = options.nameTransform ?? defaultMcpToolNameTransform;
 
-	return descriptors.map((descriptor) => {
+	const visibleDescriptors = options.mcpApps
+		? descriptors.filter(isMcpToolVisibleToModel)
+		: descriptors;
+
+	return visibleDescriptors.map((descriptor) => {
 		const agentToolName = nameTransform({
 			serverName: options.serverName,
 			toolName: descriptor.name,
