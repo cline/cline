@@ -71,6 +71,21 @@ function buildModelsNameMap(
 	return nameMap;
 }
 
+/**
+ * Catalog that recommended-model entries borrow capabilities from. Cline's
+ * backend also serves models through Vercel AI Gateway that OpenRouter doesn't
+ * list (e.g. Vercel-only free promotions), so Vercel's catalog backfills them;
+ * OpenRouter's entry wins whenever both list a model.
+ */
+export function buildClineRecommendedCapabilityModels(
+	providerModels: Record<string, Record<string, ModelInfo>>,
+): Record<string, ModelInfo> {
+	return {
+		...providerModels["vercel-ai-gateway"],
+		...providerModels.openrouter,
+	};
+}
+
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
 	openRouterModels: Record<string, ModelInfo>,
