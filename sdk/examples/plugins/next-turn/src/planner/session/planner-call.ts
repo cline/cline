@@ -111,7 +111,6 @@ async function requestModelSet(
 			excluded: state.excluded,
 		});
 		const slot = core.options.ledger?.reserve(core.options.sessionId);
-		const startedAt = Date.now();
 		const attempt = await generatePool(
 			complete,
 			input,
@@ -120,19 +119,18 @@ async function requestModelSet(
 			undefined,
 			core.generationSignal,
 		);
-		const chat = state.turn.chat ?? core.lastChat;
 		if ("reason" in attempt && attempt.reason === "no_provider")
 			slot?.release();
 		else
 			slot?.record({
 				path: "summary",
 				outcome: "reason" in attempt ? attempt.reason : "ok",
-				totalMs: Date.now() - startedAt,
+				totalMs: attempt.totalMs,
 				firstTokenMs: attempt.firstTokenMs,
 				...attempt.usage,
 				costUsd: attempt.costUsd,
-				providerId: attempt.providerId ?? chat?.providerId,
-				modelId: attempt.modelId ?? chat?.modelId,
+				providerId: attempt.providerId,
+				modelId: attempt.modelId,
 			});
 		if (!core.isCurrent(gen, state)) return;
 		if ("reason" in attempt) {

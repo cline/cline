@@ -264,7 +264,7 @@ describe("Next under overlapping actions", () => {
 				complete: async () => {
 					asked += 1;
 					if (asked > 1) return new Promise(() => {});
-					return { text: MODEL_ANSWER, costUsd: 0.001 };
+					return { text: MODEL_ANSWER };
 				},
 			});
 			await first.session.afterRun(editRun().result);

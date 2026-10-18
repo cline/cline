@@ -31,33 +31,97 @@ import { parsePlannerOutput } from "./output";
  * chat refreshes it. The key never leaves this module.
  */
 
-/** Token counts the provider reported for one call, summed over its usage chunks. */
+/** Token counts the provider reported for one call, summed over the usage chunks of every attempt. */
 export type CallUsage = {
 	inputTokens: number;
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	/**
+	 * Thinking tokens, only when the provider counts them apart; `outputTokens`
+	 * then leaves them out, so the billed output is the two summed. A provider
+	 * that does not count them apart keeps them in `outputTokens`.
+	 */
+	reasoningTokens?: number;
 };
 
-type Completion = {
-	text: string;
-	costUsd?: number;
-	providerId?: string;
-	modelId?: string;
-	usage?: CallUsage;
-	/** From sending the request to its first text or reasoning chunk. */
+/** What one planner call had measured when the planner stopped waiting for it. */
+type CallReading = ProviderChoice & {
+	/** From asking to the answer, failure, deadline or abort, a low-reasoning retry included. */
+	totalMs: number;
+	/**
+	 * From the first request to the provider to the first text or reasoning
+	 * chunk of either attempt, so loading Cline and resolving the key stay out.
+	 */
 	firstTokenMs?: number;
+	usage?: CallUsage;
+	costUsd?: number;
 };
+
+/**
+ * Measures one planner call as its chunks arrive. The caller holds it, so what
+ * the provider reported survives a failed stream, a retry, the deadline and a
+ * stale abort; whatever an abandoned call reports after the reading is not
+ * counted.
+ */
+export class CallMeter {
+	private readonly startedAt: number;
+	private firstRequestAt: number | undefined;
+	private firstTokenAt: number | undefined;
+	private usage: CallUsage | undefined;
+	private costUsd: number | undefined;
+	private provider: ProviderChoice = {};
+
+	constructor(private readonly now: () => number = Date.now) {
+		this.startedAt = now();
+	}
+
+	asking(provider: ProviderChoice): void {
+		this.provider = provider;
+	}
+
+	sending(): void {
+		this.firstRequestAt ??= this.now();
+	}
+
+	note(chunk: ApiStreamChunk): void {
+		if (
+			this.firstTokenAt === undefined &&
+			(chunk.type === "text" || chunk.type === "reasoning")
+		)
+			this.firstTokenAt = this.now();
+		if (chunk.type !== "usage") return;
+		this.usage = addUsage(this.usage, chunk);
+		if (chunk.totalCost !== undefined)
+			this.costUsd = (this.costUsd ?? 0) + chunk.totalCost;
+	}
+
+	read(): CallReading {
+		return {
+			...this.provider,
+			totalMs: this.now() - this.startedAt,
+			firstTokenMs:
+				this.firstTokenAt === undefined || this.firstRequestAt === undefined
+					? undefined
+					: this.firstTokenAt - this.firstRequestAt,
+			usage: this.usage,
+			costUsd: this.costUsd,
+		};
+	}
+}
+
+type Completion = { text: string };
 
 /**
  * One tool-less call; null when no provider can be resolved. `settings` are
  * the ones the input's sources were allowed under, so the call goes where they
- * allowed it to.
+ * allowed it to. What the call measures goes on `meter`, not in its answer.
  */
 export type Complete = (
 	input: PlannerInput,
 	signal: AbortSignal,
 	settings: Settings,
+	meter: CallMeter,
 ) => Promise<Completion | null>;
 
 /** Pools by turn position, oldest dropped first: a pool is only worth the turn it was written for. */
@@ -85,12 +149,14 @@ export type PoolFailure =
 	| "unparseable"
 	| "error";
 
-type PoolAttempt = Omit<Completion, "text"> &
-	({ pool: Suggestion[] } | { reason: PoolFailure; error?: string });
+type PoolOutcome =
+	| { pool: Suggestion[] }
+	| { reason: PoolFailure; error?: string };
 
 /**
  * Races the call against the deadline; a call that loses is aborted and its
  * late failure ignored. `stale` aborts it too, once nobody will see its answer.
+ * Whatever the outcome, it carries what the call had measured by then.
  */
 export async function generatePool(
 	complete: Complete,
@@ -99,23 +165,36 @@ export async function generatePool(
 	settings: Settings,
 	timeoutMs: number = PLANNER_TIMEOUT_MS,
 	stale?: AbortSignal,
-): Promise<PoolAttempt> {
+): Promise<PoolOutcome & CallReading> {
+	const meter = new CallMeter();
+	const outcome = await poolOutcome(
+		(deadline) =>
+			complete(
+				input,
+				stale ? AbortSignal.any([deadline, stale]) : deadline,
+				settings,
+				meter,
+			),
+		kinds,
+		timeoutMs,
+		stale,
+	);
+	return { ...outcome, ...meter.read() };
+}
+
+async function poolOutcome(
+	ask: (deadline: AbortSignal) => Promise<Completion | null>,
+	kinds: readonly SuggestionKind[],
+	timeoutMs: number,
+	stale: AbortSignal | undefined,
+): Promise<PoolOutcome> {
 	try {
-		const answer = await withDeadline(
-			(deadline) =>
-				complete(
-					input,
-					stale ? AbortSignal.any([deadline, stale]) : deadline,
-					settings,
-				),
-			timeoutMs,
-		);
+		const answer = await withDeadline(ask, timeoutMs);
 		if (stale?.aborted) return { reason: "aborted" };
 		if (answer === TIMED_OUT) return { reason: "timeout" };
 		if (answer === null) return { reason: "no_provider" };
-		const { text, ...meta } = answer;
-		const pool = parsePlannerOutput(text, kinds);
-		return pool ? { pool, ...meta } : { reason: "unparseable", ...meta };
+		const pool = parsePlannerOutput(answer.text, kinds);
+		return pool ? { pool } : { reason: "unparseable" };
 	} catch (error) {
 		if (stale?.aborted) return { reason: "aborted" };
 		return { reason: "error", error: errorMessage(error) };
@@ -204,6 +283,10 @@ function addUsage(
 	total: CallUsage | undefined,
 	chunk: Extract<ApiStreamChunk, { type: "usage" }>,
 ): CallUsage {
+	const reasoningTokens =
+		chunk.thoughtsTokenCount === undefined
+			? total?.reasoningTokens
+			: (total?.reasoningTokens ?? 0) + chunk.thoughtsTokenCount;
 	return {
 		inputTokens: (total?.inputTokens ?? 0) + chunk.inputTokens,
 		outputTokens: (total?.outputTokens ?? 0) + chunk.outputTokens,
@@ -211,39 +294,29 @@ function addUsage(
 			(total?.cacheReadTokens ?? 0) + (chunk.cacheReadTokens ?? 0),
 		cacheWriteTokens:
 			(total?.cacheWriteTokens ?? 0) + (chunk.cacheWriteTokens ?? 0),
+		...(reasoningTokens === undefined ? {} : { reasoningTokens }),
 	};
 }
 
-/** Streams one answer, summing its text and the usage and cost the provider reports, and timing its first token. */
+/** Streams one answer's text, noting the request and each chunk on the call's meter as they happen. */
 export async function streamCompletion(
 	handler: ApiHandler,
 	input: PlannerInput,
-	now: () => number = Date.now,
-): Promise<Completion> {
-	const startedAt = now();
+	meter: CallMeter,
+): Promise<string> {
 	let text = "";
-	let costUsd: number | undefined;
-	let usage: CallUsage | undefined;
-	let firstTokenMs: number | undefined;
+	meter.sending();
 	const stream: AsyncIterable<ApiStreamChunk> = handler.createMessage(
 		input.system,
 		[{ role: "user", content: input.user }],
 	);
 	for await (const chunk of stream) {
-		if (
-			firstTokenMs === undefined &&
-			(chunk.type === "text" || chunk.type === "reasoning")
-		)
-			firstTokenMs = now() - startedAt;
+		meter.note(chunk);
 		if (chunk.type === "text") text += chunk.text;
-		else if (chunk.type === "usage") {
-			usage = addUsage(usage, chunk);
-			if (chunk.totalCost !== undefined)
-				costUsd = (costUsd ?? 0) + chunk.totalCost;
-		} else if (chunk.type === "done" && !chunk.success)
+		else if (chunk.type === "done" && !chunk.success)
 			throw new Error(chunk.error ?? "the model stream failed");
 	}
-	return { text, costUsd, usage, firstTokenMs };
+	return text;
 }
 
 /** The first call's bounds: reasoning off, so the answer fits the planner's deadline. */
@@ -292,9 +365,10 @@ export function clineCompleter({
 				resolve: ReturnType<typeof providerResolver>;
 		  }>
 		| undefined;
-	return async (input, signal, settings) => {
+	return async (input, signal, settings, meter) => {
 		const picked = choice(settings);
 		if (!picked.providerId) return null;
+		meter.asking(picked);
 		ready ??= load()
 			.then(({ core, llms }) => ({
 				llms,
@@ -310,8 +384,8 @@ export function clineCompleter({
 			requestContext?.(),
 		);
 		if (!config) return null;
+		meter.asking({ providerId: config.providerId, modelId: config.modelId });
 		const modelKey = `${config.providerId}:${config.modelId ?? ""}`;
-		const meta = { providerId: config.providerId, modelId: config.modelId };
 		const call = async (
 			bounds: typeof REASONING_OFF | typeof LOW_REASONING,
 		): Promise<Completion> => {
@@ -322,7 +396,7 @@ export function clineCompleter({
 				abortSignal: signal,
 			});
 			handler.setAbortSignal?.(signal);
-			return { ...(await streamCompletion(handler, input)), ...meta };
+			return { text: await streamCompletion(handler, input, meter) };
 		};
 		if (reasoningRequired.has(modelKey)) return call(LOW_REASONING);
 		try {

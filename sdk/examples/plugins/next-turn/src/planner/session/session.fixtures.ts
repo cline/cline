@@ -43,9 +43,16 @@ export function sessionHarness(tempDir: (label?: string) => string) {
 		const dir = tempDir();
 		const labelsPath = join(dir, "labels.jsonl");
 		const calls: string[] = [];
-		const complete: Complete = async (input) => {
+		const complete: Complete = async (input, _signal, _settings, meter) => {
 			calls.push(input.user);
-			return { text: MODEL_ANSWER, costUsd: 0.001 };
+			meter.note({
+				type: "usage",
+				inputTokens: 0,
+				outputTokens: 0,
+				totalCost: 0.001,
+				id: "r",
+			});
+			return { text: MODEL_ANSWER };
 		};
 		const sets: (OfferedSet | undefined)[] = [];
 		const backlog: Backlog = {

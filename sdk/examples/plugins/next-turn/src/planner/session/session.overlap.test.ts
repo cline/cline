@@ -45,7 +45,7 @@ describe("Next under overlapping actions", () => {
 					asked += 1;
 					dispatched();
 					await answered;
-					return { text: MODEL_ANSWER, costUsd: 0.001 };
+					return { text: MODEL_ANSWER };
 				},
 			},
 			settings,
@@ -179,7 +179,7 @@ describe("Next under overlapping actions", () => {
 		const complete: Complete = async () => {
 			asked += 1;
 			await answered;
-			return { text: MODEL_ANSWER, costUsd: 0.001 };
+			return { text: MODEL_ANSWER };
 		};
 		const { session, ledgerCalls } = harness({ complete });
 		await session.afterRun(editRun().result);
@@ -220,7 +220,7 @@ describe("Next under overlapping actions", () => {
 		});
 		const complete: Complete = async () => {
 			await answered;
-			return { text: MODEL_ANSWER, costUsd: 0.001 };
+			return { text: MODEL_ANSWER };
 		};
 		const { session, sets } = harness({ complete });
 		await session.afterRun(editRun().result);
@@ -422,29 +422,81 @@ describe("Next under overlapping actions", () => {
 			cacheWriteTokens: 0,
 		};
 		const { session, ledgerCalls } = harness({
-			complete: async () => ({
-				text: "not json",
-				costUsd: 0.002,
-				usage,
-				firstTokenMs: 900,
-				providerId: "cline",
-				modelId: "anthropic/claude-sonnet-5.5",
-			}),
+			complete: async (_input, _signal, _settings, meter) => {
+				meter.asking({
+					providerId: "cline",
+					modelId: "anthropic/claude-sonnet-5.5",
+				});
+				meter.sending();
+				meter.note({ type: "text", text: "not json", id: "r" });
+				meter.note({ type: "usage", ...usage, totalCost: 0.002, id: "r" });
+				return { text: "not json" };
+			},
 		});
 		await session.afterRun(editRun().result);
 		await session.settled();
 		const [call] = ledgerCalls();
+		expect(call?.firstTokenMs).toBeLessThanOrEqual(call?.totalMs ?? -1);
 		expect(call).toMatchObject({
 			sessionId: "sess_1",
 			path: "summary",
 			outcome: "unparseable",
-			firstTokenMs: 900,
+			firstTokenMs: expect.any(Number),
 			costUsd: 0.002,
 			providerId: "cline",
 			modelId: "anthropic/claude-sonnet-5.5",
 			...usage,
 		});
-		expect(call?.totalMs).toBeGreaterThanOrEqual(0);
+		expect(call).not.toHaveProperty("reasoningTokens");
+	});
+
+	test("a planner call that fails still goes to the ledger with what the provider had reported, under the model the planner asked", async () => {
+		const settings = defaultSettings();
+		settings.planner.model = {
+			kind: "model",
+			providerId: "openai",
+			modelId: "fast",
+		};
+		const { session, ledgerCalls } = harness(
+			{
+				complete: async (_input, _signal, _settings, meter) => {
+					meter.asking({ providerId: "openai", modelId: "fast" });
+					meter.sending();
+					meter.note({ type: "reasoning", reasoning: "Weighing it", id: "r" });
+					meter.note({
+						type: "usage",
+						inputTokens: 5_000,
+						outputTokens: 40,
+						cacheReadTokens: 4_000,
+						thoughtsTokenCount: 60,
+						totalCost: 0.01,
+						id: "r",
+					});
+					throw new Error("overloaded");
+				},
+			},
+			settings,
+		);
+		const ask = message("user", "Add a retry to the client");
+		const reply = message("assistant", "Added the retry.", {
+			modelInfo: { provider: "anthropic", id: "claude" },
+		});
+		await session.afterRun(runResult([ask, reply]));
+		await session.settled();
+		const [call] = ledgerCalls();
+		expect(call?.firstTokenMs).toBeLessThanOrEqual(call?.totalMs ?? -1);
+		expect(call).toMatchObject({
+			outcome: "error",
+			firstTokenMs: expect.any(Number),
+			inputTokens: 5_000,
+			outputTokens: 40,
+			cacheReadTokens: 4_000,
+			cacheWriteTokens: 0,
+			reasoningTokens: 60,
+			costUsd: 0.01,
+			providerId: "openai",
+			modelId: "fast",
+		});
 	});
 
 	test("when the planner fails, the set on screen keeps its tray state and reports the error, and a reroll waiting on it gets the rules' next page", async () => {

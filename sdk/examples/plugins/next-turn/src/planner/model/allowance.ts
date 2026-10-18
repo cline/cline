@@ -27,8 +27,12 @@ export type PlannerCall = {
 	path?: "summary";
 	/** A call that found no provider is released, not recorded. */
 	outcome?: "ok" | PoolFailure;
-	/** From sending the call to its answer or failure, a low-reasoning retry included. */
+	/** From asking to the answer, failure, deadline or abort, a low-reasoning retry included. */
 	totalMs?: number;
+	/**
+	 * From the first request to the provider to the first text or reasoning
+	 * chunk of either attempt, so loading Cline and resolving the key stay out.
+	 */
 	firstTokenMs?: number;
 } & Partial<CallUsage>;
 
