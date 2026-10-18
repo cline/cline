@@ -71,6 +71,7 @@ import {
 } from "./response-request-id";
 import {
 	applyPromptCacheToLastTextPart,
+	applyPromptCacheToLastToolResultPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {
@@ -394,9 +395,21 @@ function toAiSdkModelToolSet(
 	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+/**
+ * Clients whose Claude requests are serialized by `@ai-sdk/anthropic`'s
+ * message converter (Vertex uses it through `@ai-sdk/google-vertex/anthropic`).
+ * That converter maps a tool-result part's `providerOptions.anthropic` marker
+ * to `cache_control` on the `tool_result` block. OpenAI-compatible clients send
+ * tool results as plain-string `tool` messages, so a part marker there would
+ * not land on a cacheable content block.
+ */
+const ANTHROPIC_MESSAGES_CLIENT_KINDS: ReadonlySet<ProviderModuleKind> =
+	new Set(["anthropic", "vertex"]);
+
 function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
+	providerKind: ProviderModuleKind,
 	systemPrompt?: string,
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
@@ -423,11 +436,29 @@ function buildAiSdkRequestMessages(
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
 	});
+	// Tool results are emitted as role "tool", and an agent loop adds no new
+	// user message between steps. Without advancing onto the newest tool
+	// result, the only breakpoint stays on the last human message for the whole
+	// loop and every assistant/tool turn after it is re-sent uncached.
+	const advanceThroughToolResults =
+		includeAnthropic && ANTHROPIC_MESSAGES_CLIENT_KINDS.has(providerKind);
 
 	for (let i = aiMessages.length - 1; i >= 0; i--) {
-		if (aiMessages[i]?.role === "user") {
+		const message = aiMessages[i];
+		if (
+			advanceThroughToolResults &&
+			message?.role === "tool" &&
+			applyPromptCacheToLastToolResultPart(
+				message,
+				request.providerId,
+				includeAnthropic,
+			)
+		) {
+			break;
+		}
+		if (message?.role === "user") {
 			applyPromptCacheToLastTextPart(
-				aiMessages[i],
+				message,
 				request.providerId,
 				includeAnthropic,
 			);
@@ -2406,6 +2437,7 @@ function createAiSdkProvider(
 				const messages = buildAiSdkRequestMessages(
 					request,
 					context,
+					kind,
 					messagesSystemPrompt,
 				);
 				const portableReasoning = reconcilePortableReasoning(

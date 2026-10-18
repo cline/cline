@@ -176,6 +176,43 @@ export function applyPromptCacheToLastTextPart(
 	}
 }
 
+/**
+ * Mark the last tool-result part of an AI SDK `tool` message as the prompt
+ * cache breakpoint. `@ai-sdk/anthropic` turns a part-level marker into
+ * `cache_control` on the matching `tool_result` block. Returns false when the
+ * message has no tool-result part, so the caller can keep searching.
+ */
+export function applyPromptCacheToLastToolResultPart(
+	message: Record<string, unknown> | undefined,
+	providerId: string,
+	includeAnthropic: boolean,
+): boolean {
+	const content = message?.content;
+	if (!Array.isArray(content)) {
+		return false;
+	}
+
+	for (let i = content.length - 1; i >= 0; i--) {
+		const part = content[i];
+		if (
+			part &&
+			typeof part === "object" &&
+			(part as { type?: unknown }).type === "tool-result"
+		) {
+			const existing = (part as { providerOptions?: unknown }).providerOptions;
+			content[i] = {
+				...(part as Record<string, unknown>),
+				providerOptions: {
+					...(existing && typeof existing === "object" ? existing : {}),
+					...createPromptCacheProviderOptions(providerId, includeAnthropic),
+				},
+			};
+			return true;
+		}
+	}
+	return false;
+}
+
 export function shouldApplyPromptCache(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
