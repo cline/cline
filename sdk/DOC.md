@@ -378,3 +378,35 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## MCP Apps (experimental)
+
+MCP Apps support is off by default. A host turns it on in two places, and the
+two must be set together:
+
+- `createDefaultMcpServerClientFactory({ mcpApps: true })` advertises the
+  `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`) with the
+  `text/html;profile=mcp-app` MIME type during `initialize`, for stdio and URL
+  servers alike.
+- `createMcpTools({ mcpApps: true, ... })` leaves out tools whose
+  `_meta.ui.visibility` does not include `"model"`.
+
+Setting only the client flag lets servers send app-only tools that the model
+will then see, which the MCP Apps spec forbids. Setting only the tool flag hides
+app-only tools from servers that would not have sent them.
+
+Tool descriptors keep the server's `_meta`. `getMcpAppToolMeta` reads
+`_meta.ui`: `resourceUri` is kept only for `ui://` URIs, and `visibility`
+defaults to `["model", "app"]` when it is not an array. An explicit array is
+used as given after dropping unknown entries, so `[]` makes the tool visible to
+neither. `isMcpToolVisibleToModel` and `isMcpToolVisibleToApp` check those
+lists; a host must reject app-initiated tool calls when
+`isMcpToolVisibleToApp` is false.
+
+`McpManager.readResource({ serverName, uri, context })` sends `resources/read`
+and returns `{ contents, _meta? }`, validated against the MCP SDK schema;
+malformed replies throw. It is optional on `McpManager` and
+`McpServerClient`. `InMemoryMcpManager` reads without waiting for in-flight
+tool calls on an already connected server. A read that starts while the server
+is being disconnected or re-registered can fail with a disconnect error; retry
+it.

@@ -302,39 +302,4 @@ describe("InMemoryMcpManager", () => {
 		finishCall?.();
 		await call;
 	});
-
-	it("waits for an in-progress disconnect before reading resources", async () => {
-		let finishDisconnect: (() => void) | undefined;
-		const client = createClient({
-			disconnect: vi.fn(
-				() =>
-					new Promise<void>((resolve) => {
-						finishDisconnect = resolve;
-					}),
-			),
-			readResource: vi.fn(async () => ({ contents: [] })),
-		});
-		const manager = new InMemoryMcpManager({
-			clientFactory: vi.fn(async () => client),
-		});
-		await manager.registerServer({
-			name: "weather",
-			transport: { type: "streamableHttp", url: "https://mcp.example.test" },
-		});
-		await manager.connectServer("weather");
-
-		const disconnect = manager.disconnectServer("weather");
-		await vi.waitFor(() => expect(client.disconnect).toHaveBeenCalled());
-		const read = manager.readResource({
-			serverName: "weather",
-			uri: "ui://weather/view.html",
-		});
-		await Promise.resolve();
-		expect(client.readResource).not.toHaveBeenCalled();
-
-		finishDisconnect?.();
-		await disconnect;
-		await expect(read).resolves.toEqual({ contents: [] });
-		expect(client.connect).toHaveBeenCalledTimes(2);
-	});
 });

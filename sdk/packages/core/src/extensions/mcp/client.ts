@@ -8,6 +8,7 @@ import {
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { ReadResourceResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createMcpAppsClientCapabilities } from "./apps";
 import {
 	createMcpOAuthClientInformation,
@@ -415,13 +416,20 @@ class StdioMcpClient implements McpServerClient {
 		uri: string;
 		context?: AgentToolContext;
 	}): Promise<McpResourceReadResult> {
-		const result = (await this.request(
-			"resources/read",
-			{ uri: request.uri },
-			undefined,
-			request.context?.signal,
-		)) as Partial<McpResourceReadResult> | undefined;
-		return { ...result, contents: result?.contents ?? [] };
+		const result = ReadResourceResultSchema.safeParse(
+			await this.request(
+				"resources/read",
+				{ uri: request.uri },
+				undefined,
+				request.context?.signal,
+			),
+		);
+		if (!result.success) {
+			throw new Error(
+				`MCP server "${this.registration.name}" returned an invalid resources/read result: ${result.error.message}`,
+			);
+		}
+		return result.data;
 	}
 
 	private spawnProcess(protocolMode: StdioProtocolMode): void {

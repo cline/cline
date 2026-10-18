@@ -271,9 +271,12 @@ export class InMemoryMcpManager implements McpManager {
 			return;
 		}
 
-		state.status = "disconnected";
-		state.updatedAt = nowMs();
-		await state.client.disconnect();
+		try {
+			await state.client.disconnect();
+		} finally {
+			state.status = "disconnected";
+			state.updatedAt = nowMs();
+		}
 	}
 
 	private requireServer(serverName: string): ManagedServerState {

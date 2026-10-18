@@ -40,6 +40,10 @@ process.stdin.on("data", (chunk) => {
 			result = {
 				content: [{ type: "text", text: JSON.stringify(initializeCapabilities) }],
 			};
+		} else if (msg.params?.uri === "ui://broken/missing-contents") {
+			result = {};
+		} else if (msg.params?.uri === "ui://broken/object-contents") {
+			result = { contents: {} };
 		} else if (msg.method === "resources/read") {
 			result = {
 				contents: [
@@ -140,6 +144,25 @@ describe("stdio MCP client app support", () => {
 					},
 				],
 			});
+		} finally {
+			await client.disconnect();
+		}
+	});
+
+	it("rejects malformed resources/read results", async () => {
+		const client = await createDefaultMcpServerClientFactory()(
+			appsServerRegistration(),
+		);
+		try {
+			await client.connect();
+			for (const uri of [
+				"ui://broken/missing-contents",
+				"ui://broken/object-contents",
+			]) {
+				await expect(client.readResource?.({ uri })).rejects.toThrow(
+					'MCP server "apps-server" returned an invalid resources/read result',
+				);
+			}
 		} finally {
 			await client.disconnect();
 		}
