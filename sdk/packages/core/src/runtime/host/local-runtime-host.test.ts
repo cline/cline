@@ -360,6 +360,110 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("routes MCP Apps requests to the session runtime", async () => {
+		const mcpApps = {
+			resolveTool: vi.fn().mockResolvedValue({
+				serverName: "weather",
+				toolName: "show_weather",
+				resourceUri: "ui://weather/view.html",
+			}),
+			readResource: vi.fn().mockResolvedValue({ contents: [] }),
+			callTool: vi.fn().mockResolvedValue({ content: [] }),
+		};
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockReturnValueOnce({
+					tools: [],
+					mcpApps,
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockReturnValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-mcp-apps"),
+			getConversationId: vi.fn().mockReturnValue("conv-mcp-apps"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(
+				join(isolatedHomeDir, "sessions-mcp-apps"),
+			),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const config = {
+			providerId: "mock-provider",
+			modelId: "mock-model",
+			systemPrompt: "You are a test agent",
+			cwd: isolatedHomeDir,
+			enableTools: false,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+		};
+
+		try {
+			const withApps = await manager.startSession({
+				config: { ...config, sessionId: "with-apps", mcpApps: true },
+			});
+			const withoutApps = await manager.startSession({
+				config: { ...config, sessionId: "without-apps" },
+			});
+
+			expect(runtimeBuilder.build).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({
+					config: expect.objectContaining({ mcpApps: true }),
+				}),
+			);
+			await expect(
+				manager.resolveMcpAppTool(withApps.sessionId, "weather__show_weather"),
+			).resolves.toMatchObject({ resourceUri: "ui://weather/view.html" });
+			await manager.readMcpAppResource(withApps.sessionId, {
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			});
+			await manager.callMcpAppTool(withApps.sessionId, {
+				serverName: "weather",
+				toolName: "refresh_view",
+			});
+			expect(mcpApps.resolveTool).toHaveBeenCalledWith("weather__show_weather");
+			expect(mcpApps.readResource).toHaveBeenCalledWith({
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			});
+			expect(mcpApps.callTool).toHaveBeenCalledWith({
+				serverName: "weather",
+				toolName: "refresh_view",
+			});
+
+			await expect(
+				manager.resolveMcpAppTool(
+					withoutApps.sessionId,
+					"weather__show_weather",
+				),
+			).resolves.toBeUndefined();
+			await expect(
+				manager.callMcpAppTool(withoutApps.sessionId, {
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("MCP Apps is not enabled");
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("stores git under metadata and refreshes it after an active turn", async () => {
 		const workspaceRoot = join(isolatedHomeDir, "workspace");
 		mkdirSync(workspaceRoot, { recursive: true });

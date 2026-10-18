@@ -27,6 +27,13 @@ import {
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
+import type {
+	McpAppResourceReadRequest,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -1312,6 +1319,58 @@ export class HubRuntimeHost implements RuntimeHost {
 			{ sessionId, reason: messageFromUnknown(reason) },
 			sessionId,
 		);
+	}
+
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		const reply = await this.client.command(
+			"session.mcp_apps.resolve_tool",
+			{ sessionId, toolName },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.resolve_tool"),
+			);
+		}
+		return reply.payload?.binding as McpAppToolBinding | undefined;
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.read_resource",
+			{ sessionId, ...request },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.read_resource"),
+			);
+		}
+		return reply.payload?.result as McpResourceReadResult;
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.call_tool",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.call_tool"),
+			);
+		}
+		return reply.payload?.result;
 	}
 
 	async proceedWhileRunning(

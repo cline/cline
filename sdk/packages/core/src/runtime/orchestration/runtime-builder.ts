@@ -20,9 +20,11 @@ import {
 } from "../../extensions/config";
 import {
 	createDefaultMcpServerClientFactory,
+	createMcpAppsRuntime,
 	createMcpTools,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	type McpAppsRuntime,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 } from "../../extensions/mcp";
@@ -207,9 +209,11 @@ const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 async function loadConfiguredMcpTools(options: {
 	logger?: BasicLogger;
 	includeSettings: boolean;
+	mcpApps: boolean;
 	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 }): Promise<{
 	tools: AgentTool[];
+	mcpApps?: McpAppsRuntime;
 	shutdown?: () => Promise<void>;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
@@ -221,9 +225,11 @@ async function loadConfiguredMcpTools(options: {
 
 	const settingsClientFactory = createDefaultMcpServerClientFactory({
 		settingsPath,
+		mcpApps: options.mcpApps,
 	});
 	const agentPluginClientFactory = createDefaultMcpServerClientFactory({
 		restrictConfiguredHeadersToOrigin: true,
+		mcpApps: options.mcpApps,
 	});
 	const manager = new InMemoryMcpManager({
 		clientFactory: (registration) =>
@@ -289,9 +295,11 @@ async function loadConfiguredMcpTools(options: {
 		),
 	);
 	const tools: AgentTool[] = [];
+	const loadedServerNames: string[] = [];
 	for (const [i, result] of results.entries()) {
 		if (result.status === "fulfilled") {
 			tools.push(...result.value);
+			loadedServerNames.push(enabled[i].name);
 		} else {
 			const message =
 				result.reason instanceof Error
@@ -305,6 +313,14 @@ async function loadConfiguredMcpTools(options: {
 
 	return {
 		tools,
+		...(options.mcpApps
+			? {
+					mcpApps: createMcpAppsRuntime({
+						manager,
+						serverNames: loadedServerNames,
+					}),
+				}
+			: {}),
 		shutdown: async () => {
 			await manager.dispose();
 		},
@@ -359,6 +375,7 @@ function normalizeConfig(
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
 		| "disableMcpSettingsTools"
+		| "mcpApps"
 		| "yolo"
 		| "missionLogIntervalSteps"
 		| "missionLogIntervalMs"
@@ -376,6 +393,7 @@ function normalizeConfig(
 		enableAgentTeams:
 			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
 		disableMcpSettingsTools: config.disableMcpSettingsTools === true,
+		mcpApps: config.mcpApps === true,
 		yolo: config.yolo === true,
 		missionLogIntervalSteps:
 			typeof config.missionLogIntervalSteps === "number" &&
@@ -463,6 +481,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
+		let mcpApps: McpAppsRuntime | undefined;
 
 		for (const error of configuredAgents.errors) {
 			(logger ?? config.logger)?.log?.(
@@ -590,10 +609,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				const mcpRuntime = await loadConfiguredMcpTools({
 					logger: config.logger,
 					includeSettings: !normalized.disableMcpSettingsTools,
+					mcpApps: normalized.mcpApps,
 					agentPluginServers: agentPluginMcpServers,
 				});
 				tools.push(...mcpRuntime.tools);
 				mcpShutdown = mcpRuntime.shutdown;
+				mcpApps = mcpRuntime.mcpApps;
 			}
 		}
 
@@ -875,6 +896,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			extensions: runtimeExtensions,
 			completionPolicy,
+			mcpApps,
 			registerLeadAgent: (agent) => {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {

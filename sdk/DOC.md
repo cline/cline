@@ -472,6 +472,25 @@ tool calls on an already connected server. A read that starts while the server
 is being disconnected or re-registered can fail with a disconnect error; retry
 it.
 
+For sessions, set `mcpApps: true` in the session config (`CoreRuntimeFeatures`).
+The runtime builder then advertises the extension to every settings and Agent
+Plugin MCP server it connects, and the session gains an MCP Apps runtime that
+uses those same connections. Hosts reach it through `ClineCore`:
+
+- `resolveMcpAppTool(sessionId, toolName)` maps an agent tool name (as it
+  appears in tool events, for example `weather__show_weather`) to
+  `{ serverName, toolName, resourceUri }`. It returns `undefined` for tools with
+  no `ui://` resource and for sessions without MCP Apps.
+- `readMcpAppResource(sessionId, { serverName, uri })` reads a resource from one
+  of the session's MCP servers.
+- `callMcpAppTool(sessionId, { serverName, toolName, arguments })` calls a tool
+  on the app's behalf. It rejects tools whose visibility lacks `"app"`, tools
+  the server does not list, and servers outside the session.
+
+`readMcpAppResource` and `callMcpAppTool` throw when the session was started
+without `mcpApps`. Hub-backed hosts send these as the `session.mcp_apps.*`
+commands, so the hub daemon serves them from the session's own MCP manager.
+
 ## Run stall telemetry
 
 `@cline/core` measures stalls with a `RunHealthObserver`

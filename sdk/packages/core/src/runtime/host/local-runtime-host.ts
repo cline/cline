@@ -21,6 +21,14 @@ import {
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
+import type {
+	McpAppResourceReadRequest,
+	McpAppsRuntime,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import {
 	formatSessionPluginIssue,
 	isPluginCommand,
@@ -1348,6 +1356,37 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 			session.agent.abort(reason);
 		}
+	}
+
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		return this.getSessionOrThrow(sessionId).runtime.mcpApps?.resolveTool(
+			toolName,
+		);
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		return this.requireMcpApps(sessionId).readResource(request);
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		return this.requireMcpApps(sessionId).callTool(request);
+	}
+
+	private requireMcpApps(sessionId: string): McpAppsRuntime {
+		const mcpApps = this.getSessionOrThrow(sessionId).runtime.mcpApps;
+		if (!mcpApps) {
+			throw new Error(`MCP Apps is not enabled for session "${sessionId}".`);
+		}
+		return mcpApps;
 	}
 
 	async proceedWhileRunning(
