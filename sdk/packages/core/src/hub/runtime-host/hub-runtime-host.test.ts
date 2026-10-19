@@ -1932,6 +1932,7 @@ describe("HubRuntimeHost MCP Apps commands", () => {
 				"session.mcp_apps.resolve_tool",
 				{ sessionId: "sess-1", toolName: "weather__show_weather" },
 				"sess-1",
+				{ timeoutMs: null },
 			],
 			[
 				"session.mcp_apps.read_resource",
@@ -1941,6 +1942,7 @@ describe("HubRuntimeHost MCP Apps commands", () => {
 					uri: "ui://weather/view.html",
 				},
 				"sess-1",
+				{ timeoutMs: null },
 			],
 			[
 				"session.mcp_apps.call_tool",
