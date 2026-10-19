@@ -4,6 +4,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,6 +14,7 @@ import {
 	applyHandoffGit,
 	inspectHandoffGit,
 	previewHandoffGit,
+	verifyPublishedHandoffGit,
 } from "./cloud-handoff-git";
 
 const transport = vi.hoisted(() => ({
@@ -92,6 +94,13 @@ beforeEach(() => {
 afterEach(() => rmSync(temporary, { recursive: true, force: true }));
 
 describe("cloud handoff Git preparation", () => {
+	it("keeps a symlinked workspace relative to the repository", async () => {
+		mkdirSync(join(repo, "packages", "app"), { recursive: true });
+		const linked = join(temporary, "linked");
+		symlinkSync(repo, linked, "junction");
+		const plan = await inspectHandoffGit(join(linked, "packages", "app"));
+		expect(plan.workspaceRelativePath).toBe("packages/app");
+	});
 	it("inspects large remotes without exceeding Windows command-line limits", async () => {
 		const head = git("rev-parse", "HEAD");
 		execFileSync(
@@ -181,7 +190,7 @@ describe("cloud handoff Git preparation", () => {
 		["--assume-unchanged", false],
 		["--skip-worktree", true],
 		["--assume-unchanged", true],
-	] as const)("rejects %s (after preview: %s) without changing Git state", async (flag, afterPreview) => {
+	] as const)("never publishes hidden %s changes (after preview: %s)", async (flag, afterPreview) => {
 		const credentials = join(repo, "credentials.json");
 		writeFileSync(credentials, "synthetic baseline\n");
 		git("add", "credentials.json");
@@ -190,18 +199,29 @@ describe("cloud handoff Git preparation", () => {
 		writeFileSync(join(repo, "new.txt"), "visible change\n");
 		const plan = afterPreview ? await inspectHandoffGit(repo) : undefined;
 		git("update-index", flag, "credentials.json");
-		const localContent = afterPreview
-			? "synthetic baseline\n"
-			: "synthetic local-only value\n";
+		const localContent = "synthetic local-only value\n";
 		writeFileSync(credentials, localContent);
 		expect(git("status", "--porcelain")).toBe("?? new.txt");
 		const head = git("rev-parse", "HEAD");
 		const index = readFileSync(join(repo, ".git/index"));
 		const remoteRefs = git("ls-remote", "origin");
 
-		await expect(
-			plan ? applyHandoffGit(plan) : inspectHandoffGit(repo),
-		).rejects.toThrow("skip-worktree or assume-unchanged");
+		if (plan) {
+			await applyHandoffGit(plan);
+			expect(
+				git(
+					"--git-dir",
+					transport.remote,
+					"show",
+					`${plan.branch}:credentials.json`,
+				),
+			).toBe("synthetic baseline");
+		} else {
+			await expect(inspectHandoffGit(repo)).rejects.toThrow(
+				"skip-worktree or assume-unchanged",
+			);
+			expect(git("ls-remote", "origin")).toBe(remoteRefs);
+		}
 
 		expect(git("branch", "--show-current")).toBe("main");
 		expect(git("rev-parse", "HEAD")).toBe(head);
@@ -210,7 +230,6 @@ describe("cloud handoff Git preparation", () => {
 		expect(readFileSync(join(repo, "new.txt"), "utf8")).toBe(
 			"visible change\n",
 		);
-		expect(git("ls-remote", "origin")).toBe(remoteRefs);
 	});
 
 	it("previews all staged/unstaged/new files from a subdirectory without changing the index or branch, then publishes the exact checkpoint", async () => {
@@ -221,6 +240,7 @@ describe("cloud handoff Git preparation", () => {
 		mkdirSync(join(repo, "sub"));
 		const beforeIndex = git("write-tree");
 		const originalHead = git("rev-parse", "HEAD");
+		const originalStatus = git("status", "--porcelain");
 		const plan = await inspectHandoffGit(join(repo, "sub"));
 		expect(plan.files.map((file) => file.path).sort()).toEqual([
 			"new file.txt",
@@ -231,53 +251,80 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("write-tree")).toBe(beforeIndex);
 		expect(git("branch", "--show-current")).toBe("main");
 		expect(previewHandoffGit(plan)).not.toHaveProperty("pushUrl");
-		await applyHandoffGit(plan);
-		expect(git("status", "--porcelain")).toBe("");
+		const published = await applyHandoffGit(plan);
+		expect(git("status", "--porcelain")).toBe(originalStatus);
+		expect(git("write-tree")).toBe(beforeIndex);
+		expect(git("branch", "--show-current")).toBe("main");
 		expect(git("rev-parse", "main")).toBe(originalHead);
-		expect(git("rev-parse", "HEAD^{tree}")).toBe(plan.treeSha);
-		expect(git("rev-parse", "HEAD^")).toBe(originalHead);
+		expect(git("rev-parse", `${published}^{tree}`)).toBe(plan.treeSha);
+		expect(git("rev-parse", `${published}^`)).toBe(originalHead);
+		expect(
+			git("worktree", "list", "--porcelain").match(/^worktree /gm),
+		).toHaveLength(1);
+		await verifyPublishedHandoffGit(plan, published);
 		expect(git("config", `branch.${plan.branch}.merge`)).toBe(
 			`refs/heads/${plan.branch}`,
 		);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
 		).toBe("staged");
+		git(
+			"--git-dir",
+			transport.remote,
+			"update-ref",
+			`refs/heads/${plan.branch}`,
+			originalHead,
+		);
+		await expect(verifyPublishedHandoffGit(plan, published)).rejects.toThrow(
+			"published branch changed",
+		);
 	});
 
-	it("rejects distinct staged and working copies without overwriting either", async () => {
+	it("publishes the working copy while preserving distinct staged and unstaged edits", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "staged only\n");
 		git("add", "tracked.txt");
 		writeFileSync(join(repo, "tracked.txt"), "working only\n");
 		const index = git("write-tree");
-		const refs = git("ls-remote", "origin");
-		await expect(inspectHandoffGit(repo)).rejects.toThrow(
-			"staged and unstaged",
-		);
+		const plan = await inspectHandoffGit(repo);
+		await applyHandoffGit(plan);
 		expect(git("write-tree")).toBe(index);
 		expect(git("show", ":tracked.txt")).toBe("staged only");
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
 			"working only\n",
 		);
 		expect(git("branch", "--show-current")).toBe("main");
-		expect(git("ls-remote", "origin")).toBe(refs);
+		expect(
+			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
+		).toBe("working only");
 	});
 
-	it.each([
-		"content",
-		"index",
-		"head",
-		"remote",
-	])("rejects stale %s consent before changing branches", async (change) => {
+	it("publishes only the captured files while local commits and edits continue", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "approved");
 		const plan = await inspectHandoffGit(repo);
-		if (change === "content")
-			writeFileSync(join(repo, "tracked.txt"), "changed with identical status");
-		if (change === "index") git("add", ".");
-		if (change === "head")
-			git("commit", "--allow-empty", "-m", "another commit");
-		if (change === "remote")
-			transport.fetchUrl = transport.pushUrl =
-				"https://github.com/cline/another";
+		writeFileSync(join(repo, "tracked.txt"), "later committed work");
+		git("add", ".");
+		git("commit", "-m", "another commit");
+		const head = git("rev-parse", "HEAD");
+		writeFileSync(join(repo, "tracked.txt"), "later staged work");
+		git("add", ".");
+		const index = git("write-tree");
+		writeFileSync(join(repo, "tracked.txt"), "later unstaged work");
+		await applyHandoffGit(plan);
+		expect(
+			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
+		).toBe("approved");
+		expect(git("rev-parse", `${plan.branch}^`)).toBe(plan.headSha);
+		expect(git("rev-parse", "HEAD")).toBe(head);
+		expect(git("write-tree")).toBe(index);
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
+			"later unstaged work",
+		);
+		expect(git("branch", "--show-current")).toBe("main");
+	});
+
+	it("rejects a changed publication destination", async () => {
+		const plan = await inspectHandoffGit(repo);
+		transport.fetchUrl = transport.pushUrl = "https://github.com/cline/another";
 		await expect(applyHandoffGit(plan)).rejects.toThrow(
 			"changed after confirmation",
 		);
@@ -306,7 +353,8 @@ describe("cloud handoff Git preparation", () => {
 		await expect(applyHandoffGit(plan)).rejects.toMatchObject({
 			message: `Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying.`,
 		});
-		expect(git("branch", "--show-current")).toBe(plan.branch);
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(git("show", `${plan.branch}:tracked.txt`)).toBe("keep this");
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("keep this");
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
 	});
@@ -324,11 +372,31 @@ describe("cloud handoff Git preparation", () => {
 			{ mode: 0o755 },
 		);
 		const plan = await inspectHandoffGit(repo);
-		await expect(applyHandoffGit(plan)).rejects.toThrow("were not rolled back");
-		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
-		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
-			behavior === "reject" ? "approved\n" : "hook change\n",
+		await expect(applyHandoffGit(plan)).rejects.toThrow(
+			"local checkout was not changed",
 		);
+		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("approved\n");
+	});
+
+	it.each([
+		"pre-commit",
+		"pre-push",
+	])("runs generated %s hooks configured with a relative path", async (hook) => {
+		writeFileSync(join(repo, ".gitignore"), ".hooks/\n");
+		git("add", ".gitignore");
+		git("commit", "-m", "ignore generated hooks");
+		mkdirSync(join(repo, ".hooks"));
+		writeFileSync(join(repo, ".hooks", hook), "#!/bin/sh\nexit 1\n", {
+			mode: 0o755,
+		});
+		git("config", "core.hooksPath", ".hooks");
+		writeFileSync(join(repo, "tracked.txt"), "approved\n");
+		const plan = await inspectHandoffGit(repo);
+		await expect(applyHandoffGit(plan)).rejects.toThrow();
+		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
+		expect(git("branch", "--show-current")).toBe("main");
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("approved\n");
 	});
 
 	it.each([
@@ -381,9 +449,16 @@ describe("cloud handoff Git preparation", () => {
 		const plan = await inspectHandoffGit(repo);
 		expect(plan.files.map((file) => file.path)).toEqual([".gitignore"]);
 		await applyHandoffGit(plan);
-		expect(git("ls-tree", "-r", "--name-only", "HEAD")).not.toContain(
-			"private.txt",
-		);
+		expect(
+			git(
+				"--git-dir",
+				transport.remote,
+				"ls-tree",
+				"-r",
+				"--name-only",
+				plan.branch,
+			),
+		).not.toContain("private.txt");
 	});
 	it("refuses an untracked nested repository instead of publishing a gitlink without its files", async () => {
 		const nested = join(repo, "nested");

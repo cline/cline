@@ -90,6 +90,12 @@ export interface ActiveSession {
 	sessionId: string
 	/** The config used to start the active session. */
 	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
+	/**
+	 * The mode the session's tools were built for. It can differ from the
+	 * persisted mode setting while a start or rebuild is in flight, so mode
+	 * switches compare against this rather than the setting.
+	 */
+	mode?: Mode
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */

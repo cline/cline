@@ -3,9 +3,6 @@ import {
 	buildHandoffWarningToast,
 	isExpectedHandoffSourceActive,
 	parseHandoffCommand,
-	readHandoffReceipt,
-	readPendingHandoffRecovery,
-	shouldOpenHandoffInApp,
 	validateHandoffAttachments,
 } from "./cloud-handoff";
 
@@ -19,74 +16,14 @@ describe("cloud handoff helpers", () => {
 		expect(parseHandoffCommand("please /cloud")).toBeNull();
 	});
 
-	it("accepts images only when a cloud command will consume them", () => {
+	it("accepts invocation images with or without an explicit follow-up", () => {
 		const image = new File(["image"], "screen.png", { type: "image/png" });
 		const text = new File(["text"], "notes.txt", { type: "text/plain" });
-		expect(validateHandoffAttachments([image], "inspect this")).toBeNull();
-		expect(validateHandoffAttachments([image], "")).toContain("Add a command");
-		expect(validateHandoffAttachments([text], "inspect this")).toContain(
-			"notes.txt",
+		expect(validateHandoffAttachments([image])).toBeNull();
+		expect(validateHandoffAttachments([text])).toContain("notes.txt");
+		expect(validateHandoffAttachments(Array(6).fill(image))).toContain(
+			"up to 5",
 		);
-		expect(
-			validateHandoffAttachments(Array(6).fill(image), "inspect this"),
-		).toContain("up to 5");
-	});
-
-	it("reads completed handoff metadata into a receipt", () => {
-		expect(
-			readHandoffReceipt({
-				handoff: {
-					status: "complete",
-					toCloudSessionId: "cloud-1",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				},
-			}),
-		).toEqual({
-			targetSessionId: "cloud-1",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-		});
-		expect(readHandoffReceipt({ handoff: { status: "pending" } })).toBeNull();
-	});
-
-	it("reads pending handoff metadata into restart recovery", () => {
-		const cloudHandoffIntent = {
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "test-model",
-			},
-		};
-		expect(readPendingHandoffRecovery({ cloudHandoffIntent })).toEqual({});
-		expect(readPendingHandoffRecovery({})).toBeNull();
-		expect(
-			readPendingHandoffRecovery({
-				handoff: {
-					status: "pending",
-					toCloudSessionId: "cloud-pending",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
-				},
-			}),
-		).toEqual({
-			targetSessionId: "cloud-pending",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
-		});
-		expect(
-			readPendingHandoffRecovery({
-				handoff: {
-					status: "complete",
-					toCloudSessionId: "cloud-complete",
-					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-complete",
-				},
-				cloudHandoffIntent,
-			}),
-		).toBeNull();
-	});
-
-	it("only focuses an in-app target while its source is still active", () => {
-		expect(shouldOpenHandoffInApp("in_app", true)).toBe(true);
-		expect(shouldOpenHandoffInApp("in_app", false)).toBe(false);
-		expect(shouldOpenHandoffInApp("external", true)).toBe(false);
 	});
 
 	it("only restores a late handoff into the expected active chat thread", () => {
