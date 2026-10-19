@@ -1765,6 +1765,18 @@ export class Controller {
 		files?: string[]
 		restoreWorkspace?: boolean
 	}): Promise<void> {
+		// Reads the mode setting and replaces the session outside the rebuild
+		// lock; tracking it makes a concurrent mode toggle wait for the result.
+		await this.sessions.trackSessionStart(() => this.performEditMessageAndRegenerate(input))
+	}
+
+	private async performEditMessageAndRegenerate(input: {
+		messageTs: number
+		text: string
+		images?: string[]
+		files?: string[]
+		restoreWorkspace?: boolean
+	}): Promise<void> {
 		const editedText = input.text.trim()
 		if (!editedText && (input.images?.length ?? 0) === 0 && (input.files?.length ?? 0) === 0) {
 			throw new Error("Edited message cannot be empty")
@@ -1918,6 +1930,15 @@ export class Controller {
 	}
 
 	async restoreCheckpoint(input: { checkpointRunCount: number; restoreType: ClineCheckpointRestore }): Promise<void> {
+		// Reads the mode setting and swaps the session outside the rebuild lock;
+		// tracking it makes a concurrent mode toggle wait for the result.
+		await this.sessions.trackSessionStart(() => this.performRestoreCheckpoint(input))
+	}
+
+	private async performRestoreCheckpoint(input: {
+		checkpointRunCount: number
+		restoreType: ClineCheckpointRestore
+	}): Promise<void> {
 		const restoreMessages = input.restoreType === "task" || input.restoreType === "taskAndWorkspace"
 		const restoreWorkspace = input.restoreType === "workspace" || input.restoreType === "taskAndWorkspace"
 		const checkpointRunCount = Number(input.checkpointRunCount)

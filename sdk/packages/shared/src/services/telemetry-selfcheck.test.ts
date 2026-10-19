@@ -9,6 +9,7 @@ describe("buildTelemetrySelfcheckReport", () => {
 				otlpEndpoint: "https://otel.example.com:4318",
 				logsExporter: "otlp",
 				metricsExporter: "otlp",
+				tracesExporter: "otlp",
 			}),
 		).toEqual({
 			telemetry_selfcheck: true,
@@ -16,6 +17,7 @@ describe("buildTelemetrySelfcheckReport", () => {
 			otlp_endpoint_host: "otel.example.com:4318",
 			logs_exporter: "otlp",
 			metrics_exporter: "otlp",
+			traces_exporter: "otlp",
 		});
 		expect(
 			buildTelemetrySelfcheckReport({
@@ -55,6 +57,13 @@ describe("buildTelemetrySelfcheckReport", () => {
 					.otlp_endpoint_host,
 			).toBe("invalid-endpoint-url");
 		}
+	});
+
+	it("reports an empty traces exporter when none was inlined", () => {
+		expect(
+			buildTelemetrySelfcheckReport({ enabled: true, logsExporter: "otlp" })
+				.traces_exporter,
+		).toBe("");
 	});
 
 	it("only treats an explicit true as enabled", () => {
