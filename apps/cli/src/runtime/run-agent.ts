@@ -28,7 +28,6 @@ import {
 	c,
 	emitJsonLine,
 	formatUsd,
-	getActiveCliSession,
 	setActiveCliSession,
 	writeErr,
 	writeln,
@@ -46,22 +45,33 @@ import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
 import { buildUserInputMessage } from "./prompt";
 import { subscribeToAgentEvents } from "./session-events";
 
+/**
+ * Emits the JSON `run_start` lifecycle event for a one-shot run.
+ *
+ * `sessionId` must be the invocation-bound ID handed to
+ * `sessionManager.start()`, not global active-session state: the active
+ * session is only registered after `start()` resolves, so reading it here
+ * would yield `undefined` or a stale ID from a previous run in this process.
+ */
+function emitRunStart(config: Config, sessionId: string): void {
+	const catalog = config.knownModels ? "live" : "bundled";
+	const thinking = config.thinking ? "on" : "off";
+	const { mode, providerId, modelId } = config;
+	emitJsonLine("stdout", {
+		type: "run_start",
+		providerId,
+		modelId,
+		catalog,
+		thinking,
+		mode,
+		sessionId,
+	});
+}
+
 function printModelProviderInfo(config: Config): void {
 	const catalog = config.knownModels ? "live" : "bundled";
 	const thinking = config.thinking ? "on" : "off";
 	const { mode, providerId, modelId } = config;
-	if (config.outputMode === "json") {
-		emitJsonLine("stdout", {
-			type: "run_start",
-			providerId,
-			modelId,
-			catalog,
-			thinking,
-			mode,
-			sessionId: getActiveCliSession()?.manifest.session_id,
-		});
-		return;
-	}
 	writeln(
 		`${c.dim}[model] provider=${providerId} model=${modelId} catalog=${catalog} thinking=${thinking} mode=${mode}${c.reset}\n`,
 	);
@@ -272,7 +282,9 @@ export async function runAgent(
 
 	// --- Main execution ---
 	try {
-		if (config.verbose) {
+		if (config.outputMode === "json") {
+			emitRunStart(config, plannedSessionId);
+		} else if (config.verbose) {
 			printModelProviderInfo(config);
 		}
 		const {

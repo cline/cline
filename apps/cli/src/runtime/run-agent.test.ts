@@ -159,6 +159,8 @@ describe("runAgent", () => {
 		outputMocks.writeErr.mockReset();
 		outputMocks.writeln.mockReset();
 		outputMocks.emitJsonLine.mockReset();
+		outputMocks.getActiveCliSession.mockReset();
+		outputMocks.getActiveCliSession.mockReturnValue(undefined);
 		outputMocks.setActiveCliSession.mockReset();
 		sessionEventsMocks.listener = undefined;
 		sessionEventsMocks.subscribeToAgentEvents.mockClear();
@@ -1288,5 +1290,192 @@ describe("runAgent", () => {
 			}),
 			expect.any(Object),
 		);
+	});
+
+	describe("run_start", () => {
+		const buildStartedSession = (sessionId: string) => ({
+			sessionId,
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: sessionId,
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "completed",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt: new Date("2026-03-22T00:00:00.000Z"),
+				endedAt: new Date("2026-03-22T00:00:01.000Z"),
+				durationMs: 1000,
+			},
+		});
+
+		const buildConfig = (overrides: Record<string, unknown>) =>
+			({
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				mode: "yolo",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "json",
+				providerId: "openrouter",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+				...overrides,
+			}) as never;
+
+		const getRunStartEvents = () =>
+			outputMocks.emitJsonLine.mock.calls.filter(
+				([, payload]) =>
+					(payload as { type?: string } | undefined)?.type === "run_start",
+			);
+
+		const startWithPlannedSessionId = () =>
+			sessionManagerMocks.start.mockImplementation(
+				async (input: { config: { sessionId: string } }) =>
+					buildStartedSession(input.config.sessionId),
+			);
+
+		const getStartedSessionId = () =>
+			(
+				sessionManagerMocks.start.mock.calls[0]?.[0] as {
+					config: { sessionId?: string };
+				}
+			).config.sessionId;
+
+		it("emits run_start in JSON mode without verbose, bound to the started session id", async () => {
+			// Simulate a stale active session from an earlier run in this process;
+			// it must not leak into the new invocation's run_start event.
+			outputMocks.getActiveCliSession.mockReturnValue({
+				manifest: { session_id: "stale-session-from-previous-run" },
+			} as never);
+			startWithPlannedSessionId();
+
+			const { runAgent } = await import("./run-agent");
+			await expect(
+				runAgent("test prompt", buildConfig({ verbose: false })),
+			).resolves.toBeUndefined();
+
+			const runStartEvents = getRunStartEvents();
+			expect(runStartEvents).toHaveLength(1);
+			const [stream, payload] = runStartEvents[0] as [
+				string,
+				{ sessionId?: string },
+			];
+			expect(stream).toBe("stdout");
+
+			const startedSessionId = getStartedSessionId();
+			expect(startedSessionId).toEqual(expect.any(String));
+			expect(startedSessionId).not.toBe("");
+			expect(payload.sessionId).toBe(startedSessionId);
+			expect(payload.sessionId).not.toBe("stale-session-from-previous-run");
+			expect(payload).toMatchObject({
+				providerId: "openrouter",
+				modelId: "google/gemini-3-flash-preview",
+				mode: "yolo",
+			});
+
+			// run_start is emitted before the session is started and before
+			// run_result is written.
+			const runStartCallIndex = outputMocks.emitJsonLine.mock.calls.indexOf(
+				runStartEvents[0],
+			);
+			expect(
+				outputMocks.emitJsonLine.mock.invocationCallOrder[runStartCallIndex],
+			).toBeLessThan(sessionManagerMocks.start.mock.invocationCallOrder[0]);
+			expect(
+				outputMocks.emitJsonLine.mock.calls.findIndex(
+					([, p]) =>
+						(p as { type?: string } | undefined)?.type === "run_result",
+				),
+			).toBeGreaterThan(runStartCallIndex);
+		});
+		it("emits a session id even when no global active session exists", async () => {
+			outputMocks.getActiveCliSession.mockReturnValue(undefined);
+			startWithPlannedSessionId();
+
+			const { runAgent } = await import("./run-agent");
+			await runAgent("test prompt", buildConfig({ verbose: false }));
+
+			const runStartEvents = getRunStartEvents();
+			expect(runStartEvents).toHaveLength(1);
+			const payload = runStartEvents[0]?.[1] as { sessionId?: string };
+			expect(payload.sessionId).toEqual(expect.any(String));
+			expect(payload.sessionId).toBe(getStartedSessionId());
+		});
+
+		it("emits exactly one run_start in JSON mode when verbose is also enabled", async () => {
+			startWithPlannedSessionId();
+
+			const { runAgent } = await import("./run-agent");
+			await runAgent("test prompt", buildConfig({ verbose: true }));
+
+			const runStartEvents = getRunStartEvents();
+			expect(runStartEvents).toHaveLength(1);
+			expect((runStartEvents[0]?.[1] as { sessionId?: string }).sessionId).toBe(
+				getStartedSessionId(),
+			);
+			expect(outputMocks.writeln).not.toHaveBeenCalledWith(
+				expect.stringContaining("[model]"),
+			);
+		});
+
+		it("keeps non-verbose text output free of run_start and model diagnostics", async () => {
+			sessionManagerMocks.start.mockResolvedValue(
+				buildStartedSession("session-1"),
+			);
+
+			const { runAgent } = await import("./run-agent");
+			await runAgent(
+				"test prompt",
+				buildConfig({ outputMode: "text", verbose: false }),
+			);
+
+			expect(getRunStartEvents()).toHaveLength(0);
+			expect(outputMocks.writeln).not.toHaveBeenCalledWith(
+				expect.stringContaining("[model]"),
+			);
+		});
+
+		it("prints human-readable model diagnostics only for verbose text runs", async () => {
+			sessionManagerMocks.start.mockResolvedValue(
+				buildStartedSession("session-1"),
+			);
+
+			const { runAgent } = await import("./run-agent");
+			await runAgent(
+				"test prompt",
+				buildConfig({ outputMode: "text", verbose: true }),
+			);
+
+			expect(getRunStartEvents()).toHaveLength(0);
+			expect(outputMocks.writeln).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"[model] provider=openrouter model=google/gemini-3-flash-preview",
+				),
+			);
+		});
 	});
 });
