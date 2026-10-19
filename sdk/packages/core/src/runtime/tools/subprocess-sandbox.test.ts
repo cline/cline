@@ -76,6 +76,25 @@ describe("SubprocessSandbox runtime resolution", () => {
 		).toBe("node");
 	});
 
+	it("retains system CA trust when a compiled executable becomes the helper runtime", () => {
+		const executable = "/opt/cline/cline";
+		const originalExecPath = process.execPath;
+		vi.stubGlobal("Bun", {});
+		try {
+			process.execPath = executable;
+			expect(
+				buildSubprocessSandboxCommand(["bootstrap.js"], {
+					execPath: executable,
+					env: {},
+					execArgv: [],
+				}),
+			).toEqual([executable, "--use-system-ca", "bootstrap.js"]);
+		} finally {
+			process.execPath = originalExecPath;
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it("allows an explicit helper runtime override", () => {
 		expect(
 			resolveSubprocessRuntimeExecutable({

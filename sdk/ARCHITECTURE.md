@@ -796,6 +796,9 @@ A host without a bootstrap fails closed with
 Compiled Bun executables can also run subprocess plugins themselves, using
 `BUN_BE_BUN=1` when no separate Node or Bun runtime is available. Resource
 packaging is independent of execution-mode policy.
+The subprocess launch explicitly retains system CA trust when using the compiled
+executable as Bun. After startup, the plugin bootstrap clears `BUN_BE_BUN` so
+plugin-launched Cline commands run their normal CLI entrypoint.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

@@ -1311,3 +1311,32 @@ describe("plugin-sandbox (worker only)", () => {
 		}
 	});
 });
+
+it("clears the subprocess Bun mode before importing plugin code", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "plugin-runtime-env-"));
+	const original = process.env.BUN_BE_BUN;
+	let sandbox: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
+	try {
+		const plugin = join(directory, "environment.js");
+		await writeFile(
+			plugin,
+			`
+if (process.env.BUN_BE_BUN) throw new Error('Bun runtime mode leaked into plugin code');
+export default {name:'environment',manifest:{capabilities:['commands']},setup(api){api.registerCommand({name:'env',handler:()=> 'ready'})}};
+`,
+		);
+		process.env.BUN_BE_BUN = "1";
+		sandbox = await loadSandboxedPlugins({
+			pluginPaths: [plugin],
+			transport: "subprocess",
+		});
+		expect(sandbox.failures).toEqual([]);
+		expect(sandbox.extensions).toHaveLength(1);
+		expect(process.env.BUN_BE_BUN).toBe("1");
+	} finally {
+		if (original === undefined) delete process.env.BUN_BE_BUN;
+		else process.env.BUN_BE_BUN = original;
+		await sandbox?.shutdown();
+		await rm(directory, { recursive: true, force: true });
+	}
+});

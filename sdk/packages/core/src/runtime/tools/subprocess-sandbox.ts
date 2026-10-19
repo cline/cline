@@ -162,7 +162,11 @@ export function buildSubprocessSandboxCommand(
 		execPath: options.execPath,
 		runtimeExecutable: options.runtimeExecutable,
 	});
-	return augmentNodeCommandForDebug([runtimeExecutable, ...args], {
+	// BUN_BE_BUN starts a plain runtime and does not retain compiled execArgv.
+	const runtimeArgs = isCompiledBunExecutable(runtimeExecutable)
+		? ["--use-system-ca", ...args]
+		: args;
+	return augmentNodeCommandForDebug([runtimeExecutable, ...runtimeArgs], {
 		env: options.env,
 		execArgv: options.execArgv,
 		debugRole: options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",

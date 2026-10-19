@@ -389,6 +389,7 @@ test.each([
 			pong: true,
 			execPath: realpathSync(cli),
 			isMainThread: mode === "sandbox",
+			bunRuntimeFlag: null,
 		});
 	} finally {
 		rmSync(root, { recursive: true, force: true });
