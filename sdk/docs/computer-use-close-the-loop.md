@@ -307,8 +307,22 @@ What already exists:
 - Messages already carry `GeneratedMedia` (`@cline/shared`, `llms/media.ts`), whose source is `base64`, `url`, or `artifact`. Hosts render inline `base64` today. `artifact` exists in the schema, but no host resolves it yet (`GeneratedMediaContent` shows a placeholder).
 - The VS Code message translator maps `media` content events to `ClineMessage.media`. The desktop transcript renders tool-result images.
 
-To build:
-1. When the run completes, the sandbox reads `/tmp/cu-shots/evidence.json`, uploads those frames to session-scoped object storage, and gets an `artifactId` per frame. The completion carries `{ type: "artifact", artifactId }` media plus a small inline WebP thumbnail (about 320px wide, a few KB) so the slideshow renders immediately.
+### Sandbox artifacts (backend dependency)
+
+The biggest missing piece is on the backend: sandboxes need a way to expose files they produce, like these PNG screenshots, so clients can fetch and display them. Today a session only streams its transcript and events, and files on the sandbox disk are unreachable from clients (and disappear when the sandbox expires).
+
+What the clients need from core-platform:
+- **Publish from the sandbox:** a way for the sandbox to upload or register a file (PNG/WebP/JPEG, later video) for its session and get back a stable `artifactId`.
+- **List and fetch from clients:** authenticated endpoints next to the existing `/api/v1/session/:id/...` routes. These list a session's artifacts and return bytes or a short-lived signed URL, using the same Cline auth and org scoping as the rest of the session API.
+- **Durability:** artifacts outlive the sandbox and follow session retention, so a finished or expired session still shows its proof.
+- **Limits:** caps on artifact size and on artifacts per session, and an org-level switch to disable screenshot capture.
+- **Notification:** clients learn about new artifacts from the session's existing event or transcript stream, without polling.
+
+The core-platform design lives in its own spec: [Sandbox artifacts spec (core-platform)](TODO-link). The client side below assumes that API.
+
+### Client work
+
+1. When the run completes, the sandbox reads `/tmp/cu-shots/evidence.json`, publishes those frames as artifacts, and gets an `artifactId` per frame. The completion carries `{ type: "artifact", artifactId }` media plus a small inline WebP thumbnail (about 320px wide, a few KB) so the slideshow renders immediately.
 2. Host resolvers: the desktop sidecar and the VS Code extension fetch through an authenticated `CloudSessionApi` call (signed URL or bytes) and hand the webview a `blob:` or `data:` URL. Webviews never bind remote URLs directly (pitfall 8).
 3. A verification contract on the completion: `verification: { frames: [{ media, caption, action, detail, verdict }] }`, built from `evidence.json`.
 4. PR: when the agent opens the PR, the control plane embeds the evidence frames under a "Verified in sandbox" heading.
