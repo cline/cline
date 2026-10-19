@@ -403,7 +403,9 @@ test.each([
 		);
 		expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({
 			pong: true,
-			execPath: realpathSync(cli),
+			// The native resolver expands Windows 8.3 short names (RUNNER~1), as
+			// the child's process.execPath does.
+			execPath: realpathSync.native(cli),
 			isMainThread: mode === "sandbox",
 			bunRuntimeFlag: null,
 		});
@@ -561,6 +563,16 @@ test("standalone CLI serves the dashboard and its assets without external files 
 			env: isolatedEnv,
 			timeout: 10000,
 		});
-		rmSync(root, { recursive: true, force: true });
+		// The stopped Hub can hold its cwd briefly on Windows (EBUSY).
+		try {
+			rmSync(root, {
+				recursive: true,
+				force: true,
+				maxRetries: 20,
+				retryDelay: 100,
+			});
+		} catch {
+			/* The runner discards its temp directory anyway. */
+		}
 	}
 }, 120000);
