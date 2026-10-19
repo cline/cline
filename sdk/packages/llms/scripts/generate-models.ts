@@ -5,7 +5,6 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ModelInfo } from "@cline/shared";
 import {
-	buildClineRecommendedCapabilityModels,
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "../src/catalog/catalog-cline-recommended";
@@ -139,7 +138,8 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		providerModels,
 		normalizeClineRecommendedProviderModels(
 			clineRecommendedPayloadResult,
-			buildClineRecommendedCapabilityModels(providerModels),
+			providerModels.openrouter || {},
+			{ vercelModels: providerModels["vercel-ai-gateway"] },
 		),
 	);
 

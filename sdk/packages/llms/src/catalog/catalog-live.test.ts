@@ -3,10 +3,7 @@ import {
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
 } from "./catalog.generated-access";
-import {
-	buildClineRecommendedCapabilityModels,
-	normalizeClineRecommendedProviderModels,
-} from "./catalog-cline-recommended";
+import { normalizeClineRecommendedProviderModels } from "./catalog-cline-recommended";
 import {
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
@@ -600,13 +597,24 @@ describe("models-dev-catalog", () => {
 		).toEqual({});
 	});
 
-	it("backfills Cline free model capabilities from Vercel when OpenRouter lacks the model", () => {
+	it("falls back to Vercel only for Cline recommended models OpenRouter doesn't list", () => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
+				clinePass: [
+					{ id: "cline-pass/vercel-only" },
+					{ id: "cline-pass/glm-5.2" },
+				],
 				free: [{ id: "cline-free/vercel-only" }, { id: "cline-free/glm-5.2" }],
 			},
-			buildClineRecommendedCapabilityModels({
-				"vercel-ai-gateway": {
+			{
+				"z-ai/glm-5.2": {
+					id: "z-ai/glm-5.2",
+					name: "GLM 5.2",
+					contextWindow: 200_000,
+				},
+			},
+			{
+				vercelModels: {
 					"acme/vercel-only": {
 						id: "acme/vercel-only",
 						name: "Acme Vercel Only",
@@ -614,30 +622,39 @@ describe("models-dev-catalog", () => {
 						maxTokens: 64_000,
 						capabilities: ["images", "tools", "reasoning"],
 					},
-					"zai/glm-5.2": {
-						id: "zai/glm-5.2",
+					// Same exact id as OpenRouter, then a second alias visited later.
+					"z-ai/glm-5.2": {
+						id: "z-ai/glm-5.2",
 						name: "GLM 5.2 (Vercel)",
 						contextWindow: 100_000,
 					},
-				},
-				openrouter: {
-					"z-ai/glm-5.2": {
-						id: "z-ai/glm-5.2",
-						name: "GLM 5.2",
-						contextWindow: 200_000,
+					"zai/glm-5.2": {
+						id: "zai/glm-5.2",
+						name: "GLM 5.2 (Vercel alias)",
+						contextWindow: 100_000,
 					},
 				},
-			}),
+			},
 		);
 
+		for (const id of ["cline-free/vercel-only", "cline-pass/vercel-only"]) {
+			expect(result["cline-pass"]?.[id]).toMatchObject({
+				contextWindow: 1_000_000,
+				maxTokens: 64_000,
+				capabilities: ["images", "tools", "reasoning"],
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			});
+		}
 		expect(result.cline?.["cline-free/vercel-only"]).toMatchObject({
 			name: "Acme Vercel Only (free)",
 			contextWindow: 1_000_000,
-			maxTokens: 64_000,
-			capabilities: ["images", "tools", "reasoning"],
-			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
-		// OpenRouter stays the primary source when both catalogs list the model
+		// Any OpenRouter match wins over every Vercel alias
+		for (const id of ["cline-free/glm-5.2", "cline-pass/glm-5.2"]) {
+			expect(result["cline-pass"]?.[id]).toMatchObject({
+				contextWindow: 200_000,
+			});
+		}
 		expect(result.cline?.["cline-free/glm-5.2"]).toMatchObject({
 			name: "GLM 5.2 (free)",
 			contextWindow: 200_000,

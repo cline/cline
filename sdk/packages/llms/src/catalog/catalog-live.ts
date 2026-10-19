@@ -9,7 +9,6 @@ import {
 	resolveGeneratedProviderIdForModelsDevKey,
 } from "../providers/provider-keys";
 import {
-	buildClineRecommendedCapabilityModels,
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
@@ -553,8 +552,8 @@ export async function fetchLiveProviderModels(
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
-				buildClineRecommendedCapabilityModels(providerModels),
-				options,
+				providerModels.openrouter ?? {},
+				{ ...options, vercelModels: providerModels["vercel-ai-gateway"] },
 			)
 		: {};
 
