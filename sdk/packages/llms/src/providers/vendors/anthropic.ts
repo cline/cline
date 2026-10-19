@@ -5,6 +5,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
+import { isDirectMiniMaxProvider } from "../../catalog/catalog-minimax";
 import { resolveApiKey } from "../http";
 import {
 	createMiniMaxThinkingFetch,
@@ -17,7 +18,7 @@ export async function createAnthropicProviderModule(
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	const apiKey = await resolveApiKey(config);
-	const isMiniMax = context.provider.id === "minimax";
+	const isMiniMax = isDirectMiniMaxProvider(context.provider.id);
 	const provider = createAnthropic({
 		apiKey,
 		baseURL: config.baseUrl,

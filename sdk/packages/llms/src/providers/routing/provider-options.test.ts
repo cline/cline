@@ -1960,10 +1960,10 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "direct MiniMax M2.5 without an advertised control -> no generic thinking",
+			name: "custom MiniMax model without an advertised control -> no generic thinking",
 			request: {
 				providerId: "minimax",
-				modelId: "MiniMax-M2.5",
+				modelId: "custom-model",
 				reasoning: { enabled: true },
 			},
 			context: {
@@ -1983,10 +1983,10 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "direct MiniMax M2.7 reasoning disabled -> no MiniMax M3 disabled exception",
+			name: "custom MiniMax model reasoning disabled -> no MiniMax M3 disabled exception",
 			request: {
 				providerId: "minimax",
-				modelId: "MiniMax-M2.7",
+				modelId: "custom-model",
 				reasoning: { enabled: false },
 			},
 			context: {

@@ -1133,7 +1133,6 @@ describe("sdk-gateway", () => {
 			"anthropic",
 			"cline",
 			"cline-pass",
-			"minimax",
 			"oca",
 			"openrouter",
 			"qwen",

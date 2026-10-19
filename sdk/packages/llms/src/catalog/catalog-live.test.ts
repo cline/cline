@@ -1065,7 +1065,7 @@ describe("models-dev-catalog", () => {
 		expect(poeDedicatedImages).toEqual([]);
 	});
 
-	it("includes video input for direct MiniMax M3 catalog entries", () => {
+	it("advertises only supported image input for direct MiniMax M3 catalog entries", () => {
 		for (const providerId of [
 			"minimax",
 			"minimax-cn",
@@ -1074,7 +1074,10 @@ describe("models-dev-catalog", () => {
 		]) {
 			expect(
 				getGeneratedModelsForProvider(providerId)["MiniMax-M3"]?.capabilities,
-			).toEqual(expect.arrayContaining(["images", "video"]));
+			).toEqual(expect.arrayContaining(["images"]));
+			expect(
+				getGeneratedModelsForProvider(providerId)["MiniMax-M3"]?.capabilities,
+			).not.toContain("video");
 		}
 	});
 

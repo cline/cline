@@ -13,6 +13,11 @@ import {
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
 import {
+	isDirectMiniMaxProvider,
+	MINIMAX_FLASH_MODEL_ID,
+	normalizeMiniMaxModels,
+} from "./catalog-minimax";
+import {
 	resolveCatalogModelOperation,
 	resolveCatalogModelOperationModes,
 } from "./model-operation";
@@ -420,8 +425,9 @@ export function normalizeModelsDevProviderModels(
 			models[modelId] = info;
 		}
 
-		if (Object.keys(models).length > 0) {
-			providerModels[targetProviderId] = sortModelsByReleaseDate(models);
+		const activeModels = normalizeMiniMaxModels(targetProviderId, models);
+		if (Object.keys(activeModels).length > 0) {
+			providerModels[targetProviderId] = sortModelsByReleaseDate(activeModels);
 		}
 	}
 
@@ -478,9 +484,10 @@ export function normalizeModelsDevProviderSpecs(
 	)) {
 		const baseUrl = normalizeBaseUrl(source.api);
 		const models = providerModels[targetProviderId];
-		const defaultModelId =
-			Object.values(models ?? {}).find(isChatModel)?.id ??
-			Object.keys(models ?? {})[0];
+		const defaultModelId = isDirectMiniMaxProvider(targetProviderId)
+			? MINIMAX_FLASH_MODEL_ID
+			: (Object.values(models ?? {}).find(isChatModel)?.id ??
+				Object.keys(models ?? {})[0]);
 		const spec: ModelsDevGeneratedProviderSpec = {
 			id: targetProviderId,
 			name: source.name || targetProviderId,

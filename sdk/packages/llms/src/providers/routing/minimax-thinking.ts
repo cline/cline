@@ -2,17 +2,19 @@ import type {
 	GatewayProviderMetadata,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { MINIMAX_FLASH_MODEL_ID } from "../../catalog/catalog-minimax";
 import { buildProviderAndAliasPatch, type ProviderOptionsPatch } from "./utils";
 
 export const MINIMAX_THINKING_ROUTING_METADATA: GatewayProviderMetadata = {
 	routing: {
-		promptCache: {
-			format: "anthropic-cache-control",
-			routes: [{ matcher: "anthropic-compatible" }],
-		},
 		reasoning: {
 			format: "minimax-thinking",
 			routes: [
+				{
+					matcher: "model-id",
+					modelId: MINIMAX_FLASH_MODEL_ID,
+					requiredCapability: "reasoning",
+				},
 				{
 					matcher: "model-id",
 					modelId: "MiniMax-M3",
@@ -24,6 +26,12 @@ export const MINIMAX_THINKING_ROUTING_METADATA: GatewayProviderMetadata = {
 };
 
 function buildMiniMaxThinkingOptions(request: GatewayStreamRequest) {
+	if (request.modelId === MINIMAX_FLASH_MODEL_ID) {
+		return {
+			thinking: { type: "adaptive" },
+			effort: request.reasoning?.effort ?? "max",
+		};
+	}
 	if (request.reasoning?.enabled === true) {
 		return { thinking: { type: "adaptive" } };
 	}
@@ -53,6 +61,7 @@ export function buildMiniMaxThinkingProviderOptionsPatch(
 	}
 	return {
 		openaiCompatible: thinking,
+		[request.providerId]: thinking,
 		...buildProviderAndAliasPatch({
 			providerId: request.providerId,
 			providerOptionsKey: providerOptionsKey,

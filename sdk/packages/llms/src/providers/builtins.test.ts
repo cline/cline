@@ -545,12 +545,16 @@ describe("built-in provider metadata", () => {
 				routing: {
 					reasoning: {
 						format: "minimax-thinking",
-						routes: [
+						routes: expect.arrayContaining([
 							expect.objectContaining({
 								matcher: "model-id",
 								modelId: "MiniMax-M3",
 							}),
-						],
+							expect.objectContaining({
+								matcher: "model-id",
+								modelId: "MiniMax-M3.1-Flash",
+							}),
+						]),
 					},
 				},
 			},
@@ -585,8 +589,8 @@ describe("regional API line base URLs", () => {
 				international: "https://api.z.ai/api/coding/paas/v4",
 			},
 			minimax: {
-				china: "https://api.minimaxi.com/anthropic",
-				international: "https://api.minimax.io/anthropic",
+				china: "https://api.minimaxi.com/anthropic/v1",
+				international: "https://api.minimax.io/anthropic/v1",
 			},
 		};
 

@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1792204603381,
+  version: 1792421086669,
   providers: {
   "302ai": {
     "gemini-4-argon": {
@@ -1896,27 +1896,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-19",
       "family": "gpt-nano"
     },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "glm-5-turbo": {
       "id": "glm-5-turbo",
       "name": "glm-5-turbo",
@@ -2264,27 +2243,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-12",
       "family": "glm"
     },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "kimi-k2.5": {
       "id": "kimi-k2.5",
       "name": "Kimi K2.5",
@@ -2311,27 +2269,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01",
       "family": "kimi-k2"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "glm-4.7": {
       "id": "glm-4.7",
@@ -2720,24 +2657,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-11-14",
       "family": "gpt-codex"
-    },
-    "MiniMax-M2": {
-      "id": "MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.33,
-        "output": 1.32,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-26"
     },
     "claude-haiku-4-5": {
       "id": "claude-haiku-4-5",
@@ -3349,25 +3268,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-06-17",
       "family": "gemini-pro"
-    },
-    "MiniMax-M1": {
-      "id": "MiniMax-M1",
-      "name": "MiniMax-M1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.132,
-        "output": 1.254,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-06-16",
-      "family": "minimax"
     },
     "claude-opus-4-1-20250805-thinking": {
       "id": "claude-opus-4-1-20250805-thinking",
@@ -4371,27 +4271,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-03-18",
       "family": "mimo"
-    },
-    "MiniMaxAI/MiniMax-M2.7": {
-      "id": "MiniMaxAI/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
@@ -10603,95 +10482,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-03-27",
       "family": "glm"
-    },
-    "coding-minimax-m2.7": {
-      "id": "coding-minimax-m2.7",
-      "name": "Coding MiniMax M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.2,
-        "output": 0.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "coding-minimax-m2.7-free": {
-      "id": "coding-minimax-m2.7-free",
-      "name": "Coding MiniMax M2.7 (Free)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax-free"
-    },
-    "coding-minimax-m2.7-highspeed": {
-      "id": "coding-minimax-m2.7-highspeed",
-      "name": "Coding MiniMax M2.7 Highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.2,
-        "output": 0.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
@@ -19256,28 +19046,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "qwen"
     },
-    "MiniMax/MiniMax-M2.7": {
-      "id": "MiniMax/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "qwen3.5-flash": {
       "id": "qwen3.5-flash",
       "name": "Qwen3.5 Flash",
@@ -19372,27 +19140,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-16",
       "family": "qwen"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "glm-5": {
       "id": "glm-5",
@@ -20786,27 +20533,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-16",
       "family": "qwen"
     },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196601,
-      "maxTokens": 24576,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "glm-5": {
       "id": "glm-5",
       "name": "GLM-5",
@@ -21023,27 +20749,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-16",
       "family": "qwen"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 24576,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "glm-5": {
       "id": "glm-5",
@@ -21728,27 +21433,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-12",
       "family": "glm"
     },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196601,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "kimi-k2.5": {
       "id": "kimi-k2.5",
       "name": "Kimi K2.5",
@@ -22352,27 +22036,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-12",
       "family": "glm"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196601,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "kimi-k2.5": {
       "id": "kimi-k2.5",
@@ -25021,50 +24684,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "qwen"
-    },
-    "minimax-m2-7": {
-      "id": "minimax-m2-7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2-7-highspeed": {
-      "id": "minimax-m2-7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gemini-3.1-pro-preview": {
       "id": "gemini-3.1-pro-preview",
@@ -29377,28 +28996,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-17",
       "family": "claude-sonnet"
     },
-    "minimax.minimax-m2.5": {
-      "id": "minimax.minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 98304,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "zai.glm-5": {
       "id": "zai.glm-5",
       "name": "GLM-5",
@@ -29707,28 +29304,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01-19",
       "family": "glm-flash"
-    },
-    "minimax.minimax-m2.1": {
-      "id": "minimax.minimax-m2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "zai.glm-4.7": {
       "id": "zai.glm-4.7",
@@ -30361,28 +29936,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-28",
       "family": "nemotron"
-    },
-    "minimax.minimax-m2": {
-      "id": "minimax.minimax-m2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204608,
-      "maxInputTokens": 204608,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "anthropic.claude-haiku-4-5-20251001-v1:0": {
       "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -33592,27 +33145,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-21",
       "family": "kimi-k2"
     },
-    "minimaxai/chat-completion/models/MiniMax-M2_5-high-throughput": {
-      "id": "minimaxai/chat-completion/models/MiniMax-M2_5-high-throughput",
-      "name": "MiniMax-M2.5 High Throughput",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "arcee_ai/AFM/models/trinity-mini": {
       "id": "arcee_ai/AFM/models/trinity-mini",
       "name": "Trinity Mini",
@@ -34664,28 +34196,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-14",
       "family": "glm"
-    },
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196000,
-      "maxInputTokens": 180000,
-      "maxTokens": 16000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-05",
-      "family": "minimax"
     },
     "openai/gpt-oss-120b": {
       "id": "openai/gpt-oss-120b",
@@ -37583,28 +37093,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-08",
       "family": "muse"
     },
-    "MiniMaxAI/MiniMax-M2.7": {
-      "id": "MiniMaxAI/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -37713,28 +37201,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "metadata": {
         "apiProtocol": "anthropic"
       }
-    },
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "gpt-5.3-codex": {
       "id": "gpt-5.3-codex",
@@ -39470,29 +38936,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-15",
       "family": "qwen"
     },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196000,
-      "maxInputTokens": 196000,
-      "maxTokens": 196000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.348,
-        "output": 1.39,
-        "cacheRead": 0.075,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "claude-opus4-6": {
       "id": "claude-opus4-6",
       "name": "Claude Opus 4.6",
@@ -39642,28 +39085,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-12"
-    },
-    "minimax-m2.1": {
-      "id": "minimax-m2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 196000,
-      "maxInputTokens": 196000,
-      "maxTokens": 196000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.359,
-        "output": 1.435,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "devstral-2512": {
       "id": "devstral-2512",
@@ -39948,28 +39369,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-29",
       "family": "gpt-oss"
-    },
-    "minimax-m2": {
-      "id": "minimax-m2",
-      "name": "MiniMax-M2",
-      "contextWindow": 400000,
-      "maxInputTokens": 400000,
-      "maxTokens": 196000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.349,
-        "output": 1.405,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "claude-haiku-4-5": {
       "id": "claude-haiku-4-5",
@@ -43488,29 +42887,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "qwen"
-    },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.33,
-        "output": 1.32,
-        "cacheRead": 0.066,
-        "cacheWrite": 0.42
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
@@ -47133,37 +46509,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-15",
       "family": "qwen3.5"
     },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax M2.5 (Public Preview)",
-      "contextWindow": 65536,
-      "maxInputTokens": 65536,
-      "maxTokens": 65536,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax-m2.5"
-    },
     "glm-5": {
       "id": "glm-5",
       "name": "GLM 5",
@@ -48496,27 +47841,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-12",
       "family": "glm"
     },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 32000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.22,
-        "output": 0.88,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "glm-4.7": {
       "id": "glm-4.7",
       "name": "GLM-4.7",
@@ -48558,27 +47882,6 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "drun": {
-    "public/minimax-m25": {
-      "id": "public/minimax-m25",
-      "name": "MiniMax M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.29,
-        "output": 1.16,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-03-01",
-      "family": "minimax"
-    },
     "public/deepseek-r1": {
       "id": "public/deepseek-r1",
       "name": "DeepSeek R1",
@@ -53624,29 +52927,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-01",
       "family": "glm"
     },
-    "minimax/MiniMax-M2.7": {
-      "id": "minimax/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -54245,29 +53525,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-14",
       "family": "seed"
     },
-    "minimax/MiniMax-M2.5": {
-      "id": "minimax/MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "zai/glm-5": {
       "id": "zai/glm-5",
       "name": "GLM-5",
@@ -54587,29 +53844,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01",
       "family": "kimi-k2"
-    },
-    "minimax/MiniMax-M2.1": {
-      "id": "minimax/MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "zai/glm-4.7": {
       "id": "zai/glm-4.7",
@@ -55389,27 +54623,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-29",
       "family": "gpt-oss"
-    },
-    "minimax/MiniMax-M2": {
-      "id": "minimax/MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "openai/gpt-5-pro": {
       "id": "openai/gpt-5-pro",
@@ -59471,52 +58684,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02"
     },
-    "minimax-m2-7": {
-      "id": "minimax-m2-7",
-      "name": "MiniMax M2.7",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.6,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2-7-highspeed": {
-      "id": "minimax-m2-7-highspeed",
-      "name": "MiniMax M2.7 Highspeed",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "mistral-small-4": {
       "id": "mistral-small-4",
       "name": "Mistral Small 4",
@@ -61028,48 +60195,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "gemma"
-    },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
@@ -62950,33 +62075,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "deepseek-ai/DeepSeek-V3.2": {
       "id": "deepseek-ai/DeepSeek-V3.2",
       "name": "DeepSeek V3.2",
@@ -63118,26 +62216,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "qwen"
-    },
-    "minimax-m2-7": {
-      "id": "minimax-m2-7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 192000,
-      "maxInputTokens": 192000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-5-4-mini": {
       "id": "gpt-5-4-mini",
@@ -63633,26 +62711,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-01-20",
       "family": "glm"
-    },
-    "minimax-m2-5": {
-      "id": "minimax-m2-5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 192000,
-      "maxInputTokens": 192000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-01-15",
-      "family": "minimax"
     },
     "gpt-4o": {
       "id": "gpt-4o",
@@ -66564,28 +65622,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-07",
       "family": "glm"
     },
-    "MiniMaxAI/MiniMax-M2.7": {
-      "id": "MiniMaxAI/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
       "name": "Claude Sonnet 4.6",
@@ -67376,39 +66412,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-15",
       "family": "qwen"
-    },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.1938,
-        "output": 1.129,
-        "cacheRead": 0.0627,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "devstral-2-123b-instruct-2512": {
       "id": "devstral-2-123b-instruct-2512",
@@ -69799,29 +68802,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-08",
       "family": "glm"
     },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196000,
-      "maxInputTokens": 196000,
-      "maxTokens": 195000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "moonshotai/kimi-k2.5": {
       "id": "moonshotai/kimi-k2.5",
       "name": "Kimi K2.5",
@@ -70611,29 +69591,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
-    "MiniMaxAI/MiniMax-M2.7": {
-      "id": "MiniMaxAI/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "Qwen/Qwen3.5-122B-A10B": {
       "id": "Qwen/Qwen3.5-122B-A10B",
       "name": "Qwen3.5 122B-A10B",
@@ -70725,28 +69682,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-23",
       "family": "qwen"
-    },
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "zai-org/GLM-5": {
       "id": "zai-org/GLM-5",
@@ -70865,27 +69800,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-01-01",
       "family": "kimi-k2"
     },
-    "MiniMaxAI/MiniMax-M2.1": {
-      "id": "MiniMaxAI/MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
     "zai-org/GLM-4.7": {
       "id": "zai-org/GLM-4.7",
       "name": "GLM-4.7",
@@ -70997,27 +69911,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-11-06",
       "family": "kimi-thinking"
-    },
-    "MiniMaxAI/MiniMax-M2": {
-      "id": "MiniMaxAI/MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "Qwen/Qwen3-VL-30B-A3B-Instruct": {
       "id": "Qwen/Qwen3-VL-30B-A3B-Instruct",
@@ -71418,27 +70311,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-07-14",
       "family": "kimi-k2"
-    },
-    "MiniMaxAI/MiniMax-M1-80k": {
-      "id": "MiniMaxAI/MiniMax-M1-80k",
-      "name": "MiniMax M1 80K",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 80000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.55,
-        "output": 2.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-06-17",
-      "family": "minimax"
     },
     "deepseek-ai/DeepSeek-R1-0528": {
       "id": "deepseek-ai/DeepSeek-R1-0528",
@@ -72272,28 +71144,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-06-15",
       "family": "qwen"
-    },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 262100,
-      "maxInputTokens": 262100,
-      "maxTokens": 6553,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.484,
-        "output": 1.852,
-        "cacheRead": 0.242,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-05",
-      "family": "minimax"
     },
     "qwen3.7-max": {
       "id": "qwen3.7-max",
@@ -78399,55 +77249,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-01",
       "family": "grok"
     },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "Minimax M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 131071
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01",
-      "family": "minimax"
-    },
-    "minimaxai/minimax-m1-80k": {
-      "id": "minimaxai/minimax-m1-80k",
-      "name": "MiniMax M1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 40000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.55,
-        "output": 2.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01",
-      "family": "minimax"
-    },
     "moonshotai/kimi-k2-0905": {
       "id": "moonshotai/kimi-k2-0905",
       "name": "Kimi K2 0905",
@@ -80121,48 +78922,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "gemma"
-    },
-    "minimax-m2-7": {
-      "id": "minimax-m2-7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2-7-highspeed": {
-      "id": "minimax-m2-7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-5-4-mini": {
       "id": "gpt-5-4-mini",
@@ -85942,35 +84701,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-20",
       "family": "reka"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -86800,36 +85530,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-14",
       "family": "seed"
     },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 198000,
-      "maxInputTokens": 198000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
       "name": "GLM-5",
@@ -87160,35 +85860,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-23",
       "family": "seed"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "z-ai/glm-4.7": {
       "id": "z-ai/glm-4.7",
@@ -87914,35 +86585,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-29",
       "family": "gpt-oss"
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
@@ -89218,35 +87860,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "minimax/minimax-m1": {
-      "id": "minimax/minimax-m1",
-      "name": "MiniMax: MiniMax M1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 40000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.4,
-        "output": 2.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-06-17",
-      "family": "minimax"
     },
     "openai/o3-pro": {
       "id": "openai/o3-pro",
@@ -94361,72 +92974,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-28",
       "family": "seed"
     },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.08,
-        "output": 0.32,
-        "cacheRead": 0.017,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2.7-highspeed": {
-      "id": "minimax-m2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -95069,39 +93616,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "minimax-m2.5-highspeed": {
-      "id": "minimax-m2.5-highspeed",
-      "name": "MiniMax-M2.5-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
     "glm-5": {
       "id": "glm-5",
       "name": "GLM-5",
@@ -95136,39 +93650,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-12",
       "family": "glm"
-    },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 228700,
-      "maxInputTokens": 228700,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "claude-opus-4-6": {
       "id": "claude-opus-4-6",
@@ -95324,38 +93805,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01",
       "family": "kimi-k2"
-    },
-    "minimax-m2.1": {
-      "id": "minimax-m2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.27,
-        "output": 1.1,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "glm-4.7": {
       "id": "glm-4.7",
@@ -95855,39 +94304,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-11-01",
       "family": "claude-opus"
-    },
-    "minimax-m2": {
-      "id": "minimax-m2",
-      "name": "MiniMax-M2",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.2,
-        "output": 1,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "claude-haiku-4-5": {
       "id": "claude-haiku-4-5",
@@ -105536,204 +103952,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-28",
       "family": "seed"
     },
-    "gonka24/minimax-m2.7": {
-      "id": "gonka24/minimax-m2.7",
-      "name": "MiniMax M2.7 (Gonka24)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.08,
-        "output": 0.32,
-        "cacheRead": 0.017,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax M2.7 (MiniMax)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax M2.7 Highspeed (MiniMax)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "novita/minimax-m2.7": {
-      "id": "novita/minimax-m2.7",
-      "name": "MiniMax M2.7 (NovitaAI)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "scx-ai/minimax-m2.7": {
-      "id": "scx-ai/minimax-m2.7",
-      "name": "MiniMax M2.7 (SCX.ai (Turbo))",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 196608,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.48,
-        "output": 1.79,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "tencent/minimax-m2.7": {
-      "id": "tencent/minimax-m2.7",
-      "name": "MiniMax M2.7 (Tencent Cloud)",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "azure/gpt-5.4-mini": {
       "id": "azure/gpt-5.4-mini",
       "name": "GPT-5.4 Mini (Azure)",
@@ -106755,39 +104973,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-16",
       "family": "qwen3.5"
     },
-    "minimax/minimax-m2.5-highspeed": {
-      "id": "minimax/minimax-m2.5-highspeed",
-      "name": "MiniMax M2.5 Highspeed (MiniMax)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
     "alibaba/glm-5": {
       "id": "alibaba/glm-5",
       "name": "GLM-5 (Alibaba Cloud)",
@@ -106891,39 +105076,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-12",
       "family": "glm"
     },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax M2.5 (MiniMax)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "novita/glm-5": {
       "id": "novita/glm-5",
       "name": "GLM-5 (NovitaAI)",
@@ -106958,39 +105110,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-12",
       "family": "glm"
-    },
-    "novita/minimax-m2.5": {
-      "id": "novita/minimax-m2.5",
-      "name": "MiniMax M2.5 (NovitaAI)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "tencent/glm-5": {
       "id": "tencent/glm-5",
@@ -107463,103 +105582,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01",
       "family": "kimi-k2"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax M2.1 (MiniMax)",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.27,
-        "output": 1.1,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.1-lightning": {
-      "id": "minimax/minimax-m2.1-lightning",
-      "name": "MiniMax M2.1 Lightning (MiniMax)",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.12,
-        "output": 0.48,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "novita/minimax-m2.1": {
-      "id": "novita/minimax-m2.1",
-      "name": "MiniMax M2.1 (NovitaAI)",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "bytedance/glm-4.7": {
       "id": "bytedance/glm-4.7",
@@ -108480,39 +106502,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-11-01",
       "family": "claude-opus"
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "MiniMax M2 (MiniMax)",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.2,
-        "output": 1,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "anthropic/claude-haiku-4-5": {
       "id": "anthropic/claude-haiku-4-5",
@@ -110350,27 +108339,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-04",
       "family": "qwen"
-    },
-    "minimax/minimax-text-01": {
-      "id": "minimax/minimax-text-01",
-      "name": "MiniMax Text 01 (MiniMax)",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.2,
-        "output": 1.1,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-01-15",
-      "family": "minimax"
     },
     "cerebras/llama-3.3-70b-instruct": {
       "id": "cerebras/llama-3.3-70b-instruct",
@@ -112569,27 +110537,6 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "meganova": {
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMax M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "zai-org/GLM-5": {
       "id": "zai-org/GLM-5",
       "name": "GLM-5",
@@ -112659,27 +110606,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01-27",
       "family": "kimi-k2"
-    },
-    "MiniMaxAI/MiniMax-M2.1": {
-      "id": "MiniMaxAI/MiniMax-M2.1",
-      "name": "MiniMax M2.1",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.28,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "zai-org/GLM-4.7": {
       "id": "zai-org/GLM-4.7",
@@ -113589,19 +111515,28 @@ export const GENERATED_PROVIDER_MODELS: {
   },
   "minimax": {
     "MiniMax-M3": {
-      "id": "MiniMax-M3",
-      "name": "MiniMax-M3",
-      "contextWindow": 1000000,
+      "maxTokens": 524288,
       "maxInputTokens": 1000000,
-      "maxTokens": 512000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "capabilities": [
         "images",
-        "video",
         "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
+        "prompt-cache",
+        "reasoning"
       ],
+      "id": "MiniMax-M3",
+      "name": "MiniMax M3",
+      "family": "minimax-m3",
+      "description": "Standard pricing per million tokens (input/output/cache read): $0.30/$1.20/$0.06 for input <=512k; $0.60/$2.40/$0.12 above 512k. Priority costs 1.5x Standard. Cline's flat estimate uses the Standard <=512k rate.",
       "reasoningOptions": [
         {
           "type": "toggle"
@@ -113610,159 +111545,77 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.3,
         "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
+        "cacheRead": 0.06
+      }
     },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
+    "MiniMax-M3.1-Flash": {
+      "maxTokens": 524288,
+      "maxInputTokens": 1000000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
       },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.7-highspeed": {
-      "id": "MiniMax-M2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
       "capabilities": [
+        "images",
         "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
+        "prompt-cache",
+        "reasoning"
       ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5-highspeed": {
-      "id": "MiniMax-M2.5-highspeed",
-      "name": "MiniMax-M2.5-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
+      "id": "MiniMax-M3.1-Flash",
+      "name": "MiniMax M3.1 Flash",
+      "family": "minimax-m3.1",
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
       ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
+      "metadata": {
+        "reasoningDefaultOn": true
       },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "MiniMax-M2": {
-      "id": "MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
+        "input": 0.15,
+        "output": 0.6,
+        "cacheRead": 0.015
+      }
     }
   },
   "minimax-cn": {
     "MiniMax-M3": {
-      "id": "MiniMax-M3",
-      "name": "MiniMax-M3",
-      "contextWindow": 1000000,
+      "maxTokens": 524288,
       "maxInputTokens": 1000000,
-      "maxTokens": 512000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "capabilities": [
         "images",
-        "video",
         "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
+        "prompt-cache",
+        "reasoning"
       ],
+      "id": "MiniMax-M3",
+      "name": "MiniMax M3",
+      "family": "minimax-m3",
+      "description": "Standard pricing per million tokens (input/output/cache read): $0.30/$1.20/$0.06 for input <=512k; $0.60/$2.40/$0.12 above 512k. Priority costs 1.5x Standard. Cline's flat estimate uses the Standard <=512k rate.",
       "reasoningOptions": [
         {
           "type": "toggle"
@@ -113771,158 +111624,110 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.3,
         "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
+        "cacheRead": 0.06
+      }
     },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
+    "MiniMax-M3.1-Flash": {
+      "maxTokens": 524288,
+      "maxInputTokens": 1000000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
       },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.7-highspeed": {
-      "id": "MiniMax-M2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
       "capabilities": [
+        "images",
         "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
+        "prompt-cache",
+        "reasoning"
       ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5-highspeed": {
-      "id": "MiniMax-M2.5-highspeed",
-      "name": "MiniMax-M2.5-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
+      "id": "MiniMax-M3.1-Flash",
+      "name": "MiniMax M3.1 Flash",
+      "family": "minimax-m3.1",
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
       ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
+      "metadata": {
+        "reasoningDefaultOn": true
       },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "MiniMax-M2": {
-      "id": "MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
+        "input": 0.15,
+        "output": 0.6,
+        "cacheRead": 0.015
+      }
     }
   },
   "minimax-cn-coding-plan": {
-    "MiniMax-M3.1-Flash-Preview": {
-      "id": "MiniMax-M3.1-Flash-Preview",
-      "name": "MiniMax-M3.1-Flash-Preview",
-      "contextWindow": 1000000,
+    "MiniMax-M3": {
+      "maxTokens": 524288,
       "maxInputTokens": 1000000,
-      "maxTokens": 512000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "capabilities": [
         "images",
-        "video",
         "tools",
-        "reasoning",
-        "temperature"
+        "prompt-cache",
+        "reasoning"
       ],
+      "id": "MiniMax-M3",
+      "name": "MiniMax M3",
+      "family": "minimax-m3",
+      "description": "Standard pricing per million tokens (input/output/cache read): $0.30/$1.20/$0.06 for input <=512k; $0.60/$2.40/$0.12 above 512k. Priority costs 1.5x Standard. Cline's flat estimate uses the Standard <=512k rate.",
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0.06
+      }
+    },
+    "MiniMax-M3.1-Flash": {
+      "maxTokens": 524288,
+      "maxInputTokens": 1000000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "capabilities": [
+        "images",
+        "tools",
+        "prompt-cache",
+        "reasoning"
+      ],
+      "id": "MiniMax-M3.1-Flash",
+      "name": "MiniMax M3.1 Flash",
+      "family": "minimax-m3.1",
       "reasoningOptions": [
         {
           "type": "effort",
@@ -113935,183 +111740,73 @@ export const GENERATED_PROVIDER_MODELS: {
           ]
         }
       ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
+      "metadata": {
+        "reasoningDefaultOn": true
       },
-      "releaseDate": "2026-09-27",
-      "family": "minimax"
-    },
-    "MiniMax-M3": {
-      "id": "MiniMax-M3",
-      "name": "MiniMax-M3",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 512000,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
       "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
-    },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.7-highspeed": {
-      "id": "MiniMax-M2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5-highspeed": {
-      "id": "MiniMax-M2.5-highspeed",
-      "name": "MiniMax-M2.5-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "MiniMax-M2": {
-      "id": "MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
+        "input": 0.15,
+        "output": 0.6,
+        "cacheRead": 0.015
+      }
     }
   },
   "minimax-coding-plan": {
-    "MiniMax-M3.1-Flash-Preview": {
-      "id": "MiniMax-M3.1-Flash-Preview",
-      "name": "MiniMax-M3.1-Flash-Preview",
-      "contextWindow": 1000000,
+    "MiniMax-M3": {
+      "maxTokens": 524288,
       "maxInputTokens": 1000000,
-      "maxTokens": 512000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "capabilities": [
         "images",
-        "video",
         "tools",
-        "reasoning",
-        "temperature"
+        "prompt-cache",
+        "reasoning"
       ],
+      "id": "MiniMax-M3",
+      "name": "MiniMax M3",
+      "family": "minimax-m3",
+      "description": "Standard pricing per million tokens (input/output/cache read): $0.30/$1.20/$0.06 for input <=512k; $0.60/$2.40/$0.12 above 512k. Priority costs 1.5x Standard. Cline's flat estimate uses the Standard <=512k rate.",
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0.06
+      }
+    },
+    "MiniMax-M3.1-Flash": {
+      "maxTokens": 524288,
+      "maxInputTokens": 1000000,
+      "contextWindow": 1000000,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "capabilities": [
+        "images",
+        "tools",
+        "prompt-cache",
+        "reasoning"
+      ],
+      "id": "MiniMax-M3.1-Flash",
+      "name": "MiniMax M3.1 Flash",
+      "family": "minimax-m3.1",
       "reasoningOptions": [
         {
           "type": "effort",
@@ -114124,167 +111819,14 @@ export const GENERATED_PROVIDER_MODELS: {
           ]
         }
       ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
+      "metadata": {
+        "reasoningDefaultOn": true
       },
-      "releaseDate": "2026-09-27",
-      "family": "minimax"
-    },
-    "MiniMax-M3": {
-      "id": "MiniMax-M3",
-      "name": "MiniMax-M3",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 512000,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
       "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
-    },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.7-highspeed": {
-      "id": "MiniMax-M2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5-highspeed": {
-      "id": "MiniMax-M2.5-highspeed",
-      "name": "MiniMax-M2.5-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "MiniMax-M2": {
-      "id": "MiniMax-M2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
+        "input": 0.15,
+        "output": 0.6,
+        "cacheRead": 0.015
+      }
     }
   },
   "mistral": {
@@ -115038,48 +112580,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-21",
       "family": "kimi-k2"
-    },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.29,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.29,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "GLM-4.7": {
       "id": "GLM-4.7",
@@ -124652,51 +122152,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-29",
       "family": "gpt"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.315,
-        "output": 1.26,
-        "cacheRead": 0.1575,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-turbo": {
-      "id": "minimax/minimax-m2.7-turbo",
-      "name": "MiniMax M2.7 Turbo",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.3,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax-m2.7"
-    },
     "mistralai/mistral-small-4-119b-2603:thinking": {
       "id": "mistralai/mistral-small-4-119b-2603:thinking",
       "name": "Mistral Small 4 119B Thinking",
@@ -125461,29 +122916,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-14",
       "family": "seed"
     },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
       "name": "GLM 5",
@@ -125923,29 +123355,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-23",
       "family": "glm"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax M2.1",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.33,
-        "output": 1.32,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "z-ai/glm-4.7": {
       "id": "z-ai/glm-4.7",
@@ -134189,52 +131598,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "qwen/qwen3.5-122b-a10b": {
       "id": "qwen/qwen3.5-122b-a10b",
       "name": "Qwen3.5 122B-A10B",
@@ -134358,29 +131721,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-15",
       "family": "qwen"
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "zai-org/glm-5": {
       "id": "zai-org/glm-5",
@@ -134796,28 +132136,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-06-30",
       "family": "ernie"
-    },
-    "minimaxai/minimax-m1-80k": {
-      "id": "minimaxai/minimax-m1-80k",
-      "name": "MiniMax M1 80K",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 40000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.55,
-        "output": 2.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-06-17",
-      "family": "minimax"
     },
     "deepseek/deepseek-r1-0528": {
       "id": "deepseek/deepseek-r1-0528",
@@ -138353,50 +135671,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-01",
       "family": "glm"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -139198,50 +136472,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-14",
       "family": "seed"
     },
-    "minimax/minimax-m2.5-lightning": {
-      "id": "minimax/minimax-m2.5-lightning",
-      "name": "MiniMax-M2.5 Lightning",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
       "name": "GLM-5",
@@ -139384,27 +136614,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-03",
       "family": "qwen"
     },
-    "minimax/m2-her": {
-      "id": "minimax/m2-her",
-      "name": "MiniMax-M2 Her",
-      "contextWindow": 65536,
-      "maxInputTokens": 65536,
-      "maxTokens": 2048,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01-23",
-      "family": "minimax"
-    },
     "z-ai/glm-4.7-flashx": {
       "id": "z-ai/glm-4.7-flashx",
       "name": "GLM-4.7-FlashX",
@@ -139486,50 +136695,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-28",
       "family": "seed"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.1-lightning": {
-      "id": "minimax/minimax-m2.1-lightning",
-      "name": "MiniMax-M2.1 Lightning",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "z-ai/glm-4.7": {
       "id": "z-ai/glm-4.7",
@@ -139877,28 +137042,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "metadata": {
         "apiProtocol": "openai-responses"
       }
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
@@ -141293,31 +138436,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-27",
       "family": "glm"
     },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "minimax-m2.7",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 196608,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "nemotron-3-super": {
       "id": "nemotron-3-super",
       "name": "nemotron-3-super",
@@ -141368,26 +138486,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-15",
       "family": "qwen"
-    },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "minimax-m2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "kimi-k2.5": {
       "id": "kimi-k2.5",
@@ -144693,28 +141791,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "apiProtocol": "anthropic"
       }
     },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
       "name": "GPT-5.4 Mini",
@@ -145063,28 +142139,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "metadata": {
         "apiProtocol": "openai-responses"
       }
-    },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "glm-5": {
       "id": "glm-5",
@@ -152351,28 +149405,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-20",
       "family": "reka"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -153212,29 +150244,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-14",
       "family": "seed"
     },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.27,
-        "output": 0.95,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
       "name": "GLM-5",
@@ -153600,28 +150609,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-23",
       "family": "seed"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "z-ai/glm-4.7": {
       "id": "z-ai/glm-4.7",
@@ -154347,28 +151334,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-29",
       "family": "gpt-oss"
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "MiniMax-M2",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.255,
-        "output": 1.02,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "openai/gpt-5-image-mini": {
       "id": "openai/gpt-5-image-mini",
@@ -155434,31 +152399,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "minimax/minimax-m1": {
-      "id": "minimax/minimax-m1",
-      "name": "MiniMax M1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 40000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.55,
-        "output": 2.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-06-17",
-      "family": "minimax"
     },
     "openai/o3-pro": {
       "id": "openai/o3-pro",
@@ -157646,28 +154586,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "gemma"
-    },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.69732,
-        "output": 2.78928,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
@@ -160001,50 +156919,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "qwen"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -160586,50 +157460,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "minimax/minimax-m2.5-highspeed": {
-      "id": "minimax/minimax-m2.5-highspeed",
-      "name": "MiniMax-M2.5-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
@@ -164944,37 +161774,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "qwen"
     },
-    "MiniMaxAI/MiniMax-M2.7": {
-      "id": "MiniMaxAI/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.279,
-        "output": 1.2,
-        "cacheRead": 0.279,
-        "cacheWrite": 0.279
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -167398,29 +164197,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-14"
-    },
-    "novita/minimax-m2.1": {
-      "id": "novita/minimax-m2.1",
-      "name": "minimax-m2.1",
-      "contextWindow": 205000,
-      "maxInputTokens": 205000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-26"
     },
     "novita/glm-4.7-n": {
       "id": "novita/glm-4.7-n",
@@ -171892,54 +168668,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-14"
     },
-    "minimax/minimax-m2.5-highspeed": {
-      "id": "minimax/minimax-m2.5-highspeed",
-      "name": "Minimax/Minimax-M2.5 Highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-14"
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "Minimax/Minimax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12"
-    },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
       "name": "Z-Ai/GLM 5",
@@ -172063,30 +168791,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-28"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "Minimax/Minimax-M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-23"
     },
     "stepfun-ai/gelab-zero-4b-preview": {
       "id": "stepfun-ai/gelab-zero-4b-preview",
@@ -172491,30 +169195,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-07"
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "Minimax/Minimax-M2",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-10-28"
     },
     "claude-4.5-haiku": {
       "id": "claude-4.5-haiku",
@@ -173411,30 +170091,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "tools",
         "temperature"
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-05"
-    },
-    "MiniMax-M1": {
-      "id": "MiniMax-M1",
-      "name": "MiniMax M1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 80000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
       ],
       "pricing": {
         "input": 0,
@@ -178513,74 +175169,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-19",
       "family": "grok"
     },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 1.2
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2.7-highspeed": {
-      "id": "minimax-m2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 1.2
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -183202,27 +179790,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-07",
       "family": "glm"
     },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "GLM-5": {
       "id": "GLM-5",
       "name": "GLM-5",
@@ -183243,27 +179810,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-12",
       "family": "glm"
-    },
-    "MiniMax-M2.5": {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "Kimi-K2.5": {
       "id": "Kimi-K2.5",
@@ -183355,38 +179901,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-06-13",
       "family": "glm"
-    },
-    "MiniMax-M2.7": {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 196608,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.48,
-        "output": 1.79,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-oss-120b": {
       "id": "gpt-oss-120b",
@@ -184325,26 +180839,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-23",
       "family": "qwen"
-    },
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMaxAI/MiniMax-M2.5",
-      "contextWindow": 197000,
-      "maxInputTokens": 197000,
-      "maxTokens": 131000,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-15",
-      "family": "minimax"
     },
     "Qwen/Qwen3.5-397B-A17B": {
       "id": "Qwen/Qwen3.5-397B-A17B",
@@ -185374,26 +181868,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-16",
       "family": "qwen"
-    },
-    "Pro/MiniMaxAI/MiniMax-M2.5": {
-      "id": "Pro/MiniMaxAI/MiniMax-M2.5",
-      "name": "Pro/MiniMaxAI/MiniMax-M2.5",
-      "contextWindow": 192000,
-      "maxInputTokens": 192000,
-      "maxTokens": 131000,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.22,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
     },
     "Pro/zai-org/GLM-5": {
       "id": "Pro/zai-org/GLM-5",
@@ -189649,50 +186123,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-01",
       "family": "glm"
     },
-    "minimax/MiniMax-M2.7": {
-      "id": "minimax/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/MiniMax-M2.7-highspeed": {
-      "id": "minimax/MiniMax-M2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "mistral/mistral-small-2603": {
       "id": "mistral/mistral-small-2603",
       "name": "Mistral Small 4",
@@ -190819,27 +187249,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-08",
       "family": "auto"
     },
-    "minimax-m2.5": {
-      "id": "minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "glm-5": {
       "id": "glm-5",
       "name": "GLM-5",
@@ -191707,40 +188116,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-23",
       "family": "qwen"
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 65536,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.075,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
@@ -193053,29 +189428,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-30",
       "family": "qwen"
     },
-    "MiniMaxAI/MiniMax-M2.7": {
-      "id": "MiniMaxAI/MiniMax-M2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "Qwen/Qwen3.5-9B": {
       "id": "Qwen/Qwen3.5-9B",
       "name": "Qwen3.5 9B",
@@ -193471,28 +189823,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
     },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
@@ -194700,48 +191030,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-02",
       "family": "gemma"
-    },
-    "minimax-m2.7": {
-      "id": "minimax-m2.7",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.819,
-        "output": 3.276,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax-m2.7:free": {
-      "id": "minimax-m2.7:free",
-      "name": "MiniMax-M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
     },
     "gpt-5.4": {
       "id": "gpt-5.4",
@@ -200179,58 +196467,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-01",
       "family": "glm"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "Minimax M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax M2.7 High Speed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131100,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT 5.4 Mini",
@@ -201021,58 +197257,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "minimax/minimax-m2.5-highspeed": {
-      "id": "minimax/minimax-m2.5-highspeed",
-      "name": "MiniMax M2.5 High Speed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-13",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-12",
-      "family": "minimax"
-    },
     "zai/glm-5": {
       "id": "zai/glm-5",
       "name": "GLM-5",
@@ -201440,58 +197624,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01",
       "family": "kimi-k2"
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax M2.1",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.1-lightning": {
-      "id": "minimax/minimax-m2.1-lightning",
-      "name": "MiniMax M2.1 Lightning",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 2.4,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-12-23",
-      "family": "minimax"
     },
     "zai/glm-4.7": {
       "id": "zai/glm-4.7",
@@ -202226,32 +198358,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-28",
       "family": "nemotron"
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "MiniMax M2",
-      "contextWindow": 205000,
-      "maxInputTokens": 205000,
-      "maxTokens": 196608,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens"
-        }
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-10-27",
-      "family": "minimax"
     },
     "anthropic/claude-haiku-4.5": {
       "id": "anthropic/claude-haiku-4.5",
@@ -212739,52 +208845,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-03-21"
     },
-    "minimax/minimax-m2.7": {
-      "id": "minimax/minimax-m2.7",
-      "name": "MiniMax M2.7",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131070,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3055,
-        "output": 1.2219,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-20",
-      "metadata": {
-        "apiProtocol": "anthropic"
-      }
-    },
-    "minimax/minimax-m2.7-highspeed": {
-      "id": "minimax/minimax-m2.7-highspeed",
-      "name": "MiniMax M2.7 highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131070,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.611,
-        "output": 2.4439,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-20",
-      "metadata": {
-        "apiProtocol": "anthropic"
-      }
-    },
     "openai/gpt-5.3-chat": {
       "id": "openai/gpt-5.3-chat",
       "name": "GPT-5.3 Chat",
@@ -213326,54 +209386,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-14"
     },
-    "minimax/minimax-m2.5": {
-      "id": "minimax/minimax-m2.5",
-      "name": "MiniMax M2.5",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-02-13",
-      "metadata": {
-        "apiProtocol": "anthropic"
-      }
-    },
-    "minimax/minimax-m2.5-lightning": {
-      "id": "minimax/minimax-m2.5-lightning",
-      "name": "MiniMax M2.5 highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 4.8,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.75
-      },
-      "releaseDate": "2026-02-13",
-      "metadata": {
-        "apiProtocol": "anthropic"
-      }
-    },
     "z-ai/glm-5": {
       "id": "z-ai/glm-5",
       "name": "GLM 5",
@@ -213604,30 +209616,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-01-15",
       "metadata": {
         "apiProtocol": "openai-responses"
-      }
-    },
-    "minimax/minimax-m2.1": {
-      "id": "minimax/minimax-m2.1",
-      "name": "MiniMax M2.1",
-      "contextWindow": 204000,
-      "maxInputTokens": 204000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.38
-      },
-      "releaseDate": "2025-12-22",
-      "metadata": {
-        "apiProtocol": "anthropic"
       }
     },
     "z-ai/glm-4.7": {
@@ -214069,30 +210057,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-11-13",
       "metadata": {
         "apiProtocol": "openai-responses"
-      }
-    },
-    "minimax/minimax-m2": {
-      "id": "minimax/minimax-m2",
-      "name": "MiniMax M2",
-      "contextWindow": 204000,
-      "maxInputTokens": 204000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.38
-      },
-      "releaseDate": "2025-10-27",
-      "metadata": {
-        "apiProtocol": "anthropic"
       }
     },
     "anthropic/claude-haiku-4.5": {

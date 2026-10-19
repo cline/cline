@@ -30,7 +30,7 @@ describe("createAnthropicProviderModule", () => {
 			context("minimax"),
 		);
 
-		provider.operations.language("MiniMax-M2.5");
+		provider.operations.language("MiniMax-M3.1-Flash");
 
 		expect(createAnthropicMock).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -39,7 +39,7 @@ describe("createAnthropicProviderModule", () => {
 				name: "minimax",
 			}),
 		);
-		expect(anthropicModelMock).toHaveBeenCalledWith("MiniMax-M2.5");
+		expect(anthropicModelMock).toHaveBeenCalledWith("MiniMax-M3.1-Flash");
 	});
 
 	it("does not wrap fetch for non-MiniMax Anthropic-compatible providers", async () => {
@@ -77,13 +77,13 @@ function context(providerId: string): GatewayProviderContext {
 		provider: {
 			id: providerId,
 			name: "MiniMax",
-			defaultModelId: "MiniMax-M2.5",
+			defaultModelId: "MiniMax-M3.1-Flash",
 			models: [],
 		},
 		model: {
 			providerId,
-			id: "MiniMax-M2.5",
-			name: "MiniMax-M2.5",
+			id: "MiniMax-M3.1-Flash",
+			name: "MiniMax-M3.1-Flash",
 		},
 		config: config({ providerId }),
 	};

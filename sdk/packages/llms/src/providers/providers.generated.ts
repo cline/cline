@@ -767,7 +767,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "drun",
-		defaultModelId: "public/minimax-m25",
+		defaultModelId: "public/deepseek-r1",
 		apiKeyEnv: ["DRUN_API_KEY"],
 		docsUrl: "https://www.d.run",
 		defaults: {
@@ -1513,7 +1513,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "meganova",
-		defaultModelId: "MiniMaxAI/MiniMax-M2.5",
+		defaultModelId: "zai-org/GLM-5",
 		apiKeyEnv: ["MEGANOVA_API_KEY"],
 		docsUrl: "https://docs.meganova.ai",
 		defaults: {
@@ -1555,7 +1555,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "minimax",
-		defaultModelId: "MiniMax-M3",
+		defaultModelId: "MiniMax-M3.1-Flash",
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		docsUrl: "https://platform.minimax.io/docs/guides/quickstart",
 		defaults: {
@@ -1569,7 +1569,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "minimax-cn",
-		defaultModelId: "MiniMax-M3",
+		defaultModelId: "MiniMax-M3.1-Flash",
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		docsUrl: "https://platform.minimaxi.com/docs/guides/quickstart",
 		defaults: {
@@ -1584,7 +1584,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "minimax-cn-coding-plan",
-		defaultModelId: "MiniMax-M3.1-Flash-Preview",
+		defaultModelId: "MiniMax-M3.1-Flash",
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		docsUrl: "https://platform.minimaxi.com/docs/token-plan/intro",
 		defaults: {
@@ -1599,7 +1599,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "minimax-coding-plan",
-		defaultModelId: "MiniMax-M3.1-Flash-Preview",
+		defaultModelId: "MiniMax-M3.1-Flash",
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		docsUrl: "https://platform.minimax.io/docs/token-plan/intro",
 		defaults: {
