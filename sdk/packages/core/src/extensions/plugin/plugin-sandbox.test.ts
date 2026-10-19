@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -289,7 +289,13 @@ describe.each([
 			"utf8",
 		);
 
-		const sdkDepDir = join(dir, "node_modules", "@cline", "shared");
+		const sdkDepDir = join(
+			dir,
+			"sdk-plugin",
+			"node_modules",
+			"@cline",
+			"shared",
+		);
 		await mkdir(sdkDepDir, { recursive: true });
 		await writeFile(
 			join(sdkDepDir, "package.json"),
@@ -306,7 +312,7 @@ describe.each([
 			"utf8",
 		);
 		await writeFile(
-			join(dir, "plugin-sdk.ts"),
+			join(dir, "sdk-plugin", "plugin-sdk.ts"),
 			[
 				"import { sdkMarker } from '@cline/shared';",
 				"export default {",
@@ -397,7 +403,7 @@ describe.each([
 				join(dir, "plugin-rules.mjs"),
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
-				join(dir, "plugin-sdk.ts"),
+				join(dir, "sdk-plugin", "plugin-sdk.ts"),
 				join(dir, "plugin-host-dep.ts"),
 				join(dir, "plugin-create-tool.ts"),
 			],
@@ -791,8 +797,9 @@ describe.each([
 		).toBeUndefined();
 	});
 
-	it("ignores the npm wrapper platform package bootstrap when running from source", async () => {
+	it("ignores packaged runtime and npm wrapper bootstraps when running from source", async () => {
 		const previousWrapperPath = process.env.CLINE_WRAPPER_PATH;
+		const previousRuntimeDirectory = process.env.CLINE_PLUGIN_RUNTIME_DIR;
 		const wrapperRoot = await mkdtemp(
 			join(tmpdir(), "core-plugin-sandbox-wrapper-"),
 		);
@@ -855,10 +862,33 @@ describe.each([
 			);
 
 			process.env.CLINE_WRAPPER_PATH = wrapperPath;
+			// A complete packaged runtime must not bypass the source bootstrap.
+			const runtimeDirectory = join(wrapperRoot, "plugin-runtime");
+			const corePackageDirectory = join(
+				runtimeDirectory,
+				"node_modules",
+				"@cline",
+				"core",
+			);
+			await mkdir(corePackageDirectory, { recursive: true });
+			await writeFile(
+				join(corePackageDirectory, "package.json"),
+				JSON.stringify({ name: "@cline/core" }),
+			);
+			await writeFile(
+				join(runtimeDirectory, "package.json"),
+				JSON.stringify({ type: "module" }),
+			);
+			await copyFile(
+				bootstrapPath,
+				join(runtimeDirectory, "plugin-sandbox-bootstrap.js"),
+			);
+			process.env.CLINE_PLUGIN_RUNTIME_DIR = runtimeDirectory;
 			vi.resetModules();
 			const { loadSandboxedPlugins: loadSandboxedPluginsFromWrapper } =
 				await import("./plugin-sandbox");
 			const sandboxed = await loadSandboxedPluginsFromWrapper({
+				transport,
 				pluginPaths: [join(wrapperRoot, "unused-plugin.mjs")],
 				onEvent: (event) => events.push(event),
 			});
@@ -881,6 +911,11 @@ describe.each([
 				await sandboxed.shutdown();
 			}
 		} finally {
+			if (previousRuntimeDirectory === undefined) {
+				delete process.env.CLINE_PLUGIN_RUNTIME_DIR;
+			} else {
+				process.env.CLINE_PLUGIN_RUNTIME_DIR = previousRuntimeDirectory;
+			}
 			if (previousWrapperPath === undefined) {
 				delete process.env.CLINE_WRAPPER_PATH;
 			} else {

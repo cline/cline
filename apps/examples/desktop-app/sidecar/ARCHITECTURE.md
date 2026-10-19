@@ -87,6 +87,11 @@ Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
 
+Before connecting, the sidecar runs `cline-cli --plugin-runtime-dir` and sets
+`CLINE_PLUGIN_RUNTIME_DIR` to the returned Core-owned bootstrap and SDK directory.
+The CLI embeds and extracts that complete artifact; Desktop does not ship an
+independent bootstrap or SDK copy.
+
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
 that context across the Hub transport and scopes the daemon-owned telemetry

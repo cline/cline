@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
-import { setHubDaemonLauncher } from "@cline/core";
+import {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	setHubDaemonLauncher,
+} from "@cline/core";
 import { withHubLauncherIdentity } from "@cline/shared";
 import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 
@@ -119,4 +122,23 @@ export async function ensureHubWithDesktopCli(
 		throw new Error("cline hub ensure did not report a Hub URL");
 	}
 	return { url: parsed.url };
+}
+
+/** The backend runs as a script, so obtain its matching SDK/bootstrap from the CLI executable. */
+export async function configureDesktopPluginRuntime(
+	cliPath: string,
+	options: { env?: NodeJS.ProcessEnv; run?: RunCliCommand } = {},
+): Promise<void> {
+	const env = options.env ?? process.env;
+	const run = options.run ?? runCliCommand;
+	const directory = (
+		await run(cliPath, ["--plugin-runtime-dir"], {
+			cwd: process.cwd(),
+			env: { ...env, BUN_BE_BUN: undefined, CLINE_NO_AUTO_UPDATE: "1" },
+			timeoutMs: HUB_ENSURE_TIMEOUT_MS,
+		})
+	).trim();
+	if (!directory)
+		throw new Error("Cline CLI did not report a plugin runtime directory");
+	env[CLINE_PLUGIN_RUNTIME_DIR_ENV] = directory;
 }
