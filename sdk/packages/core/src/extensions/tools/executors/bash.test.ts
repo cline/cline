@@ -10,7 +10,7 @@ import {
 	utimes,
 	writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
@@ -1289,8 +1289,10 @@ describe("CommandSpawnError", () => {
 	});
 });
 
+// MXC's streaming spawn needs Node 24+ on Linux.
 const linuxSandboxToolsInstalled =
 	process.platform === "linux" &&
+	Number(process.versions.node.split(".")[0]) >= 24 &&
 	["bwrap", "slirp4netns", "iptables"].every(
 		(tool) => spawnSync("which", [tool]).status === 0,
 	);
@@ -1300,11 +1302,12 @@ describe.skipIf(!linuxSandboxToolsInstalled)(
 	() => {
 		it("writes inside the project but not outside it", async () => {
 			const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
-			const root = await mkdtemp(join(tmpdir(), "cline-sandbox-"));
+			// Outside the temp folder and package caches, which are writable on
+			// their own, so only the project grant can allow the first write.
+			const root = await mkdtemp(join(homedir(), ".cline-sandbox-test-"));
 			const project = join(root, "project");
-			const outsideDir = join(root, "outside");
+			const outsideFile = join(root, "outside.txt");
 			await mkdir(project);
-			await mkdir(outsideDir);
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "settings.json");
 			setKeepChangesInProjectGlobally(true);
 			const shell = createShellExecutor({ timeoutMs: 20_000 });
@@ -1313,12 +1316,6 @@ describe.skipIf(!linuxSandboxToolsInstalled)(
 					shell("echo inside > file.txt && cat file.txt", project, ctx),
 				).resolves.toContain("inside");
 
-				// The test root sits in the writable temp folder, so protect a
-				// path under the read-only home directory instead.
-				const outsideFile = join(
-					process.env.HOME ?? "/root",
-					`.cline-sandbox-test-${process.pid}`,
-				);
 				const error = await shell(`touch ${outsideFile}`, project, ctx).catch(
 					(caught: unknown) => caught,
 				);

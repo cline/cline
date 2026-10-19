@@ -11,7 +11,7 @@
 
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -47,7 +47,12 @@ export const PROJECT_SANDBOX_SETTING_LABEL =
 
 const MXC_SDK_DIR_ENV = "CLINE_MXC_SDK_DIR";
 
-/** Package manager caches that installs and builds need to write. */
+/**
+ * Package manager caches that installs and builds need to write. Each is
+ * created up front when the directory holding it exists (the tool is
+ * installed), because the sandbox would leave that parent read-only and a
+ * first install or build could not create it.
+ */
 const HOME_CACHE_DIRS = [
 	".npm",
 	".cache",
@@ -55,15 +60,32 @@ const HOME_CACHE_DIRS = [
 	".cargo/registry",
 	".cargo/git",
 	"go/pkg/mod",
-	".gradle",
 	".m2/repository",
 	".nuget/packages",
-	".pnpm-store",
-	".local/share/pnpm",
 	"Library/Caches",
 	"Library/pnpm/store",
 ];
-const LOCAL_APP_DATA_CACHE_DIRS = ["npm-cache", "pip", "Yarn", "pnpm-cache"];
+/** Granted only when present, since their parent is just the home directory. */
+const EXISTING_HOME_CACHE_DIRS = [
+	".gradle",
+	".pnpm-store",
+	".local/share/pnpm",
+];
+const LOCAL_APP_DATA_CACHE_DIRS = ["npm-cache"];
+const EXISTING_LOCAL_APP_DATA_CACHE_DIRS = ["pip", "Yarn", "pnpm-cache"];
+
+function ensureCacheDirs(dirs: string[]): string[] {
+	for (const dir of dirs) {
+		if (!existsSync(dir) && existsSync(dirname(dir))) {
+			try {
+				mkdirSync(dir, { recursive: true });
+			} catch {
+				// Ungranted caches only fail the tools that need them.
+			}
+		}
+	}
+	return dirs;
+}
 
 function cliPlatformPackageDir(): string | undefined {
 	// The npm wrapper hard-links the platform binary into its own bin/, so
@@ -146,9 +168,17 @@ function buildFilesystemPolicy(mxc: MxcModule, cwd: string) {
 		cwd,
 		tmpdir(),
 		process.platform === "win32" ? undefined : "/tmp",
-		...HOME_CACHE_DIRS.map((dir) => join(home, dir)),
+		...ensureCacheDirs(HOME_CACHE_DIRS.map((dir) => join(home, dir))),
+		...EXISTING_HOME_CACHE_DIRS.map((dir) => join(home, dir)),
 		...(localAppData
-			? LOCAL_APP_DATA_CACHE_DIRS.map((dir) => join(localAppData, dir))
+			? [
+					...ensureCacheDirs(
+						LOCAL_APP_DATA_CACHE_DIRS.map((dir) => join(localAppData, dir)),
+					),
+					...EXISTING_LOCAL_APP_DATA_CACHE_DIRS.map((dir) =>
+						join(localAppData, dir),
+					),
+				]
 			: []),
 	]);
 	if (process.platform !== "win32") {
@@ -182,7 +212,13 @@ function buildNetworkPolicy() {
 
 function quoteArg(arg: string): string {
 	if (process.platform === "win32") {
-		return /[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg;
+		if (arg && !/[\s"]/.test(arg)) {
+			return arg;
+		}
+		// CommandLineToArgvW rules: backslashes are literal except before a
+		// quote, so double each run that precedes a quote or the closing quote.
+		const escaped = arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, "$1$1");
+		return `"${escaped}"`;
 	}
 	return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`;
 }
