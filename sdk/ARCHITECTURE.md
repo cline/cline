@@ -180,6 +180,7 @@ field.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
+   One daemon serves every Cline client on the machine, and a hub-hosted session's telemetry carries only its own client (`clientName`/`clientVersion`), so the daemon also records *whose build started it*. The spawner stamps `CLINE_HUB_LAUNCHER_CLIENT`, `CLINE_HUB_LAUNCHER_VERSION`, and `CLINE_HUB_LAUNCHER_TRANSPORT` on the daemon environment (`withHubLauncherIdentity` in `@cline/shared`), defaulting to the spawning process's `ClineClientIdentity` and `local`. An embedding host that starts the hub through the CLI (the desktop app running `cline-cli hub ensure`) stamps itself first, and a stamp already present is kept as a whole, so the CLI that performs the spawn never records its own name or fills in its version next to the host's name. SSH remote hubs are stamped by the client over the `env` prefix of the remote `hub ensure` command with `transport=ssh`. The daemon claims the stamp out of its environment at startup (`claimHubLauncherIdentity`, same hazard as the daemon sentinel: hosted sessions spawn processes that inherit the environment, and a hub one of them starts must record itself) and publishes it with its build id and executable name as OTel resource attributes: `cline.hub.launcher.client`, `cline.hub.launcher.version`, `cline.hub.launcher.transport`, `cline.hub.build_id`, `cline.hub.runtime`. Collectors and Langfuse surface these as `resourceAttributes.*`, so a desktop session hosted by a CLI-started hub is attributable to that CLI build.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
@@ -549,6 +550,11 @@ IDs must be span attributes, not only observation metadata, for Langfuse trackin
 
 In the collector relay path, spans use the existing host OTLP exporter. The
 collector owns Langfuse credentials and downstream filtering and sampling.
+The relay exists only when the host registered a traces exporter, which release
+builds inline at build time (`OTEL_TRACES_EXPORTER`, `CLINE_TRACE_*`) into the
+CLI, the extension, and the desktop backend and its bundled CLI; a packaged
+app has no runtime environment to read them from. The `--telemetry-selfcheck`
+report includes `traces_exporter` so publish workflows can gate on it.
 `llms` checks provider eligibility, client sampling, opt-out, and content policy
 per request. The host owns flushing and shutting down its provider.
 
@@ -556,6 +562,21 @@ When no host relay is available, explicitly configured direct Langfuse export
 uses an isolated provider owned and disposed by `llms`. It does not replace or
 shut down an ambient host provider. When both routes are configured, the relay
 takes precedence so a request is not exported through both routes.
+
+Each issued agent model request gets a `modelRequestId`, shared by request-start
+and stream lifecycle events, provider error logs, and AI SDK runtime context.
+Transport retries within one AI SDK call share that ID; a new agent request gets
+a new ID, even within the same run and iteration. Provider errors also include
+run, agent, session, and conversation IDs when available. The AI SDK `callId`
+is recorded separately as `aiSdkCallId` on errors.
+
+Terminal stream failures notify both application error reporting and tracing
+integrations. Native timeout aborts are failures; explicit caller cancellation
+does not emit a provider `sdk.error`. AI SDK stream recovery permits three retries
+per model step. Recovered attempts do not produce terminal `sdk.error` reports or
+mark the operation as failed. Exhausted stream recovery disables the agent's
+whole-turn retry so the two retry budgets do not multiply. Previously streamed
+text and reasoning follow AI SDK's append semantics and may repeat on recovery.
 
 ### 7. Storage Adapters
 

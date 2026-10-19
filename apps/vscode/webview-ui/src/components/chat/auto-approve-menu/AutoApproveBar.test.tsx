@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import AutoApproveBar, { CLOUD_AUTO_APPROVE_TOOLTIP } from "./AutoApproveBar"
+import AutoApproveBar from "./AutoApproveBar"
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeCheckbox: ({ checked, children, disabled }: { checked: boolean; children: React.ReactNode; disabled: boolean }) => (
@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ autoApprovalSettings: mocks.autoApprovalSettings }),
+	useExtensionState: () => ({ autoApprovalSettings: mocks.autoApprovalSettings, hostName: "PyCharm Professional" }),
 }))
 
 vi.mock("./AutoApproveSettingsAPI", () => ({
@@ -61,7 +61,7 @@ describe("AutoApproveBar", () => {
 
 		expect(trigger).toHaveTextContent("Auto-approve:Read, Edit, Commands, Web Fetch, MCP")
 		await user.hover(trigger)
-		expect(await screen.findByText(CLOUD_AUTO_APPROVE_TOOLTIP)).toBeInTheDocument()
+		expect(await screen.findByText(/when PyCharm is closed\./)).toBeInTheDocument()
 
 		fireEvent.click(trigger)
 		expect(
@@ -81,7 +81,7 @@ describe("AutoApproveBar", () => {
 		fireEvent.click(screen.getByLabelText("Close auto-approve settings"))
 		rerender(<AutoApproveBar />)
 		expect(screen.getByLabelText("Open auto-approve settings")).toHaveTextContent("Auto-approve:Read")
-		expect(screen.queryByText(CLOUD_AUTO_APPROVE_TOOLTIP)).not.toBeInTheDocument()
+		expect(screen.queryByText(/when PyCharm is closed\./)).not.toBeInTheDocument()
 		expect(mocks.autoApprovalSettings).toEqual(localSettings)
 	})
 })

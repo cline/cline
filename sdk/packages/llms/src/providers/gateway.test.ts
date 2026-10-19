@@ -723,6 +723,8 @@ describe("sdk-gateway", () => {
 				tags: true,
 				conversationId: true,
 				runId: true,
+				agentId: true,
+				modelRequestId: true,
 				iteration: true,
 				providerId: true,
 				modelId: true,
@@ -1647,6 +1649,7 @@ describe("sdk-gateway", () => {
 				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 				errorClass: "unknown",
 				errorRetryable: false,
+				errorReported: false,
 			},
 		]);
 	});
@@ -2481,6 +2484,7 @@ describe("sdk-gateway", () => {
 			error: "OpenAI image generation tool returned no supported image output",
 			errorClass: "unknown",
 			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -2699,6 +2703,153 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Invalid API key",
 			errorClass: "unknown",
+			errorRetryable: false,
+			errorReported: false,
+		});
+	});
+
+	it("reports a thrown socket reader error at the provider boundary", async () => {
+		const error = Object.assign(
+			new Error("The socket connection was closed unexpectedly"),
+			{
+				code: "ConnectionClosed",
+			},
+		);
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "reasoning-delta", text: "partial reasoning" };
+				throw error;
+			})(),
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				metadata: {
+					runId: "run-test",
+					agentId: "agent-test",
+					sessionId: "session-test",
+					conversationId: "conversation-test",
+					modelRequestId: "request-test",
+					iteration: 3,
+				},
+			}),
+		);
+		expect(logger.error).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({ error, severity: "error" }),
+		);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "llms",
+				operation: "provider.stream",
+				severity: "error",
+				runId: "run-test",
+				agentId: "agent-test",
+				sessionId: "session-test",
+				conversationId: "conversation-test",
+				modelRequestId: "request-test",
+				iteration: 3,
+				errorPhase: "stream_read",
+				error_code: "ConnectionClosed",
+				error_message: error.message,
+			}),
+		});
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: error.message,
+			errorReported: true,
+		});
+		expect(
+			capture.mock.calls.filter(([call]) => call.event === "sdk.error"),
+		).toHaveLength(1);
+	});
+
+	it.each([
+		"AbortError",
+		"TimeoutError",
+	])("classifies %s cancellation independently of provider failure", async (name) => {
+		const controller = new AbortController();
+		const reason = new DOMException("request aborted", name);
+		controller.abort(reason);
+		streamTextSpy.mockImplementation(
+			(input: { onAbort?: (event: { reason: unknown }) => Promise<void> }) => {
+				return {
+					fullStream: (async function* () {
+						await input.onAbort?.({ reason });
+						yield { type: "abort", reason };
+					})(),
+				};
+			},
+		);
+		const { telemetry, capture } = createTelemetryMock();
+		const logger = { error: vi.fn(), log: vi.fn() };
+		const gateway = createGateway({
+			telemetry,
+			logger,
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+				signal: controller.signal,
+			}),
+		);
+		const errors = capture.mock.calls.filter(
+			([call]) => call.event === "sdk.error",
+		);
+		if (name === "TimeoutError") {
+			expect(errors).toHaveLength(1);
+			expect(errors[0]?.[0].properties).toMatchObject({
+				error_type: "TimeoutError",
+				errorPhase: "timeout",
+				severity: "error",
+			});
+		} else {
+			expect(errors).toHaveLength(0);
+			expect(logger.error).not.toHaveBeenCalled();
+		}
+	});
+
+	it("uses three SDK stream retries without allowing another whole-turn retry", async () => {
+		const error = {
+			message: "upstream timeout",
+			code: "504",
+			isRetryable: true,
+		};
+		streamTextSpy.mockImplementation(
+			(input: { onError?: (event: { error: unknown }) => void }) => {
+				input.onError?.({ error });
+				return { fullStream: makeStreamParts([{ type: "error", error }]) };
+			},
+		);
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+		expect(streamTextSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+			streamRetries: 3,
+		});
+		expect(events.at(-1)).toMatchObject({
+			reason: "error",
 			errorRetryable: false,
 		});
 	});
@@ -2957,6 +3108,7 @@ describe("sdk-gateway", () => {
 				error: "Invalid API key",
 				errorClass: "unknown",
 				errorRetryable: false,
+				errorReported: false,
 			},
 		]);
 	});
@@ -2998,6 +3150,7 @@ describe("sdk-gateway", () => {
 			error: "prompt is too long: 213462 tokens > 200000 maximum",
 			errorClass: "context_window_exceeded",
 			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
@@ -3035,6 +3188,7 @@ describe("sdk-gateway", () => {
 			error: "Instructions are required",
 			errorClass: "unknown",
 			errorRetryable: false,
+			errorReported: false,
 		});
 	});
 
