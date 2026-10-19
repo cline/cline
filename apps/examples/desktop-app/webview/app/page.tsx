@@ -60,7 +60,7 @@ import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useComposerSuggestions } from "@/hooks/use-composer-suggestions";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { type RestorePrompt, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -1210,6 +1210,7 @@ function ChatThreadPane({
 	}, [onThreadStarted, sessionId, threadId]);
 	const {
 		clearPromptForSend,
+		holdPromptForSend,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
@@ -1912,7 +1913,7 @@ function ChatThreadPane({
 	);
 
 	const handleSend = useCallback(
-		async (prompt: string) => {
+		async (prompt: string, takeDraft: () => RestorePrompt) => {
 			const trimmed = prompt.trim();
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
@@ -1921,10 +1922,7 @@ function ChatThreadPane({
 				return;
 			}
 			onThreadStarted?.(threadId);
-			// Also clear the injected draft: the composer cleared its local copy,
-			// but a stale non-empty draft would repopulate the input if the
-			// composer remounts (e.g. a transport blip re-showing the loader).
-			const restorePrompt = clearPromptForSend();
+			const restorePrompt = takeDraft();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			const promptTaken = await sendPrompt(trimmed, toSend, {
@@ -1938,7 +1936,6 @@ function ChatThreadPane({
 			}
 		},
 		[
-			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
@@ -2326,9 +2323,16 @@ function ChatThreadPane({
 			}),
 		[providerCredentials, setConfig],
 	);
+	// A typed send also clears the injected draft: the composer cleared its
+	// local copy, but a stale non-empty draft would repopulate the input if the
+	// composer remounts (e.g. a transport blip re-showing the loader).
 	const handleSendPrompt = useCallback(
-		(prompt: string) => void handleSend(prompt),
-		[handleSend],
+		(prompt: string) => void handleSend(prompt, clearPromptForSend),
+		[clearPromptForSend, handleSend],
+	);
+	const handleSendSuggestion = useCallback(
+		(prompt: string) => void handleSend(prompt, holdPromptForSend),
+		[handleSend, holdPromptForSend],
 	);
 
 	const firstUserMessage = messages.find(
@@ -2391,7 +2395,7 @@ function ChatThreadPane({
 		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
 		messages: displayedMessages,
 		promptsInQueue,
-		onSend: handleSendPrompt,
+		onSend: handleSendSuggestion,
 		onUndoTurn: handleEditMessage,
 		onRemoveQueuedPrompt: removePromptInQueue,
 		abort,

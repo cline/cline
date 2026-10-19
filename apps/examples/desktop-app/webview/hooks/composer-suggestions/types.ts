@@ -45,6 +45,7 @@ export type ComposerSuggestionsOptions = {
 	waiting: boolean;
 	messages: ChatMessage[];
 	promptsInQueue: readonly PromptInQueue[];
+	/** Submits a one-key Send's prompt. It never came from the box, which may hold text typed during the verdict wait, so the box stays as it is. */
 	onSend: (prompt: string) => void;
 	/** Forks the session from before `runCount` with `content` as the new draft. */
 	onUndoTurn: (

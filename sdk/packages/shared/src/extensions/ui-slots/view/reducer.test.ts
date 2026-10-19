@@ -90,6 +90,16 @@ describe("sent line", () => {
 		expect(local.used).toBeUndefined();
 		expect(local.sent).toMatchObject({ itemId: "commit", revision: "r2" });
 	});
+
+	it("leaves a suggestion used during a one-key Send's verdict wait in place", () => {
+		const local = readyOnScreen(
+			{ type: "used", itemId: "commit" },
+			{ type: "sent", ref: verifyRef },
+		);
+
+		expect(local.sent).toEqual(verifyRef);
+		expect(local.used).toMatchObject({ itemId: "commit", revision: "r2" });
+	});
 });
 
 describe("ordering in the reducer", () => {

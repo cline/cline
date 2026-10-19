@@ -7,7 +7,7 @@ import {
 	reduceSuggestionsLocal,
 	SUGGESTION_BREAKPOINTS,
 } from "@cline/shared/browser";
-import { act, type MouseEvent as ReactMouseEvent } from "react";
+import { act, type MouseEvent as ReactMouseEvent, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
 	afterEach,
@@ -21,7 +21,7 @@ import {
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ComposerSuggestionsController } from "@/hooks/composer-suggestions/types";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { type RestorePrompt, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
@@ -270,20 +270,41 @@ async function renderVoiceComposer({
 	});
 }
 
+/** A chat pane's draft and send wiring as page.tsx has it, with the real store and composer. */
 function DraftComposer({
 	drafts,
 	threadId,
 	sendPrompt,
+	suggestions,
+	composerKey,
 }: {
 	drafts: Map<string, string>;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
+	/** A new key remounts the composer inside the same pane, as the transport loader does. */
+	composerKey?: string;
+	/** Builds the tray's controller around the pane's one-key Send. */
+	suggestions?: (
+		sendSuggestion: (prompt: string) => Promise<void>,
+	) => ComposerSuggestionsController;
 }) {
-	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
-		usePromptDraft(drafts, threadId);
+	const {
+		promptDraft,
+		handlePromptInputChange,
+		clearPromptForSend,
+		holdPromptForSend,
+	} = usePromptDraft(drafts, threadId);
+	const send = async (prompt: string, takeDraft: () => RestorePrompt) => {
+		const restorePrompt = takeDraft();
+		if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
+	};
+	const [controller] = useState(() =>
+		suggestions?.((prompt) => send(prompt, holdPromptForSend)),
+	);
 	return (
 		<WorkspaceProvider value={workspaceValue}>
 			<ChatInputBar
+				key={composerKey}
 				environmentId="local"
 				attachments={[]}
 				gitBranch="main"
@@ -303,10 +324,7 @@ function DraftComposer({
 				onReasoningChange={vi.fn()}
 				onRemoveAttachment={vi.fn()}
 				onRemovePromptInQueue={vi.fn()}
-				onSend={async (prompt) => {
-					const restorePrompt = clearPromptForSend();
-					if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
-				}}
+				onSend={(prompt) => send(prompt, clearPromptForSend)}
 				onSteerPromptInQueue={vi.fn()}
 				onSwitchGitBranch={vi.fn(async () => true)}
 				promptDraft={promptDraft}
@@ -314,6 +332,7 @@ function DraftComposer({
 				provider="cline"
 				reasoningEffort="low"
 				status="idle"
+				suggestions={controller}
 				summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
 				thinking
 			/>
@@ -3430,5 +3449,141 @@ describe("ChatInputBar suggestion tray", () => {
 		expect(suggestions.submitted.mock.invocationCallOrder[0]).toBeLessThan(
 			onSend.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+
+	describe("one-key Send", () => {
+		let drafts: Map<string, string>;
+		beforeEach(() => {
+			drafts = new Map();
+		});
+
+		/** A pane whose tray Send submits the highlighted prompt once the plugin's verdict, `verdict()`, lands. */
+		function renderPane(
+			sendPrompt: (prompt: string) => Promise<boolean>,
+			{
+				verdict = async () => undefined,
+				composerKey,
+			}: { verdict?: () => Promise<void>; composerKey?: string } = {},
+		) {
+			return act(async () => {
+				root.render(
+					<DraftComposer
+						composerKey={composerKey}
+						drafts={drafts}
+						sendPrompt={sendPrompt}
+						suggestions={(sendSuggestion) => ({
+							...stubSuggestions(),
+							send: async (view) => {
+								await verdict();
+								await sendSuggestion(view.highlighted.prompt);
+							},
+						})}
+						threadId="A"
+					/>,
+				);
+			});
+		}
+
+		/** Shift+Ctrl+1. */
+		function pressSend() {
+			return act(async () => {
+				document.body.dispatchEvent(
+					new KeyboardEvent("keydown", {
+						bubbles: true,
+						cancelable: true,
+						code: "Digit1",
+						key: "!",
+						ctrlKey: true,
+						shiftKey: true,
+					}),
+				);
+			});
+		}
+
+		async function typeIntoBox(value: string) {
+			const textarea = container.querySelector("textarea");
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set;
+			await act(async () => {
+				setValue?.call(textarea, value);
+				textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+		}
+
+		it("leaves text typed during the verdict wait in the box", async () => {
+			const verdict = deferred<void>();
+			const sendPrompt = vi.fn(async (_prompt: string) => true);
+			await renderPane(sendPrompt, { verdict: () => verdict.promise });
+			await pressSend();
+			await typeIntoBox("also update the changelog");
+
+			await act(async () => verdict.resolve());
+
+			expect(sendPrompt).toHaveBeenCalledWith(suggestion.prompt);
+			expect(container.querySelector("textarea")?.value).toBe(
+				"also update the changelog",
+			);
+			expect(drafts.get("A")).toBe("also update the changelog");
+		});
+
+		it("puts a failed send's prompt back into the box it left empty", async () => {
+			const verdict = deferred<void>();
+			await renderPane(async () => false, { verdict: () => verdict.promise });
+			await pressSend();
+
+			await act(async () => verdict.resolve());
+
+			expect(container.querySelector("textarea")?.value).toBe(
+				suggestion.prompt,
+			);
+		});
+
+		describe("when the composer remounts after the send", () => {
+			function failOnceThenSend() {
+				return vi
+					.fn<(prompt: string) => Promise<boolean>>()
+					.mockResolvedValueOnce(false)
+					.mockResolvedValue(true);
+			}
+
+			it("does not bring back a restored prompt the user cleared and then sent", async () => {
+				const sendPrompt = failOnceThenSend();
+				await renderPane(sendPrompt);
+				await pressSend();
+				expect(container.querySelector("textarea")?.value).toBe(
+					suggestion.prompt,
+				);
+				await typeIntoBox("");
+				await pressSend();
+				expect(sendPrompt).toHaveBeenCalledTimes(2);
+
+				await renderPane(sendPrompt, { composerKey: "remounted" });
+
+				expect(container.querySelector("textarea")?.value).toBe("");
+			});
+
+			it("shows the text typed during the verdict wait, not the sent prompt", async () => {
+				const sendPrompt = failOnceThenSend();
+				const secondVerdict = deferred<void>();
+				const verdicts = [Promise.resolve(), secondVerdict.promise];
+				await renderPane(sendPrompt, {
+					verdict: () => verdicts.shift() ?? Promise.resolve(),
+				});
+				await pressSend();
+				await typeIntoBox("");
+				await pressSend();
+				await typeIntoBox("also update the changelog");
+				await act(async () => secondVerdict.resolve());
+				expect(sendPrompt).toHaveBeenCalledTimes(2);
+
+				await renderPane(sendPrompt, { composerKey: "remounted" });
+
+				expect(container.querySelector("textarea")?.value).toBe(
+					"also update the changelog",
+				);
+			});
+		});
 	});
 });

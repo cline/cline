@@ -125,6 +125,51 @@ describe("usePromptDraft", () => {
 		expect(drafts.has("new-session")).toBe(false);
 	});
 
+	it("holds a box the send did not come from as it is, and never restores over its text", async () => {
+		await navigate();
+		act(() => current.handlePromptInputChange("Typed during the wait"));
+		const { version } = current.promptDraft;
+		let restore!: (value: string) => boolean;
+		act(() => {
+			restore = current.holdPromptForSend();
+		});
+		expect(current.promptDraft).toEqual({
+			version,
+			value: "Typed during the wait",
+		});
+		expect(current.promptInputRef.current).toBe("Typed during the wait");
+		act(() => expect(restore("Suggested prompt")).toBe(false));
+		expect(drafts.get("new-session")).toBe("Typed during the wait");
+	});
+
+	it("drops an injected draft the user cleared when a held send goes out", async () => {
+		await navigate();
+		act(() => current.setPromptInput("Restored prompt"));
+		act(() => current.handlePromptInputChange(""));
+		const { version } = current.promptDraft;
+		act(() => {
+			current.holdPromptForSend();
+		});
+		expect(current.promptDraft).toEqual({ version, value: "" });
+	});
+
+	it("restores a failed held send only into the box it left untouched and empty", async () => {
+		await navigate();
+		let untouched!: (value: string) => boolean;
+		let edited!: (value: string) => boolean;
+		act(() => {
+			edited = current.holdPromptForSend();
+			current.handlePromptInputChange("Changed my mind");
+			current.handlePromptInputChange("");
+			untouched = current.holdPromptForSend();
+		});
+		act(() => expect(edited("Suggested prompt")).toBe(false));
+		expect(drafts.has("new-session")).toBe(false);
+		act(() => expect(untouched("Suggested prompt")).toBe(true));
+		expect(current.promptDraft.value).toBe("Suggested prompt");
+		expect(drafts.get("new-session")).toBe("Suggested prompt");
+	});
+
 	it("does not let an earlier send's failure replace a later send's draft", async () => {
 		await navigate();
 		let first!: ReturnType<typeof pendingSend>;

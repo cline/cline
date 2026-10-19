@@ -252,10 +252,13 @@ export function reduceSuggestionsLocal(
 		}
 		case "draft_cleared":
 			return local.used ? { ...local, used: undefined } : local;
-		case "sent": {
-			const sent = event.ref ?? local.used;
-			return sent ? { ...local, sent, used: undefined } : local;
-		}
+		case "sent":
+			// A one-key Send needs an empty box, so a `used` here was picked
+			// during its verdict wait and is still in the box.
+			if (event.ref) return { ...local, sent: event.ref };
+			return local.used
+				? { ...local, sent: local.used, used: undefined }
+				: local;
 		case "unsent":
 			return local.sent
 				? { ...local, used: local.sent, sent: undefined }

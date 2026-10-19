@@ -159,6 +159,31 @@ describe("useComposerSuggestions", () => {
 		await act(async () => verdict.resolve({ outcome: "ok" }));
 	});
 
+	it("keeps a suggestion used while a one-key Send waited, so emptying the box still sends clear", async () => {
+		const verdict = deferred<unknown>();
+		scriptHub({
+			states: READY_R1,
+			reply: (_sessionId, action) =>
+				action.verb === "send" ? verdict.promise : undefined,
+		});
+		const tray = await mountTray();
+		await settle(400);
+
+		await press(tray.composer(), SEND_KEYS);
+		await press(tray.composer(), { code: "ArrowDown", key: "ArrowDown" });
+		await press(tray.composer(), USE_KEYS);
+		await act(async () => verdict.resolve({ outcome: "ok" }));
+		await settle();
+
+		expect(tray.controller().local.sent?.itemId).toBe("verify");
+		expect(tray.controller().local.used?.itemId).toBe("review");
+		await typeInto(tray.composer(), "");
+
+		expect(invokedActions("clear").map(({ action }) => action)).toEqual([
+			{ verb: "clear", revision: "r1", itemId: "review" },
+		]);
+	});
+
 	it("sends no clear for a refused Use whose box was edited before the refusal landed", async () => {
 		const useReply = deferred<unknown>();
 		scriptHub({
