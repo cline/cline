@@ -8,6 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useGitHubConnection } from "@/hooks/useGitHubConnection"
 import { cn } from "@/lib/utils"
 import { CloudServiceClient } from "@/services/grpc-client"
+import { editorName } from "@/utils/editorName"
 import { CloudOnboardingCard, type CloudOnboardingVariant } from "./CloudOnboardingCard"
 import { SearchableSelect } from "./SearchableSelect"
 
@@ -28,7 +29,8 @@ const GITHUB_ICON = (
  * itself, so nothing it does in the background can override a click.
  */
 export function TaskTargetPanel() {
-	const { cloudTaskTarget } = useExtensionState()
+	const { cloudTaskTarget, hostName } = useExtensionState()
+	const editor = editorName(hostName)
 	const { clineUser } = useClineAuth()
 	const { handleSignIn } = useClineSignIn()
 	const signedIn = !!clineUser?.uid
@@ -155,6 +157,7 @@ export function TaskTargetPanel() {
 					{onboardingVariant ? (
 						<CloudOnboardingCard
 							checking={loading}
+							editor={editor}
 							errorMessage={connection?.error}
 							onConnect={connectGitHub}
 							onRefresh={() => void refresh()}
@@ -201,7 +204,7 @@ export function TaskTargetPanel() {
 										</button>
 									</>
 								) : (
-									"Uses a Cline model and Cline credits in an isolated sandbox. Tools are auto-approved so the task can keep going after you close VS Code."
+									`Uses a Cline model and Cline credits in an isolated sandbox. Tools are auto-approved so the task can keep going after you close ${editor}.`
 								)}
 							</p>
 						</div>

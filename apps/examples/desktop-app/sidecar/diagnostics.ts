@@ -11,7 +11,6 @@ import { arch, homedir, platform, release } from "node:os";
 import { join } from "node:path";
 import { readGlobalSettings, resolveClineDataDir } from "@cline/core";
 import packageJson from "../package.json";
-import { readDesktopSettings } from "./desktop-settings";
 import { readSessionManifest } from "./paths";
 
 /** How much of each log file (from the end) is included in the report. */
@@ -88,7 +87,6 @@ export function buildDiagnosticsReport(
 		},
 		dataDir,
 		globalSettings: readGlobalSettings(),
-		desktopSettings: readDesktopSettings(),
 	};
 	let text = `${JSON.stringify(report, null, 2)}\n`;
 

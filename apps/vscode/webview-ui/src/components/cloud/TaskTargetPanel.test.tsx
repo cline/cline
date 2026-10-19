@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 		workspaceRepoUrl?: string
 	},
 	clineUser: undefined as { uid: string } | undefined,
+	hostName: undefined as string | undefined,
 	connection: undefined as
 		| {
 				signedIn: boolean
@@ -26,7 +27,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ cloudTaskTarget: mocks.cloudTaskTarget }),
+	useExtensionState: () => ({ cloudTaskTarget: mocks.cloudTaskTarget, hostName: mocks.hostName }),
 }))
 
 vi.mock("@/context/ClineAuthContext", () => ({
@@ -63,6 +64,7 @@ describe("TaskTargetPanel", () => {
 		)
 		mocks.cloudTaskTarget = { target: "cloud" }
 		mocks.clineUser = undefined
+		mocks.hostName = undefined
 		mocks.connection = undefined
 		mocks.getRepositoryBranches.mockResolvedValue({ branches: [] })
 		mocks.chooseCloudTaskTarget.mockResolvedValue({})
@@ -73,6 +75,14 @@ describe("TaskTargetPanel", () => {
 
 		expect(await screen.findByText("Run Cline in the cloud")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: /Sign in to Cline/i })).toBeInTheDocument()
+	})
+
+	it("names the host editor in the onboarding copy", async () => {
+		mocks.hostName = "PyCharm Professional"
+
+		render(<TaskTargetPanel />)
+
+		expect(await screen.findByText(/keeps going after you close PyCharm\./)).toBeInTheDocument()
 	})
 
 	it("shows repository onboarding when GitHub has no accessible repositories", async () => {
