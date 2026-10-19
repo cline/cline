@@ -1,0 +1,2 @@
+Synthetic tracked fixture for cloud snapshot verification.
+Baseline marker: original-copper.
