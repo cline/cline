@@ -53,6 +53,10 @@ import {
 	parseAutoApproveValue,
 } from "./auto-approve";
 import {
+	buildModelConfigOption,
+	buildProviderConfigOption as buildProviderConfigOptionFromChoices,
+} from "./config-options";
+import {
 	buildOrganizationConfigOption,
 	fetchClineOrganizations,
 	getAcpOrgSubscriptionMessage,
@@ -869,33 +873,7 @@ async function buildProviderConfigOption(
 			};
 		}),
 	);
-	return {
-		type: "select",
-		id: "provider",
-		name: "Provider",
-		description: "The authentication provider to use",
-		category: "model",
-		currentValue: currentProviderId,
-		options,
-	};
-}
-
-function buildModelConfigOption(
-	currentModelId: string,
-	providerModels: Record<string, { name?: string; description?: string }>,
-): SessionConfigOption {
-	return {
-		type: "select",
-		id: "model",
-		name: "Model",
-		category: "model",
-		currentValue: currentModelId,
-		options: Object.entries(providerModels).map(([modelId, info]) => ({
-			value: modelId,
-			name: info.name ?? modelId,
-			description: info.description,
-		})),
-	};
+	return buildProviderConfigOptionFromChoices(currentProviderId, options);
 }
 
 function buildModeConfigOption(currentMode: string): SessionConfigOption {
