@@ -1,5 +1,12 @@
 # Cline SDK Changelog
 
+## 0.0.95
+
+- OpenAI-compatible requests for GPT-6 models (`gpt-6-sol`, `gpt-6.1-sol`, `gpt-6-1-sol`, and later gpt-5 through gpt-9 ids) send `max_completion_tokens` instead of `max_tokens`, so OpenAI and Azure no longer reject them. Azure's `gpt-35-turbo` keeps `max_tokens`
+- The hub daemon records which client started it (`CLINE_HUB_LAUNCHER_CLIENT`, `CLINE_HUB_LAUNCHER_VERSION`, `CLINE_HUB_LAUNCHER_TRANSPORT`) and publishes that as OTel resource attributes. SSH remote hubs report the local client with transport `ssh`. `@cline/shared` adds `withHubLauncherIdentity`, `claimHubLauncherIdentity` and `readHubLauncherIdentity`
+- The telemetry self-check report includes `traces_exporter`
+- Refreshed the model catalog (6,952 → 7,041 models). Adds the CommandCode and Reflection providers. The Cline recommended list leads with Claude Sonnet 5.5 again, so the `cline` provider's bundled default goes back to Claude Sonnet 5.5 from Gemini 4 Argon. Default models change for 302.AI (Gemini 4 Argon), Eden AI and Prime Inference (Muse Spark Open), CoreWeave (Reflection Beam 1.0), NanoGPT, Pioneer (Nemotron 3.5 Super VL), and Scaleway (DeepSeek V4.1 Flash). OpenCode Go keeps its `https://opencode.ai/inference/go/v1` base URL, now pinned, because models.dev moved its provider-level URL to an OpenAI-only path
+
 ## 0.0.94
 
 - Plugins now run only in worker threads (the default, `CLINE_PLUGIN_MODE=worker`) or in the subprocess sandbox (`sandbox`). The `in_process` mode is removed, along with its silent fallback. A host that ships no `plugin-sandbox-bootstrap.js` fails every plugin load with `PluginBootstrapMissingError`, which names `CLINE_PLUGIN_BOOTSTRAP_PATH`, instead of quietly running plugins inside the hub. The hub daemon's uncaught error handlers are fatal again. The SSH remote hub ships no bootstrap yet, so it reports plugin tools as missing

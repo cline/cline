@@ -562,9 +562,11 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		const readLiveMessages = vi.fn().mockResolvedValue(sdkMessages)
 		const readMessages = vi.fn().mockResolvedValue(sdkMessages.slice(0, 2))
 		const restore = vi.fn().mockRejectedValue(new Error("stop at restore"))
-		const controller = {
+		// The prototype supplies the private implementation the public method delegates to.
+		const controller = Object.assign(Object.create(SdkController.prototype), {
 			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
 			sessions: {
+				trackSessionStart: (operation: () => Promise<unknown>) => operation(),
 				getActiveSession: () => ({
 					sessionId: "task-a",
 					isRunning: false,
@@ -584,7 +586,7 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			stateManager: { getGlobalSettingsKey: () => "act" },
 			sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
 			resolveContextMentions: async (text: string) => text,
-		}
+		})
 
 		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toBe(true)
 		await expect(
@@ -596,6 +598,68 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		).rejects.toThrow("stop at restore")
 		expect(restore).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "task-a", checkpointRunCount: 2 }))
 		expect(readMessages).not.toHaveBeenCalled()
+	})
+
+	it("runs message edits and checkpoint restores inside a tracked session start", async () => {
+		// Both read the mode setting and swap the session outside the rebuild
+		// lock, so a mode toggle must be able to wait for them to finish.
+		let tracking = false
+		const trackedRestores: boolean[] = []
+		const restore = vi.fn(async () => {
+			trackedRestores.push(tracking)
+			throw new Error("stop at restore")
+		})
+		const restoreActiveSession = vi.fn(async () => {
+			trackedRestores.push(tracking)
+			return {}
+		})
+		const controller = Object.assign(Object.create(SdkController.prototype), {
+			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			sessions: {
+				trackSessionStart: async (operation: () => Promise<unknown>) => {
+					tracking = true
+					try {
+						return await operation()
+					} finally {
+						tracking = false
+					}
+				},
+				restoreActiveSession,
+				getActiveSession: () => ({
+					sessionId: "task-a",
+					isRunning: false,
+					sdkHost: {
+						get: async () => ({
+							cwd: "C:/work",
+							metadata: { checkpoint: { history: [{ ref: "checkpoint-b", createdAt: 1, runCount: 2 }] } },
+						}),
+						readLiveMessages: vi.fn().mockResolvedValue(sdkMessages),
+						readMessages: vi.fn().mockResolvedValue(sdkMessages),
+						restore,
+					},
+				}),
+			},
+			taskHistory: { findHistoryItem: async () => undefined },
+			getWorkspaceRoot: async () => "C:/work",
+			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
+			resolveContextMentions: async (text: string) => text,
+			postStateToWebview: async () => undefined,
+		})
+
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller as never, {
+				messageTs: 3,
+				text: "continue, edited",
+				restoreWorkspace: true,
+			}),
+		).rejects.toThrow("stop at restore")
+		await SdkController.prototype.restoreCheckpoint.call(controller as never, {
+			checkpointRunCount: 2,
+			restoreType: "workspace",
+		})
+
+		expect(trackedRestores).toEqual([true, true])
 	})
 
 	it("uses and disposes a temporary host for a history task", async () => {
@@ -799,11 +863,16 @@ describe("cloud tasks stay in the cloud", () => {
 
 	it("refuses to rebuild a cloud task's conversation as a local session", async () => {
 		const startNewSession = vi.fn()
-		const controller = {
+		// The prototype supplies the private implementation the public method delegates to.
+		const controller = Object.assign(Object.create(SdkController.prototype), {
 			task: { taskId: "ses-cloud", messageStateHandler: { getClineMessages: () => [] } },
-			sessions: { getActiveSession: () => undefined, startNewSession },
+			sessions: {
+				getActiveSession: () => undefined,
+				startNewSession,
+				trackSessionStart: (operation: () => Promise<unknown>) => operation(),
+			},
 			stateManager,
-		}
+		})
 
 		await expect(
 			SdkController.prototype.editMessageAndRegenerate.call(controller as never, { messageTs: 1, text: "edited" }),
