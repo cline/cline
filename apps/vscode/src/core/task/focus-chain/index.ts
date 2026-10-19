@@ -236,7 +236,11 @@ export class FocusChainManager {
 
 			return null
 		} catch (error) {
-			// File doesn't exist or can't be read, return null
+			// Missing file is the normal state until the model first sends task_progress; don't log it
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				return null
+			}
+			// File can't be read for another reason, return null
 			Logger.log(`[Task ${this.taskId}] focus chain list: Could not load from markdown file: ${error}`)
 			return null
 		}
