@@ -343,8 +343,17 @@ export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
  * project, and file edits outside the project are refused.
  */
 export function isKeepChangesInProjectEnabledGlobally(): boolean {
-	return readGlobalSettings().keepChangesInProject === true;
+	const cached = getCachedSettings();
+	// A torn or corrupt read (e.g. another app mid-write) falls back to
+	// defaults; keep the last value actually read so protection does not
+	// silently switch off.
+	if (!cached.loadFailed) {
+		lastReadKeepChangesInProject = cached.value.keepChangesInProject === true;
+	}
+	return lastReadKeepChangesInProject;
 }
+
+let lastReadKeepChangesInProject = false;
 
 export function setKeepChangesInProjectGlobally(
 	keepChangesInProject: boolean,
