@@ -73,7 +73,9 @@ function describeRunning(running: OllamaRunningModel): string {
 	}
 	// Ollama reports models pinned with keep_alive -1 as expiring centuries from now.
 	const oneYearMs = 365 * 24 * 60 * 60 * 1000
-	if (running.expiresAtMs > 0 && running.expiresAtMs - Date.now() < oneYearMs) {
+	if (running.expiresAtMs - Date.now() >= oneYearMs) {
+		parts.push("stays loaded until unloaded")
+	} else if (running.expiresAtMs > 0) {
 		const time = new Date(running.expiresAtMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
 		parts.push(`unloads at ${time} if idle`)
 	}
@@ -442,10 +444,9 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 				)}
 
 				<p className="text-xs text-description m-0 mt-2">
-					Ollama unloads a model after a few minutes without requests to free up memory, so the next message may take a
-					moment while it loads again. Set the <code>OLLAMA_KEEP_ALIVE</code> environment variable for the Ollama server
-					to keep models loaded longer. The context window and server URL can be adjusted under API Configuration →
-					Ollama.
+					Models loaded here stay in memory until you unload them. A model Ollama loads on its own, when a message
+					arrives for it, is unloaded after a few minutes idle (configurable with <code>OLLAMA_KEEP_ALIVE</code>). The
+					context window and server URL can be adjusted under API Configuration → Ollama.
 				</p>
 			</Section>
 		</div>

@@ -12,7 +12,7 @@ export async function loadOllamaModel(_controller: Controller, request: OllamaMo
 	await createOllamaClient(request.baseUrl).generate({
 		model: request.model,
 		prompt: "",
-		// Stay loaded until explicitly unloaded. Cline's own requests reset this to the server's keep-alive.
+		// Stay loaded until explicitly unloaded; requests without a keep_alive don't shorten it.
 		keep_alive: -1,
 		...(request.contextWindow ? { options: { num_ctx: request.contextWindow } } : {}),
 	})
