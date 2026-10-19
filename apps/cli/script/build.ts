@@ -160,13 +160,18 @@ for (const item of targets) {
 				console.log(`  Passed: hub core ${status.coreVersion}`);
 			} finally {
 				await $`${outfile} hub stop`.env(smokeEnv).quiet().nothrow();
-				for (let attempt = 0; attempt < 10; attempt++) {
-					try {
-						rmSync(smokeHome, { recursive: true, force: true });
-						break;
-					} catch {
-						await Bun.sleep(100);
-					}
+				try {
+					rmSync(smokeHome, {
+						recursive: true,
+						force: true,
+						maxRetries: 10,
+						retryDelay: 100,
+					});
+				} catch (cleanupError) {
+					console.warn(
+						`  Warning: failed to remove smoke test dir ${smokeHome}:`,
+						cleanupError,
+					);
 				}
 			}
 		} catch (e) {
