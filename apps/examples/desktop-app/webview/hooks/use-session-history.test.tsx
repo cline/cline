@@ -73,22 +73,6 @@ describe("resolveLiveHistorySession", () => {
 		expect(resolveLiveHistorySession(snapshot, [remote])).toBe(snapshot);
 		expect(resolveLiveHistorySession(remote, [local, remote])).toBe(remote);
 	});
-
-	it("uses refreshed metadata for an already-open session", () => {
-		const snapshot = sessionRow("handoff-source");
-		const refreshed = {
-			...snapshot,
-			metadata: {
-				handoff: {
-					status: "complete",
-					toCloudSessionId: "cloud-1",
-				},
-			},
-		};
-
-		expect(resolveLiveHistorySession(snapshot, [refreshed])).toBe(refreshed);
-		expect(resolveLiveHistorySession(snapshot, [])).toBe(snapshot);
-	});
 });
 
 let container: HTMLDivElement;

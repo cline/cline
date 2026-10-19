@@ -68,7 +68,7 @@ export function humanizeCloudSessionError(value: string): string {
 	const message = parseCloudSessionError(value)?.message ?? value;
 	if (
 		/session belongs to environment/i.test(message) &&
-		(/\bundefined\b/i.test(message) || message.includes("[object Object]"))
+		/\bundefined\b/i.test(message)
 	) {
 		return "Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.";
 	}

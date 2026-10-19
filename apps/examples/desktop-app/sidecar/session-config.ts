@@ -1,11 +1,7 @@
 import { realpathSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
-function resolveWorkspacePath(
-	path: string,
-	environment: "local" | "ssh",
-): string {
-	if (environment === "ssh") return resolve(path);
+function resolveWorkspacePath(path: string): string {
 	try {
 		return realpathSync.native(path);
 	} catch (error) {
@@ -15,14 +11,9 @@ function resolveWorkspacePath(
 	}
 }
 
-export function workspacePathsOverlap(
-	path: string | undefined,
-	root: string,
-	environment: "local" | "ssh",
-): boolean {
-	if (!path) return false;
-	const resolved = resolveWorkspacePath(path, environment);
-	const parent = resolveWorkspacePath(root, environment);
+export function workspacePathsOverlap(path: string, root: string): boolean {
+	const resolved = resolveWorkspacePath(path);
+	const parent = resolveWorkspacePath(root);
 	return (
 		resolved === parent ||
 		resolved.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`) ||

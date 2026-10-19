@@ -80,7 +80,7 @@ async function assertHandoffIdle(
 	if (
 		workspaceKey &&
 		[...ctx.restoringWorkspacePaths].some((locked) =>
-			workspacePathsOverlap(workspaceKey, locked, "local"),
+			workspacePathsOverlap(workspaceKey, locked),
 		)
 	)
 		throw new Error(
@@ -407,10 +407,7 @@ export function beginActiveSessionSend(
 	};
 }
 
-export function hasActiveSessionSend(
-	ctx: SidecarContext,
-	sessionId: string,
-): boolean {
+function hasActiveSessionSend(ctx: SidecarContext, sessionId: string): boolean {
 	return (
 		activeSendRequests
 			.get(getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local"))

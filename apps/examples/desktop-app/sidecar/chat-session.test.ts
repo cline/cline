@@ -181,28 +181,6 @@ describe("starting SSH sessions", () => {
 		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
 	});
 
-	it.each([
-		"before",
-		"during",
-	])("blocks a start when a parent workspace restore begins %s preparation", async (when) => {
-		const { ctx, config, readMessages, start } = setup();
-		if (when === "before") ctx.restoringWorkspacePaths.add("/remote");
-		else
-			readMessages.mockImplementationOnce(async () => {
-				ctx.restoringWorkspacePaths.add("/remote");
-				return transcript;
-			});
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "start",
-				config: { ...config, cwd: "/remote/project" },
-			}),
-		).rejects.toThrow(
-			"Cannot send a prompt while the session workspace is being restored",
-		);
-		expect(start).not.toHaveBeenCalled();
-	});
-
 	it("propagates other read failures without creating a session", async () => {
 		const { ctx, config, readMessages, start } = setup();
 		const error = Object.assign(new Error("Hub disconnected"), {
@@ -691,16 +669,6 @@ describe("session forks", () => {
 				"Cannot send a prompt while the session workspace is being restored",
 			);
 			expect(send).not.toHaveBeenCalled();
-			for (const cwd of ["/workspace", "/workspace/project/child"]) {
-				await expect(
-					handleChatSessionCommand(ctx, {
-						action: "restore_checkpoint",
-						sessionId: siblingSessionId,
-						checkpointRunCount: 1,
-						config: { cwd },
-					}),
-				).rejects.toThrow("Wait for all turns in this workspace to finish");
-			}
 		} finally {
 			releaseRestore();
 		}
@@ -951,12 +919,7 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it.each([
-		"/workspace/project/.",
-		"/workspace/project/child",
-		"/workspace",
-		"/",
-	])("rejects an edit fork while a session in %s is running", async (workspaceRoot) => {
+	it("rejects an edit fork while a sibling session in the workspace is running", async () => {
 		const sourceSessionId = "idle-source-session";
 		const siblingSessionId = "busy-sibling-session";
 		const restore = vi.fn();
@@ -976,7 +939,7 @@ describe("session forks", () => {
 				[
 					siblingSessionId,
 					{
-						config: { workspaceRoot },
+						config: { workspaceRoot: "/workspace/project/." },
 						messages: [],
 						promptsInQueue: [],
 						busy: true,
@@ -1091,12 +1054,7 @@ describe("session forks", () => {
 		}
 	});
 
-	it.each([
-		"/workspace/project/.",
-		"/workspace/project/child",
-		"/workspace",
-		"/",
-	])("blocks sends from %s while an overlapping workspace is restored", async (workspaceRoot) => {
+	it("blocks sends from sibling sessions while their workspace is restored", async () => {
 		const send = vi.fn();
 		const sessionId = "workspace-sibling-session";
 		const ctx = {
@@ -1104,7 +1062,7 @@ describe("session forks", () => {
 				[
 					sessionId,
 					{
-						config: { workspaceRoot },
+						config: { workspaceRoot: "/workspace/project/." },
 						messages: [{ role: "user", content: "prompt" }],
 						promptsInQueue: [],
 						busy: false,
@@ -1312,10 +1270,8 @@ describe("first-send connection updates", () => {
 		});
 	});
 
-	it.each([
-		"/workspace/project",
-		"/workspace/project-sibling",
-	])("rechecks a restore of %s after preparing a prompt", async (locked) => {
+	it("blocks handoff while a local prompt is still being prepared", async () => {
+		enableCloudHandoffGates();
 		const { ctx, sessionId, send } = createContext({
 			config: { ...baseConfig, cwd: "/workspace/project/child" },
 		});
@@ -1335,20 +1291,21 @@ describe("first-send connection updates", () => {
 				prompt: "/custom",
 			});
 			await preparing.promise;
-			ctx.restoringWorkspacePaths.add(locked);
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "prepare_handoff",
+					sessionId,
+				}),
+			).rejects.toThrow(
+				"Wait for the current send to finish before using /cloud.",
+			);
 			prepared.resolve();
-			if (locked === "/workspace/project") {
-				await expect(result).rejects.toThrow(
-					"Cannot send a prompt while the session workspace is being restored",
-				);
-				expect(send).not.toHaveBeenCalled();
-			} else {
-				await result;
-				expect(send).toHaveBeenCalledWith(
-					expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
-				);
-			}
+			await result;
+			expect(send).toHaveBeenCalledWith(
+				expect.objectContaining({ sessionId, prompt: "expanded prompt" }),
+			);
 		} finally {
+			prepared.resolve();
 			command.mockRestore();
 		}
 	});
@@ -1538,7 +1495,7 @@ describe("first-send connection updates", () => {
 		}
 	});
 
-	it("removes queued and consumed attachments when resetting", async () => {
+	it("deletes tracked attachments when a session is reset", async () => {
 		const { ctx, sessionId } = createContext();
 		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
 		const testSessionDataDir = join(

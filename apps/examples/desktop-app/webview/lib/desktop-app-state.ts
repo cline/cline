@@ -16,7 +16,6 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
-	/** Attachments restored into the composer alongside initialPromptDraft. */
 	initialAttachments?: File[];
 	initialHandoffFollowUpId?: string;
 };

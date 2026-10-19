@@ -69,7 +69,7 @@ describe("parseCloudSessionError", () => {
 	it("replaces malformed environment mismatch details with actionable copy", () => {
 		expect(
 			humanizeCloudSessionError(
-				"The session belongs to environment undefined, not [object Object].",
+				"The session belongs to environment undefined, not local.",
 			),
 		).toBe(
 			"Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",

@@ -1361,7 +1361,6 @@ function ChatThreadPane({
 	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
 	liveHistorySession?: SessionHistoryItem;
-	/** Attachments to restore into the composer alongside initialPromptDraft. */
 	initialAttachments?: File[];
 	initialPromptDraft?: string;
 	initialHandoffFollowUpId?: string;
@@ -1475,7 +1474,6 @@ function ChatThreadPane({
 	const cloudAgentsEnabled =
 		cloudAgentsFlagEnabled === true &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
-	const cloudHandoffAvailable = cloudAgentsEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	// Handoff state is keyed by local session id; another environment may reuse the id.
@@ -1483,15 +1481,6 @@ function ChatThreadPane({
 		sourceSessionId && environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
 			? handoffUiState[sourceSessionId]
 			: undefined;
-	const handoffRetry =
-		handoffUi?.status === "failed" || handoffUi?.status === "retry_restored"
-			? {
-					draft: handoffUi.retryDraft
-						? `/cloud ${handoffUi.retryDraft}`
-						: "/cloud",
-					attachments: handoffUi.retryAttachments,
-				}
-			: null;
 	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
 	const openGitHubConnect = useCallback(
@@ -1600,8 +1589,6 @@ function ChatThreadPane({
 	const followUpSessionRef = useRef(sessionId);
 	followUpSessionRef.current = sessionId;
 	const followUpReadRef = useRef(0);
-	const attachmentCountRef = useRef(pendingAttachments.length);
-	attachmentCountRef.current = pendingAttachments.length;
 	const refreshFollowUp = useCallback(async () => {
 		if (!isCloudSession || !sessionId) return null;
 		const request = ++followUpReadRef.current;
@@ -1647,7 +1634,7 @@ function ChatThreadPane({
 				followUpSessionRef.current === sessionId &&
 				(isThreadActive?.() ?? true) &&
 				!promptInputRef.current.trim() &&
-				attachmentCountRef.current === 0;
+				draftRef.current.attachments.length === 0;
 			setUpdatingFollowUp(true);
 			try {
 				if (action === "restore")
@@ -2195,7 +2182,7 @@ function ChatThreadPane({
 				historySession.origin === "cloud" &&
 				shouldPreserveCloudComposer(
 					promptInputRef.current,
-					attachmentCountRef.current,
+					draftRef.current.attachments.length,
 					draftRef.current.lastRestoredFollowUpId,
 					initialHandoffFollowUpId,
 				);
@@ -2280,8 +2267,7 @@ function ChatThreadPane({
 	);
 
 	const handleRestoreHandoffDraft = useCallback(() => {
-		if (!sourceSessionId || !handoffRetry || handoffUi?.status !== "failed")
-			return;
+		if (!sourceSessionId || handoffUi?.status !== "failed") return;
 		if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
 			toast({
 				title: "Your current draft is unchanged",
@@ -2289,14 +2275,14 @@ function ChatThreadPane({
 			});
 			return;
 		}
-		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
-		if (handoffRetry.attachments?.length)
-			setPendingAttachments([...handoffRetry.attachments]);
+		setPromptInput(
+			handoffUi.retryDraft ? `/cloud ${handoffUi.retryDraft}` : "/cloud",
+		);
+		setPendingAttachments([...handoffUi.retryAttachments]);
 		onHandoffUiAction({ type: "retry_restored", sourceSessionId });
 	}, [
 		draftRef,
-		handoffRetry,
-		handoffUi?.status,
+		handoffUi,
 		onHandoffUiAction,
 		setPromptInput,
 		setPendingAttachments,
@@ -2448,7 +2434,7 @@ function ChatThreadPane({
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			const handoff = parseHandoffCommand(trimmed);
-			if (handoff && cloudHandoffAvailable) {
+			if (handoff && cloudAgentsEnabled) {
 				await prepareHandoff(handoff.nextCommand);
 				return;
 			}
@@ -2513,7 +2499,7 @@ function ChatThreadPane({
 			setPendingAttachments,
 			sourceSessionId,
 			threadId,
-			cloudHandoffAvailable,
+			cloudAgentsEnabled,
 			workIn,
 		],
 	);
@@ -3112,7 +3098,7 @@ function ChatThreadPane({
 		<ChatInputBar
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
-			cloudHandoffAvailable={cloudHandoffAvailable}
+			cloudHandoffAvailable={cloudAgentsEnabled}
 			environmentId={environmentId}
 			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}

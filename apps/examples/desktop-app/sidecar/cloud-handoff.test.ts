@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { summarizeConversation } from "@cline/core";
 import { loadCloudModels } from "@cline/core/cloud";
 import { DEFAULT_MAX_IMAGE_DECODED_BYTES } from "@cline/shared";
@@ -40,17 +37,10 @@ vi.mock("@cline/core/cloud", async (importOriginal) => {
 
 const image =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jT1sAAAAASUVORK5CYII=";
-let dataDir: string;
-beforeEach(() => {
-	dataDir = mkdtempSync(join(tmpdir(), "cloud-summary-test-"));
-	vi.stubEnv("CLINE_DATA_DIR", dataDir);
-	enableCloudHandoffGates();
-});
+beforeEach(enableCloudHandoffGates);
 afterEach(() => {
 	vi.restoreAllMocks();
-	vi.unstubAllEnvs();
 	cleanupCloudHandoffGates();
-	rmSync(dataDir, { recursive: true, force: true });
 });
 
 function fixture() {

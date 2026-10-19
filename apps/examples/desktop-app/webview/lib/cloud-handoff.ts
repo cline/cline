@@ -32,7 +32,6 @@ export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
 	complete: "Cloud handoff complete.",
 };
 
-/** Returns null for ordinary prompts and slash-command lookalikes. */
 export function parseHandoffCommand(
 	input: string,
 ): ParsedHandoffCommand | null {
@@ -70,9 +69,6 @@ type HandoffWarningToast = {
 	variant?: "destructive";
 };
 
-/**
- * Do not offer an unconfirmed command for resending. It may already be queued.
- */
 export function buildHandoffWarningToast(fields: {
 	warning?: unknown;
 	warningKind?: unknown;

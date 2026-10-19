@@ -1885,14 +1885,10 @@ export async function handleCommand(
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	const explicitEnvironment = requestedEnvironmentId(args);
-	const requestedSession = args?.sessionId ?? args?.session_id;
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);
-	} else if (typeof requestedSession === "string" && requestedSession.trim()) {
-		const binding = await findSessionRuntimeBinding(
-			ctx,
-			requestedSession.trim(),
-		);
+	} else if (typeof args?.sessionId === "string" && args.sessionId.trim()) {
+		const binding = await findSessionRuntimeBinding(ctx, args.sessionId.trim());
 		if (binding) ctx = getEnvironmentContext(ctx, binding.environmentId);
 	}
 
@@ -2512,8 +2508,6 @@ export async function handleCommand(
 					null
 				);
 			} catch {
-				// Preserve offline access, but never let a successful fresh list be
-				// shadowed forever by a session deleted on another device.
 				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
 			}
 		}
@@ -2604,13 +2598,13 @@ export async function handleCommand(
 		// updateSession replaces metadata wholesale in both the session row and
 		// the manifest, so merge over what each already holds. A null value
 		// removes the key, which is how callers clear a flag.
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (!binding) throw new Error(`Session ${sessionId} not found`);
 		const store = new SqliteSessionStore();
 		const asRecord = (value: unknown): JsonRecord =>
 			value && typeof value === "object" && !Array.isArray(value)
 				? (value as JsonRecord)
 				: {};
-		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		if (!binding) throw new Error(`Session ${sessionId} not found`);
 		const existingSession = await binding.sessionManager.get(sessionId);
 		const existing =
 			binding.kind === "local" ? store.get(sessionId) : undefined;
@@ -2656,11 +2650,6 @@ export async function handleCommand(
 			}
 			return true;
 		}
-		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		ctx = getEnvironmentContext(
-			ctx,
-			binding?.environmentId ?? LOCAL_ENVIRONMENT_ID,
-		);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
@@ -2668,6 +2657,7 @@ export async function handleCommand(
 		const sessionCwd =
 			row?.cwd?.trim() ||
 			(typeof manifest?.cwd === "string" ? manifest.cwd.trim() : "");
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
@@ -2722,10 +2712,14 @@ export async function handleCommand(
 			}
 		}
 		for (const path of [sessionLogPath(sessionId)]) {
-			if (removePathIfExists(path, { recursive: true })) deleted = true;
+			if (removePathIfExists(path, { recursive: true })) {
+				deleted = true;
+			}
 		}
 		for (const dir of directoryCandidates) {
-			if (removePathIfExists(dir, { recursive: true })) deleted = true;
+			if (removePathIfExists(dir, { recursive: true })) {
+				deleted = true;
+			}
 		}
 		for (const path of [
 			row?.messagesPath,
@@ -2734,15 +2728,20 @@ export async function handleCommand(
 				: null,
 			join(sharedSessionDataDir(), sessionId, `${sessionId}.json`),
 		].filter((v): v is string => typeof v === "string" && v.length > 0)) {
-			if (removePathIfExists(path)) deleted = true;
+			if (removePathIfExists(path)) {
+				deleted = true;
+			}
 		}
 		for (const suffix of ["messages.json"]) {
+			const fileName = `${sessionId}.${suffix}`;
 			const found = findArtifactUnderDir(
 				join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),
-				`${sessionId}.${suffix}`,
+				fileName,
 				4,
 			);
-			if (found && removePathIfExists(found)) deleted = true;
+			if (found && removePathIfExists(found)) {
+				deleted = true;
+			}
 		}
 		if (!deleted && deleteError) {
 			ctx.logger?.error?.("Failed to delete desktop chat session", {

@@ -35,7 +35,7 @@ function harness() {
 }
 
 describe("summary handoff lifecycle", () => {
-	it("keeps the source open and retains the target link through sending and duplicate completion", async () => {
+	it("retains the target link and ignores repeated completion", async () => {
 		const h = harness();
 		const handoffAttemptId = h.start();
 		await h.lifecycle.onEvent({
@@ -53,17 +53,19 @@ describe("summary handoff lifecycle", () => {
 			handoffAttemptId,
 			phase: "complete",
 		});
+		const completed = h.state();
 		await h.lifecycle.onRpcResolved("local", {
 			handoffAttemptId,
 			result,
 		});
+		expect(h.state()).toBe(completed);
 		expect(h.state().local).toMatchObject({
 			status: "complete",
 			sessionId: "cloud",
 			dashboardUrl: result.dashboardUrl,
 		});
 	});
-	it("restores preparation failures with images, but never restores /cloud after a known target", async () => {
+	it("retains failed input with images, but never offers /cloud again after a known target", async () => {
 		const h = harness();
 		const attachments = [
 			new File(["image"], "shot.png", { type: "image/png" }),
@@ -122,7 +124,7 @@ describe("summary handoff lifecycle", () => {
 			sessionId: "cloud-2",
 		});
 	});
-	it("keeps navigation in the current view and surfaces delivery uncertainty", async () => {
+	it("shows delivery uncertainty with the cloud link", async () => {
 		const h = harness();
 		await h.lifecycle.onRpcResolved("local", {
 			handoffAttemptId: h.start(),

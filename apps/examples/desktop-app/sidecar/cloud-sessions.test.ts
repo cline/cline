@@ -652,9 +652,6 @@ describe("Cloud sessions sidecar wiring", () => {
 				create,
 			} as unknown as CloudSessionApi,
 		});
-		vi.spyOn(manager, "listModels").mockResolvedValue([
-			{ id: "anthropic/claude-sonnet-5", name: "Sonnet", catalogId: "cline" },
-		]);
 
 		const created = await handleChatSessionCommand(ctx, {
 			action: "start",
@@ -692,36 +689,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(innerCreate?.payload?.toolPolicies).toEqual({
 			"*": { autoApprove: false },
 		});
-	});
-
-	it.each([
-		{ models: [] },
-		{
-			models: [
-				{ id: "different-model", name: "Other", catalogId: "cline" as const },
-			],
-		},
-	])("rejects an unavailable selected model before provisioning with catalog $models", async ({
-		models,
-	}) => {
-		const create = vi.fn();
-		const { ctx, hub, manager } = createFixture({
-			api: { list: async () => [], create } as unknown as CloudSessionApi,
-		});
-		vi.spyOn(manager, "listModels").mockResolvedValue(models);
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "start",
-				config: {
-					executionTarget: "cloud",
-					repoUrl: "https://github.com/cline/test",
-					model: "selected-model",
-				},
-			}),
-		).rejects.toThrow("selected model selected-model is not available");
-		expect(create).not.toHaveBeenCalled();
-		expect(hub.commands).toEqual([]);
-		expect(ctx.liveSessions.size).toBe(0);
 	});
 
 	it.each([
@@ -885,7 +852,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("surfaces run.failed errors as a visible error message", async () => {
-		const { ctx, events, hub, manager } = createFixture();
+		const { events, hub, manager } = createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -917,15 +884,12 @@ describe("Cloud sessions sidecar wiring", () => {
 	] as const)("%s attaches an existing outer id with a cold registry", async (action) => {
 		const create = vi.fn();
 		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
-		const { ctx, hub, manager } = createFixture({
+		const { ctx, hub } = createFixture({
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
 				create,
 			} as unknown as CloudSessionApi,
 		});
-		const listModels = vi
-			.spyOn(manager, "listModels")
-			.mockRejectedValue(new Error("catalog unavailable"));
 
 		const attached = await handleChatSessionCommand(
 			ctx,
@@ -943,7 +907,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 
 		expect(attached).toMatchObject({ sessionId: outerId, origin: "cloud" });
-		expect(listModels).not.toHaveBeenCalled();
 		expect(create).not.toHaveBeenCalled();
 		expect(
 			hub.commands.some((entry) => entry.command === "session.attach"),

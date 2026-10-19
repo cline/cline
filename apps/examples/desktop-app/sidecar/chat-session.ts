@@ -52,7 +52,6 @@ import {
 	beginActiveSessionSend,
 	handleHandoff,
 	handlePrepareHandoff,
-	hasActiveSessionSend,
 } from "./cloud-handoff";
 import { sendWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
@@ -76,12 +75,8 @@ import {
 	readReasoningEffort,
 	readWorkspacePath,
 	workspacePathKey,
-	workspacePathsOverlap,
 } from "./session-config";
-import {
-	derivePromptFromMessages,
-	readSessionMetadata,
-} from "./session-data/common";
+import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -323,45 +318,19 @@ function hasActiveWorkspaceTurn(session: LiveSession): boolean {
 	);
 }
 
-function assertWorkspaceNotRestoring(
-	ctx: SidecarContext,
-	workspace: string | undefined,
-): void {
-	if (
-		workspace &&
-		[...ctx.restoringWorkspacePaths].some((locked) =>
-			workspacePathsOverlap(
-				workspace,
-				locked,
-				getSessionRuntimeBinding(ctx).kind,
-			),
-		)
-	) {
-		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
-	}
-}
-
 async function withWorkspaceRestoreLock<T>(
 	ctx: SidecarContext,
 	workspacePath: string,
 	work: () => Promise<T>,
 ): Promise<T> {
 	const key = resolve(workspacePath);
-	const environment = getSessionRuntimeBinding(ctx).kind;
-	if (
-		[...ctx.restoringWorkspacePaths].some((locked) =>
-			workspacePathsOverlap(key, locked, environment),
-		)
-	) {
+	if (ctx.restoringWorkspacePaths.has(key)) {
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
-	for (const [sessionId, session] of ctx.liveSessions) {
-		const sessionWorkspace = workspacePathKey(session.config);
+	for (const session of ctx.liveSessions.values()) {
 		if (
-			sessionWorkspace &&
-			(hasActiveWorkspaceTurn(session) ||
-				hasActiveSessionSend(ctx, sessionId)) &&
-			workspacePathsOverlap(sessionWorkspace, key, environment)
+			workspacePathKey(session.config) === key &&
+			hasActiveWorkspaceTurn(session)
 		) {
 			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 		}
@@ -459,6 +428,13 @@ function readSessionMetadataTitle(sessionId: string): string | undefined {
 			: undefined;
 	const title = metadata?.title;
 	return typeof title === "string" ? title.trim() || undefined : undefined;
+}
+
+function readSessionMetadata(sessionId: string): JsonRecord | undefined {
+	const manifest = readSessionManifest(sessionId);
+	return manifest?.metadata && typeof manifest.metadata === "object"
+		? (manifest.metadata as JsonRecord)
+		: undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -1044,8 +1020,6 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const workspace = workspacePathKey(request.config) ?? ctx.localWorkspaceRoot;
-	assertWorkspaceNotRestoring(ctx, workspace);
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		undefined,
@@ -1102,7 +1076,6 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
-	assertWorkspaceNotRestoring(ctx, workspace);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
@@ -1680,7 +1653,12 @@ async function handleSendOnce(
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
-	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
+	if (
+		lockedWorkspaceKey &&
+		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
@@ -1744,7 +1722,6 @@ async function handleSendOnce(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				)));
-	assertWorkspaceNotRestoring(ctx, lockedWorkspaceKey);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -2059,12 +2036,7 @@ async function handleFork(
 	) {
 		throw new Error("forkBeforeRunCount must be a positive integer");
 	}
-	const binding = getSessionRuntimeBinding(
-		ctx,
-		sourceSessionId,
-		readEnvironmentId(request.config),
-	);
-	const manager = binding.sessionManager;
+	const manager = getSessionManager(ctx, sourceSessionId, request.config);
 	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -2096,16 +2068,16 @@ async function handleFork(
 	if (!restoreWorkspacePath) {
 		throw new Error("cwd or workspaceRoot is required to edit a message");
 	}
-	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () => {
-		return handleForkUnlocked(
+	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
+		handleForkUnlocked(
 			ctx,
 			request,
 			sourceSessionId,
 			forkBeforeRunCount,
 			sourceSession,
 			restoreWorkspacePath,
-		);
-	});
+		),
+	);
 }
 
 async function handleForkUnlocked(
@@ -2298,12 +2270,6 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
-		const binding = getSessionRuntimeBinding(
-			ctx,
-			sessionId,
-			readEnvironmentId(request.config),
-		);
-		const manager = binding.sessionManager;
 		cancelHubReconnect(sessionId);
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
@@ -2313,7 +2279,7 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await manager.stop(sessionId);
+			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
@@ -2339,18 +2305,18 @@ async function handleRestoreCheckpoint(
 	const requestedConfig = request.config;
 	if (!requestedConfig)
 		throw new Error("config is required to restore a checkpoint");
-	const binding = getSessionRuntimeBinding(
-		ctx,
-		sourceSessionId,
-		readEnvironmentId(requestedConfig),
-	);
-	const manager = binding.sessionManager;
 	const cwd =
 		(typeof requestedConfig.cwd === "string" && requestedConfig.cwd.trim()) ||
 		(typeof requestedConfig.workspaceRoot === "string" &&
 			requestedConfig.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(requestedConfig),
+	);
+	const manager = binding.sessionManager;
 	const config =
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(requestedConfig)
@@ -2621,12 +2587,6 @@ export async function handleChatSessionCommand(
 				).trim();
 				if (!repoUrl || !modelId) {
 					throw new Error("repoUrl and model are required for a cloud session");
-				}
-				const models = await cloud.listModels();
-				if (!models.some((model) => model.id === modelId)) {
-					throw new Error(
-						`The selected model ${modelId} is not available in Cline Cloud for this account. Select a supported model before starting a cloud session.`,
-					);
 				}
 				const branch = String(request.config?.branch ?? "").trim();
 				const initialPrompt = request.prompt?.trim();
