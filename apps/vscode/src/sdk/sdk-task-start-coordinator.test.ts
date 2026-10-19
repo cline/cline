@@ -23,6 +23,37 @@ describe("SdkTaskStartCoordinator", () => {
 		vi.mocked(isDirectory).mockResolvedValue(false)
 	})
 
+	it("starts the session and sends the first prompt inside one tracked session start", async () => {
+		const { coordinator, options } = makeCoordinator()
+		let tracking = false
+		options.sessions.trackSessionStart.mockImplementation(async (operation: () => Promise<unknown>) => {
+			tracking = true
+			try {
+				return await operation()
+			} finally {
+				tracking = false
+			}
+		})
+		const trackedCalls: string[] = []
+		options.sessionConfigBuilder.build.mockImplementation(async () => {
+			trackedCalls.push(`build:${tracking}`)
+			return { providerId: "anthropic", modelId: "model", apiKey: "key" }
+		})
+		options.sessions.startNewSession.mockImplementation((startInput?: { config?: { sessionId?: string } }) => {
+			trackedCalls.push(`start:${tracking}`)
+			return { startResult: { sessionId: startInput?.config?.sessionId ?? "session-123" }, sdkHost: { send: vi.fn() } }
+		})
+		options.sessions.fireAndForgetSend.mockImplementation(() => {
+			trackedCalls.push(`send:${tracking}`)
+		})
+
+		await coordinator.initTask("hello")
+
+		// The mode is read when the config is built, so a toggle has to wait from
+		// there until the session is active and its first turn is on its way.
+		expect(trackedCalls).toEqual(["build:true", "start:true", "send:true"])
+	})
+
 	it("initializes a new task, emits the task message, and sends the resolved prompt", async () => {
 		const { coordinator, options, state } = makeCoordinator()
 
@@ -269,6 +300,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 				sdkHost,
 			})),
 			fireAndForgetSend: vi.fn(),
+			trackSessionStart: vi.fn((operation: () => Promise<unknown>) => operation()),
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
@@ -315,6 +347,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessions: SdkTaskStartCoordinatorOptions["sessions"] & {
 			startNewSession: ReturnType<typeof vi.fn>
 			fireAndForgetSend: ReturnType<typeof vi.fn>
+			trackSessionStart: ReturnType<typeof vi.fn>
 		}
 		messages: SdkTaskStartCoordinatorOptions["messages"] & {
 			appendAndEmit: ReturnType<typeof vi.fn>
