@@ -9,6 +9,7 @@ import { expect, userEvent, within } from "storybook/test"
 import { ExtensionStateContext, useExtensionState } from "@/context/ExtensionStateContext"
 import ChatView from "./components/chat/ChatView"
 import OnboardingView from "./components/onboarding/OnboardingView"
+import { buildCloseTheLoopBeats, CLOSE_THE_LOOP_NARRATION } from "./stories/close-the-loop/data"
 
 // Mock component that mimics App behavior but works in Storybook
 const MockApp = () => {
@@ -1127,6 +1128,115 @@ try {
 		docs: {
 			description: {
 				story: "Shows the old SEARCH/REPLACE diff format while streaming (incomplete, missing REPLACE marker), demonstrating graceful handling of partial content.",
+			},
+		},
+	},
+}
+
+/**
+ * Scripted cloud session that ends with the agent verifying its own work in the
+ * sandbox and shipping screenshots back into the Completed card. Canned data;
+ * nothing is live. Remount the story to replay.
+ */
+export const CloseTheLoop: Story = {
+	decorators: [
+		(Story) => {
+			const [messages, setMessages] = useState<ClineMessage[]>([])
+			const [narration, setNarration] = useState(0)
+			const [finished, setFinished] = useState(false)
+			const mockState = useMemo(
+				() =>
+					createMockState({
+						clineMessages: messages,
+						currentTaskItem: mockTaskHistory[0],
+						turnState: { phase: finished ? "completed" : "streaming", seq: messages.length },
+					}),
+				[messages, finished],
+			)
+
+			useEffect(() => {
+				const beats = buildCloseTheLoopBeats()
+				let cursor = 0
+				let timer: ReturnType<typeof setTimeout> | undefined
+				const schedule = () => {
+					const beat = beats[cursor]
+					if (!beat) {
+						setFinished(true)
+						return
+					}
+					timer = setTimeout(() => {
+						cursor += 1
+						setMessages((prev) => {
+							const next = beat.completesCommand
+								? prev.map((message, index) =>
+										index === prev.findLastIndex((candidate) => candidate.say === "command")
+											? { ...message, commandCompleted: true }
+											: message,
+									)
+								: prev
+							return beat.message ? [...next, beat.message] : next
+						})
+						if (beat.narration !== undefined) setNarration(beat.narration)
+						schedule()
+					}, beat.delay)
+				}
+				schedule()
+				return () => clearTimeout(timer)
+			}, [])
+
+			const caption = CLOSE_THE_LOOP_NARRATION[narration]
+			const isNext = caption.eyebrow === "Next"
+
+			return (
+				<ExtensionStateProviderMock value={mockState}>
+					<div className="flex h-screen w-full flex-col items-center justify-center gap-3 overflow-hidden py-3">
+						<div className="relative flex min-h-0 w-[480px] flex-1 flex-col overflow-hidden border border-border-panel">
+							<Story />
+						</div>
+						<div className="relative w-[480px] shrink-0">
+							<div
+								className={`rounded-lg border p-3 shadow-lg ${
+									isNext
+										? "border-[#9663f1]/60 bg-gradient-to-r from-[#9663f1]/25 via-[#9663f1]/10 to-transparent"
+										: "border-border-panel bg-code"
+								}`}
+								key={narration}>
+								<div className="mb-1 flex items-center gap-2">
+									<div aria-hidden className="flex items-center gap-1">
+										{CLOSE_THE_LOOP_NARRATION.map((item, index) => (
+											<span
+												className={`h-1 rounded-full transition-all duration-300 ${
+													index === narration
+														? "w-4 bg-[#9663f1]"
+														: index < narration
+															? "w-1 bg-[#9663f1]/60"
+															: "w-1 bg-description/40"
+												}`}
+												key={item.title}
+											/>
+										))}
+									</div>
+									<span
+										className={`text-[10px] font-semibold uppercase tracking-wider ${isNext ? "text-[#b89cff]" : "text-description"}`}>
+										{caption.eyebrow}
+									</span>
+									<span className="text-[10px] text-description">
+										{narration + 1} / {CLOSE_THE_LOOP_NARRATION.length}
+									</span>
+								</div>
+								<p className="m-0 text-sm font-semibold leading-5">{caption.title}</p>
+								<p className="m-0 text-xs text-description">{caption.body}</p>
+							</div>
+						</div>
+					</div>
+				</ExtensionStateProviderMock>
+			)
+		},
+	],
+	parameters: {
+		docs: {
+			description: {
+				story: "A cloud session where Cline implements a feature, launches the app it changed, clicks through it, and returns screenshots that render as a slideshow inside the Completed card. Prototype with canned data.",
 			},
 		},
 	},

@@ -218,6 +218,30 @@ export interface ClineMessage {
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 	modelInfo?: ClineMessageModelInfo
+	/**
+	 * Screenshots the agent captured while verifying its own work in a sandbox
+	 * ("close the loop"). Only meaningful on `say: "completion_result"`. Not yet
+	 * produced by the extension host; rendered from mock data in Storybook.
+	 */
+	verification?: WorkVerification
+}
+
+export type WorkVerificationScreenshot = {
+	id: string
+	/** Host-resolved image URL (artifact URL, blob URL, or data URL). */
+	src: string
+	title: string
+	note?: string
+	action?: "launch" | "screenshot" | "click" | "type" | "scroll" | "key" | "resize"
+	outcome?: "pass" | "fail" | "info"
+}
+
+export type WorkVerification = {
+	summary: string
+	/** What was exercised, e.g. a dev-server URL or a CLI binary name. */
+	target?: string
+	durationMs?: number
+	screenshots: WorkVerificationScreenshot[]
 }
 
 export type ClineAsk =

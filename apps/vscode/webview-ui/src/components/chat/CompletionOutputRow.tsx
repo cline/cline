@@ -1,3 +1,4 @@
+import type { WorkVerification } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
 import { memo, useEffect, useState } from "react"
@@ -7,11 +8,14 @@ import SuccessButton from "../common/SuccessButton"
 import { QuoteButtonState } from "./ChatRow"
 import { MarkdownRow } from "./MarkdownRow"
 import QuoteButton from "./QuoteButton"
+import { WorkVerificationCarousel } from "./WorkVerificationCarousel"
 
 interface CompletionOutputRowProps {
 	text: string
 	quoteButtonState: QuoteButtonState
 	handleQuoteClick: () => void
+	/** Sandbox screenshots proving the work; rendered as a slideshow under the summary. */
+	verification?: WorkVerification
 	/**
 	 * Allows the "View Changes" action inside the card, which opens a
 	 * multi-file diff of everything that changed between the latest checkpoint
@@ -32,7 +36,7 @@ interface CompletionOutputRowProps {
  * rather than a definitive task completion.
  */
 export const CompletionOutputRow = memo(
-	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
+	({ text, quoteButtonState, handleQuoteClick, showViewChanges, verification }: CompletionOutputRowProps) => {
 		const [viewChangesPending, setViewChangesPending] = useState(false)
 		// undefined = still checking; the button stays hidden until the host
 		// confirms the latest run actually changed files. A count of 0 also
@@ -79,6 +83,11 @@ export const CompletionOutputRow = memo(
 						<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
 					)}
 				</div>
+				{verification?.screenshots.length ? (
+					<div className="px-2 pb-2">
+						<WorkVerificationCarousel verification={verification} />
+					</div>
+				) : null}
 				{showViewChanges && hasChanges === true && (
 					<div className="px-2 pb-2">
 						<SuccessButton

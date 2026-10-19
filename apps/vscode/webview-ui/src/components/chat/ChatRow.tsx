@@ -972,6 +972,7 @@ export const ChatRowContent = memo(
 								quoteButtonState={quoteButtonState}
 								showViewChanges={isLast && message.partial !== true && enableCheckpointsSetting}
 								text={text || ""}
+								verification={message.verification}
 							/>
 						)
 					}

@@ -57,6 +57,35 @@ describe("CompletionOutputRow", () => {
 
 		expect(screen.getByText("Completed")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Copy response" })).toBeInTheDocument()
+		expect(screen.queryByTestId("work-verification")).not.toBeInTheDocument()
+	})
+
+	it("renders the verification screenshot slideshow under the summary", () => {
+		render(
+			<CompletionOutputRow
+				handleQuoteClick={vi.fn()}
+				quoteButtonState={hiddenQuoteButton}
+				text="All done!"
+				verification={{
+					summary: "Verified in sandbox",
+					target: "localhost:5173",
+					durationMs: 38_000,
+					screenshots: [
+						{ id: "a", src: "/a.webp", title: "Dashboard", action: "launch", outcome: "pass" },
+						{ id: "b", src: "/b.webp", title: "Dark mode", action: "click", outcome: "pass" },
+					],
+				}}
+			/>,
+		)
+
+		expect(screen.getByTestId("work-verification")).toBeInTheDocument()
+		expect(screen.getByText("localhost:5173 · 2 screenshots · 38s")).toBeInTheDocument()
+		expect(screen.getByText("All checks passed")).toBeInTheDocument()
+		expect(screen.getByRole("img", { name: "Dashboard" })).toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "Next screenshot" }))
+		expect(screen.getByRole("img", { name: "Dark mode" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Play slideshow" })).toBeInTheDocument()
 	})
 
 	it("copies the response text to the clipboard", async () => {
