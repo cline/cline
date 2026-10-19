@@ -3,6 +3,7 @@ import {
 	copyFileSync,
 	existsSync,
 	mkdirSync,
+	mkdtempSync,
 	readFileSync,
 	realpathSync,
 	rmSync,
@@ -109,15 +110,13 @@ export async function compileCliBinary(
 	// layer in containerized environments (virtiofs, overlayfs).
 	const entrypoint = join(cliDir, "src/index.ts");
 	const scratchRoot = process.platform === "win32" ? tmpdir() : "/tmp";
-	const tmpDir = join(
-		scratchRoot,
-		`cline-build-${input.bunTarget}-${process.pid}`,
+	const tmpDir = mkdtempSync(
+		join(scratchRoot, `cline-build-${input.bunTarget}-`),
 	);
 	const tmpOutfile = join(
 		tmpDir,
 		input.outfile.endsWith(".exe") ? "cline.exe" : "cline",
 	);
-	mkdirSync(tmpDir, { recursive: true });
 
 	const previousCwd = process.cwd();
 	process.chdir(scratchRoot);
@@ -153,20 +152,20 @@ export async function compileCliBinary(
 			},
 			throw: false,
 		});
+		if (!result.success) {
+			for (const log of result.logs) {
+				console.error(log);
+			}
+			throw new Error(`CLI build failed for ${input.bunTarget}`);
+		}
+
+		mkdirSync(dirname(input.outfile), { recursive: true });
+		copyFileSync(tmpOutfile, input.outfile);
+		if (process.platform !== "win32") {
+			chmodSync(input.outfile, 0o755);
+		}
 	} finally {
 		process.chdir(previousCwd);
-	}
-
-	if (!result.success) {
-		for (const log of result.logs) {
-			console.error(log);
-		}
 		rmSync(tmpDir, { recursive: true, force: true });
-		throw new Error(`CLI build failed for ${input.bunTarget}`);
 	}
-
-	mkdirSync(dirname(input.outfile), { recursive: true });
-	copyFileSync(tmpOutfile, input.outfile);
-	chmodSync(input.outfile, 0o755);
-	rmSync(tmpDir, { recursive: true, force: true });
 }

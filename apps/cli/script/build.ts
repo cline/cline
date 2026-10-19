@@ -56,7 +56,7 @@ if (optionsError) {
 	process.exit(1);
 }
 
-await $`rm -rf dist`;
+rmSync(join(cliDir, "dist"), { recursive: true, force: true });
 
 // Pre-install all platform variants of native packages so cross-compilation
 // can resolve them. Without this, Bun only has the host platform's native
@@ -160,7 +160,14 @@ for (const item of targets) {
 				console.log(`  Passed: hub core ${status.coreVersion}`);
 			} finally {
 				await $`${outfile} hub stop`.env(smokeEnv).quiet().nothrow();
-				rmSync(smokeHome, { recursive: true, force: true });
+				for (let attempt = 0; attempt < 10; attempt++) {
+					try {
+						rmSync(smokeHome, { recursive: true, force: true });
+						break;
+					} catch {
+						await Bun.sleep(100);
+					}
+				}
 			}
 		} catch (e) {
 			console.error(`  Smoke test FAILED for ${name}:`, e);
