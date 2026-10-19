@@ -1,156 +1,370 @@
 # Computer use: closing the loop in cloud sessions
 
-Status: draft proposal, with clickable demos in the desktop app and the VS Code extension.
+Status: draft, with clickable demos in the desktop app and the VS Code extension.
 
 ## Summary
 
 Cloud sessions already let an agent work on a GitHub repository in a sandbox, stream its tool calls to the client, and open a pull request. The missing step is the one a human engineer always takes before saying "done": run the thing and look at it.
 
-"Computer use" (or "closing the loop") gives the sandboxed agent a virtual display, a way to take screenshots, and a way to click, type, and scroll. After building a feature, the agent launches the app, uses it the way a user would, checks the result with its own eyes (screenshots go back to the model as image input), fixes what it finds, and attaches the best frames to its final answer as visual evidence. Clients render that evidence as a screenshot reel under the completion, and the same frames can go into the PR description.
+Computer use (or "closing the loop") gives the sandboxed agent a virtual display, a way to take screenshots, and a way to click, type, and scroll. After building a feature, the agent launches the app, uses it the way a user would, looks at the result (screenshots go back to the model as image input), fixes what it finds, and picks the best frames as visual proof. Clients show that proof as a "Verified in sandbox" slideshow, and the same frames go into the PR description.
+
+Approach: no new agent tool. The sandbox image gets standard Linux tools (Xvfb, xdotool, ImageMagick, Chrome) plus a small `cu` helper script, and a system-prompt section tells the agent how to use them. The agent drives the app with `run_commands` and looks at screenshots with `read_files`, which already returns PNG/WebP/JPEG/GIF files as image content to models with image input (`sdk/packages/core/src/extensions/tools/executors/file-read.ts`).
 
 ## Why
 
 - Tests passing is not the same as the feature working. Layout bugs, dead buttons, broken focus handling, unreadable dark mode, and overflowing mobile layouts all pass unit tests.
-- Reviewers currently have to check out the branch to see a UI change. A reel of captioned screenshots answers "what does it look like" in seconds and makes cloud PRs much easier to trust.
-- Agents that can observe their output self-correct. Seeing a screenshot of a blank page after `bun run dev` is a much stronger signal than an exit code.
+- Reviewers currently have to check out the branch to see a UI change. Captioned screenshots answer "what does it look like" in seconds and make cloud PRs much easier to trust.
+- Agents that can observe their output self-correct. A screenshot of a blank page after `bun run dev` is a much stronger signal than an exit code.
 
 ## Goals
 
 - The agent can launch and drive GUI apps in the sandbox: web apps in a browser, Electron or Tauri desktop apps, and terminal UIs in a terminal emulator.
 - The agent verifies its own work before completing and fixes problems it finds.
-- Clients (cloud web app, desktop app, VS Code) show the evidence as a screenshot reel, and live frames while the agent works.
-- Screenshots can be embedded in the pull request the agent opens.
+- Clients (cloud web app, desktop app, VS Code) show the proof as a screenshot slideshow.
+- Screenshots are embedded in the pull request the agent opens.
 
-## Non-goals for v1
+## Non-goals
 
+- A new agent tool. Everything runs through `run_commands`, `read_files`, and the prompt.
 - Live remote-desktop streaming to the client, or letting the user take over the sandbox display.
-- Computer use on the user's own machine (local sessions). The tool should be designed so this can be added behind explicit consent later.
+- Computer use on the user's own machine (local sessions).
 - Windows and macOS sandboxes.
 
 ## User experience
 
-While the agent works, each computer-use action appears as a normal tool row ("Pressed `ctrl+k`", "Typed `over`", "Clicked at `(640, 228)`") with the resulting screenshot as an expandable thumbnail.
+While the agent works, each `cu` step appears as a command row (for example `cu click 640 228`), and the screenshots it reads appear as images on its file-read rows, so you can follow along.
 
-When the run completes, a "Verified in sandbox" reel appears under the final answer:
+When the run completes, a "Verified in sandbox" slideshow appears with the answer (above the answer text in the desktop app, inside the completed card in VS Code):
 
-- One large stage plus a filmstrip of thumbnails. The reel autoplays, and each thumbnail carries a story-style progress bar that fills until the next slide.
-- Each frame has a caption that states what it verifies ("Ctrl+K opens the command palette"), the input that produced it ("Pressed `Ctrl+K`"), and a pass or fail mark. Clicks get a pointer marker with a ripple at the click location.
-- Playback pauses on hover and on keyboard focus. Arrow keys step, Space toggles, and the play button stays visible. Reduced-motion users get a static reel.
+- One large stage plus a filmstrip of thumbnails. It autoplays, and each thumbnail carries a story-style progress bar that fills until the next slide.
+- Each frame has a caption stating what it proves ("Ctrl+K opens the command palette"), the input that produced it ("Pressed `Ctrl+K`"), and a pass or fail mark. Clicks can show a pointer marker at the click location.
+- Playback pauses on hover and on keyboard focus. Arrow keys step, Space toggles, and the play button stays visible. Reduced-motion users get a static slideshow.
 - Frames expand into the host's lightbox.
 - Narrow hosts (the VS Code sidebar) use a compact variant with smaller thumbnails and title-only captions.
 
-A frame marked as failed turns the header summary red ("1 failed"), so a reel can also report problems the agent could not fix.
+A frame marked as failed turns the header summary red ("1 failed"), so the slideshow can also report problems the agent could not fix.
 
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
   subgraph Sandbox
-    Agent["Agent loop (@cline/core)"] -->|"computer tool"| Backend["Computer backend"]
-    Backend --> Display["Xvfb :99 + window manager"]
-    App["App under test (browser, Electron, TUI)"] --> Display
-    Backend -->|"screenshot"| Agent
-    Backend -->|"frames"| Store[("Artifact store")]
+    Agent["Agent loop (@cline/core)"] -->|"run_commands: cu ..."| Cu["cu helper (xdotool + import)"]
+    Cu --> Display["Xvfb :99"]
+    App["App under test (Chrome, Electron, TUI)"] --> Display
+    Cu -->|"screenshot PNGs"| Shots[("/tmp/cu-shots")]
+    Shots -->|"read_files"| Agent
+    Agent -->|"evidence.json"| Shots
   end
-  Agent -->|"hub events + transcript"| Control["Cloud control plane"]
-  Store --> Control
+  Shots -->|"upload evidence frames"| Control["Cloud control plane"]
   Control --> Clients["Clients: cloud web app, desktop, VS Code"]
   Control --> PR["Pull request body"]
 ```
 
-### 1. Sandbox display stack
+1. The agent builds the feature and starts the app, which renders to a virtual display (`DISPLAY=:99`).
+2. It drives the app with `cu` (keys, typing, clicks, scrolling, resizing). Each step saves a screenshot.
+3. It reads the screenshots with `read_files`, fixes problems, and checks again.
+4. It writes `/tmp/cu-shots/evidence.json` naming the frames that prove the feature works.
+5. On completion, those frames are uploaded and attached to the completion and the PR, and clients render them as the slideshow.
 
-| Option | What it is | Pros | Cons |
-| --- | --- | --- | --- |
-| Xvfb + xdotool + ImageMagick (`import`) or `scrot`/`maim` | Virtual X11 framebuffer, synthetic input, screenshot tools | Drives any X11 app (browsers, Electron, Tauri, terminals). Small, mature, scriptable. This is what produced the demo screenshots. | X11 only. Pixel-level, no DOM awareness. |
-| Playwright or Chrome DevTools Protocol | Browser automation | Deterministic web screenshots, DOM and accessibility snapshots, viewport emulation, network control | Web only. Cannot drive native windows. |
-| Headless Wayland (Weston or Sway) + `grim` + `wtype`/`ydotool` | Wayland equivalent of the X11 stack | Modern compositor, matches newer desktops | Thinner tooling, some input tools need privileges |
-| `x11vnc` or noVNC on top of Xvfb | Remote framebuffer | Enables a future live view and user takeover | Extra port and process. Not needed for v1. |
-| `ffmpeg -f x11grab` | Screen recording | Short clips or GIFs of a whole flow | Large outputs. Later phase. |
+---
 
-Recommendation: put Xvfb, a lightweight window manager (fluxbox or openbox), xdotool, ImageMagick, Chrome or Chromium, and a reasonable font set (Noto, including emoji) in the base sandbox image. Add Playwright's browser for web-specific checks later. Hide all of it behind one `computer` tool so the backend can change without touching prompts or clients.
+## Linux tools primer
 
-Display lifecycle: start the display lazily on the first computer action, at a fixed 1280x800 resolution and device scale factor 1 so token cost stays predictable. Export `DISPLAY` into the environment of commands the agent runs, so `bun run dev`, `npm start`, or `cargo tauri dev` render into the same display the agent is looking at.
+**Xvfb** is a virtual X11 display: an in-memory screen that GUI apps render to as if a monitor were attached, so a sandbox with no screen can still run Chrome, Electron, or Tauri apps and screenshot them. Start it, point `DISPLAY` at it, and anything you launch draws there:
 
-### 2. The `computer` tool
+```bash
+Xvfb :99 -screen 0 1920x1200x24 -nolisten tcp &   # virtual screen #99
+export DISPLAY=:99                                # apps launched from here render to it
+google-chrome --app=http://localhost:5173 &       # the app under test
+xdotool key ctrl+k                                # keyboard input goes to that display
+xdotool mousemove 640 228 click 1                 # so do mouse clicks, at pixel coordinates
+import -window root shot.png                      # ImageMagick screenshot of the display
+```
 
-Mirror the action schema of the providers' native computer-use tools (Anthropic's computer-use tool and OpenAI's `computer_use_preview`), so models trained on those tools behave well:
+- **xdotool** sends input: `key` and `type` for the keyboard; `mousemove` and `click` for the mouse (button 1 is left, 4 and 5 scroll); `search`, `windowactivate`, and `windowsize` for windows.
+- **ImageMagick `import`** takes screenshots (`-window root` for the whole display, `-window $WID` for one window). It's unrelated to a code `import`. `scrot`, `maim`, and `xwd` do the same job.
+- **wmctrl, xwininfo, xdpyinfo** list, move, and resize windows, and report window geometry and display resolution.
+- **fluxbox** (or openbox) is an optional lightweight window manager. Without one, `xdotool getactivewindow` doesn't work, so `cu` finds the app window by class instead.
+- **Playwright** (optional) drives browsers through the DOM. It's handy for web-only checks but can't drive native windows.
+- **Wayland equivalents**, if ever needed: headless `weston` or `sway`, `grim` for screenshots, `ydotool` and `wtype` for input.
 
-| Action | Input |
-| --- | --- |
-| `screenshot` | none |
-| `left_click`, `right_click`, `double_click`, `mouse_move` | `coordinate: [x, y]` |
-| `left_click_drag` | `start_coordinate`, `coordinate` |
-| `type` | `text` |
-| `key` | `text`, for example `ctrl+k` |
-| `scroll` | `coordinate`, `scroll_direction`, `scroll_amount` |
-| `wait` | `duration` |
+---
 
-Every action returns a fresh screenshot as image content plus a `frameId`. When the active provider supports a native computer-use tool, send the native definition; otherwise expose the same schema as a regular function tool.
+## What the prototype proved (and what it didn't)
 
-Placement: a default tool in `@cline/core` (next to the other executors in `src/extensions/tools/executors/`), behind a capability that cloud sandboxes enable when the display stack is present. The executor talks to a small `ComputerBackend` interface (X11 via xdotool and ImageMagick first, then Playwright, plus a mock for tests). The tool requires a model with image input, the same check `read_files` already performs for images.
+The demo screenshots came from a scripted run of the exact stack below: Xvfb, Chrome, xdotool, and ImageMagick, driving a small kanban web app. All six captures worked on the first real run in about 12 seconds. The UI (desktop app slideshow, VS Code completed card) is built on branch `saoudrizwan/computer-use-demo-cbd4`, with scripted demos.
 
-Context cost: Claude bills roughly `width * height / 750` tokens per image, so a 1280x800 frame is about 1.4k tokens. Keep only the most recent frames in context and replace older ones with the existing omitted-media placeholder, using the media budget helpers in `@cline/shared` (`DEFAULT_MAX_TOTAL_MEDIA_BYTES`, `IMAGE_OMITTED_PLACEHOLDER`). Downscale before sending and scale coordinates back to screen space.
+What it did not prove: how accurately a model picks click targets on its own. The script's coordinates were worked out by hand. The evaluation section measures that.
 
-Evidence selection: the agent should curate the reel rather than dump every frame. The completion carries `verification.frames: [{ frameId, caption, verdict }]`, referencing frames the tool already returned, and the runtime resolves them to stored media.
+Pitfalls hit while building and testing. Design around these:
 
-Phase 0 needs no new tool: an agent can already shell out to `xdotool` and `import`, then call `read_files` on the PNG. `read_files` returns PNG and WebP files as image content to vision models, so the agent can see its screenshots today. Only the path back to the client is missing. The VS Code demo shows this shell-driven flavor, and the desktop demo shows the first-class tool.
-
-### 3. System prompt guidance
-
-When computer use is available, add a short "verify your work" section to the system prompt. Draft:
-
-> After implementing a change that affects anything a user can see or interact with, verify it before completing. Build and start the app, open it on the virtual display, and exercise the changed flow the way a user would. Check the states that usually break: empty, loading, error, long content, dark mode, and a narrow viewport. If something looks wrong, fix it and check again. Finish by selecting 3 to 8 screenshots that show the feature working, each with a one-line caption stating what it verifies and whether it passed. Never capture secrets such as tokens, `.env` contents, or credentials in a screenshot.
-
-### 4. Getting screenshots to clients
-
-What exists today:
-
-- `@cline/core/cloud` (`CloudSessionController`, `CloudSessionApi`) streams hub events and transcript snapshots from the sandbox to hosts.
-- Messages already carry `GeneratedMedia` (`@cline/shared`, `llms/media.ts`), whose `source` is `base64`, `url`, or `artifact`. Hosts render inline `base64` today. The `artifact` source exists, but `GeneratedMediaContent` only shows a "stored as an artifact" placeholder because no host resolves artifacts yet.
-- The VS Code message translator already maps `media` content events to `ClineMessage.media`, and the desktop transcript renders tool-result images.
-
-Proposal:
-
-1. The sandbox uploads each frame to session-scoped object storage and gets an `artifactId`. Tool results and the transcript carry `{ type: "artifact", artifactId }`, plus a small inline thumbnail (about 320px wide WebP, a few KB) so rows render instantly without a round trip.
-2. Hosts get an artifact resolver. The desktop sidecar and the VS Code extension fetch through an authenticated `CloudSessionApi` call (signed URL or bytes) and hand the webview a `blob:` URL. This keeps the existing rule that webviews never bind provider-supplied URLs directly, and it fits the VS Code webview CSP, which blocks `fetch()` to arbitrary origins.
-3. A verification contract on the completion: `verification: { frames: [{ media, caption, action, detail, pointer, verdict }] }`. Hosts map it to `AgentScreenshot` from `@cline/ui`.
-4. Budgets: thumbnails only inline, a cap on frames per session, and deduplication of identical frames by hash.
-5. Security: artifacts inherit session access control, signed URLs are short-lived, and organizations can disable screenshot capture through remote config. Later, optionally redact text that looks like secrets before upload.
-
-### 5. Clients
-
-- `@cline/ui`: `AgentScreenshotCarousel` is the shared reel (this branch). Hosts pass `screenshots: AgentScreenshot[]` with host-approved `src` URLs. It is styled by a framework-neutral stylesheet with `--cline-ui-shots-*` variables, so hosts without Cline tokens (the VS Code webview) can theme it.
-- `@cline/ui` tool summaries label `computer` actions (this branch), so any host that renders shared tool summaries gets readable rows.
-- Desktop: `ChatMessages` takes a `verification` prop and renders the reel after the transcript, with screenshot expansion through the existing lightbox (this branch). Live tool rows already show tool-result images.
-- VS Code: `CompletionOutputRow` renders image `media` attached to the completion as a compact reel (this branch).
-- Cloud web app: adopt the same component.
-- Pull requests: when the agent opens a PR, the control plane uploads the verification frames and embeds them in the body under a "Verified in sandbox" heading.
-
-### 6. Later: live view and takeover
-
-Stream frames (or run noVNC) so users can watch the agent drive the app in real time, and let them take over the display to show the agent what they mean. This reuses the display stack and needs no change to the tool.
-
-## Phased plan
-
-| Phase | Scope | Main work |
+| # | What happened | Rule |
 | --- | --- | --- |
-| 0 | Demo and prompt experiments | Shell plus `read_files` in the sandbox. UI prototypes in this branch. |
-| 1 | First-class computer use | Display stack in the sandbox image, `computer` tool and backend in core, prompt section, inline thumbnails through the existing media transport, reel in all clients |
-| 2 | Full-resolution evidence | Artifact store, host resolvers, verification contract, PR embedding |
-| 3 | Beyond screenshots | Live view and takeover, recorded clips, local computer use with consent, Wayland |
+| 1 | I clicked using coordinates read off a downscaled screenshot (1440px window shown at 1024px), hit the window's close button, and closed VS Code. | Click in the same pixel space as the screenshot. Keep the app window at or below 1280×800 and screenshots at scale factor 1, so providers don't resize them and screenshot pixels equal click pixels. |
+| 2 | A hot reload moved the layout, and a click landed on the wrong element. | Screenshot right before any click. Never reuse coordinates across a UI change. |
+| 3 | Captures raced the UI without a fixed wait. 0.5–0.8s worked for this app. | Every action waits for the UI to settle before the screenshot (`cu` does this). |
+| 4 | With no window manager, `xdotool getactivewindow` fails and focus needs `windowactivate --sync`. | Either run a lightweight window manager (fluxbox) or find the window by class (`xdotool search --class google-chrome`), as `cu` does. |
+| 5 | A parked pointer triggered hover tooltips and paused hover-sensitive UI in screenshots. | Move the pointer to a neutral spot before "clean" evidence shots. |
+| 6 | Chrome showed first-run and restore prompts with a reused profile. | Fresh `--user-data-dir` every launch, plus `--no-first-run --no-default-browser-check`. |
+| 7 | Resizing the window to a 390×844 phone viewport needs a taller screen than 1280×800. | Make the Xvfb screen bigger than any window you'll use (1920×1200) and capture the window, not the root. |
+| 8 | Client side: the VS Code webview CSP blocks `fetch()`, so the demo couldn't load images by URL. | Host extensions resolve images and hand the webview `data:` or `blob:` URLs. |
+
+---
+
+## Sandbox image
+
+```dockerfile
+# Display, window manager, input, screenshots, fonts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      xvfb fluxbox xdotool x11-utils wmctrl imagemagick \
+      fonts-noto fonts-noto-color-emoji fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Chrome (Ubuntu's chromium is snap-only and awkward in containers; on Debian, `apt-get install chromium` also works)
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb
+
+COPY cu /usr/local/bin/cu
+ENV DISPLAY=:99
+```
+
+`x11-utils` provides `xdpyinfo` and `xwininfo`.
+
+| Job | Tool | Example |
+| --- | --- | --- |
+| Virtual display | `Xvfb` | `Xvfb :99 -screen 0 1920x1200x24 -nolisten tcp &` |
+| Window manager (focus, active window) | `fluxbox` | `fluxbox &` |
+| Keyboard | `xdotool` | `xdotool key ctrl+k`, `xdotool type --delay 40 -- "over"` |
+| Mouse | `xdotool` | `xdotool mousemove 640 228 click 1` (button 4/5 = scroll up/down) |
+| Find / focus / resize windows | `xdotool`, `wmctrl` | `xdotool search --onlyvisible --class google-chrome`, `xdotool windowsize --sync $WID 390 844`, `wmctrl -l` |
+| Screenshots | ImageMagick `import` | `import -window $WID shot.png` or `import -window root shot.png` |
+| Window and display info | `xwininfo`, `xdpyinfo` | `xdotool getwindowgeometry --shell $WID` |
+| Web-only checks (optional) | Playwright | DOM-aware screenshots and selectors; can't drive native windows |
+
+Display lifecycle: start the display lazily (when the agent runs `cu start`), and keep `DISPLAY=:99` in the environment of every command the agent runs. That way `bun run dev`, `npm start`, `cargo tauri dev`, or an Electron app render to the same screen the agent is looking at.
+
+---
+
+## The `cu` helper (tested)
+
+Each action settles, saves a screenshot of the app window, and prints the path, so the agent can `read_files` it. It also refuses clicks outside the window and keys that would close the app.
+
+```bash
+#!/usr/bin/env bash
+# cu: minimal computer-use helper for the sandbox.
+# Every action waits for the UI to settle, then saves a screenshot and prints its path,
+# so the agent can `read_files` it and see the result.
+set -euo pipefail
+
+export DISPLAY="${DISPLAY:-:99}"
+SHOTS="${CU_SHOTS:-/tmp/cu-shots}"
+WIDTH="${CU_WIDTH:-1280}"
+HEIGHT="${CU_HEIGHT:-800}"
+SETTLE="${CU_SETTLE:-0.7}"
+mkdir -p "$SHOTS"
+
+die() { echo "cu: $*" >&2; exit 2; }
+win() { xdotool search --onlyvisible --class google-chrome 2>/dev/null | tail -1; }
+settle() { sleep "$SETTLE"; }
+
+shot() {
+	local id n file
+	id="$(win)"
+	[ -n "$id" ] || die "no app window; run 'cu open URL' first"
+	n=$(printf "%03d" "$(find "$SHOTS" -name '*.png' | wc -l)")
+	file="$SHOTS/$n-${1:-shot}.png"
+	import -window "$id" "$file"
+	echo "$file"
+}
+
+in_window() {
+	local x=$1 y=$2 WIDTH HEIGHT
+	eval "$(xdotool getwindowgeometry --shell "$(win)")"
+	((x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)) || die "($x, $y) is outside the ${WIDTH}x${HEIGHT} app window"
+}
+
+case "${1:-}" in
+start)
+	if ! xdpyinfo >/dev/null 2>&1; then
+		Xvfb "$DISPLAY" -screen 0 1920x1200x24 -nolisten tcp >/dev/null 2>&1 &
+		for _ in $(seq 50); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.1; done
+	fi
+	echo "display $DISPLAY ready"
+	;;
+open)
+	[ -n "${2:-}" ] || die "usage: cu open URL"
+	google-chrome --no-first-run --no-default-browser-check --disable-gpu \
+		--disable-features=Translate --user-data-dir="$(mktemp -d)" \
+		--force-device-scale-factor=1 --hide-scrollbars \
+		--window-position=0,0 --window-size="$WIDTH,$HEIGHT" --app="$2" >/dev/null 2>&1 &
+	xdotool search --sync --onlyvisible --class google-chrome >/dev/null
+	xdotool windowfocus --sync "$(win)"
+	sleep 1.5
+	shot open
+	;;
+click)
+	[ $# -eq 3 ] || die "usage: cu click X Y"
+	in_window "$2" "$3"
+	xdotool mousemove --window "$(win)" "$2" "$3" click 1
+	settle
+	shot "click-$2-$3"
+	;;
+type)
+	[ -n "${2:-}" ] || die "usage: cu type TEXT"
+	xdotool type --delay 40 -- "$2"
+	settle
+	shot type
+	;;
+key)
+	[ -n "${2:-}" ] || die "usage: cu key KEYS (for example ctrl+k)"
+	case "${2,,}" in alt+f4 | ctrl+w | ctrl+q | ctrl+shift+w | ctrl+shift+q) die "refusing '$2': it would close the app" ;; esac
+	xdotool key -- "$2"
+	settle
+	shot "key-${2//+/-}"
+	;;
+scroll)
+	[ $# -eq 4 ] || die "usage: cu scroll X Y up|down"
+	in_window "$2" "$3"
+	button=5
+	[ "$4" = up ] && button=4
+	xdotool mousemove --window "$(win)" "$2" "$3" click --repeat 3 "$button"
+	settle
+	shot "scroll-$4"
+	;;
+resize)
+	[ $# -eq 3 ] || die "usage: cu resize WIDTH HEIGHT"
+	xdotool windowsize --sync "$(win)" "$2" "$3"
+	settle
+	shot "resize-$2x$3"
+	;;
+shot)
+	shot "${2:-shot}"
+	;;
+*)
+	echo "usage: cu start | open URL | click X Y | type TEXT | key KEYS | scroll X Y up|down | resize W H | shot [NAME]" >&2
+	exit 1
+	;;
+esac
+```
+
+Tested against the fixture app on a fresh display (no window manager):
+
+```
+$ cu start                     -> display :97 ready
+$ cu open http://localhost:5180 -> /tmp/cu/shots/000-open.png
+$ cu key ctrl+k                -> 001-key-ctrl-k.png      (palette open)
+$ cu type over                 -> 002-type.png
+$ cu click 640 228             -> 003-click-640-228.png   (overdue filter applied)
+$ cu scroll 640 400 down       -> 004-scroll-down.png
+$ cu resize 390 844            -> 005-resize-390x844.png  (390x844 capture)
+$ cu key ctrl+k                -> 006-key-ctrl-k.png
+$ cu click 2000 50             -> cu: (2000, 50) is outside the 390x844 app window   (exit 2)
+$ cu key ctrl+w                -> cu: refusing 'ctrl+w': it would close the app     (exit 2)
+```
+
+Known limits: `cu` only targets Chrome windows (`--class google-chrome`). Widen `win()` for Electron and Tauri apps, for example by matching the app's window class or the most recently mapped window. `type` uses xdotool's keyboard mapping, so exotic Unicode can be unreliable; paste via `xclip` if that becomes a problem.
+
+---
+
+## System prompt section
+
+Add this only when the sandbox has the display stack and the model accepts images:
+
+```markdown
+## Verify your work visually
+
+You have a virtual display (DISPLAY=:99) and a `cu` helper for computer use. After you implement anything a user can see or interact with, verify it before you finish:
+
+1. Start the app (for example `bun run dev &`) and wait until it's serving.
+2. `cu start`, then `cu open http://localhost:<port>`. Every `cu` command prints a screenshot path. Call `read_files` on it to see the screen. Don't assume an action worked; look.
+3. Exercise the changed flow the way a user would:
+   - `cu key ctrl+k`, `cu type "text"`
+   - `cu click X Y` (coordinates are pixels in the most recent screenshot, origin top-left)
+   - `cu scroll X Y down`, `cu resize 390 844` for a phone viewport
+4. Take a fresh screenshot right before every click; layouts move. If a click misses, re-read the screen before retrying.
+5. Check the states that usually break: empty, loading, error, long content, dark mode, and a narrow viewport.
+6. If something looks wrong, fix the code, reload, and check again.
+7. Only read the screenshots you need to decide your next step; each one costs context.
+8. Never close the app window or the browser, and never type secrets (tokens, passwords, `.env` contents) into the app or capture them on screen.
+
+When you're done, write `/tmp/cu-shots/evidence.json` choosing 3 to 8 screenshots that show the feature working:
+[{"file": "/tmp/cu-shots/003-click-640-228.png", "caption": "Overdue filter applied: 4 cards", "action": "click", "detail": "Show overdue", "verdict": "passed"}]
+Captions state what the frame proves. Use "failed" for anything you couldn't fix, and say so in your answer.
+```
+
+The `evidence.json` fields map one-to-one onto `AgentScreenshot` in `@cline/ui` (`src` = the resolved file, `title` = caption, `action`, `detail`, `status` = verdict). The upload step in "Getting screenshots to clients" reads this file.
+
+Context cost: Claude bills images at roughly `width × height / 750` tokens, so a 1280×800 screenshot is about 1.4k tokens. The existing media budget in `@cline/shared` (`DEFAULT_MAX_TOTAL_MEDIA_BYTES`, 8 MB per turn, and `IMAGE_OMITTED_PLACEHOLDER`) applies to images returned by `read_files`.
+
+---
+
+## Getting screenshots to clients
+
+What already exists:
+- `@cline/core/cloud` (`CloudSessionController`, `CloudSessionApi`) streams hub events and transcript snapshots from the sandbox to hosts.
+- Messages already carry `GeneratedMedia` (`@cline/shared`, `llms/media.ts`), whose source is `base64`, `url`, or `artifact`. Hosts render inline `base64` today. `artifact` exists in the schema, but no host resolves it yet (`GeneratedMediaContent` shows a placeholder).
+- The VS Code message translator maps `media` content events to `ClineMessage.media`. The desktop transcript renders tool-result images.
+
+To build:
+1. When the run completes, the sandbox reads `/tmp/cu-shots/evidence.json`, uploads those frames to session-scoped object storage, and gets an `artifactId` per frame. The completion carries `{ type: "artifact", artifactId }` media plus a small inline WebP thumbnail (about 320px wide, a few KB) so the slideshow renders immediately.
+2. Host resolvers: the desktop sidecar and the VS Code extension fetch through an authenticated `CloudSessionApi` call (signed URL or bytes) and hand the webview a `blob:` or `data:` URL. Webviews never bind remote URLs directly (pitfall 8).
+3. A verification contract on the completion: `verification: { frames: [{ media, caption, action, detail, verdict }] }`, built from `evidence.json`.
+4. PR: when the agent opens the PR, the control plane embeds the evidence frames under a "Verified in sandbox" heading.
+5. Budgets: a cap on frames per session, dedupe by hash.
+
+---
+
+## Client UI (already built, on the branch)
+
+- `@cline/ui` `AgentScreenshotCarousel`: autoplaying slideshow with a filmstrip and progress bars, a caption overlay (action, what the frame proves, pass/fail), a click-pointer marker, an expand-to-lightbox hook, and a compact mode. Its stylesheet is framework-neutral (`--cline-ui-shots-*` variables).
+- Desktop: `ChatMessages` takes `verification` and renders the slideshow above the run's final answer.
+- VS Code: `CompletionOutputRow` renders image `media` on the completion as a compact slideshow.
+- Dev-only scripted demos: desktop with Cmd/Ctrl+Shift+D; VS Code with the "Cline: Play Computer Use Demo" command (needs `IS_DEV=true`).
+
+---
+
+## Evaluation
+
+- **Task set:** 15–20 UI tasks across 3–4 fixture repos: a web app (Vite/React), an Electron or Tauri app, and a terminal UI. Each task has a ground-truth visual check, for example "Ctrl+K opens a palette containing 'Show overdue'."
+- **Arms:**
+  - A: no verification prompt (baseline).
+  - B: verification prompt with raw xdotool and `import`.
+  - C: verification prompt with `cu`.
+- **Metrics:**
+  - task success (judged on a final screenshot);
+  - bugs the agent caught and fixed itself;
+  - misclicks (clicks with no visible effect, or the wrong target);
+  - destructive actions blocked by `cu`;
+  - turns, wall time, and image tokens per task;
+  - evidence quality (does each caption match its frame?).
+- **Models:** our top two or three defaults, all with image input.
+- **Use the results to tune** the prompt, `cu`'s settle delay and guards, and which models get the verification section.
+
+---
+
+## Security and privacy
+
+- Screenshots can capture secrets (terminals, `.env` files, tokens). Prompt guidance forbids it; later, consider OCR redaction before upload.
+- Frames inherit session access control. Signed URLs are short-lived. Retention follows session retention.
+- Organizations can disable screenshot capture and upload through remote config.
+- The display is sandbox-local (`-nolisten tcp`).
+
+---
 
 ## Open questions
 
-- Which models get the native provider tool and which get the function-tool fallback, and how do we evaluate their click accuracy?
 - Should verification run on every task, only when UI files change, or only on request?
-- Is 1280x800 the right default, or should the agent pick a viewport per check?
-- How long do we retain screenshot artifacts, and who can see them in team workspaces?
-- Should the reel also be posted as a PR comment when the agent updates an existing PR?
+- Is 1280×800 the right default, or should the agent pick a viewport per check?
+- How do screenshots reach the PR before the upload pipeline exists? (Committing them to the branch pollutes the diff.)
+- Should the slideshow also post as a PR comment when the agent updates an existing PR?
+
+---
 
 ## Trying the demos
 
-Both demos replay a scripted cloud session through the real chat UI, because sandboxes cannot send images to clients yet. They are dev-only.
+Both demos replay a scripted cloud session through the real chat UI, because sandboxes can't send screenshots to clients yet. They are dev-only.
 
 Desktop app (`apps/examples/desktop-app`):
 
@@ -164,19 +378,53 @@ VS Code extension (`apps/vscode`):
 2. Launch the extension development host with `IS_DEV=true` and `DEV_WORKSPACE_FOLDER=<repo>/apps/vscode` (the repo's launch configurations set both).
 3. Open the Cline view and run "Cline: Play Computer Use Demo" from the command palette.
 
-The demo screenshots are real. They come from a small fixture kanban app driven by the same loop an agent would run:
+The demo screenshots are real captures of a small fixture kanban app, made with the loop in the appendix.
+
+---
+
+## Appendix A: the exact capture loop from the prototype
 
 ```bash
-Xvfb :99 -screen 0 1280x900x24 &
-export DISPLAY=:99
-google-chrome --app=http://localhost:5173 --window-size=1280,800 &
-shot() { import -window root -crop "${2:-1280x800}+0+0" +repage "shots/$1.png"; }
+#!/usr/bin/env bash
+# Close-the-loop capture: what a sandboxed agent runs after building the feature.
+set -euo pipefail
+OUT=/tmp/tidepool/shots; DISP=:99; mkdir -p "$OUT"
 
-shot 01-board
-xdotool key ctrl+k && shot 02-palette
-xdotool type --delay 110 over && xdotool mousemove 640 228 && shot 03-search
-xdotool click 1 && shot 04-filtered
-xdotool key ctrl+k && xdotool type dark && xdotool key Return
-xdotool key ctrl+k && xdotool type high && shot 05-dark
-xdotool windowsize "$(xdotool getactivewindow)" 390 844 && shot 06-mobile 390x844
+Xvfb "$DISP" -screen 0 1280x900x24 -nolisten tcp >/dev/null 2>&1 &   # virtual display
+python3 -m http.server 5173 -d /tmp/tidepool >/dev/null 2>&1 &         # stand-in for `bun run dev`
+export DISPLAY=$DISP; sleep 1
+
+google-chrome --no-first-run --no-default-browser-check --disable-gpu --disable-features=Translate \
+  --user-data-dir=/tmp/tidepool/profile --force-device-scale-factor=1 --hide-scrollbars \
+  --window-position=0,0 --window-size=1280,800 --app=http://localhost:5173 >/dev/null 2>&1 &
+sleep 5
+WID=$(xdotool search --sync --onlyvisible --class google-chrome | tail -1)
+xdotool windowactivate --sync "$WID" 2>/dev/null || xdotool windowfocus --sync "$WID"
+
+shot() { sleep "${2:-0.6}"; import -window root -crop "${3:-1280x800+0+0}" +repage "$OUT/$1.png"; }
+
+shot 01-board 0.2
+xdotool key ctrl+k;                               shot 02-palette
+xdotool type --delay 110 over
+xdotool mousemove 640 228;                        shot 03-search
+xdotool click 1;                                  shot 04-filtered
+xdotool key ctrl+k; xdotool type --delay 60 clear; xdotool key Return
+xdotool key ctrl+k; xdotool type --delay 60 dark;  xdotool key Return; sleep 0.4
+xdotool key ctrl+k; xdotool type --delay 60 high; shot 05-dark
+xdotool key Escape
+xdotool key ctrl+k; xdotool type --delay 60 dark;  xdotool key Return
+xdotool windowsize --sync "$WID" 390 844; sleep 0.8
+xdotool key ctrl+k; xdotool type --delay 60 o;    shot 06-mobile 0.8 390x844+0+0
 ```
+
+## Appendix B: Chrome launch flags
+
+| Flag | Why |
+| --- | --- |
+| `--app=URL` | Bare window with no tabs or address bar, so screenshots show only the app |
+| `--window-position=0,0 --window-size=W,H` | Known geometry, so click coordinates and crops are predictable |
+| `--force-device-scale-factor=1` | One screenshot pixel equals one CSS pixel |
+| `--user-data-dir=<fresh dir>` | No leftover state or restore prompts |
+| `--no-first-run --no-default-browser-check --disable-features=Translate` | No popups in screenshots |
+| `--disable-gpu` | No GPU in the sandbox; software rendering is fine |
+| `--hide-scrollbars` | Cleaner screenshots |
