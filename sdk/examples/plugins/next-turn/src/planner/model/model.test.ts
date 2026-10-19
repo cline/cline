@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as clineCore from "@cline/core";
 import {
 	type ApiHandler,
 	type ApiStreamChunk,
@@ -217,6 +218,7 @@ describe("the planner's provider", () => {
 			},
 			resolveProviderApiKeyFromSettings: () => undefined,
 			toProviderConfig: (stored: Record<string, unknown>) => ({ ...stored }),
+			isProviderSettingsUsable: clineCore.isProviderSettingsUsable,
 		};
 		return { core: core as unknown as typeof import("@cline/core"), asked };
 	}
@@ -248,11 +250,13 @@ describe("the planner's provider", () => {
 		});
 		expect(asked).toEqual(["settings:cline"]);
 		const resolveWith = (settings: Record<string, unknown> | undefined) =>
-			providerResolver(fakeCore(settings).core, llmsHelpers);
+			providerResolver(fakeCore(settings).core, llmsHelpers, {});
 		expect(
-			await resolveWith({ providerId: "openai", apiKey: "" })({
+			await resolveWith({
 				providerId: "openai",
-			}),
+				provider: "openai",
+				apiKey: "",
+			})({ providerId: "openai" }),
 		).toBeUndefined();
 		expect(
 			await resolveWith(undefined)({ providerId: "openai" }),
@@ -260,9 +264,95 @@ describe("the planner's provider", () => {
 		expect(
 			await resolveWith({
 				providerId: "ollama",
+				provider: "ollama",
 				baseUrl: "http://localhost:11434",
+				modelId: "llama3",
 			})({ providerId: "ollama" }),
 		).toMatchObject({ providerId: "ollama" });
+	});
+
+	test("calls a provider that signs in without a key or leaves its key to its environment variables, and refuses one with no key, URL or sign-in", async () => {
+		const manager = new clineCore.ProviderSettingsManager();
+		const resolve = (
+			settings: { provider: string } & Record<string, unknown>,
+			env: NodeJS.ProcessEnv = {},
+		) => {
+			manager.saveProviderSettings(settings, { setLastUsed: false });
+			return providerResolver(
+				clineCore,
+				llmsHelpers,
+				env,
+			)({ providerId: settings.provider });
+		};
+		const model = "anthropic.claude-sonnet-4-5-20250929-v1:0";
+		const region = "us-east-1";
+		const bedrockSignIns: Array<{
+			entry: Record<string, unknown>;
+			env?: NodeJS.ProcessEnv;
+		}> = [
+			{ entry: { aws: { profile: "work", region } } },
+			{ entry: { aws: { authentication: "iam", region } } },
+			{ entry: { aws: { accessKey: "AKIAEXAMPLE", secretKey: "s", region } } },
+			// VS Code's default "AWS Credentials" setup and a legacy-migrated entry: the default credential chain.
+			{ entry: { region } },
+			{ entry: { aws: { region } } },
+			{
+				entry: { aws: { authentication: "iam" } },
+				env: { AWS_REGION: region },
+			},
+			{
+				entry: { aws: { authentication: "api-key", region } },
+				env: { AWS_BEARER_TOKEN_BEDROCK: "bearer" },
+			},
+		];
+		for (const { entry, env } of bedrockSignIns) {
+			const bedrock = await resolve(
+				{ provider: "bedrock", model, ...entry },
+				env,
+			);
+			expect(bedrock).toMatchObject({ providerId: "bedrock", modelId: model });
+			expect([bedrock?.apiKey, bedrock?.accessToken]).toEqual([
+				undefined,
+				undefined,
+			]);
+		}
+		expect(
+			await resolve({
+				provider: "vertex",
+				model: "gemini-2.5-flash",
+				gcp: { projectId: "p", region: "us-central1" },
+			}),
+		).toMatchObject({ providerId: "vertex", gcp: { projectId: "p" } });
+		expect(
+			await resolve({ provider: "claude-code", model: "sonnet" }),
+		).toMatchObject({ providerId: "claude-code" });
+		const nous = await resolve({
+			provider: "nousResearch",
+			model: "Hermes-4-70B",
+		});
+		expect(nous).toMatchObject({
+			providerId: "nousResearch",
+			baseUrl: "https://inference-api.nousresearch.com/v1",
+		});
+		expect(nous?.apiKey).toBeUndefined();
+
+		expect(
+			await resolve({
+				provider: "bedrock",
+				model,
+				aws: { authentication: "api-key", region },
+			}),
+		).toBeUndefined();
+		expect(
+			await resolve({
+				provider: "bedrock",
+				model,
+				aws: { authentication: "iam" },
+			}),
+		).toBeUndefined();
+		expect(
+			await resolve({ provider: "vertex", model: "gemini-2.5-flash" }),
+		).toBeUndefined();
 	});
 
 	test("attaches the chat path's request headers for cline, cline-pass, openai-codex, anthropic and opencode-go", async () => {

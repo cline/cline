@@ -1,5 +1,6 @@
 import type { AgentPlugin } from "@cline/core";
 import type { AgentRunResult, PluginUiSurface } from "@cline/shared";
+import { HUB_TRANSCRIPT_WAIT_MS } from "./config";
 import { clineConnectionLoaders } from "./connectors/cline-connections";
 import { GhReader } from "./connectors/github/gh";
 import { Connectors } from "./connectors/index";
@@ -10,7 +11,7 @@ import { dirtyFileCounter } from "./context/sources/workspace";
 import { NextTurnEngine } from "./engine/engine";
 import { NotifyGate } from "./engine/notify";
 import { CursorWriter } from "./hub/fold/cursor";
-import { HubLink, type HubLinkDeps } from "./hub/link";
+import { HubCommandFailed, HubLink, type HubLinkDeps } from "./hub/link";
 import { nodeHubLinkDeps } from "./hub/node-deps";
 import { pluginLog } from "./log";
 import { backlogReader, type PlanAdapter } from "./planner/backlog";
@@ -114,21 +115,42 @@ export function sessionEnv(
 	};
 }
 
-/** The session's transcript and status from the hub, for a viewer of a chat with no turn in memory. */
+/** A command's reply, empty when the hub answered with an error; undefined when the link could not carry it. */
+function hubAnswer(
+	reply: Promise<Record<string, unknown>>,
+): Promise<{ reply?: Record<string, unknown> } | undefined> {
+	return reply.then(
+		(answer) => ({ reply: answer }),
+		(error: unknown) => (error instanceof HubCommandFailed ? {} : undefined),
+	);
+}
+
+/**
+ * The session's transcript and status from the hub, for a viewer of a chat
+ * with no turn in memory; read once more when the link could not carry the
+ * reads, and undefined when it does not come up in time or fails them again.
+ */
 async function hubTranscript(
-	link: Pick<HubLink, "command">,
+	link: Pick<HubLink, "command" | "connected">,
 	sessionId: string,
-): Promise<{ messages: MessageLike[]; status?: string }> {
-	const [messagesReply, sessionReply] = await Promise.all([
-		link.command("session.messages", { sessionId }).catch(() => undefined),
-		link.command("session.get", { sessionId }).catch(() => undefined),
-	]);
-	return {
-		messages: listOf(messagesReply, "messages"),
-		status: text(
-			isRecord(sessionReply?.session) ? sessionReply.session.status : undefined,
-		),
-	};
+): Promise<{ messages: MessageLike[]; status?: string } | undefined> {
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		if (!(await link.connected(HUB_TRANSCRIPT_WAIT_MS))) return undefined;
+		const [messages, session] = await Promise.all([
+			hubAnswer(link.command("session.messages", { sessionId })),
+			hubAnswer(link.command("session.get", { sessionId })),
+		]);
+		if (messages && session)
+			return {
+				messages: listOf(messages.reply, "messages"),
+				status: text(
+					isRecord(session.reply?.session)
+						? session.reply.session.status
+						: undefined,
+				),
+			};
+	}
+	return undefined;
 }
 
 /**
@@ -156,9 +178,10 @@ export function startSessionRuntime(
 			log: (message, error) => log(message, error),
 		},
 		{
-		workspaceRoot,
-		cwd: workspaceRoot,
-	});
+			workspaceRoot,
+			cwd: workspaceRoot,
+		},
+	);
 	const paths = nextTurnPaths();
 	const engine = new NextTurnEngine({
 		link,

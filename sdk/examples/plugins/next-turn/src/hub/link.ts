@@ -141,6 +141,31 @@ export class HubLink {
 		return this.startPromise;
 	}
 
+	/**
+	 * Whether the link is up and its client connected, waiting up to `withinMs`
+	 * while it is still connecting or reconnecting, or while its client has
+	 * dropped before the link noticed. No running hub, or a disposed link,
+	 * answers false without waiting.
+	 */
+	connected(withinMs: number): Promise<boolean> {
+		if (this.isUp()) return Promise.resolve(true);
+		if (this.state === "off" || this.state === "disposed")
+			return Promise.resolve(false);
+		return new Promise((resolve) => {
+			const settle = () => {
+				clearTimeout(timer);
+				stop();
+				resolve(this.isUp());
+			};
+			const stop = this.onStatus((status) => {
+				if (status === "up" || status === "off" || status === "disposed")
+					settle();
+			});
+			const timer = setTimeout(settle, withinMs);
+			timer.unref?.();
+		});
+	}
+
 	subscribe(
 		names: ReadonlySet<HubEventName>,
 		listener: (event: HubEvent) => void,
@@ -262,6 +287,10 @@ export class HubLink {
 				this.deps.log?.("a hub listener failed", error);
 			}
 		}
+	}
+
+	private isUp(): boolean {
+		return this.state === "up" && Boolean(this.client?.isConnected());
 	}
 
 	private isDisposed(): boolean {

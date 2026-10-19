@@ -1,3 +1,4 @@
+import type { ProviderSettings } from "@cline/core";
 import type {
 	ApiHandler,
 	ApiStreamChunk,
@@ -240,16 +241,38 @@ type CoreModule = typeof import("@cline/core");
 type LlmsModule = typeof import("@cline/llms");
 
 /**
+ * A Bedrock entry as llms signs it in, for core's readiness check: one that
+ * names no authentication uses the AWS default credential chain, as `iam`
+ * does, and the region and bearer token may come from the environment.
+ */
+function asBedrockSignsIn(
+	stored: ProviderSettings,
+	env: NodeJS.ProcessEnv,
+): ProviderSettings {
+	return {
+		...stored,
+		apiKey: stored.apiKey || env.AWS_BEARER_TOKEN_BEDROCK,
+		aws: {
+			...stored.aws,
+			authentication: stored.aws?.authentication ?? "iam",
+			region: stored.aws?.region || stored.region || env.AWS_REGION,
+		},
+	};
+}
+
+/**
  * Resolves the provider config the planner calls with, its key and request
  * headers resolved the way `local-runtime-bootstrap.ts` resolves a chat's;
- * undefined when the provider is not usable. Under `kind: "chat"` the planner
- * never borrows another provider from `getLastUsedProviderConfig`. One
- * resolver serves every call, so concurrent calls share an OAuth refresh; the
- * settings file is still read on each call.
+ * undefined when it has no key, no URL, and none of the cloud credentials,
+ * local sign-in or keyless endpoint core's readiness check looks for. Under
+ * `kind: "chat"` the planner never borrows another provider from
+ * `getLastUsedProviderConfig`. One resolver serves every call, so concurrent
+ * calls share an OAuth refresh; the settings file is still read on each call.
  */
 export function providerResolver(
 	core: CoreModule,
 	llms: Pick<LlmsModule, "resolveProviderRequestHeaders">,
+	env: NodeJS.ProcessEnv = process.env,
 ): (
 	choice: ProviderChoice & { providerId: string },
 	requestContext?: PlannerRequestContext,
@@ -270,7 +293,16 @@ export function providerResolver(
 			config.apiKey ||
 			""
 		).trim();
-		if (!apiKey && !config.baseUrl) return undefined;
+		if (
+			!apiKey &&
+			!config.baseUrl &&
+			!core.isProviderSettingsUsable(
+				providerId,
+				providerId === "bedrock" ? asBedrockSignsIn(stored, env) : stored,
+				config,
+			)
+		)
+			return undefined;
 		const headers = llms.resolveProviderRequestHeaders({
 			providerId,
 			sessionId: requestContext?.sessionId,

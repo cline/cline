@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import type { ITelemetryService } from "@cline/shared";
+import type { HubLinkDeps } from "./hub/link";
+import type { TrayPush } from "./planner/tray/tray";
 import {
 	type SessionRuntime,
 	type SetupContext,
@@ -45,12 +47,15 @@ function harness(clientName = "cline-cli", pluginActive?: () => boolean) {
 		workspaceInfo: { rootPath: tempDir() },
 		telemetry,
 	};
-	const start = (active: boolean): SessionRuntime => {
+	const start = (
+		active: boolean,
+		hubLink: HubLinkDeps = offlineHub,
+	): SessionRuntime => {
 		const runtime = startSessionRuntime(context, {
 			settings: () => settings,
 			active,
 			pluginActive,
-			hubLink: offlineHub,
+			hubLink,
 			runCommand: noCommands,
 		});
 		if (!runtime) throw new Error("no runtime");
@@ -61,6 +66,67 @@ function harness(clientName = "cline-cli", pluginActive?: () => boolean) {
 		new FileSessionStateStore(nextTurnPaths().sessions, sessionId).read();
 	return { sessionId, settings, surfaces, start, stored };
 }
+
+/** A running hub the link reaches only `connectMs` after it starts, holding the chat's transcript and status. */
+function slowHub(
+	connectMs: number,
+	transcript: { messages: unknown[]; status: string },
+) {
+	let connected = false;
+	let dropUnder: string | undefined;
+	const statusListeners = new Set<(connected: boolean) => void>();
+	const commands: string[] = [];
+	/** The client's connection changes; `noticed: false` is a drop the link's poll has not seen yet. */
+	const setConnected = (next: boolean, noticed = true) => {
+		connected = next;
+		if (noticed) for (const listener of statusListeners) listener(next);
+	};
+	const deps: HubLinkDeps = {
+		resolveEndpoint: async () => ({ url: "ws://hub.test" }),
+		createClient: () => ({
+			connect: () =>
+				new Promise<void>((resolve) =>
+					setTimeout(() => {
+						connected = true;
+						resolve();
+					}, connectMs),
+				),
+			isConnected: () => connected,
+			onStatus: (listener) => {
+				statusListeners.add(listener);
+				return () => statusListeners.delete(listener);
+			},
+			subscribe: () => () => {},
+			command: async (name) => {
+				commands.push(name);
+				if (name === dropUnder) {
+					dropUnder = undefined;
+					setConnected(false);
+					throw new Error("the hub connection closed");
+				}
+				if (name === "session.messages")
+					return { messages: transcript.messages };
+				if (name === "session.get")
+					return { session: { status: transcript.status } };
+				return {};
+			},
+			dispose: async () => {},
+		}),
+		sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+	};
+	return {
+		deps,
+		commands,
+		connected: () => connected,
+		setConnected,
+		/** The connection closes under the next `name` command. */
+		dropUnder: (name: string) => {
+			dropUnder = name;
+		},
+	};
+}
+
+const tick = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Lets connector detection, started with Next, finish. */
 async function detected(runtime: SessionRuntime): Promise<void> {
@@ -209,5 +275,98 @@ describe("one chat's runtime and its viewer", () => {
 		next?.outgoing([...run.messages, message("user", "Now the parser")]);
 		expect(viewed.surfaces.length).toBeGreaterThan(0);
 		expect(new Set(viewed.surfaces)).toEqual(new Set(["desktop-tray"]));
+	});
+
+	describe("a viewer that attaches before the hub link is up", () => {
+		function attach(runtime: SessionRuntime) {
+			const next = runtime.setViewed(true, "desktop");
+			if (!next) throw new Error("no next");
+			const pushes: TrayPush["state"][] = [];
+			next.onPush((push) => pushes.push(push.state));
+			return { next, pushes };
+		}
+
+		test("is served the chat's transcript once the link connects", async () => {
+			const { start } = harness("cline-desktop");
+			const hub = slowHub(50, {
+				messages: editRun("Forked chat turn").messages,
+				status: "completed",
+			});
+			const { next, pushes } = attach(start(false, hub.deps));
+			const served = next.ensureCurrent();
+			expect(hub.connected()).toBe(false);
+			await served;
+			await next.settled();
+			expect(next.current()?.trigger).toBe("on_demand");
+			expect(pushes).toEqual(["computing", "ready"]);
+		});
+
+		test("is not served a stored last turn while the hub says a run is going", async () => {
+			const { start } = harness("cline-desktop");
+			const hub = slowHub(50, { messages: [], status: "running" });
+			const runtime = start(false, hub.deps);
+			runtime.recordDormantTurn(editRun().result);
+			const { next, pushes } = attach(runtime);
+			await next.ensureCurrent();
+			await next.settled();
+			expect(hub.commands).toContain("session.get");
+			expect(next.current()).toBeUndefined();
+			expect(pushes).toEqual([]);
+		});
+
+		test("whose client dropped before the link noticed is served once the link comes back", async () => {
+			const { start } = harness("cline-desktop");
+			const hub = slowHub(0, {
+				messages: editRun("Reopened chat turn").messages,
+				status: "completed",
+			});
+			const runtime = start(false, hub.deps);
+			await tick(20);
+			hub.setConnected(false, false);
+			const { next, pushes } = attach(runtime);
+			const served = next.ensureCurrent();
+			await tick(10);
+			hub.setConnected(false);
+			hub.setConnected(true);
+			await served;
+			await next.settled();
+			expect(next.current()?.trigger).toBe("on_demand");
+			expect(pushes).toEqual(["computing", "ready"]);
+		});
+
+		test("is served once the link comes back when it drops under the transcript reads", async () => {
+			const { start } = harness("cline-desktop");
+			const hub = slowHub(0, {
+				messages: editRun("Reopened chat turn").messages,
+				status: "completed",
+			});
+			const runtime = start(false, hub.deps);
+			await tick(20);
+			hub.dropUnder("session.messages");
+			const { next, pushes } = attach(runtime);
+			const served = next.ensureCurrent();
+			await tick(10);
+			hub.setConnected(true);
+			await served;
+			await next.settled();
+			expect(
+				hub.commands.filter((name) => name === "session.messages"),
+			).toHaveLength(2);
+			expect(next.current()?.trigger).toBe("on_demand");
+			expect(pushes).toEqual(["computing", "ready"]);
+		});
+
+		test("with no hub running, is served the stored last turn without waiting", async () => {
+			const { start } = harness("cline-desktop");
+			const runtime = start(false);
+			runtime.recordDormantTurn(editRun().result);
+			const { next, pushes } = attach(runtime);
+			const startedAt = Date.now();
+			await next.ensureCurrent();
+			await next.settled();
+			expect(Date.now() - startedAt).toBeLessThan(1_000);
+			expect(next.current()?.trigger).toBe("on_demand");
+			expect(pushes).toEqual(["computing", "ready"]);
+		});
 	});
 });

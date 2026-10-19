@@ -12,13 +12,19 @@ import {
 
 type FakeClient = HubClientPort & {
 	emit(event: HubEvent): void;
-	setConnected(next: boolean): void;
+	/** `noticed: false` changes the connection without a status report, as a drop between polls does. */
+	setConnected(next: boolean, noticed?: boolean): void;
 	disposed: boolean;
 	commands: string[];
 };
 
 function fakeClient(
-	options: { failConnect?: boolean; failWith?: HubCommandFailed } = {},
+	options: {
+		failConnect?: boolean;
+		failWith?: HubCommandFailed;
+		/** Connects once this settles; a promise that never settles keeps the client connecting. */
+		connectWhen?: Promise<void>;
+	} = {},
 ): FakeClient {
 	const listeners = new Set<(event: HubEvent) => void>();
 	const statusListeners = new Set<(connected: boolean) => void>();
@@ -27,6 +33,7 @@ function fakeClient(
 		disposed: false,
 		commands: [],
 		async connect() {
+			await options.connectWhen;
 			if (options.failConnect) throw new Error("refused");
 			connected = true;
 		},
@@ -50,9 +57,9 @@ function fakeClient(
 		emit(event) {
 			for (const listener of listeners) listener(event);
 		},
-		setConnected(next) {
+		setConnected(next, noticed = true) {
 			connected = next;
-			for (const listener of statusListeners) listener(next);
+			if (noticed) for (const listener of statusListeners) listener(next);
 		},
 	};
 	return client;
@@ -87,6 +94,21 @@ function nextStatus(link: HubLink, status: HubLinkStatus): Promise<void> {
 			resolve();
 		});
 	});
+}
+
+/** Counts the status listeners `link` holds, so a test can tell a wait left none behind. */
+function openStatusListeners(link: HubLink): () => number {
+	let open = 0;
+	const onStatus = link.onStatus.bind(link);
+	link.onStatus = (listener) => {
+		open += 1;
+		const stop = onStatus(listener);
+		return () => {
+			open -= 1;
+			return stop();
+		};
+	};
+	return () => open;
 }
 
 describe("HubLink", () => {
@@ -278,5 +300,78 @@ describe("HubLink", () => {
 		c1.emit({ event: "run.started", sessionId: "old" });
 		c2.emit({ event: "run.started", sessionId: "new" });
 		expect(seen).toEqual(["new"]);
+	});
+
+	describe("waiting for the link", () => {
+		test("an up link answers at once", async () => {
+			const link = new HubLink(deps("ws://hub", [fakeClient()]));
+			await link.start();
+			expect(await link.connected(0)).toBe(true);
+		});
+
+		test("a link still connecting answers once it is up, inside the wait", async () => {
+			let connect!: () => void;
+			const connectWhen = new Promise<void>((resolve) => {
+				connect = resolve;
+			});
+			const link = new HubLink(deps("ws://hub", [fakeClient({ connectWhen })]));
+			const open = openStatusListeners(link);
+			void link.start();
+			const answer = link.connected(60_000);
+			connect();
+			expect(await answer).toBe(true);
+			expect(open()).toBe(0);
+		});
+
+		test("a link whose client dropped before it noticed waits for the client, answering by it", async () => {
+			const client = fakeClient();
+			const link = new HubLink(deps("ws://hub", [client]));
+			const open = openStatusListeners(link);
+			await link.start();
+			client.setConnected(false, false);
+			expect(await link.connected(10)).toBe(false);
+			const reported = link.connected(60_000);
+			client.setConnected(false);
+			client.setConnected(true);
+			expect(await reported).toBe(true);
+			client.setConnected(false, false);
+			const unreported = link.connected(20);
+			client.setConnected(true, false);
+			expect(await unreported).toBe(true);
+			expect(open()).toBe(0);
+		});
+
+		test("a link that does not come up inside the wait answers false", async () => {
+			const link = new HubLink(
+				deps("ws://hub", [fakeClient({ connectWhen: new Promise(() => {}) })]),
+			);
+			const open = openStatusListeners(link);
+			void link.start();
+			expect(await link.connected(10)).toBe(false);
+			expect(open()).toBe(0);
+			await link.dispose();
+		});
+
+		test("no running hub answers false as soon as the link learns there is none", async () => {
+			const link = new HubLink(deps(undefined, []));
+			const open = openStatusListeners(link);
+			const learning = link.start();
+			expect(await link.connected(60_000)).toBe(false);
+			await learning;
+			expect(await link.connected(60_000)).toBe(false);
+			expect(open()).toBe(0);
+		});
+
+		test("a link disposed during the wait answers false", async () => {
+			const link = new HubLink(
+				deps("ws://hub", [fakeClient({ connectWhen: new Promise(() => {}) })]),
+			);
+			const open = openStatusListeners(link);
+			void link.start();
+			const answer = link.connected(60_000);
+			await link.dispose();
+			expect(await answer).toBe(false);
+			expect(open()).toBe(0);
+		});
 	});
 });

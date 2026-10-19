@@ -20,6 +20,8 @@ export const HUB_RECONNECT_FACTOR = 2;
 export const HUB_CONNECTION_POLL_MS = 500;
 /** How long a hub command may take before it is refused. */
 export const HUB_COMMAND_TIMEOUT_MS = 10_000;
+/** How long a transcript read waits for the link: a new or forked chat's first viewer attaches while it is still connecting. */
+export const HUB_TRANSCRIPT_WAIT_MS = 5_000;
 
 /** Folded events between cursor writes; the cursor is also written on dispose. */
 export const CURSOR_SAVE_EVERY_EVENTS = 50;
