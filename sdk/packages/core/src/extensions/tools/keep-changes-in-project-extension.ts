@@ -8,8 +8,16 @@
  * editor, which run in-process rather than through a shell.
  */
 
+import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, relative, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import type {
 	AgentBeforeToolContext,
 	AgentBeforeToolResult,
@@ -17,13 +25,11 @@ import type {
 } from "@cline/shared";
 import { isKeepChangesInProjectEnabledGlobally } from "../../services/global-settings";
 import { DefaultToolNames } from "./constants";
+import { listPatchTargets } from "./executors/apply-patch";
 import { PROJECT_SANDBOX_SETTING_LABEL } from "./executors/project-sandbox";
 
 export const KEEP_CHANGES_IN_PROJECT_EXTENSION_NAME =
 	"core.keep-changes-in-project";
-
-const PATCH_TARGET_PATTERN =
-	/^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$/gm;
 
 function editTargets(toolName: string, input: unknown): string[] {
 	if (toolName === DefaultToolNames.EDITOR) {
@@ -35,14 +41,22 @@ function editTargets(toolName: string, input: unknown): string[] {
 			typeof input === "string"
 				? input
 				: (input as { input?: unknown } | undefined)?.input;
-		if (typeof patch !== "string") {
-			return [];
-		}
-		return [...patch.matchAll(PATCH_TARGET_PATTERN)].map((match) =>
-			match[1].trim(),
-		);
+		return typeof patch === "string" ? listPatchTargets(patch) : [];
 	}
 	return [];
+}
+
+/**
+ * Resolves symlinks in the longest existing prefix of `path`, so a link inside
+ * the project that points elsewhere is judged by where writes actually land.
+ */
+function realPath(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		const parent = dirname(path);
+		return parent === path ? path : join(realPath(parent), basename(path));
+	}
 }
 
 function isInside(root: string, target: string): boolean {
@@ -67,11 +81,12 @@ export function createKeepChangesInProjectExtension(options: {
 		if (!isKeepChangesInProjectEnabledGlobally()) {
 			return undefined;
 		}
+		const roots = allowedRoots.map(realPath);
 		const outside = editTargets(context.tool.name, context.input).find(
-			(path) =>
-				!allowedRoots.some((root) =>
-					isInside(root, resolve(options.cwd, path)),
-				),
+			(path) => {
+				const target = realPath(resolve(options.cwd, path));
+				return !roots.some((root) => isInside(root, target));
+			},
 		);
 		if (!outside) {
 			return undefined;
