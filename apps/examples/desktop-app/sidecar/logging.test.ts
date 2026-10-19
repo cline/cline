@@ -9,8 +9,24 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDesktopLoggerAdapter, DESKTOP_LOG_MAX_BYTES } from "./logging";
+
+const mockOpenSync = vi.hoisted(() => vi.fn());
+const realOpenSync = vi.hoisted(() =>
+	(require("node:fs") as typeof import("node:fs")).openSync,
+);
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return {
+		...actual,
+		openSync: mockOpenSync,
+	};
+});
+
+beforeEach(() => {
+	mockOpenSync.mockImplementation(realOpenSync);
+});
 
 const originalEnv = {
 	CLINE_LOG_ENABLED: process.env.CLINE_LOG_ENABLED,
@@ -53,6 +69,16 @@ describe("desktop sidecar logging", () => {
 		process.env.CLINE_LOG_PATH = directory;
 		delete process.env.CLINE_LOG_ENABLED;
 		const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+		// Force openSync to throw so the fallback path is exercised
+		// deterministically on every platform.
+		mockOpenSync.mockImplementation(() => {
+			const err = new Error(
+				"EISDIR: illegal operation on a directory, open",
+			);
+			(err as Error & { code?: string }).code = "EISDIR";
+			throw err;
+		});
 
 		try {
 			const adapter = createDesktopLoggerAdapter();

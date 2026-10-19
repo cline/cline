@@ -7,7 +7,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
@@ -566,9 +566,13 @@ describe("session forks", () => {
 		});
 		await restoreStarted;
 		try {
-			expect(ctx.restoringWorkspacePaths).toEqual(
-				new Set(["/workspace/project"]),
-			);
+			expect(
+				new Set(
+					[...ctx.restoringWorkspacePaths].map((p) =>
+						p.split("\\").join("/").replace(/^[A-Za-z]:/, ""),
+					),
+				),
+			).toEqual(new Set(["/workspace/project"]));
 			await expect(
 				handleChatSessionCommand(ctx, {
 					action: "send",
@@ -967,7 +971,7 @@ describe("session forks", () => {
 					},
 				],
 			]),
-			restoringWorkspacePaths: new Set(["/workspace/project"]),
+			restoringWorkspacePaths: new Set([resolve("/workspace/project")]),
 			...localRuntimeContext({ send }, { sessionIds: [sessionId] }),
 		} as unknown as SidecarContext;
 

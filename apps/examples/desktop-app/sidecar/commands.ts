@@ -933,7 +933,12 @@ async function removeTaskWorktree(
 			"--git-common-dir",
 		]);
 		repoRoot = dirname(commonDir);
-		await git(["worktree", "remove", "--force", worktreePath]);
+		try {
+			await git(["worktree", "remove", "--force", worktreePath]);
+		} catch {
+			// Best-effort: if worktree removal fails (e.g. locked files on
+			// Windows), still attempt branch deletion below.
+		}
 		await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
 			encoding: "utf8",
 		}).catch(() => undefined);

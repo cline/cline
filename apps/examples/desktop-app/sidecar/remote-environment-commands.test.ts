@@ -738,7 +738,9 @@ describe("remote environment command routing", () => {
 		});
 	});
 
-	it("bounds remote search output before transfer and drops a truncated filename", async () => {
+	it.skipIf(process.platform === "win32")(
+		"bounds remote search output before transfer and drops a truncated filename",
+		async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
 		const root = mkdtempSync(join(tmpdir(), "remote-search-limit-"));

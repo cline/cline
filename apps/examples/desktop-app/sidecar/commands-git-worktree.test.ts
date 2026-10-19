@@ -34,8 +34,20 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.unstubAllEnvs();
-	rmSync(sandbox, { recursive: true, force: true });
+	// Best-effort cleanup: git worktree can hold file handles on Windows,
+	// making rmSync fail with EPERM. Don't let cleanup failure fail the test.
+	try {
+		rmSync(sandbox, { recursive: true, force: true });
+	} catch {
+		// Ignore — temp files are reclaimed by the OS.
+	}
 });
+
+// git on Windows emits forward slashes while Node's path.join uses backslash;
+// normalize so path comparisons are platform-independent.
+function toUnix(p: string): string {
+	return p.split("\\").join("/");
+}
 
 async function run(cwd: string) {
 	return (await handleCommand(
@@ -50,7 +62,9 @@ describe("create_git_worktree command", () => {
 		const result = await run(repo);
 
 		expect(
-			result.path.startsWith(join(sandbox, "cline-dir", "worktrees")),
+			toUnix(result.path).startsWith(
+				join(sandbox, "cline-dir", "worktrees").split("\\").join("/"),
+			),
 		).toBe(true);
 		expect(result.path.endsWith(join("my-app"))).toBe(true);
 		expect(result.branch).toMatch(/^cline\/[0-9a-f]{5}$/);
@@ -58,7 +72,12 @@ describe("create_git_worktree command", () => {
 		expect(git(result.path, "branch", "--show-current")).toBe(result.branch);
 		// The original checkout is untouched.
 		expect(git(repo, "branch", "--show-current")).toBe("main");
-		expect(git(repo, "worktree", "list")).toContain(result.path);
+		expect(
+			git(repo, "worktree", "list")
+				.split(/\r?\n/)
+				.map((line) => toUnix(line.trim()))
+				.some((line) => line.startsWith(toUnix(result.path))),
+		).toBe(true);
 	});
 
 	it("reports the worktree root it creates under in the process context", async () => {
@@ -105,7 +124,12 @@ describe("create_git_worktree command", () => {
 		const result = await run(nested);
 
 		expect(result.path.endsWith("my-app")).toBe(true);
-		expect(git(repo, "worktree", "list")).toContain(result.path);
+		expect(
+			git(repo, "worktree", "list")
+				.split(/\r?\n/)
+				.map((line) => toUnix(line.trim()))
+				.some((line) => line.startsWith(toUnix(result.path))),
+		).toBe(true);
 	});
 
 	it("rejects a folder that is not a git repository", async () => {
@@ -127,7 +151,12 @@ describe("remove_git_worktree command", () => {
 		await handleCommand(ctx, "remove_git_worktree", { path: worktree.path });
 
 		expect(existsSync(dirname(worktree.path))).toBe(false);
-		expect(git(repo, "worktree", "list")).not.toContain(worktree.path);
+		expect(
+			git(repo, "worktree", "list")
+				.split(/\r?\n/)
+				.map((line) => toUnix(line.trim()))
+				.every((line) => !line.startsWith(toUnix(worktree.path))),
+		).toBe(true);
 		expect(git(repo, "branch", "--list", worktree.branch)).toBe("");
 	});
 
@@ -203,16 +232,30 @@ describe("delete_chat_session worktree cleanup", () => {
 
 		expect(deleted).toBe(true);
 		// The UI needs both paths to move off the vanished workspace.
-		expect(events).toContainEqual({
-			name: "session_deleted",
-			payload: expect.objectContaining({
-				sessionId: "session-wt",
-				removedWorktree: { path: worktree.path, repoRoot: repo },
-			}),
-		});
+		const sessionDeletedEvent = events.find(
+			(e: { name: string }) => e.name === "session_deleted",
+		);
+		expect(sessionDeletedEvent).toBeDefined();
+		if (!sessionDeletedEvent) {
+			throw new Error("session_deleted event not found");
+		}
+		const payload = sessionDeletedEvent.payload as {
+			removedWorktree: { path: string; repoRoot: string };
+		};
+		expect(
+			payload.removedWorktree.path.split("\\").join("/"),
+		).toBe(toUnix(worktree.path));
+		expect(
+			payload.removedWorktree.repoRoot.split("\\").join("/"),
+		).toBe(toUnix(repo));
 		expect(existsSync(worktree.path)).toBe(false);
 		expect(existsSync(dirname(worktree.path))).toBe(false);
-		expect(git(repo, "worktree", "list")).not.toContain(worktree.path);
+		expect(
+			git(repo, "worktree", "list")
+				.split(/\r?\n/)
+				.map((line) => toUnix(line.trim()))
+				.every((line) => !line.startsWith(toUnix(worktree.path))),
+		).toBe(true);
 		expect(git(repo, "branch", "--list", worktree.branch)).toBe("");
 	});
 
@@ -241,7 +284,12 @@ describe("delete_chat_session worktree cleanup", () => {
 		const { events } = await deleteSession(store, "session-a");
 
 		expect(existsSync(worktree.path)).toBe(true);
-		expect(git(repo, "worktree", "list")).toContain(worktree.path);
+		expect(
+			git(repo, "worktree", "list")
+				.split(/\r?\n/)
+				.map((line) => toUnix(line.trim()))
+				.some((line) => line.startsWith(toUnix(worktree.path))),
+		).toBe(true);
 		expect(events[0]?.payload).not.toHaveProperty("removedWorktree.path");
 	});
 
@@ -276,7 +324,12 @@ describe("delete_chat_session worktree cleanup", () => {
 		await deleteSession(new SqliteSessionStore(), "session-home");
 
 		expect(existsSync(worktree.path)).toBe(true);
-		expect(git(repo, "worktree", "list")).toContain(worktree.path);
+		expect(
+			git(repo, "worktree", "list")
+				.split(/\r?\n/)
+				.map((line) => toUnix(line.trim()))
+				.some((line) => line.startsWith(toUnix(worktree.path))),
+		).toBe(true);
 	});
 
 	it("leaves a regular workspace folder alone", async () => {

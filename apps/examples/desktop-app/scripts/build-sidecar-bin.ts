@@ -42,6 +42,43 @@ const sidecarOutfile = (targetTriple: string): string => {
 	return `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
 };
 
+/**
+ * Runs `bun build` with an argv array instead of Bun's `$` template.
+ *
+ * `$` interpolates each argument through the shell, and on Windows `bun`
+ * frequently resolves to an npm shim (`...\npm\bun.cmd`). Bun then refuses the
+ * whole command:
+ *
+ *   bun: refusing to pass argument with cmd.exe special characters to a
+ *   batch file: process.env.OTEL_EXPORTER_OTLP_ENDPOINT="ws://127.0.0.1:4318"
+ *
+ * `--define` values are JSON-encoded by `telemetryDefineArgs`, so they contain
+ * double quotes by design and *must* stay quoted: a bare token like
+ * `process.env.OTEL_EXPORTER_OTLP_ENDPOINT=ws://127.0.0.1:4318` is not a valid
+ * JavaScript expression and makes the compiled binary panic at startup with
+ * "attempt to use null value". Spawning `process.execPath` (the real bun
+ * executable, never the .cmd shim) with an argv array sidesteps cmd.exe
+ * entirely, so the quotes survive.
+ */
+const runBunBuild = async (args: string[]): Promise<void> => {
+	const proc = Bun.spawn([process.execPath, "build", ...args], {
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	// Drain both pipes before awaiting exit; leaving one unread can deadlock
+	// the child once the OS pipe buffer fills.
+	const [exitCode, stderr, stdout] = await Promise.all([
+		proc.exited,
+		new Response(proc.stderr).text(),
+		new Response(proc.stdout).text(),
+	]);
+	if (exitCode !== 0) {
+		throw new Error(
+			`bun build failed (exit ${exitCode}): ${stderr.trim() || stdout.trim()}`,
+		);
+	}
+};
+
 const buildSidecar = async (
 	targetTriple: string,
 	outfile = sidecarOutfile(targetTriple),
@@ -65,11 +102,17 @@ const buildSidecar = async (
 		"--no-compile-autoload-dotenv",
 		"--no-compile-autoload-bunfig",
 	];
-	if (bunTarget) {
-		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
-	} else {
-		await $`bun build ${entrypoint} --compile ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
-	}
+	const targetArgs = bunTarget ? [`--target=${bunTarget}`] : [];
+	await runBunBuild([
+		entrypoint,
+		"--compile",
+		...targetArgs,
+		...runtimeIsolationArgs,
+		...optimizationArgs,
+		...defines,
+		"--outfile",
+		outfile,
+	]);
 	return outfile;
 };
 
