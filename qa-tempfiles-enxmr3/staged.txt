@@ -1,0 +1,2 @@
+Synthetic new file with a staged first line: amber-star.
+Synthetic unstaged second line: silver-wave.
