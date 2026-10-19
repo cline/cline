@@ -85,6 +85,12 @@ export {
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
 export {
+	type AgentScreenshot,
+	type AgentScreenshotAction,
+	AgentScreenshotCarousel,
+	type AgentScreenshotCarouselProps,
+} from "./agent-screenshot-carousel.js";
+export {
 	AgentSessionOverview,
 	type AgentSessionOverviewProps,
 	AgentSessionRow,

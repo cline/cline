@@ -361,6 +361,57 @@ function aggregateLabel(
 	return `${verb} ${pluralize(count, aggregate.noun, aggregate.pluralNoun)}`;
 }
 
+/** Labels for computer-use actions (`{ action, text?, coordinate? }`). */
+function computerActionLabel(
+	input: Record<string, unknown>,
+	inProgress: boolean,
+): ToolLabelPart[] | undefined {
+	const action = typeof input.action === "string" ? input.action : "";
+	const text = typeof input.text === "string" ? input.text : "";
+	const coordinate =
+		Array.isArray(input.coordinate) && input.coordinate.length === 2
+			? `(${input.coordinate.join(", ")})`
+			: "";
+	const verb = (progress: string, done: string) =>
+		inProgress ? progress : done;
+	switch (action) {
+		case "screenshot":
+			return [{ text: verb("Taking screenshot", "Took screenshot") }];
+		case "key":
+			return [
+				{ text: `${verb("Pressing", "Pressed")} ` },
+				{ text, code: true },
+			];
+		case "type":
+			return [{ text: `${verb("Typing", "Typed")} ` }, { text, code: true }];
+		case "left_click":
+		case "right_click":
+		case "double_click":
+		case "mouse_move": {
+			const label =
+				action === "mouse_move"
+					? verb("Moving pointer", "Moved pointer")
+					: verb("Clicking", "Clicked");
+			return coordinate
+				? [{ text: `${label} at ` }, { text: coordinate, code: true }]
+				: [{ text: label }];
+		}
+		case "scroll":
+			return [
+				{
+					text: `${verb("Scrolling", "Scrolled")}${typeof input.scroll_direction === "string" ? ` ${input.scroll_direction}` : ""}`,
+				},
+			];
+		default:
+			return action
+				? [
+						{ text: `${verb("Using", "Used")} computer: ` },
+						{ text: action, code: true },
+					]
+				: undefined;
+	}
+}
+
 /** Derive the plain-text label and its styled segments together. */
 function labeled(
 	parts: ToolLabelPart[],
@@ -433,6 +484,11 @@ export function buildToolSummary(
 				items: team.details.map((text) => ({ type: "text", text })),
 			};
 		}
+	}
+
+	if (toolName === "computer" && isRecord(input)) {
+		const parts = computerActionLabel(input, inProgress);
+		if (parts) return { ...base, ...labeled(parts) };
 	}
 
 	if (toolName === "read_files") {

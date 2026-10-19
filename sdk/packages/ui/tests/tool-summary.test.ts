@@ -810,3 +810,25 @@ describe("shortenPath", () => {
 		expect(short.endsWith("file-name.ts")).toBe(true);
 	});
 });
+
+describe("computer-use actions", () => {
+	const label = (input: unknown, inProgress = false) =>
+		buildToolSummary({ toolName: "computer", input, inProgress }).label;
+
+	it("labels each action with its input", () => {
+		expect(label({ action: "screenshot" })).toBe("Took screenshot");
+		expect(label({ action: "key", text: "ctrl+k" })).toBe("Pressed ctrl+k");
+		expect(label({ action: "type", text: "over" }, true)).toBe("Typing over");
+		expect(label({ action: "left_click", coordinate: [640, 228] })).toBe(
+			"Clicked at (640, 228)",
+		);
+		expect(label({ action: "scroll", scroll_direction: "down" })).toBe(
+			"Scrolled down",
+		);
+		expect(label({ action: "zoom" })).toBe("Used computer: zoom");
+	});
+
+	it("falls back to the generic label without an action", () => {
+		expect(label({})).toBe("Computer");
+	});
+});

@@ -37,6 +37,7 @@
 			"import": "./dist/components/markdown.js"
 		},
 		"./components/markdown.css": "./components/markdown.css",
+		"./components/agent-screenshot-carousel.css": "./components/agent-screenshot-carousel.css",
 		"./components/mermaid-block": {
 			"types": "./dist/components/mermaid-block.d.ts",
 			"import": "./dist/components/mermaid-block.js"
@@ -91,6 +92,8 @@
 		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",
 		"components/agent-quick-actions.tsx",
+		"components/agent-screenshot-carousel.css",
+		"components/agent-screenshot-carousel.tsx",
 		"components/agent-session-row.tsx",
 		"components/github-icon.tsx",
 		"components/markdown.css",
