@@ -4,6 +4,7 @@ import {
 	setAutoUpdateEnabledGlobally,
 	setKeepChangesInProjectGlobally,
 } from "@cline/core";
+import { FeatureFlag } from "@cline/shared";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -18,6 +19,7 @@ import {
 	formatCliCompactionMode,
 	getNextCliCompactionMode,
 } from "../../utils/compaction-mode";
+import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { getMcpManagerEntryStatus } from "../components/dialogs/mcp-manager-dialog";
 import { resolveModelDisplayName } from "../components/status-bar";
@@ -412,6 +414,15 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [keepChangesInProject, setKeepChangesInProject] = useState(
 		isKeepChangesInProjectEnabledGlobally,
 	);
+	// Decided once per open so the rows do not shift while navigating, and
+	// shown whenever the setting is on so it can always be turned off again.
+	const [keepChangesInProjectAvailable] = useState(
+		() =>
+			isKeepChangesInProjectEnabledGlobally() ||
+			getCliFeatureFlagsService().getBooleanFlagEnabled(
+				FeatureFlag.ONLY_ALLOW_PROJECT_EDITS,
+			),
+	);
 	const [verbose, setVerbose] = useState(config.verbose);
 	const [compactionMode, setCompactionMode] = useState(
 		props.currentCompactionMode,
@@ -494,11 +505,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				id: "auto-approve",
 				label: "Auto-approve all",
 			});
-			r.push({
-				kind: "toggle",
-				id: "keep-changes-in-project",
-				label: "Only allow edits in project directory",
-			});
+			if (keepChangesInProjectAvailable) {
+				r.push({
+					kind: "toggle",
+					id: "keep-changes-in-project",
+					label: "Only allow edits in project directory",
+				});
+			}
 			r.push({ kind: "toggle", id: "auto-update", label: "Auto update" });
 			r.push({ kind: "toggle", id: "verbose", label: "Verbose" });
 		} else {
@@ -575,7 +588,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 
 		return r;
-	}, [activeTab, configData, pluginToolsError, pluginToolsLoading]);
+	}, [
+		activeTab,
+		configData,
+		keepChangesInProjectAvailable,
+		pluginToolsError,
+		pluginToolsLoading,
+	]);
 
 	const navIndices = useMemo(
 		() => rows.map((r, i) => (isNavigable(r) ? i : -1)).filter((i) => i >= 0),
