@@ -1249,7 +1249,9 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "Google Gemini",
 		description: "Google Gemini API",
 		family: "google",
-		modelToolCapabilities: NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
+		// No native Google Search: free-tier keys have no grounding quota on
+		// Gemini 3+ (every request fails with 429), and Gemini 2.x cannot
+		// combine it with function tools, so the AI SDK drops Cline's tools.
 		popular: 45,
 		capabilities: ["reasoning", "prompt-cache"],
 		apiKeyEnv: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
