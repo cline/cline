@@ -968,6 +968,7 @@ export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
+export { summarizeConversation } from "./extensions/context/summarize-conversation";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,

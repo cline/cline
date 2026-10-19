@@ -9,6 +9,7 @@ export type HandoffGitPlan = {
 	id: string;
 	root: string;
 	cwd: string;
+	workspaceRelativePath: string;
 	repoUrl: string;
 	pushUrl: string;
 	remote: string;
@@ -39,13 +40,16 @@ async function git(
 		env?: Partial<NodeJS.ProcessEnv>;
 		timeout?: number;
 		input?: string;
+		hooksPath?: string;
 	} = {},
 ) {
 	try {
 		return await new Promise<string>((resolve, reject) => {
 			const child = execFile(
 				"git",
-				args,
+				options.hooksPath
+					? ["-c", `core.hooksPath=${options.hooksPath}`, ...args]
+					: args,
 				{
 					cwd,
 					env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...options.env },
@@ -86,6 +90,9 @@ function isSensitivePath(path: string): boolean {
 
 export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	const root = await git(cwd, ["rev-parse", "--show-toplevel"]);
+	const workspaceRelativePath = (
+		await git(cwd, ["rev-parse", "--show-prefix"])
+	).replace(/\/$/, "");
 	if (
 		(await git(root, ["ls-files", "-v", "-z"]))
 			.split("\0")
@@ -123,11 +130,6 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	) {
 		throw new Error(
 			"Resolve conflicts or changes inside submodules before continuing in cloud.",
-		);
-	}
-	if (files.some(({ status }) => /^[MARCT][MDT]$/.test(status))) {
-		throw new Error(
-			"Files with both staged and unstaged changes would lose the staged version. Stage or unstage them before retrying /cloud.",
 		);
 	}
 	if (files.some(({ path }) => isSensitivePath(path))) {
@@ -245,6 +247,7 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 		id: randomUUID(),
 		root,
 		cwd: resolve(cwd),
+		workspaceRelativePath,
 		repoUrl,
 		pushUrl,
 		remote,
@@ -259,24 +262,56 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	};
 }
 
-export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
-	const current = await inspectHandoffGit(plan.root);
-	for (const key of [
-		"root",
-		"repoUrl",
-		"pushUrl",
+async function assertPublicationDestination(
+	plan: HandoffGitPlan,
+): Promise<void> {
+	const fetchUrl = await git(plan.root, [
 		"remote",
-		"sourceBranch",
-		"headSha",
-		"treeSha",
-		"indexTree",
-		"status",
-	] as const) {
-		if (current[key] !== plan[key])
-			throw new Error(
-				"The repository changed after confirmation. Run /cloud again to review the updated changes.",
-			);
-	}
+		"get-url",
+		"--all",
+		plan.remote,
+	]);
+	const pushUrl = await git(plan.root, [
+		"remote",
+		"get-url",
+		"--push",
+		"--all",
+		plan.remote,
+	]);
+	if (
+		normalizeGitHubRemoteUrl(fetchUrl) !== plan.repoUrl ||
+		pushUrl !== plan.pushUrl
+	)
+		throw new Error(
+			"The remote changed after confirmation. Run /cloud again to review the destination.",
+		);
+}
+
+export async function verifyPublishedHandoffGit(
+	plan: HandoffGitPlan,
+	headSha: string,
+): Promise<void> {
+	await assertPublicationDestination(plan);
+	const published = await git(plan.root, [
+		"ls-remote",
+		"--heads",
+		plan.remote,
+		`refs/heads/${plan.branch}`,
+	]);
+	if (published.split(/\s/)[0] !== headSha)
+		throw new Error(
+			"The published branch changed during preparation. Run /cloud again.",
+		);
+}
+
+export async function applyHandoffGit(plan: HandoffGitPlan): Promise<string> {
+	await assertPublicationDestination(plan);
+	const hooksPath = await git(plan.root, [
+		"rev-parse",
+		"--path-format=absolute",
+		"--git-path",
+		"hooks",
+	]);
 	if (
 		(
 			await git(plan.root, [
@@ -292,17 +327,29 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 		);
 	}
 	let pushing = false;
+	const temporary = await mkdtemp(join(tmpdir(), "cline-handoff-checkout-"));
+	const checkout = join(temporary, "checkout");
+	let added = false;
 	try {
-		await git(plan.root, ["switch", "-c", plan.branch]);
-		await git(plan.root, ["read-tree", plan.treeSha]);
-		if (plan.treeSha !== (await git(plan.root, ["rev-parse", "HEAD^{tree}"]))) {
-			await git(plan.root, ["commit", "-m", "Cline cloud handoff checkpoint"], {
+		await git(plan.root, [
+			"worktree",
+			"add",
+			"-b",
+			plan.branch,
+			checkout,
+			plan.headSha,
+		]);
+		added = true;
+		await git(checkout, ["read-tree", "--reset", "-u", plan.treeSha]);
+		if (plan.treeSha !== (await git(checkout, ["rev-parse", "HEAD^{tree}"]))) {
+			await git(checkout, ["commit", "-m", "Cline cloud handoff checkpoint"], {
 				timeout: 10 * 60_000,
+				hooksPath,
 			});
 		}
 		if (
-			(await git(plan.root, ["rev-parse", "HEAD^{tree}"])) !== plan.treeSha ||
-			(await git(plan.root, [
+			(await git(checkout, ["rev-parse", "HEAD^{tree}"])) !== plan.treeSha ||
+			(await git(checkout, [
 				"status",
 				"--porcelain=v1",
 				"--untracked-files=all",
@@ -313,12 +360,12 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 				"Files changed during preparation; nothing was pushed. Review the working tree before retrying.",
 			);
 		}
-		const commit = await git(plan.root, ["rev-parse", "HEAD"]);
+		const commit = await git(checkout, ["rev-parse", "HEAD"]);
 		if (
-			(await git(plan.root, ["symbolic-ref", "--short", "HEAD"])) !==
+			(await git(checkout, ["symbolic-ref", "--short", "HEAD"])) !==
 				plan.branch ||
 			(commit !== plan.headSha &&
-				(await git(plan.root, ["rev-list", "--parents", "-n", "1", commit])) !==
+				(await git(checkout, ["rev-list", "--parents", "-n", "1", commit])) !==
 					`${commit} ${plan.headSha}`)
 		) {
 			throw new Error(
@@ -328,7 +375,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 		// Publish only the approved commit, never a moving HEAD or configured push refspecs.
 		pushing = true;
 		await git(
-			plan.root,
+			checkout,
 			[
 				"-c",
 				"push.followTags=false",
@@ -338,7 +385,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 				plan.pushUrl,
 				`${commit}:refs/heads/${plan.branch}`,
 			],
-			{ timeout: 10 * 60_000 },
+			{ timeout: 10 * 60_000, hooksPath },
 		);
 		pushing = false;
 		await git(plan.root, [
@@ -351,6 +398,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 			`branch.${plan.branch}.merge`,
 			`refs/heads/${plan.branch}`,
 		]);
+		return commit;
 	} catch (error) {
 		if (pushing) {
 			throw new Error(
@@ -358,7 +406,11 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<void> {
 			);
 		}
 		throw new Error(
-			`${error instanceof Error ? error.message : String(error)} Preparation may have left a checkpoint on ${plan.branch}; your files were not rolled back. Inspect that branch before retrying.`,
+			`${error instanceof Error ? error.message : String(error)} Your local checkout was not changed. A checkpoint may remain on ${plan.branch}.`,
 		);
+	} finally {
+		if (added)
+			await git(plan.root, ["worktree", "remove", "--force", checkout]);
+		await rm(temporary, { recursive: true, force: true });
 	}
 }

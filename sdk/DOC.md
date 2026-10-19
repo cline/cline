@@ -43,6 +43,14 @@ host presentation.
 
 ## Cloud sessions (experimental)
 
+`summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
+a continuation note without changing session history or compaction state.
+`config` uses the current model connection. Top-level credentials override the
+matching nested `providerConfig`. The request retains the latest turn and prior
+compaction summary, shortening older context to fit the input limit. The promise
+rejects empty, incomplete, failed, or cancelled output. Claude Code, Codex CLI,
+OpenCode, and Dify are unsupported because they may execute their own tools.
+
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
 The API handles REST requests; the controller handles remote Hub connections,
 session lifecycle, transcript reconciliation, and approvals. Hosts provide API

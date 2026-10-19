@@ -1166,6 +1166,8 @@ describe("CloudSessionController neutral host contract", () => {
 			autoApproveTools: false,
 			thinking: false,
 			reasoningEffort: "high" as const,
+			mode: "plan" as const,
+			workspaceRelativePath: "packages/app",
 		};
 		try {
 			await f.controller.create({
@@ -1181,7 +1183,13 @@ describe("CloudSessionController neutral host contract", () => {
 					f.commands.find((c) => c.command === "session.create")?.payload,
 				).toMatchObject({
 					metadata: { thinking: false, reasoningEffort: null },
-					sessionConfig: { thinking: false, reasoningEffort: "high" },
+					sessionConfig: {
+						thinking: false,
+						reasoningEffort: "high",
+						mode: "plan",
+						cwd: "/workspace/packages/app",
+					},
+					runtimeOptions: { mode: "plan" },
 				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);

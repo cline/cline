@@ -1,43 +1,44 @@
-import type {
-	CloudHandoffFingerprint,
-	CloudHandoffProgressPhase,
-	CloudHandoffResult,
-} from "@cline/core";
 import {
 	cloudImageAttachmentError,
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
-import type { SessionMetadata } from "@/lib/session-history";
 
-export type ParsedHandoffCommand = {
+type ParsedHandoffCommand = {
 	nextCommand: string;
 };
 
 export type HandoffPreflight = {
-	fingerprint: CloudHandoffFingerprint;
+	gitPreparationId: string;
 	repoUrl: string;
 	branch: string;
-	headSha?: string;
+	headSha: string;
 	modelId: string;
 };
 
-export type HandoffResult = CloudHandoffResult;
-
-export type HandoffReceipt = {
-	targetSessionId: string;
+export type HandoffResult = {
+	sourceSessionId: string;
+	sessionId: string;
 	dashboardUrl: string;
+	destination: "in_app" | "external";
+	warning?: string;
+	warningKind?: "unqueued" | "unconfirmed";
+	undeliveredCommand?: string;
 };
 
-export type HandoffProgressPhase = CloudHandoffProgressPhase;
+export type HandoffProgressPhase =
+	| "checking"
+	| "summarizing"
+	| "creating"
+	| "provisioning"
+	| "sending"
+	| "complete";
 
 export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
 	checking: "Checking the local session...",
 	creating: "Creating the cloud session...",
 	provisioning: "Preparing the cloud workspace...",
-	connecting: "Connecting to the cloud agent...",
-	seeding: "Transferring the conversation...",
-	verifying: "Verifying the handoff...",
-	starting: "Starting the cloud task...",
+	summarizing: "Summarizing the local conversation...",
+	sending: "Sending the cloud task...",
 	complete: "Cloud handoff complete.",
 };
 
@@ -54,64 +55,12 @@ export function parseHandoffCommand(
 
 export function validateHandoffAttachments(
 	files: readonly File[],
-	nextCommand: string,
 ): string | null {
 	const nonImage = files.find((file) => !isSupportedImageAttachment(file));
 	if (nonImage) {
 		return `Cloud handoff only supports image attachments. Remove ${nonImage.name} and try again.`;
 	}
-	if (files.length > 0 && !nextCommand.trim()) {
-		return "Add a command after /cloud to send the attached images in cloud.";
-	}
 	return cloudImageAttachmentError([...files]) ?? null;
-}
-
-function stringField(value: unknown): string {
-	return typeof value === "string" ? value.trim() : "";
-}
-
-export function readHandoffReceipt(
-	metadata?: SessionMetadata,
-): HandoffReceipt | null {
-	const raw = metadata?.handoff;
-	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-		return null;
-	}
-	const handoff = raw as Record<string, unknown>;
-	if (handoff.status !== "complete") {
-		return null;
-	}
-	const targetSessionId = stringField(handoff.toCloudSessionId);
-	const dashboardUrl = stringField(handoff.dashboardUrl);
-	return targetSessionId && dashboardUrl
-		? { targetSessionId, dashboardUrl }
-		: null;
-}
-
-export function readPendingHandoffRecovery(
-	metadata?: SessionMetadata,
-): Partial<HandoffReceipt> | null {
-	const raw = metadata?.handoff;
-	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-		// Creation can be unresolved before a target URL exists.
-		return metadata?.cloudHandoffIntent ? {} : null;
-	}
-	const handoff = raw as Record<string, unknown>;
-	if (handoff.status !== "pending") {
-		return null;
-	}
-	const targetSessionId = stringField(handoff.toCloudSessionId);
-	const dashboardUrl = stringField(handoff.dashboardUrl);
-	return targetSessionId && dashboardUrl
-		? { targetSessionId, dashboardUrl }
-		: null;
-}
-
-export function shouldOpenHandoffInApp(
-	destination: HandoffResult["destination"],
-	isSourceStillActive: boolean,
-): boolean {
-	return destination === "in_app" && isSourceStillActive;
 }
 
 export function isExpectedHandoffSourceActive(
@@ -125,18 +74,14 @@ export function isExpectedHandoffSourceActive(
 	);
 }
 
-export type HandoffWarningToast = {
+type HandoffWarningToast = {
 	title: string;
 	description: string;
 	variant?: "destructive";
 };
 
 /**
- * The single source of truth for how a handoff completion warning is shown,
- * shared by the RPC result path and the `cloud_handoff_progress` complete
- * event path so both surface the identical toast. Returns null when the
- * payload carries no warning. An unconfirmed follow-up must never quote the
- * command for resending — it may already be durably queued.
+ * Do not offer an unconfirmed command for resending. It may already be queued.
  */
 export function buildHandoffWarningToast(fields: {
 	warning?: unknown;
@@ -156,7 +101,7 @@ export function buildHandoffWarningToast(fields: {
 	return {
 		title: "Handoff completed with a warning",
 		description: undeliveredCommand
-			? `${warning} Your command was kept: "${undeliveredCommand}" — send it from the cloud session.`
+			? `${warning} The prepared prompt was kept in the cloud session.`
 			: warning,
 		...(unconfirmed ? { variant: "destructive" as const } : {}),
 	};

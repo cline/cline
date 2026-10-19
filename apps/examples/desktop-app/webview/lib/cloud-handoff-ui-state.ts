@@ -1,63 +1,39 @@
-import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
+import type { HandoffProgressPhase } from "./cloud-handoff";
 
 export type CloudHandoffUiEntry =
 	| {
 			status: "progress";
-			phase: HandoffProgressPhase;
+			phase: Exclude<HandoffProgressPhase, "complete">;
 			message?: string;
 			dashboardUrl?: string;
-	  }
-	| {
-			status: "recovery";
-			dashboardUrl: string;
-			retryDraft?: string;
-			retryAttachments?: File[];
-	  }
-	| {
-			status: "recovery_dismissed";
-			dashboardUrl: string;
-			retryDraft?: string;
-			retryAttachments?: File[];
-	  }
-	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
-	| {
-			status: "retry_restored";
-			dashboardUrl?: string;
-			retryDraft?: string;
-			retryAttachments?: File[];
+			sessionId?: string;
 	  }
 	| {
 			status: "complete";
-			receipt: HandoffReceipt;
-			externalPresentation: boolean;
-			retryDraft?: string;
-			retryAttachments?: File[];
+			sessionId: string;
+			dashboardUrl: string;
+			message?: string;
+	  }
+	| {
+			status: "failed" | "retry_restored";
+			message: string;
+			retryDraft: string;
+			retryAttachments: File[];
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
-export function hasLivePendingHandoff(
-	entry: CloudHandoffUiEntry | undefined,
-): boolean {
-	return (
-		entry?.status === "recovery" ||
-		entry?.status === "recovery_dismissed" ||
-		(entry?.status === "retry_restored" && Boolean(entry.dashboardUrl))
-	);
-}
-
-export function resolveHandoffReceipt(
-	live: CloudHandoffUiEntry | undefined,
-	persisted: HandoffReceipt | null,
-): HandoffReceipt | null {
-	if (!live) return persisted;
-	return live.status === "complete" ? live.receipt : persisted;
-}
-
 export type CloudHandoffUiAction =
 	| {
-			type: "start";
+			type: "start" | "dismiss" | "local_prompt_delivered" | "retry_restored";
 			sourceSessionId: string;
+	  }
+	| {
+			type: "complete";
+			sourceSessionId: string;
+			sessionId: string;
+			dashboardUrl: string;
+			message?: string;
 	  }
 	| {
 			type: "progress";
@@ -65,34 +41,14 @@ export type CloudHandoffUiAction =
 			phase: Exclude<HandoffProgressPhase, "complete">;
 			message?: string;
 			dashboardUrl?: string;
+			sessionId?: string;
 	  }
 	| {
 			type: "failed";
 			sourceSessionId: string;
-			retryDraft?: string;
-			retryAttachments?: File[];
-	  }
-	| {
-			type: "complete";
-			sourceSessionId: string;
-			receipt: HandoffReceipt;
-			externalPresentation: boolean;
-			retryDraft?: string;
-			retryAttachments?: File[];
-	  }
-	| { type: "external"; sourceSessionId: string }
-	| {
-			type: "dismiss_recovery";
-			sourceSessionId: string;
-			dashboardUrl: string;
-	  }
-	| { type: "retry_restored"; sourceSessionId: string }
-	| { type: "local_prompt_delivered"; sourceSessionId: string }
-	| {
-			type: "retry_delivered";
-			sourceSessionId: string;
-			retryDraft?: string;
-			retryAttachments?: File[];
+			retryDraft: string;
+			retryAttachments: File[];
+			message: string;
 	  };
 
 export function cloudHandoffUiReducer(
@@ -101,155 +57,60 @@ export function cloudHandoffUiReducer(
 ): CloudHandoffUiState {
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
-		case "start": {
-			// A retry can fail before progress re-supplies the recovery URL.
-			const carriedDashboardUrl =
-				current?.status === "recovery" ||
-				current?.status === "recovery_dismissed" ||
-				current?.status === "retry_restored" ||
-				current?.status === "progress"
-					? current.dashboardUrl
-					: undefined;
+		case "start":
 			return {
 				...state,
-				[action.sourceSessionId]: {
-					status: "progress",
-					phase: "checking",
-					...(carriedDashboardUrl ? { dashboardUrl: carriedDashboardUrl } : {}),
-				},
+				[action.sourceSessionId]: { status: "progress", phase: "checking" },
 			};
-		}
 		case "progress":
-			if (current && current.status !== "progress") {
-				return state;
-			}
+			if (current?.status !== "progress") return state;
 			return {
 				...state,
 				[action.sourceSessionId]: {
 					status: "progress",
 					phase: action.phase,
 					message: action.message,
-					dashboardUrl: action.dashboardUrl || current?.dashboardUrl,
+					dashboardUrl: action.dashboardUrl ?? current.dashboardUrl,
+					sessionId: action.sessionId ?? current.sessionId,
 				},
 			};
-		case "failed": {
-			// Completion remains authoritative if the RPC transport subsequently fails.
-			if (current?.status === "complete") {
-				if (!action.retryDraft && !action.retryAttachments?.length)
-					return state;
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						...current,
-						retryDraft: action.retryDraft,
-						retryAttachments: action.retryAttachments,
-					},
-				};
-			}
-			const dashboardUrl =
-				current?.status === "progress" ? current.dashboardUrl : undefined;
-			if (dashboardUrl) {
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						status: "recovery",
-						dashboardUrl,
-						retryDraft: action.retryDraft,
-						retryAttachments: action.retryAttachments,
-					},
-				};
-			}
+		case "failed":
 			return {
 				...state,
 				[action.sourceSessionId]: {
 					status: "failed",
+					message: action.message,
 					retryDraft: action.retryDraft,
 					retryAttachments: action.retryAttachments,
 				},
 			};
-		}
+		case "retry_restored":
+			return current?.status === "failed"
+				? {
+						...state,
+						[action.sourceSessionId]: { ...current, status: "retry_restored" },
+					}
+				: state;
 		case "complete":
 			return {
 				...state,
 				[action.sourceSessionId]: {
 					status: "complete",
-					receipt: action.receipt,
-					externalPresentation: action.externalPresentation,
-					...(action.retryDraft ? { retryDraft: action.retryDraft } : {}),
-					...(action.retryAttachments?.length
-						? { retryAttachments: action.retryAttachments }
-						: {}),
-				},
-			};
-		case "external": {
-			if (current?.status !== "complete") return state;
-			return {
-				...state,
-				[action.sourceSessionId]: {
-					...current,
-					externalPresentation: true,
-				},
-			};
-		}
-		case "dismiss_recovery":
-			if (current?.status === "complete" || current?.status === "progress") {
-				return state;
-			}
-			return {
-				...state,
-				[action.sourceSessionId]: {
-					status: "recovery_dismissed",
+					sessionId: action.sessionId,
 					dashboardUrl: action.dashboardUrl,
-					...(current && "retryDraft" in current
-						? { retryDraft: current.retryDraft }
-						: {}),
-					...(current && "retryAttachments" in current
-						? { retryAttachments: current.retryAttachments }
-						: {}),
+					message: action.message,
 				},
 			};
-		case "retry_restored":
-			if (current?.status === "failed" || current?.status === "recovery") {
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						...current,
-						status: "retry_restored",
-					},
-				};
-			}
-			return state;
-		case "local_prompt_delivered": {
+		case "local_prompt_delivered":
+		case "dismiss": {
 			if (
-				current?.status !== "failed" &&
-				!(current?.status === "retry_restored" && !current.dashboardUrl)
+				action.type === "local_prompt_delivered" &&
+				current?.status !== "retry_restored"
 			)
 				return state;
 			const next = { ...state };
 			delete next[action.sourceSessionId];
 			return next;
-		}
-		case "retry_delivered": {
-			if (!current) return state;
-			if (
-				current.status === "progress" ||
-				current.retryDraft !== action.retryDraft ||
-				current.retryAttachments !== action.retryAttachments
-			)
-				return state;
-			if (current.status !== "complete") {
-				const next = { ...state };
-				delete next[action.sourceSessionId];
-				return next;
-			}
-			return {
-				...state,
-				[action.sourceSessionId]: {
-					status: "complete",
-					receipt: current.receipt,
-					externalPresentation: current.externalPresentation,
-				},
-			};
 		}
 	}
 }

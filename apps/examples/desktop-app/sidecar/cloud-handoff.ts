@@ -1,23 +1,7 @@
-import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import {
-	buildCloudHandoffDashboardUrl,
-	type ClineCore,
-	type CloudHandoffFingerprint,
-	CloudHandoffGitPreflightError,
-	type CloudHandoffMetadata,
-	CloudHandoffTranscriptMismatchError,
-	clearCloudHandoffMetadata,
-	cloudHandoffFingerprintsEqual,
-	cloudHandoffTranscriptsEqual,
-	createCloudHandoffFingerprint,
-	mergeCloudHandoffMetadata,
-	preflightCloudHandoffGit,
-	readCloudHandoffMetadata,
-	SqliteSessionStore,
-} from "@cline/core";
-import { loadCloudModels } from "@cline/core/cloud";
-import type { HubCommandError } from "@cline/core/hub";
+import { buildCloudHandoffDashboardUrl, type ClineCore } from "@cline/core";
+import { type CloudCreationOptions, loadCloudModels } from "@cline/core/cloud";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
 	type AgentMode,
@@ -25,9 +9,7 @@ import {
 	getClineEnvironmentConfig,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
-import { z } from "zod";
 import {
-	readCloudHandoffFollowUp,
 	saveCloudHandoffFollowUp,
 	sendWithCloudHandoffFollowUp,
 } from "./cloud-handoff-follow-up";
@@ -37,69 +19,68 @@ import {
 	type HandoffGitPreview,
 	inspectHandoffGit,
 	previewHandoffGit,
+	verifyPublishedHandoffGit,
 } from "./cloud-handoff-git";
 import {
-	CloudHandoffCreationRejectedError,
-	CloudHandoffSeedRejectedError,
-	CloudHandoffSeedUnsupportedError,
-	CloudQueueUnconfirmedError,
-	CloudSessionError,
 	type CloudSessionManager,
 	getCloudSessionManager,
 } from "./cloud-sessions";
 import {
 	getEnvironmentContext,
 	getSessionRuntimeBinding,
+	getSidecarContextOwner,
 	sendEvent,
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
-import { readSessionManifest } from "./paths";
 import {
 	readReasoningEffort,
 	readWorkspacePath,
 	workspacePathKey,
 	workspacePathsOverlap,
 } from "./session-config";
-import { readSessionMetadata } from "./session-data/common";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
-	SessionRuntimeBinding,
 	SidecarContext,
 } from "./types";
 
 type PreparedCloudHandoff = {
-	fingerprint: CloudHandoffFingerprint;
+	gitPreparationId: string;
 	repoUrl: string;
 	branch: string;
 	headSha: string;
 	modelId: string;
 };
 
-type CloudHandoffGitState = {
-	repoUrl: string;
-	branch: string;
-	headSha: string;
-	workspaceRelativePath?: string;
+type HandoffSnapshot = {
+	cloud: CloudSessionManager;
+	plan: HandoffGitPlan;
+	messages: MessageWithMetadata[];
+	config: JsonRecord;
 };
 
-export function cloudHandoffGitStateMatchesFingerprint(
-	git: CloudHandoffGitState,
-	fingerprint: CloudHandoffFingerprint,
-): boolean {
-	return (
-		git.repoUrl === fingerprint.repoUrl &&
-		git.branch === fingerprint.branch &&
-		git.headSha.toLowerCase() === fingerprint.headSha.toLowerCase() &&
-		(git.workspaceRelativePath ?? "") ===
-			(fingerprint.workspaceRelativePath ?? "")
-	);
-}
+type GitPreparation =
+	| (HandoffSnapshot & { state: "preview" })
+	| {
+			state: "published";
+			cloud: CloudSessionManager;
+			plan: HandoffGitPlan;
+			config: JsonRecord;
+			prepared: PreparedCloudHandoff;
+			summary: string;
+	  };
 
-function readCloudHandoffMode(value: unknown): AgentMode {
-	return value === "plan" || value === "yolo" || value === "zen"
-		? value
-		: "act";
+const gitPlans = new WeakMap<SidecarContext, Map<string, GitPreparation>>();
+const gitPreparations = new WeakMap<SidecarContext, Set<string>>();
+const handoffRequests = new WeakMap<
+	SidecarContext,
+	Map<string, { request: ChatSessionCommandRequest; promise: Promise<unknown> }>
+>();
+const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
+
+function assertCloudHandoffAvailable(): void {
+	if (!isCloudAgentsEnabled())
+		throw new Error("Enable Cloud sessions in Settings before using /cloud.");
 }
 
 async function assertHandoffIdle(
@@ -107,11 +88,12 @@ async function assertHandoffIdle(
 	manager: ClineCore,
 	sessionId: string,
 ): Promise<void> {
-	if (hasActiveSessionSend(ctx, sessionId)) {
-		throw new Error("Wait for the current send to finish before handing off.");
-	}
+	if (hasActiveSessionSend(ctx, sessionId))
+		throw new Error("Wait for the current send to finish before using /cloud.");
 	const live = ctx.liveSessions.get(sessionId);
 	const persisted = await manager.get(sessionId);
+	if (!live && !persisted)
+		throw new Error(`Session ${sessionId} was not found.`);
 	const workspaceKey =
 		workspacePathKey(live?.config) ?? workspacePathKey(persisted);
 	if (
@@ -119,290 +101,85 @@ async function assertHandoffIdle(
 		[...ctx.restoringWorkspacePaths].some((locked) =>
 			workspacePathsOverlap(workspaceKey, locked, "local"),
 		)
-	) {
+	)
 		throw new Error(
-			"Wait for the workspace restore to finish before handing off to cloud.",
+			"Wait for workspace preparation to finish before using /cloud.",
 		);
-	}
-	if (!live && !persisted) {
-		throw new Error(`Session ${sessionId} was not found.`);
-	}
-	const liveIsBusy =
+	if (
 		live?.busy ||
 		live?.transitioningProvider ||
-		live?.status === "starting" ||
-		live?.status === "running" ||
-		live?.status === "stopping";
-	const persistedIsBusy =
-		persisted?.status === "running" || persisted?.status === "pending";
-	if (liveIsBusy || persistedIsBusy) {
-		throw new Error("Stop the current run before handing off to cloud.");
-	}
-	const queued = await manager.pendingPrompts.list({ sessionId });
-	if (queued.length > 0 || (live?.promptsInQueue.length ?? 0) > 0) {
-		throw new Error("Remove queued prompts before handing off to cloud.");
-	}
-}
-
-export async function updateHandoffMetadataOrThrow(
-	manager: Pick<ClineCore, "update">,
-	sessionId: string,
-	metadata: Record<string, unknown>,
-	failureMessage: string,
-): Promise<void> {
-	const result = await manager.update(sessionId, { metadata });
-	if (!result.updated) throw new Error(failureMessage);
-}
-
-export async function assertPendingCloudHandoffCompatible(
-	cloud: Pick<CloudSessionManager, "handoffTargetExists">,
-	input: {
-		pending?: CloudHandoffMetadata;
-		fingerprint: CloudHandoffFingerprint;
-		appBaseUrl: string;
-	},
-): Promise<void> {
+		["starting", "running", "stopping"].includes(live?.status ?? "") ||
+		persisted?.status === "running" ||
+		persisted?.status === "pending"
+	)
+		throw new Error("Wait for the current run to finish before using /cloud.");
 	if (
-		input.pending?.status !== "pending" ||
-		cloudHandoffFingerprintsEqual(input.pending.fingerprint, input.fingerprint)
-	) {
-		return;
-	}
-	if (await cloud.handoffTargetExists(input.pending.toCloudSessionId)) {
-		const dashboardUrl =
-			input.pending.dashboardUrl ??
-			buildCloudHandoffDashboardUrl(
-				input.appBaseUrl,
-				input.pending.toCloudSessionId,
-			);
-		throw new Error(
-			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${dashboardUrl}`,
-		);
-	}
-	throw new Error(
-		"The previous cloud handoff is not visible from the current account. Sign back into the account that created it before retrying.",
-	);
-}
-
-export function shouldCleanupFailedHandoffVerification(
-	error: unknown,
-	createdOuterSessionThisAttempt = true,
-): boolean {
-	return (
-		error instanceof CloudHandoffSeedUnsupportedError ||
-		(createdOuterSessionThisAttempt &&
-			error instanceof CloudHandoffTranscriptMismatchError)
-	);
-}
-
-function formatPendingHandoffVerificationError(
-	error: CloudHandoffTranscriptMismatchError,
-	dashboardUrl: string,
-): string {
-	return `${error.message} Open the pending cloud workspace to inspect it, or delete it before retrying /cloud: ${dashboardUrl}`;
-}
-
-async function assertCloudHandoffAvailable(
-	ctx: SidecarContext,
-	sourceSessionId?: string,
-): Promise<void> {
-	if (isCloudAgentsEnabled()) {
-		return;
-	}
-	// Disabling Cloud blocks new handoffs, not recovery of an existing creation.
-	if (sourceSessionId) {
-		const manager = getSessionRuntimeBinding(ctx).sessionManager;
-		const persisted = await manager.get(sourceSessionId).catch(() => undefined);
-		const localMetadata = readSessionMetadata(sourceSessionId);
-		const pending =
-			readCloudHandoffMetadata(persisted?.metadata) ??
-			readCloudHandoffMetadata(localMetadata);
-		if (
-			pending?.status === "pending" ||
-			(!pending &&
-				(persisted?.metadata?.cloudHandoffIntent ??
-					localMetadata?.cloudHandoffIntent))
-		)
-			return;
-	}
-	throw new Error("Enable Cloud sessions in Settings before using /cloud.");
+		(await manager.pendingPrompts.list({ sessionId })).length ||
+		live?.promptsInQueue.length
+	)
+		throw new Error("Remove queued prompts before using /cloud.");
 }
 
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
-	options: {
-		pinnedModelId?: string;
-		readGit?: (cwd: string) => Promise<CloudHandoffGitState>;
-	} = {},
-): Promise<PreparedCloudHandoff> {
+) {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	assertCloudHandoffAvailable();
 	const manager = getSessionRuntimeBinding(ctx).sessionManager;
 	await assertHandoffIdle(ctx, manager, sessionId);
-	if ((await manager.readLiveMessages(sessionId)).length === 0) {
-		throw new Error("Start a conversation before handing it off to cloud.");
-	}
 	const persisted = await manager.get(sessionId);
-	const existingHandoff = readCloudHandoffMetadata(
-		persisted?.metadata ?? readSessionMetadata(sessionId),
-	);
-	if (existingHandoff?.status === "complete") {
-		throw new Error(
-			`This session already continued in Cline Cloud: ${existingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, existingHandoff.toCloudSessionId)}`,
-		);
-	}
-	const config = {
+	const config: JsonRecord = {
+		provider: persisted?.provider,
+		model: persisted?.model,
 		...(ctx.liveSessions.get(sessionId)?.config ?? {}),
 		...(request.config ?? {}),
 	};
 	const cwd = readWorkspacePath(config) ?? readWorkspacePath(persisted);
 	if (!cwd) throw new Error("Cloud handoff requires a workspace path.");
-	const git = options.readGit
-		? await options.readGit(cwd)
-		: await preflightCloudHandoffGit({ cwd });
-	const cloud = getCloudSessionManager(ctx);
-	const { organizationId } = await cloud.prepareHandoffRepository(git.repoUrl);
-	const localModelId = String(
-		config.model ?? config.modelId ?? persisted?.model ?? "",
-	).trim();
-	if (options.pinnedModelId && options.pinnedModelId !== localModelId) {
+	return { sessionId, manager, config, cwd };
+}
+
+function assertHandoffAccount(
+	ctx: SidecarContext,
+	cloud: CloudSessionManager,
+): void {
+	if (getSidecarContextOwner(ctx).cloudSessionManager !== cloud)
 		throw new Error(
-			"The source model changed after handoff started. Run handoff preflight again before continuing.",
+			"The cloud account changed. Run /cloud again to review the preparation plan.",
 		);
-	}
+}
+
+async function resolveCloudModel(
+	ctx: SidecarContext,
+	cloud: CloudSessionManager,
+	config: JsonRecord,
+	repoUrl: string,
+) {
+	assertHandoffAccount(ctx, cloud);
+	const { organizationId } = await cloud.prepareHandoffRepository(repoUrl);
+	assertHandoffAccount(ctx, cloud);
+	const modelId = String(config.model ?? config.modelId ?? "").trim();
 	const models = await loadCloudModels(getClineEnvironmentConfig().apiBaseUrl, {
 		isOrganizationSession: Boolean(organizationId),
 	});
-	const modelId = options.pinnedModelId ?? localModelId;
-	if (!modelId || !models.some((model) => model.id === modelId)) {
+	assertHandoffAccount(ctx, cloud);
+	if (!modelId || !models.some((model) => model.id === modelId))
 		throw new Error(
-			`The selected model ${modelId || "(none)"} is not available in Cline Cloud for this account. Select a supported model before handing off.`,
+			`The selected model ${modelId || "(none)"} is not available in Cline Cloud for this account. Select a supported model before continuing.`,
 		);
-	}
-	const mode = readCloudHandoffMode(config.mode);
-	const fingerprint = createCloudHandoffFingerprint({
-		repoUrl: git.repoUrl,
-		branch: git.branch,
-		headSha: git.headSha,
-		modelId,
-		...(organizationId ? { organizationId } : {}),
-		...(git.workspaceRelativePath
-			? { workspaceRelativePath: git.workspaceRelativePath }
-			: {}),
-		...(mode !== "act" ? { mode } : {}),
-	});
-	return {
-		fingerprint,
-		repoUrl: git.repoUrl,
-		branch: git.branch,
-		headSha: git.headSha,
-		modelId,
-	};
-}
-
-function readRequestedHandoffFingerprint(
-	request: ChatSessionCommandRequest,
-): CloudHandoffFingerprint {
-	const value = request.fingerprint;
-	if (!value) throw new Error("Run handoff preflight again before continuing.");
-	return createCloudHandoffFingerprint({
-		repoUrl: String(value.repoUrl ?? ""),
-		branch: String(value.branch ?? ""),
-		headSha: String(value.headSha ?? ""),
-		modelId: String(value.modelId ?? ""),
-		...(typeof value.organizationId === "string"
-			? { organizationId: value.organizationId }
-			: {}),
-		...(typeof value.workspaceRelativePath === "string"
-			? { workspaceRelativePath: value.workspaceRelativePath }
-			: {}),
-		...(value.mode === "plan" || value.mode === "yolo" || value.mode === "zen"
-			? { mode: value.mode }
-			: {}),
-	});
-}
-
-const gitPlans = new WeakMap<
-	SidecarContext,
-	Map<string, { plan: HandoffGitPlan; fingerprint: CloudHandoffFingerprint }>
->();
-const gitPreparations = new WeakMap<SidecarContext, Set<string>>();
-
-async function assertNoPendingHandoff(ctx: SidecarContext, sessionId: string) {
-	const persisted =
-		await getSessionRuntimeBinding(ctx).sessionManager.get(sessionId);
-	const metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
-	if (readCloudHandoffMetadata(metadata) || metadata?.cloudHandoffIntent) {
-		throw new Error(
-			"This session already has a pending cloud handoff. Open its cloud workspace, or restore the original handoff commit and a clean working tree before retrying.",
-		);
-	}
+	return { modelId, organizationId };
 }
 
 export async function handlePrepareHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
-): Promise<PreparedCloudHandoff | { gitPreparation: HandoffGitPreview }> {
-	await assertCloudHandoffAvailable(ctx, request.sessionId?.trim());
+): Promise<{ gitPreparation: HandoffGitPreview }> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	if (isCloudHandoffInProgress(ctx, sessionId))
-		throw new Error("Handoff is already in progress.");
-	gitPlans.get(ctx)?.delete(sessionId);
-	let plan: HandoffGitPlan | undefined;
-	const prepared = await prepareCloudHandoff(ctx, request, {
-		readGit: async (cwd) => {
-			try {
-				return await preflightCloudHandoffGit({ cwd });
-			} catch (error) {
-				if (
-					!(error instanceof CloudHandoffGitPreflightError) ||
-					![
-						"dirty_worktree",
-						"missing_upstream",
-						"remote_branch_missing",
-						"unpushed_commits",
-					].includes(error.code)
-				)
-					throw error;
-				await assertNoPendingHandoff(ctx, sessionId);
-				plan = await inspectHandoffGit(cwd);
-				return {
-					repoUrl: plan.repoUrl,
-					branch: plan.branch,
-					headSha: plan.headSha,
-				};
-			}
-		},
-	});
-	if (!plan) return prepared;
-	let plans = gitPlans.get(ctx);
-	if (!plans) {
-		plans = new Map();
-		gitPlans.set(ctx, plans);
-	}
-	plans.set(sessionId, { plan, fingerprint: prepared.fingerprint });
-	return { gitPreparation: previewHandoffGit(plan) };
-}
-
-export async function handlePrepareHandoffGit(
-	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
-	withWorkspaceLock: (cwd: string, work: () => Promise<void>) => Promise<void>,
-): Promise<{ ok: true }> {
-	const sessionId = request.sessionId?.trim();
-	if (!sessionId) throw new Error("sessionId is required");
-	const approved = gitPlans.get(ctx)?.get(sessionId);
-	if (!approved || approved.plan.id !== request.gitPreparationId)
-		throw new Error("Run /cloud again to review the preparation plan.");
-	if (
-		isCloudHandoffInProgress(ctx, sessionId) ||
-		activeDeleteRequests.get(ctx)?.has(sessionId) ||
-		activeMetadataUpdateRequests.get(ctx)?.has(sessionId)
-	)
-		throw new Error("Wait for the current session operation to finish.");
-	gitPlans.get(ctx)?.delete(sessionId);
+		throw new Error("Cloud preparation is already in progress.");
 	let active = gitPreparations.get(ctx);
 	if (!active) {
 		active = new Set();
@@ -410,650 +187,310 @@ export async function handlePrepareHandoffGit(
 	}
 	active.add(sessionId);
 	try {
-		await assertCloudHandoffAvailable(ctx, sessionId);
-		await assertNoPendingHandoff(ctx, sessionId);
-		const current = await prepareCloudHandoff(ctx, request, {
-			readGit: async (cwd) => {
-				if (resolve(cwd) !== approved.plan.cwd)
-					throw new Error(
-						"The workspace changed. Run /cloud again before publishing.",
-					);
-				return {
-					repoUrl: approved.plan.repoUrl,
-					branch: approved.plan.branch,
-					headSha: approved.plan.headSha,
-				};
-			},
-		});
-		if (
-			!cloudHandoffFingerprintsEqual(current.fingerprint, approved.fingerprint)
-		)
-			throw new Error(
-				"Cloud settings changed. Run /cloud again before publishing.",
-			);
-		await withWorkspaceLock(approved.plan.root, () =>
-			applyHandoffGit(approved.plan),
+		const cloud = getCloudSessionManager(ctx);
+		const source = await prepareCloudHandoff(ctx, request);
+		const config = structuredClone(source.config);
+		const messages = structuredClone(
+			await source.manager.readLiveMessages(sessionId),
 		);
-		return { ok: true };
+		if (!messages.length)
+			throw new Error("Start a conversation before using /cloud.");
+		const plan = await inspectHandoffGit(source.cwd);
+		await resolveCloudModel(ctx, cloud, config, plan.repoUrl);
+		assertHandoffAccount(ctx, cloud);
+		let plans = gitPlans.get(ctx);
+		if (!plans) {
+			plans = new Map();
+			gitPlans.set(ctx, plans);
+		}
+		plans.set(sessionId, { state: "preview", cloud, plan, messages, config });
+		return { gitPreparation: previewHandoffGit(plan) };
 	} finally {
 		active.delete(sessionId);
 	}
 }
 
+export async function handlePrepareHandoffGit(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	summarize: Summarize,
+): Promise<PreparedCloudHandoff> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const approved = gitPlans.get(ctx)?.get(sessionId);
+	if (
+		!approved ||
+		approved.state !== "preview" ||
+		approved.plan.id !== request.gitPreparationId
+	)
+		throw new Error("Run /cloud again to review the preparation plan.");
+	if (isCloudHandoffInProgress(ctx, sessionId))
+		throw new Error("Wait for the current cloud preparation to finish.");
+	let active = gitPreparations.get(ctx);
+	if (!active) {
+		active = new Set();
+		gitPreparations.set(ctx, active);
+	}
+	active.add(sessionId);
+	try {
+		assertCloudHandoffAvailable();
+		const { cloud, config, messages } = approved;
+		const { modelId } = await resolveCloudModel(
+			ctx,
+			cloud,
+			config,
+			approved.plan.repoUrl,
+		);
+		if (request.handoffAttemptId)
+			sendEvent(ctx, "cloud_handoff_progress", {
+				sourceSessionId: sessionId,
+				handoffAttemptId: request.handoffAttemptId,
+				phase: "summarizing",
+				message: "Preparing a summary of this conversation.",
+			});
+		const summary = (await summarize(messages, config)).trim();
+		assertHandoffAccount(ctx, cloud);
+		if (!summary)
+			throw new Error(
+				"The conversation summary was empty. Nothing was published or started in cloud.",
+			);
+		if (request.handoffAttemptId)
+			sendEvent(ctx, "cloud_handoff_progress", {
+				sourceSessionId: sessionId,
+				handoffAttemptId: request.handoffAttemptId,
+				phase: "checking",
+				message: "Publishing the approved Git checkpoint.",
+			});
+		const headSha = await applyHandoffGit(approved.plan);
+		assertHandoffAccount(ctx, cloud);
+		const prepared = {
+			gitPreparationId: approved.plan.id,
+			repoUrl: approved.plan.repoUrl,
+			branch: approved.plan.branch,
+			headSha,
+			modelId,
+		};
+		gitPlans.get(ctx)?.set(sessionId, {
+			state: "published",
+			cloud,
+			plan: approved.plan,
+			config,
+			prepared,
+			summary,
+		});
+		return prepared;
+	} finally {
+		active.delete(sessionId);
+	}
+}
+
+type Summarize = (
+	messages: MessageWithMetadata[],
+	config: JsonRecord,
+) => Promise<string>;
+
 async function handleHandoffOnce(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
-	const sourceSessionId = request.sessionId?.trim();
-	await assertCloudHandoffAvailable(ctx, sourceSessionId);
-	if (!sourceSessionId) throw new Error("sessionId is required");
-	if (request.attachments?.userFiles?.length) {
-		throw new Error("Only image attachments can be sent with a cloud handoff.");
-	}
-	const nextCommand = request.nextCommand?.trim() ?? "";
-	const handoffAttemptId = request.handoffAttemptId?.trim();
-	if (!nextCommand && request.attachments?.userImages?.length) {
-		throw new Error("Add a command to send the attached images after handoff.");
-	}
+	if (request.attachments?.userFiles?.length)
+		throw new Error("Only image attachments can be sent with /cloud.");
 	const images = request.attachments?.userImages ?? [];
 	if (images.length > 5) throw new Error("Attach up to 5 images.");
 	const imageBudget = createMediaBudgetState();
 	for (const image of images) {
-		const validation = validateAndReserveImageMedia(
+		const result = validateAndReserveImageMedia(
 			undefined,
 			image,
 			{},
 			imageBudget,
 		);
-		if (!validation.ok) throw new Error(validation.message);
+		if (!result.ok) throw new Error(result.message);
 	}
-	const expectedFingerprint = readRequestedHandoffFingerprint(request);
-	const prepared = await prepareCloudHandoff(ctx, request, {
-		pinnedModelId: expectedFingerprint.modelId,
-	});
+	assertCloudHandoffAvailable();
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) throw new Error("sessionId is required");
+	const approved = gitPlans.get(ctx)?.get(sourceSessionId);
 	if (
-		!cloudHandoffFingerprintsEqual(expectedFingerprint, prepared.fingerprint)
-	) {
+		!approved ||
+		approved.state !== "published" ||
+		approved.plan.id !== request.gitPreparationId
+	)
 		throw new Error(
-			"The repository, branch, commit, workspace path, mode, or cloud model changed after handoff started. Review the handoff details and try again.",
+			"Run /cloud again to review and publish the preparation plan.",
 		);
-	}
-	const manager = getSessionRuntimeBinding(ctx).sessionManager;
-	const cloud = getCloudSessionManager(ctx);
-	const environment = getClineEnvironmentConfig();
-	const emitProgress = (
-		phase:
-			| "creating"
-			| "provisioning"
-			| "connecting"
-			| "seeding"
-			| "verifying"
-			| "complete",
-		message: string,
-		outerSessionId?: string,
-	) => {
+	gitPlans.get(ctx)?.delete(sourceSessionId);
+	const { cloud, config } = approved;
+	assertHandoffAccount(ctx, cloud);
+	const emitProgress = (phase: string, message: string, sessionId?: string) =>
 		sendEvent(ctx, "cloud_handoff_progress", {
 			sourceSessionId,
-			...(handoffAttemptId ? { handoffAttemptId } : {}),
+			handoffAttemptId: request.handoffAttemptId,
 			phase,
 			message,
-			...(outerSessionId
+			...(sessionId
 				? {
-						sessionId: outerSessionId,
+						sessionId,
 						dashboardUrl: buildCloudHandoffDashboardUrl(
-							environment.appBaseUrl,
-							outerSessionId,
+							getClineEnvironmentConfig().appBaseUrl,
+							sessionId,
 						),
 					}
 				: {}),
 		});
-	};
-
-	const persistedBefore = await manager.get(sourceSessionId);
-	const metadataBefore =
-		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
-		readSessionMetadata(sourceSessionId) ??
-		{};
-	const pending = readCloudHandoffMetadata(metadataBefore);
-	const creationIntent = metadataBefore.cloudHandoffIntent as
-		| { fingerprint?: CloudHandoffFingerprint; config?: unknown }
-		| undefined;
-	const sourceConfig = {
-		...(ctx.liveSessions.get(sourceSessionId)?.config ?? {}),
-		...(request.config ?? {}),
-	};
-	const sourceReasoningEffort = readReasoningEffort(
-		sourceConfig.reasoningEffort,
+	const followUp = request.nextCommand?.trim();
+	const command = [
+		approved.summary,
+		followUp
+			? `Next instruction from the user:\n${followUp}`
+			: "Continue the unfinished work described above. If no next action is clear, ask the user rather than inventing work.",
+	].join("\n\n");
+	await verifyPublishedHandoffGit(approved.plan, approved.prepared.headSha);
+	const { modelId, organizationId } = await resolveCloudModel(
+		ctx,
+		cloud,
+		config,
+		approved.prepared.repoUrl,
 	);
-	const savedConfig = z
-		.object({
-			autoApproveTools: z.boolean().optional(),
-			thinking: z.boolean().optional(),
-			reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
-		})
-		.safeParse(creationIntent?.config);
-	const requestedConfig = {
-		...(typeof sourceConfig.autoApproveTools === "boolean"
-			? { autoApproveTools: sourceConfig.autoApproveTools }
+	assertHandoffAccount(ctx, cloud);
+	const mode: AgentMode =
+		config.mode === "plan" || config.mode === "yolo" || config.mode === "zen"
+			? config.mode
+			: "act";
+	emitProgress("creating", "Starting a new cloud session.");
+	const initialTask: CloudCreationOptions = {
+		workspaceRelativePath: approved.plan.workspaceRelativePath || undefined,
+		mode,
+		...(typeof config.autoApproveTools === "boolean"
+			? { autoApproveTools: config.autoApproveTools }
 			: {}),
-		...(typeof sourceConfig.thinking === "boolean"
-			? { thinking: sourceConfig.thinking }
+		...(typeof config.thinking === "boolean"
+			? { thinking: config.thinking }
 			: {}),
-		...(sourceReasoningEffort
-			? { reasoningEffort: sourceReasoningEffort }
-			: {}),
+		reasoningEffort: readReasoningEffort(config.reasoningEffort),
 	};
-	let handoffConfig = savedConfig.success ? savedConfig.data : requestedConfig;
-	const sourceCwd =
-		readWorkspacePath(sourceConfig) ?? readWorkspacePath(persistedBefore);
-	if (!sourceCwd) throw new Error("Cloud handoff requires a workspace path.");
-	if (
-		!pending &&
-		creationIntent &&
-		!cloudHandoffFingerprintsEqual(
-			creationIntent.fingerprint,
-			prepared.fingerprint,
-		)
-	)
-		throw new Error(
-			"An earlier cloud handoff is unconfirmed for different settings. Restore the original repository, commit, and model before retrying.",
-		);
-	await assertPendingCloudHandoffCompatible(cloud, {
-		pending,
-		fingerprint: prepared.fingerprint,
-		appBaseUrl: environment.appBaseUrl,
+	const target = await cloud.create({
+		requestId: request.handoffAttemptId?.trim() || randomUUID(),
+		repoUrl: approved.prepared.repoUrl,
+		branch: approved.prepared.branch,
+		modelId,
+		organizationId: organizationId ?? null,
+		...initialTask,
+		initialPrompt: command,
 	});
-
-	let outerSessionId = pending?.toCloudSessionId ?? "";
-	let innerSessionId = pending?.innerSessionId ?? "";
-	let seededMessages: MessageWithMetadata[] | undefined;
-	let createdOuterSessionThisAttempt = false;
-	let savedCreationIntentThisAttempt = false;
-	const onSeeding = async (): Promise<void> => {
-		const current = await manager.get(sourceSessionId);
-		// Persist before dispatch so a restart cannot repeat an uncertain inner create.
-		await updateHandoffMetadataOrThrow(
-			manager,
-			sourceSessionId,
-			{
-				...((current?.metadata as JsonRecord | null | undefined) ??
-					metadataBefore),
-				cloudHandoffSeedDispatched: true,
-			},
-			"The cloud conversation could not be created because its recovery state could not be saved locally.",
-		);
-		emitProgress(
-			"seeding",
-			"Copying the local conversation to cloud…",
-			outerSessionId,
-		);
-	};
-	const handleSeedFailure = async (error: unknown): Promise<never> => {
-		if (
-			savedCreationIntentThisAttempt &&
-			error instanceof CloudHandoffCreationRejectedError
-		)
-			await clearPendingMetadata();
-		// These rejections precede the create handler; generic failures may follow persistence.
-		if (
-			error instanceof CloudHandoffSeedRejectedError ||
-			(error instanceof Error &&
-				error.name === "HubCommandError" &&
-				(error as HubCommandError).command === "session.create" &&
-				((error as HubCommandError).code === "client_authority_mismatch" ||
-					(error as HubCommandError).code === "hub_draining"))
-		) {
-			const current = await manager.get(sourceSessionId);
-			const { cloudHandoffSeedDispatched: _dispatched, ...metadata } =
-				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore;
-			await updateHandoffMetadataOrThrow(
-				manager,
-				sourceSessionId,
-				metadata,
-				"The rejected cloud conversation could not clear its local dispatch marker.",
-			);
-		}
-		throw error;
-	};
-	const readSeedMessages = async (): Promise<MessageWithMetadata[]> => {
-		await cloud.waitUntilReady(outerSessionId);
-		await assertHandoffIdle(ctx, manager, sourceSessionId);
-		emitProgress(
-			"connecting",
-			"Connecting securely to the cloud workspace…",
-			outerSessionId || undefined,
-		);
-		const currentGit = await preflightCloudHandoffGit({ cwd: sourceCwd });
-		if (
-			!cloudHandoffGitStateMatchesFingerprint(currentGit, prepared.fingerprint)
-		) {
-			const dashboardUrl = outerSessionId
-				? buildCloudHandoffDashboardUrl(environment.appBaseUrl, outerSessionId)
-				: undefined;
-			const error = new Error(
-				createdOuterSessionThisAttempt
-					? "The repository branch changed while the cloud workspace was starting. Review the latest commit and run /cloud again."
-					: `The repository branch changed after this cloud handoff started. Restore the source repository to commit ${prepared.headSha.slice(0, 12)} and retry, or open/delete the pending cloud workspace before starting another handoff${dashboardUrl ? `: ${dashboardUrl}` : "."}`,
-			);
-			if (createdOuterSessionThisAttempt && outerSessionId) {
-				try {
-					await clearPendingTarget(outerSessionId);
-				} catch (cleanupError) {
-					throw new AggregateError(
-						[error, cleanupError],
-						"The repository branch changed during handoff and the incomplete cloud workspace could not be cleaned up.",
-					);
-				}
-			}
-			throw error;
-		}
-		const messages = await manager.readLiveMessages(sourceSessionId);
-		if (messages.length === 0) {
-			throw new Error("Start a conversation before handing it off to cloud.");
-		}
-		seededMessages = messages;
-		return messages;
-	};
-	const clearPendingMetadata = async (): Promise<void> => {
-		const current = await manager.get(sourceSessionId);
-		await updateHandoffMetadataOrThrow(
-			manager,
-			sourceSessionId,
-			clearCloudHandoffMetadata(
-				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore,
-			),
-			"The cloud target was removed, but its local pending handoff record could not be cleared.",
-		);
-		handoffConfig = requestedConfig;
-	};
-	const clearPendingTarget = async (sessionId: string): Promise<void> => {
-		try {
-			await cloud.delete(sessionId);
-		} catch (error) {
-			if (
-				error instanceof CloudSessionError &&
-				(error.code === "session_not_found" || error.code === "session_expired")
-			) {
-				// An authoritative gone response means there is no target left to adopt.
-			} else {
-				// Preserve the pending lineage and recovery URL on transient cleanup
-				// failures. Clearing them here would let the next retry create a
-				// duplicate sandbox with no way to recover the first one.
-				throw new Error(
-					"Could not clean up the previous cloud handoff; retry after deleting it from Cline Cloud.",
-					{ cause: error },
-				);
-			}
-		}
-		await clearPendingMetadata();
-	};
-
-	if (outerSessionId) {
-		if (!pending) {
-			throw new Error("The pending cloud handoff metadata is incomplete.");
-		}
-		const pendingHandoff = pending;
-		const dashboardUrl = buildCloudHandoffDashboardUrl(
-			environment.appBaseUrl,
-			outerSessionId,
-		);
-		emitProgress(
-			"provisioning",
-			"Resuming the existing cloud handoff…",
-			outerSessionId,
-		);
-		try {
-			const seed = await readSeedMessages();
-			const resumed = await cloud
-				.seedHandoff(outerSessionId, {
-					sourceSessionId,
-					messages: seed,
-					workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
-					mode: prepared.fingerprint.mode ?? "act",
-					// Resume the saved settings, not a restarted pane's defaults.
-					config: handoffConfig,
-					recoverOnly: metadataBefore.cloudHandoffSeedDispatched === true,
-					onSeeding,
-				})
-				.catch(handleSeedFailure);
-			innerSessionId = resumed.innerSessionId;
-			if (!pendingHandoff.dashboardUrl) {
-				const current = await manager.get(sourceSessionId);
-				await updateHandoffMetadataOrThrow(
-					manager,
-					sourceSessionId,
-					mergeCloudHandoffMetadata(
-						(current?.metadata as JsonRecord | null | undefined) ??
-							metadataBefore,
-						{
-							...pendingHandoff,
-							dashboardUrl,
-							innerSessionId,
-						},
-					),
-					"The resumed cloud handoff could not update its local recovery record.",
-				);
-			}
-		} catch (error) {
-			if (
-				error instanceof CloudSessionError &&
-				(error.code === "session_not_found" ||
-					error.code === "session_expired" ||
-					error.code === "session_failed")
-			) {
-				if (
-					error.code === "session_not_found" &&
-					(await cloud.handoffTargetExists(outerSessionId))
-				)
-					throw error;
-				await clearPendingTarget(outerSessionId);
-				outerSessionId = "";
-				innerSessionId = "";
-				seededMessages = undefined;
-			} else {
-				throw error;
-			}
-		}
-	}
-	if (!outerSessionId) {
-		emitProgress("creating", "Creating the cloud workspace…");
-		const created = await cloud
-			.create({
-				// Single-flight concurrent handoff attempts of the same source
-				// session under the base's requestId-keyed create dedupe.
-				requestId: `handoff:${sourceSessionId}:${prepared.headSha.toLowerCase()}`,
-				repoUrl: prepared.repoUrl,
-				branch: prepared.branch,
-				modelId: prepared.modelId,
-				mode: prepared.fingerprint.mode ?? "act",
-				workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
-				organizationId: prepared.fingerprint.organizationId ?? null,
-				...handoffConfig,
-				handoff: {
-					sourceSessionId,
-					resolveMessages: readSeedMessages,
-					onCreating: async () => {
-						const current = await manager.get(sourceSessionId);
-						const metadata =
-							(current?.metadata as JsonRecord | null | undefined) ??
-							metadataBefore;
-						if (metadata.cloudHandoffIntent)
-							throw new Error(
-								"The earlier cloud creation is still unconfirmed. Retry later or check Cline Cloud; no new workspace was created.",
-							);
-						await updateHandoffMetadataOrThrow(
-							manager,
-							sourceSessionId,
-							{
-								...metadata,
-								cloudHandoffIntent: {
-									fingerprint: prepared.fingerprint,
-									config: handoffConfig,
-								},
-							},
-							"The cloud workspace could not be created because its recovery state could not be saved locally.",
-						);
-						savedCreationIntentThisAttempt = true;
-					},
-					onOuterSessionCreated: async (createdSessionId, info) => {
-						outerSessionId = createdSessionId;
-						const dashboardUrl = buildCloudHandoffDashboardUrl(
-							environment.appBaseUrl,
-							createdSessionId,
-						);
-						const current = await manager.get(sourceSessionId);
-						await updateHandoffMetadataOrThrow(
-							manager,
-							sourceSessionId,
-							mergeCloudHandoffMetadata(
-								(current?.metadata as JsonRecord | null | undefined) ??
-									metadataBefore,
-								{
-									toCloudSessionId: createdSessionId,
-									handedOffAt: new Date().toISOString(),
-									status: "pending",
-									dashboardUrl,
-									fingerprint: prepared.fingerprint,
-								},
-							),
-							`Cloud workspace ${createdSessionId} was created, but its recovery link could not be saved locally.`,
-						);
-						createdOuterSessionThisAttempt = info?.created === true;
-						emitProgress(
-							"provisioning",
-							"Preparing the cloud workspace…",
-							createdSessionId,
-						);
-					},
-					onOuterSessionRemoved: async () => {
-						await clearPendingMetadata();
-						outerSessionId = "";
-						innerSessionId = "";
-						seededMessages = undefined;
-					},
-					onSeeding,
-				},
-			})
-			.catch(handleSeedFailure);
-		outerSessionId = String(created.sessionId ?? "").trim();
-		innerSessionId = String(created.innerSessionId ?? "").trim();
-	}
-
-	if (!outerSessionId || !innerSessionId || !seededMessages) {
-		throw new Error("Cloud handoff did not initialize a conversation.");
-	}
-	emitProgress(
-		"verifying",
-		"Verifying the transferred conversation…",
-		outerSessionId,
+	const sessionId = target.sessionId;
+	const dashboardUrl = buildCloudHandoffDashboardUrl(
+		getClineEnvironmentConfig().appBaseUrl,
+		sessionId,
 	);
 	try {
-		await cloud.verifyHandoffTranscript(outerSessionId, seededMessages, {
-			allowAppendedMessages: !createdOuterSessionThisAttempt,
-		});
-	} catch (error) {
-		if (
-			!shouldCleanupFailedHandoffVerification(
-				error,
-				createdOuterSessionThisAttempt,
-			)
-		) {
-			if (
-				error instanceof CloudHandoffTranscriptMismatchError &&
-				!createdOuterSessionThisAttempt
-			) {
-				throw new Error(
-					formatPendingHandoffVerificationError(
-						error,
-						buildCloudHandoffDashboardUrl(
-							environment.appBaseUrl,
-							outerSessionId,
-						),
-					),
-					{ cause: error },
-				);
-			}
-			throw error;
-		}
-		try {
-			await clearPendingTarget(outerSessionId);
-		} catch (cleanupError) {
-			throw new AggregateError(
-				[error, cleanupError],
-				"Cloud transcript verification failed and the incomplete cloud handoff could not be cleaned up.",
-			);
-		}
-		throw error;
-	}
-	await assertHandoffIdle(ctx, manager, sourceSessionId);
-	const finalLocalMessages = await manager.readLiveMessages(sourceSessionId);
-	if (!cloudHandoffTranscriptsEqual(finalLocalMessages, seededMessages)) {
-		const error = new Error(
-			"The local conversation changed during handoff. Nothing was closed; try again when the session is idle.",
-		);
-		if (createdOuterSessionThisAttempt) {
-			try {
-				await clearPendingTarget(outerSessionId);
-			} catch (cleanupError) {
-				throw new AggregateError(
-					[error, cleanupError],
-					"The local conversation changed during handoff and the incomplete cloud handoff could not be cleaned up.",
-				);
-			}
-		}
-		throw error;
-	}
-	const dashboardUrl = buildCloudHandoffDashboardUrl(
-		environment.appBaseUrl,
-		outerSessionId,
-	);
-	const latest = await manager.get(sourceSessionId);
-	const latestMetadata =
-		(latest?.metadata as JsonRecord | null | undefined) ?? metadataBefore;
-	const handedOffAt =
-		readCloudHandoffMetadata(latestMetadata)?.handedOffAt ??
-		new Date().toISOString();
-	if (nextCommand) {
-		saveCloudHandoffFollowUp(outerSessionId, {
+		saveCloudHandoffFollowUp(sessionId, {
 			sourceSessionId,
-			command: nextCommand,
-			userImages: request.attachments?.userImages ?? [],
+			command,
+			userImages: images,
+			initialTask,
 		});
+	} catch {
+		throw new Error(
+			`The cloud task was created, but its draft could not be saved. Nothing was sent. Your instruction and images remain local. Open the task before trying again: ${dashboardUrl}`,
+		);
 	}
-	await updateHandoffMetadataOrThrow(
-		manager,
-		sourceSessionId,
-		mergeCloudHandoffMetadata(latestMetadata, {
-			toCloudSessionId: outerSessionId,
-			handedOffAt,
-			status: "complete",
-			innerSessionId,
-			dashboardUrl,
-			fingerprint: prepared.fingerprint,
-		}),
-		"The cloud transcript was verified, but the local handoff marker could not be saved. The local session remains open.",
-	);
-
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
-	if (nextCommand) {
-		try {
-			await sendWithCloudHandoffFollowUp(
-				outerSessionId,
-				nextCommand,
-				request.attachments?.userImages ?? [],
-				(lifecycle) =>
-					cloud.send(
-						outerSessionId,
-						nextCommand,
-						"queue",
-						prepared.modelId,
-						request.attachments?.userImages,
-						lifecycle,
-					),
-			);
-		} catch (error) {
-			// An unconfirmed outcome must never read as "not queued": inviting
-			// a resubmission of a durably queued prompt executes it twice.
-			if (
-				error instanceof CloudQueueUnconfirmedError ||
-				readCloudHandoffFollowUp(outerSessionId)?.unconfirmed
-			) {
-				warningKind = "unconfirmed";
-				warning = `The handoff completed, but Cline could not confirm whether the follow-up command was queued. Check the cloud session before resending it.`;
-			} else {
-				warningKind = "unqueued";
-				warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
-			}
+	let dispatched = false;
+	try {
+		emitProgress("provisioning", "Preparing the cloud workspace.", sessionId);
+		const result = await sendWithCloudHandoffFollowUp(
+			sessionId,
+			command,
+			images,
+			(lifecycle) =>
+				cloud.send(sessionId, command, undefined, modelId, images, {
+					beforeDispatch: () => {
+						lifecycle?.beforeDispatch?.();
+						dispatched = true;
+						emitProgress(
+							"sending",
+							"Sending the summary and your instruction.",
+							sessionId,
+						);
+					},
+				}),
+		);
+		if (result.recoveredAfterDisconnect) {
+			warningKind = "unconfirmed";
+			warning =
+				"The cloud connection was interrupted. Check the conversation before resending the saved prompt.";
 		}
+	} catch {
+		warningKind = dispatched ? "unconfirmed" : "unqueued";
+		warning =
+			warningKind === "unconfirmed"
+				? "The cloud session was created, but delivery is unconfirmed. Check the conversation before resending."
+				: "The cloud session was created, but the prepared prompt could not be sent. Open it to recover the saved draft.";
 	}
-	const destination = isCloudAgentsEnabled() ? "in_app" : "external";
-	// Include warnings in the authoritative event in case the RPC response is lost.
-	sendEvent(ctx, "cloud_handoff_progress", {
+	const result = {
 		sourceSessionId,
-		...(handoffAttemptId ? { handoffAttemptId } : {}),
-		phase: "complete",
-		message: "Ready in Cline Cloud.",
-		sessionId: outerSessionId,
+		sessionId,
 		dashboardUrl,
-		destination,
-		...(warning ? { warning } : {}),
-		...(warningKind ? { warningKind } : {}),
-		// Only a definitely-unqueued command is safe to offer for resending; an
-		// unconfirmed one may already be durably queued.
-		...(warningKind === "unqueued" && nextCommand.trim()
-			? { undeliveredCommand: nextCommand.trim() }
-			: {}),
-	});
-	return {
-		sessionId: outerSessionId,
-		outerSessionId,
-		innerSessionId,
-		dashboardUrl,
-		destination,
-		...(warning ? { warning } : {}),
-		...(warningKind ? { warningKind } : {}),
+		destination: "in_app",
+		...(warning ? { warning, warningKind } : {}),
+		...(warningKind === "unqueued" ? { undeliveredCommand: command } : {}),
 	};
+	sendEvent(ctx, "cloud_handoff_progress", {
+		...result,
+		handoffAttemptId: request.handoffAttemptId,
+		phase: "complete",
+		message: "Cloud task ready",
+	});
+	return result;
 }
 
-type HandoffRequestIdentity = {
-	handoffAttemptId: string;
-	fingerprint: JsonRecord | null;
-	config: JsonRecord | null;
-	nextCommand: string;
-	userImages: string[];
-	userFiles: Array<{ name: string; content: string }>;
-};
-
-const handoffRequests = new WeakMap<
-	SidecarContext,
-	Map<string, { identity: HandoffRequestIdentity; promise: Promise<unknown> }>
->();
-
-// Track sends before their first await so handoff cannot snapshot a changing
-// transcript. The counter keeps concurrent queued sends from releasing early.
-const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
-const activeDeleteRequests = new WeakMap<SidecarContext, Map<string, number>>();
-const activeMetadataUpdateRequests = new WeakMap<
-	SidecarContext,
-	Map<string, number>
->();
-
-function handoffLockContext(ctx: SidecarContext): SidecarContext {
-	return getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local");
-}
-
-function trackSessionRequest(
-	registry: WeakMap<SidecarContext, Map<string, number>>,
+export async function handleHandoff(
 	ctx: SidecarContext,
-	sessionId: string,
-): () => void {
-	let requests = registry.get(ctx);
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	if (gitPreparations.get(ctx)?.has(sessionId))
+		throw new Error("Wait for Git preparation to finish before continuing.");
+	let requests = handoffRequests.get(ctx);
 	if (!requests) {
 		requests = new Map();
-		registry.set(ctx, requests);
+		handoffRequests.set(ctx, requests);
 	}
-	requests.set(sessionId, (requests.get(sessionId) ?? 0) + 1);
-	let finished = false;
-	return () => {
-		if (finished) return;
-		finished = true;
-		const remaining = (requests.get(sessionId) ?? 1) - 1;
-		if (remaining > 0) requests.set(sessionId, remaining);
-		else requests.delete(sessionId);
-		if (requests.size === 0) registry.delete(ctx);
-	};
+	const existing = requests.get(sessionId);
+	if (existing) {
+		if (!isDeepStrictEqual(existing.request, request))
+			throw new Error("A different cloud preparation is already in progress.");
+		return await existing.promise;
+	}
+	const running = handleHandoffOnce(ctx, request).finally(() =>
+		requests.delete(sessionId),
+	);
+	requests.set(sessionId, {
+		request: structuredClone(request),
+		promise: running,
+	});
+	return await running;
 }
 
 export function beginActiveSessionSend(
 	ctx: SidecarContext,
 	sessionId: string,
 ): () => void {
-	return trackSessionRequest(
-		activeSendRequests,
-		handoffLockContext(ctx),
-		sessionId,
-	);
+	ctx = getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local");
+	let sends = activeSendRequests.get(ctx);
+	if (!sends) {
+		sends = new Map();
+		activeSendRequests.set(ctx, sends);
+	}
+	sends.set(sessionId, (sends.get(sessionId) ?? 0) + 1);
+	return () => {
+		const remaining = (sends.get(sessionId) ?? 1) - 1;
+		if (remaining > 0) sends.set(sessionId, remaining);
+		else sends.delete(sessionId);
+	};
 }
 
 export function hasActiveSessionSend(
@@ -1061,173 +498,13 @@ export function hasActiveSessionSend(
 	sessionId: string,
 ): boolean {
 	return (
-		activeSendRequests.get(handoffLockContext(ctx))?.has(sessionId) ?? false
+		activeSendRequests
+			.get(getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local"))
+			?.has(sessionId) ?? false
 	);
 }
 
-function beginActiveSessionDelete(
-	ctx: SidecarContext,
-	sessionId: string,
-): () => void {
-	const lockContext = handoffLockContext(ctx);
-	if (isCloudHandoffInProgress(lockContext, sessionId)) {
-		throw new Error("Wait for the cloud handoff to finish before deleting.");
-	}
-	return trackSessionRequest(activeDeleteRequests, lockContext, sessionId);
-}
-
-export function beginSessionMetadataUpdate(
-	ctx: SidecarContext,
-	sessionId: string,
-): () => void {
-	const lockContext = handoffLockContext(ctx);
-	if (isCloudHandoffInProgress(lockContext, sessionId)) {
-		throw new Error(
-			"Wait for the cloud handoff to finish before updating session metadata.",
-		);
-	}
-	return trackSessionRequest(
-		activeMetadataUpdateRequests,
-		lockContext,
-		sessionId,
-	);
-}
-
-export function assertCloudHandoffCreationResolved(metadata: unknown): void {
-	if (
-		!readCloudHandoffMetadata(metadata) &&
-		metadata &&
-		typeof metadata === "object" &&
-		"cloudHandoffIntent" in metadata &&
-		metadata.cloudHandoffIntent
-	) {
-		throw new Error(
-			"Cloud handoff creation is still unconfirmed. Retry /cloud to recover it before changing this session.",
-		);
-	}
-}
-
-/**
- * Deleting a source session while its cloud handoff is in flight can remove
- * the only durable recovery record for an already-created sandbox. Keep this
- * check in the sidecar as well as the UI so alternate clients cannot bypass it.
- */
-export async function assertSessionDeleteAllowedDuringHandoff(
-	ctx: SidecarContext,
-	sessionId: string,
-	binding: SessionRuntimeBinding,
-): Promise<() => void> {
-	const release = beginActiveSessionDelete(ctx, sessionId);
-	if (binding.kind !== "local") return release;
-	try {
-		let metadata: JsonRecord | undefined;
-		try {
-			const persisted = await binding.sessionManager.get(sessionId);
-			metadata = persisted?.metadata ?? readSessionMetadata(sessionId);
-		} catch (error) {
-			const manifest = readSessionManifest(sessionId);
-			if (manifest) {
-				metadata =
-					manifest.metadata && typeof manifest.metadata === "object"
-						? (manifest.metadata as JsonRecord)
-						: undefined;
-			} else {
-				const store = new SqliteSessionStore();
-				try {
-					const row = store.get(sessionId);
-					if (!row) throw error;
-					metadata = row.metadata;
-				} finally {
-					store.close();
-				}
-			}
-		}
-		const handoff = readCloudHandoffMetadata(metadata);
-		assertCloudHandoffCreationResolved(metadata);
-		if (handoff?.status === "pending") {
-			throw new Error(
-				`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
-			);
-		}
-		return release;
-	} catch (error) {
-		release();
-		throw error;
-	}
-}
-
-export async function handleHandoff(
-	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
-): Promise<unknown> {
-	const sourceSessionId = request.sessionId?.trim();
-	if (!sourceSessionId) throw new Error("sessionId is required");
-	if (gitPreparations.get(ctx)?.has(sourceSessionId))
-		throw new Error("Wait for Git preparation to finish before handing off.");
-	if (activeDeleteRequests.get(ctx)?.has(sourceSessionId)) {
-		throw new Error("Wait for session deletion to finish before handing off.");
-	}
-	if (activeMetadataUpdateRequests.get(ctx)?.has(sourceSessionId)) {
-		throw new Error(
-			"Wait for the session metadata update to finish before handing off.",
-		);
-	}
-	let requests = handoffRequests.get(ctx);
-	if (!requests) {
-		requests = new Map();
-		handoffRequests.set(ctx, requests);
-	}
-	const identity: HandoffRequestIdentity = {
-		handoffAttemptId: request.handoffAttemptId?.trim() ?? "",
-		fingerprint: request.fingerprint ?? null,
-		config: request.config ?? null,
-		nextCommand: request.nextCommand?.trim() ?? "",
-		userImages: [...(request.attachments?.userImages ?? [])],
-		userFiles: (request.attachments?.userFiles ?? []).map((file) => ({
-			...file,
-		})),
-	};
-	const existing = requests.get(sourceSessionId);
-	if (existing) {
-		if (!isDeepStrictEqual(existing.identity, identity)) {
-			throw new Error(
-				"A different cloud handoff is already in progress for this session.",
-			);
-		}
-		return await existing.promise;
-	}
-	const running = handleHandoffOnce(ctx, request).finally(() => {
-		if (requests?.get(sourceSessionId)?.promise === running) {
-			requests.delete(sourceSessionId);
-		}
-	});
-	requests.set(sourceSessionId, { identity, promise: running });
-	return await running;
-}
-
-export async function isCloudHandoffFollowUpBlocked(
-	ctx: SidecarContext,
-	sourceSessionId: string,
-): Promise<boolean> {
-	const local = getEnvironmentContext(ctx, "local");
-	if (isCloudHandoffInProgress(local, sourceSessionId)) return true;
-	let metadata: JsonRecord | undefined;
-	try {
-		metadata = (
-			await getSessionRuntimeBinding(local).sessionManager.get(sourceSessionId)
-		)?.metadata;
-	} catch (error) {
-		metadata = readSessionMetadata(sourceSessionId);
-		if (!readCloudHandoffMetadata(metadata)) throw error;
-	}
-	// A failed completion write leaves the initial follow-up owned by /cloud.
-	return (
-		readCloudHandoffMetadata(metadata ?? readSessionMetadata(sourceSessionId))
-			?.status === "pending" || isCloudHandoffInProgress(local, sourceSessionId)
-	);
-}
-
-export function isCloudHandoffInProgress(
+function isCloudHandoffInProgress(
 	ctx: SidecarContext,
 	sessionId: string,
 ): boolean {

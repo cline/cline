@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud, Copy, ExternalLink, GitFork, Loader2, X } from "lucide-react";
+import { Cloud, ExternalLink, Loader2, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
@@ -13,12 +13,8 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
-import type {
-	HandoffProgressPhase,
-	HandoffReceipt as HandoffReceiptValue,
-} from "@/lib/cloud-handoff";
 import { HANDOFF_PROGRESS_LABELS } from "@/lib/cloud-handoff";
+import type { CloudHandoffUiEntry } from "@/lib/cloud-handoff-ui-state";
 import type { HandoffGitPreview } from "../../../../sidecar/cloud-handoff-git";
 
 export function CloudHandoffGitConfirmation({
@@ -39,8 +35,9 @@ export function CloudHandoffGitConfirmation({
 				<AlertDialogHeader>
 					<AlertDialogTitle>Continue in cloud?</AlertDialogTitle>
 					<AlertDialogDescription>
-						Cline will switch this checkout to a new branch and push it to
-						GitHub to continue your conversation in cloud.
+						Cline will push a snapshot to a new GitHub branch and start a cloud
+						task with a summary of this conversation. Your local branch, files,
+						and staging stay unchanged. Later messages and edits stay local.
 						{plan.commits.length > 0 && (
 							<span className="mt-2 block">
 								This includes {plan.commits.length} local{" "}
@@ -52,8 +49,7 @@ export function CloudHandoffGitConfirmation({
 							<span className="mt-2 block">
 								{plan.files.length} changed/new{" "}
 								{plan.files.length === 1 ? "file" : "files"} will be committed.
-								Any staging selections will be replaced. Ignored files are
-								excluded.
+								Ignored files are excluded.
 							</span>
 						)}
 					</AlertDialogDescription>
@@ -114,196 +110,127 @@ export function CloudHandoffGitConfirmation({
 	);
 }
 
-export function CloudHandoffProgress({
-	phase,
-	message,
-	dashboardUrl,
+export function CloudHandoffStatus({
+	state,
 	onOpenCloud,
+	onRestoreDraft,
+	onDismiss,
 }: {
-	phase: HandoffProgressPhase;
-	message?: string;
-	dashboardUrl?: string;
+	state: CloudHandoffUiEntry;
 	onOpenCloud: () => void;
+	onRestoreDraft: () => void;
+	onDismiss: () => void;
 }) {
+	const pending = state.status === "progress";
+	const dashboardUrl = "dashboardUrl" in state ? state.dashboardUrl : undefined;
+	const label = pending
+		? state.message?.trim() || HANDOFF_PROGRESS_LABELS[state.phase]
+		: state.status === "complete"
+			? state.message
+				? "Check the cloud task"
+				: "Cloud task ready"
+			: "Cloud preparation stopped";
 	return (
 		<output
 			aria-live="polite"
-			className="mx-auto flex w-full max-w-xl flex-col gap-3 rounded-lg border bg-card p-5 shadow-sm"
+			className="mb-2 block w-full rounded-md border bg-card px-3"
 		>
-			<div className="flex items-center gap-3">
-				<Loader2 className="size-4 animate-spin text-primary" />
-				<div>
-					<p className="text-sm font-medium">
-						{message?.trim() || HANDOFF_PROGRESS_LABELS[phase]}
-					</p>
-					<p className="mt-1 text-xs text-muted-foreground">
-						You can use the rest of Cline while this finishes.
-					</p>
-				</div>
-			</div>
-			{dashboardUrl ? (
-				<div className="rounded-md border bg-muted/30 p-3 text-xs">
-					<p className="font-medium">
-						Your cloud session is available to watch while verification
-						finishes.
-					</p>
-					<p className="mt-1 break-all text-muted-foreground">{dashboardUrl}</p>
+			<div className="flex h-9 min-w-0 items-center gap-2">
+				{pending ? (
+					<Loader2
+						aria-hidden="true"
+						className="size-3.5 shrink-0 animate-spin text-primary motion-reduce:animate-none"
+					/>
+				) : (
+					<Cloud aria-hidden="true" className="size-3.5 shrink-0" />
+				)}
+				<span className="min-w-0 flex-1 truncate text-xs" title={label}>
+					{label}
+				</span>
+				{dashboardUrl && (
 					<Button
-						className="mt-2 h-7 gap-1.5 px-2 text-xs"
+						className="h-7 shrink-0 gap-1.5 px-2 text-xs"
 						onClick={onOpenCloud}
 						size="sm"
-						variant="outline"
+						variant="ghost"
 					>
-						<ExternalLink className="size-3.5" />
-						Open Cloud
+						Open cloud task
+						<ExternalLink aria-hidden="true" className="size-3.5" />
 					</Button>
+				)}
+				{!pending && (
+					<Button
+						aria-label="Dismiss cloud handoff status"
+						className="size-7 shrink-0"
+						onClick={onDismiss}
+						size="icon"
+						variant="ghost"
+					>
+						<X aria-hidden="true" className="size-3.5" />
+					</Button>
+				)}
+			</div>
+			{!pending && (state.message || state.status === "failed") && (
+				<div className="space-y-2 pb-3">
+					{state.message && (
+						<p className="break-words text-xs text-muted-foreground">
+							{state.message}
+						</p>
+					)}
+					{state.status === "failed" && (
+						<Button
+							className="h-7 px-2 text-xs"
+							onClick={onRestoreDraft}
+							size="sm"
+							variant="outline"
+						>
+							Restore /cloud draft
+						</Button>
+					)}
 				</div>
-			) : null}
+			)}
 		</output>
 	);
 }
 
 export function CloudHandoffRecoveryNotice({
-	dashboardUrl,
-	onOpenCloud,
 	onDismiss,
 	onRestoreDraft,
 	disabled = false,
 }: {
-	dashboardUrl?: string;
-	onOpenCloud?: () => void;
-	onDismiss?: () => void;
-	onRestoreDraft?: () => void;
+	onDismiss: () => void;
+	onRestoreDraft: () => void;
 	disabled?: boolean;
 }) {
 	return (
 		<Alert className="mx-auto mb-2 w-full max-w-xl pr-10">
 			<Cloud />
-			<AlertTitle>
-				{onRestoreDraft
-					? "Follow-up delivery is unconfirmed"
-					: dashboardUrl
-						? "Handoff interrupted"
-						: "Cloud creation is unconfirmed"}
-			</AlertTitle>
+			<AlertTitle>Prompt delivery is unconfirmed</AlertTitle>
 			<AlertDescription>
 				<p>
-					{onRestoreDraft
-						? "Check this conversation before restoring the saved draft; it may already have been sent."
-						: dashboardUrl
-							? "A cloud session was created and may still be available."
-							: "Retry /cloud to check again before sending another prompt."}
+					Check this conversation before restoring the saved draft; it may
+					already have been sent.
 				</p>
-				<div className="mt-2 flex w-full items-start justify-between gap-3">
-					{dashboardUrl && (
-						<p className="min-w-0 break-all text-xs">{dashboardUrl}</p>
-					)}
-					{(onRestoreDraft || onOpenCloud) && (
-						<Button
-							className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-							onClick={onRestoreDraft ?? onOpenCloud}
-							disabled={disabled}
-							size="sm"
-							variant="outline"
-						>
-							{onRestoreDraft ? (
-								"Restore saved draft"
-							) : (
-								<>
-									<ExternalLink className="size-3.5" />
-									Open Cloud
-								</>
-							)}
-						</Button>
-					)}
-				</div>
-			</AlertDescription>
-			{onDismiss && (
 				<Button
-					aria-label="Dismiss handoff recovery"
-					className="absolute right-2 top-2 size-7 text-muted-foreground"
-					onClick={onDismiss}
+					className="mt-2 h-7 px-2 text-xs"
+					onClick={onRestoreDraft}
 					disabled={disabled}
-					size="icon"
-					variant="ghost"
-				>
-					<X className="size-4" />
-				</Button>
-			)}
-		</Alert>
-	);
-}
-
-export function CloudHandoffReceipt({
-	receipt,
-	onOpenCloud,
-	onForkLocally,
-	showRecoveryUrl = false,
-}: {
-	receipt: HandoffReceiptValue;
-	onOpenCloud: () => void;
-	onForkLocally: () => void;
-	showRecoveryUrl?: boolean;
-}) {
-	const copyRecoveryLink = async () => {
-		try {
-			if (!navigator.clipboard?.writeText)
-				throw new Error("Clipboard unavailable");
-			await navigator.clipboard.writeText(receipt.dashboardUrl);
-		} catch {
-			toast({
-				title: "Copy failed",
-				description: "Use Open Cloud or select the recovery link above.",
-				variant: "destructive",
-			});
-		}
-	};
-
-	return (
-		<div className="mx-auto flex w-full max-w-xl flex-col items-center gap-4 px-6 py-10 text-center">
-			<div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-				<Cloud className="size-5" />
-			</div>
-			<div>
-				<h2 className="text-base font-semibold">Continued in Cline Cloud</h2>
-				<p className="mt-1 text-sm text-muted-foreground">
-					This local session is preserved as read-only history.
-				</p>
-			</div>
-			<div className="flex flex-wrap justify-center gap-2">
-				<Button className="gap-1.5" onClick={onOpenCloud} size="sm">
-					<ExternalLink className="size-3.5" />
-					Open Cloud
-				</Button>
-				<Button
-					className="gap-1.5"
-					onClick={onForkLocally}
 					size="sm"
 					variant="outline"
 				>
-					<GitFork className="size-3.5" />
-					Fork Locally
+					Restore saved draft
 				</Button>
-			</div>
-			{showRecoveryUrl ? (
-				<button
-					className="max-w-full break-all text-xs text-primary underline-offset-4 hover:underline"
-					onClick={onOpenCloud}
-					type="button"
-				>
-					{receipt.dashboardUrl}
-				</button>
-			) : null}
-			{showRecoveryUrl ? (
-				<button
-					className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-					onClick={() => void copyRecoveryLink()}
-					type="button"
-				>
-					<Copy className="size-3" />
-					Copy recovery link
-				</button>
-			) : null}
-		</div>
+			</AlertDescription>
+			<Button
+				aria-label="Dismiss handoff recovery"
+				className="absolute right-2 top-2 size-7 text-muted-foreground"
+				onClick={onDismiss}
+				disabled={disabled}
+				size="icon"
+				variant="ghost"
+			>
+				<X className="size-4" />
+			</Button>
+		</Alert>
 	);
 }

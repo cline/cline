@@ -336,42 +336,6 @@ describe("useSessionHistory session mapping", () => {
 		).toMatchObject({ isScheduled: false });
 	});
 
-	it.each([
-		{
-			handoff: {
-				status: "complete",
-				toCloudSessionId: "cloud-1",
-				dashboardUrl: "https://app.cline.bot/agents/cloud-1",
-			},
-		},
-		{ cloudHandoffIntent: { idempotencyKey: "pending-creation" } },
-	])("refreshes metadata-only cloud handoff transitions: %j", async (metadata) => {
-		await act(async () => {
-			root.render(<HookHarness />);
-		});
-		await flush();
-		await act(async () => {
-			pendingLists[0].resolve([sessionRow("handoff-source")]);
-			await Promise.resolve();
-		});
-
-		let refresh: Promise<boolean> | undefined;
-		await act(async () => {
-			refresh = current.refreshSessions();
-		});
-		await act(async () => {
-			pendingLists[1].resolve([
-				{
-					...sessionRow("handoff-source"),
-					metadata,
-				},
-			]);
-			await refresh;
-		});
-
-		expect(current.sessions[0]?.metadata).toMatchObject(metadata);
-	});
-
 	it("maps the runner's schedule provenance onto sidebar threads", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);
