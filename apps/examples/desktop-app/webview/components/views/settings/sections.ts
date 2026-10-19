@@ -8,6 +8,7 @@
 const ALL_SETTINGS_SECTIONS = [
 	"General",
 	"Providers",
+	"Local Models",
 	"Voice",
 	"Channels",
 	"Schedules",

@@ -55,6 +55,8 @@ import {
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
 import {
+	MODEL_SELECTION_CHANGED_EVENT,
+	type ModelSelectionChangedDetail,
 	readModelSelectionStorageFromWindow,
 	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -2063,6 +2065,28 @@ const ModelSelector = memo(function ModelSelector({
 			// Ignore localStorage persistence failures.
 		}
 	}, [lastSelection, persistSelection]);
+
+	useEffect(() => {
+		if (includeCloudModels) return;
+		const handleSelectionChanged = (event: Event) => {
+			const { providerId, modelId } = (
+				event as CustomEvent<ModelSelectionChangedDetail>
+			).detail;
+			setLastSelection(readModelSelectionStorageFromWindow());
+			if (isBusy) return;
+			onProviderChange(providerId);
+			onModelChange(modelId);
+		};
+		window.addEventListener(
+			MODEL_SELECTION_CHANGED_EVENT,
+			handleSelectionChanged,
+		);
+		return () =>
+			window.removeEventListener(
+				MODEL_SELECTION_CHANGED_EVENT,
+				handleSelectionChanged,
+			);
+	}, [includeCloudModels, isBusy, onModelChange, onProviderChange]);
 
 	useEffect(() => {
 		if (providers.length === 0) {

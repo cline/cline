@@ -67,6 +67,7 @@ import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
 import { ImportContent } from "./import-view";
+import { LocalModelsContent } from "./local-models-view";
 import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
@@ -608,6 +609,8 @@ export function SettingsView({
 				{providerContent}
 				{addProviderDialog}
 			</>
+		) : activeNav === "Local Models" ? (
+			<LocalModelsContent />
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}

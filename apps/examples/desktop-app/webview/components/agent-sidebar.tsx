@@ -14,6 +14,7 @@ import {
 	CircleUserRound,
 	Clock3,
 	Cloud,
+	Cpu,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -154,6 +155,7 @@ function hubPort(url: string | null): string | null {
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Providers: Plug,
+	"Local Models": Cpu,
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,

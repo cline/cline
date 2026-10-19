@@ -205,6 +205,9 @@ Supported commands:
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
+| `get_local_models_status` | OS hardware probe (`nvidia-smi` for NVIDIA GPUs) + `ollama` SDK `version`/`list`/`ps` |
+| `pull_ollama_model` / `cancel_ollama_pull` | `ollama` SDK `pull`; progress is broadcast as `ollama_pull_progress` events and survives closing the page |
+| `load_ollama_model` / `unload_ollama_model` / `delete_ollama_model` | `ollama` SDK `generate` (`keep_alive` -1 / 0) and `delete` |
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
 | `list_discovered_sessions` | Merged discovery (local + cloud) |
 | `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
