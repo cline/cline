@@ -12,7 +12,7 @@ import {
 import { clip } from "../../context/redact";
 import type { Facts, SourceEnv, SourceState } from "../../context/source";
 import type { PinnedRead } from "../../settings/settings";
-import { isRecord } from "../../values";
+import { isRecord, stableJson } from "../../values";
 import type { Access, Connector, ReadScope, Route } from "../connector";
 
 /**
@@ -25,6 +25,8 @@ import type { Access, Connector, ReadScope, Route } from "../connector";
  *
  * Results never reach the planner raw: each becomes one bounded, redacted
  * line (a count and a few names for lists, a clipped first line for text).
+ * A line is served only while its pin still runs the same tool with the same
+ * arguments; an edited pin reads as nothing until it is read again.
  */
 
 const READ_VERBS: ReadonlySet<string> = new Set([
@@ -256,10 +258,17 @@ type PinnedReadConnectorOptions = PinnedReadDeps & {
 	route: Pick<Route, "id" | "label">;
 };
 
+/** What a pin reads: its tool and arguments, in any key order. A new label reads the same thing. */
+function pinDefinition(read: PinnedRead): string {
+	return stableJson([read.tool, read.arguments]);
+}
+
+type CachedRead = { definition: string; fetchedAt: number; summary: string };
+
 export class PinnedReadConnector implements Connector {
 	readonly id: string;
 	readonly tier = "T3" as const;
-	private readonly cache = new Map<string, DatedLine>();
+	private readonly cache = new Map<string, CachedRead>();
 
 	constructor(private readonly options: PinnedReadConnectorOptions) {
 		this.id = options.id;
@@ -282,6 +291,7 @@ export class PinnedReadConnector implements Connector {
 			id: read.id,
 			label: read.label ?? read.tool,
 			everyMinutes: PINNED_READ_EVERY_MINUTES,
+			revision: pinDefinition(read),
 		}));
 	}
 
@@ -299,23 +309,36 @@ export class PinnedReadConnector implements Connector {
 		if (!access.readAllowed || !access.scopes.includes(scope) || !read) return;
 		const runner = await this.options.runner();
 		if (typeof runner !== "function") return;
+		const definition = pinDefinition(read);
 		const fetchedAt = this.now();
-		const line = summarizeResult(await runner(read.tool, read.arguments));
-		this.cache.set(scope, {
-			fetchedAt,
-			line: `${clip(read.label ?? read.tool, PINNED_SUMMARY_MAX)}: ${line}`,
-		});
+		const summary = summarizeResult(await runner(read.tool, read.arguments));
+		this.cache.set(scope, { definition, fetchedAt, summary });
+	}
+
+	/** The pin's last result, only while the pin still reads what produced it. */
+	private cachedLine(read: PinnedRead): DatedLine | undefined {
+		const cached = this.cache.get(read.id);
+		return cached?.definition === pinDefinition(read)
+			? {
+					fetchedAt: cached.fetchedAt,
+					line: `${clip(read.label ?? read.tool, PINNED_SUMMARY_MAX)}: ${cached.summary}`,
+				}
+			: undefined;
 	}
 
 	facts(_env: SourceEnv): Facts | "unknown" {
 		const { label, route } = this.options;
 		const access = this.options.access();
-		return access.readAllowed
-			? datedFacts(
-					label,
-					access.scopes.flatMap((scope) => this.cache.get(scope) ?? []),
-					this.now(),
-				)
-			: mentionOnlyFacts(label, "its tools", route.label);
+		if (!access.readAllowed)
+			return mentionOnlyFacts(label, "its tools", route.label);
+		const pins = this.pins();
+		return datedFacts(
+			label,
+			access.scopes.flatMap((scope) => {
+				const pin = pins.find((read) => read.id === scope);
+				return (pin && this.cachedLine(pin)) ?? [];
+			}),
+			this.now(),
+		);
 	}
 }

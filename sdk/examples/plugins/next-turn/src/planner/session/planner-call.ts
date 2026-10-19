@@ -1,26 +1,13 @@
 import { collectFacts, withCurrentSources } from "../../context/manifest";
 import { sourceOff } from "../../context/policy";
 import type { Settings } from "../../settings/settings";
-import { isRecord } from "../../values";
+import { stableJson } from "../../values";
 import { fnv1a32 } from "../candidates";
 import { offerableKinds } from "../kinds";
 import { buildPlannerInput } from "../model/input";
 import { generatePool } from "../model/model";
 import type { SessionCore } from "./core";
 import type { TurnState } from "./turn-state";
-
-/** JSON with every object's keys sorted, so the same input always hashes the same. */
-function stableJson(value: unknown): string {
-	if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-	if (isRecord(value)) {
-		const fields = Object.keys(value)
-			.filter((key) => value[key] !== undefined)
-			.sort()
-			.map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`);
-		return `{${fields.join(",")}}`;
-	}
-	return JSON.stringify(value) ?? "null";
-}
 
 /**
  * The planner answer the tray still waits for when nothing is asking for

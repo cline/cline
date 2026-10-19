@@ -26,6 +26,8 @@ export type ReadScope = {
 	label: string;
 	everyMinutes: number;
 	onPush?: boolean;
+	/** What the scope reads; a scope whose revision changed is due at once. */
+	revision?: string;
 };
 
 /** What the person chose for this connector, after the provider rule. */

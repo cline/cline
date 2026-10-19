@@ -11,8 +11,9 @@ import type { Access, Connector, ReadScope } from "./connector";
  * - each on its own cadence while the chat is open (a one-minute tick
  *   refreshes whatever is due).
  *
- * One refresh per connector and scope runs at a time; a failure leaves the
- * last facts, which state their age.
+ * One refresh per connector and scope runs at a time; a request that arrives
+ * meanwhile runs once that refresh ends, with the env as it is then. A
+ * failure leaves the last facts, which state their age.
  */
 
 type RefresherOptions = {
@@ -33,12 +34,16 @@ function tickEveryMinute(tick: () => void): () => void {
 	return () => clearInterval(timer);
 }
 
+type LastRefresh = { at: number; revision?: string };
+
 export class Refresher {
 	private readonly inFlight = new Set<string>();
+	/** Keys whose refresh was requested while one was in flight, with the request's reason. */
+	private readonly missed = new Map<string, string>();
 	/** Per instance: a connector found again after it was removed has read nothing yet, so its scopes are due. */
 	private readonly lastRefreshed = new WeakMap<
 		Connector,
-		Map<string, number>
+		Map<string, LastRefresh>
 	>();
 	private stopTicking: (() => void) | undefined;
 	private branch: string | undefined;
@@ -57,6 +62,7 @@ export class Refresher {
 	stop(): void {
 		this.stopTicking?.();
 		this.stopTicking = undefined;
+		this.missed.clear();
 	}
 
 	/** Call on each turn; refreshes when the branch moved since the last one, or when the turn pushed. */
@@ -88,6 +94,7 @@ export class Refresher {
 	private async refresh(
 		reason: string,
 		wanted: (scope: ReadScope, lastRefreshed: number | undefined) => boolean,
+		onlyKey?: string,
 	): Promise<void> {
 		if (this.options.active?.() === false) return;
 		const env = this.options.env();
@@ -96,18 +103,26 @@ export class Refresher {
 			const access = this.options.access(connector.id);
 			if (!access.readAllowed) continue;
 			const refreshed =
-				this.lastRefreshed.get(connector) ?? new Map<string, number>();
+				this.lastRefreshed.get(connector) ?? new Map<string, LastRefresh>();
 			this.lastRefreshed.set(connector, refreshed);
 			for (const scope of connector.scopes) {
 				const key = `${connector.id}/${scope.id}`;
+				const last = refreshed.get(scope.id);
 				if (
+					(onlyKey !== undefined && key !== onlyKey) ||
 					!access.scopes.includes(scope.id) ||
-					this.inFlight.has(key) ||
-					!wanted(scope, refreshed.get(scope.id))
+					!wanted(
+						scope,
+						last?.revision === scope.revision ? last?.at : undefined,
+					)
 				)
 					continue;
+				if (this.inFlight.has(key)) {
+					this.missed.set(key, reason);
+					continue;
+				}
 				this.inFlight.add(key);
-				refreshed.set(scope.id, this.now());
+				refreshed.set(scope.id, { at: this.now(), revision: scope.revision });
 				work.push(
 					connector
 						.refresh(scope.id, env)
@@ -117,10 +132,19 @@ export class Refresher {
 								error,
 							),
 						)
-						.finally(() => this.inFlight.delete(key)),
+						.finally(() => this.settle(key)),
 				);
 			}
 		}
 		await Promise.all(work);
+	}
+
+	/** Ends a key's refresh, then runs the request it held back, if any. */
+	private settle(key: string): Promise<void> | undefined {
+		this.inFlight.delete(key);
+		const reason = this.missed.get(key);
+		if (reason === undefined) return undefined;
+		this.missed.delete(key);
+		return this.refresh(reason, () => true, key);
 	}
 }

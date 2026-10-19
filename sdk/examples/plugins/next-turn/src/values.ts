@@ -2,6 +2,19 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** JSON with every object's keys sorted, so the same input always hashes the same. */
+export function stableJson(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+	if (isRecord(value)) {
+		const fields = Object.keys(value)
+			.filter((key) => value[key] !== undefined)
+			.sort()
+			.map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`);
+		return `{${fields.join(",")}}`;
+	}
+	return JSON.stringify(value) ?? "null";
+}
+
 export function text(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }

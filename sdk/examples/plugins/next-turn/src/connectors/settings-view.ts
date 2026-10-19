@@ -37,7 +37,9 @@ export type ConnectorRow = {
 	status: string;
 	role: ConnectorRole;
 	roles: RoleOption[];
-	scopes: Array<ReadScope & { checked: boolean; cadence: string }>;
+	scopes: Array<
+		Omit<ReadScope, "revision"> & { checked: boolean; cadence: string }
+	>;
 	/** Shown under the role control whenever Read is possible. */
 	providerNote?: string;
 };
@@ -135,7 +137,7 @@ export function connectorRows(input: RowsInput): ConnectorRow[] {
 			detected,
 			role: access.role,
 			roles: roleOptions(routes, readBlockedByProvider, noNotifyReason),
-			scopes: scopes.map((scope) => ({
+			scopes: scopes.map(({ revision: _revision, ...scope }) => ({
 				...scope,
 				checked: access.scopes.includes(scope.id),
 				cadence: cadenceLabel(scope),

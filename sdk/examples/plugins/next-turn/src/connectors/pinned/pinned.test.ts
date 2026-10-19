@@ -223,7 +223,12 @@ describe("an MCP server's pinned reads", () => {
 		{ id: "bad", tool: "create_issue", arguments: {} },
 	];
 
-	function linear(settings: () => Settings, now: () => number, ran: string[]) {
+	function linear(
+		settings: () => Settings,
+		now: () => number,
+		ran: string[],
+		held?: Promise<void>,
+	) {
 		return mcpConnector(
 			{
 				name: "linear",
@@ -237,6 +242,7 @@ describe("an MCP server's pinned reads", () => {
 				reads: () => settings().connectors["mcp:linear"]?.reads ?? [],
 				runner: async () => async (tool, args) => {
 					ran.push(`${tool} ${JSON.stringify(args)}`);
+					await held;
 					return {
 						content: [
 							{
@@ -283,6 +289,87 @@ describe("an MCP server's pinned reads", () => {
 		expect(ran).toEqual(['list_my_issues {"state":"started"}']);
 		expect(connector.facts(env)).toEqual({
 			heading: 'MCP server "linear" (as of 2m ago)',
+			lines: ["My started issues: 2 items: Fix 405; Docs"],
+		});
+	});
+
+	test("an edited, removed or no-longer-read-only pin serves nothing until it is read again; a new label or key order keeps the result", async () => {
+		const ran: string[] = [];
+		const mine: PinnedRead = {
+			id: "mine",
+			tool: "list_my_issues",
+			arguments: { state: "started", team: "core" },
+			label: "My started issues",
+		};
+		let reads = [mine];
+		const connector = linear(
+			() => withReads("read", reads, ["mine"]),
+			() => 0,
+			ran,
+		);
+		const revision = () => connector.scopes[0]?.revision;
+		await connector.refresh("mine");
+		const read = revision();
+		reads = [
+			{
+				...mine,
+				arguments: { team: "core", state: "started" },
+				label: "Started",
+			},
+		];
+		expect(revision()).toBe(read);
+		expect(connector.facts(env)).toMatchObject({
+			lines: ["Started: 2 items: Fix 405; Docs"],
+		});
+		reads = [{ ...mine, arguments: { state: "done", team: "core" } }];
+		expect(revision()).not.toBe(read);
+		expect(connector.facts(env)).toBe("unknown");
+		await connector.refresh("mine");
+		expect(ran).toEqual([
+			'list_my_issues {"state":"started","team":"core"}',
+			'list_my_issues {"state":"done","team":"core"}',
+		]);
+		expect(connector.facts(env)).toMatchObject({
+			lines: ["My started issues: 2 items: Fix 405; Docs"],
+		});
+		reads = [{ ...mine, tool: "list_and_close_issues" }];
+		expect(connector.facts(env)).toBe("unknown");
+		reads = [];
+		expect(connector.facts(env)).toBe("unknown");
+	});
+
+	test("a reply that lands after its pin was edited is never served", async () => {
+		const ran: string[] = [];
+		let reply: () => void = () => undefined;
+		const held = new Promise<void>((resolve) => {
+			reply = resolve;
+		});
+		let reads = pins;
+		const connector = linear(
+			() => withReads("read", reads, ["mine"]),
+			() => 0,
+			ran,
+			held,
+		);
+		const late = connector.refresh("mine");
+		await Bun.sleep(0);
+		reads = [
+			{
+				id: "mine",
+				tool: "list_my_issues",
+				arguments: {},
+				label: "My started issues",
+			},
+		];
+		reply();
+		await late;
+		expect(connector.facts(env)).toBe("unknown");
+		await connector.refresh("mine");
+		expect(ran).toEqual([
+			'list_my_issues {"state":"started"}',
+			"list_my_issues {}",
+		]);
+		expect(connector.facts(env)).toMatchObject({
 			lines: ["My started issues: 2 items: Fix 405; Docs"],
 		});
 	});
