@@ -86,8 +86,9 @@ const CAPABILITY_LABELS: Record<string, string> = {
 	vision: "Vision",
 };
 
-/** Polling interval while waiting for the user to install or start Ollama. */
+/** Polling is quicker while waiting for the user to install or start Ollama. */
 const WAITING_FOR_OLLAMA_POLL_MS = 3000;
+const POLL_MS = 10_000;
 
 function readActiveOllamaModel(): string | undefined {
 	const selection = readModelSelectionStorageFromWindow();
@@ -256,41 +257,20 @@ export function LocalModelsContent() {
 		[refresh, setModelError],
 	);
 
-	// Loaded models can be unloaded by Ollama's idle timeout or from outside Cline.
-	useEffect(() => {
-		const onFocus = () => void refresh();
-		window.addEventListener("focus", onFocus);
-		return () => window.removeEventListener("focus", onFocus);
-	}, [refresh]);
-	const nextExpiryMs = useMemo(() => {
-		const expiries = (status?.running ?? [])
-			.map((model) => model.expiresAtMs)
-			.filter((ms) => ms > Date.now());
-		return expiries.length > 0 ? Math.min(...expiries) : undefined;
-	}, [status]);
-	useEffect(() => {
-		if (!nextExpiryMs || nextExpiryMs - Date.now() > 60 * 60 * 1000) {
-			return;
-		}
-		const timer = window.setTimeout(
-			() => void refresh(),
-			nextExpiryMs - Date.now() + 1000,
-		);
-		return () => window.clearTimeout(timer);
-	}, [nextExpiryMs, refresh]);
-
 	const reachable = status?.ollamaReachable ?? false;
-	// Pick Ollama up as soon as the user finishes installing or starting it.
+	// Ollama can start, stop, load a model for a chat, or unload an idle one at any time.
 	useEffect(() => {
-		if (!status || reachable) {
-			return;
-		}
 		const timer = window.setInterval(
 			() => void refresh({ quiet: true }),
-			WAITING_FOR_OLLAMA_POLL_MS,
+			reachable ? POLL_MS : WAITING_FOR_OLLAMA_POLL_MS,
 		);
-		return () => window.clearInterval(timer);
-	}, [reachable, refresh, status]);
+		const onFocus = () => void refresh({ quiet: true });
+		window.addEventListener("focus", onFocus);
+		return () => {
+			window.clearInterval(timer);
+			window.removeEventListener("focus", onFocus);
+		};
+	}, [reachable, refresh]);
 
 	const startOllama = useCallback(async () => {
 		const { started } = await desktopClient.invoke<{ started: boolean }>(
