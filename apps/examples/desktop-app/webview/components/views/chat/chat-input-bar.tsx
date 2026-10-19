@@ -29,7 +29,15 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
@@ -54,6 +62,11 @@ import {
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
+import {
+	prependInputHistoryEntry,
+	readInputHistoryFromWindow,
+	writeInputHistoryToWindow,
+} from "@/lib/input-history";
 import {
 	readModelSelectionStorageFromWindow,
 	readReasoningSelectionStorageFromWindow,
@@ -424,8 +437,39 @@ function ChatInputBarImpl({
 	} | null>(null);
 	const transcriptionGenerationRef = useRef(0);
 	const transcriptionTargetIdentityRef = useRef("unconfigured");
+	// ---- Input history recall (mirrors the CLI TUI's up/down history) ----
+	const inputHistoryRef = useRef<string[] | null>(null);
+	if (inputHistoryRef.current === null) {
+		inputHistoryRef.current = readInputHistoryFromWindow() ?? [];
+	}
+	const inputHistoryIndexRef = useRef(-1);
+	const savedInputRef = useRef("");
+	const pendingSelectionRef = useRef<number | null>(null);
+	const recordInputHistoryEntry = useCallback((prompt: string) => {
+		// Re-read before writing so this instance's mount-time snapshot cannot
+		// clobber prompts sent from another composer window (the CLI re-reads
+		// its history file before each append for the same reason). A denied
+		// read (null) must not replace the in-memory entries with a single
+		// prompt: keep this session's history so recall still works.
+		const stored = readInputHistoryFromWindow();
+		const next = prependInputHistoryEntry(
+			stored ?? inputHistoryRef.current ?? [],
+			prompt,
+		);
+		inputHistoryRef.current = next;
+		writeInputHistoryToWindow(next);
+		inputHistoryIndexRef.current = -1;
+		savedInputRef.current = "";
+	}, []);
 	const setPromptInput = useCallback(
-		(value: string) => {
+		(value: string, options?: { fromHistory?: boolean }) => {
+			if (!options?.fromHistory) {
+				// Any writer other than a history recall (user typing, injected
+				// drafts, voice transcripts, mention/slash inserts) supersedes an
+				// active recall: the arrows must return to their native behavior
+				// instead of walking over an externally replaced draft.
+				inputHistoryIndexRef.current = -1;
+			}
 			promptInputValueRef.current = value;
 			setPromptInputState(value);
 			onPromptInputChange(value);
@@ -584,11 +628,13 @@ function ChatInputBarImpl({
 			return;
 		}
 		setPromptInput("");
+		recordInputHistoryEntry(prompt);
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
 		needsCloudModel,
 		readOnly,
+		recordInputHistoryEntry,
 		onSend,
 		promptInput,
 		setPromptInput,
@@ -615,6 +661,64 @@ function ChatInputBarImpl({
 	);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
+	const navigateInputHistory = useCallback(
+		(direction: "up" | "down"): boolean => {
+			const entries = inputHistoryRef.current ?? [];
+			if (entries.length === 0) {
+				return false;
+			}
+			if (direction === "down" && inputHistoryIndexRef.current === -1) {
+				return false;
+			}
+			if (inputHistoryIndexRef.current === -1) {
+				savedInputRef.current = promptInputRef.current?.value ?? promptInput;
+			}
+			if (direction === "up") {
+				if (inputHistoryIndexRef.current >= entries.length - 1) {
+					return false;
+				}
+				inputHistoryIndexRef.current += 1;
+			} else {
+				inputHistoryIndexRef.current -= 1;
+			}
+			const text =
+				inputHistoryIndexRef.current === -1
+					? savedInputRef.current
+					: (entries[inputHistoryIndexRef.current] ?? "");
+			const caret = direction === "up" ? 0 : text.length;
+			const el = promptInputRef.current;
+			if (el && el.value === text) {
+				// React bails out when the recalled text equals the current
+				// draft, so no commit will run the re-pin effect below; move
+				// the caret directly instead of leaving a stale pin behind.
+				el.selectionStart = caret;
+				el.selectionEnd = caret;
+				pendingSelectionRef.current = null;
+			} else {
+				pendingSelectionRef.current = caret;
+			}
+			setPromptInput(text, { fromHistory: true });
+			setCursorIndex(caret);
+			return true;
+		},
+		[promptInput, setPromptInput],
+	);
+
+	// History recall writes the textarea through React state, which resets a
+	// controlled textarea caret; re-pin it to the recall position. The value
+	// change is the trigger, not a data dependency.
+	// biome-ignore lint/correctness/useExhaustiveDependencies(promptInput): the recalled-text change is the re-pin trigger
+	useLayoutEffect(() => {
+		if (pendingSelectionRef.current === null) {
+			return;
+		}
+		const el = promptInputRef.current;
+		if (el) {
+			el.selectionStart = pendingSelectionRef.current;
+			el.selectionEnd = pendingSelectionRef.current;
+		}
+		pendingSelectionRef.current = null;
+	}, [promptInput]);
 	// Mention/slash detection is derived synchronously from the input +
 	// cursor. Deriving (rather than syncing through effects) keeps a keystroke
 	// at a single render commit; only an explicit Escape dismissal is state.
@@ -1333,6 +1437,50 @@ function ChatInputBarImpl({
 								if (mentionOpen && e.key === "Escape") {
 									e.preventDefault();
 									setDismissedMentionKey(mentionKey);
+									return;
+								}
+								if (
+									e.key === "ArrowUp" &&
+									!e.shiftKey &&
+									!e.altKey &&
+									!e.ctrlKey &&
+									!e.metaKey
+								) {
+									// Recall enters at the text start (or continues while a
+									// recall is already active); elsewhere the arrows keep
+									// their native caret behavior inside multi-line drafts.
+									const boundary =
+										(e.currentTarget.selectionStart ?? 0) === 0 &&
+										(e.currentTarget.selectionEnd ?? 0) === 0;
+									if (
+										!readOnly &&
+										!speechInputActive &&
+										(boundary || inputHistoryIndexRef.current !== -1) &&
+										navigateInputHistory("up")
+									) {
+										e.preventDefault();
+									}
+									return;
+								}
+								if (
+									e.key === "ArrowDown" &&
+									!e.shiftKey &&
+									!e.altKey &&
+									!e.ctrlKey &&
+									!e.metaKey
+								) {
+									const end = e.currentTarget.value.length;
+									const boundary =
+										(e.currentTarget.selectionStart ?? 0) >= end &&
+										(e.currentTarget.selectionEnd ?? 0) >= end;
+									if (
+										!readOnly &&
+										!speechInputActive &&
+										(boundary || inputHistoryIndexRef.current !== -1) &&
+										navigateInputHistory("down")
+									) {
+										e.preventDefault();
+									}
 									return;
 								}
 								if (e.key === "Escape" && canAbort) {
