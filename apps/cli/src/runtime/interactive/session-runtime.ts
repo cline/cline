@@ -111,6 +111,7 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	onActiveSessionChange?: () => void;
 }) {
 	let sessionManager: CliCore | undefined;
 	let sessionManagerPromise: Promise<CliCore> | undefined;
@@ -135,6 +136,7 @@ export function createInteractiveSessionRuntime(input: {
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
 		setActiveCliSession(undefined);
+		input.onActiveSessionChange?.();
 	};
 
 	const applyStartedSession = (started: StartedSession): void => {
@@ -142,6 +144,7 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		input.onActiveSessionChange?.();
 		for (const message of formatPluginIssueWarnings(started.pluginIssues)) {
 			input.onAgentEvent({
 				type: "notice",
