@@ -2378,7 +2378,7 @@ Follow the desktop send workflow instructions.`,
 				prompt: "/goal original",
 			}),
 			sessionId,
-			{ timeoutMs: null },
+			{ timeoutMs: null, retryAfterDispatch: false },
 		);
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({ prompt: "expanded  goal\nnext line" }),
