@@ -84,27 +84,22 @@ kept between 8 and 20 seconds.
 | [`src/settings/`](src/settings/settings.ts), [`src/store/`](src/store/data-dir.ts) | The settings file and the planner's model choices; `<Cline data dir>/plugins/next-turn/` with atomic, owner-only writes, and each chat's tray state kept across sandbox idle reclaims |
 | [`src/tasks/`](src/tasks/tasks.ts) | Tasks on the hub's agenda: edits, approve and cancel with the revision the person saw, and proposals written as spec files so they wait for approval |
 | [`src/plugin.ts`](src/plugin.ts), [`src/runtime.ts`](src/runtime.ts), [`src/lifecycle.ts`](src/lifecycle.ts) | The plugin's hooks and its `composer.suggestions` slot handler, none of which can fail the person's run; one chat's runtime and whether a viewer is attached; and the disable and uninstall check |
-| [`src/contracts.ts`](src/contracts.ts), [`scripts/`](scripts/build.ts) | The published JSON Schemas, and the scripts that bundle the plugin and generate `contracts/` |
+| [`scripts/`](scripts/build.ts) | The script that bundles the plugin for a host that vendors it |
 | [`docs/`](docs/prompt-cache.md) | Design notes: how the planner can reuse the chat's prompt cache |
 
 Tuning levers (timeouts, budgets, cadences, limits) live in
 [`src/config.ts`](src/config.ts).
 
-## Contracts
+## The slot contract
 
-`contracts/` holds the generated JSON Schemas (`bun run contracts`;
-`bun run check:contracts` fails on drift or on a file the generator would not
-write). They are the plugin's own: the label record, the environment
-manifest, and Next's internal tray state (`NextTurnSet`, `NextTurnTrayPush`,
-`NextTurnTrayAction`). The schema hosts render, the `composer.suggestions`
-state and its verbs, belongs to Cline
-(`@cline/shared`'s `extensions/ui-slots/contracts.ts`);
+The schema hosts render, the `composer.suggestions` state and its verbs,
+belongs to Cline (`@cline/shared`'s `extensions/ui-slots/contracts.ts`);
 [`src/planner/tray/view.ts`](src/planner/tray/view.ts) projects Next's tray
 state into it and [`src/planner/tray/verbs.ts`](src/planner/tray/verbs.ts)
-maps its verbs onto Next's actions. The plugin imports
-that contract as types only, so declaring the slot adds no runtime
-dependency. It does import path helpers from `@cline/shared/storage` at
-runtime, so it loads only on a host that provides the Cline SDK to plugins.
+maps its verbs onto Next's actions. The plugin imports that contract as
+types only, so declaring the slot adds no runtime dependency. It does import
+path helpers from `@cline/shared/storage` at runtime, so it loads only on a
+host that provides the Cline SDK to plugins.
 
 ## Verify
 
@@ -112,7 +107,7 @@ From this directory:
 
 ```sh
 bun run build # bundle dist/index.js with host-aliased externals
-bun run check # typecheck, contracts drift, and the full test suite
+bun run check # typecheck and the full test suite
 ```
 
 `cline plugin install` loads `src/index.ts`. `dist/index.js` is the

@@ -13,9 +13,7 @@
 		"build": "bun run scripts/build.ts",
 		"typecheck": "tsc -p tsconfig.json",
 		"test": "bun test src",
-		"contracts": "bun run scripts/build-contracts.ts",
-		"check:contracts": "bun run scripts/build-contracts.ts --check",
-		"check": "bun run typecheck && bun run check:contracts && bun run test",
+		"check": "bun run typecheck && bun run test",
 		"clean": "rm -rf node_modules dist"
 	},
 	"cline": {

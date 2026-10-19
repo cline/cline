@@ -7,7 +7,6 @@ import {
 	parsePluginUiAction,
 } from "@cline/shared";
 import { defaultSettings } from "../../settings/settings";
-import { contractSchema, schemaErrors } from "../../test-support/schema";
 import { EMPTY_BACKLOG } from "../backlog";
 import {
 	CUE_CODES,
@@ -508,17 +507,11 @@ describe("the slot's verbs as Next's tray actions", () => {
 		],
 	];
 
-	test("each verb core accepts maps to the actions Next's own schema accepts", () => {
-		const schema = contractSchema("NextTurnTrayAction");
+	test("each verb core accepts maps to the actions Next drives", () => {
 		for (const [action, expected] of verbs) {
 			expect(parsePluginUiAction("composer.suggestions", action).ok).toBe(true);
 			const actions = toTrayActions(action);
 			expect([action.verb, actions]).toEqual([action.verb, expected]);
-			for (const trayAction of actions ?? [])
-				expect([trayAction, schemaErrors(schema, trayAction)]).toEqual([
-					trayAction,
-					[],
-				]);
 		}
 	});
 
