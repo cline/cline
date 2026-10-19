@@ -74,7 +74,20 @@ export class CallMeter {
 
 	constructor(private readonly now: () => number = Date.now) {
 		this.startedAt = now();
+		let arm!: () => void;
+		this.armed = new Promise((resolve) => {
+			arm = resolve;
+		});
+		this.arm = arm;
 	}
+
+	/**
+	 * Resolves when the request reaches the provider. The deadline starts
+	 * there, so loading Cline and resolving the key do not eat the call's
+	 * budget; the budget still caps a setup that never finishes.
+	 */
+	readonly armed: Promise<void>;
+	private readonly arm: () => void;
 
 	asking(provider: ProviderChoice): void {
 		this.provider = provider;
@@ -82,6 +95,7 @@ export class CallMeter {
 
 	sending(): void {
 		this.firstRequestAt ??= this.now();
+		this.arm();
 	}
 
 	note(chunk: ApiStreamChunk): void {
@@ -178,6 +192,7 @@ export async function generatePool(
 		kinds,
 		timeoutMs,
 		stale,
+		meter.armed,
 	);
 	return { ...outcome, ...meter.read() };
 }
@@ -187,9 +202,10 @@ async function poolOutcome(
 	kinds: readonly SuggestionKind[],
 	timeoutMs: number,
 	stale: AbortSignal | undefined,
+	armed: Promise<void>,
 ): Promise<PoolOutcome> {
 	try {
-		const answer = await withDeadline(ask, timeoutMs);
+		const answer = await withDeadline(ask, timeoutMs, armed);
 		if (stale?.aborted) return { reason: "aborted" };
 		if (answer === TIMED_OUT) return { reason: "timeout" };
 		if (answer === null) return { reason: "no_provider" };

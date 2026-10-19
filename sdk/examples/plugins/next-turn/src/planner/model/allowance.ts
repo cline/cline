@@ -1,6 +1,13 @@
-import { closeSync, fstatSync, openSync, readSync } from "node:fs";
-import { HOUR_MS, PLANNER_LEDGER_TAIL_BYTES } from "../../config";
-import { appendJsonLine } from "../../store/data-dir";
+import { closeSync, fstatSync, openSync, readSync, statSync } from "node:fs";
+import {
+	HOUR_MS,
+	PLANNER_LEDGER_COMPACT_BYTES,
+	PLANNER_LEDGER_TAIL_BYTES,
+	PLANNER_TIMEOUT_MIN_MS,
+	PLANNER_TIMEOUT_MS,
+	PLANNER_TIMEOUT_SAMPLES_MIN,
+} from "../../config";
+import { appendJsonLine, writeFileAtomic } from "../../store/data-dir";
 import { isRecord, num } from "../../values";
 import type { CallUsage, PoolFailure } from "./model";
 
@@ -106,9 +113,11 @@ export class PlannerLedger {
 		private readonly path: string,
 		private readonly now: () => number = Date.now,
 		private readonly tailBytes: number = PLANNER_LEDGER_TAIL_BYTES,
+		private readonly compactBytes: number = PLANNER_LEDGER_COMPACT_BYTES,
 	) {}
 
 	record(sessionId: string, spend: PlannerSpend = {}): void {
+		this.compact();
 		const call: PlannerCall = { sessionId, at: this.now(), ...spend };
 		appendJsonLine(this.path, call);
 		this.sessionCalls.get(sessionId)?.push(call);
@@ -135,6 +144,48 @@ export class PlannerLedger {
 	/** Calls for one session, seeded once from the tail of the ledger file and maintained in memory. */
 	callsForSession(sessionId: string): readonly PlannerCall[] {
 		return this.calls(sessionId);
+	}
+
+	/**
+	 * The deadline this chat's calls should get: the 95th percentile of what
+	 * its recent answers took to a first token, doubled for the rest of the
+	 * answer, and kept between the floor and the default. Calls that never
+	 * reached a first token say nothing about how long one takes.
+	 */
+	timeoutMs(sessionId: string): number {
+		const samples = this.calls(sessionId)
+			.map((call) => call.firstTokenMs)
+			.filter((ms): ms is number => ms !== undefined)
+			.sort((a, b) => a - b);
+		if (samples.length < PLANNER_TIMEOUT_SAMPLES_MIN) return PLANNER_TIMEOUT_MS;
+		const at = Math.min(samples.length - 1, Math.floor(samples.length * 0.95));
+		const p95 = samples[at] ?? PLANNER_TIMEOUT_MS;
+		return Math.min(
+			PLANNER_TIMEOUT_MS,
+			Math.max(PLANNER_TIMEOUT_MIN_MS, p95 * 2),
+		);
+	}
+
+	/**
+	 * Rewrites the ledger to the tail it reads once it outgrows `compactBytes`,
+	 * so calls nobody can count any more do not accumulate. The rewrite swaps a
+	 * fresh file in, which can drop one line another sandbox appends in that
+	 * instant: that costs one allowance count, never a set. A failed rewrite
+	 * leaves the next append to land and only postpones the bound.
+	 */
+	private compact(): void {
+		let size: number;
+		try {
+			size = statSync(this.path).size;
+		} catch {
+			return;
+		}
+		if (size <= this.compactBytes) return;
+		const kept = readLedgerTail(this.path, this.tailBytes);
+		const text = kept.map((call) => JSON.stringify(call)).join("\n");
+		try {
+			writeFileAtomic(this.path, kept.length > 0 ? `${text}\n` : "");
+		} catch {}
 	}
 
 	private calls(sessionId: string): PlannerCall[] {

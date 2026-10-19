@@ -116,7 +116,7 @@ async function requestModelSet(
 			input,
 			kinds,
 			settings,
-			undefined,
+			core.options.ledger?.timeoutMs(core.options.sessionId),
 			core.generationSignal,
 		);
 		if ("reason" in attempt && attempt.reason === "no_provider")

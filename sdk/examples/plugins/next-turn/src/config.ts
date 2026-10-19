@@ -158,9 +158,17 @@ export const TURN_PATH_LIMIT = 8;
 /**
  * The planner's model call. It runs detached from `afterRun` while the tray
  * shows the turn loading, so the deadline bounds that wait: past it, the
- * rule-based set is the turn's one set.
+ * rule-based set is the turn's one set. The deadline counts from the request
+ * itself, not from loading the provider, and the ledger may shorten it to the
+ * chat's own doubled p95 first-token time, never past `PLANNER_TIMEOUT_MIN_MS`.
  */
 export const PLANNER_TIMEOUT_MS = 20_000;
+/** The ledger may shorten the deadline to this once it knows how fast the model starts answering. */
+export const PLANNER_TIMEOUT_MIN_MS = 8_000;
+/** First-token readings the ledger needs before it sets the deadline; until then the default stands. */
+export const PLANNER_TIMEOUT_SAMPLES_MIN = 5;
+/** Past this size the ledger is rewritten to its tail, so it cannot grow without bound. */
+export const PLANNER_LEDGER_COMPACT_BYTES = 1_048_576;
 /**
  * How long a turn's tray may stay loading before the rule set, already
  * computed, goes up while the planner is still answering. A call that answers

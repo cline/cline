@@ -65,7 +65,11 @@ it. Every served set and label goes to `labels.jsonl` (schema v3) and the
 host's telemetry. Every planner call goes to `planner.jsonl` with its
 outcome, total time, the time from its first request to the first token,
 and the input, cache-read, cache-write, output and reasoning tokens the
-provider reported.
+provider reported; the file is rewritten to its tail past 1 MiB, so it
+cannot grow without bound. The planner's deadline runs from the request
+itself — loading the provider and resolving the key do not spend it — and
+once a chat has five first-token readings it is that chat's doubled p95,
+kept between 8 and 20 seconds.
 
 ## Layout
 

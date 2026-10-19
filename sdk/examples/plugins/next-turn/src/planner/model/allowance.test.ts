@@ -78,6 +78,32 @@ describe("the ledger", () => {
 		);
 	});
 
+	test("the deadline follows this chat's own first-token p95, kept between the floor and the default", () => {
+		const dir = tempDir("timeout-");
+		const ledger = new PlannerLedger(join(dir, "planner.jsonl"), () => 1);
+		for (const firstTokenMs of [5_000, 5_100, 5_200, 5_300, 5_400])
+			ledger.record("a", { firstTokenMs });
+		expect(ledger.timeoutMs("a")).toBe(10_800);
+		for (const firstTokenMs of [100, 200, 300])
+			ledger.record("fast", { firstTokenMs });
+		expect(ledger.timeoutMs("fast")).toBe(20_000);
+		for (const firstTokenMs of [100, 200, 300, 400, 500])
+			ledger.record("fast", { firstTokenMs });
+		expect(ledger.timeoutMs("fast")).toBe(8_000);
+		ledger.record("failed", { totalMs: 400, outcome: "timeout" });
+		expect(ledger.timeoutMs("failed")).toBe(20_000);
+	});
+
+	test("rewrites itself to the tail once it outgrows the bound", () => {
+		const dir = tempDir("compact-");
+		const path = join(dir, "planner.jsonl");
+		const ledger = new PlannerLedger(path, () => 7, 512, 1_024);
+		for (let i = 0; i < 100; i += 1)
+			ledger.record("a", { firstTokenMs: i, totalMs: 1_000 });
+		expect(statSync(path).size).toBeLessThan(2_000);
+		expect(readLedgerTail(path).at(-1)?.firstTokenMs).toBe(99);
+	});
+
 	test("callsForSession reads a bounded tail once and keeps new calls in memory", () => {
 		const dir = tempDir("tail-");
 		const path = join(dir, "planner.jsonl");
