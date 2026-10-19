@@ -2823,7 +2823,7 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("uses three SDK stream retries without allowing another whole-turn retry", async () => {
+	it("requests one gated SDK stream retry without allowing another whole-turn retry", async () => {
 		const error = {
 			message: "upstream timeout",
 			code: "504",
@@ -2846,7 +2846,7 @@ describe("sdk-gateway", () => {
 			}),
 		);
 		expect(streamTextSpy.mock.calls.at(-1)?.[0]).toMatchObject({
-			streamRetries: 3,
+			streamRetries: 0,
 		});
 		expect(events.at(-1)).toMatchObject({
 			reason: "error",

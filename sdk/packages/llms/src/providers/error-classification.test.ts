@@ -449,6 +449,59 @@ describe("isRetryableProviderError", () => {
 		});
 	});
 
+	describe("Google quota failures", () => {
+		const googleQuotaError = (quotaId: string) =>
+			new APICallError({
+				message:
+					"You exceeded your current quota, please check your plan and billing details.",
+				url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent",
+				requestBodyValues: {},
+				statusCode: 429,
+				responseBody: JSON.stringify({
+					error: {
+						code: 429,
+						message:
+							"You exceeded your current quota, please check your plan and billing details.",
+						status: "RESOURCE_EXHAUSTED",
+						details: [
+							{
+								"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+								violations: [
+									{
+										quotaMetric:
+											"generativelanguage.googleapis.com/generate_content_free_tier_requests",
+										quotaId,
+									},
+								],
+							},
+							{
+								"@type": "type.googleapis.com/google.rpc.RetryInfo",
+								retryDelay: "86400s",
+							},
+						],
+					},
+				}),
+			});
+
+		it("does not retry a per-day quota exhaustion despite the 429", () => {
+			expect(
+				isRetryableProviderError(
+					googleQuotaError("GenerateRequestsPerDayPerProjectPerModel-FreeTier"),
+				),
+			).toBe(false);
+		});
+
+		it("still retries a per-minute rate limit", () => {
+			expect(
+				isRetryableProviderError(
+					googleQuotaError(
+						"GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+					),
+				),
+			).toBe(true);
+		});
+	});
+
 	describe("not retryable", () => {
 		it("does not retry a credential rejection (401)", () => {
 			expect(

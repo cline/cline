@@ -106,6 +106,43 @@ describe("extractErrorMessage", () => {
 	it("falls back to JSON instead of [object Object] for opaque objects", () => {
 		expect(extractErrorMessage({ status: 502 })).toBe('{"status":502}');
 	});
+
+	it("surfaces Google quota details behind the generic quota message", () => {
+		const body = JSON.stringify({
+			error: {
+				code: 429,
+				message:
+					"You exceeded your current quota, please check your plan and billing details.",
+				status: "RESOURCE_EXHAUSTED",
+				details: [
+					{
+						"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+						violations: [
+							{
+								quotaMetric:
+									"generativelanguage.googleapis.com/generate_content_free_tier_requests",
+								quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+							},
+						],
+					},
+					{
+						"@type": "type.googleapis.com/google.rpc.RetryInfo",
+						retryDelay: "86400s",
+					},
+				],
+			},
+		});
+		expect(
+			extractErrorMessage({
+				message:
+					"You exceeded your current quota, please check your plan and billing details.",
+				statusCode: 429,
+				responseBody: body,
+			}),
+		).toBe(
+			"You exceeded your current quota, please check your plan and billing details. (Google quota exceeded: quota GenerateRequestsPerDayPerProjectPerModel-FreeTier, retry after 86400s)",
+		);
+	});
 });
 
 describe("ClineNotSubscribedError", () => {

@@ -159,6 +159,76 @@ describe("Gemini thinking wire contract", () => {
 	});
 });
 
+describe("Gemini quota wire contract", () => {
+	it("sends a per-day quota 429 once and surfaces its quota detail", async () => {
+		let calls = 0;
+		const fetchStub = (async () => {
+			calls++;
+			return new Response(
+				JSON.stringify({
+					error: {
+						code: 429,
+						message:
+							"You exceeded your current quota, please check your plan and billing details.",
+						status: "RESOURCE_EXHAUSTED",
+						details: [
+							{
+								"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+								violations: [
+									{
+										quotaMetric:
+											"generativelanguage.googleapis.com/generate_content_free_tier_requests",
+										quotaId:
+											"GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+										quotaValue: "20",
+									},
+								],
+							},
+							{
+								"@type": "type.googleapis.com/google.rpc.RetryInfo",
+								retryDelay: "86400s",
+							},
+						],
+					},
+				}),
+				{ status: 429, headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "gemini", apiKey: "test-key", fetch: fetchStub },
+			],
+		});
+		const events: unknown[] = [];
+		for await (const event of await gateway.stream({
+			providerId: "gemini",
+			modelId: "gemini-3.5-flash-lite",
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "Reply exactly OK." }],
+					createdAt: 0,
+				},
+			],
+		})) {
+			events.push(event);
+		}
+		expect(calls).toBe(1);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			errorRetryable: false,
+			error: expect.stringContaining(
+				"GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+			),
+		});
+		expect(events.at(-1)).toMatchObject({
+			error: expect.stringContaining("retry after 86400s"),
+		});
+	});
+});
+
 describe("Gemini output limit wire contract", () => {
 	it.each([
 		32_768, 65_536,

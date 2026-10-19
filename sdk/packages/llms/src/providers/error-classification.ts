@@ -1,5 +1,8 @@
 import { type ProviderErrorClass, safeJsonParse } from "@cline/shared";
 import { AISDKError, APICallError, RetryError, TypeValidationError } from "ai";
+import { isQuotaExhaustedError } from "./format";
+
+export { isQuotaExhaustedError };
 
 /**
  * Provider codes that unambiguously identify a context-window overflow
@@ -423,6 +426,11 @@ function isRetryableFromSignals(value: unknown): boolean {
  * error or a flattened message string.
  */
 export function isRetryableProviderError(error: unknown): boolean {
+	// A daily quota exhaustion cannot succeed on retry, however the typed
+	// 429 signal reads; per-minute limits keep the retryable path below.
+	if (isQuotaExhaustedError(error)) {
+		return false;
+	}
 	// Prefer the AI SDK's own typed retryability signal.
 	try {
 		const typed = isRetryableTypedError(error, 0);

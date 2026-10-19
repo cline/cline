@@ -33,10 +33,12 @@ import {
 	validateImageMedia,
 } from "@cline/shared";
 import {
+	APICallError,
 	type CallSettings,
 	generateImage,
 	jsonSchema,
 	NoSuchToolError,
+	RetryError,
 	stepCountIs,
 	streamText,
 	type ToolSet,
@@ -50,7 +52,9 @@ import {
 } from "../services/stream-error-telemetry";
 import {
 	classifyProviderError,
+	isQuotaExhaustedError,
 	isRetryableBeyondSdkRetries,
+	isRetryableProviderError,
 } from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
@@ -597,6 +601,55 @@ function wrapFetchForStickySession(
 	return sessionFetch;
 }
 
+/**
+ * Turn a daily-quota 429 into a non-retryable error at the fetch boundary.
+ * The AI SDK retries every 429 by status alone, so without this a Google
+ * free-tier `RESOURCE_EXHAUSTED` response is re-sent six times (plus stream
+ * retries) against a quota that cannot refill that day. Per-minute limits
+ * are left untouched for the SDK's retry-after-aware backoff.
+ */
+function wrapFetchForQuotaExhaustion(
+	baseFetch: typeof fetch | undefined,
+	kind: ProviderModuleKind,
+): typeof fetch | undefined {
+	if (kind !== "google" && kind !== "vertex") {
+		return baseFetch;
+	}
+	const delegate = baseFetch ?? globalThis.fetch;
+	if (!delegate) {
+		return baseFetch;
+	}
+	return (async (input, init) => {
+		const response = await delegate(input, init);
+		if (response.status !== 429) {
+			return response;
+		}
+		let bodyText: string;
+		try {
+			bodyText = await response.clone().text();
+		} catch {
+			return response;
+		}
+		if (!isQuotaExhaustedError(bodyText)) {
+			return response;
+		}
+		throw new APICallError({
+			message: extractErrorMessage(bodyText),
+			url:
+				typeof input === "string"
+					? input
+					: input instanceof URL
+						? input.href
+						: input.url,
+			requestBodyValues: undefined,
+			statusCode: 429,
+			responseHeaders: Object.fromEntries(response.headers.entries()),
+			responseBody: bodyText,
+			isRetryable: false,
+		});
+	}) as typeof fetch;
+}
+
 function shouldIncludeReasoningHistory(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -1087,14 +1140,16 @@ function getNestedUsageValue(
 /**
  * AI SDK request-start retries (`maxRetries`) handle transient failures before
  * streaming begins, with backoff that honors `retry-after` headers. Provider
- * error parts received after streaming starts use `streamRetries` instead.
+ * error parts received after streaming starts are retried only when `onError`
+ * requests it (`streamRetries: 0`): the SDK's automatic stream retries retry
+ * every error part, including terminal failures a retry cannot fix (auth,
+ * bad request, daily quota exhaustion), multiplying quota consumption.
  *
  * Exhausted request-start retries (`RetryError`) and terminal stream error parts
  * do not trigger the agent's whole-turn retry, so the retry budgets do not
  * multiply. See `captureStreamError` and `isRetryableBeyondSdkRetries`.
  */
 const MODEL_REQUEST_MAX_RETRIES = 5;
-const MODEL_STREAM_MAX_RETRIES = 3;
 
 type UsagePath = readonly [string] | readonly [string, string];
 
@@ -1509,6 +1564,23 @@ function captureStreamError(
 			phase !== "stream_part" &&
 			isRetryableBeyondSdkRetries(error),
 	};
+}
+
+/**
+ * Whether `onError` should ask the AI SDK to retry the current step after a
+ * stream error part. Request-start failures arrive as a `RetryError` whose
+ * `maxRetries` budget is already spent, and quota exhaustions or other
+ * non-retryable failures cannot succeed on an immediate re-send.
+ */
+function shouldRetryStreamError(error: unknown): boolean {
+	try {
+		if (RetryError.isInstance(error)) {
+			return false;
+		}
+	} catch {
+		// Fall through to the classifier when the SDK guard is unavailable.
+	}
+	return isRetryableProviderError(error);
 }
 
 async function* emitAiSdkEvents(
@@ -2247,10 +2319,13 @@ function createAiSdkProvider(
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
+						fetch: wrapFetchForQuotaExhaustion(
+							wrapFetchForStickySession(
+								wrapFetchForProviderRequestCapture(config.fetch, request),
+								request,
+								context,
+							),
+							kind,
 						),
 					},
 					context,
@@ -2472,7 +2547,7 @@ function createAiSdkProvider(
 								? { stopWhen: stepCountIs(8) }
 								: {}),
 							...requestConfig,
-							streamRetries: MODEL_STREAM_MAX_RETRIES,
+							streamRetries: 0,
 							...(portableReasoning ? { reasoning: portableReasoning } : {}),
 							onLanguageModelCallStart: () => {
 								capturedError.current = undefined;
@@ -2481,6 +2556,9 @@ function createAiSdkProvider(
 								const captured = captureStreamError(streamError);
 								capturedError.current = captured;
 								streamTelemetry.captureError(streamError);
+								return shouldRetryStreamError(streamError)
+									? { retry: true }
+									: undefined;
 							},
 							onAbort: async ({ reason }) => {
 								if (!isTimeoutReason(reason)) return;
