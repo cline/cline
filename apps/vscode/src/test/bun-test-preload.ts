@@ -29,20 +29,62 @@
 // exports (value `undefined`) and overlay the stub on top: stub names keep stub
 // behavior, every other valid import links as `undefined`.
 //
-// Importing the real package here is safe: the preload runs before any test
-// file, so this is the only point the real module is linked, and we only read
-// its export *names*, never its behavior (the mock shadows it everywhere tests look).
+// The real package must never be loaded in this process before it is mocked.
+// Mocking an already-loaded module makes bun re-link the module graph, and
+// that re-link leaves a slice of `@cline/shared`'s source-tree exports
+// undefined (`stripUtf8Bom` among them) for everything under
+// sdk/packages/core, which resolves `@cline/shared` to shared/src through
+// core's tsconfig `paths`. Real SDK functions re-exported by the stub then
+// throw. So the export names come from a child process (cached on the built
+// package's mtime), the mock is registered first, and everything that might
+// pull core in is imported after it.
+
 import { beforeEach as bunBeforeEach, vi as bunVi, mock } from "bun:test"
-import * as realClineCore from "@cline/core"
-import * as LlmsModels from "@cline/llms"
-import * as clineCoreStub from "./cline-core-vitest-stub"
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import path from "node:path"
 import * as vscodeStub from "./vscode-vitest-stub"
 
+function readRealClineCoreExportNames(): string[] {
+	const distEntry = path.resolve(import.meta.dir, "../../../../sdk/packages/core/dist/index.js")
+	const stamp = (() => {
+		const stat = statSync(distEntry)
+		return `${stat.mtimeMs}:${stat.size}`
+	})()
+	const cacheFile = path.resolve(import.meta.dir, "../../node_modules/.cache/cline-core-export-names.json")
+	try {
+		const cached = JSON.parse(readFileSync(cacheFile, "utf-8")) as { stamp: string; names: string[] }
+		if (cached.stamp === stamp && Array.isArray(cached.names)) {
+			return cached.names
+		}
+	} catch {
+		// No usable cache; read the names below.
+	}
+	const result = Bun.spawnSync({
+		cmd: ["bun", "-e", "console.log(JSON.stringify(Object.keys(await import('@cline/core'))))"],
+		cwd: import.meta.dir,
+	})
+	if (result.exitCode !== 0) {
+		throw new Error(`Could not read @cline/core export names: ${result.stderr.toString()}`)
+	}
+	const names = JSON.parse(result.stdout.toString()) as string[]
+	try {
+		mkdirSync(path.dirname(cacheFile), { recursive: true })
+		writeFileSync(cacheFile, JSON.stringify({ stamp, names }))
+	} catch {
+		// Cache is an optimization only.
+	}
+	return names
+}
+
 const clineCoreNamespace: Record<string, unknown> = {}
-for (const name of Object.keys(realClineCore)) {
+for (const name of readRealClineCoreExportNames()) {
 	clineCoreNamespace[name] = undefined
 }
+mock.module("@cline/core", () => clineCoreNamespace)
+
+const clineCoreStub = await import("./cline-core-vitest-stub")
 Object.assign(clineCoreNamespace, clineCoreStub)
+const LlmsModels = await import("@cline/llms")
 
 bunBeforeEach(() => {
 	clineCoreStub.resetModelsFileState()
@@ -50,8 +92,6 @@ bunBeforeEach(() => {
 	// @cline/llms registry; reset it so registrations never leak across tests.
 	LlmsModels.resetRegistry()
 })
-
-mock.module("@cline/core", () => clineCoreNamespace)
 
 // `vscode`: the stub provides both named exports (Position, Uri, …) and a
 // default export (the namespace object). Preserve both shapes so `import * as
