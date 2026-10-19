@@ -50,6 +50,23 @@ describe("MCP Apps session runtime", () => {
 		await expect(apps.resolveTool("unknown__tool")).resolves.toBeUndefined();
 	});
 
+	it("resolves only on servers that loaded tools", async () => {
+		const manager = createManager();
+		const apps = createMcpAppsRuntime({
+			manager,
+			serverNames: ["broken", "weather"],
+			resolvableServerNames: ["weather"],
+		});
+
+		await expect(apps.resolveTool("read_file")).resolves.toBeUndefined();
+		expect(manager.listTools).toHaveBeenCalledExactlyOnceWith("weather");
+		await apps.readResource({
+			serverName: "broken",
+			uri: "ui://broken/view.html",
+		});
+		expect(manager.readResource).toHaveBeenCalledOnce();
+	});
+
 	it("matches names produced by a custom name transform", async () => {
 		const apps = createMcpAppsRuntime({
 			manager: createManager(),
@@ -97,6 +114,26 @@ describe("MCP Apps session runtime", () => {
 		expect(manager.callTool).not.toHaveBeenCalled();
 	});
 
+	it("rejects tools disabled by the session's tool policies", async () => {
+		const manager = createManager();
+		const apps = createMcpAppsRuntime({
+			manager,
+			serverNames: ["weather"],
+			isToolEnabled: (agentToolName) =>
+				agentToolName !== "weather__refresh_view",
+		});
+
+		await expect(
+			apps.callTool({ serverName: "weather", toolName: "refresh_view" }),
+		).rejects.toThrow("is disabled for this session");
+		await apps.callTool({ serverName: "weather", toolName: "plain" });
+		expect(manager.callTool).toHaveBeenCalledExactlyOnceWith({
+			serverName: "weather",
+			toolName: "plain",
+			arguments: undefined,
+		});
+	});
+
 	it("reads resources only from servers in the session", async () => {
 		const manager = createManager();
 		const apps = createMcpAppsRuntime({ manager, serverNames: ["weather"] });
@@ -108,6 +145,9 @@ describe("MCP Apps session runtime", () => {
 		await expect(
 			apps.readResource({ serverName: "other", uri: "ui://other/view.html" }),
 		).rejects.toThrow("is not available in this session");
+		await expect(
+			apps.readResource({ serverName: "weather", uri: "file:///etc/hosts" }),
+		).rejects.toThrow("can only read ui:// resources");
 
 		expect(manager.readResource).toHaveBeenCalledExactlyOnceWith({
 			serverName: "weather",

@@ -210,6 +210,8 @@ async function loadConfiguredMcpTools(options: {
 	logger?: BasicLogger;
 	includeSettings: boolean;
 	mcpApps: boolean;
+	toolPolicies?: CoreSessionConfig["toolPolicies"];
+	disabledToolNames?: ReadonlySet<string>;
 	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 }): Promise<{
 	tools: AgentTool[];
@@ -317,7 +319,11 @@ async function loadConfiguredMcpTools(options: {
 			? {
 					mcpApps: createMcpAppsRuntime({
 						manager,
-						serverNames: loadedServerNames,
+						serverNames: enabled.map((registration) => registration.name),
+						resolvableServerNames: loadedServerNames,
+						isToolEnabled: (agentToolName) =>
+							isToolEnabledByPolicies(agentToolName, options.toolPolicies) &&
+							!options.disabledToolNames?.has(agentToolName),
 					}),
 				}
 			: {}),
@@ -610,6 +616,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					logger: config.logger,
 					includeSettings: !normalized.disableMcpSettingsTools,
 					mcpApps: normalized.mcpApps,
+					toolPolicies: effectiveToolPolicies,
+					disabledToolNames: globallyDisabledToolNames,
 					agentPluginServers: agentPluginMcpServers,
 				});
 				tools.push(...mcpRuntime.tools);

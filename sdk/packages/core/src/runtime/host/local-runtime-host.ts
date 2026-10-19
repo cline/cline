@@ -29,6 +29,7 @@ import type {
 	McpResourceReadResult,
 	McpToolCallResult,
 } from "../../extensions/mcp";
+import { defaultMcpToolNameTransform } from "../../extensions/mcp/name-transform";
 import {
 	formatSessionPluginIssue,
 	isPluginCommand,
@@ -67,6 +68,7 @@ import {
 	captureConversationTurnEvent,
 	captureModeSwitch,
 	captureTaskCompleted,
+	captureToolUsage,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { classifyBumpText } from "../../services/telemetry/stall-signals";
@@ -1378,13 +1380,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 		sessionId: string,
 		request: McpAppToolCallRequest,
 	): Promise<McpToolCallResult> {
-		return this.requireMcpApps(sessionId).callTool(request);
+		const mcpApps = this.requireMcpApps(sessionId);
+		const config = this.getSessionOrThrow(sessionId).config;
+		let success = false;
+		try {
+			const result = await mcpApps.callTool(request);
+			success = true;
+			return result;
+		} finally {
+			captureToolUsage(config.telemetry ?? this.defaultTelemetry, {
+				ulid: sessionId,
+				tool: defaultMcpToolNameTransform({
+					serverName: request.serverName,
+					toolName: request.toolName,
+				}),
+				success,
+				modelId: config.modelId,
+				provider: config.providerId,
+			});
+		}
 	}
 
 	private requireMcpApps(sessionId: string): McpAppsRuntime {
-		const mcpApps = this.getSessionOrThrow(sessionId).runtime.mcpApps;
+		const session = this.getSessionOrThrow(sessionId);
+		const mcpApps = session.runtime.mcpApps;
 		if (!mcpApps) {
-			throw new Error(`MCP Apps is not enabled for session "${sessionId}".`);
+			throw new Error(
+				session.config.mcpApps
+					? `Session "${sessionId}" has no MCP servers available to MCP Apps.`
+					: `MCP Apps is not enabled for session "${sessionId}".`,
+			);
 		}
 		return mcpApps;
 	}

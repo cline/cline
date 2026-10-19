@@ -206,6 +206,16 @@ describe("MCP Apps hub handlers", () => {
 					toolName: "weather__show_weather",
 				}),
 			),
+		).resolves.toMatchObject({ ok: true, payload: {} });
+		await expect(
+			handleSessionMcpAppsReadResource(
+				createContext({}),
+				envelope("session.mcp_apps.read_resource", {
+					sessionId: "sess-1",
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				}),
+			),
 		).resolves.toMatchObject({
 			ok: false,
 			error: { code: "unsupported_command" },

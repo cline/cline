@@ -1331,6 +1331,9 @@ export class HubRuntimeHost implements RuntimeHost {
 			sessionId,
 		);
 		if (!reply.ok) {
+			if (reply.error?.code === "unsupported_command") {
+				return undefined;
+			}
 			throw new Error(
 				hubReplyErrorMessage(reply, "session.mcp_apps.resolve_tool"),
 			);

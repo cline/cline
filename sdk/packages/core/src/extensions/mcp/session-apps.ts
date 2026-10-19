@@ -1,4 +1,8 @@
-import { getMcpAppToolMeta, isMcpToolVisibleToApp } from "./apps";
+import {
+	getMcpAppToolMeta,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+} from "./apps";
 import { defaultMcpToolNameTransform } from "./name-transform";
 import type {
 	McpManager,
@@ -36,13 +40,18 @@ export interface McpAppsRuntime {
 export interface CreateMcpAppsRuntimeOptions {
 	manager: Pick<McpManager, "listTools" | "callTool" | "readResource">;
 	serverNames: readonly string[];
+	resolvableServerNames?: readonly string[];
 	nameTransform?: McpToolNameTransform;
+	isToolEnabled?: (agentToolName: string) => boolean;
 }
 
 export function createMcpAppsRuntime(
 	options: CreateMcpAppsRuntimeOptions,
 ): McpAppsRuntime {
 	const serverNames = new Set(options.serverNames);
+	const resolvableServerNames = new Set(
+		options.resolvableServerNames ?? options.serverNames,
+	);
 	const nameTransform = options.nameTransform ?? defaultMcpToolNameTransform;
 
 	function requireServer(serverName: string): void {
@@ -63,7 +72,7 @@ export function createMcpAppsRuntime(
 
 	return {
 		async resolveTool(agentToolName) {
-			for (const serverName of serverNames) {
+			for (const serverName of resolvableServerNames) {
 				let descriptors: readonly McpToolDescriptor[];
 				try {
 					descriptors = await options.manager.listTools(serverName);
@@ -88,6 +97,11 @@ export function createMcpAppsRuntime(
 
 		async readResource(request) {
 			requireServer(request.serverName);
+			if (!isMcpAppResourceUri(request.uri)) {
+				throw new Error(
+					`MCP Apps can only read ui:// resources, not "${request.uri}".`,
+				);
+			}
 			if (!options.manager.readResource) {
 				throw new Error("MCP resource reads are not supported.");
 			}
@@ -111,6 +125,19 @@ export function createMcpAppsRuntime(
 			if (!isMcpToolVisibleToApp(descriptor)) {
 				throw new Error(
 					`MCP tool "${request.toolName}" on server "${request.serverName}" cannot be called by an app.`,
+				);
+			}
+			if (
+				options.isToolEnabled &&
+				!options.isToolEnabled(
+					nameTransform({
+						serverName: request.serverName,
+						toolName: request.toolName,
+					}),
+				)
+			) {
+				throw new Error(
+					`MCP tool "${request.toolName}" on server "${request.serverName}" is disabled for this session.`,
 				);
 			}
 			return options.manager.callTool({

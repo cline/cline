@@ -1956,6 +1956,19 @@ describe("HubRuntimeHost MCP Apps commands", () => {
 		]);
 	});
 
+	it("resolves no app tool when the hub does not support MCP Apps", async () => {
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: { code: "unsupported_command", message: "unsupported" },
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.resolveMcpAppTool("sess-1", "weather__show_weather"),
+		).resolves.toBeUndefined();
+	});
+
 	it("surfaces hub errors from MCP Apps commands", async () => {
 		commandMock.mockResolvedValue({
 			ok: false,

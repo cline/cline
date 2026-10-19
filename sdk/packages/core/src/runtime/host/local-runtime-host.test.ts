@@ -381,6 +381,10 @@ describe("LocalRuntimeHost", () => {
 				.mockReturnValueOnce({
 					tools: [],
 					shutdown: vi.fn().mockResolvedValue(undefined),
+				})
+				.mockReturnValueOnce({
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
 				}),
 		};
 		const agent = {
@@ -394,8 +398,10 @@ describe("LocalRuntimeHost", () => {
 			canStartRun: vi.fn().mockReturnValue(true),
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		};
+		const telemetry = { capture: vi.fn(), setDistinctId: vi.fn() };
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
+			telemetry: telemetry as never,
 			sessionService: new FileSessionService(
 				join(isolatedHomeDir, "sessions-mcp-apps"),
 			),
@@ -437,6 +443,33 @@ describe("LocalRuntimeHost", () => {
 				serverName: "weather",
 				toolName: "refresh_view",
 			});
+			mcpApps.callTool.mockRejectedValueOnce(new Error("server failed"));
+			await expect(
+				manager.callMcpAppTool(withApps.sessionId, {
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("server failed");
+			expect(
+				telemetry.capture.mock.calls
+					.map(([event]) => event)
+					.filter(
+						({ event }) => event === CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					),
+			).toEqual([
+				{
+					event: CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					properties: expect.objectContaining({
+						ulid: "with-apps",
+						tool: "weather__refresh_view",
+						success: true,
+					}),
+				},
+				{
+					event: CORE_TELEMETRY_EVENTS.TASK.TOOL_USED,
+					properties: expect.objectContaining({ success: false }),
+				},
+			]);
 			expect(mcpApps.resolveTool).toHaveBeenCalledWith("weather__show_weather");
 			expect(mcpApps.readResource).toHaveBeenCalledWith({
 				serverName: "weather",
@@ -459,6 +492,16 @@ describe("LocalRuntimeHost", () => {
 					toolName: "refresh_view",
 				}),
 			).rejects.toThrow("MCP Apps is not enabled");
+
+			const withoutServers = await manager.startSession({
+				config: { ...config, sessionId: "without-servers", mcpApps: true },
+			});
+			await expect(
+				manager.readMcpAppResource(withoutServers.sessionId, {
+					serverName: "weather",
+					uri: "ui://weather/view.html",
+				}),
+			).rejects.toThrow("has no MCP servers available to MCP Apps");
 		} finally {
 			await manager.dispose();
 		}

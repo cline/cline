@@ -13,7 +13,7 @@ import {
 
 function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0
-		? value.trim()
+		? value
 		: undefined;
 }
 
@@ -45,11 +45,7 @@ export async function handleSessionMcpAppsResolveTool(
 	}
 	const resolveMcpAppTool = ctx.sessionHost.resolveMcpAppTool;
 	if (!resolveMcpAppTool) {
-		return errorReply(
-			envelope,
-			"unsupported_command",
-			"This runtime does not support MCP Apps.",
-		);
+		return okReply(envelope, {});
 	}
 	try {
 		const binding = await resolveMcpAppTool.call(

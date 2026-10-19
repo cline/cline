@@ -689,6 +689,52 @@ process.stdin.on("data", (chunk) => {
 			await runtime?.shutdown("test");
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
 		}
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					mcpApps: true,
+					toolPolicies: { weather__refresh_view: { enabled: false } },
+				}),
+			});
+			await expect(
+				runtime.mcpApps?.callTool({
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("is disabled for this session");
+		} finally {
+			await runtime?.shutdown("test");
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+
+		const globalSettingsRoot = mkdtempSync(
+			join(tmpdir(), "runtime-builder-mcp-apps-global-"),
+		);
+		tempDirs.push(globalSettingsRoot);
+		const globalSettingsPath = join(globalSettingsRoot, "global-settings.json");
+		writeFileSync(
+			globalSettingsPath,
+			JSON.stringify({ disabledTools: ["weather__refresh_view"] }),
+			"utf8",
+		);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({ mcpApps: true }),
+			});
+			await expect(
+				runtime.mcpApps?.callTool({
+					serverName: "weather",
+					toolName: "refresh_view",
+				}),
+			).rejects.toThrow("is disabled for this session");
+		} finally {
+			await runtime?.shutdown("test");
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
 	});
 
 	it("combines hub-owned Agent Plugin skills and MCP servers with client instructions", async () => {

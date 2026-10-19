@@ -480,15 +480,27 @@ uses those same connections. Hosts reach it through `ClineCore`:
 - `resolveMcpAppTool(sessionId, toolName)` maps an agent tool name (as it
   appears in tool events, for example `weather__show_weather`) to
   `{ serverName, toolName, resourceUri }`. It returns `undefined` for tools with
-  no `ui://` resource and for sessions without MCP Apps.
-- `readMcpAppResource(sessionId, { serverName, uri })` reads a resource from one
-  of the session's MCP servers.
+  no `ui://` resource, for sessions without MCP Apps, and for runtimes or hub
+  daemons that do not support MCP Apps.
+- `readMcpAppResource(sessionId, { serverName, uri })` reads a `ui://` resource
+  from one of the session's MCP servers. Other URI schemes are rejected.
 - `callMcpAppTool(sessionId, { serverName, toolName, arguments })` calls a tool
   on the app's behalf. It rejects tools whose visibility lacks `"app"`, tools
-  the server does not list, and servers outside the session.
+  the server does not list, servers outside the session, and tools the session
+  disables through `toolPolicies` or the global `disabledTools` setting (matched
+  by agent tool name, such as `weather__refresh_view`). App calls are recorded
+  as tool usage telemetry, but do not request tool approval and do not run tool
+  hooks; a host that wants consent must ask before calling.
+
+Reads and calls reach every enabled settings and Agent Plugin server, including
+ones that failed to list tools at startup; the manager reconnects on demand.
+`resolveMcpAppTool` only searches servers that loaded tools at startup, since
+the agent can only call tools from those. Neither method checks which server an app came from, so a host bridging
+app requests must pass the `serverName` from the app's `resolveMcpAppTool`
+binding rather than one the app supplies.
 
 `readMcpAppResource` and `callMcpAppTool` throw when the session was started
-without `mcpApps`. Hub-backed hosts send these as the `session.mcp_apps.*`
+without `mcpApps` or has no MCP servers. Hub-backed hosts send these as the `session.mcp_apps.*`
 commands, so the hub daemon serves them from the session's own MCP manager.
 
 ## Run stall telemetry
