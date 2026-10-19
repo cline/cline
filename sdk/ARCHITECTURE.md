@@ -597,6 +597,16 @@ Design implication:
 
 - additive runtime behavior should usually enter through these extension points instead of bespoke special-case host code.
 
+Example: "Only allow edits in project directory" (`keepChangesInProject`) is
+enforced in two places. The shell executor's single spawn point
+(`spawnAndCollect`) swaps `child_process.spawn` for an MXC sandbox behind a
+ChildProcess-shaped adapter (`executors/project-sandbox.ts`), so timeouts,
+abort, streaming, and output limits are unchanged. File edits are guarded by a
+`beforeTool` extension (`keep-changes-in-project-extension.ts`) that the
+runtime builder registers for every session, so it also covers host-provided
+editor and apply_patch tools. Both read the setting per call; neither needs a
+runtime rebuild.
+
 ### 9. Context Compaction
 
 Context compaction is owned by `core`.
