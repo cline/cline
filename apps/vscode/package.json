@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "4.1.24",
+	"version": "4.1.25",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.101.0"
@@ -433,7 +433,7 @@
 		"@types/vscode": "1.101.0",
 		"@types/ws": "^8.18.1",
 		"@vscode/test-cli": "^0.0.12",
-		"@vscode/test-electron": "^2.5.2",
+		"@vscode/test-electron": "^3.1.0",
 		"@vscode/vsce": "^3.6.0",
 		"c8": "^10.1.3",
 		"chai": "^4.3.10",
@@ -496,7 +496,7 @@
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
 		"aws4fetch": "^1.0.20",
-		"axios": "1.18.0",
+		"axios": "1.20.0",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
@@ -548,6 +548,7 @@
 		"undici": "^7.29.0",
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
+		"yaml": "^2.8.2",
 		"zod": "^4.3.6"
 	},
 	"c8": {

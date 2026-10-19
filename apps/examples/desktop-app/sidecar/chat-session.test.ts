@@ -2378,7 +2378,7 @@ Follow the desktop send workflow instructions.`,
 				prompt: "/goal original",
 			}),
 			sessionId,
-			{ timeoutMs: null },
+			{ timeoutMs: null, retryAfterDispatch: false },
 		);
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({ prompt: "expanded  goal\nnext line" }),
@@ -2409,7 +2409,7 @@ Follow the desktop send workflow instructions.`,
 			"plugins.commands.run",
 			expect.objectContaining({ workspacePath: workspace, sessionId }),
 			sessionId,
-			{ timeoutMs: null },
+			{ timeoutMs: null, retryAfterDispatch: false },
 		);
 	});
 

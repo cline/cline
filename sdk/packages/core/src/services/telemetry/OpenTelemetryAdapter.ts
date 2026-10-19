@@ -1,5 +1,8 @@
 import type { Meter } from "@opentelemetry/api";
-import type { Logger as OpenTelemetryLogger } from "@opentelemetry/api-logs";
+import {
+	type Logger as OpenTelemetryLogger,
+	SeverityNumber,
+} from "@opentelemetry/api-logs";
 import type { LoggerProvider } from "@opentelemetry/sdk-logs";
 import type { MeterProvider } from "@opentelemetry/sdk-metrics";
 import type {
@@ -216,8 +219,10 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		const attributes = this.flattenProperties(
 			this.buildAttributes(properties, required),
 		);
+		const severity = logSeverity(attributes.severity);
 		this.logger.emit({
-			severityText: "INFO",
+			severityText: severity.text,
+			severityNumber: severity.number,
 			body: event,
 			attributes,
 		});
@@ -334,6 +339,24 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 		}
 
 		return flattened;
+	}
+}
+
+function logSeverity(value: unknown): { text: string; number: SeverityNumber } {
+	switch (typeof value === "string" ? value.toLowerCase() : value) {
+		case "trace":
+			return { text: "TRACE", number: SeverityNumber.TRACE };
+		case "debug":
+			return { text: "DEBUG", number: SeverityNumber.DEBUG };
+		case "warn":
+		case "warning":
+			return { text: "WARN", number: SeverityNumber.WARN };
+		case "error":
+			return { text: "ERROR", number: SeverityNumber.ERROR };
+		case "fatal":
+			return { text: "FATAL", number: SeverityNumber.FATAL };
+		default:
+			return { text: "INFO", number: SeverityNumber.INFO };
 	}
 }
 

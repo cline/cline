@@ -1035,8 +1035,11 @@ function ChatInputBarImpl({
 		if (executionTarget !== "local") return;
 		let cancelled = false;
 		let requestId = 0;
+		let retryCount = 0;
+		let retry: ReturnType<typeof setTimeout> | undefined;
 		setPluginLoading(true);
 		const refresh = async () => {
+			clearTimeout(retry);
 			const id = ++requestId;
 			try {
 				const catalog = await desktopClient.invoke<PluginCommandCatalog>(
@@ -1048,6 +1051,7 @@ function ChatInputBarImpl({
 					},
 				);
 				if (cancelled || id !== requestId) return;
+				retryCount = 0;
 				setPluginCommands(catalog.commands);
 				setPluginError(
 					catalog.status === "error"
@@ -1055,8 +1059,13 @@ function ChatInputBarImpl({
 						: undefined,
 				);
 			} catch {
-				if (!cancelled && id === requestId)
+				if (!cancelled && id === requestId) {
 					setPluginError("Plugin commands unavailable");
+					retry = setTimeout(
+						() => void refresh(),
+						Math.min(1000 * 2 ** retryCount++, 30000),
+					);
+				}
 			} finally {
 				if (!cancelled && id === requestId) setPluginLoading(false);
 			}
@@ -1088,6 +1097,7 @@ function ChatInputBarImpl({
 		void refresh();
 		return () => {
 			cancelled = true;
+			clearTimeout(retry);
 			unsubscribe();
 			unsubscribeSettings();
 		};
