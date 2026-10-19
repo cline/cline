@@ -1,2248 +1,587 @@
-import {
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	rmSync,
-	symlinkSync,
-	writeFileSync,
-} from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	CloudHandoffGitPreflightError,
-	CloudHandoffTranscriptMismatchError,
-	preflightCloudHandoffGit,
-	readCloudHandoffMetadata,
-	SqliteSessionStore,
-} from "@cline/core";
-import { HubCommandError } from "@cline/core/hub";
+import { summarizeConversation } from "@cline/core";
+import { loadCloudModels } from "@cline/core/cloud";
+import { DEFAULT_MAX_IMAGE_DECODED_BYTES } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
-	assertPendingCloudHandoffCompatible,
-	assertSessionDeleteAllowedDuringHandoff,
-	cloudHandoffGitStateMatchesFingerprint,
-	shouldCleanupFailedHandoffVerification,
-	updateHandoffMetadataOrThrow,
+	handleHandoff,
+	handlePrepareHandoff,
+	handlePrepareHandoffGit,
 } from "./cloud-handoff";
-import * as followUpRecovery from "./cloud-handoff-follow-up";
+import * as followUpStorage from "./cloud-handoff-follow-up";
 import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import * as gitPreparation from "./cloud-handoff-git";
 import {
-	CloudHandoffCreationRejectedError,
-	CloudHandoffSeedRejectedError,
-	CloudHandoffSeedUnsupportedError,
-	CloudQueueUnconfirmedError,
-	CloudSessionApi,
-	CloudSessionError,
+	CloudCreationUnconfirmedError,
+	type CloudSessionApi,
 	CloudSessionManager,
-	type CreateCloudSessionInput,
+	resetCloudSessionManager,
 } from "./cloud-sessions";
-import { handleCommand } from "./commands";
-import {
-	createSidecarContext,
-	getEnvironmentContext,
-	getSessionRuntimeBinding,
-} from "./context";
-import { writeSessionManifest } from "./paths";
-import * as pluginCommands from "./plugin-commands";
-import { readSessionMetadata } from "./session-data/common";
+import { createSidecarContext, getEnvironmentContext } from "./context";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
 	localRuntimeContext,
-	localSessionManager,
 } from "./session-test-helpers";
-import type { SidecarContext, SidecarWebSocketClient } from "./types";
+import type {
+	ChatSessionCommandRequest,
+	SidecarWebSocketClient,
+} from "./types";
 
-// Git preflight shells out to `git` and requires a pushed github.com branch;
-// the full-transaction test below swaps in a deterministic repository state.
 vi.mock("@cline/core", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@cline/core")>();
 	return {
 		...actual,
-		preflightCloudHandoffGit: vi.fn(actual.preflightCloudHandoffGit),
+		summarizeConversation: vi.fn(),
 	};
 });
+vi.mock("@cline/core/cloud", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core/cloud")>();
+	return { ...actual, loadCloudModels: vi.fn() };
+});
 
-afterEach(cleanupCloudHandoffGates);
+const image =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jT1sAAAAASUVORK5CYII=";
+let dataDir: string;
+beforeEach(() => {
+	dataDir = mkdtempSync(join(tmpdir(), "cloud-summary-test-"));
+	vi.stubEnv("CLINE_DATA_DIR", dataDir);
+	enableCloudHandoffGates();
+});
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
+	cleanupCloudHandoffGates();
+	rmSync(dataDir, { recursive: true, force: true });
+});
 
-describe("deletion with an unavailable Hub", () => {
-	let dataDir: string;
-	const sessionId = "offline-source";
-	beforeEach(() => {
-		dataDir = mkdtempSync(join(tmpdir(), "desktop-offline-delete-"));
-		vi.stubEnv("CLINE_DATA_DIR", dataDir);
-		vi.stubEnv("CLINE_SESSION_DATA_DIR", join(dataDir, "sessions"));
-	});
-	afterEach(() => {
-		vi.unstubAllEnvs();
-		rmSync(dataDir, { recursive: true, force: true });
-	});
-
-	it.each(
-		[
-			{ metadata: { title: "Ordinary local session" }, error: undefined },
+function fixture() {
+	const sourceSessionId = "local-source";
+	const modelId = "test-model";
+	const git = {
+		repoUrl: "https://github.com/example/project",
+		branch: "cline/handoff-test",
+		headSha: "a".repeat(40),
+		workspaceRelativePath: "packages/app",
+	};
+	vi.mocked(loadCloudModels).mockResolvedValue([
+		{ id: modelId, catalogId: "cline-cloud", name: "Test" },
+	]);
+	const plan: gitPreparation.HandoffGitPlan = {
+		id: "plan",
+		root: "/workspace/project",
+		cwd: "/workspace/project/packages/app",
+		...git,
+		pushUrl: git.repoUrl,
+		remote: "origin",
+		sourceBranch: "main",
+		treeSha: "b".repeat(40),
+		indexTree: "b".repeat(40),
+		status: "",
+		files: [],
+		commits: [],
+	};
+	vi.spyOn(gitPreparation, "inspectHandoffGit").mockResolvedValue(plan);
+	const apply = vi
+		.spyOn(gitPreparation, "applyHandoffGit")
+		.mockResolvedValue(git.headSha);
+	const verifyPublished = vi
+		.spyOn(gitPreparation, "verifyPublishedHandoffGit")
+		.mockResolvedValue();
+	const messages = [
+		{ role: "user" as const, content: "Build a search form." },
+		{ role: "assistant" as const, content: "The form is done; tests remain." },
+	];
+	const config = {
+		cwd: plan.cwd,
+		provider: "cline",
+		model: modelId,
+		mode: "plan",
+		autoApproveTools: false,
+	};
+	const update = vi.fn();
+	const readLiveMessages = vi.fn().mockResolvedValue(messages);
+	const pending = vi.fn().mockResolvedValue([]);
+	const ctx = Object.assign(
+		createSidecarContext(plan.cwd),
+		localRuntimeContext(
 			{
-				metadata: {
-					handoff: {
-						status: "complete",
-						toCloudSessionId: "cloud-target",
-						handedOffAt: "2026-09-30T00:00:00.000Z",
-					},
-				},
-				error: undefined,
-			},
-			{
-				metadata: {
-					handoff: {
-						status: "pending",
-						toCloudSessionId: "cloud-target",
-						handedOffAt: "2026-09-30T00:00:00.000Z",
-					},
-				},
-				error: "Cloud handoff is still pending",
-			},
-			{
-				metadata: { cloudHandoffIntent: { requestId: "unconfirmed-create" } },
-				error: "Cloud handoff creation is still unconfirmed",
-			},
-		].flatMap((testCase) => [
-			{ ...testCase, storage: "manifest" },
-			{ ...testCase, storage: "sqlite" },
-		]),
-	)("uses durable $storage metadata when get fails: $metadata", async ({
-		metadata,
-		error,
-		storage,
-	}) => {
-		if (storage === "manifest") {
-			writeSessionManifest(sessionId, { metadata });
-			expect(readSessionMetadata(sessionId)).toEqual(metadata);
-		} else {
-			const store = new SqliteSessionStore();
-			try {
-				store.create({
-					sessionId,
-					source: "desktop",
-					pid: 0,
-					startedAt: "2026-10-13T00:00:00.000Z",
-					updatedAt: "2026-10-13T00:00:00.000Z",
-					status: "completed",
-					interactive: true,
+				get: vi.fn().mockResolvedValue({
+					sessionId: sourceSessionId,
+					status: "idle",
+					cwd: plan.cwd,
 					provider: "cline",
-					model: "test",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
-					enableTools: true,
-					enableSpawn: false,
-					enableTeams: false,
-					isSubagent: false,
-					metadata,
-				});
-			} finally {
-				store.close();
-			}
-		}
-		const get = vi.fn();
-		const remove = vi.fn().mockRejectedValue(new Error("Hub unavailable"));
-		const ctx = Object.assign(
-			createSidecarContext("/workspace"),
-			localRuntimeContext({ get, delete: remove }, { sessionIds: [sessionId] }),
-		);
-		for (const response of storage === "manifest"
-			? ["record", "missing", "offline"]
-			: ["offline"]) {
-			if (response === "offline")
-				get.mockRejectedValue(new Error("Hub unavailable"));
-			else
-				get.mockResolvedValue(response === "record" ? { metadata } : undefined);
-			const deletion = assertSessionDeleteAllowedDuringHandoff(
-				ctx,
-				sessionId,
-				getSessionRuntimeBinding(ctx),
-			);
-			if (error) await expect(deletion).rejects.toThrow(error);
-			else (await deletion)();
-		}
-		const binding = getSessionRuntimeBinding(ctx);
-		const remoteDelete = vi.fn();
-		ctx.runtimeBindings.set("ssh-test", {
-			...binding,
-			kind: "ssh",
-			environmentId: "ssh-test",
-			sessionManager: {
-				...binding.sessionManager,
-				get: vi.fn().mockResolvedValue(undefined),
-				delete: remoteDelete,
-			} as unknown as typeof binding.sessionManager,
+					model: modelId,
+					metadata: {
+						handoff: { status: "complete", toCloudSessionId: "old-task" },
+					},
+				}),
+				readLiveMessages,
+				update,
+				pendingPrompts: { list: pending },
+			},
+			{ sessionIds: [sourceSessionId] },
+		),
+	);
+	ctx.liveSessions.set(sourceSessionId, {
+		config,
+		messages,
+		promptsInQueue: [],
+		busy: false,
+		status: "idle",
+		startedAt: 1,
+	});
+	const cloud = new CloudSessionManager(ctx, {
+		api: {} as CloudSessionApi,
+		apiBaseUrl: "https://api.example",
+		getAuthToken: async () => "synthetic",
+	});
+	vi.spyOn(cloud, "prepareHandoffRepository").mockResolvedValue({});
+	const create = vi.spyOn(cloud, "create").mockResolvedValue({
+		sessionId: "ses-target",
+		status: "idle",
+		origin: "cloud",
+		executionTarget: "cloud",
+		provider: "cline",
+		model: modelId,
+		repoUrl: git.repoUrl,
+		branch: git.branch,
+		cwd: "/workspace/packages/app",
+		workspaceRoot: "/workspace",
+	});
+	const send = vi.spyOn(cloud, "send").mockImplementation(async (...args) => {
+		args[5]?.beforeDispatch?.();
+		return { sessionId: "ses-target", ok: true };
+	});
+	ctx.cloudSessionManager = cloud;
+	const summarize = vi
+		.fn()
+		.mockResolvedValue("Search form: implemented. Next: add tests.");
+	const request: ChatSessionCommandRequest = {
+		action: "handoff",
+		sessionId: sourceSessionId,
+		config,
+		handoffAttemptId: "attempt-1",
+		gitPreparationId: plan.id,
+	};
+	const prepare = async () => {
+		const preview = await handlePrepareHandoff(ctx, {
+			...request,
+			action: "prepare_handoff",
 		});
-		const deletion = handleCommand(
-			getEnvironmentContext(ctx, "ssh-test"),
-			"delete_chat_session",
-			{ sessionId },
+		expect(preview.gitPreparation.id).toBe(plan.id);
+		return await handlePrepareHandoffGit(
+			ctx,
+			{ ...request, action: "prepare_handoff_git" },
+			summarize,
 		);
-		if (error) {
-			await expect(deletion).rejects.toThrow(error);
-			expect(remove).not.toHaveBeenCalled();
+	};
+	return {
+		ctx,
+		sourceSessionId,
+		git,
+		plan,
+		apply,
+		verifyPublished,
+		request,
+		create,
+		send,
+		summarize,
+		messages,
+		update,
+		pending,
+		readLiveMessages,
+		prepare,
+	};
+}
+
+describe("summary cloud handoff", () => {
+	it.each([
+		"preview",
+		"summary",
+		"publication",
+		"verification",
+		"model",
+	] as const)("rejects an account reset during %s before further publication or creation", async (stage) => {
+		const f = fixture();
+		await handlePrepareHandoff(f.ctx, f.request);
+		if (stage === "preview") await resetCloudSessionManager(f.ctx);
+		if (stage === "summary")
+			f.summarize.mockImplementation(async () => {
+				await resetCloudSessionManager(f.ctx);
+				return "Captured summary";
+			});
+		if (stage === "publication")
+			f.apply.mockImplementation(async () => {
+				await resetCloudSessionManager(f.ctx);
+				return f.git.headSha;
+			});
+		const publish = () =>
+			handlePrepareHandoffGit(f.ctx, f.request, f.summarize);
+		if (["preview", "summary", "publication"].includes(stage)) {
+			await expect(publish()).rejects.toThrow("account changed");
+			if (stage !== "publication") expect(f.apply).not.toHaveBeenCalled();
 		} else {
-			await expect(deletion).resolves.toBe(true);
-		}
-		expect(remoteDelete).not.toHaveBeenCalled();
-		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
-			Boolean(error) && storage === "manifest",
-		);
-		expect(ctx.sessionEnvironmentIds.has(sessionId)).toBe(Boolean(error));
-	});
-
-	it.each([
-		"unreadable",
-		"missing",
-	])("refuses offline deletion with a %s manifest", async (state) => {
-		if (state === "unreadable") {
-			writeSessionManifest(sessionId, {});
-			writeFileSync(
-				join(dataDir, "sessions", sessionId, `${sessionId}.json`),
-				"{",
+			await publish();
+			if (stage === "verification")
+				f.verifyPublished.mockImplementation(async () => {
+					await resetCloudSessionManager(f.ctx);
+				});
+			else
+				vi.mocked(loadCloudModels).mockImplementation(async () => {
+					await resetCloudSessionManager(f.ctx);
+					return [{ id: "test-model", catalogId: "cline-cloud", name: "Test" }];
+				});
+			await expect(handleHandoff(f.ctx, f.request)).rejects.toThrow(
+				"account changed",
 			);
 		}
-		const offline = new Error("Hub unavailable");
-		const remove = vi.fn();
-		const ctx = Object.assign(
-			createSidecarContext("/workspace"),
-			localRuntimeContext({
-				get: vi.fn().mockRejectedValue(offline),
-				delete: remove,
+		expect(f.ctx.cloudSessionManager).toBeNull();
+		expect(f.create).not.toHaveBeenCalled();
+		expect(f.send).not.toHaveBeenCalled();
+	});
+	it("uses the captured conversation and configuration while the source continues locally", async () => {
+		const f = fixture();
+		const originalMessages = structuredClone(f.messages);
+		const originalConfig = structuredClone(f.request.config);
+		vi.mocked(gitPreparation.inspectHandoffGit).mockImplementation(async () => {
+			f.messages[0].content = "A later local edit";
+			f.messages.push({ role: "user", content: "Keep this new work local." });
+			const local = f.ctx.liveSessions.get(f.sourceSessionId);
+			if (!local) throw new Error("Source fixture is missing");
+			local.busy = true;
+			local.status = "running";
+			local.config.model = "later-local-model";
+			local.config.mode = "act";
+			local.config.cwd = "/workspace/other";
+			return f.plan;
+		});
+		f.summarize.mockImplementation(async () => {
+			expect(f.ctx.restoringWorkspacePaths.size).toBe(0);
+			return "Captured conversation summary";
+		});
+		await f.prepare();
+		await handleHandoff(f.ctx, f.request);
+		expect(f.summarize).toHaveBeenCalledExactlyOnceWith(
+			originalMessages,
+			originalConfig,
+		);
+		expect(f.readLiveMessages).toHaveBeenCalledTimes(1);
+		expect(f.verifyPublished).toHaveBeenCalledWith(f.plan, f.git.headSha);
+		expect(f.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				modelId: "test-model",
+				mode: "plan",
+				workspaceRelativePath: "packages/app",
+				initialPrompt: expect.stringContaining("Captured conversation summary"),
 			}),
 		);
-		await expect(
-			handleCommand(ctx, "delete_chat_session", {
-				sessionId,
-				environmentId: "local",
-			}),
-		).rejects.toBe(offline);
-		expect(remove).not.toHaveBeenCalled();
-		expect(existsSync(join(dataDir, "sessions", sessionId))).toBe(
-			state === "unreadable",
+		expect(f.send.mock.calls[0]?.[1]).not.toContain("Keep this new work local");
+		expect(f.ctx.liveSessions.get(f.sourceSessionId)?.status).toBe("running");
+		expect(f.ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("rejects a second preview while the first snapshot is being prepared", async () => {
+		const f = fixture();
+		const first = handlePrepareHandoff(f.ctx, f.request);
+		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
+			"already in progress",
 		);
+		await first;
+		expect(f.readLiveMessages).toHaveBeenCalledTimes(1);
+		expect(gitPreparation.inspectHandoffGit).toHaveBeenCalledTimes(1);
 	});
 
-	it.each([
-		"ssh-test",
-		undefined,
-	])("never uses a local manifest for an SSH deletion (environment: %s)", async (environmentId) => {
-		writeSessionManifest(sessionId, {
-			metadata: { cloudHandoffIntent: { requestId: "local-only" } },
-		});
-		const ctx = Object.assign(
-			createSidecarContext("/workspace"),
-			localRuntimeContext({}, { sessionIds: [sessionId] }),
-		);
-		const binding = getSessionRuntimeBinding(ctx, sessionId);
-		const get = vi.fn().mockResolvedValue({
-			sessionId,
-			metadata: {
-				handoff: {
-					status: "pending",
-					toCloudSessionId: "remote-target",
-					handedOffAt: "2026-10-13T00:00:00.000Z",
-				},
-			},
-		});
-		const remove = vi.fn().mockResolvedValue(true);
-		ctx.runtimeBindings.set("ssh-test", {
-			...binding,
-			kind: "ssh",
-			environmentId: "ssh-test",
-			sessionManager: {
-				...binding.sessionManager,
-				get,
-				delete: remove,
-			} as unknown as typeof binding.sessionManager,
-		});
-		await expect(
-			handleCommand(ctx, "delete_chat_session", { sessionId, environmentId }),
-		).resolves.toBe(true);
-		expect(remove).toHaveBeenCalledWith(sessionId);
-		get.mockClear();
-		get.mockRejectedValue(new Error("SSH Hub unavailable"));
-		await expect(
-			handleCommand(ctx, "delete_chat_session", {
-				sessionId,
-				environmentId: "ssh-test",
-			}),
-		).resolves.toBe(true);
-		expect(get).not.toHaveBeenCalled();
-		expect(readSessionMetadata(sessionId)).toHaveProperty("cloudHandoffIntent");
-	});
-});
-
-describe("cloud handoff gates", () => {
-	beforeEach(() => {
-		enableCloudHandoffGates();
-	});
-
-	it("blocks handoff actions when Cloud sessions are unavailable", async () => {
-		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
-
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-			}),
-		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "handoff",
-				sessionId,
-				fingerprint: {
-					repoUrl: "https://github.com/cline/cline.git",
-					branch: "main",
-					headSha: "abc123",
-					modelId: "anthropic/claude-sonnet-4.6",
-				},
-			}),
-		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
-		expect(ctx.cloudSessionManager).toBeFalsy();
-	});
-
-	it.each([
-		"prepare_handoff",
-		"prepare_handoff_git",
-		"handoff",
-	] as const)("rejects SSH %s before any handoff work", async (action) => {
-		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
-		const remoteGet = vi.fn(async () => ({
-			sessionId,
-			status: "completed",
-			cwd: "/remote/project",
-			metadata: undefined,
-		}));
-		const remoteReadLiveMessages = vi.fn(async () => [
-			{ role: "user" as const, content: "remote prompt" },
-		]);
-		const binding = getSessionRuntimeBinding(ctx);
-		ctx.runtimeBindings.set("ssh-test", {
-			...binding,
-			environmentId: "ssh-test",
-			kind: "ssh",
-			workspaceRoot: "/remote/project",
-			sessionManager: {
-				...binding.sessionManager,
-				get: remoteGet,
-				readLiveMessages: remoteReadLiveMessages,
-			} as unknown as typeof binding.sessionManager,
-		});
-		const request = {
-			action,
-			sessionId,
-			config: {
-				environmentId: "ssh-test",
-				cwd: "/remote/project",
-				provider: "cline",
-				model: "anthropic/claude-sonnet-4.6",
-			},
-			gitPreparationId: "untrusted-plan",
-			fingerprint: {
-				repoUrl: "https://github.com/cline/cline.git",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "anthropic/claude-sonnet-4.6",
-			},
-		};
-		await expect(handleChatSessionCommand(ctx, request)).rejects.toThrow(
-			"Cloud handoff is only supported for local sessions",
-		);
-		expect(remoteGet).not.toHaveBeenCalled();
-		expect(remoteReadLiveMessages).not.toHaveBeenCalled();
-	});
-
-	it("requires the trusted approval connection before Git preparation dispatch", async () => {
-		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
-		const request = {
-			action: "prepare_handoff_git",
-			sessionId,
-			gitPreparationId: "unknown",
-		};
-		await expect(
-			handleCommand(ctx, "chat_session_command", { request }),
-		).rejects.toThrow("trusted desktop connection");
-		const connection = {
+	it("publishes a dedicated branch, sends one combined prompt with invocation images, and leaves source history alone", async () => {
+		const f = fixture();
+		const seen: unknown[] = [];
+		const preparationProgress: unknown[] = [];
+		f.ctx.wsClients.add({
 			data: { canApproveTools: true },
-		} as SidecarWebSocketClient;
-		await expect(
-			handleCommand(ctx, "chat_session_command", { request }, { connection }),
-		).rejects.toThrow("review the preparation plan");
-	});
-
-	it("exempts a persisted pending handoff from the Cloud sessions gate", async () => {
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		// An empty transcript makes the recovery attempt fail deterministically
-		// at a later gate, proving the flag gate itself let it through.
-		const { ctx, sessionId } = createHandoffGateContext({
-			messages: [],
-			metadata: {
-				handoff: {
-					status: "pending",
-					toCloudSessionId: "ses-pending-target",
-					handedOffAt: "2026-08-18T00:00:00.000Z",
-				},
+			send: (raw: string) => {
+				const event = JSON.parse(raw).event;
+				if (
+					event?.name === "cloud_handoff_progress" &&
+					["summarizing", "checking"].includes(event.payload.phase)
+				)
+					preparationProgress.push(event.payload);
+				if (
+					event?.name === "cloud_handoff_progress" &&
+					event.payload.phase === "sending"
+				)
+					seen.push(readCloudHandoffFollowUp("ses-target"));
 			},
+		} as unknown as SidecarWebSocketClient);
+		const prepared = await f.prepare();
+		expect(prepared).toMatchObject({
+			gitPreparationId: "plan",
+			branch: f.git.branch,
 		});
-
-		const recovery = handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId,
-			fingerprint: {
-				repoUrl: "https://github.com/cline/cline.git",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "anthropic/claude-sonnet-4.6",
-			},
-		});
-
-		await expect(recovery).rejects.toThrow(
-			"Start a conversation before handing it off to cloud.",
-		);
-	});
-
-	it("keeps the Cloud sessions gate for sessions without a pending handoff", async () => {
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		const { ctx, sessionId } = createHandoffGateContext({
-			messages: [],
-			metadata: { workspace: "preserved" },
-		});
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "handoff",
-				sessionId,
-				fingerprint: {
-					repoUrl: "https://github.com/cline/cline.git",
-					branch: "main",
-					headSha: "abc123",
-					modelId: "anthropic/claude-sonnet-4.6",
-				},
+		expect(preparationProgress).toEqual([
+			expect.objectContaining({
+				handoffAttemptId: "attempt-1",
+				phase: "summarizing",
 			}),
-		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
+			expect.objectContaining({
+				handoffAttemptId: "attempt-1",
+				phase: "checking",
+			}),
+		]);
+		const result = await handleHandoff(f.ctx, {
+			...f.request,
+			nextCommand: "Test keyboard navigation.",
+			attachments: { userImages: [image] },
+		});
+		expect(f.apply).toHaveBeenCalledWith(f.plan);
+		expect(f.summarize).toHaveBeenCalledExactlyOnceWith(
+			f.messages,
+			f.request.config,
+		);
+		expect(f.readLiveMessages).toHaveBeenCalledTimes(1);
+		expect(f.summarize).toHaveBeenCalledBefore(f.apply);
+		expect(preparationProgress).toHaveLength(2);
+		expect(f.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				repoUrl: f.git.repoUrl,
+				branch: f.git.branch,
+				mode: "plan",
+				workspaceRelativePath: "packages/app",
+			}),
+		);
+		expect(f.create.mock.calls[0]?.[0]).not.toHaveProperty("handoff");
+		const prompt =
+			"Search form: implemented. Next: add tests.\n\nNext instruction from the user:\nTest keyboard navigation.";
+		expect(f.send).toHaveBeenCalledWith(
+			"ses-target",
+			prompt,
+			undefined,
+			"test-model",
+			[image],
+			expect.any(Object),
+		);
+		expect(seen).toEqual([
+			expect.objectContaining({
+				command: prompt,
+				userImages: [image],
+				unconfirmed: true,
+			}),
+		]);
+		expect(readCloudHandoffFollowUp("ses-target")).toBeNull();
+		expect(result).toMatchObject({
+			sessionId: "ses-target",
+			sourceSessionId: f.sourceSessionId,
+		});
+		expect(f.update).not.toHaveBeenCalled();
+		expect(f.messages).toEqual([
+			{ role: "user", content: "Build a search form." },
+			{ role: "assistant", content: "The form is done; tests remain." },
+		]);
 	});
 
-	it("lets new handoffs proceed when Cloud sessions are enabled", async () => {
-		// An empty transcript makes the attempt fail deterministically at a
-		// later gate, proving the flag+opt-in gate itself let it through.
-		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
+	it("allows bare /cloud with an image and a deliberate second handoff", async () => {
+		const f = fixture();
+		await f.prepare();
+		await handleHandoff(f.ctx, {
+			...f.request,
+			attachments: { userImages: [image] },
+		});
+		expect(f.send.mock.calls[0]?.[1]).toContain(
+			"If no next action is clear, ask",
+		);
+		expect(f.send.mock.calls[0]?.[4]).toEqual([image]);
+		await f.prepare();
+		await handleHandoff(f.ctx, { ...f.request, handoffAttemptId: "attempt-2" });
+		expect(f.create.mock.calls.map(([input]) => input.requestId)).toEqual([
+			"attempt-1",
+			"attempt-2",
+		]);
+	});
 
-		const attempt = handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId,
-			fingerprint: {
-				repoUrl: "https://github.com/cline/cline.git",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "anthropic/claude-sonnet-4.6",
+	it("uses the selected local connection to summarize through the command handler", async () => {
+		const f = fixture();
+		const scoped = getEnvironmentContext(f.ctx, "local");
+		await handlePrepareHandoff(scoped, {
+			...f.request,
+			config: {
+				...f.request.config,
+				provider: "anthropic",
+				apiKey: "synthetic-key",
 			},
 		});
-
-		await expect(attempt).rejects.toThrow(
-			"Start a conversation before handing it off to cloud.",
-		);
-	});
-
-	it("detects repository drift after cloud provisioning", () => {
-		const fingerprint = {
-			repoUrl: "https://github.com/cline/cline",
-			branch: "main",
-			headSha: "A".repeat(40),
-			modelId: "anthropic/claude-sonnet-4.6",
-			workspaceRelativePath: "apps/examples/desktop-app",
-		};
-
-		expect(
-			cloudHandoffGitStateMatchesFingerprint(
-				{
-					repoUrl: fingerprint.repoUrl,
-					branch: fingerprint.branch,
-					headSha: fingerprint.headSha.toLowerCase(),
-					workspaceRelativePath: fingerprint.workspaceRelativePath,
-				},
-				fingerprint,
-			),
-		).toBe(true);
-		expect(
-			cloudHandoffGitStateMatchesFingerprint(
-				{
-					repoUrl: fingerprint.repoUrl,
-					branch: fingerprint.branch,
-					headSha: "B".repeat(40),
-					workspaceRelativePath: fingerprint.workspaceRelativePath,
-				},
-				fingerprint,
-			),
-		).toBe(false);
-	});
-
-	it("cleans up an old runtime that ignored the seeded transcript", () => {
-		expect(
-			shouldCleanupFailedHandoffVerification(
-				new CloudHandoffSeedUnsupportedError(),
-			),
-		).toBe(true);
-		expect(
-			shouldCleanupFailedHandoffVerification(
-				new CloudHandoffSeedUnsupportedError(),
-				false,
-			),
-		).toBe(true);
-		expect(
-			shouldCleanupFailedHandoffVerification(
-				new CloudHandoffTranscriptMismatchError(1, 2),
-				false,
-			),
-		).toBe(false);
-		expect(
-			shouldCleanupFailedHandoffVerification(
-				new CloudSessionError("request_failed", "temporary read failure"),
-			),
-		).toBe(false);
-	});
-
-	const pendingFingerprint = {
-		repoUrl: "https://github.com/cline/cline.git",
-		branch: "main",
-		headSha: "old-head",
-		modelId: "anthropic/claude-sonnet-4.6",
-	};
-	const pendingMetadata = {
-		workspace: "preserved",
-		handoff: {
-			status: "pending" as const,
-			toCloudSessionId: "ses-old-target",
-			handedOffAt: "2026-08-18T00:00:00.000Z",
-			dashboardUrl: "https://app.cline.bot/agents?sessionId=ses-old-target",
-			fingerprint: pendingFingerprint,
-		},
-	};
-	const changedFingerprint = { ...pendingFingerprint, headSha: "new-head" };
-
-	it("does not build a recovery URL for a fresh handoff", async () => {
-		const handoffTargetExists = vi.fn();
-		await expect(
-			assertPendingCloudHandoffCompatible(
-				{ handoffTargetExists },
-				{
-					fingerprint: changedFingerprint,
-					appBaseUrl: "not a valid URL",
-				},
-			),
-		).resolves.toBeUndefined();
-		expect(handoffTargetExists).not.toHaveBeenCalled();
-	});
-
-	it("preserves a mismatched pending handoff while its target exists", async () => {
-		await expect(
-			assertPendingCloudHandoffCompatible(
-				{ handoffTargetExists: vi.fn(async () => true) },
-				{
-					pending: pendingMetadata.handoff,
-					fingerprint: changedFingerprint,
-					appBaseUrl: "https://app.cline.bot",
-				},
-			),
-		).rejects.toThrow("still pending for a different");
-	});
-
-	it("preserves a mismatched pending handoff when it is invisible to the current account", async () => {
-		await expect(
-			assertPendingCloudHandoffCompatible(
-				{ handoffTargetExists: vi.fn(async () => false) },
-				{
-					pending: pendingMetadata.handoff,
-					fingerprint: changedFingerprint,
-					appBaseUrl: "https://app.cline.bot",
-				},
-			),
-		).rejects.toThrow("not visible from the current account");
-	});
-
-	it("preserves pending lineage when target lookup is uncertain", async () => {
-		await expect(
-			assertPendingCloudHandoffCompatible(
-				{
-					handoffTargetExists: vi.fn(async () => {
-						throw new Error("network unavailable");
-					}),
-				},
-				{
-					pending: pendingMetadata.handoff,
-					fingerprint: changedFingerprint,
-					appBaseUrl: "https://app.cline.bot",
-				},
-			),
-		).rejects.toThrow("network unavailable");
-	});
-
-	it("fails when a required handoff metadata update is not persisted", async () => {
-		const update = vi.fn(async () => ({ updated: false }));
-		await expect(
-			updateHandoffMetadataOrThrow(
-				{ update } as never,
-				"local-1",
-				{ handoff: { status: "pending" } },
-				"recovery record was not saved",
-			),
-		).rejects.toThrow("recovery record was not saved");
-	});
-
-	function createHandoffGateContext(options: {
-		busy?: boolean;
-		persistedStatus?: string;
-		messages?: Array<{ role: "user" | "assistant"; content: string }>;
-		metadata?: Record<string, unknown>;
-	}) {
-		const sessionId = "local-handoff-source";
-		const send = vi.fn();
-		const messages = options.messages ?? [
-			{ role: "user" as const, content: "continue this work" },
-		];
-		const persistedSession = {
-			sessionId,
-			status:
-				options.persistedStatus ?? (options.busy ? "running" : "completed"),
-			cwd: "/workspace/project",
-			model: "anthropic/claude-sonnet-4.6",
-			metadata: options.metadata,
-		};
-		const get = vi.fn(async () => persistedSession);
-		const readLiveMessages = vi.fn(async () => messages);
-		const ctx = {
-			workspaceRoot: "/workspace/project",
-			liveSessions: new Map([
-				[
-					sessionId,
-					{
-						config: {
-							cwd: "/workspace/project",
-							provider: "cline",
-							model: "anthropic/claude-sonnet-4.6",
-						},
-						messages,
-						promptsInQueue: [],
-						busy: options.busy ?? false,
-						startedAt: Date.now(),
-						status: options.busy ? "running" : "idle",
-					},
-				],
-			]),
-			restoringWorkspacePaths: new Set(),
-			streamIndices: new Map(),
-			wsClients: new Set(),
-			...localRuntimeContext(
-				{
-					get,
-					readLiveMessages,
-					send,
-					pendingPrompts: { list: vi.fn(async () => []) },
-				},
-				{ sessionIds: [sessionId] },
-			),
-		} as unknown as SidecarContext;
-		return {
-			ctx,
-			get,
-			persistedSession,
-			readLiveMessages,
-			send,
-			sessionId,
-		};
-	}
-
-	it("rejects a busy source before provisioning", async () => {
-		const { ctx, sessionId } = createHandoffGateContext({ busy: true });
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-			}),
-		).rejects.toThrow("Stop the current run");
-		expect(ctx.cloudSessionManager).toBeFalsy();
-	});
-
-	it("rejects handoff while a send is still entering the queue", async () => {
-		const { ctx, get, persistedSession, readLiveMessages, sessionId } =
-			createHandoffGateContext({ busy: false });
-		let releaseGet: ((value: typeof persistedSession) => void) | undefined;
-		get.mockImplementationOnce(
-			async () =>
-				await new Promise<typeof persistedSession>((resolve) => {
-					releaseGet = resolve;
+		vi.mocked(summarizeConversation).mockResolvedValue("Prepared summary");
+		await handleChatSessionCommand(f.ctx, {
+			...f.request,
+			action: "prepare_handoff_git",
+		});
+		await handleChatSessionCommand(f.ctx, f.request);
+		expect(summarizeConversation).toHaveBeenCalledTimes(1);
+		expect(summarizeConversation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: f.messages,
+				config: expect.objectContaining({
+					providerId: "anthropic",
+					modelId: "test-model",
+					apiKey: "synthetic-key",
 				}),
-		);
-
-		const sending = handleChatSessionCommand(ctx, {
-			action: "send",
-			sessionId,
-			prompt: "queue this before handoff",
-			delivery: "queue",
-			config: { environmentId: "local" },
-		});
-		await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-				config: { environmentId: "local" },
 			}),
-		).rejects.toThrow("Wait for the current send to finish before handing off");
-		expect(readLiveMessages).not.toHaveBeenCalled();
-
-		releaseGet?.(persistedSession);
-		await sending;
+		);
+		expect(f.send.mock.calls[0]?.[1]).toContain("Prepared summary");
 	});
 
 	it.each([
-		true,
-		false,
-	])("rejects handoff while the source workspace is being restored (live=%s)", async (hasLiveSession) => {
-		const { ctx, readLiveMessages, sessionId } = createHandoffGateContext({
-			busy: false,
-		});
-		if (!hasLiveSession) ctx.liveSessions.clear();
-		ctx.restoringWorkspacePaths.add("/workspace/project");
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-			}),
-		).rejects.toThrow("Wait for the workspace restore to finish");
-		expect(readLiveMessages).not.toHaveBeenCalled();
-	});
-
-	it("does not begin a restore after handoff starts during its initial read", async () => {
-		const { ctx, get, persistedSession, sessionId } = createHandoffGateContext({
-			busy: false,
-		});
-		let releaseRestoreRead:
-			| ((value: typeof persistedSession) => void)
-			| undefined;
-		let releaseHandoffGate:
-			| ((value: typeof persistedSession) => void)
-			| undefined;
-		get
-			.mockImplementationOnce(
-				async () =>
-					await new Promise<typeof persistedSession>((resolve) => {
-						releaseRestoreRead = resolve;
-					}),
-			)
-			.mockImplementationOnce(
-				async () =>
-					await new Promise<typeof persistedSession>((resolve) => {
-						releaseHandoffGate = resolve;
-					}),
-			);
-		const restore = vi.fn();
-		(localSessionManager(ctx) as { restore?: typeof restore }).restore =
-			restore;
-
-		const restoring = handleChatSessionCommand(ctx, {
-			action: "restore_checkpoint",
-			sessionId,
-			checkpointRunCount: 1,
-			config: { cwd: "/workspace/project", environmentId: "local" },
-		});
-		await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
-		const handingOff = handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId,
-			config: { environmentId: "local" },
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha: "abc123",
-				modelId: "anthropic/claude-sonnet-4.6",
-			},
-		});
-		await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-
-		releaseRestoreRead?.(persistedSession);
-		await expect(restoring).rejects.toThrow(
-			"Wait for the cloud handoff to finish before restoring a checkpoint",
+		"busy",
+		"queued",
+	] as const)("rejects a %s source before Git preparation", async (state) => {
+		const f = fixture();
+		if (state === "busy") {
+			const source = f.ctx.liveSessions.get(f.sourceSessionId);
+			if (!source) throw new Error("Source fixture is missing");
+			source.busy = true;
+		} else f.pending.mockResolvedValue([{ id: "queued" }]);
+		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
+			state === "busy" ? "current run" : "queued prompts",
 		);
-		expect(restore).not.toHaveBeenCalled();
-
-		releaseHandoffGate?.(persistedSession);
-		await expect(handingOff).rejects.toThrow();
-	});
-
-	it.each([
-		"running",
-		"pending",
-	])("rejects handoff when Hub reports %s despite an idle Desktop cache", async (persistedStatus) => {
-		const { ctx, sessionId } = createHandoffGateContext({
-			busy: false,
-			persistedStatus,
-		});
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-			}),
-		).rejects.toThrow("Stop the current run");
-		expect(ctx.cloudSessionManager).toBeFalsy();
-	});
-
-	it("rejects an empty source before provisioning", async () => {
-		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-			}),
-		).rejects.toThrow("Start a conversation");
-		expect(ctx.cloudSessionManager).toBeFalsy();
-	});
-
-	it("rejects normal sends after ownership moved to cloud", async () => {
-		const { ctx, send, sessionId } = createHandoffGateContext({
-			metadata: {
-				handoff: {
-					toCloudSessionId: "ses-cloud-target",
-					handedOffAt: "2026-08-18T00:00:00.000Z",
-					status: "complete",
-					dashboardUrl:
-						"https://app.cline.bot/agents?sessionId=ses-cloud-target",
-				},
-			},
-		});
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId,
-				prompt: "keep editing locally",
-			}),
-		).rejects.toThrow("Fork locally");
-		expect(send).not.toHaveBeenCalled();
-	});
-});
-
-describe("cloud handoff transaction", () => {
-	beforeEach(() => {
-		enableCloudHandoffGates();
-	});
-
-	afterEach(() => {
-		vi.mocked(preflightCloudHandoffGit).mockRestore();
-		vi.unstubAllGlobals();
-	});
-
-	function createHandoffFixture(
-		created = true,
-		metadata: Record<string, unknown> = {},
-	) {
-		const sourceSessionId = "local-handoff-source";
-		const modelId = "anthropic/claude-sonnet-4.6";
-		const headSha = "a".repeat(40);
-		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
-			repoUrl: "https://github.com/cline/test",
-			branch: "main",
-			headSha,
-		});
-		// The model catalog is the only network dependency left on this path.
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (input: unknown) =>
-				String(input).endsWith("/api/v1/ai/cline/models")
-					? new Response(
-							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
-							{ status: 200, headers: { "content-type": "application/json" } },
-						)
-					: new Response(JSON.stringify({}), { status: 200 }),
-			),
-		);
-
-		const messages = [
-			{ role: "user" as const, content: "continue this work" },
-			{ role: "assistant" as const, content: "done locally" },
-		];
-		const order: string[] = [];
-		const events: Array<{ name: string; payload: Record<string, unknown> }> =
-			[];
-		const metadataUpdates: Array<Record<string, unknown>> = [];
-		let persistedMetadata = metadata;
-		const ctx = {
-			liveSessions: new Map([
-				[
-					sourceSessionId,
-					{
-						config: {
-							cwd: "/workspace/project",
-							provider: "cline",
-							model: modelId,
-							autoApproveTools: false,
-							thinking: false,
-						},
-						messages,
-						promptsInQueue: [],
-						busy: false,
-						startedAt: Date.now(),
-						status: "idle",
-					},
-				],
-			]),
-			restoringWorkspacePaths: new Set(),
-			streamIndices: new Map(),
-			pendingApprovals: new Map(),
-			pendingQuestions: new Map(),
-			wsClients: new Set([
-				{
-					data: { canApproveTools: true },
-					send(message: string) {
-						const parsed = JSON.parse(message) as {
-							event: { name: string; payload: Record<string, unknown> };
-						};
-						events.push(parsed.event);
-						if (parsed.event.name === "cloud_handoff_progress") {
-							order.push(`event:${parsed.event.payload.phase}`);
-						}
-					},
-				},
-			]),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId: sourceSessionId,
-						status: "completed",
-						cwd: "/workspace/project",
-						model: modelId,
-						metadata: persistedMetadata,
-					})),
-					readLiveMessages: vi.fn(async () => messages),
-					update: vi.fn(
-						async (
-							_id: string,
-							input: { metadata: Record<string, unknown> },
-						) => {
-							persistedMetadata = input.metadata;
-							metadataUpdates.push(input.metadata);
-							order.push(
-								`metadata:${readCloudHandoffMetadata(input.metadata)?.status}`,
-							);
-							return { updated: true };
-						},
-					),
-					pendingPrompts: { list: vi.fn(async () => []) },
-				},
-				{ sessionIds: [sourceSessionId] },
-			),
-		} as unknown as SidecarContext;
-
-		const verifyHandoffTranscript = vi.fn(async () => undefined);
-		const cloudSend = vi.fn(
-			async (..._args: Parameters<CloudSessionManager["send"]>) => ({
-				sessionId: "ses-cloud",
-				ok: true as const,
-				queued: true,
-			}),
-		);
-		const create = vi.fn(async (input: CreateCloudSessionInput) => {
-			if (created) await input.handoff?.onCreating?.();
-			await input.handoff?.onOuterSessionCreated?.("ses-cloud", { created });
-			await input.handoff?.resolveMessages();
-			await input.handoff?.onSeeding?.();
-			return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
-		});
-		const cloud = new CloudSessionManager(ctx, {
-			api: {} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-		});
-		Object.assign(cloud, {
-			prepareHandoffRepository: vi.fn(async () => ({})),
-			create,
-			verifyHandoffTranscript,
-			send: cloudSend,
-		});
-		ctx.cloudSessionManager = cloud;
-
-		return {
-			ctx,
-			sourceSessionId,
-			modelId,
-			cloud,
-			headSha,
-			request: {
-				action: "handoff" as const,
-				sessionId: sourceSessionId,
-				fingerprint: {
-					repoUrl: "https://github.com/cline/test",
-					branch: "main",
-					headSha,
-					modelId,
-				},
-			},
-			messages,
-			order,
-			events,
-			metadataUpdates,
-			getPersistedMetadata: () => persistedMetadata,
-			verifyHandoffTranscript,
-			cloudSend,
-			create,
-		};
-	}
-
-	it.each([
-		["idle", "/workspace/project/subdirectory"],
-		["busy", "/workspace/project/subdirectory"],
-		["expanding", "/workspace/project/subdirectory"],
-		["idle", "/workspace"],
-		["busy", "/workspace"],
-		["expanding", "/workspace"],
-		["connecting", "/workspace/project/subdirectory"],
-		["idle", "symlink"],
-		["busy", "symlink"],
-	])("preparation consumes approval once and locks overlapping sessions (%s, %s)", async (state, cwd) => {
-		const busy = state === "busy";
-		const directory =
-			cwd === "symlink"
-				? mkdtempSync(join(tmpdir(), "handoff-lock-"))
-				: undefined;
-		const root = directory ? join(directory, "repo") : "/workspace/project";
-		if (directory) {
-			mkdirSync(root);
-			cwd = join(directory, "alias");
-			symlinkSync(root, cwd, "junction");
-		}
-		const f = createHandoffFixture();
-		const source = f.ctx.liveSessions.get(f.sourceSessionId);
-		if (!source) throw new Error("missing fixture source");
-		source.config.cwd = root;
-		vi.mocked(preflightCloudHandoffGit).mockRejectedValue(
-			new CloudHandoffGitPreflightError("dirty_worktree", "dirty"),
-		);
-		const plan: gitPreparation.HandoffGitPlan = {
-			id: "plan-id",
-			cwd: root,
-			root,
-			repoUrl: "https://github.com/cline/test",
-			pushUrl: "git@github.com:cline/test.git",
-			remote: "origin",
-			branch: "cline/handoff-test",
-			sourceBranch: "main",
-			headSha: f.headSha,
-			treeSha: "b".repeat(40),
-			indexTree: "c".repeat(40),
-			status: " M file.txt\0",
-			files: [{ path: "file.txt", status: " M" }],
-			commits: [],
-		};
-		const inspect = vi
-			.spyOn(gitPreparation, "inspectHandoffGit")
-			.mockResolvedValue(plan);
-		const apply = vi
-			.spyOn(gitPreparation, "applyHandoffGit")
-			.mockResolvedValue(undefined);
-		let expansion: ReturnType<typeof vi.spyOn> | undefined;
-		try {
-			const preparation = await handleChatSessionCommand(f.ctx, {
-				action: "prepare_handoff",
-				sessionId: f.sourceSessionId,
-			});
-			expect(preparation).toEqual({
-				gitPreparation: gitPreparation.previewHandoffGit(plan),
-			});
-			expect(apply).not.toHaveBeenCalled();
-			expect(f.create).not.toHaveBeenCalled();
-			f.ctx.liveSessions.set("sibling", {
-				...source,
-				busy,
-				status: busy ? "running" : "idle",
-				config: { ...source.config, cwd },
-			});
-			if (busy) {
-				await expect(
-					handleChatSessionCommand(f.ctx, {
-						action: "prepare_handoff_git",
-						sessionId: f.sourceSessionId,
-						gitPreparationId: plan.id,
-					}),
-				).rejects.toThrow("workspace");
-				expect(apply).not.toHaveBeenCalled();
-				return;
-			}
-			let pendingSend: Promise<unknown> | undefined;
-			let releaseSend: (() => void) | undefined;
-			const send = vi.fn(async () => undefined);
-			Object.assign(localSessionManager(f.ctx), { send });
-			if (state === "expanding") {
-				expansion = vi
-					.spyOn(pluginCommands, "runPluginSlashCommand")
-					.mockImplementation(async () => {
-						await new Promise<void>((resolve) => {
-							releaseSend = resolve;
-						});
-						return { submitPrompt: "edit this" };
-					});
-				pendingSend = handleChatSessionCommand(f.ctx, {
-					action: "send",
-					sessionId: "sibling",
-					prompt: "/test-prep",
-				});
-				await vi.waitFor(() => expect(releaseSend).toBeDefined());
-			}
-			if (state === "connecting") {
-				const sibling = f.ctx.liveSessions.get("sibling");
-				if (!sibling) throw new Error("missing fixture sibling");
-				sibling.busy = true;
-				sibling.status = "running";
-				sibling.attachedViaHub = true;
-				const updateSessionConnection = vi.fn(async () => {
-					await new Promise<void>((resolve) => {
-						releaseSend = resolve;
-					});
-				});
-				Object.assign(localSessionManager(f.ctx), { updateSessionConnection });
-				pendingSend = handleChatSessionCommand(f.ctx, {
-					action: "send",
-					sessionId: "sibling",
-					prompt: "queued work",
-					delivery: "queue",
-					config: { environmentId: "local" },
-				});
-				await vi.waitFor(() => expect(releaseSend).toBeDefined());
-				sibling.busy = false;
-				sibling.status = "idle";
-			}
-			if (pendingSend) {
-				try {
-					await expect(
-						handleChatSessionCommand(f.ctx, {
-							action: "prepare_handoff_git",
-							sessionId: f.sourceSessionId,
-							gitPreparationId: plan.id,
-						}),
-					).rejects.toThrow("workspace");
-					expect(apply).not.toHaveBeenCalled();
-				} finally {
-					releaseSend?.();
-					await pendingSend;
-				}
-				expect(send).toHaveBeenCalledOnce();
-				await handleChatSessionCommand(f.ctx, {
-					action: "prepare_handoff",
-					sessionId: f.sourceSessionId,
-				});
-				await expect(
-					handleChatSessionCommand(f.ctx, {
-						action: "prepare_handoff_git",
-						sessionId: f.sourceSessionId,
-						gitPreparationId: plan.id,
-					}),
-				).resolves.toEqual({ ok: true });
-				return;
-			}
-			apply.mockImplementation(async () => {
-				await expect(
-					handleChatSessionCommand(f.ctx, {
-						action: "start",
-						config: { cwd },
-					}),
-				).rejects.toThrow("workspace");
-				await expect(
-					handleChatSessionCommand(f.ctx, {
-						action: "send",
-						sessionId: "sibling",
-						config: { cwd },
-						prompt: "edit this",
-					}),
-				).rejects.toThrow("workspace");
-			});
-			await expect(
-				handleChatSessionCommand(f.ctx, {
-					action: "prepare_handoff_git",
-					sessionId: f.sourceSessionId,
-					gitPreparationId: plan.id,
-				}),
-			).resolves.toEqual({ ok: true });
-			expect(apply).toHaveBeenCalledExactlyOnceWith(plan);
-			await expect(
-				handleChatSessionCommand(f.ctx, {
-					action: "prepare_handoff_git",
-					sessionId: f.sourceSessionId,
-					gitPreparationId: plan.id,
-				}),
-			).rejects.toThrow("review the preparation plan");
-		} finally {
-			expansion?.mockRestore();
-			inspect.mockRestore();
-			apply.mockRestore();
-			if (directory) rmSync(directory, { recursive: true, force: true });
-		}
-	});
-
-	it("preserves creation settings when a pending handoff resumes after restart", async () => {
-		const first = createHandoffFixture();
-		const config = {
-			autoApproveTools: false,
-			thinking: true,
-			reasoningEffort: "high" as const,
-		};
-		first.create.mockImplementationOnce(async (input) => {
-			await input.handoff?.onCreating?.();
-			await input.handoff?.onOuterSessionCreated?.("ses-cloud", {
-				created: true,
-			});
-			throw new Error("interrupted before seed");
-		});
-		await expect(
-			handleChatSessionCommand(first.ctx, { ...first.request, config }),
-		).rejects.toThrow("interrupted before seed");
-		const metadata = structuredClone(first.getPersistedMetadata());
-		await first.cloud.dispose();
-		const restarted = createHandoffFixture(true, metadata);
-		vi.spyOn(restarted.cloud, "waitUntilReady").mockResolvedValue(undefined);
-		const seed = vi
-			.spyOn(restarted.cloud, "seedHandoff")
-			.mockResolvedValue({ innerSessionId: "inner-cloud" });
-		await expect(
-			handleChatSessionCommand(restarted.ctx, {
-				...restarted.request,
-				config: {
-					autoApproveTools: true,
-					thinking: undefined,
-					reasoningEffort: undefined,
-				},
-			}),
-		).resolves.toMatchObject({ innerSessionId: "inner-cloud" });
-		expect(seed).toHaveBeenCalledWith(
-			"ses-cloud",
-			expect.objectContaining({ config }),
-		);
-		expect(restarted.create).not.toHaveBeenCalled();
-		await restarted.cloud.dispose();
-	});
-
-	it("never prepares a different Git state for an existing uncertain handoff", async () => {
-		const f = createHandoffFixture(true, {
-			cloudHandoffIntent: { fingerprint: {} },
-		});
-		vi.mocked(preflightCloudHandoffGit).mockRejectedValue(
-			new CloudHandoffGitPreflightError("dirty_worktree", "dirty"),
-		);
-		await expect(
-			handleChatSessionCommand(f.ctx, {
-				action: "prepare_handoff",
-				sessionId: f.sourceSessionId,
-			}),
-		).rejects.toThrow("restore the original handoff commit");
+		expect(f.apply).not.toHaveBeenCalled();
 		expect(f.create).not.toHaveBeenCalled();
 	});
 
-	it("preserves uncertain creation across restart and adopts it once visible", async () => {
-		const first = createHandoffFixture();
-		const config = {
-			autoApproveTools: false,
-			thinking: true,
-			reasoningEffort: "high" as const,
-		};
-		const request = { ...first.request, config };
-		let visible = false;
-		let posts = 0;
-		const createWithFreshApi = async (input: CreateCloudSessionInput) => {
-			const api = new CloudSessionApi({
-				apiBaseUrl: "https://api.example",
-				appBaseUrl: "https://app.example",
-				getAuthToken: async () => "token",
-				fetch: async (_url, init) => {
-					if (init?.method === "POST") {
-						posts++;
-						throw new Error("lost create response");
-					}
-					return Response.json({
-						data: visible
-							? [
-									{
-										id: "ses-cloud",
-										status: "ready",
-										sandboxUrl: "",
-										title: `__cline_create_request__:${input.requestId}`,
-										repoContext: {
-											repoUrl: input.repoUrl,
-											branch: input.branch,
-										},
-										metadata: { modelId: input.modelId },
-									},
-								]
-							: [],
-					});
-				},
-			});
-			const result = await api.create(input);
-			await input.handoff?.resolveMessages();
-			await input.handoff?.onSeeding?.();
-			return { sessionId: result.sessionId, innerSessionId: "inner-cloud" };
-		};
-		first.create.mockImplementation(createWithFreshApi);
-		await expect(handleChatSessionCommand(first.ctx, request)).rejects.toThrow(
-			"lost create response",
-		);
-		expect(first.getPersistedMetadata()).toHaveProperty("cloudHandoffIntent");
-		const restarted = createHandoffFixture(true, first.getPersistedMetadata());
-		const restore = vi.fn();
-		Object.assign(localSessionManager(restarted.ctx), { restore });
-		for (const action of ["restore_checkpoint", "send", "fork"] as const) {
-			await expect(
-				handleChatSessionCommand(restarted.ctx, {
-					action,
-					sessionId: request.sessionId,
-					prompt: "Change this workspace",
-					checkpointRunCount: 1,
-					forkBeforeRunCount: 1,
-					config: { cwd: "/workspace/project" },
-				}),
-			).rejects.toThrow("Cloud handoff creation is still unconfirmed");
-		}
-		expect(restore).not.toHaveBeenCalled();
-		await expect(
-			assertSessionDeleteAllowedDuringHandoff(
-				restarted.ctx,
-				request.sessionId,
-				getSessionRuntimeBinding(restarted.ctx),
-			),
-		).rejects.toThrow("Cloud handoff creation is still unconfirmed");
-		restarted.create.mockImplementation(createWithFreshApi);
-		await expect(
-			handleChatSessionCommand(restarted.ctx, request),
-		).rejects.toThrow("unconfirmed");
-		expect(restarted.getPersistedMetadata()).toHaveProperty(
-			"cloudHandoffIntent",
-		);
-		expect(restarted.getPersistedMetadata()).not.toHaveProperty("handoff");
-		const recovered = createHandoffFixture(
-			false,
-			restarted.getPersistedMetadata(),
-		);
-		visible = true;
-		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-		recovered.create.mockImplementation(createWithFreshApi);
-		await handleChatSessionCommand(recovered.ctx, {
-			...request,
-			config: {
-				autoApproveTools: true,
-				thinking: undefined,
-				reasoningEffort: undefined,
-			},
-		});
-		expect(recovered.create).toHaveBeenCalledWith(
-			expect.objectContaining(config),
-		);
-		expect(posts).toBe(1);
-		expect(
-			readCloudHandoffMetadata(recovered.getPersistedMetadata())?.status,
-		).toBe("complete");
-		const release = await assertSessionDeleteAllowedDuringHandoff(
-			recovered.ctx,
-			request.sessionId,
-			getSessionRuntimeBinding(recovered.ctx),
-		);
-		release();
+	it.each([
+		"failure",
+		"empty",
+		"empty context",
+	] as const)("does not publish Git or create a cloud task after summary %s", async (failure) => {
+		const f = fixture();
+		if (failure === "failure")
+			f.summarize.mockRejectedValue(new Error("Summary failed"));
+		if (failure === "empty") f.summarize.mockResolvedValue(" ");
+		if (failure === "empty context") f.readLiveMessages.mockResolvedValue([]);
+		await expect(f.prepare()).rejects.toThrow();
+		expect(f.apply).not.toHaveBeenCalled();
+		expect(f.create).not.toHaveBeenCalled();
+		expect(f.update).not.toHaveBeenCalled();
 	});
 
 	it.each([
-		"pending",
-		"complete",
-		undefined,
-	] as const)("permits deletion only without an unresolved handoff (%s)", async (status) => {
-		const f = createHandoffFixture(
-			true,
-			status
-				? {
-						handoff: {
-							status,
-							toCloudSessionId: "ses-cloud",
-							handedOffAt: "2026-09-30T00:00:00.000Z",
-						},
-					}
-				: {},
-		);
-		const deletion = assertSessionDeleteAllowedDuringHandoff(
-			f.ctx,
-			f.sourceSessionId,
-			getSessionRuntimeBinding(f.ctx),
-		);
-		if (status === "pending") {
-			await expect(deletion).rejects.toThrow("Cloud handoff is still pending");
-		} else {
-			const release = await deletion;
-			release();
-		}
-	});
-
-	it("clears a definitely rejected create intent and permits retry", async () => {
-		const f = createHandoffFixture();
-		f.create.mockImplementationOnce(async (input) => {
-			await input.handoff?.onCreating?.();
-			throw new CloudHandoffCreationRejectedError(new Error("forbidden"));
-		});
-		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
-			"forbidden",
-		);
-		expect(f.getPersistedMetadata()).not.toHaveProperty("cloudHandoffIntent");
-		await expect(
-			handleChatSessionCommand(f.ctx, {
-				...f.request,
-				config: { autoApproveTools: true, thinking: true },
-			}),
-		).resolves.toMatchObject({ outerSessionId: "ses-cloud" });
-		expect(f.create).toHaveBeenLastCalledWith(
-			expect.objectContaining({ autoApproveTools: true, thinking: true }),
-		);
-	});
-
-	it("allows a fresh create after an authoritative deletion of the saved target", async () => {
-		const f = createHandoffFixture();
-		f.create.mockImplementationOnce(async (input) => {
-			await input.handoff?.onCreating?.();
-			await input.handoff?.onOuterSessionCreated("deleted-target", {
-				created: true,
-			});
-			throw new Error("interrupted");
-		});
-		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
-			"interrupted",
-		);
-		vi.spyOn(f.cloud, "waitUntilReady").mockRejectedValueOnce(
-			new CloudSessionError("session_not_found", "gone"),
-		);
-		vi.spyOn(f.cloud, "handoffTargetExists").mockResolvedValue(false);
-		vi.spyOn(f.cloud, "delete").mockRejectedValueOnce(
-			new CloudSessionError("session_not_found", "gone"),
-		);
-		await expect(
-			handleChatSessionCommand(f.ctx, {
-				...f.request,
-				config: { autoApproveTools: true, thinking: true },
-			}),
-		).resolves.toMatchObject({ outerSessionId: "ses-cloud" });
-		expect(f.create).toHaveBeenLastCalledWith(
-			expect.objectContaining({ autoApproveTools: true, thinking: true }),
-		);
-	});
-
-	it.each([
-		"exists",
-		"uncertain",
-	])("preserves an unlisted pending target when its status is %s", async (status) => {
-		const f = createHandoffFixture();
-		f.create.mockImplementationOnce(async (input) => {
-			await input.handoff?.onOuterSessionCreated("ses-cloud", {
-				created: true,
-			});
-			throw new Error("interrupted");
-		});
-		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
-			"interrupted",
-		);
-		const metadata = f.getPersistedMetadata();
-		vi.spyOn(f.cloud, "waitUntilReady").mockResolvedValue(undefined);
-		vi.spyOn(f.cloud, "seedHandoff").mockRejectedValue(
-			new CloudSessionError("session_not_found", "not listed"),
-		);
-		vi.spyOn(f.cloud, "handoffTargetExists").mockImplementation(async () => {
-			if (status === "uncertain") throw new Error("status unavailable");
-			return true;
-		});
-		const remove = vi.spyOn(f.cloud, "delete").mockResolvedValue(undefined);
-		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
-			status === "exists" ? "not listed" : "status unavailable",
-		);
-		expect(remove).not.toHaveBeenCalled();
-		expect(f.create).toHaveBeenCalledOnce();
-		expect(f.getPersistedMetadata()).toEqual(metadata);
-	});
-
-	it("stops before creation when its intent cannot be saved", async () => {
-		const f = createHandoffFixture();
-		vi.mocked(
-			localSessionManager(f.ctx).update as ReturnType<typeof vi.fn>,
-		).mockResolvedValueOnce({ updated: false });
-		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
-			"recovery state could not be saved",
-		);
-		expect(f.getPersistedMetadata()).not.toHaveProperty("handoff");
-		expect(f.verifyHandoffTranscript).not.toHaveBeenCalled();
-	});
-
-	it("rejects an unavailable source model before recording or provisioning a handoff", async () => {
-		const fixture = createHandoffFixture();
-		fixture.ctx.liveSessions.get(fixture.sourceSessionId)!.config.model =
-			"unavailable-model";
-		await expect(
-			handleChatSessionCommand(fixture.ctx, {
-				action: "prepare_handoff",
-				sessionId: fixture.sourceSessionId,
-			}),
-		).rejects.toThrow("selected model unavailable-model is not available");
-		expect(fixture.create).not.toHaveBeenCalled();
-		expect(fixture.metadataUpdates).toEqual([]);
-	});
-
-	it("rejects a source model changed after preflight instead of reusing the pinned model", async () => {
-		const fixture = createHandoffFixture();
-		fixture.ctx.liveSessions.get(fixture.sourceSessionId)!.config.model =
-			"changed-model";
-		await expect(
-			handleChatSessionCommand(fixture.ctx, {
-				action: "handoff",
-				sessionId: fixture.sourceSessionId,
-				fingerprint: {
-					repoUrl: "https://github.com/cline/test",
-					branch: "main",
-					headSha: fixture.headSha,
-					modelId: fixture.modelId,
-				},
-			}),
-		).rejects.toThrow("source model changed");
-		expect(fixture.create).not.toHaveBeenCalled();
-		expect(fixture.metadataUpdates).toEqual([]);
-	});
-
-	it.each([
-		"client_authority_mismatch",
-		"hub_draining",
-		"not_dispatched",
-	])("allows retries after pre-dispatch %s on both create and resume", async (code) => {
-		const fixture = createHandoffFixture();
-		const rejected =
-			code === "not_dispatched"
-				? new CloudHandoffSeedRejectedError(
-						new Error("Create cancelled before dispatch."),
-					)
-				: new HubCommandError(
-						"session.create",
-						code,
-						"Create rejected before dispatch.",
-					);
-		const request = {
-			action: "handoff" as const,
-			sessionId: fixture.sourceSessionId,
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha: fixture.headSha,
-				modelId: fixture.modelId,
-			},
-		};
-		fixture.create.mockImplementationOnce(async (input) => {
-			await input.handoff?.onOuterSessionCreated?.("ses-cloud", {
-				created: true,
-			});
-			await input.handoff?.onSeeding?.();
-			throw rejected;
-		});
-		await expect(handleChatSessionCommand(fixture.ctx, request)).rejects.toBe(
-			rejected,
-		);
-		expect(fixture.getPersistedMetadata()).not.toHaveProperty(
-			"cloudHandoffSeedDispatched",
-		);
-		vi.spyOn(fixture.cloud, "waitUntilReady").mockResolvedValue(undefined);
-		const seed = vi
-			.spyOn(fixture.cloud, "seedHandoff")
-			.mockImplementation(async (_id, input) => {
-				expect(input.recoverOnly).toBe(false);
-				await input.onSeeding?.();
-				if (seed.mock.calls.length === 1) throw rejected;
-				return { innerSessionId: "inner-cloud" };
-			});
-		await expect(handleChatSessionCommand(fixture.ctx, request)).rejects.toBe(
-			rejected,
-		);
-		expect(fixture.getPersistedMetadata()).not.toHaveProperty(
-			"cloudHandoffSeedDispatched",
-		);
-		await expect(
-			handleChatSessionCommand(fixture.ctx, request),
-		).resolves.toMatchObject({ innerSessionId: "inner-cloud" });
-		expect(fixture.getPersistedMetadata().cloudHandoffSeedDispatched).toBe(
-			true,
-		);
-	});
-
-	it("does not seed when saving the dispatch marker fails", async () => {
-		const fixture = createHandoffFixture();
-		vi.mocked(
-			localSessionManager(fixture.ctx).update as ReturnType<typeof vi.fn>,
-		)
-			.mockImplementationOnce(async (_id, input) => {
-				fixture.metadataUpdates.push(input.metadata);
-				return { updated: true };
-			})
-			.mockResolvedValueOnce({ updated: true })
-			.mockResolvedValueOnce({ updated: false });
-		await expect(
-			handleChatSessionCommand(fixture.ctx, {
-				action: "handoff",
-				sessionId: fixture.sourceSessionId,
-				fingerprint: {
-					repoUrl: "https://github.com/cline/test",
-					branch: "main",
-					headSha: fixture.headSha,
-					modelId: fixture.modelId,
-				},
-			}),
-		).rejects.toThrow("recovery state could not be saved");
-		expect(
-			fixture.events.some((event) => event.payload.phase === "seeding"),
-		).toBe(false);
-		expect(fixture.verifyHandoffTranscript).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		"lost reply",
-		"hub_command_timeout",
-		"command_failed",
-		"unknown_code",
-		undefined,
-	])("recovers an uncertain seed after restart without another create (%s)", async (outcome) => {
-		const first = createHandoffFixture();
-		const request = {
-			action: "handoff" as const,
-			sessionId: first.sourceSessionId,
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha: first.headSha,
-				modelId: first.modelId,
-			},
-		};
-		first.create.mockImplementationOnce(async (input) => {
-			await input.handoff?.onOuterSessionCreated?.("ses-cloud", {
-				created: true,
-			});
-			await input.handoff?.resolveMessages();
-			await input.handoff?.onSeeding?.();
-			throw outcome === "lost reply"
-				? new Error("lost create reply")
-				: new HubCommandError("session.create", outcome, "lost create reply");
-		});
-		await expect(handleChatSessionCommand(first.ctx, request)).rejects.toThrow(
-			"lost create reply",
-		);
-		await first.cloud.dispose();
-
-		// Only persisted metadata survives; the new controller has no in-memory fence.
-		const restarted = createHandoffFixture(
-			true,
-			structuredClone(first.getPersistedMetadata()),
-		);
-		let rows: Record<string, unknown>[] = [];
-		const command = vi.fn(async (name: string) => {
-			if (name === "session.create")
-				throw new Error("duplicate create dispatched");
-			return {
-				version: "v1" as const,
-				ok: true as const,
-				payload:
-					name === "session.list"
-						? { sessions: rows }
-						: name === "session.messages"
-							? { messages: restarted.messages }
-							: name === "session.pending_prompts"
-								? { prompts: [] }
-								: { session: rows[0] },
-			};
-		});
-		const cloud = new CloudSessionManager(restarted.ctx, {
-			api: {
-				list: async () => [
-					{
-						id: "ses-cloud",
-						status: "ready",
-						sandboxUrl: "",
-						metadata: { modelId: restarted.modelId },
-						repoContext: { repoUrl: "https://github.com/cline/test" },
-						createdAt: "2026-01-01",
-						updatedAt: "2026-01-01",
-					},
-				],
-				waitUntilReady: async () => {},
-			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "token",
-			createHubClient: () => ({
-				command: command as never,
-				connect: async () => {},
-				dispose: async () => {},
-				getClientId: () => "viewer",
-				subscribe: () => () => {},
-			}),
-		});
-		vi.spyOn(cloud, "prepareHandoffRepository").mockResolvedValue({});
-		restarted.ctx.cloudSessionManager = cloud;
-		try {
-			await expect(
-				handleChatSessionCommand(restarted.ctx, request),
-			).rejects.toThrow("unconfirmed");
-			rows = [
-				{
-					sessionId: "inner-cloud",
-					status: "idle",
-					cwd: "/workspace",
-					mode: "act",
-					metadata: {
-						model: restarted.modelId,
-						handoff: { sourceSessionId: first.sourceSessionId },
-					},
-				},
-			];
-			await expect(
-				handleChatSessionCommand(restarted.ctx, request),
-			).resolves.toMatchObject({ innerSessionId: "inner-cloud" });
-			expect(
-				command.mock.calls.some(([name]) => name === "session.create"),
-			).toBe(false);
-			expect(
-				readCloudHandoffMetadata(restarted.getPersistedMetadata())?.status,
-			).toBe("complete");
-		} finally {
-			await cloud.dispose();
-		}
-	});
-
-	it.each([
-		true,
-		false,
-	])("completes a handoff (new target: %s)", async (created) => {
-		const {
-			ctx,
-			sourceSessionId,
-			modelId,
-			headSha,
-			messages,
-			order,
-			events,
-			metadataUpdates,
-			getPersistedMetadata,
-			verifyHandoffTranscript,
-			cloudSend,
-			create,
-		} = createHandoffFixture(created);
-
-		const running = handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId: sourceSessionId,
-			handoffAttemptId: "attempt-1",
-			nextCommand: "continue in cloud",
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha,
-				modelId,
-			},
-		});
-		running.then(() => order.push("resolved"));
-		const result = (await running) as {
-			sessionId: string;
-			outerSessionId: string;
-			innerSessionId: string;
-			dashboardUrl: string;
-			destination: string;
-		};
-
-		// The pending record lands before provisioning, the completion record
-		// replaces it, and the authoritative completion event fires before the
-		// RPC resolves.
-		expect(order).toEqual([
-			"event:creating",
-			...(created ? ["metadata:undefined"] : []),
-			"metadata:pending",
-			"event:provisioning",
-			"event:connecting",
-			"metadata:pending",
-			"event:seeding",
-			"event:verifying",
-			"metadata:complete",
-			"event:complete",
-			"resolved",
-		]);
-		expect(
-			readCloudHandoffMetadata(metadataUpdates[created ? 1 : 0]),
-		).toMatchObject({
-			status: "pending",
-			toCloudSessionId: "ses-cloud",
-			dashboardUrl: expect.stringContaining("ses-cloud"),
-		});
-		expect(metadataUpdates).toHaveLength(created ? 4 : 3);
-		expect(metadataUpdates[created ? 2 : 1].cloudHandoffSeedDispatched).toBe(
-			true,
-		);
-		expect(readCloudHandoffMetadata(getPersistedMetadata())).toMatchObject({
-			status: "complete",
-			toCloudSessionId: "ses-cloud",
-			innerSessionId: "inner-cloud",
-			dashboardUrl: result.dashboardUrl,
-		});
-		expect(verifyHandoffTranscript).toHaveBeenCalledWith(
-			"ses-cloud",
-			messages,
-			{ allowAppendedMessages: !created },
-		);
-		expect(create).toHaveBeenCalledWith(
-			expect.objectContaining({
-				requestId: `handoff:${sourceSessionId}:${headSha}`,
-				autoApproveTools: false,
-				thinking: false,
-			}),
-		);
-		expect(cloudSend).toHaveBeenCalledWith(
-			"ses-cloud",
-			"continue in cloud",
-			"queue",
-			modelId,
-			undefined,
-			expect.objectContaining({
-				beforeDispatch: expect.any(Function),
-			}),
-		);
-		const complete = events.find(
-			(event) =>
-				event.name === "cloud_handoff_progress" &&
-				event.payload.phase === "complete",
-		);
-		expect(complete?.payload).toMatchObject({
-			sourceSessionId,
-			handoffAttemptId: "attempt-1",
-			sessionId: "ses-cloud",
-			dashboardUrl: result.dashboardUrl,
-			destination: "in_app",
-		});
-		expect(complete?.payload).not.toHaveProperty("warning");
-		expect(complete?.payload).not.toHaveProperty("warningKind");
-		expect(complete?.payload).not.toHaveProperty("undeliveredCommand");
-		expect(result).toMatchObject({
-			sessionId: "ses-cloud",
-			outerSessionId: "ses-cloud",
-			innerSessionId: "inner-cloud",
-			destination: "in_app",
-		});
-		expect(result.dashboardUrl).toContain("ses-cloud");
-		expect(result).not.toHaveProperty("warning");
-	});
-
-	it("uses the requested mode without writing it to source metadata", async () => {
-		const fixture = createHandoffFixture();
-		await handleChatSessionCommand(fixture.ctx, {
-			action: "handoff",
-			sessionId: fixture.sourceSessionId,
-			config: { mode: "plan" },
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha: fixture.headSha,
-				modelId: fixture.modelId,
-				mode: "plan",
-			},
-		});
-		expect(fixture.create).toHaveBeenCalledWith(
-			expect.objectContaining({ mode: "plan" }),
-		);
-		expect(fixture.getPersistedMetadata()).not.toHaveProperty("mode");
-	});
-
-	it.each([
-		true,
-		false,
-	])("only deletes a newly created target on transcript mismatch (new target: %s)", async (created) => {
-		const fixture = createHandoffFixture(created);
-		const deleteTarget = vi
-			.spyOn(fixture.cloud, "delete")
-			.mockResolvedValue(undefined);
-		fixture.verifyHandoffTranscript.mockRejectedValue(
-			new CloudHandoffTranscriptMismatchError(2, 3),
-		);
-
-		await expect(
-			handleChatSessionCommand(fixture.ctx, {
-				action: "handoff",
-				sessionId: fixture.sourceSessionId,
-				handoffAttemptId: "attempt-1",
-				nextCommand: "continue in cloud",
-				fingerprint: {
-					repoUrl: "https://github.com/cline/test",
-					branch: "main",
-					headSha: fixture.headSha,
-					modelId: fixture.modelId,
-				},
-			}),
-		).rejects.toThrow(
-			created
-				? "Cloud transcript verification failed (local 2 messages, cloud 3)."
-				: "delete it before retrying /cloud: https://app.cline.bot/agents?sessionId=ses-cloud",
-		);
-
-		if (created) {
-			expect(deleteTarget).toHaveBeenCalledExactlyOnceWith("ses-cloud");
-			expect(
-				readCloudHandoffMetadata(fixture.getPersistedMetadata()),
-			).toBeUndefined();
-		} else {
-			expect(deleteTarget).not.toHaveBeenCalled();
-			expect(
-				readCloudHandoffMetadata(fixture.getPersistedMetadata()),
-			).toMatchObject({ status: "pending", toCloudSessionId: "ses-cloud" });
-		}
-		expect(fixture.cloudSend).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		[[3_932_160], true],
-		[[3_932_161], false],
-		[[3_145_728, 3_145_728], true],
-		[[3_145_728, 3_145_729], false],
-		[[1, 1, 1, 1, 1], true],
-		[[1, 1, 1, 1, 1, 1], false],
-	] as const)("validates serialized handoff images before side effects: %j bytes", async (sizes, valid) => {
-		const f = createHandoffFixture();
-		const userImages = sizes.map(
-			(size) =>
-				`data:image/png;base64,${Buffer.alloc(size).toString("base64")}`,
-		);
-		f.cloudSend.mockRejectedValueOnce(new Error("not dispatched"));
-		const result = handleChatSessionCommand(f.ctx, {
-			...f.request,
-			nextCommand: "inspect",
-			attachments: { userImages },
-		});
-		if (valid) {
-			await expect(result).resolves.toMatchObject({ warningKind: "unqueued" });
-			const saved = readCloudHandoffFollowUp("ses-cloud");
-			expect(saved?.userImages).toEqual(userImages);
-		} else {
-			await expect(result).rejects.toThrow();
-			expect(f.create).not.toHaveBeenCalled();
-			expect(f.metadataUpdates).toEqual([]);
-			expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
-		}
-	});
-
-	it("persists the initial command and images before completion and retains them until acknowledgement", async () => {
-		const f = createHandoffFixture();
-		const userImages = ["data:image/png;base64,aW1hZ2U="];
-		const update = localSessionManager(f.ctx).update as ReturnType<
-			typeof vi.fn<
-				(
-					id: string,
-					input: { metadata: Record<string, unknown> },
-				) => Promise<{ updated: boolean }>
-			>
-		>;
-		const originalUpdate = update.getMockImplementation();
-		if (!originalUpdate) throw new Error("missing fixture update");
-		update.mockImplementation(async (...args) => {
-			if (readCloudHandoffMetadata(args[1].metadata)?.status === "complete") {
-				expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
-					command: "continue in cloud",
-					userImages,
-				});
-			}
-			return originalUpdate(...args);
-		});
-		f.cloudSend.mockImplementationOnce(async (...args) => {
-			expect(readCloudHandoffMetadata(f.getPersistedMetadata())?.status).toBe(
-				"complete",
+		"git",
+		"model",
+	] as const)("rejects published %s becoming unavailable before handoff", async (changed) => {
+		const f = fixture();
+		await f.prepare();
+		if (changed === "git")
+			f.verifyPublished.mockRejectedValue(
+				new Error("Published branch changed"),
 			);
-			expect(
-				readCloudHandoffFollowUp("ses-cloud")?.unconfirmed,
-			).toBeUndefined();
-			expect(
-				await handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
-					sessionId: "ses-cloud",
-				}),
-			).toBeNull();
-			for (const command of [
-				"restore_cloud_handoff_follow_up",
-				"dismiss_cloud_handoff_follow_up",
-			]) {
-				await expect(
-					handleCommand(f.ctx, command, {
-						sessionId: "ses-cloud",
-						expected: readCloudHandoffFollowUp("ses-cloud"),
-					}),
-				).rejects.toThrow("Wait for the cloud handoff to finish");
-			}
-			args[5]?.beforeDispatch?.();
-			expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
-				userImages,
-				unconfirmed: true,
-			});
-			return { sessionId: "ses-cloud", ok: true, queued: true };
-		});
-		const result = await handleChatSessionCommand(f.ctx, {
-			...f.request,
-			nextCommand: "continue in cloud",
-			attachments: { userImages, userFiles: [] },
-		});
-		expect(result).not.toHaveProperty("warning");
-		expect(f.cloudSend).toHaveBeenCalledOnce();
-		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
-	});
-
-	it.each([
-		"complete",
-		"pending",
-		"unknown",
-	] as const)("uses persisted %s handoff state when the local Hub is unavailable", async (status) => {
-		const f = createHandoffFixture();
-		writeSessionManifest(f.sourceSessionId, {
-			metadata:
-				status === "unknown"
-					? {}
-					: {
-							handoff: {
-								status,
-								toCloudSessionId: "ses-cloud",
-								handedOffAt: "2026-01-01T00:00:00Z",
-							},
-						},
-		});
-		(
-			localSessionManager(f.ctx).get as ReturnType<typeof vi.fn>
-		).mockRejectedValue(new Error("Hub unavailable"));
-		const saved = {
-			draftId: "saved",
-			sourceSessionId: f.sourceSessionId,
-			command: "saved follow-up",
-			userImages: [],
-		};
-		followUpRecovery.saveCloudHandoffFollowUp("ses-cloud", saved);
-		const recovery = handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
-			sessionId: "ses-cloud",
-		});
-		if (status === "unknown")
-			await expect(recovery).rejects.toThrow("Hub unavailable");
 		else
-			await expect(recovery).resolves.toEqual(
-				status === "complete" ? saved : null,
-			);
-		const send = handleChatSessionCommand(f.ctx, {
-			action: "send",
-			sessionId: "ses-cloud",
-			prompt: "unrelated prompt",
-			config: { executionTarget: "cloud", model: f.modelId },
-		});
-		if (status === "complete") {
-			await expect(send).resolves.toMatchObject({ ok: true });
-			expect(f.cloudSend).toHaveBeenCalledOnce();
-		} else {
-			await expect(send).rejects.toThrow(
-				status === "pending" ? "Retry /cloud" : "Hub unavailable",
-			);
-			expect(f.cloudSend).not.toHaveBeenCalled();
-		}
-		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual(saved);
+			vi.mocked(loadCloudModels).mockResolvedValue([
+				{ id: "other-model", catalogId: "cline-cloud", name: "Other" },
+			]);
+		await expect(
+			handleHandoff(f.ctx, {
+				...f.request,
+				...(changed === "model"
+					? { config: { ...f.request.config, model: "other-model" } }
+					: {}),
+			}),
+		).rejects.toThrow(changed === "git" ? "changed" : "not available");
+		expect(f.summarize).toHaveBeenCalledTimes(1);
+		expect(f.create).not.toHaveBeenCalled();
+		expect(f.update).not.toHaveBeenCalled();
 	});
-
-	it("keeps recovery blocked after a failed completion marker, including after restart", async () => {
-		const first = createHandoffFixture();
-		const update = localSessionManager(first.ctx).update as ReturnType<
-			typeof vi.fn<
-				(
-					id: string,
-					input: { metadata: Record<string, unknown> },
-				) => Promise<{ updated: boolean }>
-			>
-		>;
-		const originalUpdate = update.getMockImplementation();
-		if (!originalUpdate) throw new Error("missing fixture update");
-		update.mockImplementation(async (...args) =>
-			readCloudHandoffMetadata(args[1].metadata)?.status === "complete"
-				? { updated: false }
-				: originalUpdate(...args),
-		);
-		const request = {
-			...first.request,
-			nextCommand: "continue in cloud",
-			attachments: {
-				userImages: ["data:image/png;base64,aW1hZ2U="],
-				userFiles: [],
-			},
-		};
-		await expect(handleChatSessionCommand(first.ctx, request)).rejects.toThrow(
-			"marker could not be saved",
-		);
-		const saved = readCloudHandoffFollowUp("ses-cloud");
-		expect(saved).toMatchObject({
-			command: request.nextCommand,
-			userImages: request.attachments.userImages,
-		});
-		const restarted = createHandoffFixture(false, first.getPersistedMetadata());
-		for (const f of [first, restarted]) {
-			expect(
-				await handleCommand(f.ctx, "get_cloud_handoff_follow_up", {
-					sessionId: "ses-cloud",
-				}),
-			).toBeNull();
-			for (const command of [
-				"restore_cloud_handoff_follow_up",
-				"dismiss_cloud_handoff_follow_up",
-			]) {
-				await expect(
-					handleCommand(f.ctx, command, {
-						sessionId: "ses-cloud",
-						expected: saved,
-					}),
-				).rejects.toThrow("Retry /cloud");
-			}
-			await expect(
-				handleChatSessionCommand(f.ctx, {
-					action: "send",
-					sessionId: "ses-cloud",
-					config: { executionTarget: "cloud", model: f.modelId },
-					prompt: request.nextCommand,
-					attachments: request.attachments,
-					handoffFollowUpId: saved?.draftId,
-				}),
-			).rejects.toThrow("Retry /cloud");
-			expect(f.cloudSend).not.toHaveBeenCalled();
-			expect(readCloudHandoffFollowUp("ses-cloud")).toEqual(saved);
-		}
-		vi.spyOn(restarted.cloud, "waitUntilReady").mockResolvedValue(undefined);
-		vi.spyOn(restarted.cloud, "seedHandoff").mockResolvedValue({
-			innerSessionId: "inner-cloud",
-		});
-		await handleChatSessionCommand(restarted.ctx, request);
-		expect(
-			readCloudHandoffMetadata(restarted.getPersistedMetadata())?.status,
-		).toBe("complete");
-		expect(restarted.cloudSend).toHaveBeenCalledOnce();
-		expect(restarted.cloudSend.mock.calls[0]?.[4]).toEqual(
-			request.attachments.userImages,
-		);
-		expect(readCloudHandoffFollowUp("ses-cloud")).toBeNull();
-	});
-
-	it("does not complete or send when the initial follow-up cannot be saved", async () => {
-		const f = createHandoffFixture();
-		const save = vi
-			.spyOn(followUpRecovery, "saveCloudHandoffFollowUp")
-			.mockImplementation(() => {
-				throw new Error("disk full");
-			});
-		try {
-			await expect(
-				handleChatSessionCommand(f.ctx, {
-					...f.request,
-					nextCommand: "continue in cloud",
-				}),
-			).rejects.toThrow("disk full");
-			expect(readCloudHandoffMetadata(f.getPersistedMetadata())?.status).toBe(
-				"pending",
-			);
-			expect(f.cloudSend).not.toHaveBeenCalled();
-		} finally {
-			save.mockRestore();
-		}
-	});
-
-	async function runHandoffWithFailingFollowUp(
-		sendError: Error,
-		dispatched = false,
-	): Promise<{
-		cloudSend: ReturnType<typeof vi.fn>;
-		result: { sessionId: string; warning?: string; warningKind?: string };
-		completeEvent: Record<string, unknown> | undefined;
-	}> {
-		const { ctx, sourceSessionId, modelId, headSha, events, cloudSend } =
-			createHandoffFixture();
-		cloudSend.mockImplementationOnce(async (...args) => {
-			if (dispatched) args[5]?.beforeDispatch?.();
-			throw sendError;
-		});
-
-		const result = (await handleChatSessionCommand(ctx, {
-			action: "handoff",
-			sessionId: sourceSessionId,
-			nextCommand: "continue in cloud",
-			attachments: {
-				userImages: ["data:image/png;base64,aW1hZ2U="],
-				userFiles: [],
-			},
-			fingerprint: {
-				repoUrl: "https://github.com/cline/test",
-				branch: "main",
-				headSha,
-				modelId,
-			},
-		})) as { sessionId: string; warning?: string; warningKind?: string };
-		const completeEvent = events.find(
-			(event) =>
-				event.name === "cloud_handoff_progress" &&
-				event.payload.phase === "complete",
-		)?.payload;
-		return { cloudSend, result, completeEvent };
-	}
 
 	it.each([
-		new CloudQueueUnconfirmedError(),
-		new Error("cancelled after dispatch"),
-	])("retains an uncertain initial follow-up without offering resend (%s)", async (error) => {
-		const { cloudSend, result, completeEvent } =
-			await runHandoffWithFailingFollowUp(error, true);
-
-		expect(cloudSend).toHaveBeenCalledOnce();
-		expect(result.sessionId).toBe("ses-cloud");
-		expect(result.warningKind).toBe("unconfirmed");
-		expect(result.warning).toContain(
-			"could not confirm whether the follow-up command was queued",
-		);
-		// An unconfirmed outcome must never invite a resend of a prompt that
-		// may already be durably queued.
-		expect(result.warning).not.toContain("was not queued");
-		// The completion event is the authoritative signal when the RPC response
-		// is lost, so it must carry the same warning...
-		expect(completeEvent).toMatchObject({
-			warningKind: "unconfirmed",
-			warning: expect.stringContaining(
-				"could not confirm whether the follow-up command was queued",
+		false,
+		true,
+	])("retains full draft after send failure (dispatched: %s)", async (dispatched) => {
+		const f = fixture();
+		await f.prepare();
+		f.send.mockImplementation(async (...args) => {
+			if (dispatched) args[5]?.beforeDispatch?.();
+			throw new Error("Connection failed");
+		});
+		const result = await handleHandoff(f.ctx, {
+			...f.request,
+			nextCommand: "Add tests",
+			attachments: { userImages: [image] },
+		});
+		const saved = readCloudHandoffFollowUp("ses-target");
+		expect(saved).toMatchObject({
+			command: expect.stringContaining(
+				"Next instruction from the user:\nAdd tests",
 			),
+			userImages: [image],
 		});
-		// ...but never prefill an unconfirmed command for resending.
-		expect(completeEvent).not.toHaveProperty("undeliveredCommand");
-		expect(readCloudHandoffFollowUp("ses-cloud")).toMatchObject({
-			command: "continue in cloud",
-			userImages: ["data:image/png;base64,aW1hZ2U="],
-			unconfirmed: true,
+		expect(Boolean(saved?.unconfirmed)).toBe(dispatched);
+		expect(result).toMatchObject({
+			sessionId: "ses-target",
+			warningKind: dispatched ? "unconfirmed" : "unqueued",
 		});
+		if (dispatched) expect(result).not.toHaveProperty("undeliveredCommand");
+		else expect(result).toHaveProperty("undeliveredCommand", saved?.command);
 	});
 
-	it("flags a definitively unqueued follow-up with its failure reason", async () => {
-		const { result, completeEvent } = await runHandoffWithFailingFollowUp(
-			new Error("boom"),
+	it("does not automatically retry unconfirmed creation", async () => {
+		const f = fixture();
+		await f.prepare();
+		f.create.mockRejectedValue(
+			new CloudCreationUnconfirmedError(new Error("Connection lost")),
 		);
+		await expect(handleHandoff(f.ctx, f.request)).rejects.toThrow("ambiguous");
+		expect(f.create).toHaveBeenCalledTimes(1);
+		expect(f.send).not.toHaveBeenCalled();
+		expect(f.update).not.toHaveBeenCalled();
+	});
 
-		expect(result.warningKind).toBe("unqueued");
-		expect(readCloudHandoffFollowUp("ses-cloud")).toEqual({
-			draftId: expect.any(String),
-			sourceSessionId: "local-handoff-source",
-			command: "continue in cloud",
-			userImages: ["data:image/png;base64,aW1hZ2U="],
-		});
-		expect(result.warning).toContain(
-			"the follow-up command was not queued: boom",
+	it("does not dispatch if saving the prepared prompt fails", async () => {
+		const f = fixture();
+		await f.prepare();
+		vi.spyOn(followUpStorage, "saveCloudHandoffFollowUp").mockImplementation(
+			() => {
+				throw new Error("Disk full");
+			},
 		);
-		// A definite queue failure survives a lost RPC response: the event
-		// carries the warning and the exact command that never made it.
-		expect(completeEvent).toMatchObject({
-			warningKind: "unqueued",
-			warning: expect.stringContaining(
-				"the follow-up command was not queued: boom",
+		await expect(handleHandoff(f.ctx, f.request)).rejects.toThrow(
+			"Nothing was sent",
+		);
+		expect(f.create).toHaveBeenCalledTimes(1);
+		expect(f.send).not.toHaveBeenCalled();
+		expect(f.update).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"count",
+		"bytes",
+	] as const)("validates image %s limits before creating or sending", async (limit) => {
+		const f = fixture();
+		await f.prepare();
+		const images =
+			limit === "count"
+				? Array(6).fill(image)
+				: [
+						`data:image/png;base64,${Buffer.alloc(DEFAULT_MAX_IMAGE_DECODED_BYTES + 1).toString("base64")}`,
+					];
+		await expect(
+			handleHandoff(f.ctx, {
+				...f.request,
+				attachments: { userImages: images },
+			}),
+		).rejects.toThrow();
+		expect(f.summarize).toHaveBeenCalledTimes(1);
+		expect(f.create).not.toHaveBeenCalled();
+	});
+
+	it("rejects an unapproved Git preparation", async () => {
+		const f = fixture();
+		await handlePrepareHandoff(f.ctx, f.request);
+		await expect(
+			handlePrepareHandoffGit(
+				f.ctx,
+				{ ...f.request, gitPreparationId: "stale" },
+				f.summarize,
 			),
-			undeliveredCommand: "continue in cloud",
-		});
+		).rejects.toThrow("review");
+		expect(f.apply).not.toHaveBeenCalled();
 	});
 });

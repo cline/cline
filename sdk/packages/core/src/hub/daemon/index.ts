@@ -10,9 +10,11 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	getClineClientIdentity,
 	isBunEmbeddedModulePath,
 	isHubDaemonProcess,
 	resolveClineBuildEnv,
+	withHubLauncherIdentity,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
@@ -465,11 +467,28 @@ function resolveLaunchCommand(
 		],
 		cwd: workspaceRoot,
 		env: {
-			...withResolvedClineBuildEnv(process.env),
+			// Record which client's build is starting this shared daemon. An
+			// embedding host that already stamped the launcher (the desktop app
+			// running `cline-cli hub ensure`) keeps its own identity; otherwise
+			// this process's client identity (cline-cli, cline-acp, ...) is used.
+			...withHubLauncherIdentity(
+				withResolvedClineBuildEnv(process.env),
+				resolveSelfLauncherIdentity(),
+			),
 			CLINE_NO_INTERACTIVE: "1",
 			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
 		},
 	};
+}
+
+function resolveSelfLauncherIdentity():
+	| { client: string; version?: string; transport: "local" }
+	| undefined {
+	const identity = getClineClientIdentity();
+	const client = identity?.name?.trim();
+	return client
+		? { client, version: identity?.version, transport: "local" }
+		: undefined;
 }
 
 function isTextFileBusyError(error: unknown): boolean {

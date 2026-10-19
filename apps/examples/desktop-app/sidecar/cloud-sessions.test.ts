@@ -1,6 +1,16 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { CloudCreationOptions } from "@cline/core/cloud";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
+import {
+	readCloudHandoffFollowUp,
+	saveCloudHandoffFollowUp,
+	sendWithCloudHandoffFollowUp,
+	updateCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
 import {
 	type CloudSessionApi,
 	CloudSessionError,
@@ -522,6 +532,151 @@ describe("Cloud sessions sidecar wiring", () => {
 			hub.commands.filter((entry) => entry.command === "session.create"),
 		).toHaveLength(1);
 		await established.dispose();
+	});
+
+	it.each([
+		"initial",
+		"old draft",
+		"no draft",
+		"unconfirmed",
+	])("recovers only a saved unsent initial task after a process restart (%s)", async (kind) => {
+		const dataDir = mkdtempSync(join(tmpdir(), "cloud-initial-recovery-"));
+		vi.stubEnv("CLINE_DATA_DIR", dataDir);
+		const initialTask: CloudCreationOptions = {
+			mode: "plan",
+			workspaceRelativePath: "packages/app",
+			autoApproveTools: false,
+			thinking: false,
+			reasoningEffort: "high",
+		};
+		const saved = {
+			draftId: "initial-draft",
+			sourceSessionId: "local-source",
+			command: "Goal: fix parser. Next: verify empty input.",
+			userImages: ["data:image/png;base64,aW1hZ2U="],
+			...(kind === "initial" || kind === "unconfirmed" ? { initialTask } : {}),
+		};
+		const api = {
+			list: async () => [structuredClone(REMOTE_SESSION)],
+			create: async () => ({
+				sessionId: REMOTE_SESSION.id,
+				status: "ready",
+				sandboxUrl: "pod",
+			}),
+		} as unknown as CloudSessionApi;
+		const original = createFixture({ api, hub: new FakeHubClient(false) });
+		let replacement: ReturnType<typeof createFixture> | undefined;
+		try {
+			await original.manager.create({
+				repoUrl: "https://github.com/cline/test",
+				modelId: "model",
+				...initialTask,
+			});
+			if (kind !== "no draft")
+				saveCloudHandoffFollowUp(REMOTE_SESSION.id, saved);
+			if (kind === "unconfirmed") {
+				await expect(
+					sendWithCloudHandoffFollowUp(
+						REMOTE_SESSION.id,
+						saved.command,
+						saved.userImages,
+						async (lifecycle) => {
+							lifecycle?.beforeDispatch?.();
+							throw new Error("delivery uncertain");
+						},
+					),
+				).rejects.toThrow("delivery uncertain");
+				expect(readCloudHandoffFollowUp(REMOTE_SESSION.id)).not.toHaveProperty(
+					"initialTask",
+				);
+			}
+			await disposeSidecarContext(original.ctx);
+			replacement = createFixture({ api, hub: new FakeHubClient(false) });
+			const { ctx, manager, hub } = replacement;
+			if (kind !== "initial") {
+				await expect(manager.attach(REMOTE_SESSION.id)).rejects.toThrow(
+					"task is unavailable",
+				);
+				await expect(
+					manager.send(REMOTE_SESSION.id, saved.command),
+				).rejects.toThrow("task is unavailable");
+				expect(
+					hub.commands.filter(({ command }) => command === "session.create"),
+				).toEqual([]);
+				if (kind === "unconfirmed") {
+					const uncertain = readCloudHandoffFollowUp(REMOTE_SESSION.id);
+					if (!uncertain) throw new Error("Missing uncertain draft");
+					updateCloudHandoffFollowUp(REMOTE_SESSION.id, uncertain, "restore");
+					await expect(manager.attach(REMOTE_SESSION.id)).rejects.toThrow(
+						"task is unavailable",
+					);
+				}
+				return;
+			}
+			await manager.attach(REMOTE_SESSION.id);
+			expect(
+				hub.commands.filter(({ command }) => command === "session.create"),
+			).toEqual([]);
+			const state = ctx.liveSessions.get(REMOTE_SESSION.id);
+			if (!state) throw new Error("Cloud session was not projected");
+			Object.assign(state.config, {
+				autoApproveTools: true,
+				thinking: true,
+				reasoningEffort: "low",
+			});
+			await sendWithCloudHandoffFollowUp(
+				REMOTE_SESSION.id,
+				saved.command,
+				saved.userImages,
+				(lifecycle) =>
+					manager.send(
+						REMOTE_SESSION.id,
+						saved.command,
+						undefined,
+						undefined,
+						saved.userImages,
+						lifecycle,
+					),
+			);
+			expect(
+				hub.commands.filter(({ command }) => command === "session.create"),
+			).toEqual([
+				expect.objectContaining({
+					payload: expect.objectContaining({
+						cwd: "/workspace/packages/app",
+						sessionConfig: expect.objectContaining({
+							mode: "plan",
+							thinking: false,
+							reasoningEffort: "high",
+						}),
+						toolPolicies: { "*": { autoApprove: false } },
+					}),
+				}),
+			]);
+			expect(
+				hub.commands.filter(({ command }) => command === "session.send_input"),
+			).toHaveLength(1);
+			expect(readCloudHandoffFollowUp(REMOTE_SESSION.id)).toBeNull();
+			await resetCloudSessionManager(ctx);
+			const established = new CloudSessionManager(ctx, {
+				api,
+				apiBaseUrl: "https://api.example",
+				getAuthToken: async () => "synthetic-token",
+				createHubClient: () => hub as never,
+			});
+			ctx.cloudSessionManager = established;
+			await expect(established.attach(REMOTE_SESSION.id)).rejects.toThrow(
+				"task is unavailable",
+			);
+			expect(
+				hub.commands.filter(({ command }) => command === "session.create"),
+			).toHaveLength(1);
+		} finally {
+			if (replacement) await disposeSidecarContext(replacement.ctx);
+			await disposeSidecarContext(original.ctx);
+			vi.unstubAllEnvs();
+			rmSync(dataDir, { recursive: true, force: true });
+		}
 	});
 
 	it("creates a canonical session with the requested branch and approval policy", async () => {

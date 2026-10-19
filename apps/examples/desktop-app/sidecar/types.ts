@@ -46,13 +46,11 @@ export type ChatSessionCommandRequest = {
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
-	/** Opaque preflight result returned by prepare_handoff and revalidated by handoff. */
-	fingerprint?: JsonRecord;
 	/** Opaque webview correlation token echoed on handoff progress events. */
 	handoffAttemptId?: string;
 	handoffFollowUpId?: string;
 	gitPreparationId?: string;
-	/** Optional first prompt to queue after ownership moves to the cloud session. */
+	/** Optional instruction appended to the locally generated summary. */
 	nextCommand?: string;
 };
 

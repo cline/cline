@@ -86,6 +86,8 @@ export interface ExtensionState {
 	enableCheckpointsSetting?: boolean
 	platform: Platform
 	environment?: Environment
+	/** The editor Cline runs in, as the host reports it ("Visual Studio Code", "Cursor", "PyCharm Professional"). */
+	hostName?: string
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting

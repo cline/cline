@@ -8,7 +8,11 @@ import type { CloudSessionRecord, CreateCloudSessionInput } from "./api";
 export type JsonRecord = Record<string, unknown>;
 export type CloudCreationOptions = Pick<
 	CreateCloudSessionInput,
-	"autoApproveTools" | "thinking" | "reasoningEffort"
+	| "autoApproveTools"
+	| "thinking"
+	| "reasoningEffort"
+	| "mode"
+	| "workspaceRelativePath"
 >;
 export type CloudSendLifecycle = {
 	beforeDispatch?: () => void;
