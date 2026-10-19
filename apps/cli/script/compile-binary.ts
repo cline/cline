@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { buildDashboardRuntimeDirectory } from "./dashboard-runtime";
 
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
@@ -94,6 +95,8 @@ export interface CompileCliBinaryOptions {
 export async function compileCliBinary(
 	input: CompileCliBinaryOptions,
 ): Promise<void> {
+	const pluginRuntime = join(rootDir, "sdk/packages/core/dist/plugin-runtime");
+	const dashboardRuntime = await buildDashboardRuntimeDirectory();
 	const parserWorker = findOpenTuiParserWorker();
 	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
 	const bunfsRoot = targetOs === "windows" ? "B:/~BUN/root/" : "/$bunfs/root/";
@@ -123,11 +126,13 @@ export async function compileCliBinary(
 		const autoload = input.autoloadLaunchDirectoryConfig !== false;
 		result = await Bun.build({
 			entrypoints: [entrypoint, parserWorker],
+			root: rootDir,
 			splitting: true,
 			compile: {
 				target: input.bunTarget,
 				outfile: tmpOutfile,
-				// Plugins import SDK packages from disk at runtime; let Bun resolve
+				assets: [pluginRuntime, dashboardRuntime],
+				// Plugins import SDK packages from the runtime tree; let Bun resolve
 				// their package exports without falling back to transpiling the SDK.
 				autoloadPackageJson: true,
 				...(input.execArgv?.length ? { execArgv: input.execArgv } : {}),
@@ -137,6 +142,11 @@ export async function compileCliBinary(
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
+				// compile.assets keeps each directory tree under its basename.
+				__CLINE_PLUGIN_RUNTIME_DIR__: JSON.stringify(
+					`${bunfsRoot}plugin-runtime`,
+				),
+				__CLINE_DASHBOARD_RUNTIME_DIR__: JSON.stringify(`${bunfsRoot}webview`),
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.
 				...buildInlinedEnvDefines(),

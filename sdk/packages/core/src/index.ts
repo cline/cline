@@ -981,6 +981,11 @@ export {
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
 export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+	setPluginSandboxLauncher,
+} from "./extensions/plugin/plugin-runtime";
+export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
 	type ApplyPatchInput,
