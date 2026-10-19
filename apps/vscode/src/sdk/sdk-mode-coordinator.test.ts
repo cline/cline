@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkModeCoordinator, type SdkModeCoordinatorOptions } from "./sdk-mode-coordinator"
+import { SdkSessionRebuildScheduler } from "./sdk-session-rebuild-scheduler"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -19,6 +20,102 @@ vi.mock("@core/storage/disk", () => ({
 describe("SdkModeCoordinator", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+	})
+
+	describe("toggles racing a session start", () => {
+		it("applies a toggle made while an earlier switch is still replacing the session", async () => {
+			const { coordinator, options, state } = makeCoordinator({
+				activeSession: makeActiveSession({ mode: "act" }),
+				task: makeTask("old-session"),
+				mode: "act",
+				serializeRebuilds: true,
+			})
+			let current: ActiveSessionFixture | undefined = makeActiveSession({ mode: "act" })
+			options.sessions.getActiveSession.mockImplementation(() => current)
+			let finishPlanStart!: () => void
+			const planStart = new Promise<void>((resolve) => {
+				finishPlanStart = resolve
+			})
+			options.sessions.replaceActiveSession
+				.mockImplementationOnce(async () => {
+					// The outgoing session is detached before its replacement starts,
+					// so no session is active until the plan session is up.
+					current = undefined
+					await planStart
+					current = makeActiveSession({ mode: "plan" })
+					return { startResult: { sessionId: "old-session" }, sdkHost: current.sdkHost }
+				})
+				.mockImplementationOnce(async () => {
+					current = makeActiveSession({ mode: "act" })
+					return { startResult: { sessionId: "old-session" }, sdkHost: current.sdkHost }
+				})
+
+			const toPlan = coordinator.togglePlanActMode("plan")
+			await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+			const toAct = coordinator.togglePlanActMode("act")
+			finishPlanStart()
+			await Promise.all([toPlan, toAct])
+
+			expect(state.mode).toBe("act")
+			expect(options.buildStartSessionInput.mock.calls.map(([, startInput]) => startInput.mode)).toEqual(["plan", "act"])
+			expect(current?.mode).toBe("act")
+			// act -> plan -> act before any message was sent cancels out.
+			expect(coordinator.consumeModeSwitchNotice("old-session")).toBeNull()
+		})
+
+		it("applies a toggle made while a new task's session is still starting", async () => {
+			const { coordinator, options, state } = makeCoordinator({ mode: "plan", task: makeTask("new-task") })
+			const planSession = makeActiveSession({ mode: "plan", isRunning: true })
+			let current: ActiveSessionFixture | undefined
+			options.sessions.getActiveSession.mockImplementation(() => current)
+			options.sessions.waitForSessionStarts.mockImplementationOnce(async () => {
+				// The task's plan session finishes starting and its first turn runs.
+				current = planSession
+			})
+
+			await coordinator.togglePlanActMode("act")
+
+			expect(state.mode).toBe("act")
+			expect(planSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
+			expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith(
+				expect.objectContaining({ expectedSession: planSession }),
+			)
+			expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.anything(), { cwd: "/workspace", mode: "act" })
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toEqual({ from: "plan", to: "act" })
+		})
+
+		it("rebuilds when the setting already matches but the session was built for the other mode", async () => {
+			const planSession = makeActiveSession({ mode: "plan" })
+			const { coordinator, options, state } = makeCoordinator({
+				activeSession: planSession,
+				task: makeTask("old-session"),
+				mode: "act",
+			})
+
+			await coordinator.togglePlanActMode("act")
+
+			expect(state.mode).toBe("act")
+			expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith(
+				expect.objectContaining({ expectedSession: planSession }),
+			)
+			expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.anything(), { cwd: "/workspace", mode: "act" })
+			expect(coordinator.consumeModeSwitchNotice("new-session")).toEqual({ from: "plan", to: "act" })
+		})
+
+		it("does not rebuild or announce a switch to the mode the session already runs in", async () => {
+			const { coordinator, options, state } = makeCoordinator({
+				activeSession: makeActiveSession({ mode: "plan" }),
+				task: makeTask("old-session"),
+				mode: "act",
+			})
+
+			await expect(coordinator.togglePlanActMode("plan")).resolves.toBe(false)
+
+			expect(state.mode).toBe("plan")
+			expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+			expect(options.postStateToWebview).toHaveBeenCalledOnce()
+			expect(coordinator.consumeModeSwitchNotice("old-session")).toBeNull()
+		})
 	})
 
 	it("preserves pending input by returning false when toggling mode without an active session", async () => {
@@ -798,6 +895,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			}),
 			fireAndForgetSend: vi.fn(),
 			setRunning: vi.fn(),
+			waitForSessionStarts: vi.fn().mockResolvedValue(undefined),
 		},
 		interactions: {
 			clearPending: vi.fn(),
@@ -836,6 +934,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			fireAndForgetSend: ReturnType<typeof vi.fn>
 			replaceActiveSession: ReturnType<typeof vi.fn>
 			setRunning: ReturnType<typeof vi.fn>
+			waitForSessionStarts: ReturnType<typeof vi.fn>
 		}
 		interactions: SdkModeCoordinatorOptions["interactions"] & {
 			clearPending: ReturnType<typeof vi.fn>
@@ -863,6 +962,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		onAutoContinueFailed: ReturnType<typeof vi.fn>
 	}
 
+	if (input.serializeRebuilds) {
+		options.rebuilds = new SdkSessionRebuildScheduler({ sessions: options.sessions })
+	}
+
 	return {
 		coordinator: new SdkModeCoordinator(options),
 		options,
@@ -880,11 +983,16 @@ interface MakeCoordinatorInput {
 	}
 	task: ReturnType<typeof makeTask>
 	turnPhase: string
+	/** Use the real rebuild lock instead of a pass-through. */
+	serializeRebuilds: boolean
 }
 
-function makeActiveSession(input: { isRunning?: boolean } = {}) {
+type ActiveSessionFixture = ReturnType<typeof makeActiveSession>
+
+function makeActiveSession(input: { isRunning?: boolean; mode?: "act" | "plan" } = {}) {
 	return {
 		sessionId: "old-session",
+		mode: input.mode,
 		sdkHost: {
 			abort: vi.fn().mockResolvedValue(undefined),
 			send: vi.fn(),
@@ -894,6 +1002,7 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		unsubscribe: vi.fn(),
 		startResult: { sessionId: "old-session" },
 		isRunning: input.isRunning ?? false,
+		queuedPromptCount: 0,
 	}
 }
 

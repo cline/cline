@@ -8,7 +8,7 @@ import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cli
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
-import { ExtensionRegistryInfo } from "@/registry"
+import { ExtensionRegistryInfo, HostRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -98,6 +98,8 @@ export async function getStateToPostToWebview(controller: {
 	const version = ExtensionRegistryInfo.version
 	const clineConfig = ClineEnv.config()
 	const environment = clineConfig.environment
+	const hostPlatform = HostRegistryInfo.get()?.platform
+	const hostName = hostPlatform && hostPlatform !== "unknown" ? hostPlatform : undefined
 	const banners = BannerService.get().getActiveBanners() ?? []
 	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
 
@@ -133,6 +135,7 @@ export async function getStateToPostToWebview(controller: {
 		enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 		platform,
 		environment,
+		hostName,
 		distinctId,
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},

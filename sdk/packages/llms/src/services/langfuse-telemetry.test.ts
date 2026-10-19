@@ -20,7 +20,11 @@ const {
 	spanProcessorConfigSpy: vi.fn(),
 	integrationOptionsSpy: vi.fn(),
 	telemetryStartSpy: vi.fn(),
-	globalGetTracerSpy: vi.fn(() => ({ name: "managed-global-tracer" })),
+	globalGetTracerSpy: vi.fn(() => ({
+		name: "managed-global-tracer",
+		startSpan: vi.fn(),
+		startActiveSpan: vi.fn(),
+	})),
 	getDelegateSpy: vi.fn(),
 	getTracerProviderSpy: vi.fn(),
 	forceFlushSpy: vi.fn(),
@@ -69,7 +73,11 @@ vi.mock("@langfuse/vercel-ai-sdk", () => ({
 class MockNodeTracerProvider {
 	forceFlush = vi.fn(async () => undefined);
 	shutdown = vi.fn(async () => undefined);
-	getTracer = vi.fn(() => ({ name: "direct-langfuse-tracer" }));
+	getTracer = vi.fn(() => ({
+		name: "direct-langfuse-tracer",
+		startSpan: vi.fn(),
+		startActiveSpan: vi.fn(),
+	}));
 
 	constructor(_options: unknown) {
 		tracerProviderInstances.push(this);
@@ -180,7 +188,10 @@ describe("langfuse telemetry", () => {
 		const decision = await resolveAiSdkTelemetry("cline");
 		expect(decision.isEnabled).toBe(true);
 		expect(integrationOptionsSpy).toHaveBeenCalledWith({
-			tracer: { name: "direct-langfuse-tracer" },
+			tracer: {
+				startSpan: expect.any(Function),
+				startActiveSpan: expect.any(Function),
+			},
 		});
 		await disposeLangfuseTelemetry();
 		expect(forceFlushSpy).not.toHaveBeenCalled();
@@ -225,7 +236,10 @@ describe("langfuse telemetry", () => {
 		expect(relay.integrations).not.toBe(direct.integrations);
 		expect(relay.recordInputs).toBe(false);
 		expect(integrationOptionsSpy).toHaveBeenLastCalledWith({
-			tracer: { name: "managed-global-tracer" },
+			tracer: {
+				startSpan: expect.any(Function),
+				startActiveSpan: expect.any(Function),
+			},
 		});
 	});
 
@@ -269,7 +283,10 @@ describe("langfuse telemetry", () => {
 					recordOutputs: false,
 				});
 				expect(integrationOptionsSpy).toHaveBeenLastCalledWith({
-					tracer: { name: "managed-global-tracer" },
+					tracer: {
+						startSpan: expect.any(Function),
+						startActiveSpan: expect.any(Function),
+					},
 				});
 			} else {
 				expect(decision).toEqual({ isEnabled: false });
@@ -562,7 +579,10 @@ describe("langfuse telemetry", () => {
 			});
 			expect(spanProcessorConfigSpy).toHaveBeenCalledWith(genericConfig);
 			expect(integrationOptionsSpy).toHaveBeenCalledWith({
-				tracer: { name: "direct-langfuse-tracer" },
+				tracer: {
+					startSpan: expect.any(Function),
+					startActiveSpan: expect.any(Function),
+				},
 			});
 		});
 
@@ -590,7 +610,10 @@ describe("langfuse telemetry", () => {
 
 			expect(decision.isEnabled).toBe(true);
 			expect(integrationOptionsSpy).toHaveBeenCalledWith({
-				tracer: { name: "direct-langfuse-tracer" },
+				tracer: {
+					startSpan: expect.any(Function),
+					startActiveSpan: expect.any(Function),
+				},
 			});
 			expect(globalGetTracerSpy).not.toHaveBeenCalled();
 		});

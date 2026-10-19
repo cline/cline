@@ -19,6 +19,7 @@ export function CloudOnboardingCard({
 	checking = false,
 	waiting = false,
 	errorMessage,
+	editor,
 }: {
 	variant: CloudOnboardingVariant
 	onConnect: () => void
@@ -28,6 +29,8 @@ export function CloudOnboardingCard({
 	/** True after the user opened the connect flow and we are polling for completion. */
 	waiting?: boolean
 	errorMessage?: string
+	/** How the copy names the editor, e.g. "PyCharm" or "your IDE". */
+	editor: string
 }) {
 	if (variant === "error") {
 		return (
@@ -59,7 +62,7 @@ export function CloudOnboardingCard({
 				</div>
 				<p className="m-0 text-xs leading-relaxed text-description">
 					Cloud sessions run in an isolated sandbox on Cline's infrastructure. Cline clones your repository, works on a
-					branch, and keeps going after you close VS Code.
+					branch, and keeps going after you close {editor}.
 				</p>
 			</div>
 

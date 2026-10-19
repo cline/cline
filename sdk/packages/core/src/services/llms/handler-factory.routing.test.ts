@@ -6,7 +6,7 @@ import { toProviderConfig } from "./provider-settings";
 describe("core agent per-model protocol routing", () => {
 	it.each([
 		["muse-spark-1.3-contributor", "responses", "input"],
-		["minimax-m2.7", "messages", "messages"],
+		["minimax-m3", "messages", "messages"],
 		["qwen3.7-plus", "messages", "messages"],
 		["glm-5.3", "chat/completions", "messages"],
 	])("routes catalog model %s to %s without a provider-wide override", async (modelId, endpoint, inputField) => {

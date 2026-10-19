@@ -3283,6 +3283,44 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("correlates model request starts with issued requests and assigns new IDs per request", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel(
+			[0, 1].map(() => () => [
+				{ type: "text-delta", text: "hello" } as AgentModelEvent,
+				{ type: "finish", reason: "stop" } as AgentModelEvent,
+			]),
+		);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			sessionId: "session-test",
+		});
+		await runtime.run("first");
+		await runtime.continue("second");
+		const starts = capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) => call.event === TASK_PROVIDER_REQUEST_STARTED_EVENT);
+		expect(starts).toHaveLength(2);
+		const ids = model.requests.map(
+			(request) =>
+				(request.options?.metadata as Record<string, unknown>).modelRequestId,
+		);
+		expect(ids.every((id) => typeof id === "string")).toBe(true);
+		expect(new Set(ids).size).toBe(2);
+		expect(starts.map((event) => event.properties.modelRequestId)).toEqual(ids);
+		for (const event of capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) =>
+				[
+					TASK_PROVIDER_STREAM_STARTED_EVENT,
+					TASK_FIRST_CHUNK_RECEIVED_EVENT,
+				].includes(call.event),
+			)) {
+			expect(ids).toContain(event.properties.modelRequestId);
+		}
+	});
+
 	it("captures task lifecycle telemetry around a successful model stream", async () => {
 		const { capture, telemetry } = createTelemetryMock();
 		const model = new ScriptedModel([
