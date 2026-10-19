@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionSource } from "../../types/common";
 import type { HubTransportContext } from "../server/handlers/context";
 import { projectSessionEvent } from "../server/handlers/session-event-projector";
+import type { HubRuntimeHost } from "./hub-runtime-host";
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
@@ -64,6 +65,9 @@ describe("HubRuntimeHost plugin UI", () => {
 		slot: SLOT,
 		action: { verb: "attach", surface: "desktop" },
 	} as const;
+	const detach = { sessionId, slot: SLOT, action: { verb: "detach" } } as const;
+	const ok = { ok: true, payload: { outcome: "ok" } };
+	const withdrawable = { beforeDispatch: expect.any(Function) };
 	const envelope: PluginUiStateEnvelope = {
 		sessionId,
 		slot: SLOT,
@@ -110,6 +114,34 @@ describe("HubRuntimeHost plugin UI", () => {
 		return commandMock.mock.calls.filter(
 			([command]) => command === "plugins.ui.invoke",
 		);
+	}
+
+	/**
+	 * Holds the next command as NodeHubClient holds one whose connection
+	 * dropped. `recover()` sends it again on the recovered connection, checking
+	 * its `beforeDispatch` first as the client does, and says whether it went out.
+	 */
+	function holdNextCommandUntilRecovery(): () => Promise<"sent" | "withdrawn"> {
+		let recover!: () => void;
+		const recovered = new Promise<void>((resolve) => {
+			recover = resolve;
+		});
+		let retry: Promise<unknown> = Promise.resolve();
+		commandMock.mockImplementationOnce((...args: unknown[]) => {
+			const options = args[3] as { beforeDispatch?(): void } | undefined;
+			retry = recovered.then(() => {
+				options?.beforeDispatch?.();
+				return ok;
+			});
+			return retry;
+		});
+		return () => {
+			recover();
+			return retry.then(
+				() => "sent" as const,
+				() => "withdrawn" as const,
+			);
+		};
 	}
 
 	it("maps the projected plugins.ui.state event to plugin_ui_state for its session only", async () => {
@@ -174,6 +206,7 @@ describe("HubRuntimeHost plugin UI", () => {
 			"plugins.ui.invoke",
 			{ slot: SLOT, action: attach.action },
 			sessionId,
+			withdrawable,
 		);
 		await host.dispose();
 	});
@@ -196,8 +229,13 @@ describe("HubRuntimeHost plugin UI", () => {
 		registered();
 		await expect(host.pluginUi.get({ sessionId })).resolves.toEqual([envelope]);
 		expect(commandMock.mock.calls.slice(1)).toEqual([
-			["plugins.ui.invoke", { slot: SLOT, action: attach.action }, sessionId],
-			["plugins.ui.get", {}, sessionId],
+			[
+				"plugins.ui.invoke",
+				{ slot: SLOT, action: attach.action },
+				sessionId,
+				withdrawable,
+			],
+			["plugins.ui.get", {}, sessionId, undefined],
 		]);
 		await host.dispose();
 	});
@@ -222,11 +260,7 @@ describe("HubRuntimeHost plugin UI", () => {
 			...attach,
 			sessionId: "sess-detached",
 		});
-		await host.pluginUi.invoke({
-			sessionId: "sess-detached",
-			slot: SLOT,
-			action: { verb: "detach" },
-		});
+		await host.pluginUi.invoke({ ...detach, sessionId: "sess-detached" });
 		commandMock.mockClear();
 
 		registered();
@@ -235,6 +269,7 @@ describe("HubRuntimeHost plugin UI", () => {
 			"plugins.ui.invoke",
 			{ slot: SLOT, action: attach.action },
 			sessionId,
+			withdrawable,
 		]);
 
 		await host.stopSession(sessionId);
@@ -262,14 +297,76 @@ describe("HubRuntimeHost plugin UI", () => {
 
 		registered();
 		expect(invokeCalls()).toEqual([
-			["plugins.ui.invoke", { slot: SLOT, action: attach.action }, sessionId],
+			[
+				"plugins.ui.invoke",
+				{ slot: SLOT, action: attach.action },
+				sessionId,
+				withdrawable,
+			],
 		]);
+		await host.dispose();
+	});
+
+	it.each([
+		[
+			"the session detaches",
+			(host: HubRuntimeHost) => host.pluginUi.invoke(detach),
+		],
+		[
+			"the host stops the session",
+			(host: HubRuntimeHost) => host.stopSession(sessionId),
+		],
+		["the host is disposed", (host: HubRuntimeHost) => host.dispose()],
+	])("withdraws an attach awaiting transport recovery once %s", async (_, withdraw) => {
+		const { host } = await createHost();
+		const recover = holdNextCommandUntilRecovery();
+		commandMock.mockResolvedValue(ok);
+		const attaching = host.pluginUi.invoke(attach);
+
+		await withdraw(host);
+
+		await expect(recover()).resolves.toBe("withdrawn");
+		await expect(attaching).resolves.toEqual({ outcome: "unavailable" });
+		await host.dispose();
+	});
+
+	it("withdraws a re-sent attach awaiting transport recovery once the session detaches", async () => {
+		const { host, registered } = await createHost();
+		commandMock.mockResolvedValue(ok);
+		await host.pluginUi.invoke(attach);
+		const recover = holdNextCommandUntilRecovery();
+		registered();
+
+		await host.pluginUi.invoke(detach);
+
+		await expect(recover()).resolves.toBe("withdrawn");
+		expect(invokeCalls().at(-1)).toEqual([
+			"plugins.ui.invoke",
+			{ slot: SLOT, action: detach.action },
+			sessionId,
+			undefined,
+		]);
+		await host.dispose();
+	});
+
+	it("still sends an attach awaiting transport recovery while the session stays attached", async () => {
+		const { host, registered } = await createHost();
+		const recoverFirst = holdNextCommandUntilRecovery();
+		commandMock.mockResolvedValue(ok);
+		const attaching = host.pluginUi.invoke(attach);
+		await host.pluginUi.invoke(attach);
+
+		await expect(recoverFirst()).resolves.toBe("sent");
+		await expect(attaching).resolves.toEqual({ outcome: "ok" });
+
+		const recoverResent = holdNextCommandUntilRecovery();
+		registered();
+		await expect(recoverResent()).resolves.toBe("sent");
 		await host.dispose();
 	});
 
 	it("does not send an attach twice when its own command triggers the registration", async () => {
 		const { host, registered } = await createHost();
-		const ok = { ok: true, payload: { outcome: "ok" } };
 		commandMock.mockResolvedValue(ok);
 		commandMock.mockImplementationOnce(async () => {
 			registered();

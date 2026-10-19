@@ -22,9 +22,12 @@ export interface HubPluginUiApi extends PluginUiApi {
 	 * the remembered attaches, whose leases the hub ended with the old connection.
 	 */
 	onRegistered(): void;
-	/** Stops re-sending this session's attach, for a session the client no longer follows. */
+	/**
+	 * Stops re-sending this session's attach, and withdraws one not yet sent,
+	 * for a session the client no longer follows.
+	 */
 	forget(sessionId: string): void;
-	/** Stops re-sending every attach, for a client that is shutting down. */
+	/** Stops re-sending and withdraws every attach, for a client that is shutting down. */
 	forgetAll(): void;
 }
 
@@ -82,15 +85,37 @@ export function createHubPluginUiApi(
 	 */
 	const attachesInFlight = new Map<string, PluginUiRequest>();
 
+	/**
+	 * The hub client sends a command again, on a new connection, after
+	 * recovering a dropped one. An attach whose session was detached or
+	 * forgotten in the meantime would then take a lease no detach ever ends,
+	 * so it is withdrawn instead.
+	 */
+	function whileStillWanted(sessionId: string) {
+		return {
+			beforeDispatch(): void {
+				if (!attached.has(sessionId)) {
+					throw new Error(`Plugin UI attach for ${sessionId} was withdrawn`);
+				}
+			},
+		};
+	}
+
 	async function send(
 		command: HubCommandName,
 		sessionId: string,
 		payload: Record<string, unknown>,
+		commandOptions?: Parameters<NodeHubClient["command"]>[3],
 	): Promise<Record<string, unknown> | undefined> {
 		if (unsupported) return undefined;
 		try {
 			options?.beforeCommand?.(sessionId);
-			const reply = await client.command(command, payload, sessionId);
+			const reply = await client.command(
+				command,
+				payload,
+				sessionId,
+				commandOptions,
+			);
 			if (reply.ok === false) {
 				unsupported ||= reply.error?.code === "unsupported_command";
 				return undefined;
@@ -134,9 +159,12 @@ export function createHubPluginUiApi(
 				attachesInFlight.set(sessionId, request);
 			}
 			if (verb === "detach") forget(sessionId);
-			const payload = await send("plugins.ui.invoke", sessionId, {
-				...request,
-			});
+			const payload = await send(
+				"plugins.ui.invoke",
+				sessionId,
+				{ ...request },
+				verb === "attach" ? whileStillWanted(sessionId) : undefined,
+			);
 			if (attachesInFlight.get(sessionId) === request) {
 				attachesInFlight.delete(sessionId);
 			}
@@ -147,7 +175,12 @@ export function createHubPluginUiApi(
 			unsupported = false;
 			for (const [sessionId, request] of attached) {
 				if (attachesInFlight.has(sessionId)) continue;
-				void send("plugins.ui.invoke", sessionId, { ...request });
+				void send(
+					"plugins.ui.invoke",
+					sessionId,
+					{ ...request },
+					whileStillWanted(sessionId),
+				);
 			}
 		},
 
