@@ -30,6 +30,7 @@ import { formatChatMessageContent } from "../message-content";
 import { isSystemSteeringMessage } from "./group-messages";
 import { MessageImageCarousel } from "./image-carousel";
 import { ReasoningBlock } from "./reasoning-block";
+import { WorkVerificationCarousel } from "./work-verification-carousel";
 
 function MessageImages({
 	images,
@@ -263,6 +264,13 @@ export const MessageBubble = memo(function MessageBubble({
 							streaming={isStreaming && message.role === "assistant"}
 						/>
 					</div>
+				) : null}
+
+				{message.role === "assistant" && message.meta?.verification ? (
+					<WorkVerificationCarousel
+						className="mt-1"
+						verification={message.meta.verification}
+					/>
 				) : null}
 
 				{credentialAction ? (

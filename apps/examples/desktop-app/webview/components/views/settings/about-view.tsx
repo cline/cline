@@ -1,6 +1,13 @@
 "use client";
 
-import { Bug, ExternalLink, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import {
+	Bug,
+	ExternalLink,
+	FlaskConical,
+	Loader2,
+	RefreshCw,
+	Sparkles,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -246,6 +253,29 @@ export function AboutContent({
 							open={whatsNewOpen}
 							release={whatsNew}
 						/>
+					</div>
+				) : null}
+				{process.env.NODE_ENV === "development" ? (
+					<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+						<div className="flex flex-col gap-1">
+							<p className="text-base font-semibold text-foreground">
+								Close the loop (prototype)
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Scripted cloud session showing the agent verifying its own work
+								with screenshots. Dev builds only.
+							</p>
+						</div>
+						<Button
+							className="shrink-0"
+							onClick={() => window.location.assign("/demo/close-the-loop")}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<FlaskConical className="size-3" />
+							Open demo
+						</Button>
 					</div>
 				) : null}
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">

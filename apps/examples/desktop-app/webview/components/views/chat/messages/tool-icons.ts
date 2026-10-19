@@ -10,6 +10,7 @@ import {
 	LibraryIcon,
 	type LucideIcon,
 	MessageCircleQuestionMarkIcon,
+	MousePointerClickIcon,
 	PanelsTopLeftIcon,
 	PencilIcon,
 	SearchCodeIcon,
@@ -22,6 +23,7 @@ import {
 
 // Overrides for tools whose kind-based icon would be misleading.
 export const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
+	computer_use: MousePointerClickIcon,
 	plugins: BlocksIcon,
 	submit_and_exit: SquareArrowRightIcon,
 };

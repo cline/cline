@@ -65,6 +65,31 @@ export const ChatMessageImageSchema = z.object({
 
 export const ChatMessageMediaSchema = GeneratedMediaSchema;
 
+/**
+ * One frame the agent captured while verifying its own work in the sandbox
+ * ("close the loop"): a screenshot of the running app/CLI plus what the agent
+ * did to get there and what it concluded.
+ */
+export const WorkVerificationScreenshotSchema = z.object({
+	id: z.string().min(1),
+	/** Host-resolved image URL (artifact URL, blob URL, or data URL). */
+	src: z.string().min(1),
+	title: z.string().min(1),
+	note: z.string().optional(),
+	action: z
+		.enum(["launch", "screenshot", "click", "type", "scroll", "key", "resize"])
+		.optional(),
+	outcome: z.enum(["pass", "fail", "info"]).optional(),
+});
+
+export const WorkVerificationSchema = z.object({
+	summary: z.string().min(1),
+	/** What was exercised, e.g. a dev-server URL or a CLI binary name. */
+	target: z.string().optional(),
+	durationMs: z.number().int().nonnegative().optional(),
+	screenshots: z.array(WorkVerificationScreenshotSchema).min(1),
+});
+
 export const ChatMessageSchema = z.object({
 	id: z.string().min(1),
 	sessionId: z.string().nullable(),
@@ -107,6 +132,7 @@ export const ChatMessageSchema = z.object({
 					kind: z.enum(["stash", "commit"]).optional(),
 				})
 				.optional(),
+			verification: WorkVerificationSchema.optional(),
 		})
 		.optional(),
 });
@@ -131,6 +157,10 @@ export type ChatSessionConfig = z.infer<typeof ChatSessionConfigSchema>;
 export type ChatSessionStatus = z.infer<typeof ChatSessionStatusSchema>;
 export type ChatMessageImage = z.infer<typeof ChatMessageImageSchema>;
 export type ChatMessageMedia = z.infer<typeof ChatMessageMediaSchema>;
+export type WorkVerificationScreenshot = z.infer<
+	typeof WorkVerificationScreenshotSchema
+>;
+export type WorkVerification = z.infer<typeof WorkVerificationSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSummary = z.infer<typeof ChatSummarySchema>;
 export type ChatViewState = z.infer<typeof ChatViewStateSchema>;
