@@ -52,6 +52,47 @@ describe("Next, for one chat", () => {
 		expect(ledgerCalls()[0]?.costUsd).toBe(0.001);
 	});
 
+	test("a slow planner leaves the tray loading only until the reveal delay, then the model's set replaces the rules'", async () => {
+		let answer: (value: { text: string }) => void = () => {};
+		const { session, sets } = harness({
+			revealRulesAfterMs: 5,
+			complete: (_input, _signal, _settings, meter) =>
+				new Promise<{ text: string }>((resolve) => {
+					meter.note({
+						type: "usage",
+						inputTokens: 0,
+						outputTokens: 0,
+						totalCost: 0.001,
+						id: "r",
+					});
+					answer = resolve;
+				}),
+		});
+		const served = session.afterRun(editRun().result);
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		expect(session.current()?.planner).toBe("rules");
+		expect(session.currentPush().state).toBe("ready");
+		answer({ text: MODEL_ANSWER });
+		await served;
+		await session.settled();
+		expect(session.current()?.planner).toBe("model");
+		expect(sets.map((set) => set?.planner)).toEqual(["rules", "model"]);
+	});
+
+	test("a model that fails after the reveal keeps the rules up and marks the set's model failed", async () => {
+		const { session, sets } = harness({
+			revealRulesAfterMs: 5,
+			complete: () =>
+				new Promise<null>((resolve) => setTimeout(() => resolve(null), 20)),
+		});
+		await session.afterRun(editRun().result);
+		await new Promise((resolve) => setTimeout(resolve, 40));
+		await session.settled();
+		expect(session.current()?.planner).toBe("rules");
+		expect(session.current()?.model?.status).toBe("no_provider");
+		expect(sets.map((set) => set?.planner)).toEqual(["rules", "rules"]);
+	});
+
 	test("the planner names a source it could not read by the source's own display name, or its id without one", async () => {
 		const { session, calls } = harness({
 			sources: () => [

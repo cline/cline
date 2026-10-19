@@ -161,6 +161,13 @@ export const TURN_PATH_LIMIT = 8;
  * rule-based set is the turn's one set.
  */
 export const PLANNER_TIMEOUT_MS = 20_000;
+/**
+ * How long a turn's tray may stay loading before the rule set, already
+ * computed, goes up while the planner is still answering. A call that answers
+ * inside the window is shown alone; past it, the model's set replaces the
+ * rules' set when it lands, so the tray never waits out the deadline blank.
+ */
+export const RULE_REVEAL_MS = 2_500;
 export const PLANNER_MAX_OUTPUT_TOKENS = 400;
 export const PLANNER_TEMPERATURE = 0.3;
 

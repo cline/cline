@@ -3,7 +3,7 @@ import type {
 	AgentRunResult,
 	PluginUiSurface,
 } from "@cline/shared";
-import { REROLL_LIMIT } from "../../config";
+import { REROLL_LIMIT, RULE_REVEAL_MS } from "../../config";
 import {
 	buildManifest,
 	capabilitiesBySource,
@@ -43,6 +43,8 @@ export type NextOptions = {
 	github?: (env: SourceEnv) => Omit<GitHubEvidence, "pushed"> | undefined;
 	/** The planner's model; without one, the rules answer every set. */
 	complete?: Complete;
+	/** How long the tray loads before the rule set goes up ahead of the planner; tests shorten it. */
+	revealRulesAfterMs?: number;
 	ledger?: PlannerLedger;
 	labels?: LabelLog;
 	store?: SessionStateStore;
@@ -368,9 +370,25 @@ export class NextSession {
 		this.core.state = state;
 		const model = this.core.plannerModel(settings);
 		if (model?.status !== "pending") return this.core.serve(state, model);
-		// One set per turn: the rule set stays back as the planner's fallback rather than showing before it.
 		startPlanner(this.core, state, gen);
+		this.revealRules(state, gen, settings);
 		return undefined;
+	}
+
+	/**
+	 * The rules are ready within the tray's first few hundred ms; the model's
+	 * set is not. Past the reveal delay the rules go up, so a slow call no
+	 * longer leaves the tray loading, and the model's set replaces them when it
+	 * lands. A call that answered inside the delay is shown alone.
+	 */
+	private revealRules(state: TurnState, gen: number, settings: Settings): void {
+		const delay = this.core.options.revealRulesAfterMs ?? RULE_REVEAL_MS;
+		setTimeout(() => {
+			if (!this.core.isCurrent(gen, state)) return;
+			if (!this.core.awaitingPlanner() || state.pool) return;
+			if (!this.core.isViewed() || !this.core.isOn(settings)) return;
+			this.core.serve(state, { status: "pending" });
+		}, delay).unref();
 	}
 
 	outgoing(messages: readonly AgentMessage[]): void {

@@ -51,12 +51,13 @@ A chat set up with Next and notifications both off builds its runtime at the
 first hook after either is turned on.
 
 After each completed root run, `afterRun` reads the turn's context and the
-tray shows it loading. Each turn gets **one set**, and a set is never
-suggested while a better one is being generated for the same turn: the
-planner runs detached on the chat's own provider by default and writes the
-set, and the rule-based set waits behind it, shown only when the planner
-cannot answer (it fails, times out or is held back, or no model or allowance
-is left). Only Skip and Reroll serve another set for the turn. The first
+tray shows it loading. Each turn gets **one set** from whichever writer
+answers: the planner runs detached on the chat's own provider by default and
+writes the set; when it is still answering after 2.5 s, the rule-based set
+already computed behind it goes up, and the model's set replaces it if it
+lands. When the planner cannot answer (it fails, times out or is held back,
+or no model or allowance is left), the rules stay, carrying the planner's
+status. Only Skip and Reroll serve another set for the turn. The first
 `beforeModel` of the next root run takes the set down, including a run on
 the same message (a retry, a resume, an approved plan), aborts a planner
 call still answering for it, and labels the person's new message against

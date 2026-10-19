@@ -280,8 +280,15 @@ export class SessionCore {
 		return set;
 	}
 
-	/** The tray is loading until the planner answers: a turn's one set, or a reroll. */
+	/**
+	 * The tray is loading until the planner answers: a turn's one set, or a
+	 * reroll. Also true while the rule set shown past the reveal delay still
+	 * waits on the model, so a failure replaces it with the error rather than
+	 * leaving the rules up as if the model had answered.
+	 */
 	awaitingPlanner(): boolean {
-		return this.lastPush?.state === "computing";
+		if (this.lastPush?.state === "computing") return true;
+		const set = this.lastPush?.set;
+		return set?.planner === "rules" && set.model?.status === "pending";
 	}
 }
