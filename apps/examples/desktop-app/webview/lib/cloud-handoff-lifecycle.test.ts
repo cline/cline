@@ -10,7 +10,6 @@ const result = {
 	sourceSessionId: "local",
 	sessionId: "cloud",
 	dashboardUrl: "https://app.cline.bot/agents/cloud",
-	destination: "in_app" as const,
 };
 function harness() {
 	let state: CloudHandoffUiState = {};
@@ -57,8 +56,6 @@ describe("summary handoff lifecycle", () => {
 		await h.lifecycle.onRpcResolved("local", {
 			handoffAttemptId,
 			result,
-			nextCommand: "continue",
-			sourceAttachments: [],
 		});
 		expect(h.state().local).toMatchObject({
 			status: "complete",
@@ -134,8 +131,6 @@ describe("summary handoff lifecycle", () => {
 				warning: "Check the task before resending.",
 				warningKind: "unconfirmed",
 			},
-			nextCommand: "continue",
-			sourceAttachments: [],
 		});
 		expect(h.toast).toHaveBeenCalledWith(
 			expect.objectContaining({ variant: "destructive" }),

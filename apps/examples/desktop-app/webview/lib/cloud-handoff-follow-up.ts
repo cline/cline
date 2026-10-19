@@ -56,49 +56,29 @@ export async function restoreCloudHandoffFollowUp(options: {
 
 export async function openWithCloudHandoffFollowUp(options: {
 	targetSessionId: string;
-	initialPromptDraft?: string;
-	initialAttachments?: File[];
 	canOpen: () => boolean;
 	open: (draft?: string, attachments?: File[], draftId?: string) => void;
 }): Promise<boolean> {
 	let saved: CloudHandoffFollowUp | null = null;
-	const explicitRetry =
-		options.initialPromptDraft !== undefined ||
-		options.initialAttachments !== undefined;
-	let attachments = options.initialAttachments;
+	let attachments: File[] | undefined;
 	let restoreFailed = false;
-	let newerDraft = false;
 	try {
 		saved = await desktopClient.invoke<CloudHandoffFollowUp | null>(
 			"get_cloud_handoff_follow_up",
 			{ sessionId: options.targetSessionId },
 		);
-		if (!explicitRetry && saved && !saved.unconfirmed)
+		if (saved && !saved.unconfirmed)
 			attachments = cloudHandoffFollowUpAttachments(saved);
-		if (saved?.unconfirmed && explicitRetry)
-			newerDraft = !(await matchesCloudHandoffFollowUp(
-				options.initialPromptDraft,
-				options.initialAttachments ?? [],
-				saved,
-			));
 	} catch {
 		saved = null;
 		restoreFailed = true;
 	}
 	if (!options.canOpen()) return false;
 	if (saved?.unconfirmed) {
-		// A stale copy of the uncertain send stays behind explicit Restore; a newer edit is the user's own draft.
-		options.open(
-			newerDraft ? options.initialPromptDraft : undefined,
-			newerDraft ? options.initialAttachments : undefined,
-		);
+		options.open();
 		return true;
 	}
-	options.open(
-		explicitRetry ? options.initialPromptDraft : saved?.command,
-		attachments,
-		saved?.draftId,
-	);
+	options.open(saved?.command, attachments, saved?.draftId);
 	if (restoreFailed) {
 		toast({
 			title: "Cloud opened without the saved follow-up",
@@ -106,26 +86,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 				"The recovery copy could not be read and has not been cleared. Try reopening the session to restore it.",
 			variant: "destructive",
 		});
-	}
-	return true;
-}
-
-export async function matchesCloudHandoffFollowUp(
-	draft: string | undefined,
-	files: File[],
-	saved: CloudHandoffFollowUp,
-): Promise<boolean> {
-	if ((draft?.trim() ?? "") !== saved.command.trim()) return false;
-	if (files.length !== saved.userImages.length) return false;
-	const original = cloudHandoffFollowUpAttachments(saved);
-	for (const [index, file] of files.entries()) {
-		const bytes = new Uint8Array(await file.arrayBuffer());
-		const previous = new Uint8Array(await original[index].arrayBuffer());
-		if (
-			bytes.length !== previous.length ||
-			!bytes.every((value, offset) => value === previous[offset])
-		)
-			return false;
 	}
 	return true;
 }

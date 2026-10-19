@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { cloudHandoffUiReducer } from "@/lib/cloud-handoff-ui-state";
 import {
 	CloudHandoffGitConfirmation,
 	CloudHandoffRecoveryNotice,
@@ -77,20 +78,31 @@ describe("CloudHandoffStatus", () => {
 		expect(onOpenCloud).toHaveBeenCalledOnce();
 	});
 	it("shows preparation failure without automatically restoring the saved draft", () => {
-		const restore = vi.fn();
-		const view = render(
+		const failure = {
+			type: "failed",
+			sourceSessionId: "local",
+			message: "Summary failed",
+			retryDraft: "continue",
+			retryAttachments: [],
+		} as const;
+		let state = cloudHandoffUiReducer({}, { ...failure, retryAttachments: [] });
+		const restore = vi.fn(() => {
+			state = cloudHandoffUiReducer(state, {
+				type: "retry_restored",
+				sourceSessionId: "local",
+			});
+			root?.render(status());
+		});
+		const status = (key = "initial") => (
 			<CloudHandoffStatus
-				state={{
-					status: "failed",
-					message: "Summary failed",
-					retryDraft: "continue",
-					retryAttachments: [],
-				}}
+				key={key}
+				state={state.local}
 				onOpenCloud={vi.fn()}
 				onRestoreDraft={restore}
 				onDismiss={vi.fn()}
-			/>,
+			/>
 		);
+		const view = render(status());
 		expect(view.textContent).toContain("Summary failed");
 		expect(restore).not.toHaveBeenCalled();
 		act(() =>
@@ -99,6 +111,16 @@ describe("CloudHandoffStatus", () => {
 				?.click(),
 		);
 		expect(restore).toHaveBeenCalledOnce();
+		expect(view.textContent).not.toContain("Restore /cloud draft");
+		act(() => root?.render(status("remount")));
+		expect(view.textContent).not.toContain("Restore /cloud draft");
+		state = cloudHandoffUiReducer(state, {
+			...failure,
+			retryDraft: "new attempt",
+			retryAttachments: [],
+		});
+		act(() => root?.render(status("remount")));
+		expect(view.textContent).toContain("Restore /cloud draft");
 	});
 });
 

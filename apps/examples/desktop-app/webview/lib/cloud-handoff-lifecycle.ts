@@ -29,10 +29,8 @@ type HandoffProgressEventPayload = {
 	message?: string;
 	dashboardUrl?: string;
 	sessionId?: string;
-	destination?: "in_app" | "external";
 	warning?: string;
 	warningKind?: "unqueued" | "unconfirmed";
-	undeliveredCommand?: string;
 };
 
 type RpcContext = {
@@ -91,7 +89,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 						...event,
 						sessionId: event.sessionId,
 						dashboardUrl: event.dashboardUrl,
-						destination: event.destination ?? "in_app",
 					});
 					return;
 				}
@@ -108,7 +105,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		},
 		async onRpcResolved(
 			sourceSessionId: string,
-			ctx: RpcContext & { result: HandoffResult },
+			ctx: { handoffAttemptId?: string; result: HandoffResult },
 		): Promise<void> {
 			const attempt = current(sourceSessionId, ctx.handoffAttemptId);
 			if (!attempt) return;

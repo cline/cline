@@ -12,11 +12,6 @@ export type PromptDraft = {
 	revision: number;
 	handoffFollowUpId?: string;
 	lastRestoredFollowUpId?: string;
-	restoredHandoffRetry?: {
-		sourceSessionId: string;
-		draft?: string;
-		attachments?: File[];
-	};
 };
 
 /**
@@ -77,27 +72,6 @@ export function usePromptDraft(
 		},
 		[handlePromptInputChange],
 	);
-	const restoreHandoffRetry = useCallback(
-		(retry: PromptDraft["restoredHandoffRetry"]) => {
-			const restored = draftRef.current.restoredHandoffRetry;
-			if (!retry) {
-				draftRef.current.restoredHandoffRetry = undefined;
-				return false;
-			}
-			if (
-				restored?.sourceSessionId === retry.sourceSessionId &&
-				restored.draft === retry.draft &&
-				restored.attachments === retry.attachments
-			)
-				return false;
-			draftRef.current.restoredHandoffRetry = retry;
-			if (retry.draft) setPromptInput(retry.draft);
-			if (retry.attachments?.length)
-				setPendingAttachments([...retry.attachments]);
-			return true;
-		},
-		[setPromptInput, setPendingAttachments],
-	);
 	const clearPromptForSend = useCallback(() => {
 		setPromptInput("");
 		const revision = draftRef.current.revision;
@@ -121,7 +95,6 @@ export function usePromptDraft(
 		draftRef,
 		pendingAttachments,
 		setPendingAttachments,
-		restoreHandoffRetry,
 		promptInputRef,
 		promptDraft,
 		setPromptInput,

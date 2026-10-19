@@ -7,22 +7,12 @@ type ParsedHandoffCommand = {
 	nextCommand: string;
 };
 
-export type HandoffPreflight = {
-	gitPreparationId: string;
-	repoUrl: string;
-	branch: string;
-	headSha: string;
-	modelId: string;
-};
-
 export type HandoffResult = {
 	sourceSessionId: string;
 	sessionId: string;
 	dashboardUrl: string;
-	destination: "in_app" | "external";
 	warning?: string;
 	warningKind?: "unqueued" | "unconfirmed";
-	undeliveredCommand?: string;
 };
 
 export type HandoffProgressPhase =
@@ -86,7 +76,6 @@ type HandoffWarningToast = {
 export function buildHandoffWarningToast(fields: {
 	warning?: unknown;
 	warningKind?: unknown;
-	undeliveredCommand?: unknown;
 }): HandoffWarningToast | null {
 	const warning =
 		typeof fields.warning === "string" ? fields.warning.trim() : "";
@@ -94,15 +83,12 @@ export function buildHandoffWarningToast(fields: {
 		return null;
 	}
 	const unconfirmed = fields.warningKind === "unconfirmed";
-	const undeliveredCommand =
-		!unconfirmed && typeof fields.undeliveredCommand === "string"
-			? fields.undeliveredCommand.trim()
-			: "";
 	return {
 		title: "Handoff completed with a warning",
-		description: undeliveredCommand
-			? `${warning} The prepared prompt was kept in the cloud session.`
-			: warning,
+		description:
+			fields.warningKind === "unqueued"
+				? `${warning} The prepared prompt was kept in the cloud session.`
+				: warning,
 		...(unconfirmed ? { variant: "destructive" as const } : {}),
 	};
 }

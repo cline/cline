@@ -43,6 +43,21 @@ describe("cloud handoff helpers", () => {
 });
 
 describe("handoff completion warnings", () => {
+	it.each([
+		"unqueued",
+		"unconfirmed",
+	] as const)("describes %s delivery without including the saved prompt", (warningKind) => {
+		expect(
+			buildHandoffWarningToast({ warning: "Could not send.", warningKind }),
+		).toEqual({
+			title: "Handoff completed with a warning",
+			description:
+				warningKind === "unqueued"
+					? "Could not send. The prepared prompt was kept in the cloud session."
+					: "Could not send.",
+			...(warningKind === "unconfirmed" ? { variant: "destructive" } : {}),
+		});
+	});
 	it("returns no toast for a clean completion payload", () => {
 		expect(buildHandoffWarningToast({})).toBeNull();
 		expect(buildHandoffWarningToast({ warning: "   " })).toBeNull();

@@ -2,13 +2,12 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { normalizeGitHubRemoteUrl } from "@cline/core";
 
 export type HandoffGitPlan = {
 	id: string;
 	root: string;
-	cwd: string;
 	workspaceRelativePath: string;
 	repoUrl: string;
 	pushUrl: string;
@@ -17,8 +16,6 @@ export type HandoffGitPlan = {
 	sourceBranch: string;
 	headSha: string;
 	treeSha: string;
-	indexTree: string;
-	status: string;
 	files: Array<{ path: string; status: string }>;
 	commits: string[];
 };
@@ -246,7 +243,6 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	return {
 		id: randomUUID(),
 		root,
-		cwd: resolve(cwd),
 		workspaceRelativePath,
 		repoUrl,
 		pushUrl,
@@ -255,8 +251,6 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 		sourceBranch,
 		headSha,
 		treeSha,
-		indexTree,
-		status,
 		files,
 		commits,
 	};

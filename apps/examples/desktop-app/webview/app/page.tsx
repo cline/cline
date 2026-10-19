@@ -61,10 +61,7 @@ import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import type {
-	ProcessContext,
-	SerializedAttachments,
-} from "@/hooks/chat-session/types";
+import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
@@ -80,7 +77,6 @@ import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	HANDOFF_PROGRESS_LABELS,
-	type HandoffPreflight,
 	type HandoffProgressPhase,
 	type HandoffResult,
 	isExpectedHandoffSourceActive,
@@ -271,9 +267,8 @@ function readCloudProvisioningPhase(
 		: undefined;
 }
 
-// Creation and timeout recovery can each take 610s. Allow time for summary
-// generation, authentication, Hub attachment, and prompt delivery too.
-const HANDOFF_INVOKE_TIMEOUT_MS = 25 * 60_000;
+// Git preparation and cloud startup each need their own timeout budget.
+const HANDOFF_STAGE_TIMEOUT_MS = 25 * 60_000;
 
 function useCloudProvisioningPhase(
 	repoUrl: string | undefined,
@@ -319,8 +314,6 @@ function useCloudProvisioningPhase(
 type OpenSessionOptions = {
 	environmentId?: string;
 	silent?: boolean;
-	initialPromptDraft?: string;
-	initialAttachments?: File[];
 	expectedActiveThreadId?: string;
 };
 
@@ -732,7 +725,6 @@ export default function Home() {
 		async (
 			session: SessionHistoryItem,
 			initialPromptDraft?: string,
-			initialAttachments?: File[],
 			expectedActiveThreadId?: string,
 		): Promise<HandoffOpenResult | undefined> => {
 			const revision = ++sessionOpenRevision.current;
@@ -748,14 +740,12 @@ export default function Home() {
 				});
 			};
 			if (session.origin !== "cloud") {
-				open(initialPromptDraft, initialAttachments);
+				open(initialPromptDraft);
 				return { opened: true };
 			}
 			try {
 				const opened = await openWithCloudHandoffFollowUp({
 					targetSessionId: session.sessionId,
-					initialPromptDraft,
-					initialAttachments,
 					canOpen: () =>
 						revision === sessionOpenRevision.current &&
 						location === activeLocationRef.current &&
@@ -944,8 +934,7 @@ export default function Home() {
 			if (cachedSession) {
 				return await handleOpenSession(
 					cachedSession,
-					options.initialPromptDraft,
-					options.initialAttachments,
+					undefined,
 					options.expectedActiveThreadId,
 				);
 			}
@@ -979,8 +968,7 @@ export default function Home() {
 				}
 				return await handleOpenSession(
 					session,
-					options.initialPromptDraft,
-					options.initialAttachments,
+					undefined,
 					options.expectedActiveThreadId,
 				);
 			} catch (error) {
@@ -1034,10 +1022,8 @@ export default function Home() {
 					message?: string;
 					dashboardUrl?: string;
 					sessionId?: string;
-					destination?: "in_app" | "external";
 					warning?: string;
 					warningKind?: "unqueued" | "unconfirmed";
-					undeliveredCommand?: string;
 				};
 				if (
 					!progress.sourceSessionId?.trim() ||
@@ -1053,10 +1039,8 @@ export default function Home() {
 					message: progress.message,
 					dashboardUrl: progress.dashboardUrl,
 					sessionId: progress.sessionId,
-					destination: progress.destination,
 					warning: progress.warning,
 					warningKind: progress.warningKind,
-					undeliveredCommand: progress.undeliveredCommand,
 				});
 			}),
 		[handoffLifecycle],
@@ -1398,7 +1382,6 @@ function ChatThreadPane({
 	onOpenSession?: (
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
-		initialAttachments?: File[],
 	) => void;
 	onOpenSessionById?: (
 		sessionId: string,
@@ -1462,7 +1445,6 @@ function ChatThreadPane({
 		draftRef,
 		pendingAttachments,
 		setPendingAttachments,
-		restoreHandoffRetry,
 		clearPromptForSend,
 		promptDraft,
 		promptInputRef,
@@ -2298,7 +2280,8 @@ function ChatThreadPane({
 	);
 
 	const handleRestoreHandoffDraft = useCallback(() => {
-		if (!sourceSessionId || !handoffRetry) return;
+		if (!sourceSessionId || !handoffRetry || handoffUi?.status !== "failed")
+			return;
 		if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
 			toast({
 				title: "Your current draft is unchanged",
@@ -2306,72 +2289,19 @@ function ChatThreadPane({
 			});
 			return;
 		}
-		const restored = restoreHandoffRetry(
-			handoffRetry ? { sourceSessionId, ...handoffRetry } : undefined,
-		);
-		if (restored && handoffUi?.status !== "retry_restored") {
-			onHandoffUiAction({
-				type: "retry_restored",
-				sourceSessionId,
-			});
-		}
+		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
+		if (handoffRetry.attachments?.length)
+			setPendingAttachments([...handoffRetry.attachments]);
+		onHandoffUiAction({ type: "retry_restored", sourceSessionId });
 	}, [
 		draftRef,
 		handoffRetry,
 		handoffUi?.status,
 		onHandoffUiAction,
-		restoreHandoffRetry,
+		setPromptInput,
+		setPendingAttachments,
 		sourceSessionId,
 	]);
-
-	const runHandoff = useCallback(
-		async (
-			preflight: HandoffPreflight,
-			nextCommand: string,
-			sourceAttachments: File[],
-			attachments: SerializedAttachments,
-			sourceSessionId: string,
-			handoffAttemptId: string,
-		) => {
-			onHandoffUiAction({
-				type: "progress",
-				sourceSessionId,
-				phase: "creating",
-			});
-			try {
-				const result = await desktopClient.invoke<HandoffResult>(
-					"chat_session_command",
-					{
-						request: {
-							action: "handoff",
-							sessionId: sourceSessionId,
-							config,
-							gitPreparationId: preflight.gitPreparationId,
-							handoffAttemptId,
-							nextCommand: nextCommand || undefined,
-							attachments:
-								attachments.userImages.length > 0 ? attachments : undefined,
-						},
-					},
-					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
-				);
-				await handoffLifecycle.onRpcResolved(sourceSessionId, {
-					handoffAttemptId,
-					result,
-					nextCommand,
-					sourceAttachments,
-				});
-			} catch (error) {
-				await handoffLifecycle.onRpcRejected(sourceSessionId, {
-					handoffAttemptId,
-					error,
-					nextCommand,
-					sourceAttachments,
-				});
-			}
-		},
-		[config, handoffLifecycle, onHandoffUiAction],
-	);
 
 	const prepareHandoff = useCallback(
 		async (nextCommand: string) => {
@@ -2447,7 +2377,7 @@ function ChatThreadPane({
 							config,
 						},
 					},
-					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
+					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS },
 				);
 				if (!(await confirmHandoffGit(gitPreparation))) {
 					await handoffLifecycle.onRpcRejected(sourceSessionId, {
@@ -2465,27 +2395,27 @@ function ChatThreadPane({
 					phase: "checking",
 					message: "Preparing the summary and approved Git checkpoint...",
 				});
-				const preflight = await desktopClient.invoke<HandoffPreflight>(
+				const result = await desktopClient.invoke<HandoffResult>(
 					"chat_session_command",
 					{
 						request: {
-							action: "prepare_handoff_git",
+							action: "handoff",
 							sessionId: sourceSessionId,
 							handoffAttemptId,
 							config,
 							gitPreparationId: gitPreparation.id,
+							nextCommand: nextCommand || undefined,
+							attachments: attachments.userImages.length
+								? attachments
+								: undefined,
 						},
 					},
-					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
+					{ timeoutMs: 2 * HANDOFF_STAGE_TIMEOUT_MS },
 				);
-				await runHandoff(
-					preflight,
-					nextCommand,
-					sourceAttachments,
-					attachments,
-					sourceSessionId,
+				await handoffLifecycle.onRpcResolved(sourceSessionId, {
 					handoffAttemptId,
-				);
+					result,
+				});
 			} catch (error) {
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
 					handoffAttemptId,
@@ -2506,7 +2436,6 @@ function ChatThreadPane({
 			handoffUi?.status,
 			pendingAttachments,
 			promptsInQueue.length,
-			runHandoff,
 			sessionId,
 			setPendingAttachments,
 			setPromptInput,

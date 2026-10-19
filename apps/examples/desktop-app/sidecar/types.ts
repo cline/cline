@@ -27,7 +27,6 @@ export type ChatSessionCommandRequest = {
 		| "attach"
 		| "send"
 		| "prepare_handoff"
-		| "prepare_handoff_git"
 		| "handoff"
 		| "stop"
 		| "abort"

@@ -44,14 +44,6 @@ import type {
 	SidecarContext,
 } from "./types";
 
-type PreparedCloudHandoff = {
-	gitPreparationId: string;
-	repoUrl: string;
-	branch: string;
-	headSha: string;
-	modelId: string;
-};
-
 type HandoffSnapshot = {
 	cloud: CloudSessionManager;
 	plan: HandoffGitPlan;
@@ -59,18 +51,7 @@ type HandoffSnapshot = {
 	config: JsonRecord;
 };
 
-type GitPreparation =
-	| (HandoffSnapshot & { state: "preview" })
-	| {
-			state: "published";
-			cloud: CloudSessionManager;
-			plan: HandoffGitPlan;
-			config: JsonRecord;
-			prepared: PreparedCloudHandoff;
-			summary: string;
-	  };
-
-const gitPlans = new WeakMap<SidecarContext, Map<string, GitPreparation>>();
+const gitPlans = new WeakMap<SidecarContext, Map<string, HandoffSnapshot>>();
 const gitPreparations = new WeakMap<SidecarContext, Set<string>>();
 const handoffRequests = new WeakMap<
 	SidecarContext,
@@ -203,82 +184,8 @@ export async function handlePrepareHandoff(
 			plans = new Map();
 			gitPlans.set(ctx, plans);
 		}
-		plans.set(sessionId, { state: "preview", cloud, plan, messages, config });
+		plans.set(sessionId, { cloud, plan, messages, config });
 		return { gitPreparation: previewHandoffGit(plan) };
-	} finally {
-		active.delete(sessionId);
-	}
-}
-
-export async function handlePrepareHandoffGit(
-	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
-	summarize: Summarize,
-): Promise<PreparedCloudHandoff> {
-	const sessionId = request.sessionId?.trim();
-	if (!sessionId) throw new Error("sessionId is required");
-	const approved = gitPlans.get(ctx)?.get(sessionId);
-	if (
-		!approved ||
-		approved.state !== "preview" ||
-		approved.plan.id !== request.gitPreparationId
-	)
-		throw new Error("Run /cloud again to review the preparation plan.");
-	if (isCloudHandoffInProgress(ctx, sessionId))
-		throw new Error("Wait for the current cloud preparation to finish.");
-	let active = gitPreparations.get(ctx);
-	if (!active) {
-		active = new Set();
-		gitPreparations.set(ctx, active);
-	}
-	active.add(sessionId);
-	try {
-		assertCloudHandoffAvailable();
-		const { cloud, config, messages } = approved;
-		const { modelId } = await resolveCloudModel(
-			ctx,
-			cloud,
-			config,
-			approved.plan.repoUrl,
-		);
-		if (request.handoffAttemptId)
-			sendEvent(ctx, "cloud_handoff_progress", {
-				sourceSessionId: sessionId,
-				handoffAttemptId: request.handoffAttemptId,
-				phase: "summarizing",
-				message: "Preparing a summary of this conversation.",
-			});
-		const summary = (await summarize(messages, config)).trim();
-		assertHandoffAccount(ctx, cloud);
-		if (!summary)
-			throw new Error(
-				"The conversation summary was empty. Nothing was published or started in cloud.",
-			);
-		if (request.handoffAttemptId)
-			sendEvent(ctx, "cloud_handoff_progress", {
-				sourceSessionId: sessionId,
-				handoffAttemptId: request.handoffAttemptId,
-				phase: "checking",
-				message: "Publishing the approved Git checkpoint.",
-			});
-		const headSha = await applyHandoffGit(approved.plan);
-		assertHandoffAccount(ctx, cloud);
-		const prepared = {
-			gitPreparationId: approved.plan.id,
-			repoUrl: approved.plan.repoUrl,
-			branch: approved.plan.branch,
-			headSha,
-			modelId,
-		};
-		gitPlans.get(ctx)?.set(sessionId, {
-			state: "published",
-			cloud,
-			plan: approved.plan,
-			config,
-			prepared,
-			summary,
-		});
-		return prepared;
 	} finally {
 		active.delete(sessionId);
 	}
@@ -292,6 +199,7 @@ type Summarize = (
 async function handleHandoffOnce(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
+	summarize: Summarize,
 ): Promise<unknown> {
 	if (request.attachments?.userFiles?.length)
 		throw new Error("Only image attachments can be sent with /cloud.");
@@ -311,16 +219,10 @@ async function handleHandoffOnce(
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
 	const approved = gitPlans.get(ctx)?.get(sourceSessionId);
-	if (
-		!approved ||
-		approved.state !== "published" ||
-		approved.plan.id !== request.gitPreparationId
-	)
-		throw new Error(
-			"Run /cloud again to review and publish the preparation plan.",
-		);
+	if (!approved || approved.plan.id !== request.gitPreparationId)
+		throw new Error("Run /cloud again to review the preparation plan.");
 	gitPlans.get(ctx)?.delete(sourceSessionId);
-	const { cloud, config } = approved;
+	const { cloud, config, messages, plan } = approved;
 	assertHandoffAccount(ctx, cloud);
 	const emitProgress = (phase: string, message: string, sessionId?: string) =>
 		sendEvent(ctx, "cloud_handoff_progress", {
@@ -338,28 +240,41 @@ async function handleHandoffOnce(
 					}
 				: {}),
 		});
-	const followUp = request.nextCommand?.trim();
-	const command = [
-		approved.summary,
-		followUp
-			? `Next instruction from the user:\n${followUp}`
-			: "Continue the unfinished work described above. If no next action is clear, ask the user rather than inventing work.",
-	].join("\n\n");
-	await verifyPublishedHandoffGit(approved.plan, approved.prepared.headSha);
+	await resolveCloudModel(ctx, cloud, config, plan.repoUrl);
+	assertHandoffAccount(ctx, cloud);
+	emitProgress("summarizing", "Preparing a summary of this conversation.");
+	const summary = (await summarize(messages, config)).trim();
+	assertHandoffAccount(ctx, cloud);
+	if (!summary)
+		throw new Error(
+			"The conversation summary was empty. Nothing was published or started in cloud.",
+		);
+	emitProgress("checking", "Publishing the approved Git checkpoint.");
+	const headSha = await applyHandoffGit(plan);
+	assertHandoffAccount(ctx, cloud);
+	assertCloudHandoffAvailable();
+	await verifyPublishedHandoffGit(plan, headSha);
 	const { modelId, organizationId } = await resolveCloudModel(
 		ctx,
 		cloud,
 		config,
-		approved.prepared.repoUrl,
+		plan.repoUrl,
 	);
 	assertHandoffAccount(ctx, cloud);
+	const followUp = request.nextCommand?.trim();
+	const command = [
+		summary,
+		followUp
+			? `Next instruction from the user:\n${followUp}`
+			: "Continue the unfinished work described above. If no next action is clear, ask the user rather than inventing work.",
+	].join("\n\n");
 	const mode: AgentMode =
 		config.mode === "plan" || config.mode === "yolo" || config.mode === "zen"
 			? config.mode
 			: "act";
 	emitProgress("creating", "Starting a new cloud session.");
 	const initialTask: CloudCreationOptions = {
-		workspaceRelativePath: approved.plan.workspaceRelativePath || undefined,
+		workspaceRelativePath: plan.workspaceRelativePath || undefined,
 		mode,
 		...(typeof config.autoApproveTools === "boolean"
 			? { autoApproveTools: config.autoApproveTools }
@@ -371,8 +286,8 @@ async function handleHandoffOnce(
 	};
 	const target = await cloud.create({
 		requestId: request.handoffAttemptId?.trim() || randomUUID(),
-		repoUrl: approved.prepared.repoUrl,
-		branch: approved.prepared.branch,
+		repoUrl: plan.repoUrl,
+		branch: plan.branch,
 		modelId,
 		organizationId: organizationId ?? null,
 		...initialTask,
@@ -433,9 +348,7 @@ async function handleHandoffOnce(
 		sourceSessionId,
 		sessionId,
 		dashboardUrl,
-		destination: "in_app",
 		...(warning ? { warning, warningKind } : {}),
-		...(warningKind === "unqueued" ? { undeliveredCommand: command } : {}),
 	};
 	sendEvent(ctx, "cloud_handoff_progress", {
 		...result,
@@ -449,6 +362,7 @@ async function handleHandoffOnce(
 export async function handleHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
+	summarize: Summarize,
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
@@ -465,7 +379,7 @@ export async function handleHandoff(
 			throw new Error("A different cloud preparation is already in progress.");
 		return await existing.promise;
 	}
-	const running = handleHandoffOnce(ctx, request).finally(() =>
+	const running = handleHandoffOnce(ctx, request, summarize).finally(() =>
 		requests.delete(sessionId),
 	);
 	requests.set(sessionId, {

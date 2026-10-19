@@ -305,36 +305,6 @@ describe("usePromptDraft", () => {
 		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
-	it.each([
-		"Edited retry",
-		"",
-	])("preserves a restored source retry edited to %j across navigation", async (edited) => {
-		await navigate();
-		const image = new File(["synthetic"], "test.png", { type: "image/png" });
-		const retry = {
-			sourceSessionId: "source",
-			draft: "/cloud original",
-			attachments: [image],
-		};
-		act(() => expect(current.restoreHandoffRetry(retry)).toBe(true));
-		act(() => {
-			current.handlePromptInputChange(edited);
-			current.setPendingAttachments([]);
-		});
-		await openSession();
-		await navigate({ type: "back" });
-		act(() => expect(current.restoreHandoffRetry(retry)).toBe(false));
-		expect(current.promptInputRef.current).toBe(edited);
-		expect(current.pendingAttachments).toEqual([]);
-		act(() =>
-			expect(
-				current.restoreHandoffRetry({ ...retry, draft: "/cloud newer" }),
-			).toBe(true),
-		);
-		expect(current.promptInputRef.current).toBe("/cloud newer");
-		expect(current.pendingAttachments).toEqual([image]);
-	});
-
 	it("keeps edited cloud follow-up identity and images through a pane remount", async () => {
 		await openSession();
 		const image = new File(["synthetic"], "test.png", { type: "image/png" });

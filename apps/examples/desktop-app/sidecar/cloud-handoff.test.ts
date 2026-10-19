@@ -5,12 +5,7 @@ import { summarizeConversation } from "@cline/core";
 import { loadCloudModels } from "@cline/core/cloud";
 import { DEFAULT_MAX_IMAGE_DECODED_BYTES } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleChatSessionCommand } from "./chat-session";
-import {
-	handleHandoff,
-	handlePrepareHandoff,
-	handlePrepareHandoffGit,
-} from "./cloud-handoff";
+import { handleHandoff, handlePrepareHandoff } from "./cloud-handoff";
 import * as followUpStorage from "./cloud-handoff-follow-up";
 import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import * as gitPreparation from "./cloud-handoff-git";
@@ -73,14 +68,11 @@ function fixture() {
 	const plan: gitPreparation.HandoffGitPlan = {
 		id: "plan",
 		root: "/workspace/project",
-		cwd: "/workspace/project/packages/app",
 		...git,
 		pushUrl: git.repoUrl,
 		remote: "origin",
 		sourceBranch: "main",
 		treeSha: "b".repeat(40),
-		indexTree: "b".repeat(40),
-		status: "",
 		files: [],
 		commits: [],
 	};
@@ -96,7 +88,7 @@ function fixture() {
 		{ role: "assistant" as const, content: "The form is done; tests remain." },
 	];
 	const config = {
-		cwd: plan.cwd,
+		cwd: "/workspace/project/packages/app",
 		provider: "cline",
 		model: modelId,
 		mode: "plan",
@@ -106,18 +98,15 @@ function fixture() {
 	const readLiveMessages = vi.fn().mockResolvedValue(messages);
 	const pending = vi.fn().mockResolvedValue([]);
 	const ctx = Object.assign(
-		createSidecarContext(plan.cwd),
+		createSidecarContext(config.cwd),
 		localRuntimeContext(
 			{
 				get: vi.fn().mockResolvedValue({
 					sessionId: sourceSessionId,
 					status: "idle",
-					cwd: plan.cwd,
+					cwd: config.cwd,
 					provider: "cline",
 					model: modelId,
-					metadata: {
-						handoff: { status: "complete", toCloudSessionId: "old-task" },
-					},
 				}),
 				readLiveMessages,
 				update,
@@ -173,11 +162,6 @@ function fixture() {
 			action: "prepare_handoff",
 		});
 		expect(preview.gitPreparation.id).toBe(plan.id);
-		return await handlePrepareHandoffGit(
-			ctx,
-			{ ...request, action: "prepare_handoff_git" },
-			summarize,
-		);
 	};
 	return {
 		ctx,
@@ -195,6 +179,7 @@ function fixture() {
 		pending,
 		readLiveMessages,
 		prepare,
+		handoff: (input = request) => handleHandoff(ctx, input, summarize),
 	};
 }
 
@@ -219,26 +204,21 @@ describe("summary cloud handoff", () => {
 				await resetCloudSessionManager(f.ctx);
 				return f.git.headSha;
 			});
-		const publish = () =>
-			handlePrepareHandoffGit(f.ctx, f.request, f.summarize);
-		if (["preview", "summary", "publication"].includes(stage)) {
-			await expect(publish()).rejects.toThrow("account changed");
-			if (stage !== "publication") expect(f.apply).not.toHaveBeenCalled();
-		} else {
-			await publish();
-			if (stage === "verification")
-				f.verifyPublished.mockImplementation(async () => {
-					await resetCloudSessionManager(f.ctx);
-				});
-			else
+		if (stage === "verification")
+			f.verifyPublished.mockImplementation(async () => {
+				await resetCloudSessionManager(f.ctx);
+			});
+		if (stage === "model")
+			f.apply.mockImplementation(async () => {
 				vi.mocked(loadCloudModels).mockImplementation(async () => {
 					await resetCloudSessionManager(f.ctx);
 					return [{ id: "test-model", catalogId: "cline-cloud", name: "Test" }];
 				});
-			await expect(handleHandoff(f.ctx, f.request)).rejects.toThrow(
-				"account changed",
-			);
-		}
+				return f.git.headSha;
+			});
+		await expect(f.handoff(f.request)).rejects.toThrow("account changed");
+		if (stage === "preview" || stage === "summary")
+			expect(f.apply).not.toHaveBeenCalled();
 		expect(f.ctx.cloudSessionManager).toBeNull();
 		expect(f.create).not.toHaveBeenCalled();
 		expect(f.send).not.toHaveBeenCalled();
@@ -264,7 +244,7 @@ describe("summary cloud handoff", () => {
 			return "Captured conversation summary";
 		});
 		await f.prepare();
-		await handleHandoff(f.ctx, f.request);
+		await f.handoff(f.request);
 		expect(f.summarize).toHaveBeenCalledExactlyOnceWith(
 			originalMessages,
 			originalConfig,
@@ -284,7 +264,7 @@ describe("summary cloud handoff", () => {
 		expect(f.ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it("rejects a second preview while the first snapshot is being prepared", async () => {
+	it("excludes competing previews and joins duplicate confirmed requests", async () => {
 		const f = fixture();
 		const first = handlePrepareHandoff(f.ctx, f.request);
 		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
@@ -293,6 +273,19 @@ describe("summary cloud handoff", () => {
 		await first;
 		expect(f.readLiveMessages).toHaveBeenCalledTimes(1);
 		expect(gitPreparation.inspectHandoffGit).toHaveBeenCalledTimes(1);
+		const execution = f.handoff();
+		const duplicate = f.handoff();
+		await expect(
+			f.handoff({ ...f.request, nextCommand: "other" }),
+		).rejects.toThrow("already in progress");
+		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
+			"already in progress",
+		);
+		expect(await duplicate).toEqual(await execution);
+		expect(f.summarize).toHaveBeenCalledOnce();
+		expect(f.apply).toHaveBeenCalledOnce();
+		expect(f.create).toHaveBeenCalledOnce();
+		expect(f.send).toHaveBeenCalledOnce();
 	});
 
 	it("publishes a dedicated branch, sends one combined prompt with invocation images, and leaves source history alone", async () => {
@@ -315,22 +308,8 @@ describe("summary cloud handoff", () => {
 					seen.push(readCloudHandoffFollowUp("ses-target"));
 			},
 		} as unknown as SidecarWebSocketClient);
-		const prepared = await f.prepare();
-		expect(prepared).toMatchObject({
-			gitPreparationId: "plan",
-			branch: f.git.branch,
-		});
-		expect(preparationProgress).toEqual([
-			expect.objectContaining({
-				handoffAttemptId: "attempt-1",
-				phase: "summarizing",
-			}),
-			expect.objectContaining({
-				handoffAttemptId: "attempt-1",
-				phase: "checking",
-			}),
-		]);
-		const result = await handleHandoff(f.ctx, {
+		await f.prepare();
+		const result = await f.handoff({
 			...f.request,
 			nextCommand: "Test keyboard navigation.",
 			attachments: { userImages: [image] },
@@ -342,7 +321,16 @@ describe("summary cloud handoff", () => {
 		);
 		expect(f.readLiveMessages).toHaveBeenCalledTimes(1);
 		expect(f.summarize).toHaveBeenCalledBefore(f.apply);
-		expect(preparationProgress).toHaveLength(2);
+		expect(preparationProgress).toEqual([
+			expect.objectContaining({
+				handoffAttemptId: "attempt-1",
+				phase: "summarizing",
+			}),
+			expect.objectContaining({
+				handoffAttemptId: "attempt-1",
+				phase: "checking",
+			}),
+		]);
 		expect(f.create).toHaveBeenCalledWith(
 			expect.objectContaining({
 				repoUrl: f.git.repoUrl,
@@ -351,7 +339,6 @@ describe("summary cloud handoff", () => {
 				workspaceRelativePath: "packages/app",
 			}),
 		);
-		expect(f.create.mock.calls[0]?.[0]).not.toHaveProperty("handoff");
 		const prompt =
 			"Search form: implemented. Next: add tests.\n\nNext instruction from the user:\nTest keyboard navigation.";
 		expect(f.send).toHaveBeenCalledWith(
@@ -384,7 +371,7 @@ describe("summary cloud handoff", () => {
 	it("allows bare /cloud with an image and a deliberate second handoff", async () => {
 		const f = fixture();
 		await f.prepare();
-		await handleHandoff(f.ctx, {
+		await f.handoff({
 			...f.request,
 			attachments: { userImages: [image] },
 		});
@@ -393,7 +380,7 @@ describe("summary cloud handoff", () => {
 		);
 		expect(f.send.mock.calls[0]?.[4]).toEqual([image]);
 		await f.prepare();
-		await handleHandoff(f.ctx, { ...f.request, handoffAttemptId: "attempt-2" });
+		await f.handoff({ ...f.request, handoffAttemptId: "attempt-2" });
 		expect(f.create.mock.calls.map(([input]) => input.requestId)).toEqual([
 			"attempt-1",
 			"attempt-2",
@@ -412,11 +399,20 @@ describe("summary cloud handoff", () => {
 			},
 		});
 		vi.mocked(summarizeConversation).mockResolvedValue("Prepared summary");
-		await handleChatSessionCommand(f.ctx, {
-			...f.request,
-			action: "prepare_handoff_git",
-		});
-		await handleChatSessionCommand(f.ctx, f.request);
+		const { handleCommand } = await import("./commands");
+		await expect(
+			handleCommand(f.ctx, "chat_session_command", { request: f.request }),
+		).rejects.toThrow("trusted desktop connection");
+		expect(summarizeConversation).not.toHaveBeenCalled();
+		expect(f.apply).not.toHaveBeenCalled();
+		await handleCommand(
+			f.ctx,
+			"chat_session_command",
+			{ request: f.request },
+			{
+				connection: { data: { canApproveTools: true }, send: vi.fn() },
+			},
+		);
 		expect(summarizeConversation).toHaveBeenCalledTimes(1);
 		expect(summarizeConversation).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -458,7 +454,12 @@ describe("summary cloud handoff", () => {
 			f.summarize.mockRejectedValue(new Error("Summary failed"));
 		if (failure === "empty") f.summarize.mockResolvedValue(" ");
 		if (failure === "empty context") f.readLiveMessages.mockResolvedValue([]);
-		await expect(f.prepare()).rejects.toThrow();
+		await expect(
+			(async () => {
+				await f.prepare();
+				await f.handoff();
+			})(),
+		).rejects.toThrow();
 		expect(f.apply).not.toHaveBeenCalled();
 		expect(f.create).not.toHaveBeenCalled();
 		expect(f.update).not.toHaveBeenCalled();
@@ -475,11 +476,14 @@ describe("summary cloud handoff", () => {
 				new Error("Published branch changed"),
 			);
 		else
-			vi.mocked(loadCloudModels).mockResolvedValue([
-				{ id: "other-model", catalogId: "cline-cloud", name: "Other" },
-			]);
+			f.apply.mockImplementation(async () => {
+				vi.mocked(loadCloudModels).mockResolvedValue([
+					{ id: "other-model", catalogId: "cline-cloud", name: "Other" },
+				]);
+				return f.git.headSha;
+			});
 		await expect(
-			handleHandoff(f.ctx, {
+			f.handoff({
 				...f.request,
 				...(changed === "model"
 					? { config: { ...f.request.config, model: "other-model" } }
@@ -501,7 +505,7 @@ describe("summary cloud handoff", () => {
 			if (dispatched) args[5]?.beforeDispatch?.();
 			throw new Error("Connection failed");
 		});
-		const result = await handleHandoff(f.ctx, {
+		const result = await f.handoff({
 			...f.request,
 			nextCommand: "Add tests",
 			attachments: { userImages: [image] },
@@ -518,8 +522,6 @@ describe("summary cloud handoff", () => {
 			sessionId: "ses-target",
 			warningKind: dispatched ? "unconfirmed" : "unqueued",
 		});
-		if (dispatched) expect(result).not.toHaveProperty("undeliveredCommand");
-		else expect(result).toHaveProperty("undeliveredCommand", saved?.command);
 	});
 
 	it("does not automatically retry unconfirmed creation", async () => {
@@ -528,7 +530,7 @@ describe("summary cloud handoff", () => {
 		f.create.mockRejectedValue(
 			new CloudCreationUnconfirmedError(new Error("Connection lost")),
 		);
-		await expect(handleHandoff(f.ctx, f.request)).rejects.toThrow("ambiguous");
+		await expect(f.handoff(f.request)).rejects.toThrow("ambiguous");
 		expect(f.create).toHaveBeenCalledTimes(1);
 		expect(f.send).not.toHaveBeenCalled();
 		expect(f.update).not.toHaveBeenCalled();
@@ -542,9 +544,7 @@ describe("summary cloud handoff", () => {
 				throw new Error("Disk full");
 			},
 		);
-		await expect(handleHandoff(f.ctx, f.request)).rejects.toThrow(
-			"Nothing was sent",
-		);
+		await expect(f.handoff(f.request)).rejects.toThrow("Nothing was sent");
 		expect(f.create).toHaveBeenCalledTimes(1);
 		expect(f.send).not.toHaveBeenCalled();
 		expect(f.update).not.toHaveBeenCalled();
@@ -553,7 +553,7 @@ describe("summary cloud handoff", () => {
 	it.each([
 		"count",
 		"bytes",
-	] as const)("validates image %s limits before creating or sending", async (limit) => {
+	] as const)("validates image %s limits before summarizing or publishing", async (limit) => {
 		const f = fixture();
 		await f.prepare();
 		const images =
@@ -563,12 +563,13 @@ describe("summary cloud handoff", () => {
 						`data:image/png;base64,${Buffer.alloc(DEFAULT_MAX_IMAGE_DECODED_BYTES + 1).toString("base64")}`,
 					];
 		await expect(
-			handleHandoff(f.ctx, {
+			f.handoff({
 				...f.request,
 				attachments: { userImages: images },
 			}),
 		).rejects.toThrow();
-		expect(f.summarize).toHaveBeenCalledTimes(1);
+		expect(f.summarize).not.toHaveBeenCalled();
+		expect(f.apply).not.toHaveBeenCalled();
 		expect(f.create).not.toHaveBeenCalled();
 	});
 
@@ -576,11 +577,7 @@ describe("summary cloud handoff", () => {
 		const f = fixture();
 		await handlePrepareHandoff(f.ctx, f.request);
 		await expect(
-			handlePrepareHandoffGit(
-				f.ctx,
-				{ ...f.request, gitPreparationId: "stale" },
-				f.summarize,
-			),
+			f.handoff({ ...f.request, gitPreparationId: "stale" }),
 		).rejects.toThrow("review");
 		expect(f.apply).not.toHaveBeenCalled();
 	});

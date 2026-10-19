@@ -229,116 +229,6 @@ describe("starting SSH sessions", () => {
 	});
 });
 
-describe("SSH session mutations ignore same-id local handoff metadata", () => {
-	it.each([
-		"send",
-		"reset",
-		"fork",
-		"restore_checkpoint",
-	] as const)("does not apply a local pending manifest to %s", async (action) => {
-		const dataDir = mkdtempSync(join(tmpdir(), "desktop-ssh-local-manifest-"));
-		const previousDataDir = process.env.CLINE_DATA_DIR;
-		const previousSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
-		process.env.CLINE_DATA_DIR = dataDir;
-		process.env.CLINE_SESSION_DATA_DIR = join(dataDir, "sessions");
-		const sessionId = "same-id-ssh-session";
-		const config = {
-			environmentId: "ssh-test",
-			cwd: "/remote/project",
-			provider: "cline",
-			model: "anthropic/claude-sonnet-4.6",
-		};
-		const manager = {
-			get: vi.fn(async () => ({
-				sessionId,
-				status: "idle",
-				cwd: "/remote/project",
-				metadata: undefined,
-			})),
-			readMessages: vi.fn(async () => [
-				{ role: "user", content: "remote prompt" },
-			]),
-			updateSessionConnection: vi.fn(async () => undefined),
-			send: vi.fn(async () => ({ finishReason: "stop", text: "ok" })),
-			stop: vi.fn(async () => undefined),
-			start: vi.fn(async () => ({ sessionId: "forked-ssh-session" })),
-			restore: vi.fn(async () => ({
-				sessionId: "restored-ssh-session",
-				messages: [{ role: "user", content: "remote prompt" }],
-				checkpoint: { ref: "checkpoint", createdAt: 1, runCount: 1 },
-			})),
-			pendingPrompts: { list: vi.fn(async () => []) },
-		};
-		const ctx = getEnvironmentContext(
-			{
-				liveSessions: new Map(),
-				sessionEnvironmentIds: new Map([[sessionId, "ssh-test"]]),
-				runtimeBindings: new Map([
-					[
-						"ssh-test",
-						{
-							environmentId: "ssh-test",
-							kind: "ssh",
-							workspaceRoot: "/remote/project",
-							sessionManager: manager,
-							hubClient: {},
-							unsubscribeSessionEvents: () => {},
-						},
-					],
-				]),
-				activeEnvironmentId: "ssh-test",
-				localWorkspaceRoot: "/local/project",
-				restoringWorkspacePaths: new Set(),
-				streamIndices: new Map(),
-				wsClients: new Set(),
-			} as unknown as SidecarContext,
-			"ssh-test",
-		);
-		ctx.liveSessions.set(sessionId, {
-			config,
-			messages: [],
-			promptsInQueue: [],
-			busy: false,
-			startedAt: Date.now(),
-			status: "idle",
-		});
-		sessionPaths.writeSessionManifest(sessionId, {
-			metadata: {
-				handoff: {
-					status: "pending",
-					toCloudSessionId: "local-cloud-target",
-					handedOffAt: "2026-10-13T00:00:00.000Z",
-				},
-			},
-		});
-		try {
-			const request = {
-				action,
-				sessionId,
-				config,
-				...(action === "send" ? { prompt: "remote prompt" } : {}),
-				...(action === "restore_checkpoint" ? { checkpointRunCount: 1 } : {}),
-			};
-			await expect(
-				handleChatSessionCommand(ctx, request),
-			).resolves.toBeDefined();
-			if (action === "send") expect(manager.send).toHaveBeenCalled();
-			if (action === "reset")
-				expect(ctx.liveSessions.has(sessionId)).toBe(false);
-			if (action === "fork") expect(manager.start).toHaveBeenCalled();
-			if (action === "restore_checkpoint")
-				expect(manager.restore).toHaveBeenCalled();
-		} finally {
-			if (previousDataDir === undefined) delete process.env.CLINE_DATA_DIR;
-			else process.env.CLINE_DATA_DIR = previousDataDir;
-			if (previousSessionDataDir === undefined)
-				delete process.env.CLINE_SESSION_DATA_DIR;
-			else process.env.CLINE_SESSION_DATA_DIR = previousSessionDataDir;
-			rmSync(dataDir, { recursive: true, force: true });
-		}
-	});
-});
-
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
 		const update = buildSessionConnectionUpdate({
@@ -941,16 +831,6 @@ describe("session forks", () => {
 						model: "anthropic/claude-sonnet-4.6",
 						cwd: "/workspace/project",
 						workspaceRoot: "/workspace/project",
-						metadata: {
-							handoff: {
-								toCloudSessionId: "ses-cloud-copy",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-								status: "complete",
-							},
-							cloudHandoffScope: "old-account",
-							cloudHandoffIntent: { fingerprint: {} },
-							cloudHandoffSeedDispatched: true,
-						},
 					})),
 					readMessages,
 					restore,
@@ -1165,14 +1045,6 @@ describe("session forks", () => {
 					restore,
 					get: vi.fn(async () => ({
 						sessionId,
-						metadata: {
-							handoff: {
-								status: "pending",
-								toCloudSessionId: "cloud-target",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-							},
-							cloudHandoffIntent: { fingerprint: {} },
-						},
 					})),
 				}),
 			} as unknown as SidecarContext;
@@ -1331,40 +1203,6 @@ describe("first-send connection updates", () => {
 			updateSessionConnection,
 		};
 	}
-
-	it.each([
-		"pending",
-		"complete",
-		"intent",
-	])("keeps old %s handoff markers inert for local send and reset", async (status) => {
-		const { ctx, sessionId, get, send } = createContext();
-		get.mockImplementation(async () => ({
-			sessionId,
-			status: "idle",
-			metadata:
-				status === "intent"
-					? { cloudHandoffIntent: { fingerprint: {} } }
-					: {
-							handoff: {
-								status,
-								toCloudSessionId: "cloud-target",
-								handedOffAt: "2026-08-18T00:00:00.000Z",
-							},
-						},
-		}));
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId,
-				prompt: "Continue locally.",
-			}),
-		).resolves.toMatchObject({ sessionId });
-		expect(send).toHaveBeenCalledOnce();
-		await expect(
-			handleChatSessionCommand(ctx, { action: "reset", sessionId }),
-		).resolves.toMatchObject({ sessionId });
-		expect(ctx.liveSessions.has(sessionId)).toBe(false);
-	});
 
 	it("preserves a newer Hub idle event over a running attach reply", async () => {
 		const { ctx, sessionId } = createContext({ attachedViaHub: true });

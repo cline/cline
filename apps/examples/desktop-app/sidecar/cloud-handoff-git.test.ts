@@ -235,6 +235,7 @@ describe("cloud handoff Git preparation", () => {
 	it("previews all staged/unstaged/new files from a subdirectory without changing the index or branch, then publishes the exact checkpoint", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "staged\n");
 		git("add", ".");
+		writeFileSync(join(repo, "tracked.txt"), "working copy\n");
 		writeFileSync(join(repo, "unstaged.txt"), "working\n");
 		writeFileSync(join(repo, "new file.txt"), "new\n");
 		mkdirSync(join(repo, "sub"));
@@ -267,7 +268,11 @@ describe("cloud handoff Git preparation", () => {
 		);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
-		).toBe("staged");
+		).toBe("working copy");
+		expect(git("show", ":tracked.txt")).toBe("staged");
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
+			"working copy\n",
+		);
 		git(
 			"--git-dir",
 			transport.remote,
@@ -278,24 +283,6 @@ describe("cloud handoff Git preparation", () => {
 		await expect(verifyPublishedHandoffGit(plan, published)).rejects.toThrow(
 			"published branch changed",
 		);
-	});
-
-	it("publishes the working copy while preserving distinct staged and unstaged edits", async () => {
-		writeFileSync(join(repo, "tracked.txt"), "staged only\n");
-		git("add", "tracked.txt");
-		writeFileSync(join(repo, "tracked.txt"), "working only\n");
-		const index = git("write-tree");
-		const plan = await inspectHandoffGit(repo);
-		await applyHandoffGit(plan);
-		expect(git("write-tree")).toBe(index);
-		expect(git("show", ":tracked.txt")).toBe("staged only");
-		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
-			"working only\n",
-		);
-		expect(git("branch", "--show-current")).toBe("main");
-		expect(
-			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
-		).toBe("working only");
 	});
 
 	it("publishes only the captured files while local commits and edits continue", async () => {

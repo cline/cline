@@ -52,7 +52,6 @@ import {
 	beginActiveSessionSend,
 	handleHandoff,
 	handlePrepareHandoff,
-	handlePrepareHandoffGit,
 	hasActiveSessionSend,
 } from "./cloud-handoff";
 import { sendWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
@@ -2549,8 +2548,8 @@ const ACTION_HANDLERS: Record<
 	attach: handleAttach,
 	send: handleSend,
 	prepare_handoff: handlePrepareHandoff,
-	prepare_handoff_git: (ctx, request) =>
-		handlePrepareHandoffGit(ctx, request, async (messages, config) => {
+	handoff: (ctx, request) =>
+		handleHandoff(ctx, request, async (messages, config) => {
 			const connection = buildSessionConnectionUpdate(
 				await withRemoteProviderCredentials(config),
 			);
@@ -2568,7 +2567,6 @@ const ACTION_HANDLERS: Record<
 				},
 			});
 		}),
-	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
 	fork: handleFork,
@@ -2738,9 +2736,7 @@ export async function handleChatSessionCommand(
 			"local",
 	);
 	if (
-		(request.action === "prepare_handoff" ||
-			request.action === "prepare_handoff_git" ||
-			request.action === "handoff") &&
+		(request.action === "prepare_handoff" || request.action === "handoff") &&
 		getSessionRuntimeBinding(ctx).kind !== "local"
 	) {
 		throw new Error("Cloud handoff is only supported for local sessions.");
