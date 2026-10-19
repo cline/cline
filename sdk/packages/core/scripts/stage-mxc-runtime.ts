@@ -1,18 +1,29 @@
-/// <reference types="@types/bun" />
 /**
  * Stages the MXC sandbox runtime ("Only allow edits in project directory") into
  * <destination>/node_modules so a packaged host can ship it next to its
  * executable. Compiled and bundled hosts cannot inline MXC because its FFI
  * layer (koffi) loads native files from its package directory.
  *
+ * Node APIs only: core's smoke typecheck includes scripts/, and Bun's types
+ * would change globals such as fetch for the whole package.
+ *
  * Usage: bun scripts/stage-mxc-runtime.ts <destination> [<platform>-<arch> | all]
  */
 
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { $ } from "bun";
+import { fileURLToPath } from "node:url";
 
 const MXC_FFI_LIBRARY: Record<string, string> = {
 	linux: "libmxc_ffi.so",
@@ -34,7 +45,9 @@ async function koffiPlatformPackageDir(
 		return packageDir(join(koffiDir, "package.json"), name);
 	} catch {
 		// Only the host platform's variant is installed; fetch the others.
-		const { version } = await Bun.file(join(koffiDir, "package.json")).json();
+		const { version } = JSON.parse(
+			readFileSync(join(koffiDir, "package.json"), "utf8"),
+		) as { version: string };
 		const tarball = `https://registry.npmjs.org/${name}/-/koffi-${platform}-${arch}-${version}.tgz`;
 		const response = await fetch(tarball);
 		if (!response.ok) {
@@ -42,8 +55,8 @@ async function koffiPlatformPackageDir(
 		}
 		const workDir = mkdtempSync(join(tmpdir(), "koffi-"));
 		const archive = join(workDir, "package.tgz");
-		await Bun.write(archive, response);
-		await $`tar -xzf ${archive} -C ${workDir}`.quiet();
+		writeFileSync(archive, Buffer.from(await response.arrayBuffer()));
+		execFileSync("tar", ["-xzf", archive, "-C", workDir]);
 		return join(workDir, "package");
 	}
 }
@@ -137,7 +150,7 @@ async function main(): Promise<void> {
 	}
 }
 
-if (import.meta.main) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	main().catch((error: unknown) => {
 		console.error(error);
 		process.exitCode = 1;
