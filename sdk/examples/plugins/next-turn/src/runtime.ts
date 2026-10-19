@@ -150,7 +150,12 @@ export function startSessionRuntime(
 	const log = pluginLog(context);
 	const pluginActive = () => options.pluginActive?.() ?? true;
 	const run = options.runCommand ?? runCommand;
-	const link = new HubLink(options.hubLink ?? nodeHubLinkDeps(), {
+	const link = new HubLink(
+		{
+			...(options.hubLink ?? nodeHubLinkDeps()),
+			log: (message, error) => log(message, error),
+		},
+		{
 		workspaceRoot,
 		cwd: workspaceRoot,
 	});
@@ -167,7 +172,12 @@ export function startSessionRuntime(
 	});
 	engine.start().catch((error: unknown) => log("the hub link stopped", error));
 	void pruneSessionStates(paths.sessions);
-	const store = new FileSessionStateStore(paths.sessions, sessionId);
+	const store = new FileSessionStateStore(
+		paths.sessions,
+		sessionId,
+		Date.now,
+		(message, error) => log(message, error),
+	);
 	const saved = store.read();
 	/** The last viewer's surface, kept past its detach so labels still name the tray it used. */
 	let rememberedSurface: PluginUiSurface | undefined =

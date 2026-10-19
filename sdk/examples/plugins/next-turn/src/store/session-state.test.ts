@@ -19,6 +19,22 @@ import {
 const tempDir = useTempDirs("next-turn-session-state-");
 
 describe("session state persistence across sandbox respawn", () => {
+	test("a write that cannot land on disk is reported and still served from memory", () => {
+		const dir = tempDir();
+		const occupied = join(dir, "sessions");
+		writeFileSync(occupied, "not a directory");
+		const logged: string[] = [];
+		const store = new FileSessionStateStore(
+			occupied,
+			"sess_1",
+			() => 1,
+			(message) => logged.push(message),
+		);
+		store.write({ seq: 3 });
+		expect(store.read()?.seq).toBe(3);
+		expect(logged).toEqual(["the session state was not written"]);
+	});
+
 	test("rehydrates the active offerId, labels the next message once, and skips through the stored pool without a planner call", async () => {
 		const dir = tempDir();
 		const labelsPath = join(dir, "labels.jsonl");

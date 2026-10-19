@@ -119,6 +119,26 @@ describe("HubLink", () => {
 		expect(statuses).toEqual(["connecting", "up"]);
 	});
 
+	test("a listener that throws is reported and does not stop the others", async () => {
+		const client = fakeClient();
+		const logged: string[] = [];
+		const link = new HubLink({
+			...deps("ws://hub", [client]),
+			log: (message) => logged.push(message),
+		});
+		const seen: string[] = [];
+		link.subscribe(new Set(["run.completed"]), () => {
+			throw new Error("a listener that cannot handle it");
+		});
+		link.subscribe(new Set(["run.completed"]), (event) =>
+			seen.push(event.event),
+		);
+		await link.start();
+		client.emit({ event: "run.completed", sessionId: "s1" });
+		expect(seen).toEqual(["run.completed"]);
+		expect(logged).toEqual(["a hub listener failed"]);
+	});
+
 	test("a throwing listener does not starve the others", async () => {
 		const client = fakeClient();
 		const link = new HubLink(deps("ws://hub", [client]));

@@ -48,6 +48,8 @@ export type HubLinkDeps = {
 		scope: HubLinkScope,
 	): HubClientPort;
 	sleep(ms: number): Promise<void>;
+	/** A subscriber that threw: it is isolated, not silent. */
+	log?(message: string, error?: unknown): void;
 };
 
 /**
@@ -256,7 +258,9 @@ export class HubLink {
 			if (!names.has(event.event)) continue;
 			try {
 				listener(event);
-			} catch {}
+			} catch (error) {
+				this.deps.log?.("a hub listener failed", error);
+			}
 		}
 	}
 

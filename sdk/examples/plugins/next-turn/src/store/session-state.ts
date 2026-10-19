@@ -82,6 +82,8 @@ export class FileSessionStateStore implements SessionStateStore {
 		dir: string,
 		private readonly sessionId: string,
 		private readonly now: () => number = Date.now,
+		/** A write that could not land: the file keeps the previous state, not the caller's. */
+		private readonly log?: (message: string, error?: unknown) => void,
 	) {
 		this.filePath = join(dir, `${sha256Hex(sessionId)}.json`);
 	}
@@ -111,7 +113,9 @@ export class FileSessionStateStore implements SessionStateStore {
 		this.cached = JSON.parse(text) as PersistedSessionState;
 		try {
 			writeFileAtomic(this.filePath, `${text}\n`);
-		} catch {}
+		} catch (error) {
+			this.log?.("the session state was not written", error);
+		}
 	}
 
 	private clear(): void {
