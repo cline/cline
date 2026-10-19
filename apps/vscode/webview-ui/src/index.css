@@ -72,6 +72,7 @@
 }
 
 .cline-ui-shots {
+	--cline-ui-shots-surface: transparent;
 	--cline-ui-shots-foreground: var(--vscode-foreground);
 	--cline-ui-shots-muted: var(--vscode-descriptionForeground);
 	--cline-ui-shots-border: var(--vscode-widget-border, var(--vscode-panel-border));

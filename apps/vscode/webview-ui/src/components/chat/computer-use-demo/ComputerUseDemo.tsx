@@ -2,19 +2,19 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { RotateCcwIcon, ScanEyeIcon, XIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 import { ExtensionStateContext, useExtensionState } from "@/context/ExtensionStateContext"
-import board from "./screenshots/01-board.webp"
-import palette from "./screenshots/02-palette.webp"
-import search from "./screenshots/03-search.webp"
-import filtered from "./screenshots/04-filtered.webp"
-import dark from "./screenshots/05-dark.webp"
-import mobile from "./screenshots/06-mobile.webp"
+import board from "./screenshots/01-board.webp?inline"
+import palette from "./screenshots/02-palette.webp?inline"
+import search from "./screenshots/03-search.webp?inline"
+import filtered from "./screenshots/04-filtered.webp?inline"
+import dark from "./screenshots/05-dark.webp?inline"
+import mobile from "./screenshots/06-mobile.webp?inline"
 
 /*
  * Dev-only scripted preview of computer use ("close the loop") in cloud tasks,
  * started by the `cline.dev.playComputerUseDemo` command. Sandboxes cannot send
  * screenshots to clients yet, so this replays a canned task through the real
  * ChatView. The screenshots were captured from a fixture app with Xvfb, xdotool,
- * and ImageMagick.
+ * and ImageMagick, and are inlined because the webview CSP blocks fetch().
  */
 
 const PROMPT =
@@ -112,16 +112,6 @@ function buildBeats(media: NonNullable<ClineMessage["media"]>): Beat[] {
 	]
 }
 
-async function toBase64(src: string): Promise<string> {
-	const blob = await (await fetch(src)).blob()
-	return await new Promise((resolve, reject) => {
-		const reader = new FileReader()
-		reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "")
-		reader.onerror = () => reject(reader.error)
-		reader.readAsDataURL(blob)
-	})
-}
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function useDemoPlayback(run: number) {
@@ -138,16 +128,13 @@ function useDemoPlayback(run: number) {
 			return next.ts
 		}
 		void (async () => {
-			const media = await Promise.all(
-				SHOTS.map(async (shot, index) => ({
-					id: `computer-use-demo-${index}`,
-					modality: "image" as const,
-					mediaType: "image/webp",
-					name: shot.name,
-					source: { type: "base64" as const, data: await toBase64(shot.src) },
-				})),
-			)
-			if (cancelled) return
+			const media = SHOTS.map((shot, index) => ({
+				id: `computer-use-demo-${index}`,
+				modality: "image" as const,
+				mediaType: "image/webp",
+				name: shot.name,
+				source: { type: "base64" as const, data: shot.src.split(",")[1] ?? "" },
+			}))
 			setCompleted(false)
 			setMessages([])
 			push({ say: "task", text: PROMPT })
