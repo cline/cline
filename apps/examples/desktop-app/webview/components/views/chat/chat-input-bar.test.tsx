@@ -402,6 +402,72 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).toContain("Publish workflow");
 	});
 
+	it("retries rejected plugin reads without an event and stops retrying after recovery", async () => {
+		vi.useFakeTimers();
+		let available = false;
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+				if (!available) throw new Error("hub connection lost");
+				return {
+					workspacePath: "/workspace/cline",
+					status: "ready",
+					commands: [{ name: "restored", description: "Recovered command" }],
+				};
+			});
+		try {
+			await renderVoiceComposer({ prompt: "/rest", executionTarget: "local" });
+			expect(container.textContent).toContain("Plugin commands unavailable");
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1000);
+			});
+			expect(
+				invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+			).toHaveLength(2);
+			available = true;
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(2000);
+			});
+			expect(container.textContent).toContain("Recovered command");
+			expect(container.textContent).not.toContain(
+				"Plugin commands unavailable",
+			);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(30000);
+			});
+			expect(
+				invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+			).toHaveLength(3);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("cancels failed plugin read retries when the composer unmounts", async () => {
+		vi.useFakeTimers();
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name === "list_plugin_commands")
+					throw new Error("hub connection lost");
+				return { runtimeCommands: [] };
+			});
+		try {
+			await renderVoiceComposer({ prompt: "/rest", executionTarget: "local" });
+			await act(async () => root.unmount());
+			root = createRoot(container);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(30000);
+			});
+			expect(
+				invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+			).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("refreshes instruction files on reopen without resetting plugin or cached suggestions", async () => {
 		const updated = deferred<{
 			runtimeCommands: Array<{

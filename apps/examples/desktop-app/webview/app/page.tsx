@@ -1276,20 +1276,8 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
-		// Reflect Settings changes without restarting or switching accounts.
-		const unsubscribe = desktopClient.subscribe(
-			"feature_flags_changed",
-			(payload) => {
-				if (!cancelled) {
-					setCloudAgentsFlagEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			},
-		);
 		return () => {
 			cancelled = true;
-			unsubscribe();
 			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
 		};
 	}, [accountUserId]);

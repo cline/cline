@@ -1,7 +1,21 @@
 import { defineConfig } from "@vscode/test-cli"
+import { createHash } from "crypto"
+import os from "os"
 import path from "path"
 
 const vscodeTestVersion = process.env.VSCODE_TEST_VERSION ?? "stable"
+const extensionDevelopmentPath = path.resolve("./")
+
+// VS Code puts its IPC socket (e.g. `1.14-main.sock`) in the user data dir, and
+// macOS caps unix socket paths at 103 chars. The default `.vscode-test/user-data`
+// overflows that from deep checkouts such as worktrees (`listen EINVAL`), so on
+// macOS use a short dir in the temp folder, keyed by checkout so concurrent runs
+// from different worktrees don't hand off to each other's instance.
+const launchArgs = ["--disable-extensions"]
+if (process.platform === "darwin") {
+	const checkoutHash = createHash("sha256").update(extensionDevelopmentPath).digest("hex").slice(0, 8)
+	launchArgs.push(`--user-data-dir=${path.join(os.tmpdir(), `cline-vscode-test-${checkoutHash}`)}`)
+}
 
 export default defineConfig({
 	files: [
@@ -25,6 +39,6 @@ export default defineConfig({
 	},
 	workspaceFolder: "test-workspace",
 	version: vscodeTestVersion,
-	extensionDevelopmentPath: path.resolve("./"),
-	launchArgs: ["--disable-extensions"],
+	extensionDevelopmentPath,
+	launchArgs,
 })

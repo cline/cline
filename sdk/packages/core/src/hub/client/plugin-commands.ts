@@ -15,11 +15,10 @@ async function commandIfSupported(
 	command: HubCommandEnvelope["command"],
 	payload: Record<string, unknown>,
 	sessionId: string | undefined,
+	options: Parameters<NodeHubClient["command"]>[3],
 ): Promise<HubReplyEnvelope | undefined> {
 	try {
-		return await client.command(command, payload, sessionId, {
-			timeoutMs: null,
-		});
+		return await client.command(command, payload, sessionId, options);
 	} catch (error) {
 		if (
 			error instanceof HubCommandError &&
@@ -41,6 +40,7 @@ export function createHubPluginCommandsApi(
 				"plugins.commands.list",
 				{ ...target },
 				target.sessionId,
+				{ timeoutMs: null },
 			);
 			if (!reply) return { ...target, status: "ready", commands: [] };
 			if (!reply.ok)
@@ -55,6 +55,7 @@ export function createHubPluginCommandsApi(
 				"plugins.commands.run",
 				{ ...input },
 				input.sessionId,
+				{ timeoutMs: null, retryAfterDispatch: false },
 			);
 			if (!reply) return undefined;
 			if (!reply.ok)
