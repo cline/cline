@@ -35,6 +35,10 @@ Background retries load only the failed paths, preserving healthy plugin
 instances and command state. Source/settings changes still reload the workspace catalog. It never
 requires a Git query or a running agent turn. Dispose the owning runtime to
 release catalog watchers and sandboxes; unsubscribe when a view closes.
+Catalog invalidation follows discoverable plugin entries, imported source files,
+and plugin settings; runtime log/state output does not invalidate a catalog.
+If source files keep changing during initialization, a request rejects after
+two reconciliation passes instead of waiting indefinitely. Retry after edits settle.
 
 For a resident session, both listing and execution use its initialized
 contribution registry and existing plugin sandbox, including session context.

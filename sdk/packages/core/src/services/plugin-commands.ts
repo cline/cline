@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, type FSWatcher, statSync, watch } from "node:fs";
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import {
 	type AgentExtensionCommand,
@@ -25,6 +25,8 @@ import {
 	type PluginCommandsApi,
 	type PluginCommandTarget,
 } from "./plugin-command-api";
+
+const MAX_CATALOG_REFRESH_PASSES = 2;
 
 type LoadedPlugins = Awaited<ReturnType<typeof loadResolvedAgentPlugins>>;
 type LoadedPlugin = {
@@ -117,34 +119,27 @@ export class PluginCommandManager implements PluginCommandsApi {
 			resolveGlobalSettingsPath(),
 		]);
 	}
-	/**
-	 * Compare contents across watcher outages without replacing unchanged plugin instances.
-	 * Unreadable entries contribute their error code instead of failing the scan.
-	 */
+	/** Fingerprint discoverable entries, their import graphs, and plugin settings.
+	 * Runtime output beside a plugin is not source and must not reset its state. */
 	private async fingerprint(entry: Entry): Promise<string> {
 		const hash = createHash("sha256");
-		const visited = new Set<string>();
-		const visit = async (path: string): Promise<void> => {
-			hash.update(JSON.stringify(path));
-			try {
-				const real = await realpath(path);
-				if (visited.has(real)) return;
-				visited.add(real);
-				const info = await stat(path);
-				if (info.isDirectory()) {
-					for (const name of (await readdir(path)).sort()) {
-						if (name !== "node_modules") await visit(resolve(path, name));
-					}
-				} else if (info.isFile()) hash.update(await readFile(path));
-			} catch (error) {
-				hash.update(
-					`error:${(error as NodeJS.ErrnoException).code ?? "unknown"}`,
-				);
-			}
-		};
-		for (const root of [...this.watchRoots(entry)].sort()) await visit(root);
-		for (const path of entry.pluginPaths)
-			hash.update(fingerprintPluginSources(path));
+		try {
+			const paths = resolveAgentPluginPaths({
+				cwd: entry.workspacePath,
+				workspacePath: entry.workspacePath,
+			});
+			hash.update(JSON.stringify(paths));
+			for (const path of paths) hash.update(fingerprintPluginSources(path));
+		} catch (error) {
+			hash.update(`discovery:${String(error)}`);
+		}
+		try {
+			hash.update(await readFile(resolveGlobalSettingsPath()));
+		} catch (error) {
+			hash.update(
+				`settings:${(error as NodeJS.ErrnoException).code ?? "unknown"}`,
+			);
+		}
 		return hash.digest("hex");
 	}
 	private reconnect(entry: Entry): void {
@@ -379,13 +374,13 @@ export class PluginCommandManager implements PluginCommandsApi {
 			.finally(() => {
 				entry.pending = undefined;
 				if (entry.dirty || entry.retryDue)
-					this.schedule(entry, 0, !entry.dirty);
+					this.schedule(entry, entry.dirty ? 100 : 0, !entry.dirty);
 			});
 		entry.tail = entry.pending.catch(() => {});
 		return entry.pending;
 	}
 	private async ensureFresh(entry: Entry): Promise<void> {
-		for (;;) {
+		for (let pass = 0; pass < MAX_CATALOG_REFRESH_PASSES; pass++) {
 			await this.refresh(entry);
 			if (this.disposed) return;
 			// Watchers keep menus current, but imports can reach outside their
@@ -394,6 +389,9 @@ export class PluginCommandManager implements PluginCommandsApi {
 			if (fingerprint === entry.fingerprint) return;
 			entry.dirty = true;
 		}
+		throw new Error(
+			"Plugin sources changed repeatedly during command discovery. Retry after edits settle.",
+		);
 	}
 	async list(target: PluginCommandTarget): Promise<PluginCommandCatalog> {
 		const entry = this.entry(target);

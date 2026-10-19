@@ -1,6 +1,13 @@
 import { EventEmitter } from "node:events";
 import type { watch } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	copyFile,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -142,15 +149,17 @@ describe("runtime plugin catalogs", () => {
 		const later = join(directory, "b.js");
 		const disposed = join(workspacePath, "disposed.txt");
 		const gate = join(workspacePath, "ready.txt");
-		await writeFile(
+		await copyFile(
+			new URL("./fixtures/command-priority/earlier.js", import.meta.url),
 			earlier,
-			`import {appendFileSync,existsSync} from 'node:fs';
-const id=Math.random().toString(36); export default {name:'duplicate',manifest:{capabilities:['commands']},setup(api,ctx){${failed === "earlier" ? `if(!existsSync(${JSON.stringify(gate)}))throw new Error('not ready');` : ""}ctx.onDispose(()=>appendFileSync(${JSON.stringify(disposed)},'earlier:'+id+'\\n'));api.registerCommand({name:'same',handler:()=> 'earlier:'+id});api.registerCommand({name:'obsolete',handler:()=> 'obsolete'})}};`,
+		);
+		await copyFile(
+			new URL("./fixtures/command-priority/later.js", import.meta.url),
+			later,
 		);
 		await writeFile(
-			later,
-			`import {appendFileSync,existsSync} from 'node:fs'; const id=Math.random().toString(36);
-export default {name:'duplicate',manifest:{capabilities:['commands']},setup(api,ctx){${failed === "later" ? `if(!existsSync(${JSON.stringify(gate)}))throw new Error('not ready');` : ""}ctx.onDispose(()=>appendFileSync(${JSON.stringify(disposed)},'later:'+id+'\\n'));api.registerCommand({name:'same',handler:()=> 'later:'+id})}};`,
+			join(directory, "fixture-settings.json"),
+			JSON.stringify({ gate, disposed, failedPlugin: failed }),
 		);
 		const manager = new PluginCommandManager({ retryDelayMs: 10 });
 		managers.push(manager);
@@ -237,6 +246,68 @@ export default {name:'helper',manifest:{capabilities:['commands']},setup(api){ap
 			{ reply: "// changed" },
 		);
 		expect(load).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps setup output beside a plugin out of catalog invalidation", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		await writeFile(
+			join(directory, "logging.js"),
+			`import {appendFileSync} from 'node:fs';
+export default {name:'logging',manifest:{capabilities:['commands']},setup(api){appendFileSync(new URL('./setup.log',import.meta.url),'setup\\n');let count=0;api.registerCommand({name:'counter',handler:()=>String(++count)})}};`,
+		);
+		const manager = new PluginCommandManager();
+		managers.push(manager);
+		// A broken refresh implementation must still be interruptible so this
+		// regression test can dispose its workers instead of hanging the suite.
+		const deadline = setTimeout(() => void manager.dispose(), 5000);
+		try {
+			expect(await manager.list({ workspacePath })).toMatchObject({
+				status: "ready",
+				commands: [{ name: "counter" }],
+			});
+			expect(
+				await manager.run({ workspacePath, prompt: "/counter" }),
+			).toMatchObject({ reply: "1" });
+			await writeFile(join(directory, "state.json"), '{"count":1}');
+			await manager.list({ workspacePath });
+			expect(
+				await manager.run({ workspacePath, prompt: "/counter" }),
+			).toMatchObject({ reply: "2" });
+			expect(await readFile(join(directory, "setup.log"), "utf8")).toBe(
+				"setup\n",
+			);
+		} finally {
+			clearTimeout(deadline);
+			await manager.dispose();
+		}
+	});
+
+	it("bounds reconciliation when imported source keeps changing during setup", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const plugin = join(directory, "changing.js");
+		await writeFile(plugin, "// initial");
+		const load = vi.fn(async () => {
+			if (load.mock.calls.length <= 5)
+				await writeFile(plugin, `// edit ${load.mock.calls.length}`);
+			return loaded();
+		});
+		const manager = new PluginCommandManager({
+			load,
+			watch: (() =>
+				Object.assign(new EventEmitter(), {
+					close() {},
+				})) as unknown as typeof watch,
+		});
+		managers.push(manager);
+		await expect(manager.list({ workspacePath })).rejects.toThrow(
+			"Plugin sources changed repeatedly",
+		);
+		expect(load).toHaveBeenCalledTimes(2);
+		await manager.dispose();
 	});
 
 	it("recovers from initialization timeout without another client request", async () => {

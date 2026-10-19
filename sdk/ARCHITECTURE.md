@@ -810,7 +810,11 @@ state. Workspace catalogs use their own worker registry so catalog failures do n
 healthy instances; source/settings changes reload the workspace catalog. Git
 queries and individual UI mounts do not own plugin lifetimes. Catalog requests
 also fingerprint the imported source graph, including helpers outside watched
-directories, before serving commands. Partial recovery follows the original
+directories, before serving commands. Only discoverable entries, their imported
+source graph, and plugin settings participate in this fingerprint; setup logs and
+runtime state files beside a plugin do not. Requests allow at most two
+reconciliation passes and reject if sources keep changing, so a setup cannot
+trap a request in a refresh loop. Partial recovery follows the original
 plugin path precedence and releases overridden workers independently.
 
 A workspace catalog owns a discovery sandbox; a resident session instead lists
@@ -831,7 +835,9 @@ plugin handlers remain visible to the caller.
 Telemetry failures cannot replace a command's result or original error. The
 CLI suggestion hook preserves its last successful catalog while refresh or
 subscription initialization retries with capped exponential backoff, and
-unmount cancels retries and releases subscriptions that finish late.
+unmount cancels retries and releases subscriptions that finish late. Desktop
+composers also retry failed catalog reads with capped backoff, cancel retries
+on target changes or unmount, and stop retrying after a successful read.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
