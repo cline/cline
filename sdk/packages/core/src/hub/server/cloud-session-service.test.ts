@@ -453,3 +453,78 @@ describe("hub cloud credentials", () => {
 		);
 	});
 });
+
+describe("persisted cloud account scope", () => {
+	it.each([
+		"key",
+		"account",
+		"endpoint",
+		"signout",
+	])("retires its controller after a %s change", (change) => {
+		let settings: ReturnType<ProviderSettingsManager["getProviderSettings"]> = {
+			provider: "cline",
+			apiKey: "first-key",
+		};
+		if (change === "account")
+			settings.auth = { accountId: "account-one", accessToken: "access-one" };
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockImplementation(() => settings);
+		const created: Array<{
+			subscribe: ReturnType<typeof vi.fn>;
+			dispose: ReturnType<typeof vi.fn>;
+		}> = [];
+		const service = new HubCloudSessionService({
+			publish: () => {},
+			createController: () => {
+				const controller = {
+					subscribe: vi.fn(),
+					dispose: vi.fn(async () => {}),
+				};
+				created.push(controller);
+				return controller as unknown as CloudSessionController;
+			},
+		});
+		services.push(service);
+		service.watch();
+		service.watch();
+		expect(created).toHaveLength(1);
+		if (change === "key") settings = { ...settings, apiKey: "second-key" };
+		else if (change === "account")
+			settings = {
+				...settings,
+				auth: { accountId: "account-two", accessToken: "access-two" },
+			};
+		else if (change === "endpoint")
+			settings = { ...settings, baseUrl: "https://other.example" };
+		else settings = undefined;
+		service.watch();
+		expect(created).toHaveLength(2);
+		expect(created[0]?.dispose).toHaveBeenCalledOnce();
+	});
+	it("keeps the same controller when a token refresh preserves account identity", () => {
+		let accessToken = "first-access";
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockImplementation(() => ({
+			provider: "cline",
+			auth: { accountId: "same-account", accessToken },
+		}));
+		const controller = { subscribe: vi.fn(), dispose: vi.fn(async () => {}) };
+		const createController = vi.fn(
+			() => controller as unknown as CloudSessionController,
+		);
+		const service = new HubCloudSessionService({
+			publish: () => {},
+			createController,
+		});
+		services.push(service);
+		service.watch();
+		accessToken = "refreshed-access";
+		service.watch();
+		expect(createController).toHaveBeenCalledOnce();
+		expect(controller.dispose).not.toHaveBeenCalled();
+	});
+});

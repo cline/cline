@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { z } from "zod";
@@ -100,13 +100,20 @@ export interface HubCloudSessionServiceOptions {
 	createController?: () => CloudSessionController;
 }
 
+/** Private change-detection state; never serialized or logged. */
+type CloudAccountScope = {
+	kind: "account" | "credential" | "custom";
+	identity: string;
+	apiBaseUrl?: string;
+};
+
 /** One account-scoped controller per hub, independent of connected viewers. */
 export class HubCloudSessionService {
 	private readonly serviceId = randomUUID();
 	private scopeGeneration = 0;
 	private revision = 0;
 	private controller?: CloudSessionController;
-	private scope?: string;
+	private scope?: CloudAccountScope;
 	private closed = false;
 	private readonly snapshots = new Map<string, CloudSessionSnapshot>();
 	private readonly tokenManager: RuntimeOAuthTokenManager;
@@ -122,21 +129,33 @@ export class HubCloudSessionService {
 		this.scopeTimer = setInterval(() => this.checkScope(), 1000);
 		this.scopeTimer.unref?.();
 	}
-	private currentScope(): string | undefined {
-		if (this.options.getScope) return this.options.getScope();
+	private currentScope(): CloudAccountScope | undefined {
+		if (this.options.getScope) {
+			const identity = this.options.getScope();
+			return identity ? { kind: "custom", identity } : undefined;
+		}
 		const settings = this.settings.getProviderSettings("cline");
+		const accountId = settings?.auth?.accountId;
 		const identity =
-			settings?.auth?.accountId ||
-			settings?.auth?.accessToken ||
-			settings?.apiKey;
+			accountId || settings?.auth?.accessToken || settings?.apiKey;
 		return identity
-			? createHash("sha256")
-					.update(JSON.stringify([identity, settings?.baseUrl]))
-					.digest("hex")
+			? {
+					kind: accountId ? "account" : "credential",
+					identity,
+					apiBaseUrl: settings?.baseUrl,
+				}
 			: undefined;
 	}
+	private isCurrentScope(scope: CloudAccountScope | undefined): boolean {
+		const current = this.currentScope();
+		return (
+			scope?.kind === current?.kind &&
+			scope?.identity === current?.identity &&
+			scope?.apiBaseUrl === current?.apiBaseUrl
+		);
+	}
 	private checkScope(): void {
-		if (!this.controller || this.scope === this.currentScope()) return;
+		if (!this.controller || this.isCurrentScope(this.scope)) return;
 		const old = this.controller;
 		this.controller = undefined;
 		this.scope = undefined;
@@ -179,13 +198,12 @@ export class HubCloudSessionService {
 	}
 	private createController(): CloudSessionController {
 		const environment = getClineEnvironmentConfig();
-		const accountId = this.scope;
+		const scope = this.scope;
 		const apiBaseUrl =
 			this.settings.getProviderSettings("cline")?.baseUrl?.trim() ||
 			environment.apiBaseUrl;
 		const getAuthToken = async () => {
-			if (accountId !== this.currentScope())
-				throw new Error("Cline account changed");
+			if (!this.isCurrentScope(scope)) throw new Error("Cline account changed");
 			let token: string | undefined;
 			let refreshError: unknown;
 			try {
@@ -210,8 +228,7 @@ export class HubCloudSessionService {
 					errorCode: "hub_cloud_refresh_failed_no_fallback_token",
 				});
 			}
-			if (accountId !== this.currentScope())
-				throw new Error("Cline account changed");
+			if (!this.isCurrentScope(scope)) throw new Error("Cline account changed");
 			return token;
 		};
 		const account = new ClineAccountService({ apiBaseUrl, getAuthToken });
