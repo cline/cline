@@ -417,6 +417,44 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 		pluginWatch.listener("rename", "echo.js");
 		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1));
 	});
+	it("reconciles a plugin written after the only ancestor event", async () => {
+		const workspacePath = await workspace();
+		let ancestorEvent: ((event: string, file: string) => void) | undefined;
+		const watchFiles = vi.fn(
+			(
+				directory: string,
+				_options: unknown,
+				listener: (event: string, file: string) => void,
+			) => {
+				if (directory === workspacePath) ancestorEvent = listener;
+				return Object.assign(new EventEmitter(), { close: vi.fn() });
+			},
+		);
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({
+			load,
+			watch: watchFiles as unknown as typeof watch,
+		});
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		vi.useFakeTimers();
+		try {
+			const directory = join(workspacePath, ".cline", "plugins");
+			await mkdir(join(workspacePath, ".cline"));
+			if (!ancestorEvent) throw new Error("Missing ancestor watcher");
+			ancestorEvent("rename", ".cline");
+			// Complete the immediate empty-source check before writing the plugin.
+			await manager.list({ workspacePath });
+			await mkdir(directory);
+			await writeFile(join(directory, "echo.js"), "export default {};");
+			// Native events can coalesce while a recursive watch is installed.
+			// No second event is delivered; the debounce must reconcile this write.
+			await vi.advanceTimersByTimeAsync(100);
+		} finally {
+			vi.useRealTimers();
+		}
+		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1));
+	});
 	it.each([
 		"add",
 		"edit",

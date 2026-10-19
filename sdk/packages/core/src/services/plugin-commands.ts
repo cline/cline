@@ -49,6 +49,7 @@ type Entry = {
 	timer?: ReturnType<typeof setTimeout>;
 	watchers: FSWatcher[];
 	watchRetry?: ReturnType<typeof setTimeout>;
+	sourceCheckTimer?: ReturnType<typeof setTimeout>;
 	fingerprint?: string;
 	/** Serializes execution with reload/disposal so a handler cannot lose its sandbox. */
 	tail: Promise<unknown>;
@@ -142,6 +143,17 @@ export class PluginCommandManager implements PluginCommandsApi {
 		}
 		return hash.digest("hex");
 	}
+	private scheduleSourceCheck(entry: Entry): void {
+		clearTimeout(entry.sourceCheckTimer);
+		entry.sourceCheckTimer = setTimeout(() => {
+			void this.fingerprint(entry).then((fingerprint) => {
+				if (this.disposed || fingerprint === entry.fingerprint) return;
+				entry.dirty = true;
+				void this.refresh(entry);
+			});
+		}, 100);
+		entry.sourceCheckTimer.unref?.();
+	}
 	private reconnect(entry: Entry): void {
 		if (this.disposed) return;
 		clearTimeout(entry.watchRetry);
@@ -149,11 +161,6 @@ export class PluginCommandManager implements PluginCommandsApi {
 			if (this.disposed) return;
 			// Install watchers first, then reconcile changes missed during the outage.
 			this.watch(entry);
-			void this.fingerprint(entry).then((fingerprint) => {
-				if (this.disposed || fingerprint === entry.fingerprint) return;
-				entry.dirty = true;
-				void this.refresh(entry);
-			});
 		}, 1000);
 		entry.watchRetry.unref?.();
 	}
@@ -189,11 +196,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 						// checking sources so later child events cannot fall through the gap.
 						if (event === "rename" || directory !== targetDirectory)
 							this.watch(entry);
-						void this.fingerprint(entry).then((fingerprint) => {
-							if (this.disposed || fingerprint === entry.fingerprint) return;
-							entry.dirty = true;
-							this.schedule(entry, 100);
-						});
+						this.scheduleSourceCheck(entry);
 					},
 				);
 				watcher.on("error", (error) => {
@@ -212,6 +215,9 @@ export class PluginCommandManager implements PluginCommandsApi {
 				this.reconnect(entry);
 			}
 		}
+		// Native events may coalesce while recursive watches are being installed.
+		// Reconcile the completed write batch, without restarting unchanged plugins.
+		this.scheduleSourceCheck(entry);
 	}
 	private async loadPlugin(
 		entry: Entry,
@@ -423,6 +429,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 			[...this.entries.values()].map(async (entry) => {
 				clearTimeout(entry.timer);
 				clearTimeout(entry.watchRetry);
+				clearTimeout(entry.sourceCheckTimer);
 				for (const watcher of entry.watchers) watcher.close();
 				await entry.tail;
 				await Promise.all(

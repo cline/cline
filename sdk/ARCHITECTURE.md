@@ -806,7 +806,9 @@ sidecar, CLI, and connectors reuse their existing hub connections. Workspace
 catalogs are initialized when a composer first requests them and refreshed by
 runtime-owned plugin/settings watchers, including for non-Git folders. Watches
 follow directory creation and replacement independently of source fingerprints,
-so an empty `.cline` directory cannot hide later plugin installation events. Failed
+so an empty `.cline` directory cannot hide later plugin installation events.
+A debounced source check also reconciles writes whose native events coalesce
+during watch registration, without restarting unchanged plugins. Failed
 initialization retries in the background and publishes explicit error/recovery
 state. Workspace catalogs use their own worker registry so catalog failures do not disable resident session instances. Partial retries reload only failed plugin paths and retain
 healthy instances; source/settings changes reload the workspace catalog. Git
