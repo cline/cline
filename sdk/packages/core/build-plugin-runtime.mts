@@ -1,13 +1,12 @@
 import {
 	existsSync,
 	mkdirSync,
-	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
+import { isBuiltin } from "node:module";
 import { join, resolve } from "node:path";
-import { packEmbeddedResources } from "./src/runtime/embedded-resources";
 
 const packagesRoot = resolve(import.meta.dir, "..");
 const outdir = resolve(import.meta.dir, "dist/plugin-runtime");
@@ -84,22 +83,24 @@ export async function buildPluginRuntime(): Promise<void> {
 			}),
 		);
 	}
-	const files: Record<string, string> = {};
-	function collect(directory: string, prefix = "") {
-		for (const entry of readdirSync(directory, { withFileTypes: true })) {
-			const name = `${prefix}${entry.name}`;
-			if (entry.isDirectory()) collect(join(directory, entry.name), `${name}/`);
-			else if (entry.isFile())
-				files[name] = readFileSync(join(directory, entry.name)).toString(
-					"base64",
+	// Any unresolved bare import would require node_modules beside a lone binary.
+	// Validate every emitted module, including the SDK's split chunks.
+	const scanner = new Bun.Transpiler({ loader: "js" });
+	for (const file of new Bun.Glob("**/*.js").scanSync({ cwd: outdir })) {
+		for (const { path } of scanner.scanImports(
+			readFileSync(join(outdir, file), "utf8"),
+		)) {
+			if (
+				!isBuiltin(path) &&
+				!path.startsWith("./") &&
+				!path.startsWith("../")
+			) {
+				throw new Error(
+					`Plugin runtime is not self-contained: ${file} imports ${path}`,
 				);
+			}
 		}
 	}
-	collect(outdir);
-	writeFileSync(
-		resolve(outdir, "../plugin-runtime-resources.json"),
-		JSON.stringify(packEmbeddedResources(files)),
-	);
 }
 
 if (import.meta.main) await buildPluginRuntime();

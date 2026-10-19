@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
-import { resolvePluginRuntimeDirectory } from "@cline/core";
+import { setPluginSandboxLauncher } from "@cline/core";
 import {
 	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
@@ -33,13 +33,20 @@ disableCurrentDirectoryExecutableSearch();
 // Before any personality probes the local hub over 127.0.0.1.
 ensureLoopbackProxyBypass();
 
+if (Bun.isStandaloneExecutable) {
+	setPluginSandboxLauncher({
+		command: process.execPath,
+		argsPrefix: ["--plugin-sandbox"],
+	});
+}
+
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
-} else if (process.argv.includes("--plugin-runtime-dir")) {
-	const directory = resolvePluginRuntimeDirectory();
-	if (!directory)
-		throw new Error("This CLI does not ship a complete plugin runtime");
-	process.stdout.write(`${directory}\n`);
+} else if (process.argv.includes("--plugin-sandbox")) {
+	// Boot as the compiled host so the child mounts the same read-only resources.
+	const bootstrap = process.argv[process.argv.indexOf("--plugin-sandbox") + 1];
+	if (!bootstrap) throw new Error("Missing plugin sandbox bootstrap path");
+	await import(bootstrap);
 } else if (process.argv.includes("--telemetry-selfcheck")) {
 	// Inspect the config embedded in this executable without starting a hub,
 	// loading user settings, or initializing telemetry exporters.

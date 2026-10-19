@@ -17,7 +17,7 @@ describe("SDK runtime build identity", () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-runtime-build-id-"));
 		tempDirs.push(root);
 		writeFileSync(join(root, "bun.lock"), "lockfile-v1\n");
-		for (const packageName of ["shared", "llms", "agents", "core"]) {
+		for (const packageName of ["shared", "llms", "agents", "core", "sdk"]) {
 			const packageRoot = join(root, "sdk", "packages", packageName);
 			mkdirSync(join(packageRoot, "src"), { recursive: true });
 			writeFileSync(
@@ -54,6 +54,16 @@ describe("SDK runtime build identity", () => {
 		writeFileSync(
 			join(root, "sdk", "packages", "core", "build-plugin-runtime.mts"),
 			"// changed packaging\n",
+		);
+		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
+	});
+
+	it("changes when the shipped SDK facade changes", () => {
+		const root = createRuntimeFixture();
+		const first = resolveSdkRuntimeBuildId(root);
+		writeFileSync(
+			join(root, "sdk", "packages", "sdk", "src", "index.ts"),
+			"export const changed = true;\n",
 		);
 		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
 	});

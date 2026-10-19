@@ -783,22 +783,21 @@ Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
 package-local `plugin-runtime` directory, or embedded resources. Source hosts
 prefer their sibling TypeScript bootstrap over packaged runtimes so development
 and tests execute the current bootstrap and module importer without rebuilding.
-The CLI compiler embeds the archive and materializes it under
-`CLINE_DIR/runtime/plugins/<hash>`
-when needed. Matching cached bytes are reused and corrupt files are repaired;
-builds retain separate directories so running workers survive upgrades. Plugin
-SDK imports resolve against this same artifact. VS Code copies the complete
-artifact into its extension bundle. Desktop obtains its matching resource
-directory from the bundled CLI before starting its existing plugin services.
+The CLI compiler embeds the runtime tree and dashboard assets in Bun's read-only
+filesystem. Worker and subprocess transports read the same embedded bootstrap
+and SDK exports without extracting files or creating a runtime cache.
+VS Code and npm CLI copy the complete artifact into their bundles. Desktop
+ships it beside its external backend script, whose plain Bun host does not
+mount the CLI's filesystem.
 A host without a bootstrap fails closed with
 `PluginBootstrapMissingError`; plugin code never runs on the host main thread.
 
-Compiled Bun executables can also run subprocess plugins themselves, using
-`BUN_BE_BUN=1` when no separate Node or Bun runtime is available. Resource
-packaging is independent of execution-mode policy.
-The subprocess launch explicitly retains system CA trust when using the compiled
-executable as Bun. After startup, the plugin bootstrap clears `BUN_BE_BUN` so
-plugin-launched Cline commands run their normal CLI entrypoint.
+Compiled hosts register their subprocess entrypoint with `setPluginSandboxLauncher`.
+The CLI and Desktop’s bundled CLI use the internal `--plugin-sandbox` flag,
+which lazily imports the embedded bootstrap with bunfs mounted and compiled
+runtime flags (including system CA trust) intact. Generic script sandboxes
+still use plain Bun mode when reusing a compiled runtime.
+
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

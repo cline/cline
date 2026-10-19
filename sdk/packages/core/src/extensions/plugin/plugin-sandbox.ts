@@ -19,7 +19,10 @@ import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { WorkerSandbox } from "../../runtime/tools/worker-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
-import { resolvePluginRuntimeDirectory } from "./plugin-runtime";
+import {
+	getPluginSandboxLauncher,
+	resolvePluginRuntimeDirectory,
+} from "./plugin-runtime";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
@@ -507,6 +510,10 @@ export async function loadSandboxedPlugins(
 				})
 			: new SubprocessSandbox({
 					name: "plugin-sandbox",
+					launcher:
+						"bootstrapFile" in bootstrap
+							? getPluginSandboxLauncher()
+							: undefined,
 					...bootstrap,
 					idleTimeoutMs,
 					onEvent,

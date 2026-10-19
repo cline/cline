@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { cpSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import {
@@ -95,6 +95,13 @@ const bundleDesktopBackend = async (): Promise<void> => {
 	// from Finder/the Dock has no OTEL_* env at runtime, so without this the
 	// backend silently ships with telemetry disabled. Verify with
 	// `BUN_BE_BUN=1 cline-cli run <bundle> --telemetry-selfcheck`.
+	// The script runner does not mount the CLI's bunfs. Ship the same runtime
+	// artifact beside the backend, just as npm and VS Code hosts do.
+	const runtime = `${APP_ROOT}/${BIN_DIR}/desktop-backend/plugin-runtime`;
+	rmSync(runtime, { recursive: true, force: true });
+	cpSync(`${REPO_ROOT}/sdk/packages/core/dist/plugin-runtime`, runtime, {
+		recursive: true,
+	});
 	const defines = telemetryDefineArgs();
 	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE}`;
 };

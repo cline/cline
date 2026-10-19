@@ -30,7 +30,15 @@ interface SandboxEventMessage {
 	payload?: unknown;
 }
 
+export interface SubprocessSandboxLauncher {
+	command: string;
+	/** Host-specific arguments placed before the bootstrap file path. */
+	argsPrefix: string[];
+}
+
 export interface SubprocessSandboxOptions {
+	/** A compiled host can dispatch a bootstrap with its embedded filesystem mounted. */
+	launcher?: SubprocessSandboxLauncher;
 	/** Inline script to execute via `node -e`. Mutually exclusive with {@link bootstrapFile}. */
 	bootstrapScript?: string;
 	/** Path to a JavaScript file to execute via `node <file>`. Mutually exclusive with {@link bootstrapScript}. */
@@ -155,14 +163,18 @@ export function buildSubprocessSandboxCommand(
 		name?: string;
 		execPath?: string;
 		runtimeExecutable?: string;
+		launcher?: SubprocessSandboxLauncher;
 	} = {},
 ): string[] {
+	if (options.launcher) {
+		return [options.launcher.command, ...options.launcher.argsPrefix, ...args];
+	}
 	const runtimeExecutable = resolveSubprocessRuntimeExecutable({
 		env: options.env,
 		execPath: options.execPath,
 		runtimeExecutable: options.runtimeExecutable,
 	});
-	// BUN_BE_BUN starts a plain runtime and does not retain compiled execArgv.
+	// Plain Bun mode does not retain compiled execArgv.
 	const runtimeArgs = isCompiledBunExecutable(runtimeExecutable)
 		? ["--use-system-ca", ...args]
 		: args;
@@ -289,15 +301,16 @@ export class SubprocessSandbox {
 		const command = buildSubprocessSandboxCommand(args, {
 			name: this.options.name,
 			runtimeExecutable: this.options.runtimeExecutable,
+			launcher: this.options.launcher,
 		});
 		const executable =
 			command[0] ?? resolveSubprocessRuntimeExecutable(this.options);
-		const env = withResolvedClineBuildEnv(process.env);
+		const env = { ...withResolvedClineBuildEnv(process.env) };
+		if (this.options.launcher) delete env.BUN_BE_BUN;
+		else if (isCompiledBunExecutable(executable)) env.BUN_BE_BUN = "1";
 		const child = spawn(executable, command.slice(1), {
 			stdio: ["ignore", "ignore", "pipe", "ipc"],
-			env: isCompiledBunExecutable(executable)
-				? { ...env, BUN_BE_BUN: "1" }
-				: env,
+			env,
 			// Prevent a console window from flashing on Windows.
 			windowsHide: true,
 		});

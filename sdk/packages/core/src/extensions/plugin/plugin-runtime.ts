@@ -1,15 +1,12 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveClineDir } from "@cline/shared/storage";
-import {
-	type EmbeddedResources,
-	materializeEmbeddedResources,
-} from "../../runtime/embedded-resources";
+import type { SubprocessSandboxLauncher } from "../../runtime/tools/subprocess-sandbox";
 
 export const CLINE_PLUGIN_RUNTIME_DIR_ENV = "CLINE_PLUGIN_RUNTIME_DIR";
-declare const __CLINE_PLUGIN_RUNTIME_RESOURCES__: EmbeddedResources | undefined;
-const embeddedDirectories = new Map<string, string>();
+declare const __CLINE_PLUGIN_RUNTIME_DIR__: string | undefined;
+let searched = false;
+let discoveredDirectory: string | undefined;
 
 function isPluginRuntime(directory: string): boolean {
 	return (
@@ -30,6 +27,10 @@ export function resolvePluginRuntimeDirectory(): string | undefined {
 			);
 		return configured;
 	}
+	if (typeof __CLINE_PLUGIN_RUNTIME_DIR__ !== "undefined")
+		return __CLINE_PLUGIN_RUNTIME_DIR__;
+	if (searched) return discoveredDirectory;
+	searched = true;
 	let current = dirname(fileURLToPath(import.meta.url));
 	for (;;) {
 		for (const candidate of [
@@ -37,22 +38,30 @@ export function resolvePluginRuntimeDirectory(): string | undefined {
 			join(current, "plugin-runtime"),
 			join(current, "dist", "plugin-runtime"),
 		]) {
-			if (isPluginRuntime(candidate)) return candidate;
+			if (isPluginRuntime(candidate)) {
+				discoveredDirectory = candidate;
+				return candidate;
+			}
 		}
 		const parent = dirname(current);
-		if (parent === current) break;
+		if (parent === current) return undefined;
 		current = parent;
 	}
-	if (typeof __CLINE_PLUGIN_RUNTIME_RESOURCES__ === "undefined")
-		return undefined;
-	const root = join(resolveClineDir(), "runtime", "plugins");
-	let directory = embeddedDirectories.get(root);
-	if (!directory) {
-		directory = materializeEmbeddedResources(
-			__CLINE_PLUGIN_RUNTIME_RESOURCES__,
-			root,
-		);
-		embeddedDirectories.set(root, directory);
-	}
-	return directory;
+}
+
+let sandboxLauncher: SubprocessSandboxLauncher | undefined;
+
+/** Let a compiled host launch plugin children with its embedded filesystem mounted. */
+export function setPluginSandboxLauncher(
+	launcher: SubprocessSandboxLauncher | undefined,
+): void {
+	sandboxLauncher = launcher
+		? { command: launcher.command, argsPrefix: [...launcher.argsPrefix] }
+		: undefined;
+}
+
+export function getPluginSandboxLauncher():
+	| SubprocessSandboxLauncher
+	| undefined {
+	return sandboxLauncher;
 }

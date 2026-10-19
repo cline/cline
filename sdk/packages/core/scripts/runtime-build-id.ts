@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
-const RUNTIME_PACKAGE_NAMES = ["shared", "llms", "agents", "core"] as const;
+const RUNTIME_PACKAGE_NAMES = [
+	"shared",
+	"llms",
+	"agents",
+	"core",
+	"sdk",
+] as const;
 const TEST_DIRECTORY_NAMES = new Set(["__tests__", "fixtures", "tests"]);
 
 function collectRuntimeSourceFiles(directory: string): string[] {

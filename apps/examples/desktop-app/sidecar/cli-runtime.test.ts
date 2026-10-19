@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-	adoptDesktopCliRuntime,
-	configureDesktopPluginRuntime,
-	ensureHubWithDesktopCli,
-} from "./cli-runtime";
+import { adoptDesktopCliRuntime, ensureHubWithDesktopCli } from "./cli-runtime";
 
 describe("ensureHubWithDesktopCli", () => {
 	it("asks the bundled CLI to start or reuse the Hub and returns only its URL", async () => {
@@ -55,8 +51,11 @@ describe("adoptDesktopCliRuntime", () => {
 		};
 		const chdir = vi.fn();
 		const setLauncher = vi.fn();
+		const setPluginLauncher = vi.fn();
 
-		expect(adoptDesktopCliRuntime({ env, chdir, setLauncher })).toEqual({
+		expect(
+			adoptDesktopCliRuntime({ env, chdir, setLauncher, setPluginLauncher }),
+		).toEqual({
 			cliPath: "/Applications/Cline.app/Contents/MacOS/cline-cli",
 		});
 
@@ -66,6 +65,10 @@ describe("adoptDesktopCliRuntime", () => {
 			"/Applications/Cline.app/Contents/MacOS/cline-cli",
 		);
 		expect(chdir).toHaveBeenCalledWith("/Users/dev/project");
+		expect(setPluginLauncher).toHaveBeenCalledWith({
+			command: env.CLINE_DESKTOP_CLI_PATH,
+			argsPrefix: ["--plugin-sandbox"],
+		});
 		expect(setLauncher).toHaveBeenCalledWith({
 			command: "/Applications/Cline.app/Contents/MacOS/cline-cli",
 		});
@@ -74,40 +77,20 @@ describe("adoptDesktopCliRuntime", () => {
 	it("keeps the default Hub launcher when no bundled CLI is provided", () => {
 		const chdir = vi.fn();
 		const setLauncher = vi.fn();
+		const setPluginLauncher = vi.fn();
 
-		expect(adoptDesktopCliRuntime({ env: {}, chdir, setLauncher })).toEqual({
+		expect(
+			adoptDesktopCliRuntime({
+				env: {},
+				chdir,
+				setLauncher,
+				setPluginLauncher,
+			}),
+		).toEqual({
 			cliPath: undefined,
 		});
 		expect(chdir).not.toHaveBeenCalled();
 		expect(setLauncher).not.toHaveBeenCalled();
-	});
-});
-
-describe("configureDesktopPluginRuntime", () => {
-	it("asks the matching executable for its runtime rather than treating it as a script runner", async () => {
-		const env = { BUN_BE_BUN: "1" };
-		const run = vi.fn(async () => "/cache/plugins/build-id\n");
-		await configureDesktopPluginRuntime("/opt/cline/cline-cli", { env, run });
-		expect(env).toMatchObject({
-			CLINE_PLUGIN_RUNTIME_DIR: "/cache/plugins/build-id",
-		});
-		expect(run).toHaveBeenCalledWith(
-			"/opt/cline/cline-cli",
-			["--plugin-runtime-dir"],
-			expect.objectContaining({
-				env: expect.objectContaining({
-					BUN_BE_BUN: undefined,
-					CLINE_NO_AUTO_UPDATE: "1",
-				}),
-			}),
-		);
-	});
-	it("rejects a CLI that does not report its runtime", async () => {
-		await expect(
-			configureDesktopPluginRuntime("/opt/cline/cline-cli", {
-				env: {},
-				run: async () => "",
-			}),
-		).rejects.toThrow("plugin runtime directory");
+		expect(setPluginLauncher).not.toHaveBeenCalled();
 	});
 });

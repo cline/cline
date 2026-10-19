@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
 	closeSync,
 	copyFileSync,
+	cpSync,
 	mkdirSync,
 	mkdtempSync,
 	openSync,
@@ -71,6 +72,16 @@ function resolveBackendBundle(): string {
 			{ encoding: "utf8", timeout: 120_000 },
 		);
 		expect(build.status, build.stderr || String(build.error)).toBe(0);
+		cpSync(
+			fileURLToPath(
+				new URL(
+					"../../../../sdk/packages/core/dist/plugin-runtime",
+					import.meta.url,
+				),
+			),
+			join(outdir, "plugin-runtime"),
+			{ recursive: true },
+		);
 		bundledBackend = join(outdir, "index.js");
 	}
 	return bundledBackend;
@@ -345,6 +356,8 @@ test.each([
 	try {
 		const directory = join(root, ".cline", "plugins");
 		mkdirSync(directory, { recursive: true });
+		// Occupy the old cache path: startup must succeed without extraction.
+		writeFileSync(join(root, ".cline", "runtime"), "no extraction");
 		const marker = join(root, "plugin-result.json");
 		// Copy the raw TypeScript fixture so SDK imports must resolve from the
 		// packaged runtime, outside the monorepo and without prebundling.
@@ -385,6 +398,9 @@ test.each([
 				(tool: { name: string }) => tool.name === "embedded_ping",
 			),
 		).toBe(true);
+		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
+			"no extraction",
+		);
 		expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({
 			pong: true,
 			execPath: realpathSync(cli),
@@ -396,9 +412,81 @@ test.each([
 	}
 }, 120000);
 
+test.each([
+	"worker",
+	"sandbox",
+])("packaged desktop backend loads its on-disk SDK runtime (%s)", async (mode) => {
+	const cli = await resolveCliBinary();
+	const outdir = dirname(resolveBackendBundle());
+	const probe = join(outdir, "plugin-runtime-probe.js");
+	const built = await Bun.build({
+		entrypoints: [
+			fileURLToPath(
+				new URL("./fixtures/desktop-plugin-runtime.ts", import.meta.url),
+			),
+		],
+		target: "bun",
+		outdir,
+		naming: "plugin-runtime-probe.js",
+	});
+	expect(built.success, built.logs.map(String).join("\n")).toBe(true);
+	const root = mkdtempSync(join(tmpdir(), "cline-desktop-plugin-"));
+	try {
+		const plugins = join(root, ".cline", "plugins");
+		mkdirSync(plugins, { recursive: true });
+		copyFileSync(
+			fileURLToPath(
+				new URL("./fixtures/embedded-plugin/desktop.ts", import.meta.url),
+			),
+			join(plugins, "desktop.ts"),
+		);
+		writeFileSync(join(root, ".cline", "runtime"), "no extraction");
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) =>
+					!/^(CLINE_|BUN_BE_BUN|NODE_PATH|npm_node_execpath|NODE$|BUN_EXEC_PATH)/.test(
+						key,
+					),
+			),
+		);
+		const result = spawnSync(
+			cli,
+			["run", "--use-system-ca", "--no-env-file", probe],
+			{
+				cwd: root,
+				encoding: "utf8",
+				timeout: 30000,
+				env: {
+					...env,
+					PATH: root,
+					HOME: root,
+					USERPROFILE: root,
+					CLINE_DIR: join(root, ".cline"),
+					BUN_BE_BUN: "1",
+					CLINE_DESKTOP_CLI_PATH: cli,
+					CLINE_PLUGIN_MODE: mode,
+					JITI_FS_CACHE: "false",
+				},
+			},
+		);
+		expect(result.status, result.stderr || String(result.error)).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			commands: [{ name: "packaged-ping" }],
+			result: { reply: "pong" },
+		});
+		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
+			"no extraction",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);
+
 test("standalone CLI serves the dashboard and its assets without external files or Node", async () => {
 	const cli = await resolveCliBinary();
 	const root = mkdtempSync(join(tmpdir(), "cline-standalone-dashboard-"));
+	mkdirSync(join(root, ".cline"));
+	writeFileSync(join(root, ".cline", "runtime"), "no extraction");
 	const env = Object.fromEntries(
 		Object.entries(process.env).filter(
 			([key]) =>
@@ -447,6 +535,9 @@ test("standalone CLI serves the dashboard and its assets without external files 
 		}
 		expect(response?.status).toBe(200);
 		if (!response) throw new Error("Dashboard did not start");
+		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
+			"no extraction",
+		);
 		const html = await response.text();
 		expect(html).toContain("<html");
 		const assets = [

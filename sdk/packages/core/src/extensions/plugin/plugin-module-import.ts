@@ -247,7 +247,9 @@ function resolveFromHostRuntime(specifier: string): string | null {
 	try {
 		return HOST_REQUIRE.resolve(specifier);
 	} catch {
-		// Continue with package export resolution for ESM-only package exports.
+		// Resolve ESM-only exports and embedded bunfs packages through their
+		// manifests. Bun 1.4.2 cannot resolve bare packages inside bunfs with
+		// createRequire.resolve, even though native imports of absolute aliases work.
 	}
 	return resolveHostPackageExport(specifier);
 }
