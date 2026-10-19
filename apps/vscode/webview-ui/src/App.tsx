@@ -2,6 +2,7 @@ import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
+import { ComputerUseDemo as ComputerUseDemoPlayer } from "./components/chat/computer-use-demo/ComputerUseDemo"
 import HistoryView from "./components/history/HistoryView"
 import MarketplaceView from "./components/marketplace/MarketplaceView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
@@ -13,6 +14,8 @@ import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
+
+const ComputerUseDemo = process.env.IS_DEV === "true" ? ComputerUseDemoPlayer : null
 
 const AppContent = () => {
 	const {
@@ -72,6 +75,15 @@ const AppContent = () => {
 		return null
 	}
 
+	const chatView = (
+		<ChatView
+			hideAnnouncement={hideAnnouncement}
+			isHidden={showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees}
+			showAnnouncement={showAnnouncement}
+			showHistoryView={navigateToHistory}
+		/>
+	)
+
 	if (showWelcome) {
 		return <OnboardingView />
 	}
@@ -101,12 +113,7 @@ const AppContent = () => {
 			)}
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-			<ChatView
-				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees}
-				showAnnouncement={showAnnouncement}
-				showHistoryView={navigateToHistory}
-			/>
+			{ComputerUseDemo ? <ComputerUseDemo>{chatView}</ComputerUseDemo> : chatView}
 		</div>
 	)
 }

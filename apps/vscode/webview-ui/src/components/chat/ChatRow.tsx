@@ -969,6 +969,7 @@ export const ChatRowContent = memo(
 						return (
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
+								media={message.media}
 								quoteButtonState={quoteButtonState}
 								showViewChanges={isLast && message.partial !== true && enableCheckpointsSetting}
 								text={text || ""}

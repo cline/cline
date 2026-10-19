@@ -4,7 +4,10 @@ import { HistoryItem } from "@shared/HistoryItem"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
+import { WebviewProvider } from "@/core/webview"
 import { HostProvider } from "@/hosts/host-provider"
+import type { VscodeWebviewProvider } from "@/hosts/vscode/VscodeWebviewProvider"
+import { ExtensionRegistryInfo } from "@/registry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 
@@ -147,6 +150,11 @@ export function registerTaskCommands(controller: Controller): vscode.Disposable[
 					})
 				},
 			)
+		}),
+		vscode.commands.registerCommand("cline.dev.playComputerUseDemo", async () => {
+			await vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
+			const provider = WebviewProvider.getInstance() as VscodeWebviewProvider
+			await provider.getWebview()?.webview.postMessage({ type: "computer_use_demo" })
 		}),
 	]
 }

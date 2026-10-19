@@ -5,6 +5,7 @@
 /* Tailwind CSS */
 @import "tailwindcss";
 @import "./theme.css";
+@import "@cline/ui/components/agent-screenshot-carousel.css";
 @plugin "tailwindcss-animate";
 @custom-variant dark (&:is(.dark *));
 
@@ -68,4 +69,13 @@
 	[role="checkbox"] {
 		margin: calc(var(--design-unit) * 1px) 0;
 	}
+}
+
+.cline-ui-shots {
+	--cline-ui-shots-foreground: var(--vscode-foreground);
+	--cline-ui-shots-muted: var(--vscode-descriptionForeground);
+	--cline-ui-shots-border: var(--vscode-widget-border, var(--vscode-panel-border));
+	--cline-ui-shots-accent: var(--vscode-focusBorder);
+	--cline-ui-shots-success: var(--vscode-charts-green);
+	--cline-ui-shots-failure: var(--vscode-charts-red);
 }

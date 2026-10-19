@@ -1,6 +1,8 @@
+import { type AgentScreenshot, AgentScreenshotCarousel } from "@cline/ui"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
-import { memo, useEffect, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
@@ -22,6 +24,8 @@ interface CompletionOutputRowProps {
 	 * simply renders no button.
 	 */
 	showViewChanges?: boolean
+	/** Images attached to the completion, such as screenshots the agent took to verify its work. */
+	media?: ClineMessage["media"]
 }
 
 /**
@@ -32,7 +36,22 @@ interface CompletionOutputRowProps {
  * rather than a definitive task completion.
  */
 export const CompletionOutputRow = memo(
-	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
+	({ text, quoteButtonState, handleQuoteClick, showViewChanges, media }: CompletionOutputRowProps) => {
+		const screenshots = useMemo<AgentScreenshot[]>(
+			() =>
+				(media ?? []).flatMap((item) =>
+					item.modality === "image" && item.source.type === "base64"
+						? [
+								{
+									id: item.id,
+									src: `data:${item.mediaType};base64,${item.source.data}`,
+									title: item.name ?? "Screenshot",
+								},
+							]
+						: [],
+				),
+			[media],
+		)
 		const [viewChangesPending, setViewChangesPending] = useState(false)
 		// undefined = still checking; the button stays hidden until the host
 		// confirms the latest run actually changed files. A count of 0 also
@@ -79,6 +98,16 @@ export const CompletionOutputRow = memo(
 						<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
 					)}
 				</div>
+				{screenshots.length > 0 && (
+					<div className="px-2 pb-2">
+						<AgentScreenshotCarousel
+							compact
+							screenshots={screenshots}
+							subtitle={`${screenshots.length} screenshots captured by Cline`}
+							title="Verified visually"
+						/>
+					</div>
+				)}
 				{showViewChanges && hasChanges === true && (
 					<div className="px-2 pb-2">
 						<SuccessButton

@@ -170,6 +170,12 @@
 				"when": "cline.isDevMode"
 			},
 			{
+				"command": "cline.dev.playComputerUseDemo",
+				"title": "Play Computer Use Demo",
+				"category": "Cline",
+				"when": "cline.isDevMode"
+			},
+			{
 				"command": "cline.addToChat",
 				"title": "Add to Cline",
 				"category": "Cline"
