@@ -1,5 +1,7 @@
+import { zodToJsonSchema } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { normalizeRunCommandsInput } from "./helpers";
+import { RunCommandsInputSchema } from "./schemas";
 
 describe("normalizeRunCommandsInput", () => {
 	it("accepts the documented shapes", () => {
@@ -23,5 +25,14 @@ describe("normalizeRunCommandsInput", () => {
 		expect(() => normalizeRunCommandsInput(input)).toThrow(
 			"run_commands requires at least one command",
 		);
+	});
+});
+
+describe("RunCommandsInputSchema", () => {
+	it("advertises the command list as non-empty", () => {
+		const schema = zodToJsonSchema(RunCommandsInputSchema) as {
+			properties: { commands: { minItems?: number } };
+		};
+		expect(schema.properties.commands.minItems).toBe(1);
 	});
 });
