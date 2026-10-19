@@ -367,6 +367,56 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 			{ timeout: 3000 },
 		);
 	});
+	it("moves ancestor watches toward a new plugin directory before its source fingerprint changes", async () => {
+		const workspacePath = await workspace();
+		const callbacks: Array<{
+			directory: string;
+			listener: (event: string, file: string) => void;
+			closed: boolean;
+		}> = [];
+		const watchFiles = vi.fn(
+			(
+				directory: string,
+				_options: unknown,
+				listener: (event: string, file: string) => void,
+			) => {
+				const watched = { directory, listener, closed: false };
+				callbacks.push(watched);
+				return Object.assign(new EventEmitter(), {
+					close: () => {
+						watched.closed = true;
+					},
+				});
+			},
+		);
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({
+			load,
+			watch: watchFiles as unknown as typeof watch,
+		});
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		const currentWatch = (directory: string) => {
+			const watched = [...callbacks]
+				.reverse()
+				.find((item) => item.directory === directory && !item.closed);
+			if (!watched) throw new Error(`Missing active watcher for ${directory}`);
+			return watched;
+		};
+		const config = join(workspacePath, ".cline");
+		await mkdir(config);
+		currentWatch(workspacePath).listener("rename", ".cline");
+		// An empty config directory changes watch topology, not plugin sources.
+		const configWatch = currentWatch(config);
+		expect(load).toHaveBeenCalledTimes(1);
+		const plugins = join(config, "plugins");
+		await mkdir(plugins);
+		configWatch.listener("rename", "plugins");
+		const pluginWatch = currentWatch(plugins);
+		await writeFile(join(plugins, "echo.js"), "export default {};");
+		pluginWatch.listener("rename", "echo.js");
+		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1));
+	});
 	it.each([
 		"add",
 		"edit",

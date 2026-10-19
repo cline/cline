@@ -165,7 +165,8 @@ export class PluginCommandManager implements PluginCommandsApi {
 		const settings = resolveGlobalSettingsPath();
 		const roots = this.watchRoots(entry);
 		for (const root of roots) {
-			let directory = root === settings ? dirname(root) : root;
+			const targetDirectory = root === settings ? dirname(root) : root;
+			let directory = targetDirectory;
 			while (!existsSync(directory) && dirname(directory) !== directory)
 				directory = dirname(directory);
 			try {
@@ -174,7 +175,7 @@ export class PluginCommandManager implements PluginCommandsApi {
 				const watcher = (this.options.watch ?? watch)(
 					directory,
 					{ recursive, persistent: false },
-					(_event, file) => {
+					(event, file) => {
 						const changed = file ? resolve(directory, String(file)) : directory;
 						if (String(file).split(/[\\/]/).includes("node_modules")) return;
 						if (
@@ -183,6 +184,11 @@ export class PluginCommandManager implements PluginCommandsApi {
 							!root.startsWith(`${changed}${sep}`)
 						)
 							return;
+						// Directory creation/removal changes where we must listen even when
+						// no discoverable plugin exists yet. Install the closer watch before
+						// checking sources so later child events cannot fall through the gap.
+						if (event === "rename" || directory !== targetDirectory)
+							this.watch(entry);
 						void this.fingerprint(entry).then((fingerprint) => {
 							if (this.disposed || fingerprint === entry.fingerprint) return;
 							entry.dirty = true;
