@@ -80,7 +80,7 @@ const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
 
 function assertCloudHandoffAvailable(): void {
 	if (!isCloudAgentsEnabled())
-		throw new Error("Enable Cloud sessions in Settings before using /cloud.");
+		throw new Error("Cloud sessions are not available for this account.");
 }
 
 async function assertHandoffIdle(
