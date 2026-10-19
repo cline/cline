@@ -22,6 +22,22 @@ import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
 
+declare const CLINE_PLUGIN_WORKER_PATH: string | undefined;
+
+// Standalone compiled executables (the desktop's Hub, SSH remotes) have no
+// plugin files beside them, so plugins run in the embedded worker, which serves
+// the SDK from this build; override any bootstrap a parent configured. An npm
+// install (CLINE_WRAPPER_PATH) keeps its on-disk bootstrap, whose host lookup
+// also gives standalone plugins the install's other packages. The subprocess
+// sandbox spawns a separate runtime that cannot read the embedded worker.
+if (
+	typeof CLINE_PLUGIN_WORKER_PATH === "string" &&
+	!process.env.CLINE_WRAPPER_PATH &&
+	process.env.CLINE_PLUGIN_MODE !== "sandbox"
+) {
+	process.env.CLINE_PLUGIN_BOOTSTRAP_PATH = CLINE_PLUGIN_WORKER_PATH;
+}
+
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.
 initVcr(process.env.CLINE_VCR);

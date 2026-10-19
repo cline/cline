@@ -105,6 +105,10 @@ export async function compileCliBinary(
 	// Build to /tmp first so Bun's temp-file rename stays on one filesystem
 	// layer in containerized environments (virtiofs, overlayfs).
 	const entrypoint = join(cliDir, "src/index.ts");
+	const pluginWorker = join(cliDir, "src/plugin-worker.ts");
+	const pluginWorkerPath = relative(rootDir, pluginWorker)
+		.replaceAll("\\", "/")
+		.replace(/\.ts$/, ".js");
 	const scratchRoot = process.platform === "win32" ? tmpdir() : "/tmp";
 	const tmpDir = join(
 		scratchRoot,
@@ -122,7 +126,7 @@ export async function compileCliBinary(
 	try {
 		const autoload = input.autoloadLaunchDirectoryConfig !== false;
 		result = await Bun.build({
-			entrypoints: [entrypoint, parserWorker],
+			entrypoints: [entrypoint, parserWorker, pluginWorker],
 			splitting: true,
 			compile: {
 				target: input.bunTarget,
@@ -137,6 +141,7 @@ export async function compileCliBinary(
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
+				CLINE_PLUGIN_WORKER_PATH: JSON.stringify(bunfsRoot + pluginWorkerPath),
 				// Inline telemetry/OTEL env vars at build time so the compiled
 				// binary ships with production telemetry configuration baked in.
 				...buildInlinedEnvDefines(),

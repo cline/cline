@@ -785,10 +785,18 @@ or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
 sidecar sets it to the copy shipped as a Tauri resource). A host that ships
 none cannot run plugins at all: every load fails with
 `PluginBootstrapMissingError`, which names the env var, rather than
-importing plugin code into the host. The SSH remote host is in that state
-today: since #14792 it is the bundled Cline CLI uploaded as a single file
-with no bootstrap beside it, so plugins fail on remotes until the remote
-runtime carries one.
+importing plugin code into the host.
+
+The compiled CLI (and so every CLI-managed Hub, including SSH remotes) instead
+embeds the bootstrap as a worker entrypoint (`@cline/core/plugin-worker`,
+wrapped by `apps/cli/src/plugin-worker.ts`) and points
+`CLINE_PLUGIN_BOOTSTRAP_PATH` at it. That worker calls
+`registerHostPluginModules`, which serves `@cline/*` imports from the
+executable's own build through Bun's runtime plugin API, and plugins then load
+with Bun's native `import()` instead of jiti (jiti resolves bare specifiers
+itself and would not see those modules). Plugins therefore need no SDK
+packages on disk; their own dependencies still resolve from their
+`node_modules`.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

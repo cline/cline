@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { PLUGIN_FILE_EXTENSIONS } from "@cline/shared";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -37,6 +37,50 @@ const WORKSPACE_EXPORT_CONDITIONS = [
 	"require",
 	"default",
 ];
+
+const HOST_PLUGIN_MODULES = Symbol.for("cline.hostPluginModules");
+
+type BunRuntime = {
+	plugin(plugin: {
+		name: string;
+		setup(build: {
+			module(
+				specifier: string,
+				load: () => Promise<{
+					exports: Record<string, unknown>;
+					loader: "object";
+				}>,
+			): void;
+		}): void;
+	}): void;
+};
+
+/**
+ * Serves plugin imports of these specifiers from modules already in this
+ * process (Bun only), so a compiled executable can provide the SDK to plugins
+ * without any `node_modules` on disk. Plugins then load through Bun's own
+ * loader: jiti resolves bare specifiers itself and would not see these.
+ */
+export function registerHostPluginModules(
+	modules: Record<string, () => Promise<object>>,
+): void {
+	const bun = (globalThis as { Bun?: BunRuntime }).Bun;
+	if (!bun) {
+		throw new Error("Host plugin modules require the Bun runtime");
+	}
+	bun.plugin({
+		name: "cline-host-plugin-modules",
+		setup(build) {
+			for (const [specifier, load] of Object.entries(modules)) {
+				build.module(specifier, async () => ({
+					exports: (await load()) as Record<string, unknown>,
+					loader: "object",
+				}));
+			}
+		},
+	});
+	(globalThis as Record<symbol, unknown>)[HOST_PLUGIN_MODULES] = true;
+}
 
 export interface ImportPluginModuleOptions {
 	useCache?: boolean;
@@ -708,6 +752,12 @@ export async function importPluginModule(
 	pluginPath: string,
 	options: ImportPluginModuleOptions = {},
 ): Promise<Record<string, unknown>> {
+	if ((globalThis as Record<symbol, unknown>)[HOST_PLUGIN_MODULES]) {
+		return (await import(pathToFileURL(pluginPath).href)) as Record<
+			string,
+			unknown
+		>;
+	}
 	const preferHostRuntimeDependencies = !isPackageBasedPlugin(pluginPath);
 	assertPluginDependenciesInstalled(pluginPath, preferHostRuntimeDependencies);
 	const aliases = collectPluginImportAliases(

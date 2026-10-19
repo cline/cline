@@ -142,9 +142,9 @@ const buildUniversalMacCli = async (): Promise<void> => {
 };
 
 // Plugin installs drop their @cline/* dependencies because the host provides
-// them, and the plugin worker resolves those from node_modules beside its
-// bootstrap. Nothing like that exists next to the compiled CLI, so ship
-// self-contained builds there. Splitting keeps one shared copy of the SDK,
+// them. The Hub serves them from cline-cli itself, but the backend's plugin
+// commands run on the on-disk bootstrap, which resolves them from
+// node_modules beside it, so ship self-contained builds there. Splitting keeps one shared copy of the SDK,
 // placed in core so every chunk sits inside a `"type": "module"` package.
 const bundlePluginSdkPackages = async (): Promise<void> => {
 	const outdir = `${BIN_DIR}/extensions/node_modules/@cline`;

@@ -3,12 +3,17 @@ import { dirname, join } from "node:path";
 import { CLINE_PLUGIN_BOOTSTRAP_PATH_ENV } from "@cline/core";
 import { linuxResourceCandidates } from "./remote-helper";
 
-const BUNDLED_BOOTSTRAP = join("bin", "extensions", "plugin-sandbox-bootstrap.js");
+const BUNDLED_BOOTSTRAP = join(
+	"bin",
+	"extensions",
+	"plugin-sandbox-bootstrap.js",
+);
 
 /**
  * Finds the plugin worker bootstrap the app bundle ships as a Tauri resource.
- * The backend and CLI-managed Hub need an on-disk bootstrap to run plugins
- * in workers; without it they would fall back to loading plugins in-process.
+ * The backend runs as `cline-cli run <bundle>`, which cannot reach the worker
+ * compiled into the CLI, so its plugin commands need this on-disk bootstrap.
+ * The CLI-managed Hub always uses its embedded worker instead.
  */
 export function resolveDesktopPluginBootstrap(
 	options: { execPath?: string; cwd?: string } = {},

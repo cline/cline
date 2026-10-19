@@ -67,6 +67,7 @@
 									"!@cline/core/hub",
 									"!@cline/core/cloud",
 									"!@cline/core/telemetry",
+									"!@cline/core/plugin-worker",
 									"!@cline/core/rpc",
 									"!@cline/shared/browser",
 									"!@cline/shared/node",
