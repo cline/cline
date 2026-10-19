@@ -72,7 +72,13 @@
 								"group": "Other Models & Providers",
 								"pages": [
 									"getting-started/authorizing-with-cline",
-									"running-models-locally/overview",
+									{
+										"group": "Local models",
+										"pages": [
+											"running-models-locally/overview",
+											"running-models-locally/local-models-page"
+										]
+									},
 									{
 										"group": "Cloud Providers",
 										"pages": [

@@ -1,0 +1,141 @@
+---
+title: "Local Models page"
+sidebarTitle: "Local Models page"
+description: "Download, load, and switch between local Ollama models from Cline's settings, with recommendations based on your hardware."
+---
+
+The **Local Models** page in Cline's settings manages local models for you. It checks your hardware, recommends models that work well with Cline, and downloads, loads, and unloads them through [Ollama](https://ollama.com). When you pick a model, Cline sets up the Ollama provider with the right settings for it.
+
+<Note>
+The Local Models page is available in the Cline extension for VS Code.
+</Note>
+
+## Before you start
+
+1. Download and install Ollama from [ollama.com/download](https://ollama.com/download).
+2. Start Ollama. On macOS and Windows, open the Ollama app. On Linux, run `ollama serve`.
+
+Cline connects to Ollama at `http://localhost:11434` by default. If your Ollama server runs somewhere else, change the base URL under **Settings → API Configuration → Ollama**.
+
+## Open the Local Models page
+
+Click the gear icon at the top of the Cline panel, then select **Local Models**.
+
+<Frame>
+  <img
+    src="/assets/local-models/local-models-overview.png"
+    alt="Cline Local Models settings page showing the machine summary, Ollama status, and a model download in progress"
+  />
+</Frame>
+
+The page shows:
+
+- **Your machine**: your processor, memory, and GPU, plus how large a model can run fully on the GPU.
+- **Ollama status**: whether Cline can reach Ollama, and which version is running. Click the refresh icon to check again.
+- **Recommended models**: models picked for agentic coding with Cline, each labeled with how well it fits your machine.
+- **Other downloaded models**: anything else you've downloaded with Ollama.
+
+## Download a model
+
+Click **Download** on a model. A progress bar shows how much has downloaded.
+
+The download keeps going if you close settings or switch back to a task. Reopen the Local Models page to see its progress again. Click **Cancel** to stop it.
+
+## Use a model with Cline
+
+Click **Use with Cline** on a downloaded model. Cline will:
+
+1. Switch the provider to **Ollama** and select the model.
+2. Set the model's context window to the recommended value.
+3. Load the model into memory, so your first message doesn't wait for it to load.
+
+The model then shows an **In use** badge, and its name appears below the chat input.
+
+<Note>
+If you use separate models for Plan and Act mode, **Use with Cline** only changes the model for the mode you're currently in.
+</Note>
+
+<Frame>
+  <img
+    src="/assets/local-models/local-models-in-use.png"
+    alt="A recommended model with Use with Cline, Load, and Delete buttons, and a downloaded model marked In use and loaded"
+  />
+</Frame>
+
+## Load and unload models
+
+A model has to be loaded into memory before it can respond. Click **Load** to load it ahead of time, and **Unload** to free up the memory when you're done.
+
+While a model is loaded, a green status line shows:
+
+- Where it's running: fully on the GPU, on the CPU, or split between them. A model split between GPU and CPU responds more slowly.
+- How much memory it's using.
+- The context window it was loaded with.
+- How long it stays loaded.
+
+Models you load from this page stay in memory until you unload them. If Ollama loads a model on its own, for example when you send a message to a model that wasn't loaded, it unloads that model after a few minutes without requests. You can change that timeout with Ollama's `OLLAMA_KEEP_ALIVE` environment variable.
+
+<Tip>
+Local models use a lot of memory. Unload a model when you finish working with it to free that memory for other apps.
+</Tip>
+
+## Delete a model
+
+Click the trash icon on a downloaded model to delete it from disk. You can download it again at any time.
+
+## Recommended models
+
+Each recommended model comes with the context window Cline uses for it.
+
+| Model | Ollama tag | Download | Memory needed | Context window | Good for |
+| --- | --- | --- | --- | --- | --- |
+| Qwen3.8 27B | `qwen3.8:27b` | 18 GB | ~23 GB | 64K | The best all-round local model for agentic coding |
+| Laguna XS 2.1 | `laguna-xs-2.1` | 20 GB | ~24 GB | 64K | Long coding sessions; fast for its size |
+| Qwen3.6 35B A3B | `qwen3.6:35b-a3b` | 24 GB | ~26 GB | 64K | Speed over depth |
+| Devstral Small 2 | `devstral-small-2:24b` | 15 GB | ~21 GB | 32K | Exploring codebases and multi-file edits |
+| gpt-oss 20B | `gpt-oss:20b` | 14 GB | ~16 GB | 64K | 16-24 GB machines |
+| Qwen3-Coder-Next | `qwen3-coder-next` | 52 GB | ~56 GB | 64K | Machines with 64 GB or more |
+| Qwen3 8B | `qwen3:8b` | 5.2 GB | ~10 GB | 32K | 8-16 GB machines and simple edits |
+
+Memory needed is an estimate of the model plus its context window. Smaller models respond faster but handle complex, multi-step tasks less reliably.
+
+## How recommendations work
+
+Cline compares each model's memory needs against your hardware:
+
+| Label | Meaning |
+| --- | --- |
+| **Runs well on this machine** | The model fits entirely in GPU memory. |
+| **Will run slowly on this machine** | The model only fits by running partly or fully on the CPU. |
+| **Too large for this machine** | The model doesn't fit in memory. |
+
+The **Recommended for you** badge goes to the first model in the list that runs well on your machine. If none do, it goes to the best model that fits, preferring faster mixture-of-experts models.
+
+Cline detects GPU memory like this:
+
+- **Apple Silicon Macs** share memory between the CPU and GPU. Cline counts about three quarters of total memory as available to the GPU.
+- **NVIDIA GPUs** are detected through `nvidia-smi`, which comes with the NVIDIA driver.
+- **Other GPUs** aren't detected yet, so Cline treats the machine as CPU-only and its labels may be more cautious than necessary. You can still download and use any model.
+
+## Troubleshooting
+
+<Frame>
+  <img
+    src="/assets/local-models/local-models-ollama-not-running.png"
+    alt="Local Models page showing that Ollama isn't running, with a link to install it"
+  />
+</Frame>
+
+**"Ollama isn't running"**
+- Start the Ollama app, or run `ollama serve` in a terminal.
+- If Ollama runs on another machine or port, check the base URL under **API Configuration → Ollama**.
+- Click the refresh icon next to the status to check again.
+
+**A model fails to load**
+- An out-of-memory error means the model and its context window don't fit. Unload other models, close memory-heavy apps, or pick a smaller model.
+
+**Responses are slow**
+- Check the loaded status line. If the model runs partly or fully on the CPU, a smaller model will respond much faster.
+- Keep tasks focused, and start a new task when the conversation gets long. Local models slow down as the context grows.
+
+For other local runtimes such as LM Studio, see [Local models](/running-models-locally/overview).
