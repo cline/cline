@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { watch } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -90,6 +90,7 @@ describe("runtime plugin catalogs", () => {
 		let recover = false;
 		const healthy = loaded(async () => String(++counter));
 		const recovered = loaded();
+		recovered.extensions[0].name = "recovered-plugin";
 		recovered.extensions[0].setup = (api) =>
 			api.registerCommand({ name: "fixed", handler: () => "recovered" });
 		const load = vi.fn(async (_options: { pluginPaths: string[] }) => {
@@ -130,17 +131,131 @@ describe("runtime plugin catalogs", () => {
 		);
 		expect(healthy.shutdown).not.toHaveBeenCalled();
 	});
+	it.each([
+		"earlier",
+		"later",
+	])("a recovered %s duplicate preserves priority and releases only the replaced plugin", async (failed) => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const earlier = join(directory, "a.js");
+		const later = join(directory, "b.js");
+		const disposed = join(workspacePath, "disposed.txt");
+		const gate = join(workspacePath, "ready.txt");
+		await writeFile(
+			earlier,
+			`import {appendFileSync,existsSync} from 'node:fs';
+const id=Math.random().toString(36); export default {name:'duplicate',manifest:{capabilities:['commands']},setup(api,ctx){${failed === "earlier" ? `if(!existsSync(${JSON.stringify(gate)}))throw new Error('not ready');` : ""}ctx.onDispose(()=>appendFileSync(${JSON.stringify(disposed)},'earlier:'+id+'\\n'));api.registerCommand({name:'same',handler:()=> 'earlier:'+id});api.registerCommand({name:'obsolete',handler:()=> 'obsolete'})}};`,
+		);
+		await writeFile(
+			later,
+			`import {appendFileSync,existsSync} from 'node:fs'; const id=Math.random().toString(36);
+export default {name:'duplicate',manifest:{capabilities:['commands']},setup(api,ctx){${failed === "later" ? `if(!existsSync(${JSON.stringify(gate)}))throw new Error('not ready');` : ""}ctx.onDispose(()=>appendFileSync(${JSON.stringify(disposed)},'later:'+id+'\\n'));api.registerCommand({name:'same',handler:()=> 'later:'+id})}};`,
+		);
+		const manager = new PluginCommandManager({ retryDelayMs: 10 });
+		managers.push(manager);
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			status: "error",
+		});
+		const initial = (await manager.run({ workspacePath, prompt: "/same" }))
+			?.reply;
+		expect(initial).toMatch(failed === "later" ? /^earlier:/ : /^later:/);
+		await writeFile(gate, "ready");
+		await vi.waitFor(
+			async () => {
+				expect(await manager.list({ workspacePath })).toMatchObject({
+					status: "ready",
+					commands: [{ name: "same" }],
+				});
+			},
+			{ timeout: 5000 },
+		);
+		const winner = (await manager.run({ workspacePath, prompt: "/same" }))
+			?.reply;
+		expect(winner).toMatch(/^later:/);
+		if (failed === "earlier") expect(winner).toBe(initial);
+		expect(
+			await manager.run({ workspacePath, prompt: "/obsolete" }),
+		).toBeUndefined();
+		const releases = (await readFile(disposed, "utf8")).trim().split("\n");
+		expect(releases.filter((id) => id === initial)).toHaveLength(
+			failed === "later" ? 1 : 0,
+		);
+	});
+
+	it("rechecks imported helpers outside watched plugin directories", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const helper = join(workspacePath, "helpers.js");
+		await writeFile(helper, "export const value='first';");
+		await writeFile(
+			join(directory, "command.js"),
+			`import {value} from '../../helpers.js';
+export default {name:'helper',manifest:{capabilities:['commands']},setup(api){api.registerCommand({name:'helper',description:value,handler:()=>value})}};`,
+		);
+		const manager = new PluginCommandManager({
+			watch: (() =>
+				Object.assign(new EventEmitter(), {
+					close() {},
+				})) as unknown as typeof watch,
+		});
+		managers.push(manager);
+		expect(
+			await manager.run({ workspacePath, prompt: "/helper" }),
+		).toMatchObject({ reply: "first" });
+		await writeFile(helper, "export const value='later';");
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			commands: [{ name: "helper", description: "later" }],
+		});
+		expect(
+			await manager.run({ workspacePath, prompt: "/helper" }),
+		).toMatchObject({ reply: "later" });
+	});
+
+	it("reconciles edits made during initial catalog loading", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const plugin = join(directory, "command.js");
+		await writeFile(plugin, "// original");
+		const load = vi.fn(async () => {
+			const contents = await readFile(plugin, "utf8");
+			if (load.mock.calls.length === 1) await writeFile(plugin, "// changed");
+			return loaded(async () => contents);
+		});
+		const manager = new PluginCommandManager({
+			load,
+			watch: (() =>
+				Object.assign(new EventEmitter(), {
+					close() {},
+				})) as unknown as typeof watch,
+		});
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
+			{ reply: "// changed" },
+		);
+		expect(load).toHaveBeenCalledTimes(2);
+	});
+
 	it("recovers from initialization timeout without another client request", async () => {
 		const workspacePath = await workspace();
+		let recover!: (value: ReturnType<typeof loaded>) => void;
+		const recovered = new Promise<ReturnType<typeof loaded>>((resolve) => {
+			recover = resolve;
+		});
 		const load = vi
 			.fn()
 			.mockRejectedValueOnce(new Error("plugin-sandbox initialize timed out"))
-			.mockResolvedValue(loaded());
+			.mockImplementation(() => recovered);
 		const manager = new PluginCommandManager({ load, retryDelayMs: 10 });
 		managers.push(manager);
 		const updates = vi.fn();
 		manager.subscribe(updates);
-		expect(await manager.list({ workspacePath })).toMatchObject({
+		const initial = await manager.list({ workspacePath });
+		recover(loaded());
+		expect(initial).toMatchObject({
 			status: "error",
 			commands: [],
 			error: expect.stringContaining("timed out"),

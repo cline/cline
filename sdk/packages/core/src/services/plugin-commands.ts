@@ -16,6 +16,7 @@ import {
 	resolveAgentPluginPaths,
 	resolvePluginConfigSearchPaths,
 } from "../extensions/plugin/plugin-config-loader";
+import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
 import { PluginRegistry } from "../extensions/plugin/plugin-registry";
 import {
 	executePluginCommand,
@@ -26,12 +27,17 @@ import {
 } from "./plugin-command-api";
 
 type LoadedPlugins = Awaited<ReturnType<typeof loadResolvedAgentPlugins>>;
+type LoadedPlugin = {
+	path: string;
+	loaded: LoadedPlugins;
+	contributions: Array<{ name: string; commands: AgentExtensionCommand[] }>;
+};
 type Entry = {
 	workspacePath: string;
 	registry: PluginRegistry;
 	catalog: PluginCommandCatalog;
 	commands: AgentExtensionCommand[];
-	loaded: LoadedPlugins[];
+	loaded: LoadedPlugin[];
 	pluginPaths: string[];
 	failedPaths?: string[];
 	retryDue: boolean;
@@ -137,6 +143,8 @@ export class PluginCommandManager implements PluginCommandsApi {
 			}
 		};
 		for (const root of [...this.watchRoots(entry)].sort()) await visit(root);
+		for (const path of entry.pluginPaths)
+			hash.update(fingerprintPluginSources(path));
 		return hash.digest("hex");
 	}
 	private reconnect(entry: Entry): void {
@@ -180,8 +188,11 @@ export class PluginCommandManager implements PluginCommandsApi {
 							!root.startsWith(`${changed}${sep}`)
 						)
 							return;
-						entry.dirty = true;
-						this.schedule(entry, 100);
+						void this.fingerprint(entry).then((fingerprint) => {
+							if (this.disposed || fingerprint === entry.fingerprint) return;
+							entry.dirty = true;
+							this.schedule(entry, 100);
+						});
 					},
 				);
 				watcher.on("error", (error) => {
@@ -201,6 +212,89 @@ export class PluginCommandManager implements PluginCommandsApi {
 			}
 		}
 	}
+	private async loadPlugin(
+		entry: Entry,
+		pluginPaths: string[],
+		retryOnly: boolean,
+	): Promise<{ failedPaths: string[]; errors: string[] }> {
+		const failedPaths: string[] = [];
+		const errors: string[] = [];
+		let loaded: LoadedPlugins | undefined;
+		try {
+			if (retryOnly && !this.options.load) {
+				for (const path of pluginPaths) {
+					if (
+						entry.registry.get(path).some((status) => status.state === "failed")
+					)
+						await entry.registry.reload(path);
+				}
+			}
+			loaded = await (this.options.load ?? loadResolvedAgentPlugins)({
+				cwd: entry.workspacePath,
+				workspacePath: entry.workspacePath,
+				pluginPaths,
+				registry: entry.registry,
+			});
+			const contributions: LoadedPlugin["contributions"] = [];
+			for (const extension of loaded.extensions) {
+				const registry = createContributionRegistry<
+					typeof extension,
+					AgentTool,
+					Message[]
+				>({ extensions: [extension] });
+				await registry.initialize();
+				contributions.push({
+					name: extension.name,
+					commands: registry.getRegistrySnapshot().commands,
+				});
+			}
+			failedPaths.push(...loaded.failures.map((failure) => failure.pluginPath));
+			errors.push(...loaded.failures.map((failure) => failure.message));
+			if (contributions.length)
+				entry.loaded.push({
+					path: pluginPaths[0] ?? "",
+					loaded,
+					contributions,
+				});
+			else await loaded.shutdown?.();
+		} catch (cause) {
+			await loaded?.shutdown?.().catch(() => {});
+			failedPaths.push(...pluginPaths);
+			errors.push(cause instanceof Error ? cause.message : String(cause));
+			this.options.logger?.error?.(
+				"Plugin command discovery failed; retrying",
+				{ error: cause },
+			);
+		}
+		return { failedPaths, errors };
+	}
+	private async selectCommands(entry: Entry): Promise<void> {
+		const selected = new Map<
+			string,
+			{ owner: LoadedPlugin; commands: AgentExtensionCommand[] }
+		>();
+		entry.loaded.sort(
+			(a, b) =>
+				entry.pluginPaths.indexOf(a.path) - entry.pluginPaths.indexOf(b.path),
+		);
+		for (const owner of entry.loaded) {
+			for (const contribution of owner.contributions) {
+				selected.delete(contribution.name);
+				selected.set(contribution.name, {
+					owner,
+					commands: contribution.commands,
+				});
+			}
+		}
+		const owners = new Set([...selected.values()].map(({ owner }) => owner));
+		await Promise.all(
+			entry.loaded
+				.filter((owner) => !owners.has(owner))
+				.map(({ loaded }) => loaded.shutdown?.()),
+		);
+		entry.loaded = entry.loaded.filter((owner) => owners.has(owner));
+		entry.commands = [...selected.values()].flatMap(({ commands }) => commands);
+	}
 	private refresh(entry: Entry): Promise<void> {
 		if (entry.pending) return entry.pending;
 		if ((!entry.dirty && !entry.retryDue) || this.disposed)
@@ -214,14 +308,16 @@ export class PluginCommandManager implements PluginCommandsApi {
 				if (this.disposed) return;
 				if (!retryOnly) {
 					await Promise.all(
-						entry.loaded.map((loaded) => loaded.shutdown?.().catch(() => {})),
+						entry.loaded.map(({ loaded }) =>
+							loaded.shutdown?.().catch(() => {}),
+						),
 					);
 					entry.loaded = [];
 					entry.commands = [];
 					entry.failedPaths = undefined;
 				}
-				let loaded: LoadedPlugins | undefined;
-				let error: string | undefined;
+				const errors: string[] = [];
+				if (!retryOnly) entry.fingerprint = await this.fingerprint(entry);
 				try {
 					if (!entry.failedPaths) {
 						entry.pluginPaths = resolveAgentPluginPaths({
@@ -229,48 +325,29 @@ export class PluginCommandManager implements PluginCommandsApi {
 							workspacePath: entry.workspacePath,
 						});
 						entry.failedPaths = entry.pluginPaths;
+						// Cover edits during initialization, as well as later watcher outages.
 						entry.fingerprint = await this.fingerprint(entry);
+						this.watch(entry);
 					}
-					if (retryOnly && !this.options.load) {
-						for (const path of entry.failedPaths) {
-							if (
-								entry.registry
-									.get(path)
-									.some((status) => status.state === "failed")
-							)
-								await entry.registry.reload(path);
-						}
-					}
-					loaded = await (this.options.load ?? loadResolvedAgentPlugins)({
-						cwd: entry.workspacePath,
-						workspacePath: entry.workspacePath,
-						pluginPaths: entry.failedPaths,
-						registry: entry.registry,
-					});
-					const registry = createContributionRegistry<
-						(typeof loaded.extensions)[number],
-						AgentTool,
-						Message[]
-					>({ extensions: loaded.extensions });
-					await registry.initialize();
-					entry.commands.push(...registry.getRegistrySnapshot().commands);
-					entry.failedPaths = [
-						...new Set(loaded.failures.map((failure) => failure.pluginPath)),
-					];
-					error =
-						loaded.failures.map((failure) => failure.message).join("; ") ||
-						undefined;
-					if (loaded.extensions.length) entry.loaded.push(loaded);
-					else await loaded.shutdown?.();
-					if (!error) entry.retryCount = 0;
-				} catch (cause) {
-					await loaded?.shutdown?.().catch(() => {});
-					error = cause instanceof Error ? cause.message : String(cause);
-					this.options.logger?.error?.(
-						"Plugin command discovery failed; retrying",
-						{ error: cause },
+					const paths = entry.failedPaths;
+					entry.failedPaths = [];
+					// Each path owns its worker lifetime so a recovered override can
+					// release its predecessor without restarting unrelated plugins.
+					const results = await Promise.all(
+						(paths.length ? paths.map((path) => [path]) : [[]]).map((paths) =>
+							this.loadPlugin(entry, paths, retryOnly),
+						),
 					);
+					entry.failedPaths = [
+						...new Set(results.flatMap((result) => result.failedPaths)),
+					];
+					errors.push(...results.flatMap((result) => result.errors));
+					await this.selectCommands(entry);
+					if (!errors.length) entry.retryCount = 0;
+				} catch (cause) {
+					errors.push(cause instanceof Error ? cause.message : String(cause));
 				}
+				const error = errors.join("; ") || undefined;
 				entry.catalog = {
 					workspacePath: entry.workspacePath,
 					status: error ? "error" : "ready",
@@ -307,14 +384,25 @@ export class PluginCommandManager implements PluginCommandsApi {
 		entry.tail = entry.pending.catch(() => {});
 		return entry.pending;
 	}
+	private async ensureFresh(entry: Entry): Promise<void> {
+		for (;;) {
+			await this.refresh(entry);
+			if (this.disposed) return;
+			// Watchers keep menus current, but imports can reach outside their
+			// roots. Check the loaded graph before serving either API request.
+			const fingerprint = await this.fingerprint(entry);
+			if (fingerprint === entry.fingerprint) return;
+			entry.dirty = true;
+		}
+	}
 	async list(target: PluginCommandTarget): Promise<PluginCommandCatalog> {
 		const entry = this.entry(target);
-		await this.refresh(entry);
+		await this.ensureFresh(entry);
 		return structuredClone(entry.catalog);
 	}
 	async run(input: PluginCommandTarget & { prompt: string }) {
 		const entry = this.entry(input);
-		await this.refresh(entry);
+		await this.ensureFresh(entry);
 		if (this.disposed) throw new Error("Plugin command manager is disposed");
 		const run = entry.tail.then(() =>
 			executePluginCommand(entry.commands, input.prompt, {
@@ -333,7 +421,9 @@ export class PluginCommandManager implements PluginCommandsApi {
 				clearTimeout(entry.watchRetry);
 				for (const watcher of entry.watchers) watcher.close();
 				await entry.tail;
-				await Promise.all(entry.loaded.map((loaded) => loaded.shutdown?.()));
+				await Promise.all(
+					entry.loaded.map(({ loaded }) => loaded.shutdown?.()),
+				);
 			}),
 		);
 		this.entries.clear();

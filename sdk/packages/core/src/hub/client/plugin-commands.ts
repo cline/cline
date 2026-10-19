@@ -28,7 +28,7 @@ export function createHubPluginCommandsApi(
 				"plugins.commands.run",
 				{ ...input },
 				input.sessionId,
-				{ timeoutMs: null },
+				{ timeoutMs: null, retryAfterDispatch: false },
 			);
 			if (!reply.ok)
 				throw new Error(

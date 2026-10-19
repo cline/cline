@@ -795,6 +795,11 @@ bootstrap and SDK resources. Resource loading supplies the existing plugin
 runtime; it does not introduce another command service or command payload.
 
 `LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution.
+Hub clients deduplicate overlapping stream event IDs per listener before dispatch,
+while retaining replay for newly subscribed listeners. Plugin command execution
+can recover a connection before dispatch, but cannot replay a dispatched action
+whose reply was lost.
+
 Hub RPC (`plugins.commands.list` / `plugins.commands.run`) and
 `plugins.commands.changed` expose the same service to every client. The desktop
 sidecar, CLI, and connectors reuse their existing hub connections. Workspace
@@ -803,7 +808,10 @@ runtime-owned plugin/settings watchers, including for non-Git folders. Failed
 initialization retries in the background and publishes explicit error/recovery
 state. Workspace catalogs use their own worker registry so catalog failures do not disable resident session instances. Partial retries reload only failed plugin paths and retain
 healthy instances; source/settings changes reload the workspace catalog. Git
-queries and individual UI mounts do not own plugin lifetimes.
+queries and individual UI mounts do not own plugin lifetimes. Catalog requests
+also fingerprint the imported source graph, including helpers outside watched
+directories, before serving commands. Partial recovery follows the original
+plugin path precedence and releases overridden workers independently.
 
 A workspace catalog owns a discovery sandbox; a resident session instead lists
 and executes its own contribution registry, retaining the same plugin instance

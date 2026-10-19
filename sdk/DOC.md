@@ -11,6 +11,9 @@ the state and context shared with its hooks.
 Bootstrap/SDK resource loading is configured separately from this API. Changing
 how a host ships those resources does not change command ownership or payloads.
 
+If a connection closes after a command is dispatched, execution rejects without
+automatically resending it: the command may already have changed external state.
+
 ```ts
 const target = { workspacePath: workspaceRoot, sessionId };
 const stop = core.pluginCommands.subscribe((catalog) => {
