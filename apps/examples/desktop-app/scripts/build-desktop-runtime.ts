@@ -82,8 +82,9 @@ const compileDesktopCli = async (
 		// Bun only trusts its bundled Mozilla roots on macOS/Windows, so TLS to
 		// intranet endpoints signed by a corporate CA (LiteLLM proxies, MITM
 		// firewalls) fails with "unable to get local issuer certificate". Bake
-		// --use-system-ca in so the Hub and the backend running on this runtime
-		// also trust the OS Keychain/cert store, as the npm wrapper does.
+		// --use-system-ca in so the Hub also trusts the OS Keychain/cert store,
+		// as the npm wrapper does. `BUN_BE_BUN=1 cline-cli run` ignores baked-in
+		// flags, so main.rs passes it again when launching the backend.
 		execArgv: ["--use-system-ca"],
 	});
 	return outfile;

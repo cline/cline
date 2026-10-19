@@ -4,7 +4,15 @@ Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
 `client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
 `NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
 These APIs reuse the runtime and connection; clients do not load plugins or
-own a separate command sandbox.
+own a separate command sandbox. Pass the active `sessionId` when invoking a
+command during a session so it runs in that session's plugin instance and retains
+the state and context shared with its hooks.
+
+Bootstrap/SDK resource loading is configured separately from this API. Changing
+how a host ships those resources does not change command ownership or payloads.
+
+If a connection closes after a command is dispatched, execution rejects without
+automatically resending it: the command may already have changed external state.
 
 ```ts
 const target = { workspacePath: workspaceRoot, sessionId };
@@ -27,6 +35,10 @@ Background retries load only the failed paths, preserving healthy plugin
 instances and command state. Source/settings changes still reload the workspace catalog. It never
 requires a Git query or a running agent turn. Dispose the owning runtime to
 release catalog watchers and sandboxes; unsubscribe when a view closes.
+Catalog invalidation follows discoverable plugin entries, imported source files,
+and plugin settings; runtime log/state output does not invalidate a catalog.
+If source files keep changing during initialization, a request rejects after
+two reconciliation passes instead of waiting indefinitely. Retry after edits settle.
 
 For a resident session, both listing and execution use its initialized
 contribution registry and existing plugin sandbox, including session context.
@@ -416,3 +428,30 @@ Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost
 and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
+
+## MCP Apps (experimental)
+
+MCP Apps support is off by default.
+`createDefaultMcpServerClientFactory({ mcpApps: true })` turns it on by
+advertising the `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`)
+with the `text/html;profile=mcp-app` MIME type during `initialize`, for stdio
+and URL servers alike.
+
+`createMcpTools` always leaves out tools whose `_meta.ui.visibility` does not
+include `"model"`, whether or not the client advertised the extension.
+
+Tool descriptors keep the server's `_meta`. `getMcpAppToolMeta` reads
+`_meta.ui`: `resourceUri` is kept only for `ui://` URIs, and `visibility`
+defaults to `["model", "app"]` when it is not an array. An explicit array is
+used as given after dropping unknown entries, so `[]` makes the tool visible to
+neither. `isMcpToolVisibleToModel` and `isMcpToolVisibleToApp` check those
+lists; a host must reject app-initiated tool calls when
+`isMcpToolVisibleToApp` is false.
+
+`McpManager.readResource({ serverName, uri, context })` sends `resources/read`
+and returns `{ contents, _meta? }`, validated against the MCP SDK schema;
+malformed replies throw. It is optional on `McpManager` and
+`McpServerClient`. `InMemoryMcpManager` reads without waiting for in-flight
+tool calls on an already connected server. A read that starts while the server
+is being disconnected or re-registered can fail with a disconnect error; retry
+it.
