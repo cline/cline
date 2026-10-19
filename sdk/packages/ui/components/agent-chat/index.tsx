@@ -12,12 +12,18 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
-	useId,
 	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
+import { IconButton } from "../button.js";
+import {
+	DisclosureContent,
+	type DisclosureContentPresentation,
+	type DisclosureState,
+	useDisclosureState,
+} from "./disclosure.js";
 
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 const SCROLL_BUTTON_THRESHOLD_PX = 120;
@@ -36,7 +42,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
 	}
 }
 
-type ConversationContextValue = {
+export type ConversationContextValue = {
 	setContent: (element: HTMLDivElement | null) => void;
 	setViewport: (element: HTMLDivElement | null) => void;
 	showScrollButton: boolean;
@@ -47,7 +53,12 @@ const ConversationContext = createContext<ConversationContextValue | null>(
 	null,
 );
 
-function useConversation(): ConversationContextValue {
+/**
+ * Access the surrounding Conversation's scroll controls — e.g. to force a
+ * scroll to the latest message when the user submits, regardless of where
+ * they had scrolled. Must be called under a `Conversation`.
+ */
+export function useConversation(): ConversationContextValue {
 	const context = useContext(ConversationContext);
 	if (!context) {
 		throw new Error(
@@ -67,6 +78,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 		const shouldStickToBottom = useRef(true);
 		const isProgrammaticScroll = useRef(false);
 		const lastProgrammaticScrollTop = useRef(0);
+		const lastObservedScrollTop = useRef(0);
 		const programmaticScrollTimer = useRef<number | null>(null);
 
 		const clearProgrammaticScroll = useCallback(() => {
@@ -80,6 +92,8 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 			if (!viewport) return;
 			const distance =
 				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+			const scrolledUp = viewport.scrollTop < lastObservedScrollTop.current - 1;
+			lastObservedScrollTop.current = viewport.scrollTop;
 			if (isProgrammaticScroll.current) {
 				if (viewport.scrollTop + 1 < lastProgrammaticScrollTop.current) {
 					isProgrammaticScroll.current = false;
@@ -95,7 +109,16 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					return;
 				}
 			}
-			shouldStickToBottom.current = distance <= STICK_TO_BOTTOM_THRESHOLD_PX;
+			// Sticking is an intent, not a position: content growing under a
+			// pinned viewport briefly widens `distance` before the resize
+			// observer re-pins, and a scroll event landing in that window must
+			// not read as the user leaving the bottom. Only an actual upward
+			// scroll releases the pin; reaching the bottom always restores it.
+			if (distance <= STICK_TO_BOTTOM_THRESHOLD_PX) {
+				shouldStickToBottom.current = true;
+			} else if (scrolledUp) {
+				shouldStickToBottom.current = false;
+			}
 			setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
 		}, [clearProgrammaticScroll, viewport]);
 
@@ -116,6 +139,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					top: viewport.scrollHeight,
 					behavior: effectiveBehavior,
 				});
+				lastObservedScrollTop.current = viewport.scrollTop;
 				setShowScrollButton(false);
 				if (!isSmooth) return;
 				programmaticScrollTimer.current = window.setTimeout(() => {
@@ -384,17 +408,20 @@ export const MessageContent = ({
 );
 
 export type MessageActionsProps = HTMLAttributes<HTMLDivElement> & {
+	side?: "start" | "end";
 	visible?: boolean;
 };
 
 export const MessageActions = ({
 	className,
+	side,
 	visible = false,
 	...props
 }: MessageActionsProps) => (
 	<div
 		{...props}
 		className={classNames("cline-chat-message-actions", className)}
+		data-side={side}
 		data-visible={visible || undefined}
 	/>
 );
@@ -412,19 +439,15 @@ export const MessageAction = ({
 	label,
 	...props
 }: MessageActionProps) => (
-	<button
+	<IconButton
 		{...props}
 		aria-label={ariaLabel ?? label}
 		className={classNames("cline-chat-message-action", className)}
-		type="button"
+		variant="ghost"
+		tone="neutral"
+		size="xs"
 	/>
 );
-
-type DisclosureState = {
-	isOpen: boolean;
-	panelId: string;
-	setIsOpen: (open: boolean) => void;
-};
 
 type ReasoningContextValue = DisclosureState & {
 	isStreaming: boolean;
@@ -458,16 +481,11 @@ export const Reasoning = ({
 	open,
 	...props
 }: ReasoningProps) => {
-	const [internalOpen, setInternalOpen] = useState(defaultOpen);
-	const panelId = useId();
-	const isOpen = open ?? internalOpen;
-	const setIsOpen = useCallback(
-		(nextOpen: boolean) => {
-			if (open === undefined) setInternalOpen(nextOpen);
-			onOpenChange?.(nextOpen);
-		},
-		[onOpenChange, open],
-	);
+	const { isOpen, panelId, setIsOpen } = useDisclosureState({
+		defaultOpen,
+		onOpenChange,
+		open,
+	});
 	const value = useMemo(
 		() => ({ isOpen, isStreaming, panelId, setIsOpen }),
 		[isOpen, isStreaming, panelId, setIsOpen],
@@ -526,20 +544,102 @@ export const ReasoningTrigger = ({
 export type ReasoningContentProps = Omit<
 	HTMLAttributes<HTMLDivElement>,
 	"hidden" | "id"
->;
+> & {
+	presentation?: DisclosureContentPresentation;
+};
 
 export const ReasoningContent = ({
-	className,
+	presentation,
 	...props
 }: ReasoningContentProps) => {
 	const { isOpen, panelId } = useReasoning();
-	if (!isOpen) return null;
 	return (
-		<div
+		<DisclosureContent
 			{...props}
-			className={classNames("cline-chat-reasoning-content", className)}
-			id={panelId}
+			contentClassName="cline-chat-reasoning-content"
+			isOpen={isOpen}
+			lazyContent
+			panelId={panelId}
+			presentation={presentation}
 		/>
+	);
+};
+
+/** "Thinking" while the duration is unknown, "Thought for Ns" once it is. */
+export function formatThoughtLabel(durationMilliseconds?: number): string {
+	if (durationMilliseconds === undefined) {
+		return "Thinking";
+	}
+
+	const seconds =
+		durationMilliseconds === 0
+			? 0
+			: Math.max(1, Math.round(durationMilliseconds / 1000));
+
+	return `Thought for ${seconds}s`;
+}
+
+export type ThinkingBlockProps = Omit<
+	HTMLAttributes<HTMLDivElement>,
+	"children" | "onChange"
+> & {
+	durationMilliseconds?: number;
+	isStreaming?: boolean;
+	redacted?: boolean;
+	/** Overrides the derived "Thinking" / "Thought for Ns" label. */
+	label?: string;
+	open?: boolean;
+	defaultOpen?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	/** Rendered reasoning body — typically the product's Markdown output. */
+	children?: ReactNode;
+};
+
+/**
+ * The standard thinking-trace row: brain icon, "Thinking"/"Thought for Ns"
+ * label (shimmering while streaming), and the reasoning body under the shared
+ * disclosure rail, capped to a scrollable height. Products supply the rendered
+ * body as children so they keep their own Markdown policy.
+ */
+export const ThinkingBlock = ({
+	children,
+	className,
+	defaultOpen,
+	durationMilliseconds,
+	isStreaming = false,
+	label,
+	onOpenChange,
+	open,
+	redacted = false,
+	...props
+}: ThinkingBlockProps) => {
+	const resolvedLabel =
+		label ??
+		(isStreaming ? "Thinking" : formatThoughtLabel(durationMilliseconds));
+	return (
+		<Reasoning
+			{...props}
+			className={className}
+			defaultOpen={defaultOpen}
+			isStreaming={isStreaming}
+			onOpenChange={onOpenChange}
+			open={open}
+		>
+			<ReasoningTrigger aria-label={resolvedLabel}>
+				<BrainIcon className="cline-chat-thinking-icon" />
+				<span
+					className={isStreaming ? "cline-chat-streaming-title" : undefined}
+				>
+					{resolvedLabel}
+				</span>
+			</ReasoningTrigger>
+			<ReasoningContent
+				className="cline-chat-thinking-content"
+				presentation="rail"
+			>
+				{children ?? (redacted ? "[redacted]" : null)}
+			</ReasoningContent>
+		</Reasoning>
 	);
 };
 
@@ -581,17 +681,12 @@ export const ToolActivity = ({
 	open,
 	...props
 }: ToolActivityProps) => {
-	const [internalOpen, setInternalOpen] = useState(defaultOpen);
-	const panelId = useId();
-	const isOpen = expandable && (open ?? internalOpen);
-	const setIsOpen = useCallback(
-		(nextOpen: boolean) => {
-			if (!expandable) return;
-			if (open === undefined) setInternalOpen(nextOpen);
-			onOpenChange?.(nextOpen);
-		},
-		[expandable, onOpenChange, open],
-	);
+	const { isOpen, panelId, setIsOpen } = useDisclosureState({
+		defaultOpen,
+		enabled: expandable,
+		onOpenChange,
+		open,
+	});
 	const value = useMemo(
 		() => ({ expandable, isOpen, panelId, setIsOpen }),
 		[expandable, isOpen, panelId, setIsOpen],
@@ -636,9 +731,16 @@ export const ToolActivityTrigger = ({
 	...props
 }: ToolActivityTriggerProps) => {
 	const { expandable, isOpen, panelId, setIsOpen } = useToolActivity();
+	// While the tool is still working, the spinner takes the icon's slot so the
+	// row reads as one glyph + label instead of sprouting chrome on the right.
+	const inFlight = status === "running" || status === "pending";
 	const content = children ?? (
 		<>
-			{icon ? <span className="cline-chat-tool-icon">{icon}</span> : null}
+			{inFlight ? (
+				<output aria-label={status} className="cline-chat-tool-progress" />
+			) : icon ? (
+				<span className="cline-chat-tool-icon">{icon}</span>
+			) : null}
 			<span className="cline-chat-tool-label">{label}</span>
 			{additions !== undefined || deletions !== undefined ? (
 				<span className="cline-chat-tool-diff">
@@ -649,9 +751,6 @@ export const ToolActivityTrigger = ({
 						<span data-diff="deletions">-{deletions}</span>
 					) : null}
 				</span>
-			) : null}
-			{status === "running" || status === "pending" ? (
-				<output aria-label={status} className="cline-chat-tool-progress" />
 			) : null}
 			{expandable && showDisclosureIcon ? (
 				<ChevronDownIcon className="cline-chat-disclosure-icon" />
@@ -695,19 +794,172 @@ export const ToolActivityTrigger = ({
 export type ToolActivityContentProps = Omit<
 	HTMLAttributes<HTMLDivElement>,
 	"hidden" | "id"
->;
+> & {
+	presentation?: DisclosureContentPresentation;
+};
 
 export const ToolActivityContent = ({
-	className,
+	presentation,
 	...props
 }: ToolActivityContentProps) => {
 	const { expandable, isOpen, panelId } = useToolActivity();
-	if (!expandable || !isOpen) return null;
+	if (!expandable) return null;
 	return (
-		<div
+		<DisclosureContent
 			{...props}
-			className={classNames("cline-chat-tool-content", className)}
-			id={panelId}
+			contentClassName="cline-chat-tool-content"
+			isOpen={isOpen}
+			lazyContent
+			panelId={panelId}
+			presentation={presentation}
+		/>
+	);
+};
+
+const WorkActivityContext = createContext<DisclosureState | null>(null);
+
+function useWorkActivity(): DisclosureState {
+	const context = useContext(WorkActivityContext);
+	if (!context) {
+		throw new Error(
+			"WorkActivity components must be rendered inside WorkActivity",
+		);
+	}
+	return context;
+}
+
+export type WorkActivityLabelOptions = {
+	durationMilliseconds?: number;
+	toolCallCount?: number;
+};
+
+/** Compact "3s" / "4m 12s" / "1h 3m" duration for work summary rows. */
+export function formatWorkDuration(durationMilliseconds: number): string {
+	const totalSeconds = Math.max(1, Math.round(durationMilliseconds / 1000));
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+	if (minutes > 0)
+		return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+	return `${seconds}s`;
+}
+
+/** "Worked for 4m 12s and made 14 tool calls" with graceful fallbacks when
+ * either number is unknown. */
+export function formatWorkActivityLabel({
+	durationMilliseconds,
+	toolCallCount,
+}: WorkActivityLabelOptions): string {
+	const worked =
+		durationMilliseconds !== undefined &&
+		Number.isFinite(durationMilliseconds) &&
+		durationMilliseconds >= 0
+			? `Worked for ${formatWorkDuration(durationMilliseconds)}`
+			: undefined;
+	const calls = toolCallCount
+		? `${toolCallCount} ${toolCallCount === 1 ? "tool call" : "tool calls"}`
+		: undefined;
+	if (worked && calls) return `${worked} and made ${calls}`;
+	if (worked) return worked;
+	if (calls) return `Made ${calls}`;
+	return "Worked";
+}
+
+export type WorkActivityProps = Omit<
+	HTMLAttributes<HTMLDivElement>,
+	"onChange"
+> & {
+	open?: boolean;
+	defaultOpen?: boolean;
+	onOpenChange?: (open: boolean) => void;
+};
+
+/**
+ * Collapsed summary of a finished agent run: the tool calls, thinking traces,
+ * and working narration that produced an answer fold into a single "Worked
+ * for 4m 12s and made 14 tool calls" row that expands back into the full rows.
+ */
+export const WorkActivity = ({
+	className,
+	defaultOpen = false,
+	onOpenChange,
+	open,
+	...props
+}: WorkActivityProps) => {
+	const value = useDisclosureState({ defaultOpen, onOpenChange, open });
+
+	return (
+		<WorkActivityContext.Provider value={value}>
+			<div {...props} className={classNames("cline-chat-work", className)} />
+		</WorkActivityContext.Provider>
+	);
+};
+
+export type WorkActivityTriggerProps = Omit<
+	ButtonHTMLAttributes<HTMLButtonElement>,
+	"aria-controls" | "aria-expanded" | "type"
+> &
+	WorkActivityLabelOptions;
+
+export const WorkActivityTrigger = ({
+	children,
+	className,
+	durationMilliseconds,
+	onClick,
+	toolCallCount,
+	...props
+}: WorkActivityTriggerProps) => {
+	const { isOpen, panelId, setIsOpen } = useWorkActivity();
+	return (
+		<button
+			{...props}
+			aria-controls={panelId}
+			aria-expanded={isOpen}
+			className={classNames("cline-chat-work-trigger", className)}
+			onClick={(event) => {
+				onClick?.(event);
+				if (!event.defaultPrevented) setIsOpen(!isOpen);
+			}}
+			type="button"
+		>
+			{children ?? (
+				<>
+					<span className="cline-chat-tool-label">
+						{formatWorkActivityLabel({ durationMilliseconds, toolCallCount })}
+					</span>
+					<ChevronDownIcon className="cline-chat-disclosure-icon" />
+				</>
+			)}
+		</button>
+	);
+};
+
+export type WorkActivityContentProps = Omit<
+	HTMLAttributes<HTMLDivElement>,
+	"hidden" | "id"
+> & {
+	presentation?: DisclosureContentPresentation;
+};
+
+/**
+ * Expanded work re-shows the run's normal chat rows at transcript level — no
+ * rail or extra indent, since the rows inside (tool disclosures, thinking
+ * traces) already carry their own nesting when expanded.
+ */
+export const WorkActivityContent = ({
+	presentation,
+	...props
+}: WorkActivityContentProps) => {
+	const { isOpen, panelId } = useWorkActivity();
+	return (
+		<DisclosureContent
+			{...props}
+			contentClassName="cline-chat-work-content"
+			isOpen={isOpen}
+			lazyContent
+			panelId={panelId}
+			presentation={presentation}
 		/>
 	);
 };
@@ -732,6 +984,36 @@ export const ToolActivityCode = ({
 }: ToolActivityCodeProps) => (
 	<pre className={classNames("cline-chat-tool-code", className)} {...props} />
 );
+
+function BrainIcon({ className }: { className?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			className={className}
+			fill="none"
+			height="16"
+			viewBox="0 0 24 24"
+			width="16"
+		>
+			<g
+				stroke="currentColor"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				strokeWidth="2"
+			>
+				<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+				<path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+				<path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+				<path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+				<path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+				<path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+				<path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+				<path d="M6 18a4 4 0 0 1-1.967-.516" />
+				<path d="M19.967 17.484A4 4 0 0 1 18 18" />
+			</g>
+		</svg>
+	);
+}
 
 function ChevronDownIcon({ className }: { className?: string }) {
 	return (

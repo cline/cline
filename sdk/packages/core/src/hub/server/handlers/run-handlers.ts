@@ -216,23 +216,45 @@ export async function handleSessionInput(
 			: typeof payload.input === "string"
 				? payload.input
 				: "";
-	if (!prompt.trim()) {
-		return errorReply(
-			envelope,
-			"invalid_session_input",
-			"session input requires a prompt string",
-		);
-	}
-	ctx.publish(ctx.buildEvent("run.started", undefined, sessionId));
 	const attachments =
 		payload.attachments &&
 		typeof payload.attachments === "object" &&
 		!Array.isArray(payload.attachments)
 			? (payload.attachments as Record<string, unknown>)
 			: undefined;
-	const userFiles = Array.isArray(attachments?.userFiles)
-		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
+	const userImages = Array.isArray(attachments?.userImages)
+		? attachments.userImages.filter(
+				(image): image is string =>
+					typeof image === "string" && image.trim().length > 0,
+			)
 		: undefined;
+	const userFiles = Array.isArray(attachments?.userFiles)
+		? attachments.userFiles.filter(
+				(filePath): filePath is string =>
+					typeof filePath === "string" && filePath.trim().length > 0,
+			)
+		: undefined;
+	if (!prompt.trim() && !userImages?.length && !userFiles?.length) {
+		return errorReply(
+			envelope,
+			"invalid_session_input",
+			"session input requires a prompt or attachment",
+		);
+	}
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (!session) {
+		return sessionNotFoundReply(envelope, sessionId);
+	}
+	ctx.publish(
+		ctx.buildEvent(
+			"run.started",
+			{
+				...(envelope.requestId ? { requestId: envelope.requestId } : {}),
+				...(envelope.clientId ? { clientId: envelope.clientId } : {}),
+			},
+			sessionId,
+		),
+	);
 	const timeoutMs = parseRunTimeoutMs(payload);
 	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
 	const releaseActiveRpcTurn = trackActiveRpcTurn(ctx, sessionId);
@@ -250,9 +272,7 @@ export async function handleSessionInput(
 						payload.delivery === "queue" || payload.delivery === "steer"
 							? payload.delivery
 							: undefined,
-					userImages: Array.isArray(attachments?.userImages)
-						? (attachments.userImages as string[])
-						: undefined,
+					userImages,
 					userFiles,
 					timeoutMs,
 				},
@@ -348,6 +368,37 @@ export async function handleRunAbort(
 		);
 	}
 	return okReply(envelope, { applied: true });
+}
+
+export async function handleRunProceedWhileRunning(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"run.proceed_while_running requires a sessionId",
+		);
+	}
+	if (typeof ctx.sessionHost.proceedWhileRunning !== "function") {
+		return errorReply(
+			envelope,
+			"unsupported_command",
+			"This runtime does not support proceeding while commands are running.",
+		);
+	}
+	const toolCallId =
+		typeof envelope.payload?.toolCallId === "string" &&
+		envelope.payload.toolCallId.trim().length > 0
+			? envelope.payload.toolCallId.trim()
+			: undefined;
+	const detachedCount = await ctx.sessionHost.proceedWhileRunning(
+		sessionId,
+		toolCallId,
+	);
+	return okReply(envelope, { detachedCount });
 }
 
 export async function handleSessionHook(

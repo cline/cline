@@ -2,7 +2,7 @@ import type { ToolApprovalRequest } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import type React from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	buildReadFilesKeys,
 	parseApplyPatchInput,
@@ -139,6 +139,7 @@ export function formatApprovalParams(
 export function ToolApprovalContent(
 	props: ChoiceContext<boolean> & { request: ToolApprovalRequest },
 ) {
+	const palette = useDialogPalette();
 	useDialogKeyboard((key) => {
 		if (key.name === "y" || key.name === "return") {
 			props.resolve(true);

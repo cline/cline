@@ -120,6 +120,15 @@ if (process.env.OTEL_LOGS_EXPORTER) {
 if (process.env.OTEL_METRICS_EXPORTER) {
 	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
 }
+if (process.env.OTEL_TRACES_EXPORTER) {
+	buildEnvVars["process.env.OTEL_TRACES_EXPORTER"] = JSON.stringify(process.env.OTEL_TRACES_EXPORTER)
+}
+if (process.env.CLINE_TRACE_SAMPLE_PERCENT) {
+	buildEnvVars["process.env.CLINE_TRACE_SAMPLE_PERCENT"] = JSON.stringify(process.env.CLINE_TRACE_SAMPLE_PERCENT)
+}
+if (process.env.CLINE_TRACE_RECORD_CONTENT) {
+	buildEnvVars["process.env.CLINE_TRACE_RECORD_CONTENT"] = JSON.stringify(process.env.CLINE_TRACE_RECORD_CONTENT)
+}
 if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
 	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)
 }
@@ -182,8 +191,25 @@ const e2eBuildConfig = {
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
+/**
+ * Plugins run in worker threads that load this self-contained bootstrap from
+ * disk, next to the bundle (core looks for it beside dist/extension.js).
+ * Shipped as .mjs because this package is not `"type": "module"`. Without it,
+ * core falls back to loading plugins inside the extension host.
+ */
+function copyPluginBootstrap() {
+	const source = path.resolve(__dirname, "../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js")
+	if (!fs.existsSync(source)) {
+		console.warn(`[esbuild] ${source} not found; plugins will load in-process`)
+		return
+	}
+	fs.mkdirSync(destDir, { recursive: true })
+	fs.copyFileSync(source, path.join(destDir, "plugin-sandbox-bootstrap.mjs"))
+}
+
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
+	if (!e2eBuild) copyPluginBootstrap()
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()

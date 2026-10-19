@@ -28,6 +28,7 @@ import {
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	getProviderCollection,
 	getProviderCollectionSync,
@@ -51,45 +52,6 @@ const BUILTIN_PROVIDER_MAP = new Map(
 	]),
 );
 
-function toGatewayCapabilities(
-	capabilities: readonly string[] | undefined,
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-			case "audio":
-				mapped.add(capability);
-				break;
-			case "files":
-			case "streaming":
-			case "temperature":
-			case "reasoning-effort":
-			case "computer-use":
-			case "global-endpoint":
-				mapped.add("text");
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayModelDefinition(
 	providerId: string,
 	model: ModelInfo,
@@ -102,9 +64,15 @@ function toGatewayModelDefinition(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
+		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
+			...(model.metadata?.apiProtocol
+				? { apiProtocol: model.metadata.apiProtocol }
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,
@@ -172,7 +140,15 @@ function resolveFactory(
 	}
 }
 
-async function resolveProviderRegistration(
+/**
+ * Bridge a provider from the model catalog (builtins routed under a custom id,
+ * providers.json/models.json registrations, host `registerProvider` calls)
+ * into a `GatewayProviderRegistration` the gateway can execute. Returns
+ * `undefined` for builtin ids the gateway already knows and for ids that are
+ * unknown to the catalog, in which case the gateway's own resolution (and
+ * error reporting) applies.
+ */
+export async function resolveGatewayProviderRegistration(
 	config: ProviderConfig,
 ): Promise<GatewayProviderRegistration | undefined> {
 	const providerId = normalizeProviderId(config.providerId);
@@ -238,7 +214,8 @@ async function resolveProviderRegistration(
 	};
 }
 
-function resolveProviderRegistrationSync(
+/** Synchronous variant of {@link resolveGatewayProviderRegistration}. */
+export function resolveGatewayProviderRegistrationSync(
 	config: ProviderConfig,
 ): GatewayProviderRegistration | undefined {
 	const providerId = normalizeProviderId(config.providerId);
@@ -384,6 +361,8 @@ export function toGatewayRequestMessages(
 										mediaType: part.mediaType,
 									},
 								];
+							case "media":
+								return [{ type: "media" as const, media: part.media }];
 							case "file":
 								return [{ type: "text" as const, text: part.content }];
 							case "redacted_thinking":
@@ -553,9 +532,12 @@ function toApiStreamChunk(
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
-		case "file":
-			// The legacy ApiStream contract has no file chunk type; generated
-			// files are only representable on the AgentModelEvent path.
+		case "media":
+			return { type: "media", id, media: event.media };
+		case "tool-result":
+			// Model-tool activity is available through the AgentModel/AgentRuntime
+			// event path. The legacy ApiStream contract has no observational tool
+			// event that would not imply caller-owned execution.
 			return undefined;
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
@@ -613,7 +595,11 @@ function toApiStreamChunk(
 				success: event.reason !== "error",
 				error: event.error,
 				incompleteReason:
-					event.reason === "max-tokens" ? "max_tokens" : undefined,
+					event.reason === "max-tokens"
+						? "max_tokens"
+						: event.reason === "content-filter"
+							? "content_filter"
+							: undefined,
 			};
 	}
 }
@@ -630,7 +616,7 @@ function resolveModelInfo(config: ProviderConfig): ModelInfo {
 }
 
 class GatewayApiHandler implements ApiHandler {
-	private abortSignal: AbortSignal | undefined;
+	protected abortSignal: AbortSignal | undefined;
 
 	constructor(private readonly config: ProviderConfig) {
 		this.abortSignal = config.abortSignal;
@@ -657,7 +643,7 @@ class GatewayApiHandler implements ApiHandler {
 			logger: this.config.logger ?? this.config.extensionContext?.logger,
 			telemetry: this.config.extensionContext?.telemetry,
 		});
-		const registration = resolveProviderRegistrationSync(this.config);
+		const registration = resolveGatewayProviderRegistrationSync(this.config);
 		if (registration) {
 			gateway.registerProvider(registration);
 		}
@@ -711,7 +697,7 @@ export async function createGatewayApiHandlerAsync(
 		logger: config.logger ?? config.extensionContext?.logger,
 		telemetry: config.extensionContext?.telemetry,
 	});
-	const registration = await resolveProviderRegistration(config);
+	const registration = await resolveGatewayProviderRegistration(config);
 	if (registration) {
 		gateway.registerProvider(registration);
 	}
@@ -726,7 +712,10 @@ export async function createGatewayApiHandlerAsync(
 				systemPrompt,
 				messages,
 				tools,
-				config.abortSignal,
+				// `this.abortSignal`, not `config.abortSignal`: the field starts as
+				// the config value but stays live through `setAbortSignal`, which
+				// the captured config value would silently ignore.
+				this.abortSignal,
 			);
 			const id = `gw_${nanoid(10)}`;
 			const stream = (async function* () {

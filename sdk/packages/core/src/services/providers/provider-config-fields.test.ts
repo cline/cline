@@ -83,6 +83,12 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
+	it("returns local auth with no fields for claude-code", () => {
+		const result = getProviderConfigFields("claude-code");
+		expect(result.authMethod).toBe("local");
+		expect(result.fields).toEqual({});
+	});
+
 	it("returns api-key auth with apiKey, baseUrl, and Azure API version for OpenAI Compatible", () => {
 		const result = getProviderConfigFields("openai-compatible");
 		expect(result.providerId).toBe("openai-compatible");

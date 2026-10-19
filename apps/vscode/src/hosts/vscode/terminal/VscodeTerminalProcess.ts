@@ -101,13 +101,12 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// Text after C is the command's actual output; everything before (prompt,
 			// command echo) is naturally excluded by the marker.
 			//
-			// NOTE: The CommandFinished (D) marker and its exit code do NOT appear in
-			// the read() stream. VS Code's shell integration addon consumes the D
-			// sequence synchronously and fires onDidEndTerminalShellExecution (with the
-			// exit code) before the debounced data event reaches the stream. We listen
-			// to that event to capture the exit code; the D-marker parsing in the parser
-			// is kept only to delimit command output segments (see below), not as an
-			// exit-code source.
+			// NOTE: VS Code excludes the CommandFinished (D) marker from read().
+			// On normal completion it flushes buffered data and ends the stream
+			// before firing onDidEndTerminalShellExecution with the exit code.
+			// Starting another execution can force the previous end event before
+			// its stream finishes flushing. We use the event for the exit code;
+			// D-marker parsing only delimits output segments, not exit codes.
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			const parser = new Osc633Parser()
@@ -118,7 +117,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 
 			// Listen for the shell execution end event to capture the exit code and
 			// independently signal completion. The event normally follows the stream,
-			// but some shells leave read() open after reporting that execution ended.
+			// but a replacement execution can force the event before the stream ends.
 			//
 			// onDidEndTerminalShellExecution has been stable API since VS Code 1.93,
 			// below our minimum supported version (see package.json engines.vscode), so it is
@@ -405,7 +404,12 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
-			if (!this.fullOutput.trim()) {
+			// The CommandExecuted (C) marker is parsed out of the same read()
+			// stream as the output, so when it was seen an empty fullOutput is a
+			// genuine silent success ($null, git add -A on a clean tree) — the
+			// stream worked and the command simply printed nothing. Falling back
+			// there reported silent commands as capture failures (GitHub #13272).
+			if (!this.fullOutput.trim() && !didSeeCommandExecuted) {
 				// No output captured via shell integration, trying fallback
 				telemetryService.captureTerminalOutputFailure(
 					terminalClosed ? TerminalOutputFailureReason.TERMINAL_CLOSED : TerminalOutputFailureReason.TIMEOUT,
@@ -433,13 +437,15 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					telemetryService.captureTerminalExecution(false, "vscode", "none", fallbackDetails)
 				}
 			} else {
-				// Output was captured, but distinguish *how* it was completed: real
-				// OSC 633 C/D markers ("shell_integration") vs the idle/prompt
-				// heuristic fallback ("markerless_heuristic") when markers never
-				// arrived. Folding the latter into "shell_integration" successes
-				// would inflate the metric this PR's fixes are evaluated against.
-				// A terminal closed mid-command is not a success even though some
-				// output was captured — the command was interrupted.
+				// Output was captured — or the C marker proved the stream worked
+				// and the command legitimately printed nothing. Distinguish *how*
+				// completion was observed: real OSC 633 C/D markers
+				// ("shell_integration") vs the idle/prompt heuristic fallback
+				// ("markerless_heuristic") when markers never arrived. Folding the
+				// latter into "shell_integration" successes would inflate the
+				// metric this PR's fixes are evaluated against. A terminal closed
+				// mid-command is not a success even though some output was
+				// captured — the command was interrupted.
 				telemetryService.captureTerminalExecution(
 					!terminalClosed,
 					"vscode",

@@ -1,0 +1,169 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { remoteHelperBinaryFilename } from "@cline/core";
+import { expect, it } from "vitest";
+import { resolveDesktopRemoteHelper } from "./remote-helper";
+
+it("finds SSH helpers in the installed Windows resource layout", () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
+	try {
+		const target = { platform: "linux", arch: "x64" } as const;
+		const directory = join(root, "bin", "remote-helpers");
+		mkdirSync(directory, { recursive: true });
+		const helper = join(directory, remoteHelperBinaryFilename(target));
+		writeFileSync(helper, "helper");
+		expect(
+			resolveDesktopRemoteHelper(target, {
+				execPath: join(root, "cline-cli.exe"),
+				cwd: tmpdir(),
+				env: {},
+			}),
+		).toBe(helper);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+// First 8 bytes of a universal (fat) Mach-O and of a thin arm64 Mach-O.
+const FAT_MACHO_HEADER = Buffer.from("cafebabe00000002", "hex");
+const THIN_ARM64_MACHO_HEADER = Buffer.from("cffaedfe0c000001", "hex");
+
+it("uses the bundled universal macOS CLI for Mac remotes", () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
+	try {
+		const macOS = join(root, "Cline.app", "Contents", "MacOS");
+		mkdirSync(macOS, { recursive: true });
+		const cli = join(macOS, "cline-cli");
+		writeFileSync(cli, FAT_MACHO_HEADER);
+		for (const arch of ["arm64", "x64"] as const) {
+			expect(
+				resolveDesktopRemoteHelper(
+					{ platform: "darwin", arch },
+					{
+						execPath: cli,
+						cwd: tmpdir(),
+						env: { CLINE_DESKTOP_CLI_PATH: cli },
+						platform: "darwin",
+					},
+				),
+			).toBe(cli);
+		}
+		expect(
+			resolveDesktopRemoteHelper(
+				{ platform: "linux", arch: "arm64" },
+				{
+					execPath: cli,
+					cwd: tmpdir(),
+					env: { CLINE_DESKTOP_CLI_PATH: cli },
+					platform: "darwin",
+				},
+			),
+		).toBeUndefined();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("only offers a thin bundled macOS CLI to Mac remotes of its own architecture", () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
+	try {
+		const macOS = join(root, "Cline.app", "Contents", "MacOS");
+		mkdirSync(macOS, { recursive: true });
+		const cli = join(macOS, "cline-cli");
+		writeFileSync(cli, THIN_ARM64_MACHO_HEADER);
+		const options = {
+			execPath: cli,
+			cwd: tmpdir(),
+			env: { CLINE_DESKTOP_CLI_PATH: cli },
+			platform: "darwin" as const,
+		};
+		expect(
+			resolveDesktopRemoteHelper(
+				{ platform: "darwin", arch: "arm64" },
+				options,
+			),
+		).toBe(cli);
+		expect(
+			resolveDesktopRemoteHelper({ platform: "darwin", arch: "x64" }, options),
+		).toBeUndefined();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("uses the compiled CLI for Mac remotes under tauri dev on macOS", () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-dev-helpers-"));
+	try {
+		const bin = join(root, "src-tauri", "bin");
+		mkdirSync(bin, { recursive: true });
+		const cli = join(bin, "cline-cli-aarch64-apple-darwin");
+		writeFileSync(cli, "cli");
+		const options = {
+			execPath: "/usr/local/bin/bun",
+			cwd: root,
+			env: {},
+			platform: "darwin" as const,
+		};
+		expect(
+			resolveDesktopRemoteHelper(
+				{ platform: "darwin", arch: "arm64" },
+				options,
+			),
+		).toBe(cli);
+		expect(
+			resolveDesktopRemoteHelper({ platform: "darwin", arch: "x64" }, options),
+		).toBeUndefined();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("selects only the running Linux channels SSH helpers", () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
+	try {
+		const target = { platform: "linux", arch: "arm64" } as const;
+		const directory = join(
+			root,
+			"usr",
+			"lib",
+			"Cline Beta",
+			"bin",
+			"remote-helpers",
+		);
+		mkdirSync(directory, { recursive: true });
+		const helper = join(directory, remoteHelperBinaryFilename(target));
+		writeFileSync(helper, "helper");
+		const otherDirectory = join(
+			root,
+			"usr",
+			"lib",
+			"Cline",
+			"bin",
+			"remote-helpers",
+		);
+		mkdirSync(otherDirectory, { recursive: true });
+		writeFileSync(
+			join(otherDirectory, remoteHelperBinaryFilename(target)),
+			"other channel",
+		);
+		expect(
+			resolveDesktopRemoteHelper(target, {
+				execPath: join(root, "usr", "bin", "cline-cli"),
+				cwd: tmpdir(),
+				env: { CLINE_REMOTE_HELPER_DIRECTORY: directory },
+			}),
+		).toBe(helper);
+		// A missing binary in this channel must not fall back to another app.
+		rmSync(helper);
+		expect(
+			resolveDesktopRemoteHelper(target, {
+				execPath: join(root, "usr", "bin", "cline-cli"),
+				cwd: tmpdir(),
+				env: { CLINE_REMOTE_HELPER_DIRECTORY: directory },
+			}),
+		).toBeUndefined();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

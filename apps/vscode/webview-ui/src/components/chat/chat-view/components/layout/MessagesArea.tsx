@@ -228,7 +228,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 							isLast={true}
 							lastModifiedMessage={modifiedMessages.at(-1)}
 							message={WAITING_ROW}
-							onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
+							onCancelCommand={() => messageHandlers.executeButtonAction({ type: "cancel" })}
 							onHeightChange={handleRowHeightChange}
 							onLastRowContentChange={handleLastRowContentChange}
 							onSetQuote={setActiveQuote}

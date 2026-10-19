@@ -78,7 +78,7 @@
 	--font-mono:
 		var(--vscode-editor-font-family), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
 		monospace;
-	--font-azeret-mono: Azeret Mono, monospace;
+	--font-geist-mono: "Geist Mono Variable", monospace;
 	--font-editor: var(--vscode-editor-font-family);
 	--text-editor-size: var(--vscode-editor-font-size);
 	--text-2xl: calc(2.25 * var(--vscode-font-size));

@@ -28,7 +28,7 @@ describe("cline-pass-errors", () => {
 		expect(isClinePassSubscriptionError(formatted)).toBe(true);
 		expect(formatCliErrorMessage(new Error(sdkFormatted))).toBe(formatted);
 		expect(formatCliErrorMessage(new Error(formatted))).toBe(formatted);
-	});	
+	});
 
 	it("recognizes and formats organization account individual subscription errors", () => {
 		const raw =

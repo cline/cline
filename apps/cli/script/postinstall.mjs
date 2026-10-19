@@ -17,6 +17,35 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
+// CLI versions <= 3.0.54 restart the hub daemon after a background
+// auto-update even while it is serving live sessions, killing those sessions
+// mid-turn — and their build-fingerprint check then rejects every replacement
+// hub, bricking the running TUI. That restart code is the *old* version's, so
+// it cannot be patched here; but it bails out harmlessly when no hub
+// discovery record exists, and it runs only after this install (and this
+// script) completes. Setting the record aside protects any attached clients:
+// a running hub keeps serving its established connections, clients that share
+// its build fingerprint rebuild the record from a port probe, and the next
+// fresh launch retires stale hubs regardless of the record.
+function shieldRunningHubDiscovery() {
+	const explicitPath = process.env.CLINE_HUB_DISCOVERY_PATH?.trim();
+	const dataDir =
+		process.env.CLINE_DATA_DIR?.trim() ||
+		path.join(
+			process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline"),
+			"data",
+		);
+	const recordPath =
+		explicitPath || path.join(dataDir, "locks", "hub", "production.json");
+	if (!fs.existsSync(recordPath)) {
+		return;
+	}
+	const asidePath = `${recordPath}.superseded`;
+	fs.rmSync(asidePath, { force: true });
+	fs.renameSync(recordPath, asidePath);
+	console.log("Set aside hub discovery record for the updated CLI");
+}
+
 function main() {
 	if (os.platform() === "win32") {
 		// On Windows, npm creates .cmd shims from the bin field.
@@ -77,6 +106,14 @@ function main() {
 
 	fs.chmodSync(target, 0o755);
 	console.log(`Cached cline binary at ${target}`);
+}
+
+try {
+	shieldRunningHubDiscovery();
+} catch (error) {
+	// Best-effort: without the shield the worst case is the pre-3.0.55
+	// restart-while-busy behavior, never a broken install.
+	console.error(`postinstall: hub discovery shield skipped: ${error.message}`);
 }
 
 try {

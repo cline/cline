@@ -1,5 +1,15 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import {
+	captureSdkError,
+	ensureLoopbackProxyBypass,
+	initVcr,
+	resolveClineBuildEnv,
+} from "@cline/shared";
+import {
+	resolveAgentPluginPathsWithDiagnostics,
+	resolvePluginExecutionMode,
+} from "../../extensions/plugin/plugin-config-loader";
+import { getProcessPluginRegistry } from "../../extensions/plugin/plugin-registry";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -9,14 +19,19 @@ import { reconnectDaemonConnectors } from "../../services/connectors/daemon-conn
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
+	HUB_LOCK_HELD_EXIT_CODE,
+	isHubLockHeldError,
+} from "../discovery/instance-lock";
+import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { describeAddressInUse } from "./bind-diagnostics";
 import {
-	armHubDaemonShutdownWatchdog,
+	createHubDaemonShutdownCoordinator,
 	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-} from "./shutdown-watchdog";
+} from "./shutdown-coordinator";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -37,12 +52,50 @@ export const hubDaemonReady = new Promise<void>((resolve, reject) => {
 // readiness promise. Keep startup failures handled by the fatal path below.
 void hubDaemonReady.catch(() => undefined);
 
+const HUB_STARTUP_BIND_RETRY_WINDOW_MS = 5_000;
+const HUB_STARTUP_BIND_RETRY_DELAY_MS = 250;
+
+function isAddressInUseError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error as Error & { code?: string }).code === "EADDRINUSE"
+	);
+}
+
+async function startHubWebSocketServerWithBindRetry(
+	bindDeadline: number,
+	options: Parameters<typeof startHubWebSocketServer>[0],
+): Promise<Awaited<ReturnType<typeof startHubWebSocketServer>>> {
+	for (;;) {
+		try {
+			return await startHubWebSocketServer(options);
+		} catch (error) {
+			// A retiring predecessor can hold the port — or the instance lock —
+			// for a couple of seconds after acking shutdown. Wait either out
+			// within the deadline; a lock still held past it means a live Hub
+			// owns this context, and the rule is connect or diagnose, never
+			// replace (exit code 3, below).
+			if (
+				(!isAddressInUseError(error) && !isHubLockHeldError(error)) ||
+				Date.now() >= bindDeadline
+			) {
+				throw error;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, HUB_STARTUP_BIND_RETRY_DELAY_MS),
+			);
+		}
+	}
+}
+
 function parseArgs(argv: string[]): {
 	cwd: string;
+	manageConnectors: boolean;
 	host?: string;
 	port?: number;
 	pathname?: string;
 } {
+	let manageConnectors = true;
 	let cwd = process.cwd();
 	let host: string | undefined;
 	let port: number | undefined;
@@ -51,6 +104,10 @@ function parseArgs(argv: string[]): {
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
 		const value = argv[index + 1];
+		if (arg === "--no-connectors") {
+			manageConnectors = false;
+			continue;
+		}
 		if (arg === "--cwd" && value) {
 			cwd = value;
 			index += 1;
@@ -75,7 +132,7 @@ function parseArgs(argv: string[]): {
 		}
 	}
 
-	return { cwd, host, port, pathname };
+	return { cwd, host, port, pathname, manageConnectors };
 }
 
 /**
@@ -104,6 +161,7 @@ export function isAbortRejection(reason: unknown): boolean {
 }
 
 async function main(): Promise<void> {
+	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
 
@@ -114,66 +172,39 @@ async function main(): Promise<void> {
 	});
 
 	const daemonTelemetry = createHubDaemonTelemetry();
-	let requestDaemonShutdown: () => void = () => {};
-
-	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
-	try {
-		server = await startHubWebSocketServer({
-			onShutdownRequested: () => requestDaemonShutdown(),
-			host: endpoint.host,
-			port: endpoint.port,
-			pathname: endpoint.pathname,
-			owner:
-				resolveClineBuildEnv() === "production"
-					? resolveProductionHubOwnerContext()
-					: resolveSharedHubOwnerContext(),
-			telemetry: daemonTelemetry.telemetry,
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
-				telemetry: daemonTelemetry.telemetry,
-			}),
-			cronOptions: { workspaceRoot: options.cwd },
-		});
-	} catch (error) {
-		// Flush before the top-level catch exits so failed daemon starts are
-		// still visible in telemetry instead of dying silently.
-		await daemonTelemetry.dispose().catch(() => undefined);
-		throw error;
-	}
-
-	// Owns connector processes for this hub's lifetime: one instance per
-	// (channel, instanceId), reaping and backoff restarts when they die.
-	const supervisor = new ConnectorSupervisor({
-		cleanupInstance: (channel, instanceId) =>
-			cleanupConnectorInstanceViaCli(channel, instanceId),
-	});
-	setActiveConnectorSupervisor(supervisor);
-
-	let shutdownStarted = false;
-	const shutdown = async (): Promise<void> => {
-		if (shutdownStarted) {
-			return;
+	const formatError = (error: unknown): string =>
+		error instanceof Error ? error.stack || error.message : String(error);
+	let shutdownCoordinator:
+		| ReturnType<typeof createHubDaemonShutdownCoordinator>
+		| undefined;
+	let pendingShutdownRequest: { reason: string; exitCode: number } | undefined;
+	let pendingShutdownWatchdog: ReturnType<typeof setTimeout> | undefined;
+	const requestOrQueueShutdown = (request: {
+		reason: string;
+		exitCode: number;
+	}): Promise<void> | undefined => {
+		if (shutdownCoordinator) {
+			return shutdownCoordinator.request(request);
 		}
-		shutdownStarted = true;
-		armHubDaemonShutdownWatchdog({
-			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-			exitCode: 0,
-			onTimeout: () => {
-				process.stderr.write(
-					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
-				);
-			},
-		});
-		// Stop supervising but leave the connectors running: they are detached on
-		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
-		// hub adopts them from their state files.
-		supervisor.dispose();
-		setActiveConnectorSupervisor(undefined);
-		await server.close();
-		await daemonTelemetry.dispose().catch(() => undefined);
-		process.exit(0);
-	};
-	requestDaemonShutdown = () => {
-		void shutdown();
+		if (
+			!pendingShutdownRequest ||
+			request.exitCode > pendingShutdownRequest.exitCode
+		) {
+			pendingShutdownRequest = request;
+		}
+		if (!pendingShutdownWatchdog) {
+			pendingShutdownWatchdog = setTimeout(() => {
+				const pending = pendingShutdownRequest ?? request;
+				try {
+					process.stderr.write(
+						`[hub-daemon] startup did not reach shutdown coordination after ${pending.reason}; forcing process exit\n`,
+					);
+				} finally {
+					process.exit(pending.exitCode);
+				}
+			}, HUB_DAEMON_SHUTDOWN_DEADLINE_MS);
+		}
+		return undefined;
 	};
 
 	let fatalShutdownStarted = false;
@@ -182,45 +213,37 @@ async function main(): Promise<void> {
 			return;
 		}
 		fatalShutdownStarted = true;
-		armHubDaemonShutdownWatchdog({
-			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-			exitCode: 1,
-			onTimeout: () => {
-				process.stderr.write(
-					`[hub-daemon] shutdown after ${label} stalled; forcing exit\n`,
-				);
-			},
-		});
-		const message =
-			error instanceof Error ? error.stack || error.message : String(error);
-		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void server
-			.close()
-			.catch((closeError) => {
-				const closeMessage =
-					closeError instanceof Error
-						? closeError.stack || closeError.message
-						: String(closeError);
-				process.stderr.write(
-					`[hub-daemon] shutdown after ${label} failed: ${closeMessage}\n`,
-				);
-			})
-			.finally(() => {
-				void daemonTelemetry
-					.dispose()
-					.catch(() => undefined)
-					.finally(() => {
-						process.exit(1);
-					});
-			});
+		process.stderr.write(`[hub-daemon] ${label}: ${formatError(error)}\n`);
+		void requestOrQueueShutdown({ reason: label, exitCode: 1 });
 	};
 
-	process.on("SIGINT", () => {
-		void shutdown();
-	});
-	process.on("SIGTERM", () => {
-		void shutdown();
-	});
+	let terminationSignalCount = 0;
+	const handleTerminationSignal = (signal: "SIGINT" | "SIGTERM"): void => {
+		terminationSignalCount += 1;
+		if (terminationSignalCount > 1) {
+			if (shutdownCoordinator) {
+				shutdownCoordinator.force({
+					reason: `second termination signal (${signal})`,
+					exitCode: 0,
+				});
+				return;
+			}
+			if (pendingShutdownWatchdog) {
+				clearTimeout(pendingShutdownWatchdog);
+				pendingShutdownWatchdog = undefined;
+			}
+			process.exit(pendingShutdownRequest?.exitCode ?? 0);
+			return;
+		}
+		void requestOrQueueShutdown({ reason: signal, exitCode: 0 });
+	};
+	// Install process handlers before the endpoint can be published. A signal
+	// arriving in the publish-to-ready window is queued for the coordinator
+	// instead of taking Node/Bun's default exit path and leaving stale discovery.
+	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
+	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+	// Plugin code runs in workers, never on this thread, so an uncaught error
+	// here is the daemon's own and is fatal.
 	process.on("uncaughtException", (error) => {
 		shutdownFatal("uncaughtException", error);
 	});
@@ -235,13 +258,143 @@ async function main(): Promise<void> {
 		shutdownFatal("unhandledRejection", reason);
 	});
 
+	// A hub being retired can keep the port bound for a couple of seconds
+	// after acking shutdown (its watchdog force-exits below the 3s retire
+	// poll). Spawning into that window must wait the port out instead of
+	// dying with EADDRINUSE and leaving clients with no hub at all.
+	const bindDeadline = Date.now() + HUB_STARTUP_BIND_RETRY_WINDOW_MS;
+	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
+	try {
+		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
+			workspaceRoot: options.cwd,
+			onShutdownRequested: () => {
+				void requestOrQueueShutdown({
+					reason: "authenticated HTTP shutdown request",
+					exitCode: 0,
+				});
+			},
+			host: endpoint.host,
+			port: endpoint.port,
+			pathname: endpoint.pathname,
+			owner:
+				resolveClineBuildEnv() === "production"
+					? resolveProductionHubOwnerContext()
+					: resolveSharedHubOwnerContext(),
+			telemetry: daemonTelemetry.telemetry,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+				telemetry: daemonTelemetry.telemetry,
+			}),
+			cronOptions: { workspaceRoot: options.cwd },
+		});
+	} catch (error) {
+		// Losing the singleton race to a live Hub is expected, not a failure.
+		if (!isHubLockHeldError(error)) {
+			// The lock is taken before binding, so whatever holds the port is
+			// not a live Hub for this owner. Record what it is so the fix can
+			// target the actual cause instead of guessing.
+			const context = isAddressInUseError(error)
+				? await describeAddressInUse(error, endpoint)
+				: undefined;
+			if (context) {
+				process.stderr.write(
+					`[hub-daemon] port ${endpoint.port} is in use: ${JSON.stringify(context)}\n`,
+				);
+			}
+			captureSdkError(daemonTelemetry.telemetry, {
+				component: "hub",
+				operation: "hub.daemon.startup",
+				error,
+				handled: false,
+				severity: "fatal",
+				context,
+			});
+		}
+		// Flush before the top-level catch exits so failed daemon starts are
+		// still visible in telemetry instead of dying silently.
+		await daemonTelemetry.dispose().catch(() => undefined);
+		throw error;
+	}
+
+	// Owns connector processes for this hub's lifetime: one instance per
+	// (channel, instanceId), reaping and backoff restarts when they die.
+	// Dedicated SSH Hubs share account storage with the CLI Hub, but must not
+	// adopt its connectors, restart them, or accept connector start/stop commands.
+	const supervisor = options.manageConnectors
+		? new ConnectorSupervisor({
+				cleanupInstance: (channel, instanceId) =>
+					cleanupConnectorInstanceViaCli(channel, instanceId),
+			})
+		: undefined;
+	setActiveConnectorSupervisor(supervisor);
+
+	shutdownCoordinator = createHubDaemonShutdownCoordinator({
+		deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+		cleanup: async () => {
+			const errors: unknown[] = [];
+			// Stop supervising but leave the connectors running: they are detached
+			// on purpose so a hub restart does not disconnect Slack/Telegram, and
+			// the next hub adopts them from their state files.
+			try {
+				supervisor?.dispose();
+			} catch (error) {
+				errors.push(error);
+			} finally {
+				setActiveConnectorSupervisor(undefined);
+			}
+			// Listener and runtime shutdown begin together, but telemetry stays
+			// available until runtime/session disposal has settled. The listener's
+			// close callback may still hang under Bun; the coordinator watchdog
+			// bounds that final await.
+			const closing = server.beginClose();
+			await Promise.allSettled([closing.transportStopped]);
+			try {
+				await daemonTelemetry.dispose();
+			} catch (error) {
+				errors.push(error);
+			}
+			try {
+				await closing.closed;
+			} catch (error) {
+				errors.push(error);
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, "hub daemon shutdown cleanup failed");
+			}
+		},
+		exit: (code) => process.exit(code),
+		onCleanupError: (error) => {
+			process.stderr.write(
+				`[hub-daemon] shutdown cleanup failed: ${formatError(error)}\n`,
+			);
+		},
+		onForcedExit: ({ reason }) => {
+			process.stderr.write(`[hub-daemon] ${reason}; forcing process exit\n`);
+		},
+	});
+	if (pendingShutdownRequest) {
+		if (pendingShutdownWatchdog) {
+			clearTimeout(pendingShutdownWatchdog);
+			pendingShutdownWatchdog = undefined;
+		}
+		rejectHubDaemonReady(
+			new Error("Hub daemon shutdown was requested before readiness"),
+		);
+		await shutdownCoordinator.request(pendingShutdownRequest);
+		return;
+	}
+
 	resolveHubDaemonReady();
+	// Discover and import global plugins once up front so `plugins.status`
+	// reports them before any session starts. Sessions reuse these modules.
+	void preloadDaemonPlugins(options.cwd);
 	try {
 		// Adopt first: connectors that outlived the previous hub have to be known
 		// before recovery runs, so they are restarted onto this hub's session
 		// instead of being started a second time alongside themselves.
-		supervisor.adoptRunningConnectors();
-		await reconnectDaemonConnectors();
+		if (supervisor) {
+			supervisor.adoptRunningConnectors();
+			await reconnectDaemonConnectors();
+		}
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
@@ -254,8 +407,47 @@ async function main(): Promise<void> {
 	});
 }
 
+async function preloadDaemonPlugins(cwd: string): Promise<void> {
+	// Sandbox mode has no process-wide registry; each session starts its own
+	// subprocess. Worker mode preloads in throwaway workers so status is known
+	// before any session starts.
+	if (resolvePluginExecutionMode() === "sandbox") {
+		return;
+	}
+	try {
+		const resolved = resolveAgentPluginPathsWithDiagnostics({
+			workspacePath: cwd,
+			cwd,
+		});
+		const statuses = await getProcessPluginRegistry().preload({
+			pluginPaths: resolved.paths,
+			disabledPluginPaths: resolved.disabledPaths,
+			discoveryFailures: resolved.discoveryFailures,
+		});
+		const failed = statuses.filter((status) => status.state === "failed");
+		for (const status of failed) {
+			process.stderr.write(
+				`[hub-daemon] plugin "${status.name}" failed (${status.lastError?.phase}): ${status.lastError?.message}\n`,
+			);
+		}
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(`[hub-daemon] plugin preload failed: ${message}\n`);
+	}
+}
+
 void main().catch((error) => {
 	rejectHubDaemonReady(error);
+	if (isHubLockHeldError(error)) {
+		// A live Hub owns this context. Losing the singleton race is a
+		// diagnosis, not a failure to fight: exit distinctly and leave the
+		// running Hub alone.
+		process.stderr.write(
+			`[hub-daemon] another live Hub owns this data directory: ${error.message}\n`,
+		);
+		process.exit(HUB_LOCK_HELD_EXIT_CODE);
+	}
 	const message =
 		error instanceof Error ? error.stack || error.message : String(error);
 	process.stderr.write(`[hub-daemon] fatal: ${message}\n`);

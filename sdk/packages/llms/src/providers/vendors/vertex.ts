@@ -79,7 +79,7 @@ export async function createVertexProviderModule(
 			headers: config.headers,
 			fetch,
 		});
-		return { model: (modelId) => provider(modelId) };
+		return { operations: { language: (modelId) => provider(modelId) } };
 	}
 
 	const provider = createVertex({
@@ -92,6 +92,20 @@ export async function createVertexProviderModule(
 		fetch,
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		buildModelTools: (tools) => {
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
+			for (const tool of tools) {
+				if (tool.name === "web_search") {
+					result.web_search = { tool: provider.tools.googleSearch({}) };
+				}
+			}
+			return result;
+		},
+		operations: {
+			language: (modelId) => provider(modelId),
+			imageGeneration: (modelId) => provider.image(modelId),
+		},
 	};
 }

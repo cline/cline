@@ -4,11 +4,11 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { readCompactionStrategyGlobally } from "@cline/core"
+import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
-import { ExtensionRegistryInfo } from "@/registry"
+import { ExtensionRegistryInfo, HostRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -29,6 +29,8 @@ export async function getStateToPostToWebview(controller: {
 	foregroundCommandRunning?: boolean
 	workspaceManager?: any
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
+	isRemoteConfigAvailable?: boolean
+	currentRemoteConfigRevision?: number
 }): Promise<ExtensionState> {
 	const stateManager = controller.stateManager
 
@@ -43,6 +45,7 @@ export async function getStateToPostToWebview(controller: {
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
+	const webSearchEnabled = isModelToolEnabledGlobally("web_search")
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
@@ -95,6 +98,8 @@ export async function getStateToPostToWebview(controller: {
 	const version = ExtensionRegistryInfo.version
 	const clineConfig = ClineEnv.config()
 	const environment = clineConfig.environment
+	const hostPlatform = HostRegistryInfo.get()?.platform
+	const hostName = hostPlatform && hostPlatform !== "unknown" ? hostPlatform : undefined
 	const banners = BannerService.get().getActiveBanners() ?? []
 	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
 
@@ -120,6 +125,7 @@ export async function getStateToPostToWebview(controller: {
 		mode,
 		useAutoCondense,
 		compactionStrategy,
+		webSearchEnabled,
 		subagentsEnabled,
 		userInfo,
 		mcpMarketplaceEnabled,
@@ -129,6 +135,7 @@ export async function getStateToPostToWebview(controller: {
 		enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 		platform,
 		environment,
+		hostName,
 		distinctId,
 		globalClineRulesToggles: globalClineRulesToggles || {},
 		localClineRulesToggles: localClineRulesToggles || {},
@@ -170,10 +177,12 @@ export async function getStateToPostToWebview(controller: {
 		lastDismissedInfoBannerVersion,
 		lastDismissedModelBannerVersion,
 		remoteConfigSettings: stateManager.getRemoteConfigSettings?.(),
+		remoteConfigRevision: controller.currentRemoteConfigRevision ?? 0,
 		lastDismissedCliBannerVersion,
 		dismissedBanners,
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+		remoteConfigAvailable: controller.isRemoteConfigAvailable ?? false,
 		showFeatureTips,
 		banners,
 		welcomeBanners,

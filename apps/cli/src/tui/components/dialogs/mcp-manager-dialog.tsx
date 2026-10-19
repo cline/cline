@@ -5,7 +5,7 @@ import {
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useState } from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export interface McpEntry {
 	name: string;
@@ -70,6 +70,7 @@ export function McpManagerContent(
 		servers: McpEntry[];
 	},
 ) {
+	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(0);
 	const [servers, setServers] = useState(props.servers);
 	const [changed, setChanged] = useState(false);

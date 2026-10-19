@@ -6,6 +6,8 @@ import type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpResourceReadRequest,
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerRegistration,
 	McpServerSnapshot,
@@ -37,6 +39,7 @@ function cloneTools(
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.inputSchema,
+		...(tool._meta ? { _meta: tool._meta } : {}),
 	}));
 }
 
@@ -178,10 +181,44 @@ export class InMemoryMcpManager implements McpManager {
 		});
 	}
 
+	async readResource(
+		request: McpResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		const current = this.requireServer(request.serverName);
+		const client =
+			current.status === "connected" &&
+			current.client &&
+			!current.registration.disabled
+				? current.client
+				: await this.runExclusive(request.serverName, async () =>
+						this.ensureConnectedClient(this.requireServer(request.serverName)),
+					);
+		this.requireServer(request.serverName).updatedAt = nowMs();
+		if (!client.readResource) {
+			throw new Error(
+				`MCP server "${request.serverName}" client does not support reading resources.`,
+			);
+		}
+		return client.readResource({
+			uri: request.uri,
+			context: request.context,
+		});
+	}
+
 	async dispose(): Promise<void> {
 		const names = [...this.servers.keys()];
+		// One wedged server (e.g. a stdio child that never exits) must not stop
+		// the remaining servers from being disconnected.
+		const errors: unknown[] = [];
 		for (const name of names) {
-			await this.unregisterServer(name);
+			try {
+				await this.unregisterServer(name);
+			} catch (error) {
+				errors.push(error);
+			}
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, "MCP manager dispose failed");
 		}
 	}
 

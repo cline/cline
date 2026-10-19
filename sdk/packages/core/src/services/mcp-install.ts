@@ -90,6 +90,13 @@ function splitTargetArgsAndHeaders(input: {
 	const args = input.targetArgs ?? [];
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
+		// Marketplace-style args use "--" to end option parsing (matching how
+		// commander handles the CLI form); everything after it is the verbatim
+		// stdio command. Without this the separator itself becomes the command.
+		if (input.parseTransport && arg === "--") {
+			targetArgs.push(...args.slice(index + 1));
+			break;
+		}
 		if (input.parseTransport && arg === "--transport") {
 			const value = args[index + 1];
 			if (!value) {
@@ -121,7 +128,12 @@ function splitTargetArgsAndHeaders(input: {
 	return { headers, targetArgs, transport };
 }
 
-function buildHeaders(values: string[]): {
+/**
+ * Parse `Header-Name: value` strings, one header per string, as
+ * `cline mcp add --header` does. Throws on a malformed header and warns about
+ * values that look like unfilled placeholders such as `<token>`.
+ */
+export function parseMcpHeaders(values: string[]): {
 	headers?: Record<string, string>;
 	warnings: string[];
 } {
@@ -160,7 +172,7 @@ export function buildMcpInstallTransport(options: {
 		transport: options.transport,
 	});
 	const type = normalizeTransportType(transport);
-	const { headers, warnings } = buildHeaders(rawHeaders);
+	const { headers, warnings } = parseMcpHeaders(rawHeaders);
 	if (type === "stdio") {
 		if (rawHeaders.length > 0) {
 			throw new Error("Stdio MCP installs do not support request headers.");

@@ -52,7 +52,7 @@ export const StyledCreditDisplay = ({ balance }: { balance: number }) => {
 	const lastTwoDecimals = decimalPart.slice(2)
 
 	return (
-		<span className="font-azeret-mono font-light tabular-nums text-2xl">
+		<span className="font-geist-mono font-light tabular-nums text-2xl">
 			{wholePart}.{firstTwoDecimals}
 			<span className="text-description text-2xl">{lastTwoDecimals}</span>
 		</span>

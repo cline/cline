@@ -1,4 +1,4 @@
-import { createMcpTools } from "@cline/core"
+import { createMcpTools, type McpResourceReadResult } from "@cline/core"
 import type { AgentTool, AgentToolContext } from "@cline/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
@@ -11,6 +11,7 @@ interface McpToolDescriptor {
 	name: string
 	description?: string
 	inputSchema: Record<string, unknown>
+	_meta?: Record<string, unknown>
 }
 
 export class McpHubToolProvider {
@@ -31,6 +32,7 @@ export class McpHubToolProvider {
 				type: "object",
 				properties: {},
 			},
+			...(tool._meta ? { _meta: tool._meta } : {}),
 		}))
 	}
 
@@ -42,6 +44,10 @@ export class McpHubToolProvider {
 	}): Promise<unknown> {
 		const ulid = `sdk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid, request.context?.signal)
+	}
+
+	async readResource(request: { serverName: string; uri: string; context?: AgentToolContext }): Promise<McpResourceReadResult> {
+		return this.mcpHub.readResource(request.serverName, request.uri, request.context?.signal)
 	}
 }
 

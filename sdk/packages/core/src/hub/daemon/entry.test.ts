@@ -10,8 +10,6 @@ const {
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockReconnectDaemonConnectors,
-	mockArmHubDaemonShutdownWatchdog,
-	mockHubServerClose,
 	mockStartHubWebSocketServer,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
@@ -37,11 +35,24 @@ const {
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
 	mockReconnectDaemonConnectors: vi.fn(async () => []),
-	mockArmHubDaemonShutdownWatchdog: vi.fn(),
-	mockHubServerClose: vi.fn(async () => undefined),
-	mockStartHubWebSocketServer: vi.fn(async (_options?: unknown) => ({
-		close: mockHubServerClose,
-	})),
+	mockStartHubWebSocketServer: vi.fn(
+		async (
+			_options: unknown,
+		): Promise<{
+			beginClose: () => {
+				transportStopped: Promise<void>;
+				closed: Promise<void>;
+			};
+			close: () => Promise<void>;
+		}> => {
+			const transportStopped = Promise.resolve();
+			const closed = Promise.resolve();
+			return {
+				beginClose: vi.fn(() => ({ transportStopped, closed })),
+				close: vi.fn(() => closed),
+			};
+		},
+	),
 }));
 
 const {
@@ -100,13 +111,47 @@ vi.mock("./telemetry", () => ({
 	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
 }));
 
-vi.mock("./shutdown-watchdog", () => ({
-	armHubDaemonShutdownWatchdog: mockArmHubDaemonShutdownWatchdog,
-	HUB_DAEMON_SHUTDOWN_DEADLINE_MS: 2_000,
+const mockDescribeAddressInUse = vi.hoisted(() =>
+	vi.fn(async () => ({ port_owners: "4242\tcline", occupant_is_hub: false })),
+);
+
+vi.mock("./bind-diagnostics", () => ({
+	describeAddressInUse: mockDescribeAddressInUse,
+}));
+
+const { mockPluginPreload } = vi.hoisted(() => ({
+	mockPluginPreload: vi.fn(async () => []),
+}));
+
+vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
+	resolvePluginExecutionMode: () =>
+		process.env.CLINE_PLUGIN_MODE === "sandbox" ? "sandbox" : "worker",
+	resolveAgentPluginPathsWithDiagnostics: () => ({
+		paths: [],
+		disabledPaths: [],
+		discoveryFailures: [],
+	}),
+}));
+
+vi.mock("../../extensions/plugin/plugin-registry", () => ({
+	getProcessPluginRegistry: () => ({
+		preload: mockPluginPreload,
+	}),
 }));
 
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
+
+function createMockServerClose(
+	options: { transportStopped?: Promise<void>; closed?: Promise<void> } = {},
+) {
+	const transportStopped = options.transportStopped ?? Promise.resolve();
+	const closed = options.closed ?? Promise.resolve();
+	return {
+		beginClose: vi.fn(() => ({ transportStopped, closed })),
+		close: vi.fn(() => closed),
+	};
+}
 
 describe("hub daemon entry", () => {
 	const tempDirs: string[] = [];
@@ -122,11 +167,10 @@ describe("hub daemon entry", () => {
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockReconnectDaemonConnectors.mockClear();
-		mockArmHubDaemonShutdownWatchdog.mockClear();
-		mockHubServerClose.mockClear();
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
+		mockDaemonTelemetryService.capture.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -169,6 +213,24 @@ describe("hub daemon entry", () => {
 		expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
 	});
 
+	it("leaves account connectors untouched when connector management is disabled", async () => {
+		process.argv = ["node", "entry.js", "--no-connectors"];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const { ConnectorSupervisor, getActiveConnectorSupervisor } = await import(
+			"../../services/connectors/connector-supervisor"
+		);
+		const adopt = vi.spyOn(
+			ConnectorSupervisor.prototype,
+			"adoptRunningConnectors",
+		);
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		expect(mockStartHubWebSocketServer).toHaveBeenCalledOnce();
+		expect(adopt).not.toHaveBeenCalled();
+		expect(mockReconnectDaemonConnectors).not.toHaveBeenCalled();
+		expect(getActiveConnectorSupervisor()).toBeUndefined();
+	});
+
 	it("does not signal readiness before the WebSocket server is listening", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
@@ -180,7 +242,7 @@ describe("hub daemon entry", () => {
 			await new Promise<void>((resolve) => {
 				releaseServer = resolve;
 			});
-			return { close: vi.fn(async () => undefined) };
+			return createMockServerClose();
 		});
 
 		const { hubDaemonReady } = await import("./entry");
@@ -199,31 +261,65 @@ describe("hub daemon entry", () => {
 		});
 	});
 
-	it("exits the daemon when its HTTP shutdown route is accepted", async () => {
+	it("does not become ready or reconnect connectors after an early HTTP shutdown", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = ["node", "entry.js", "--cwd", cwd];
 		vi.spyOn(process, "on").mockImplementation(() => process);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 		const exitSpy = vi
 			.spyOn(process, "exit")
 			.mockImplementation(() => undefined as never);
+		const server = createMockServerClose();
+		mockStartHubWebSocketServer.mockImplementationOnce(async (options) => {
+			(options as { onShutdownRequested?: () => void }).onShutdownRequested?.();
+			return server;
+		});
 
 		const { hubDaemonReady } = await import("./entry");
-		await hubDaemonReady;
-		const serverOptions = mockStartHubWebSocketServer.mock.calls[0]?.[0] as
-			| { onShutdownRequested?: () => void }
-			| undefined;
-		expect(serverOptions?.onShutdownRequested).toBeTypeOf("function");
-
-		serverOptions?.onShutdownRequested?.();
+		await expect(hubDaemonReady).rejects.toThrow(
+			"shutdown was requested before readiness",
+		);
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(0);
 		});
-		expect(mockHubServerClose).toHaveBeenCalledOnce();
-		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
-		expect(mockArmHubDaemonShutdownWatchdog).toHaveBeenCalledWith(
-			expect.objectContaining({ deadlineMs: 2_000, exitCode: 0 }),
-		);
+
+		expect(server.beginClose).toHaveBeenCalledOnce();
+		expect(mockReconnectDaemonConnectors).not.toHaveBeenCalled();
+	});
+
+	it("forces exit when startup hangs after an early shutdown request", async () => {
+		vi.useFakeTimers();
+		try {
+			const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+			tempDirs.push(cwd);
+			process.argv = ["node", "entry.js", "--cwd", cwd];
+			const handlers = new Map<string, (value?: unknown) => void>();
+			vi.spyOn(process, "on").mockImplementation(((
+				event: string,
+				handler: (value?: unknown) => void,
+			) => {
+				handlers.set(event, handler);
+				return process;
+			}) as never);
+			vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			const exitSpy = vi
+				.spyOn(process, "exit")
+				.mockImplementation(() => undefined as never);
+			mockStartHubWebSocketServer.mockImplementationOnce(
+				async () => await new Promise<never>(() => undefined),
+			);
+
+			await import("./entry");
+			handlers.get("SIGTERM")?.();
+			handlers.get("uncaughtException")?.(new Error("fatal while starting"));
+			await vi.advanceTimersByTimeAsync(2_000);
+
+			expect(exitSpy).toHaveBeenCalledOnce();
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("ignores abort-family unhandled rejections instead of shutting down", async () => {
@@ -269,6 +365,201 @@ describe("hub daemon entry", () => {
 		});
 	});
 
+	it("does not preload plugins in sandbox mode", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation((() => process) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		mockPluginPreload.mockClear();
+		const previous = process.env.CLINE_PLUGIN_MODE;
+		process.env.CLINE_PLUGIN_MODE = "sandbox";
+		try {
+			const { hubDaemonReady } = await import("./entry");
+			await hubDaemonReady;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(mockPluginPreload).not.toHaveBeenCalled();
+		} finally {
+			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;
+			else process.env.CLINE_PLUGIN_MODE = previous;
+		}
+	});
+
+	it("preloads plugin status in worker mode", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation((() => process) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		mockPluginPreload.mockClear();
+		const previous = process.env.CLINE_PLUGIN_MODE;
+		delete process.env.CLINE_PLUGIN_MODE;
+		try {
+			const { hubDaemonReady } = await import("./entry");
+			await hubDaemonReady;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			// Preloads in throwaway workers, never in the hub.
+			expect(mockPluginPreload).toHaveBeenCalledWith(
+				expect.objectContaining({ pluginPaths: [] }),
+			);
+		} finally {
+			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;
+			else process.env.CLINE_PLUGIN_MODE = previous;
+		}
+	});
+
+	it("routes HTTP and signal shutdown through one cleanup", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		const handlers = new Map<string, (value?: unknown) => void>();
+		vi.spyOn(process, "on").mockImplementation(((
+			event: string,
+			handler: (value?: unknown) => void,
+		) => {
+			handlers.set(event, handler);
+			return process;
+		}) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		const server = createMockServerClose();
+		mockStartHubWebSocketServer.mockResolvedValueOnce(server);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		const startOptions = mockStartHubWebSocketServer.mock.calls[0]?.[0] as
+			| { onShutdownRequested?: () => void }
+			| undefined;
+		expect(startOptions?.onShutdownRequested).toBeTypeOf("function");
+
+		startOptions?.onShutdownRequested?.();
+		handlers.get("SIGTERM")?.();
+
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+		expect(server.beginClose).toHaveBeenCalledOnce();
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalledOnce();
+		expect(exitSpy).toHaveBeenCalledOnce();
+	});
+
+	it("lets a fatal error upgrade an in-progress graceful shutdown", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		const handlers = new Map<string, (value?: unknown) => void>();
+		vi.spyOn(process, "on").mockImplementation(((
+			event: string,
+			handler: (value?: unknown) => void,
+		) => {
+			handlers.set(event, handler);
+			return process;
+		}) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		let releaseClose!: () => void;
+		const closed = new Promise<void>((resolve) => {
+			releaseClose = resolve;
+		});
+		const server = createMockServerClose({ closed });
+		mockStartHubWebSocketServer.mockResolvedValueOnce(server);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		const startOptions = mockStartHubWebSocketServer.mock.calls[0]?.[0] as
+			| { onShutdownRequested?: () => void }
+			| undefined;
+		startOptions?.onShutdownRequested?.();
+		handlers.get("uncaughtException")?.(new Error("fatal during shutdown"));
+		await vi.waitFor(() => {
+			expect(server.beginClose).toHaveBeenCalledOnce();
+		});
+		releaseClose();
+
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+		expect(server.beginClose).toHaveBeenCalledOnce();
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalledOnce();
+		expect(exitSpy).toHaveBeenCalledOnce();
+	});
+
+	it("keeps telemetry active until runtime teardown settles", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		let releaseTransport!: () => void;
+		const transportStopped = new Promise<void>((resolve) => {
+			releaseTransport = resolve;
+		});
+		const server = createMockServerClose({
+			transportStopped,
+			closed: transportStopped,
+		});
+		mockStartHubWebSocketServer.mockResolvedValueOnce(server);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		const startOptions = mockStartHubWebSocketServer.mock.calls[0]?.[0] as
+			| { onShutdownRequested?: () => void }
+			| undefined;
+		startOptions?.onShutdownRequested?.();
+		await vi.waitFor(() => {
+			expect(server.beginClose).toHaveBeenCalledOnce();
+		});
+		expect(mockDaemonTelemetryDispose).not.toHaveBeenCalled();
+
+		releaseTransport();
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalledOnce();
+	});
+
+	it("forces process exit when daemon cleanup stalls", async () => {
+		vi.useFakeTimers();
+		try {
+			const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+			tempDirs.push(cwd);
+			process.argv = ["node", "entry.js", "--cwd", cwd];
+			vi.spyOn(process, "on").mockImplementation(() => process);
+			vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			const exitSpy = vi
+				.spyOn(process, "exit")
+				.mockImplementation(() => undefined as never);
+			const server = createMockServerClose({
+				closed: new Promise<void>(() => undefined),
+			});
+			mockStartHubWebSocketServer.mockResolvedValueOnce(server);
+
+			const { hubDaemonReady } = await import("./entry");
+			await hubDaemonReady;
+			const startOptions = mockStartHubWebSocketServer.mock.calls[0]?.[0] as
+				| { onShutdownRequested?: () => void }
+				| undefined;
+			startOptions?.onShutdownRequested?.();
+
+			await vi.advanceTimersByTimeAsync(1_999);
+			expect(exitSpy).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(1);
+			expect(exitSpy).toHaveBeenCalledOnce();
+			expect(exitSpy).toHaveBeenCalledWith(0);
+			expect(server.beginClose).toHaveBeenCalledOnce();
+			expect(mockDaemonTelemetryDispose).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("disposes telemetry and exits when server startup fails", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
@@ -286,6 +577,58 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
-		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "hub",
+				operation: "hub.daemon.startup",
+				severity: "fatal",
+				error_message: "port already in use",
+			}),
+		});
+		expect(
+			mockDaemonTelemetryService.capture.mock.invocationCallOrder[0],
+		).toBeLessThan(mockDaemonTelemetryDispose.mock.invocationCallOrder[0]);
+		expect(mockDescribeAddressInUse).not.toHaveBeenCalled();
 	});
+
+	it("attaches port-owner diagnostics when the bind fails with EADDRINUSE", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const stderrSpy = vi
+			.spyOn(process.stderr, "write")
+			.mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+		mockStartHubWebSocketServer.mockRejectedValue(
+			Object.assign(new Error("listen EADDRINUSE"), { code: "EADDRINUSE" }),
+		);
+
+		await import("./entry");
+		await vi.waitFor(
+			() => {
+				expect(exitSpy).toHaveBeenCalledWith(1);
+			},
+			{ timeout: 10_000 },
+		);
+		expect(mockDescribeAddressInUse).toHaveBeenCalledWith(
+			expect.objectContaining({ code: "EADDRINUSE" }),
+			{ host: "127.0.0.1", port: 25463, pathname: "/hub" },
+		);
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				operation: "hub.daemon.startup",
+				error_code: "EADDRINUSE",
+				port_owners: "4242\tcline",
+				occupant_is_hub: false,
+			}),
+		});
+		expect(stderrSpy).toHaveBeenCalledWith(
+			expect.stringContaining("[hub-daemon] port 25463 is in use: "),
+		);
+	}, 15_000);
 });

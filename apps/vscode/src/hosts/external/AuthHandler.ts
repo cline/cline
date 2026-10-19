@@ -233,7 +233,7 @@ function createAuthSucceededHtml(redirectUri?: string): string {
     <title>Cline - Authentication Success</title>
 	${redirect}
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Azeret:wght@300;400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
         
         * {
             margin: 0;
@@ -242,7 +242,7 @@ function createAuthSucceededHtml(redirectUri?: string): string {
         }
         
         body {
-            font-family: 'Azeret', sans-serif;
+            font-family: 'Inter', sans-serif;
             background-color: #ffffff;
             color: #333333;
             height: 100vh;

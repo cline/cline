@@ -157,7 +157,7 @@ export interface StartSessionInput {
 	prompt?: string;
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
-	initialMessages?: LlmsProviders.Message[];
+	initialMessages?: LlmsProviders.MessageWithMetadata[];
 	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
@@ -169,6 +169,12 @@ export interface StartSessionInput {
 	localRuntime?: LocalRuntimeStartOptions;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
+	/**
+	 * Which plugins this session uses, shaped like `toolPolicies`:
+	 * `{ "*": { enabled: true }, "my-plugin": { enabled: false } }`. Plugins
+	 * are enabled by default. Plugin tools still go through `toolPolicies`.
+	 */
+	plugins?: import("@cline/shared").PluginPolicies;
 }
 
 /** Session input after the execution host has resolved a concrete workspace. */
@@ -245,6 +251,11 @@ export interface StartSessionResult {
 	manifestPath: string;
 	messagesPath: string;
 	result?: AgentResult;
+	/**
+	 * Plugins the session asked for but does not have because they failed or
+	 * are disabled. Clients should show these to the user.
+	 */
+	pluginIssues?: import("@cline/shared").SessionPluginIssue[];
 }
 
 export interface SendSessionInput {
@@ -296,6 +307,10 @@ export interface PendingPromptsDeleteInput {
 }
 
 export interface PendingPromptsServiceApi {
+	/** Select and steer the current queue head atomically in the runtime. */
+	steerFirst(
+		input: PendingPromptsListInput,
+	): Promise<PendingPromptMutationResult>;
 	list(input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>;
 	update(
 		input: PendingPromptsUpdateInput,
@@ -328,6 +343,10 @@ export interface SessionConnectionRuntimeService {
 	): Promise<void>;
 }
 
+export interface CommandExecutionRuntimeService {
+	proceedWhileRunning(sessionId: string, toolCallId?: string): Promise<number>;
+}
+
 export interface RuntimeHostSubscribeOptions {
 	sessionId?: string;
 }
@@ -347,8 +366,13 @@ export interface RestoreSessionInput {
 export interface RestoreSessionResult {
 	sessionId?: string;
 	startResult?: StartSessionResult;
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
+}
+
+export interface ListSessionsOptions {
+	/** Only root sessions: excludes subagent and team-task child rows. */
+	rootOnly?: boolean;
 }
 
 /**
@@ -365,7 +389,10 @@ export interface RuntimeHost {
 	stopSession(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
 	getSession(sessionId: string): Promise<SessionRecord | undefined>;
-	listSessions(limit?: number): Promise<SessionRecord[]>;
+	listSessions(
+		limit?: number,
+		options?: ListSessionsOptions,
+	): Promise<SessionRecord[]>;
 	deleteSession(sessionId: string): Promise<boolean>;
 	updateSession(
 		sessionId: string,
@@ -382,7 +409,9 @@ export interface RuntimeHost {
 	readSessionCompactionState(
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined>;
-	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readSessionMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]>;
 	/**
 	 * Like {@link readSessionMessages}, but prefers the resident session's
 	 * in-memory conversation over the persisted transcript. Disk persistence
@@ -392,12 +421,20 @@ export interface RuntimeHost {
 	 * session for a mode switch. Optional: hosts without live-session access
 	 * (e.g. hub clients) fall back to the persisted transcript.
 	 */
-	readLiveSessionMessages?(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readLiveSessionMessages?(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,
 		options?: RuntimeHostSubscribeOptions,
 	): () => void;
+	/**
+	 * Whether this host currently holds a live-event subscription for the
+	 * session. Optional: only hosts that subscribe to sessions individually
+	 * (e.g. hub clients) have anything to report.
+	 */
+	hasSessionSubscription?(sessionId: string): boolean;
 }
 
 export type RuntimeHostMode = "auto" | "local" | "hub" | "remote";

@@ -80,6 +80,49 @@ function createTelemetryService(provider: FakeProvider, overrides: Partial<Telem
 	} as TelemetryMetadata)
 }
 
+describe("TelemetryService provider removal", () => {
+	it("detaches all matching providers immediately and awaits disposal despite failures", async () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+		const failing = new FakeProvider()
+		let failingDisposed = false
+		failing.dispose = async () => {
+			failingDisposed = true
+			throw new Error("shutdown failed")
+		}
+		service.addProvider(failing)
+		const retained = new FakeProvider()
+		Object.defineProperty(retained, "name", { value: "retained" })
+		service.addProvider(retained)
+		let release!: () => void
+		let disposalCount = 0
+		provider.dispose = () => {
+			disposalCount++
+			return new Promise<void>((resolve) => {
+				release = resolve
+			})
+		}
+
+		let finished = false
+		const removal = service.removeProvider(provider.name).then(() => {
+			finished = true
+		})
+		const previousLogCount = provider.logs.length
+		service.captureButtonClick("test", "task")
+		assert.strictEqual(provider.logs.length, previousLogCount)
+		assert.strictEqual(failing.logs.length, 0)
+		assert.strictEqual(retained.logs.length, 1)
+		await Promise.resolve()
+		assert.strictEqual(finished, false)
+		assert.strictEqual(failingDisposed, true)
+		release()
+		await removal
+		await service.removeProvider(provider.name)
+		await service.dispose()
+		assert.strictEqual(disposalCount, 1)
+	})
+})
+
 describe("TelemetryService metrics", () => {
 	it("includes rollout metadata on traditional events and metrics", () => {
 		const provider = new FakeProvider()
@@ -124,6 +167,49 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(events[0].properties?.error_type, "TypeError")
 		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
 		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
+	})
+
+	it("captures bounded, content-free remote-config rollout signals", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, { extension_variant: "next" })
+
+		service.captureRemoteConfigRefresh({
+			outcome: "applied",
+			durationMs: 12.6,
+			managed: true,
+			configVersion: "v".repeat(120),
+		})
+		service.captureRemoteConfigSessionGate({ outcome: "last_known_good", durationMs: 4.2, managed: true })
+
+		const refresh = provider.logs.find((entry) => entry.event === "remote_config.refresh")
+		assert.strictEqual(refresh?.properties?.outcome, "applied")
+		assert.strictEqual(refresh?.properties?.duration_ms, 13)
+		assert.strictEqual((refresh?.properties?.config_version as string).length, 100)
+		assert.strictEqual(refresh?.properties?.extension_variant, "next")
+		assert.strictEqual(refresh?.properties?.organization_id, undefined)
+		const gate = provider.logs.find((entry) => entry.event === "remote_config.session_gate")
+		assert.strictEqual(gate?.properties?.outcome, "last_known_good")
+		assert.strictEqual(gate?.properties?.duration_ms, 4)
+		assert.strictEqual(gate?.properties?.extension_variant, "next")
+	})
+
+	it("drops unmanaged happy-path remote-config events but keeps failures", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+		const remoteConfigEvents = () => provider.logs.filter((entry) => entry.event.startsWith("remote_config."))
+
+		// Unmanaged happy path: the overwhelming majority of installs, no signal.
+		service.captureRemoteConfigRefresh({ outcome: "applied", durationMs: 1, managed: false })
+		service.captureRemoteConfigRefresh({ outcome: "cleared", durationMs: 1, managed: false })
+		service.captureRemoteConfigSessionGate({ outcome: "unmanaged", durationMs: 1, managed: false })
+		service.captureRemoteConfigSessionGate({ outcome: "refreshed", durationMs: 1, managed: false })
+		assert.strictEqual(remoteConfigEvents().length, 0)
+
+		// Failures and managed-org events are the signal and must still be sent.
+		service.captureRemoteConfigRefresh({ outcome: "failed", durationMs: 1, managed: false })
+		service.captureRemoteConfigRefresh({ outcome: "cleared", durationMs: 1, managed: true })
+		service.captureRemoteConfigSessionGate({ outcome: "blocked", durationMs: 1, managed: true })
+		assert.strictEqual(remoteConfigEvents().length, 3)
 	})
 
 	it("does not capture rollout activation events for ordinary builds", () => {
@@ -184,6 +270,34 @@ describe("TelemetryService metrics", () => {
 		assert.ok(backlogEvent)
 		assert.strictEqual(backlogEvent?.properties?.outcome, "backlog")
 		assert.strictEqual(backlogEvent?.properties?.pendingLegacyTaskCount, 4)
+	})
+
+	it("captureLegacyTaskMigrationBacklog emits the backlog event only on state transitions", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+		const backlogEvents = () => provider.logs.filter((entry) => entry.properties?.outcome === "backlog")
+
+		// No legacy history at all: gauges only, no event.
+		service.captureLegacyTaskMigrationBacklog({
+			pendingLegacyTaskCount: 0,
+			migratedSdkTaskCount: 0,
+			visibleSdkTaskCount: 5,
+			visibleTaskCount: 5,
+		})
+		assert.strictEqual(backlogEvents().length, 0)
+		assert.ok(provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT))
+
+		// Unchanged backlog (including unrelated new-task churn): reported once.
+		const snapshot = { pendingLegacyTaskCount: 4, migratedSdkTaskCount: 7, visibleSdkTaskCount: 9, visibleTaskCount: 13 }
+		service.captureLegacyTaskMigrationBacklog(snapshot)
+		service.captureLegacyTaskMigrationBacklog(snapshot)
+		service.captureLegacyTaskMigrationBacklog({ ...snapshot, visibleSdkTaskCount: 10, visibleTaskCount: 14 })
+		assert.strictEqual(backlogEvents().length, 1)
+
+		// A migrated legacy task is a transition and is reported.
+		service.captureLegacyTaskMigrationBacklog({ ...snapshot, pendingLegacyTaskCount: 3, migratedSdkTaskCount: 8 })
+		assert.strictEqual(backlogEvents().length, 2)
+		assert.strictEqual(backlogEvents()[1].properties?.pendingLegacyTaskCount, 3)
 	})
 
 	it("captureLegacyTaskMigration emits event and migration metrics", () => {

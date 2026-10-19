@@ -1,7 +1,7 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 type HelpRow =
 	| { kind: "heading"; id: string; text: string }
@@ -255,6 +255,7 @@ const KEY_WIDTH = 20;
 
 export function HelpDialogContent(props: ChoiceContext<void>) {
 	const { dismiss, dialogId } = props;
+	const palette = useDialogPalette();
 
 	useDialogKeyboard((key) => {
 		if (

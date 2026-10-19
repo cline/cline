@@ -127,6 +127,43 @@ describe("InMemoryMcpManager", () => {
 		expect(client.disconnect).toHaveBeenCalledTimes(2);
 	});
 
+	it("disconnects the remaining servers when one fails during dispose", async () => {
+		const wedgedClient = createClient({
+			disconnect: vi.fn(async () => {
+				throw new Error("process did not exit");
+			}),
+		});
+		const healthyClient = createClient();
+		const clients = new Map([
+			["wedged", wedgedClient],
+			["healthy", healthyClient],
+		]);
+		const manager = new InMemoryMcpManager({
+			clientFactory: async (registration) => {
+				const client = clients.get(registration.name);
+				if (!client) {
+					throw new Error(`Unexpected server: ${registration.name}`);
+				}
+				return client;
+			},
+		});
+		// "wedged" is registered first, so dispose reaches it before "healthy".
+		await manager.registerServer({
+			name: "wedged",
+			transport: { type: "stdio", command: "node" },
+		});
+		await manager.registerServer({
+			name: "healthy",
+			transport: { type: "stdio", command: "node" },
+		});
+		await manager.connectServer("wedged");
+		await manager.connectServer("healthy");
+
+		await expect(manager.dispose()).rejects.toThrow(AggregateError);
+		expect(wedgedClient.disconnect).toHaveBeenCalledTimes(1);
+		expect(healthyClient.disconnect).toHaveBeenCalledTimes(1);
+	});
+
 	it("replaces the client when its timeout snapshot changes", async () => {
 		const firstClient = createClient();
 		const secondClient = createClient();
@@ -173,5 +210,96 @@ describe("InMemoryMcpManager", () => {
 		expect(client.disconnect).not.toHaveBeenCalled();
 		await manager.connectServer(registration.name);
 		expect(clientFactory).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps tool _meta in the cache and reads resources through the client", async () => {
+		const client = createClient({
+			listTools: vi.fn(async () => [
+				{
+					name: "show_weather",
+					inputSchema: { type: "object" },
+					_meta: { ui: { resourceUri: "ui://weather/view.html" } },
+				},
+			]),
+			readResource: vi.fn(async () => ({
+				contents: [{ uri: "ui://weather/view.html", text: "<html></html>" }],
+			})),
+		});
+		const manager = new InMemoryMcpManager({
+			clientFactory: vi.fn(async () => client),
+		});
+		await manager.registerServer({
+			name: "weather",
+			transport: { type: "streamableHttp", url: "https://mcp.example.test" },
+		});
+
+		const tools = await manager.listTools("weather");
+		expect(tools[0]._meta).toEqual({
+			ui: { resourceUri: "ui://weather/view.html" },
+		});
+		expect(
+			await manager.readResource({
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			}),
+		).toEqual({
+			contents: [{ uri: "ui://weather/view.html", text: "<html></html>" }],
+		});
+		expect(client.readResource).toHaveBeenCalledWith({
+			uri: "ui://weather/view.html",
+			context: undefined,
+		});
+	});
+
+	it("rejects resource reads when the client cannot read resources", async () => {
+		const manager = new InMemoryMcpManager({
+			clientFactory: vi.fn(async () => createClient()),
+		});
+		await manager.registerServer({
+			name: "weather",
+			transport: { type: "streamableHttp", url: "https://mcp.example.test" },
+		});
+
+		await expect(
+			manager.readResource({
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			}),
+		).rejects.toThrow("does not support reading resources");
+	});
+
+	it("reads resources while a tool call on the same server is in flight", async () => {
+		let finishCall: (() => void) | undefined;
+		const client = createClient({
+			callTool: vi.fn(
+				() =>
+					new Promise((resolve) => {
+						finishCall = () => resolve({ ok: true });
+					}),
+			),
+			readResource: vi.fn(async () => ({ contents: [] })),
+		});
+		const manager = new InMemoryMcpManager({
+			clientFactory: vi.fn(async () => client),
+		});
+		await manager.registerServer({
+			name: "weather",
+			transport: { type: "streamableHttp", url: "https://mcp.example.test" },
+		});
+
+		const call = manager.callTool({
+			serverName: "weather",
+			toolName: "show_weather",
+		});
+		await vi.waitFor(() => expect(client.callTool).toHaveBeenCalled());
+
+		await expect(
+			manager.readResource({
+				serverName: "weather",
+				uri: "ui://weather/view.html",
+			}),
+		).resolves.toEqual({ contents: [] });
+		finishCall?.();
+		await call;
 	});
 });

@@ -11,6 +11,49 @@ type StreamHandlers = {
 };
 
 describe("createConnectorRuntimeTurnStream", () => {
+	it("forwards generated media without adding binary data to the text stream", async () => {
+		let handlers: StreamHandlers | undefined;
+		const media = {
+			id: "generated-1",
+			modality: "image" as const,
+			mediaType: "image/png",
+			source: { type: "base64" as const, data: "aGVsbG8=" },
+		};
+		const client = {
+			streamEvents: (_request: unknown, callbacks: StreamHandlers) => {
+				handlers = callbacks;
+				return () => {};
+			},
+			sendRuntimeSession: async () => {
+				handlers?.onEvent({
+					eventType: "runtime.chat.media",
+					payload: { media },
+				});
+				return { result: { text: "", finishReason: "stop", iterations: 1 } };
+			},
+		};
+		const receivedMedia: unknown[] = [];
+		const chunks: string[] = [];
+
+		for await (const chunk of createConnectorRuntimeTurnStream({
+			client: client as never,
+			sessionId: "session-1",
+			request: { config: {} as never, prompt: "make an image" },
+			clientId: "client-1",
+			logger: { core: {} } as unknown as CliLoggerAdapter,
+			transport: "slack",
+			conversationId: "thread-1",
+			onMedia: (item) => {
+				receivedMedia.push(item);
+			},
+		})) {
+			chunks.push(chunk);
+		}
+
+		expect(chunks).toEqual([]);
+		expect(receivedMedia).toEqual([media]);
+	});
+
 	it("delivers tool status via callbacks instead of appending it to streamed text", async () => {
 		let handlers: StreamHandlers | undefined;
 

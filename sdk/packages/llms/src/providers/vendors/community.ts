@@ -1,17 +1,57 @@
-import { accessSync, constants as fsConstants } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { EventEmitter } from "node:events";
+import { accessSync, existsSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
-// Keep this import static so the VS Code extension bundle includes the SAP
-// provider. Hiding it behind a computed dynamic import leaves the published
-// extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
-// runtime, but VSIX packaging uses the bundled extension output.
-import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
 type SapModel = Record<PropertyKey, unknown>;
+type ProcessListener = (...args: unknown[]) => void;
+
+const sapImportScope = new AsyncLocalStorage<Set<ProcessListener>>();
+
+// Loading the SAP provider loads @sap-cloud-sdk/util, which builds a winston
+// logger with `exceptionHandlers`. winston then installs a process-wide
+// "uncaughtException" listener that calls process.exit(1) three seconds after
+// ANY uncaught exception in the host -- including ones the host's own handler
+// caught and chose to survive. The SDK's disableExceptionLogger() cannot undo
+// it: @jerome-benoit/sap-ai-provider bundles a second, private copy of util.
+//
+// So remove exactly the listeners registered while evaluating the SAP modules,
+// attributed by async context: a host listener registered concurrently comes
+// from another context and is never touched. Only the import is wrapped --
+// construction and requests register nothing. Where async context does not
+// reach module evaluation (Bun), nothing is attributed and the handlers stay;
+// the Bun-run CLI and hub daemon treat uncaught exceptions as fatal anyway.
+//
+// The specifier is a literal so bundlers still include the package (a
+// computed one left the VSIX loading it from node_modules at runtime).
+async function importSapAiProvider(): Promise<
+	typeof import("@jerome-benoit/sap-ai-provider")
+> {
+	const emitter = process as unknown as EventEmitter;
+	const owned = new Set<ProcessListener>();
+	const record = (event: string | symbol, listener: ProcessListener) => {
+		if (event === "uncaughtException" && sapImportScope.getStore() === owned) {
+			owned.add(listener);
+		}
+	};
+	emitter.on("newListener", record);
+	try {
+		return await sapImportScope.run(
+			owned,
+			() => import("@jerome-benoit/sap-ai-provider"),
+		);
+	} finally {
+		emitter.removeListener("newListener", record);
+		for (const listener of owned) {
+			emitter.removeListener("uncaughtException", listener);
+		}
+	}
+}
 const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
 	"doGenerate",
 	"doStream",
@@ -97,21 +137,46 @@ export async function createClaudeCodeProviderModule(
 			{ cause: error },
 		);
 	}
-	const options = readOptions(config);
-	const defaultSettings =
-		(options.defaultSettings as Record<string, unknown> | undefined) ?? {};
+	const { cwd: workspaceCwd, ...options } = readOptions(config);
+	const defaultSettings: Record<string, unknown> = {
+		...((options.defaultSettings as Record<string, unknown> | undefined) ?? {}),
+	};
 	if (defaultSettings.pathToClaudeCodeExecutable === undefined) {
 		const executable = resolveClaudeExecutable();
 		if (executable !== undefined) {
-			options.defaultSettings = {
-				...defaultSettings,
-				pathToClaudeCodeExecutable: executable,
-			};
+			defaultSettings.pathToClaudeCodeExecutable = executable;
 		}
 	}
-	const provider = createClaudeCode(options);
+	// Hosts forward the workspace root as a top-level `cwd` option (e.g.
+	// @cline/core's buildGatewayProviderOptions). Anchor the spawned agent
+	// session there; otherwise it inherits the host process cwd (`/` in GUI
+	// extension hosts) and refuses writes outside it. Guard on existence:
+	// the provider hard-fails settings validation for missing directories.
+	if (
+		defaultSettings.cwd === undefined &&
+		typeof workspaceCwd === "string" &&
+		workspaceCwd.length > 0 &&
+		existsSync(workspaceCwd)
+	) {
+		defaultSettings.cwd = workspaceCwd;
+	}
+	// The provider defaults settingSources to [] — the session would read
+	// neither ~/.claude/settings.json nor project .claude/settings.json, so
+	// user-configured permission rules silently never apply.
+	if (defaultSettings.settingSources === undefined) {
+		defaultSettings.settingSources = ["user", "project"];
+	}
+	// Cline has no interactive permission prompt wired into the CLI session
+	// (no canUseTool), so anything not pre-approved is denied outright. In
+	// default mode that means every file write fails. acceptEdits
+	// auto-approves file edits under cwd while leaving command execution
+	// gated by the user's own Claude settings (loaded via settingSources).
+	if (defaultSettings.permissionMode === undefined) {
+		defaultSettings.permissionMode = "acceptEdits";
+	}
+	const provider = createClaudeCode({ ...options, defaultSettings });
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -134,7 +199,7 @@ export async function createOpenAICodexProviderModule(
 	}
 	const provider = createCodexExec(readOptions(config));
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -183,7 +248,7 @@ export async function createOpenCodeProviderModule(
 		return createOpencode(readOptions(config));
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -198,10 +263,12 @@ export async function createDifyProviderModule(
 		...readOptions(config),
 	});
 	return {
-		model: (modelId) =>
-			provider(modelId, {
-				apiKey,
-			}),
+		operations: {
+			language: (modelId) =>
+				provider(modelId, {
+					apiKey,
+				}),
+		},
 	};
 }
 
@@ -298,8 +365,6 @@ async function withSapServiceKey<T>(
 	process.env.AICORE_SERVICE_KEY = serviceKey;
 	try {
 		return await fn();
-	} catch (error) {
-		throw error;
 	} finally {
 		restoreSapServiceKey(previous);
 		releaseQueue();
@@ -347,6 +412,7 @@ export async function createSapAiCoreProviderModule(
 	const serviceKey = buildSapServiceKey(config, options);
 
 	const deploymentId = readStringOption(options, "deploymentId");
+	const { createSAPAIProvider } = await importSapAiProvider();
 	const provider = createSAPAIProvider({
 		name: config.providerId,
 		...(deploymentId
@@ -368,7 +434,9 @@ export async function createSapAiCoreProviderModule(
 		},
 	});
 	return {
-		model: (modelId) =>
-			wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		operations: {
+			language: (modelId) =>
+				wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		},
 	};
 }

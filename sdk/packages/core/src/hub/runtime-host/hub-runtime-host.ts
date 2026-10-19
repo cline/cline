@@ -10,6 +10,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	ITelemetryService,
 	JsonValue,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -22,6 +23,7 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
@@ -29,6 +31,7 @@ import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
+	ListSessionsOptions,
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
 	RestoreSessionInput,
@@ -194,10 +197,15 @@ function parseToolContext(value: unknown): AgentToolContext {
 			? (value as Record<string, unknown>)
 			: {};
 	return {
+		sessionId:
+			typeof payload.sessionId === "string" ? payload.sessionId : undefined,
 		agentId: typeof payload.agentId === "string" ? payload.agentId : "",
 		conversationId:
 			typeof payload.conversationId === "string" ? payload.conversationId : "",
+		runId: typeof payload.runId === "string" ? payload.runId : undefined,
 		iteration: typeof payload.iteration === "number" ? payload.iteration : 0,
+		toolCallId:
+			typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
 		metadata:
 			payload.metadata &&
 			typeof payload.metadata === "object" &&
@@ -250,11 +258,14 @@ function buildClientContributionRegistration(
 				executor,
 				capabilityName: `${HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX}${executor}`,
 			},
-			async ({ payload, abortSignal }) => {
+			async ({ payload, abortSignal, progress }) => {
 				const args = Array.isArray(payload.args) ? [...payload.args] : [];
 				const context = {
 					...parseToolContext(payload.context),
 					signal: abortSignal,
+					emitUpdate: (update: unknown) => {
+						progress({ update });
+					},
 				};
 				return { result: await executorFn(...args, context) };
 			},
@@ -519,6 +530,7 @@ function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 			cacheReadTokens: usageMetric(delta, "cacheReadTokens"),
 			cacheWriteTokens: usageMetric(delta, "cacheWriteTokens"),
 			cost: finiteNumber(delta?.totalCost),
+			reasoningTokenCount: finiteNumber(delta?.reasoningTokenCount),
 			totalInputTokens: usageMetric(totals, "inputTokens"),
 			totalOutputTokens: usageMetric(totals, "outputTokens"),
 			totalCacheReadTokens: usageMetric(totals, "cacheReadTokens"),
@@ -576,6 +588,8 @@ function hubReplyErrorMessage(
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
+	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
+	resolveConnectionHeaders?: HubClientOptions["resolveConnectionHeaders"];
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
@@ -777,6 +791,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveConnectionHeaders: options.resolveConnectionHeaders,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
@@ -787,6 +802,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.telemetry = options.telemetry;
 		this.runtimeAddress = options.url;
 		this.pendingPrompts = {
+			steerFirst: (input) => this.requestSteerFirstPendingPrompt(input),
 			list: (input) => this.requestPendingPromptsList(input),
 			update: (input) => this.requestPendingPromptUpdate(input),
 			delete: (input) => this.requestPendingPromptDelete(input),
@@ -859,6 +875,12 @@ export class HubRuntimeHost implements RuntimeHost {
 			input.localRuntime,
 			capabilities,
 		);
+		const clientContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.client,
+		);
+		const userContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.user,
+		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
 		const sendCreateCommand = () =>
@@ -870,6 +892,8 @@ export class HubRuntimeHost implements RuntimeHost {
 				),
 				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
+					...(clientContext ? { clientContext } : {}),
+					...(userContext ? { userContext } : {}),
 					...(clientContributions.manifest.length > 0
 						? { clientContributions: clientContributions.manifest }
 						: {}),
@@ -880,6 +904,11 @@ export class HubRuntimeHost implements RuntimeHost {
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
+				...(input.plugins
+					? {
+							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
+						}
+					: {}),
 				initialMessages: input.initialMessages,
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
@@ -936,12 +965,16 @@ export class HubRuntimeHost implements RuntimeHost {
 			);
 		}
 
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as SessionPluginIssue[])
+			: undefined;
 		return {
 			sessionId,
 			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -969,6 +1002,12 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
+		const clientContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.client)
+			: undefined;
+		const userContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.user)
+			: undefined;
 		let plannedSessionId: string | undefined;
 		let startSessionConfig: Record<string, unknown> | undefined;
 		if (startConfig) {
@@ -1006,6 +1045,8 @@ export class HubRuntimeHost implements RuntimeHost {
 								sessionConfig: toJsonRecord(startSessionConfig),
 								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
+									...(clientContext ? { clientContext } : {}),
+									...(userContext ? { userContext } : {}),
 									...(clientContributions.manifest.length > 0
 										? { clientContributions: clientContributions.manifest }
 										: {}),
@@ -1021,6 +1062,13 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.plugins
+									? {
+											plugins: toJsonRecord(
+												startConfig.plugins as Record<string, unknown>,
+											),
+										}
+									: {}),
 								...(startConfig.initialCompactionState
 									? {
 											initialCompactionState:
@@ -1173,6 +1221,25 @@ export class HubRuntimeHost implements RuntimeHost {
 			: [];
 	}
 
+	private async requestSteerFirstPendingPrompt(
+		input: Parameters<PendingPromptsServiceApi["steerFirst"]>[0],
+	): Promise<PendingPromptMutationResult> {
+		this.ensureSessionSubscription(input.sessionId);
+		const reply = await this.client.command(
+			"session.steer_first_pending_prompt",
+			{ ...input },
+			input.sessionId,
+		);
+		return {
+			sessionId: input.sessionId,
+			prompts: Array.isArray(reply.payload?.prompts)
+				? (reply.payload.prompts as SessionPendingPrompt[])
+				: [],
+			prompt: reply.payload?.prompt as SessionPendingPrompt | undefined,
+			updated: reply.payload?.updated === true,
+		};
+	}
+
 	private async requestPendingPromptUpdate(
 		input: Parameters<PendingPromptsServiceApi["update"]>[0],
 	): Promise<PendingPromptMutationResult> {
@@ -1241,6 +1308,20 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 	}
 
+	async proceedWhileRunning(
+		sessionId: string,
+		toolCallId?: string,
+	): Promise<number> {
+		const reply = await this.client.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		return typeof reply.payload?.detachedCount === "number"
+			? reply.payload.detachedCount
+			: 0;
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
@@ -1279,8 +1360,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		return sessionRecordFromPayload(reply.payload);
 	}
 
-	async listSessions(limit = 100): Promise<SessionRecord[]> {
-		const reply = await this.client.command("session.list", { limit });
+	async listSessions(
+		limit = 100,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const reply = await this.client.command("session.list", {
+			limit,
+			...(options.rootOnly ? { rootOnly: true } : {}),
+		});
 		const snapshots = Array.isArray(reply.payload?.snapshots)
 			? reply.payload.snapshots.flatMap((value) => {
 					const snapshot = parseCoreSessionSnapshot(value);
@@ -1344,18 +1431,18 @@ export class HubRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const metadata: Record<string, unknown> = {
-			...(updates.metadata ?? {}),
-		};
-		if (typeof updates.prompt === "string") {
-			metadata.prompt = updates.prompt;
-		}
-		if (typeof updates.title === "string") {
-			metadata.title = updates.title;
-		}
+		// Forward prompt/title as their own fields: the persistence layer only
+		// treats an explicit `title` as a rename and otherwise keeps the stored
+		// one, so folding it into `metadata.title` would silently drop renames.
+		// A `null` metadata clear is sent as `{}` because the daemon decodes
+		// non-record payload values as "omitted".
 		const reply = await this.client.command("session.update", {
 			sessionId,
-			metadata,
+			...(updates.prompt !== undefined ? { prompt: updates.prompt } : {}),
+			...(updates.metadata !== undefined
+				? { metadata: updates.metadata ?? {} }
+				: {}),
+			...(updates.title !== undefined ? { title: updates.title } : {}),
 		});
 		return { updated: reply.ok };
 	}
@@ -1431,7 +1518,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").Message[]> {
+	): Promise<import("@cline/llms").MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1459,7 +1546,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").Message[])
+			? (messages as import("@cline/llms").MessageWithMetadata[])
 			: [];
 	}
 
@@ -1472,6 +1559,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		options?: RuntimeHostSubscribeOptions,
 	): () => void {
 		return this.events.subscribe(listener, options);
+	}
+
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.sessionSubscriptions.has(sessionId.trim());
 	}
 
 	private ensureSessionSubscription(sessionId: string): void {
@@ -1713,6 +1804,29 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.media": {
+				const media =
+					event.payload?.media &&
+					typeof event.payload.media === "object" &&
+					!Array.isArray(event.payload.media)
+						? (event.payload.media as Record<string, unknown>)
+						: undefined;
+				if (!isGeneratedMedia(media)) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "media",
+							media,
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
 				this.events.emit({
 					type: "agent_event",
@@ -1807,6 +1921,28 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "tool.updated": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_update",
+							contentType: "tool",
+							toolCallId:
+								typeof event.payload?.toolCallId === "string"
+									? event.payload.toolCallId
+									: undefined,
+							toolName:
+								typeof event.payload?.toolName === "string"
+									? event.payload.toolName
+									: undefined,
+							update: event.payload?.update,
+						},
+					},
+				});
+				return;
+			}
 			case "tool.finished": {
 				const toolCallId =
 					typeof event.payload?.toolCallId === "string"
@@ -1849,13 +1985,20 @@ export class HubRuntimeHost implements RuntimeHost {
 						payload: { sessionId, snapshot },
 					});
 				}
-				this.events.emit({
-					type: "status",
-					payload: {
-						sessionId,
-						status: session?.status ?? "running",
-					},
-				});
+				// Snapshot-only session.updated events (persistence updates)
+				// carry no session record and can trail a turn's final idle
+				// update. Defaulting them to "running" flipped clients back to
+				// busy after the turn had finished — for queue-drained turns
+				// nothing else owns the busy flag, so it stuck forever (e.g.
+				// the desktop's workspace-restore gate). Report the snapshot's
+				// real status, or nothing when neither source has one.
+				const status = session?.status ?? snapshot?.status;
+				if (status) {
+					this.events.emit({
+						type: "status",
+						payload: { sessionId, status },
+					});
+				}
 				return;
 			}
 			case "session.pending_prompts": {
