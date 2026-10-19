@@ -10,7 +10,6 @@
 		--cline-ui-shots-failure: var(--error-solid, #e5484d);
 		--cline-ui-shots-radius: 12px;
 		--cline-ui-shots-thumb-width: 76px;
-		--cline-ui-shots-stage-height: 340px;
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
@@ -29,7 +28,6 @@
 
 	.cline-ui-shots[data-compact] {
 		--cline-ui-shots-thumb-width: 52px;
-		--cline-ui-shots-stage-height: 200px;
 		padding: 8px;
 		gap: 8px;
 	}
@@ -113,7 +111,8 @@
 
 	.cline-ui-shots__stage {
 		position: relative;
-		height: var(--cline-ui-shots-stage-height);
+		aspect-ratio: 16 / 10;
+		max-height: 440px;
 		overflow: hidden;
 		border-radius: var(--cline-ui-shots-radius);
 		background: #0b0d12;

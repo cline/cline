@@ -738,7 +738,10 @@ function ChatMessagesImpl({
 									);
 								})}
 								{verification?.screenshots.length ? (
-									<MessageScrollerItem messageId="verification-screenshots">
+									<MessageScrollerItem
+										className="pt-6"
+										messageId="verification-screenshots"
+									>
 										<AgentScreenshotCarousel
 											onExpand={(screenshot) =>
 												setExpandedImage({ sessionId, src: screenshot.src })
