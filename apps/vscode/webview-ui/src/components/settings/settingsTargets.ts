@@ -3,6 +3,7 @@ export const featureSettingControlId = (featureId: string) => `${featureSettingE
 
 export const SETTINGS_NAVIGATION_TARGETS = {
 	"api-config": { tabId: "api-config" },
+	"local-models": { tabId: "local-models" },
 	features: { tabId: "features" },
 	checkpoints: {
 		tabId: "features",
