@@ -81,6 +81,54 @@ describe("official plugin install detection", () => {
 		});
 	});
 
+	it("installs plugins on the remote environment's Hub", async () => {
+		// A local copy must not make the remote install a no-op.
+		await mkdir(join(goalInstallDir(), "package"), { recursive: true });
+		await writeFile(
+			join(goalInstallDir(), "package.json"),
+			JSON.stringify({
+				name: "goal",
+				private: true,
+				cline: { plugins: [{ paths: ["./package/index.ts"] }] },
+			}),
+		);
+		await writeFile(
+			join(goalInstallDir(), "package", "index.ts"),
+			"export default {};",
+		);
+		const command = vi.fn(async () => ({
+			version: "v1" as const,
+			ok: true,
+			payload: {
+				result: {
+					source: "goal",
+					installPath: "/home/remote/.cline/plugins/_installed/official/goal",
+					entryPaths: [],
+					mcpSyncFailures: [],
+					mcpOAuthCandidates: [],
+				},
+			},
+		}));
+
+		const result = await installMarketplaceEntry(
+			{ entry: GOAL_ENTRY },
+			{ pluginHub: { command } },
+		);
+
+		expect(result).toMatchObject({
+			status: "installed",
+			message: "Installed Goal on the remote host.",
+			output: "Path: /home/remote/.cline/plugins/_installed/official/goal",
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.install",
+			{ source: "goal", force: true },
+			undefined,
+			{ timeoutMs: 300_000 },
+		);
+		expect(installPluginMock).not.toHaveBeenCalled();
+	});
+
 	it("does not treat a leftover empty install directory as installed", async () => {
 		// Regression: a failed or interrupted install can leave the directory
 		// behind with nothing in it. The next install attempt then returned

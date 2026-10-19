@@ -30,6 +30,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import { installPlugin } from "../../services/plugin-install";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
@@ -928,6 +929,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return okReply(envelope, { plugins: this.plugins.list() });
 			case "plugins.reload":
 				return await this.handlePluginsReload(envelope);
+			case "plugins.install":
+				return await this.handlePluginsInstall(envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
 			case "run.proceed_while_running":
@@ -1131,6 +1134,36 @@ export class HubServerTransport implements NativeHubTransport {
 			);
 		}
 		return okReply(envelope, { plugins });
+	}
+
+	/** Installs into this Hub host's plugin directory, which may be a remote machine. */
+	private async handlePluginsInstall(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const source =
+			typeof envelope.payload?.source === "string"
+				? envelope.payload.source.trim()
+				: "";
+		if (!source) {
+			return errorReply(
+				envelope,
+				"invalid_plugin_source",
+				"plugins.install requires a source",
+			);
+		}
+		try {
+			const result = await installPlugin({
+				source,
+				force: envelope.payload?.force === true,
+			});
+			return okReply(envelope, { result });
+		} catch (error) {
+			return errorReply(
+				envelope,
+				"plugin_install_failed",
+				error instanceof Error ? error.message : String(error),
+			);
+		}
 	}
 
 	private handleHubStatus(envelope: HubCommandEnvelope): HubReplyEnvelope {

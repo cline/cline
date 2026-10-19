@@ -22,6 +22,8 @@ import {
 	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
+	type NodeHubClient,
+	type PluginInstallResult,
 	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
@@ -86,6 +88,10 @@ type CatalogFetch = (
 	init?: RequestInit,
 ) => Promise<Response>;
 type CatalogLoader = () => Promise<unknown>;
+/** The Hub of a remote environment; plugins install on that host. */
+type PluginInstallHub = Pick<NodeHubClient, "command">;
+// Matches the marketplace view's request timeout.
+const PLUGIN_INSTALL_TIMEOUT_MS = 300_000;
 
 const MAX_OUTPUT_CHARS = 12_000;
 const INSTALL_COMMAND_TIMEOUT_MS = 120_000;
@@ -819,6 +825,7 @@ async function installSkill(
 
 async function installPlugin(
 	entry: MarketplaceInstallInput,
+	pluginHub?: PluginInstallHub,
 ): Promise<MarketplaceInstallResult> {
 	const installArgs = entry.install.args ?? [];
 	if (installArgs.length !== 1) {
@@ -826,7 +833,11 @@ async function installPlugin(
 			"Plugin marketplace installs currently support exactly one source argument.",
 		);
 	}
-	const installState = getOfficialPluginInstallState(entry);
+	// The install-state check reads this machine's disk, so a remote install
+	// forces instead: it reclaims a partial install and refreshes a complete one.
+	const installState = pluginHub
+		? "missing"
+		: getOfficialPluginInstallState(entry);
 	if (installState === "installed") {
 		return {
 			id: entry.id,
@@ -845,10 +856,20 @@ async function installPlugin(
 	// and every retry from the UI would fail the same way. This is safe
 	// because the state check just confirmed the directory contains no
 	// loadable plugin module.
-	const result = await installCorePlugin({
-		source: installArgs[0] ?? "",
-		force: installState === "partial",
-	});
+	const source = installArgs[0] ?? "";
+	const result = pluginHub
+		? ((
+				await pluginHub.command(
+					"plugins.install",
+					{ source, force: true },
+					undefined,
+					{ timeoutMs: PLUGIN_INSTALL_TIMEOUT_MS },
+				)
+			).payload?.result as unknown as PluginInstallResult)
+		: await installCorePlugin({
+				source,
+				force: installState === "partial",
+			});
 	const warnings = result.mcpSyncFailures.map(
 		(failure) =>
 			`Failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
@@ -857,7 +878,9 @@ async function installPlugin(
 		id: entry.id,
 		type: entry.type,
 		status: "installed",
-		message: `Installed ${entry.name ?? entry.id}.`,
+		message: pluginHub
+			? `Installed ${entry.name ?? entry.id} on the remote host.`
+			: `Installed ${entry.name ?? entry.id}.`,
 		details: {
 			source: result.source,
 			installPath: result.installPath,
@@ -870,7 +893,7 @@ async function installPlugin(
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
+	options: { spawnCommand?: SpawnCommand; pluginHub?: PluginInstallHub } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
@@ -894,7 +917,7 @@ export async function installMarketplaceEntry(
 		return installSkill(entry, spawnCommand);
 	}
 	if (entry.type === "plugin") {
-		return installPlugin(entry);
+		return installPlugin(entry, options.pluginHub);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }
@@ -927,6 +950,7 @@ export async function installMarketplaceEntryFromCatalog(
 	options: {
 		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
+		pluginHub?: PluginInstallHub;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
 	const requested = readInstallRequest(args);
@@ -942,7 +966,7 @@ export async function installMarketplaceEntryFromCatalog(
 	}
 	return installMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand },
+		{ spawnCommand: options.spawnCommand, pluginHub: options.pluginHub },
 	);
 }
 
@@ -986,6 +1010,7 @@ export async function installMarketplaceEntryForDesktopCommand(
 	options: {
 		spawnCommand?: SpawnCommand;
 		loadCatalog?: CatalogLoader;
+		pluginHub?: PluginInstallHub;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
 	return installMarketplaceEntryFromCatalog(args, options);

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,7 @@ import type {
 	PluginStatusRecord,
 	SessionPluginIssue,
 } from "@cline/shared";
+import { resolveClineDir, setClineDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	PluginRegistry,
@@ -195,6 +197,41 @@ describe("Hub plugin status", () => {
 			expect(created[0]?.payload?.pluginIssues).toEqual([issue]);
 		} finally {
 			await transport.stop();
+		}
+	});
+
+	it("installs a plugin into this Hub host's plugin directory", async () => {
+		const previousClineDir = resolveClineDir();
+		setClineDir(join(root, ".cline"));
+		const transport = createTransport();
+		try {
+			const source = join(root, "remote-plugin.js");
+			await writeFile(source, "export default { name: 'remote-plugin' };");
+			const reply = await transport.handleCommand({
+				version: "v1",
+				clientId: "desktop",
+				command: "plugins.install",
+				payload: { source, force: true },
+			});
+			expect(reply.ok).toBe(true);
+			const installPath = (reply.payload?.result as { installPath: string })
+				.installPath;
+			expect(installPath.startsWith(join(root, ".cline", "plugins"))).toBe(
+				true,
+			);
+			expect(existsSync(join(installPath, "remote-plugin.js"))).toBe(true);
+
+			expect(
+				await transport.handleCommand({
+					version: "v1",
+					clientId: "desktop",
+					command: "plugins.install",
+					payload: { source: " " },
+				}),
+			).toMatchObject({ ok: false, error: { code: "invalid_plugin_source" } });
+		} finally {
+			await transport.stop();
+			setClineDir(previousClineDir);
 		}
 	});
 });

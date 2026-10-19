@@ -3566,8 +3566,10 @@ export async function handleCommand(
 		);
 	}
 	if (command === "install_marketplace_entry") {
-		const result = await installMarketplaceEntryForDesktopCommand(args);
-		return result;
+		const binding = ctx.runtimeBindings.get(ctx.activeEnvironmentId);
+		return await installMarketplaceEntryForDesktopCommand(args, {
+			pluginHub: binding?.kind === "ssh" ? binding.hubClient : undefined,
+		});
 	}
 	if (command === "uninstall_marketplace_entry") {
 		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
