@@ -119,7 +119,7 @@ const FINAL_ANSWER = `Added a **command palette** to Tidepool and verified it en
 - Fuzzy search with match highlighting, plus theme and clear-filter actions
 - 5 new tests, 26 passing
 
-I ran the app in the sandbox's browser and drove it with the keyboard and mouse across light, dark, and a 390px viewport. The screenshots are below, and the PR is [#128](https://github.com/acme/tidepool/pull/128).`;
+I ran the app in the sandbox's browser and drove it with the keyboard and mouse across light, dark, and a 390px viewport. The PR is [#128](https://github.com/acme/tidepool/pull/128).`;
 
 type Beat =
 	| { wait: number; status: ChatSessionStatus; label?: string }

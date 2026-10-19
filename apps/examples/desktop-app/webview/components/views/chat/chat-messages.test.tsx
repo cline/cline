@@ -53,7 +53,7 @@ async function renderMessages(
 }
 
 describe("ChatMessages verification screenshots", () => {
-	it("shows the agent's screenshots after the transcript and expands them", async () => {
+	it("shows the agent's screenshots above the run's answer and expands them", async () => {
 		await renderMessages(
 			[
 				{
@@ -84,6 +84,14 @@ describe("ChatMessages verification screenshots", () => {
 		);
 		expect(carousel?.textContent).toContain("Chrome in the cloud sandbox");
 		expect(carousel?.textContent).toContain("Palette opens");
+		const answer = [...container.querySelectorAll("p")].find(
+			(element) => element.textContent === "Verified in the browser.",
+		);
+		expect(
+			answer &&
+				carousel?.compareDocumentPosition(answer) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 		await act(async () => {
 			container
 				.querySelector<HTMLButtonElement>(

@@ -262,6 +262,23 @@ function ChatMessagesImpl({
 			lastRenderItem.type === "run" ||
 			(lastRenderItem.type === "message" &&
 				lastRenderItem.message.role === "assistant"));
+	// Screenshots open the run's answer, where they appeared while it ran.
+	const verificationIndex =
+		verification?.screenshots.length &&
+		lastRenderItem?.type === "message" &&
+		lastRenderItem.message.role === "assistant" &&
+		renderItems.length - 1 > lastUserItemIndex
+			? renderItems.length - 1
+			: renderItems.length;
+	const verificationCarousel = verification?.screenshots.length ? (
+		<AgentScreenshotCarousel
+			onExpand={(screenshot) =>
+				setExpandedImage({ sessionId, src: screenshot.src })
+			}
+			screenshots={verification.screenshots}
+			subtitle={verification.subtitle}
+		/>
+	) : null;
 	// Built once per pendingAskQuestions change instead of per render: the
 	// list re-renders on every stream flush and these rows carry JSX.
 	const askQuestionItems = useMemo(
@@ -662,10 +679,12 @@ function ChatMessagesImpl({
 									// An answer directly under its run's working rows belongs
 									// to them — pull it closer than the full transcript gap.
 									const previousItem = renderItems[itemIndex - 1];
+									const opensWithVerification = itemIndex === verificationIndex;
 									const followsWorkingRows =
 										message.role === "assistant" &&
 										previousItem !== undefined &&
-										previousItem.type !== "message";
+										previousItem.type !== "message" &&
+										!opensWithVerification;
 									return (
 										<MessageScrollerItem
 											key={message.id}
@@ -675,6 +694,9 @@ function ChatMessagesImpl({
 												!isSystemSteeringMessage(message)
 											}
 										>
+											{opensWithVerification ? (
+												<div className="mb-4">{verificationCarousel}</div>
+											) : null}
 											<MessageBubble
 												agentRole={agentRole}
 												followsWorkingRows={followsWorkingRows}
@@ -737,18 +759,10 @@ function ChatMessagesImpl({
 										</MessageScrollerItem>
 									);
 								})}
-								{verification?.screenshots.length ? (
-									<MessageScrollerItem
-										className="pt-6"
-										messageId="verification-screenshots"
-									>
-										<AgentScreenshotCarousel
-											onExpand={(screenshot) =>
-												setExpandedImage({ sessionId, src: screenshot.src })
-											}
-											screenshots={verification.screenshots}
-											subtitle={verification.subtitle}
-										/>
+								{verificationCarousel &&
+								verificationIndex === renderItems.length ? (
+									<MessageScrollerItem messageId="verification-screenshots">
+										{verificationCarousel}
 									</MessageScrollerItem>
 								) : null}
 								{/* Lives inside the transcript column and mirrors a
