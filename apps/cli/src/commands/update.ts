@@ -1,4 +1,3 @@
-import { hasActiveHubSessions } from "@cline/core/hub";
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import {
@@ -8,6 +7,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "@cline/core";
+import { hasActiveHubSessions } from "@cline/core/hub";
 import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { c, writeErr, writeln } from "../utils/output";

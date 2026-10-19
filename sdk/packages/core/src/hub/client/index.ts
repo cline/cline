@@ -46,6 +46,8 @@ type PendingReply = {
 };
 
 type HubCommandOptions = {
+	/** Whether transport recovery may resend a request after dispatch. */
+	retryAfterDispatch?: boolean;
 	timeoutMs?: number | null;
 	/** Synchronous local guard, checked after connection before each dispatch. */
 	beforeDispatch?: () => void;
@@ -54,9 +56,13 @@ type HubCommandOptions = {
 	onDispatch?: (requestId: string) => void;
 };
 
+// Bounded per listener so overlapping wire streams/replay cannot repeat a
+// callback, while newly added listeners can still receive their own replay.
+const MAX_RECENT_EVENT_IDS = 4096;
 type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
+	deliveredEventIds: Set<string>;
 };
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -702,7 +708,11 @@ export class NodeHubClient {
 		options?: { sessionId?: string },
 	): () => void {
 		const sessionId = options?.sessionId?.trim() || undefined;
-		const entry = { listener, sessionId };
+		const entry: SubscriptionEntry = {
+			listener,
+			sessionId,
+			deliveredEventIds: new Set(),
+		};
 		this.listeners.add(entry);
 		this.adjustSubscriptionCount(sessionId, 1);
 		return () => {
@@ -720,14 +730,28 @@ export class NodeHubClient {
 		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
+		let dispatched = false;
+		const dispatchOptions = {
+			...options,
+			onDispatch: (requestId: string) => {
+				dispatched = true;
+				options?.onDispatch?.(requestId);
+			},
+		};
 		const canRecoverTransport =
 			command !== "client.register" && command !== "client.unregister";
 		while (true) {
 			try {
-				return await this.commandOnce(command, payload, sessionId, options);
+				return await this.commandOnce(
+					command,
+					payload,
+					sessionId,
+					dispatchOptions,
+				);
 			} catch (error) {
 				if (
 					!canRecoverTransport ||
+					(dispatched && options?.retryAfterDispatch === false) ||
 					attempt >= 1 ||
 					!(await this.recoverLocalHubTransport(error))
 				) {
@@ -1060,6 +1084,15 @@ export class NodeHubClient {
 						entry.sessionId !== frame.envelope.sessionId?.trim()
 					) {
 						continue;
+					}
+					const eventId = frame.envelope.eventId;
+					if (eventId) {
+						if (entry.deliveredEventIds.has(eventId)) continue;
+						entry.deliveredEventIds.add(eventId);
+						if (entry.deliveredEventIds.size > MAX_RECENT_EVENT_IDS) {
+							const oldest = entry.deliveredEventIds.values().next().value;
+							if (oldest !== undefined) entry.deliveredEventIds.delete(oldest);
+						}
 					}
 					entry.listener(frame.envelope);
 				}

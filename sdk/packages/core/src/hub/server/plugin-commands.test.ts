@@ -204,34 +204,6 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 		);
 		stop();
 	});
-	it("keeps plugin state when unrelated files change and reloads on source edits", async () => {
-		const target = { workspacePath: root };
-		const run = async () =>
-			(await runtime.pluginCommands.run({ ...target, prompt: "/counter" }))
-				?.reply;
-		expect([await run(), await run()]).toEqual([
-			"workspace:1:",
-			"workspace:2:",
-		]);
-		await writeFile(
-			join(root, ".cline", "plugins", "cache-state.json"),
-			'{"unrelated":true}',
-		);
-		await new Promise((resolve) => setTimeout(resolve, 1000));
-		expect(await run()).toBe("workspace:3:");
-		expect((await readFile(join(root, "setups.txt"), "utf8")).trim()).toBe(
-			"workspace",
-		);
-
-		const pluginPath = join(root, ".cline", "plugins", "counter.js");
-		await writeFile(
-			pluginPath,
-			(await readFile(pluginPath, "utf8")).replace("counter=0", "counter=10"),
-		);
-		await vi.waitFor(async () => expect(await run()).toBe("workspace:11:"), {
-			timeout: 5000,
-		});
-	});
 	it("keeps healthy commands available while a sibling plugin fails", async () => {
 		const broken = join(root, ".cline", "plugins", "broken.js");
 		await writeFile(

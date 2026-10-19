@@ -531,6 +531,30 @@ describe("run_commands tool description", () => {
 		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
 	});
 
+	it.each([
+		["powershell.exe", true],
+		["pwsh.exe", true],
+		["/usr/bin/pwsh", false],
+	])("tells %s how PowerShell escapes quotes", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).toContain(
+			'PowerShell escapes with a backtick (`), not a backslash: inside double quotes, \\" ends the string.',
+		);
+		expect(description).toContain("Remove-Item -LiteralPath instead of cmd /c");
+		expect(description).toContain("-WhatIf");
+	});
+
+	it.each([
+		["cmd", true],
+		["C:\\Program Files\\Git\\bin\\bash.exe", true],
+		["wsl", true],
+		["/bin/bash", false],
+	])("keeps PowerShell quoting guidance out of %s", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).not.toContain("backtick");
+		expect(description).not.toContain("Remove-Item");
+	});
+
 	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
 		const description = buildRunCommandsDescription("cmd", true);
 		expect(description).toContain("Commands run through cmd.exe");
