@@ -1,6 +1,10 @@
 "use client";
 
-import { AgentAskQuestion } from "@cline/ui";
+import {
+	AgentAskQuestion,
+	type AgentScreenshot,
+	AgentScreenshotCarousel,
+} from "@cline/ui";
 import {
 	MessageScroller,
 	MessageScrollerButton,
@@ -91,6 +95,8 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	/** Opens the settings page that fixes a credential failure. */
 	onFixCredentials?: (target: "account" | "models") => void;
+	/** Screenshots the agent captured while verifying its work, shown after the transcript. */
+	verification?: { screenshots: AgentScreenshot[]; subtitle?: string };
 };
 
 type AskQuestionRequestItem = {
@@ -128,6 +134,7 @@ function ChatMessagesImpl({
 	errorAction,
 	onProceedWhileRunning,
 	onFixCredentials,
+	verification,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -214,14 +221,14 @@ function ChatMessagesImpl({
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
 	const [expandedImage, setExpandedImage] = useState<{
 		sessionId: string | null;
-		image: ChatMessageImage;
+		src: string;
 	} | null>(null);
 	const sessionVersioningPending =
 		editingMessageId !== null ||
 		forkingMessageId !== null ||
 		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
-		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
+		expandedImage?.sessionId === sessionId ? expandedImage.src : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	// The live run keeps rendering its rows while the session is active, and an
@@ -487,7 +494,10 @@ function ChatMessagesImpl({
 
 	const handleExpandImage = useCallback(
 		(image: ChatMessageImage) => {
-			setExpandedImage({ sessionId, image });
+			setExpandedImage({
+				sessionId,
+				src: `data:${image.mediaType};base64,${image.data}`,
+			});
 		},
 		[sessionId],
 	);
@@ -727,6 +737,17 @@ function ChatMessagesImpl({
 										</MessageScrollerItem>
 									);
 								})}
+								{verification?.screenshots.length ? (
+									<MessageScrollerItem messageId="verification-screenshots">
+										<AgentScreenshotCarousel
+											onExpand={(screenshot) =>
+												setExpandedImage({ sessionId, src: screenshot.src })
+											}
+											screenshots={verification.screenshots}
+											subtitle={verification.subtitle}
+										/>
+									</MessageScrollerItem>
+								) : null}
 								{/* Lives inside the transcript column and mirrors a
 								    reasoning/tool trigger's geometry exactly (icon slot,
 								    min-height, padding), so the first real row replaces it
@@ -843,7 +864,7 @@ function ChatMessagesImpl({
 				<TranscriptOutline messages={messages} />
 				{visibleExpandedImage ? (
 					<ChatImageLightbox
-						image={visibleExpandedImage}
+						src={visibleExpandedImage}
 						onClose={() => setExpandedImage(null)}
 					/>
 				) : null}

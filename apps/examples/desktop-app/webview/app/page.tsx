@@ -201,6 +201,18 @@ const DiffView = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+// Dev-only scripted preview of cloud computer use; open with Cmd/Ctrl+Shift+D or #computer-use-demo.
+const ComputerUseDemo =
+	process.env.NODE_ENV === "production"
+		? null
+		: dynamic(
+				() =>
+					import(
+						"@/components/views/chat/computer-use-demo/computer-use-demo"
+					).then((module) => module.ComputerUseDemo),
+				{ loading: viewLoading, ssr: false },
+			);
+
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -318,6 +330,10 @@ export default function Home() {
 	const [whatsNew, setWhatsNew] = useState<WhatsNewRelease | null>(null);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
 	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
+	// The demo replaces the thread it was opened over, so navigating away closes it.
+	const [computerUseDemoThreadId, setComputerUseDemoThreadId] = useState<
+		string | null
+	>(null);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -765,6 +781,20 @@ export default function Home() {
 			if (showOnboarding) {
 				return;
 			}
+			if (
+				ComputerUseDemo &&
+				(event.metaKey || event.ctrlKey) &&
+				event.shiftKey &&
+				event.key.toLowerCase() === "d"
+			) {
+				event.preventDefault();
+				const threadId = activeThread?.id ?? null;
+				setComputerUseDemoThreadId((current) =>
+					current === threadId ? null : threadId,
+				);
+				navigateWith({ view: "chat" });
+				return;
+			}
 			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
 				return;
 			}
@@ -781,7 +811,18 @@ export default function Home() {
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleNewThread, handleViewChange, showOnboarding]);
+	}, [
+		activeThread?.id,
+		handleNewThread,
+		handleViewChange,
+		navigateWith,
+		showOnboarding,
+	]);
+	useEffect(() => {
+		if (ComputerUseDemo && window.location.hash === "#computer-use-demo") {
+			setComputerUseDemoThreadId(initialThreadId);
+		}
+	}, [initialThreadId]);
 	const handleThreadStarted = useCallback(
 		(threadId: string, sessionId?: string) => {
 			dispatchApp({ type: "thread-started", threadId, sessionId });
@@ -960,66 +1001,75 @@ export default function Home() {
 										className="flex min-h-0 flex-1 flex-col"
 										inert={view === "settings" ? true : undefined}
 									>
-										<ChatThreadPane
-											key={`${activeThread.id}:${activeThread.environmentId}`}
-											environmentId={activeThread.environmentId}
-											environmentProfiles={remoteEnvironmentProfiles}
-											environmentProfilesLoading={
-												remoteEnvironmentProfilesLoading
-											}
-											onAddSshHost={() => handleSettingsSectionChange("Remote")}
-											onPickRemoteWorkspaceDirectory={
-												pickRemoteWorkspaceDirectory
-											}
-											onSelectEnvironment={handleSelectEnvironment}
-											remoteEnvironment={
-												activeRemoteEnvironment?.id ===
-												activeThread.environmentId
-													? activeRemoteEnvironment
-													: null
-											}
-											historySession={activeThread.historySession}
-											liveHistorySession={
-												activeHistorySessionId
-													? sessionHistory.sessionById.get(
-															activeHistorySessionId,
-														)
-													: undefined
-											}
-											initialPromptDraft={activeThread.initialPromptDraft}
-											promptDrafts={promptDrafts}
-											knownWorkspacePaths={historyWorkspacePaths}
-											onInitialPromptDraftConsumed={
-												handleInitialPromptDraftConsumed
-											}
-											onUpdateSessionMetadata={(sessionId, metadata) =>
-												handleUpdateSessionMetadata(
-													sessionId,
-													metadata,
-													activeThread.environmentId,
-												)
-											}
-											threadId={activeThread.id}
-											onDeleteSession={(sessionId, threadId) =>
-												handleDeleteSession(
-													sessionId,
-													threadId,
-													activeThread.environmentId,
-												)
-											}
-											onNewThread={handleNewThread}
-											onOpenSession={handleOpenSession}
-											onOpenSessionById={handleOpenSessionById}
-											onOpenSetup={handleOpenSetup}
-											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Providers")
-											}
-											onOpenAccountSettings={() =>
-												handleSettingsSectionChange("Account")
-											}
-											parentSession={activeParentSession}
-											onThreadStarted={handleThreadStarted}
-										/>
+										{ComputerUseDemo &&
+										computerUseDemoThreadId === activeThread.id ? (
+											<ComputerUseDemo
+												onExit={() => setComputerUseDemoThreadId(null)}
+											/>
+										) : (
+											<ChatThreadPane
+												key={`${activeThread.id}:${activeThread.environmentId}`}
+												environmentId={activeThread.environmentId}
+												environmentProfiles={remoteEnvironmentProfiles}
+												environmentProfilesLoading={
+													remoteEnvironmentProfilesLoading
+												}
+												onAddSshHost={() =>
+													handleSettingsSectionChange("Remote")
+												}
+												onPickRemoteWorkspaceDirectory={
+													pickRemoteWorkspaceDirectory
+												}
+												onSelectEnvironment={handleSelectEnvironment}
+												remoteEnvironment={
+													activeRemoteEnvironment?.id ===
+													activeThread.environmentId
+														? activeRemoteEnvironment
+														: null
+												}
+												historySession={activeThread.historySession}
+												liveHistorySession={
+													activeHistorySessionId
+														? sessionHistory.sessionById.get(
+																activeHistorySessionId,
+															)
+														: undefined
+												}
+												initialPromptDraft={activeThread.initialPromptDraft}
+												promptDrafts={promptDrafts}
+												knownWorkspacePaths={historyWorkspacePaths}
+												onInitialPromptDraftConsumed={
+													handleInitialPromptDraftConsumed
+												}
+												onUpdateSessionMetadata={(sessionId, metadata) =>
+													handleUpdateSessionMetadata(
+														sessionId,
+														metadata,
+														activeThread.environmentId,
+													)
+												}
+												threadId={activeThread.id}
+												onDeleteSession={(sessionId, threadId) =>
+													handleDeleteSession(
+														sessionId,
+														threadId,
+														activeThread.environmentId,
+													)
+												}
+												onNewThread={handleNewThread}
+												onOpenSession={handleOpenSession}
+												onOpenSessionById={handleOpenSessionById}
+												onOpenSetup={handleOpenSetup}
+												onOpenModelSettings={() =>
+													handleSettingsSectionChange("Providers")
+												}
+												onOpenAccountSettings={() =>
+													handleSettingsSectionChange("Account")
+												}
+												parentSession={activeParentSession}
+												onThreadStarted={handleThreadStarted}
+											/>
+										)}
 									</div>
 								) : null}
 								{view === "settings" ? (
