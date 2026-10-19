@@ -4,7 +4,12 @@ Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
 `client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
 `NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
 These APIs reuse the runtime and connection; clients do not load plugins or
-own a separate command sandbox.
+own a separate command sandbox. Pass the active `sessionId` when invoking a
+command during a session so it runs in that session's plugin instance and retains
+the state and context shared with its hooks.
+
+Bootstrap/SDK resource loading is configured separately from this API. Changing
+how a host ships those resources does not change command ownership or payloads.
 
 ```ts
 const target = { workspacePath: workspaceRoot, sessionId };

@@ -790,6 +790,10 @@ today: since #14792 it is the bundled Cline CLI uploaded as a single file
 with no bootstrap beside it, so plugins fail on remotes until the remote
 runtime carries one.
 
+Command ownership is independent of how the host packages or locates the plugin
+bootstrap and SDK resources. Resource loading supplies the existing plugin
+runtime; it does not introduce another command service or command payload.
+
 `LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution.
 Hub RPC (`plugins.commands.list` / `plugins.commands.run`) and
 `plugins.commands.changed` expose the same service to every client. The desktop
