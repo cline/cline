@@ -210,6 +210,47 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("refreshes an attached session title after an external rename", async () => {
+		const f = await attached();
+		await f.controller.updateTitle(record.id, "Desktop title");
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.title).toBe("Web title");
+		await f.controller.dispose();
+	});
+
+	it.each([
+		false,
+		true,
+	])("preserves a rename across a timed-out discovery request (attached: %s)", async (isAttached) => {
+		const f = isAttached ? await attached() : fixture();
+		await f.controller.listForDiscovery();
+		let resolveListing!: (records: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveListing = resolve;
+				}),
+		);
+		await f.controller.listForDiscovery({ timeoutMs: 0 });
+		await f.controller.updateTitle(record.id, "Desktop title");
+		const refreshing = f.controller.listForDiscovery();
+		resolveListing([{ ...record, title: "Old title" }]);
+		expect((await refreshing)[0]?.metadata).toMatchObject({
+			title: "Desktop title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.record?.title).toBe(
+			"Desktop title",
+		);
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		await f.controller.dispose();
+	});
+
 	it.each([
 		"suspended",
 		"ready",
@@ -495,7 +536,7 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("attaches when another viewer restores the same saved task first", async () => {
+	it("attaches when the runtime reports a concurrent restore conflict", async () => {
 		const f = resumableFixture();
 		f.setMessages([{ role: "user", content: "Saved work" }]);
 		const original = f.command.getMockImplementation()!;
@@ -1043,7 +1084,11 @@ describe("CloudSessionController neutral host contract", () => {
 	] as const)("clears retained first-task policy after %s", async (action) => {
 		const pendingInitialTasks = new Map<string, CloudCreationOptions>();
 		const f = fixture({ pendingInitialTasks });
-		const options = { autoApproveTools: false, thinking: false };
+		const options = {
+			autoApproveTools: false,
+			thinking: false,
+			reasoningEffort: "high" as const,
+		};
 		try {
 			await f.controller.create({
 				modelId: "model",
@@ -1054,6 +1099,12 @@ describe("CloudSessionController neutral host contract", () => {
 			if (action === "create") {
 				f.setHasInner(false);
 				await f.controller.send(record.id, "First prompt");
+				expect(
+					f.commands.find((c) => c.command === "session.create")?.payload,
+				).toMatchObject({
+					metadata: { thinking: false, reasoningEffort: null },
+					sessionConfig: { thinking: false, reasoningEffort: "high" },
+				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);
 			} else {
@@ -1502,6 +1553,8 @@ describe("seeded cloud handoff controller", () => {
 			toolPolicies: { "*": { autoApprove: false } },
 			metadata: {
 				interactive: true,
+				thinking: true,
+				reasoningEffort: "high",
 				handoff: { sourceSessionId: "local-source", outerSessionId: record.id },
 			},
 		});

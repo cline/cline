@@ -39,15 +39,6 @@ export class SessionNotFoundError extends Error {
 	}
 }
 
-export class SessionAlreadyExistsError extends Error {
-	readonly code = "session_already_exists";
-
-	constructor(readonly sessionId: string) {
-		super(`session already exists: ${sessionId}`);
-		this.name = "SessionAlreadyExistsError";
-	}
-}
-
 export function isSessionNotFoundError(
 	error: unknown,
 ): error is SessionNotFoundError {
@@ -178,6 +169,12 @@ export interface StartSessionInput {
 	localRuntime?: LocalRuntimeStartOptions;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: import("@cline/shared").AgentConfig["toolPolicies"];
+	/**
+	 * Which plugins this session uses, shaped like `toolPolicies`:
+	 * `{ "*": { enabled: true }, "my-plugin": { enabled: false } }`. Plugins
+	 * are enabled by default. Plugin tools still go through `toolPolicies`.
+	 */
+	plugins?: import("@cline/shared").PluginPolicies;
 }
 
 /** Session input after the execution host has resolved a concrete workspace. */
@@ -254,6 +251,11 @@ export interface StartSessionResult {
 	manifestPath: string;
 	messagesPath: string;
 	result?: AgentResult;
+	/**
+	 * Plugins the session asked for but does not have because they failed or
+	 * are disabled. Clients should show these to the user.
+	 */
+	pluginIssues?: import("@cline/shared").SessionPluginIssue[];
 }
 
 export interface SendSessionInput {

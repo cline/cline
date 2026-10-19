@@ -57,6 +57,7 @@ describe("providerSettingsRegistry", () => {
 
 	it("allows migrated simple SDK providers to use the generic fallback", () => {
 		const migratedProviders = [
+			["aiand", "ai&", "https://console.aiand.com/"],
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
 			["chutes", "Chutes", "https://chutes.ai/app/api"],
@@ -205,6 +206,12 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "zai-coding-plan",
 			providerName: "Z.AI Coding Plan",
+		})
+		expect(getFallbackGenericProviderSettings("aiand")).toEqual({
+			allowsCustomIds: false,
+			providerId: "aiand",
+			providerName: "ai&",
+			signupUrl: "https://console.aiand.com/",
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})

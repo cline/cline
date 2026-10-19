@@ -1,4 +1,5 @@
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -132,5 +133,14 @@ describe("writeDiagnosticsReport", () => {
 		expect(result.path).toMatch(/[\\/]cline-diagnostics-.+\.txt$/);
 		expect(result.path.startsWith(outputDir)).toBe(true);
 		expect(readFileSync(result.path, "utf8")).toContain("hello");
+	});
+
+	it("writes into an output directory that already exists", () => {
+		const outputDir = join(dataDir, "existing");
+		mkdirSync(outputDir);
+		const result = writeDiagnosticsReport([], outputDir);
+
+		expect(result.path.startsWith(outputDir)).toBe(true);
+		expect(existsSync(result.path)).toBe(true);
 	});
 });

@@ -9,7 +9,6 @@ import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnb
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
-import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
 import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
 import { registerClineClientIdentity } from "./services/ClineClientIdentity"
@@ -169,7 +168,6 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  */
 export async function tearDown(): Promise<void> {
 	try {
-		AgentConfigLoader.getInstance()?.dispose()
 		PostHogClientProvider.getInstance().dispose()
 		telemetryService.dispose()
 		ErrorService.get().dispose()

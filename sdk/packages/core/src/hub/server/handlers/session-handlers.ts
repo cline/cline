@@ -4,6 +4,7 @@ import type {
 	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
+	PluginPolicies,
 	ToolApprovalRequest,
 	UserContext,
 } from "@cline/shared";
@@ -21,7 +22,6 @@ import type {
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
 } from "../../../runtime/host/runtime-host";
-import { SessionAlreadyExistsError } from "../../../runtime/host/runtime-host";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
@@ -263,24 +263,21 @@ function authorizeSessionCompactionAccess(input: {
 	return undefined;
 }
 
-export async function handleSessionCreate(
-	ctx: HubTransportContext,
-	envelope: HubCommandEnvelope,
-	requestToolApproval: (
-		request: ToolApprovalRequest,
-	) => Promise<{ approved: boolean; reason?: string }>,
-): Promise<HubReplyEnvelope> {
-	try {
-		return await createSession(ctx, envelope, requestToolApproval);
-	} catch (error) {
-		if (error instanceof SessionAlreadyExistsError) {
-			return errorReply(envelope, error.code, error.message);
-		}
-		throw error;
+/** Accepts `{ "*"?: { enabled?: boolean }, [plugin]: { enabled?: boolean } }`. */
+export function parsePluginPolicies(
+	value: unknown,
+): PluginPolicies | undefined {
+	const record = asPlainRecord(value);
+	if (!record) return undefined;
+	const policies: PluginPolicies = {};
+	for (const [name, policy] of Object.entries(record)) {
+		const enabled = asPlainRecord(policy)?.enabled;
+		policies[name] = typeof enabled === "boolean" ? { enabled } : {};
 	}
+	return Object.keys(policies).length > 0 ? policies : undefined;
 }
 
-async function createSession(
+export async function handleSessionCreate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	requestToolApproval: (
@@ -510,7 +507,22 @@ async function createSession(
 				: runtimeOptions.autoApproveTools === true
 					? { "*": { autoApprove: true } }
 					: undefined,
+		plugins: parsePluginPolicies(payload.plugins),
 	});
+	const pluginIssues = started.pluginIssues ?? [];
+	if (pluginIssues.length > 0) {
+		logHubMessage("warn", "session.create.plugin_issues", {
+			...baseLogContext,
+			sessionId: started.sessionId,
+			plugins: pluginIssues.map((issue) => ({
+				name: issue.name,
+				state: issue.state,
+				reason: issue.reason,
+				phase: issue.lastError?.phase,
+				message: issue.lastError?.message,
+			})),
+		});
+	}
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
 		sessionId: started.sessionId,
@@ -535,11 +547,19 @@ async function createSession(
 		hasSnapshot: !!snapshot,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
+	const pluginIssuePayload =
+		pluginIssues.length > 0
+			? { pluginIssues: JSON.parse(JSON.stringify(pluginIssues)) }
+			: {};
 	if (session) {
 		ctx.publish(
 			ctx.buildEvent(
 				"session.created",
-				{ session, ...(snapshot ? { snapshot } : {}) },
+				{
+					session,
+					...(snapshot ? { snapshot } : {}),
+					...pluginIssuePayload,
+				},
 				started.sessionId,
 			),
 		);
@@ -549,7 +569,11 @@ async function createSession(
 		sessionId: started.sessionId,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
-	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
+	return okReply(envelope, {
+		session,
+		...(snapshot ? { snapshot } : {}),
+		...pluginIssuePayload,
+	});
 }
 
 export async function handleSessionRestore(
@@ -801,6 +825,7 @@ export async function handleSessionRestore(
 							: runtimeOptions.autoApproveTools === true
 								? { "*": { autoApprove: true } }
 								: undefined,
+					plugins: parsePluginPolicies(payload.plugins),
 				};
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),

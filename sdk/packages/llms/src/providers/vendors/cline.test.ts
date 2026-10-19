@@ -189,6 +189,76 @@ describe("createCline", () => {
 		expect(body.reasoning).toEqual({ enabled: true, max_tokens: 2048 });
 	});
 
+	// Commit-message generation streams (`createMessage`) while other callers
+	// may generate, and the gateway gates free models on both requests.
+	it.each([
+		["cline", "doGenerate"],
+		["cline", "doStream"],
+		["cline-pass", "doGenerate"],
+		["cline-pass", "doStream"],
+	] as const)("sends the resolved %s surface headers on the wire (%s)", async (providerId, operation) => {
+		const modelId = "deepseek/deepseek-v4-flash";
+		fetchMock.mockResolvedValue(
+			operation === "doStream"
+				? sseCompletionResponse(modelId)
+				: jsonCompletionResponse(modelId),
+		);
+		// The headers a caller puts on the ProviderConfig — for Cline billing
+		// providers these are the surface identity headers produced by
+		// `resolveProviderRequestHeaders`, and the gateway rejects free models
+		// without them.
+		const module = await createClineProviderModule(
+			{
+				providerId,
+				apiKey: "test-key",
+				baseUrl: "https://api.cline.bot/api/v1",
+				fetch: fetchMock,
+				headers: {
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"X-CLIENT-TYPE": "VSCode Extension",
+					"X-CLIENT-VERSION": "4.1.16",
+					"User-Agent": "Cline/4.1.16",
+				},
+			} as unknown as GatewayResolvedProviderConfig,
+			{ provider: { id: providerId } } as never,
+		);
+		const model = module.operations.language(modelId) as {
+			doGenerate: (options: unknown) => Promise<unknown>;
+			doStream: (
+				options: unknown,
+			) => Promise<{ stream: ReadableStream<unknown> }>;
+		};
+		const options = {
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+		};
+
+		if (operation === "doStream") {
+			const { stream } = await model.doStream(options);
+			const reader = stream.getReader();
+			while (!(await reader.read()).done) {
+				// drain so the request completes
+			}
+		} else {
+			await model.doGenerate(options);
+		}
+
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(capturedRequestBody(fetchMock).stream ?? false).toBe(
+			operation === "doStream",
+		);
+		const headers = capturedRequestHeaders(fetchMock);
+		expect(headers).toMatchObject({
+			"http-referer": "https://cline.bot",
+			"x-title": "Cline",
+			"x-client-type": "VSCode Extension",
+			"x-client-version": "4.1.16",
+		});
+		// The AI SDK appends its own runtime tokens to User-Agent, so the
+		// caller's value leads rather than being the whole header.
+		expect(headers["user-agent"]).toMatch(/^Cline\/4\.1\.16\b/);
+	});
+
 	it("keeps max_tokens for non-reasoning models", async () => {
 		const modelId = "anthropic/claude-sonnet-4.6";
 		fetchMock.mockResolvedValue(jsonCompletionResponse(modelId));
@@ -209,11 +279,47 @@ describe("createCline", () => {
 	});
 });
 
+function capturedRequestHeaders(
+	fetchMock: ReturnType<typeof vi.fn<typeof fetch>>,
+): Record<string, string> {
+	const [input, init] = fetchMock.mock.calls[0] ?? [];
+	const headers = new Headers(
+		(init?.headers ?? (input as Request | undefined)?.headers) as
+			| HeadersInit
+			| undefined,
+	);
+	return Object.fromEntries(headers.entries());
+}
+
 function capturedRequestBody(
 	fetchMock: ReturnType<typeof vi.fn<typeof fetch>>,
 ): Record<string, unknown> {
 	const init = fetchMock.mock.calls[0]?.[1];
 	return JSON.parse(String(init?.body)) as Record<string, unknown>;
+}
+
+function sseCompletionResponse(modelId: string): Response {
+	const events = [
+		`data: ${JSON.stringify({
+			id: "chatcmpl-test",
+			created: 0,
+			model: modelId,
+			choices: [{ index: 0, delta: { role: "assistant", content: "OK" } }],
+		})}`,
+		`data: ${JSON.stringify({
+			id: "chatcmpl-test",
+			created: 0,
+			model: modelId,
+			choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+			usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+		})}`,
+		"data: [DONE]",
+		"",
+	].join("\n\n");
+	return new Response(events, {
+		status: 200,
+		headers: { "content-type": "text/event-stream" },
+	});
 }
 
 function jsonCompletionResponse(modelId: string): Response {

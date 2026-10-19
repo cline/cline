@@ -23,8 +23,6 @@ import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { latestWhatsNew } from "@/lib/whats-new";
 import { PageFrame, PageHeader } from "../page-layout";
 
-import { HubPanel } from "./hub-panel";
-
 const RECENT_RELEASE_COUNT = 5;
 
 function useAppVersion(): string | null {
@@ -173,9 +171,12 @@ function ReleaseNotes({
 	);
 }
 
-export function AboutContent() {
+export function AboutContent({
+	onOpenConnectors,
+}: {
+	onOpenConnectors: () => void;
+}) {
 	const appVersion = useAppVersion();
-	const [hubUrl, setHubUrl] = useState<string | null>(null);
 	const [releases, setReleases] = useState<ChangelogRelease[] | null>(null);
 	const [changelogError, setChangelogError] = useState<string | null>(null);
 	const [whatsNewOpen, setWhatsNewOpen] = useState(false);
@@ -203,11 +204,6 @@ export function AboutContent() {
 		<PageFrame>
 			<PageHeader
 				actions={<UpdateAction />}
-				description={
-					hubUrl ? (
-						<span className="break-all font-mono text-xs">{hubUrl}</span>
-					) : null
-				}
 				meta={
 					<span className="flex items-center gap-2">
 						{appVersion ? (
@@ -225,7 +221,6 @@ export function AboutContent() {
 				title={productNameForVersion(appVersion)}
 			/>
 			<section className="max-w-344">
-				<HubPanel onUrlChange={setHubUrl} />
 				{whatsNew ? (
 					<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 						<div className="flex flex-col gap-1">
@@ -248,6 +243,7 @@ export function AboutContent() {
 						</Button>
 						<WhatsNewDialog
 							onOpenChange={setWhatsNewOpen}
+							onOpenConnectors={onOpenConnectors}
 							open={whatsNewOpen}
 							release={whatsNew}
 						/>

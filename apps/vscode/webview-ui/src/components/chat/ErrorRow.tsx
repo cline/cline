@@ -10,7 +10,7 @@ import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrict
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
-import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
+import { ClineError, ClineErrorType, MODEL_NOT_FOUND_GUIDANCE } from "../../../../src/services/error/ClineError"
 
 const _errorColor = "var(--vscode-errorForeground)"
 
@@ -115,6 +115,15 @@ const ErrorRow = memo((props: ErrorRowProps) => {
 						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{detailMessage}</p>
 					}
 
+					// A 404/405/410 is the server saying the model id or endpoint
+					// path does not exist. The host already appends this guidance
+					// when it can recognise the message text; add it here only
+					// when the status alone carried the verdict.
+					const notFoundGuidance =
+						clineError?.isErrorType(ClineErrorType.NotFound) && !errorMessage.includes(MODEL_NOT_FOUND_GUIDANCE)
+							? `The model or endpoint was not found. ${MODEL_NOT_FOUND_GUIDANCE}`
+							: undefined
+
 					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineUsageBillingProvider) {
 						return !clineUser ? (
 							// User is using Cline provider and is not logged in
@@ -150,6 +159,8 @@ const ErrorRow = memo((props: ErrorRowProps) => {
 								{errorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</header>
+
+							{notFoundGuidance && <div>{notFoundGuidance}</div>}
 
 							{/* Windows Powershell Issue */}
 							{errorMessage?.toLowerCase()?.includes("powershell") && (

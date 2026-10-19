@@ -60,7 +60,9 @@ export function parseModelSelectionStorage(
 	}
 }
 
-export function readModelSelectionStorageFromWindow(): ModelSelectionStorage {
+export function readModelSelectionStorageFromWindow(
+	scope: ExecutionTarget = "local",
+): ModelSelectionStorage {
 	if (typeof window === "undefined") {
 		return {
 			lastProvider: "",
@@ -68,18 +70,19 @@ export function readModelSelectionStorageFromWindow(): ModelSelectionStorage {
 		};
 	}
 	return parseModelSelectionStorage(
-		window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+		window.localStorage.getItem(modelSelectionStorageKey(scope)),
 	);
 }
 
 export function writeModelSelectionStorageToWindow(
 	value: ModelSelectionStorage,
+	scope: ExecutionTarget = "local",
 ): void {
 	if (typeof window === "undefined") {
 		return;
 	}
 	window.localStorage.setItem(
-		MODEL_SELECTION_STORAGE_KEY,
+		modelSelectionStorageKey(scope),
 		JSON.stringify(value),
 	);
 }
@@ -140,4 +143,40 @@ export function writeReasoningSelectionToWindow(
 			[providerId]: value,
 		}),
 	);
+}
+
+export type ExecutionTarget = "local" | "cloud";
+export const EXECUTION_TARGET_STORAGE_KEY = "cline.code.execution-target.v1";
+
+function modelSelectionStorageKey(scope: ExecutionTarget): string {
+	// Cloud has a different model catalog; keep the local provider/model intact.
+	return scope === "cloud"
+		? "cline.code.cloud-model-selection.v1"
+		: MODEL_SELECTION_STORAGE_KEY;
+}
+
+export function readExecutionTargetFromWindow(): ExecutionTarget {
+	try {
+		return typeof window !== "undefined" &&
+			JSON.parse(
+				window.localStorage.getItem(EXECUTION_TARGET_STORAGE_KEY) ?? "null",
+			)?.target === "cloud"
+			? "cloud"
+			: "local";
+	} catch {
+		return "local";
+	}
+}
+
+export function writeExecutionTargetToWindow(target: ExecutionTarget): void {
+	try {
+		if (typeof window !== "undefined") {
+			window.localStorage.setItem(
+				EXECUTION_TARGET_STORAGE_KEY,
+				JSON.stringify({ target }),
+			);
+		}
+	} catch {
+		// Ignore localStorage persistence failures.
+	}
 }

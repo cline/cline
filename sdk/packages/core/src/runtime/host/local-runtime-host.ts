@@ -15,11 +15,13 @@ import {
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
+import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
+import { formatSessionPluginIssue } from "../../extensions/plugin/plugin-registry";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
@@ -141,10 +143,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import {
-	SessionAlreadyExistsError,
-	SessionNotFoundError,
-} from "./runtime-host";
+import { SessionNotFoundError } from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -246,6 +245,7 @@ export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
+	connectorsRequest?: ConnectorsRequest;
 	createAgent?: (config: AgentConfig) => SessionRuntime;
 	capabilities?: RuntimeCapabilities;
 	toolPolicies?: AgentConfig["toolPolicies"];
@@ -259,6 +259,15 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+}
+
+/** Plugin events that act on a session (prompts) rather than report. */
+function isSessionDirectedPluginEvent(name: string): boolean {
+	return (
+		name === "steer_message" ||
+		name === "queue_message" ||
+		name === "pending_prompt"
+	);
 }
 
 export class LocalRuntimeHost implements RuntimeHost {
@@ -276,12 +285,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly distinctId: string;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
+	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
-	private readonly sessionStarts = new Map<
-		string,
-		Promise<StartSessionResult>
-	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -328,6 +334,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.defaultTelemetry?.setDistinctId(distinctId);
 		}
 		this.defaultFetch = options.fetch;
+		this.connectorsRequest = options.connectorsRequest;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -415,36 +422,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const pending = this.sessionStarts.get(sessionId);
-		if (pending) {
-			try {
-				await pending;
-			} catch {
-				return await this.startSession({
-					...input,
-					config: { ...input.config, sessionId },
-				});
-			}
-			// A successful one-shot start may already have released its runtime.
-			throw new SessionAlreadyExistsError(sessionId);
-		}
-		if (this.sessions.has(sessionId)) {
-			throw new SessionAlreadyExistsError(sessionId);
-		}
-		const starting = this.startNewSession(
-			input,
-			sessionId,
-			requestedSessionId,
-		).finally(() => this.sessionStarts.delete(sessionId));
-		this.sessionStarts.set(sessionId, starting);
-		return await starting;
-	}
-
-	private async startNewSession(
-		input: StartSessionInput,
-		sessionId: string,
-		requestedSessionId: string,
-	): Promise<StartSessionResult> {
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&
@@ -587,6 +564,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			inputLocalConfig?.telemetry ??
 			this.defaultTelemetry;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		// Plugin setup runs while the session bootstraps (in worker mode), before
+		// the session is registered. Prompts it sends to the session would find
+		// no session and be dropped, so hold them until registration below.
+		let heldSessionEvents: Array<{ name: string; payload?: unknown }> | null =
+			[];
 		const subAgentDeps = {
 			getSession: (sid: string) => this.sessions.get(sid),
 			subAgentStarts: this.subAgentStarts,
@@ -623,6 +605,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			defaultCapabilities: capabilities,
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultFetch: this.defaultFetch,
+			connectorsRequest: this.connectorsRequest,
 			onPluginEvent: (event) => {
 				if (event.name === "plugin_log") {
 					this.eventBridge.handlePluginLog(
@@ -632,12 +615,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 					);
 					return;
 				}
+				if (heldSessionEvents && isSessionDirectedPluginEvent(event.name)) {
+					heldSessionEvents.push(event);
+					return;
+				}
 				void this.eventBridge.handlePluginEvent(
 					sessionId,
 					event,
 					pluginEventFallbackAutomation,
 					pluginEventFallbackTelemetry,
 				);
+			},
+			onPluginIssue: (issue) => {
+				// Setup runs on the first turn, after the start result went out;
+				// surface later plugin failures as a status notice instead.
+				if (!bootstrap) return;
+				this.eventBridge.dispatchAgentEvent(sessionId, bootstrap.config, {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message: formatSessionPluginIssue(issue),
+					metadata: { pluginIssue: issue },
+				});
 			},
 			onTeamEvent: (event: TeamEvent) => {
 				void this.eventBridge.handleTeamEvent(sessionId, event);
@@ -664,25 +663,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		const restoredSessionMetadata = {
-			...(resumedArtifacts?.manifest.metadata ?? {}),
-			...(startInput.sessionMetadata ?? {}),
-		};
 		const initialSessionMetadata = withSessionHistoryOriginMetadata(
 			withSessionGitMetadata(
 				{
-					...restoredSessionMetadata,
-					// Null records an unset preference; missing keys belong to legacy sessions.
-					thinking:
-						bootstrap.config.thinking ??
-						restoredSessionMetadata.thinking ??
-						null,
-					reasoningEffort:
-						bootstrap.config.thinking === false
-							? null
-							: (bootstrap.config.reasoningEffort ??
-								restoredSessionMetadata.reasoningEffort ??
-								null),
+					...(resumedArtifacts?.manifest.metadata ?? {}),
+					...(startInput.sessionMetadata ?? {}),
 				},
 				bootstrap.gitState,
 			),
@@ -693,11 +678,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build({
-			...bootstrap.runtimeBuilderInput,
-			distinctId: this.distinctId,
-			runCommandExecutionController: this.runCommandExecutionController,
-		});
+		let runtime: Awaited<ReturnType<typeof this.runtimeBuilder.build>>;
+		try {
+			runtime = await this.runtimeBuilder.build({
+				...bootstrap.runtimeBuilderInput,
+				distinctId: this.distinctId,
+				runCommandExecutionController: this.runCommandExecutionController,
+			});
+		} catch (error) {
+			// The session never registers, so its stop/dispose paths will not
+			// run; release the plugin copies the bootstrap loaded for it.
+			await bootstrap.pluginSandboxShutdown?.().catch(() => undefined);
+			throw error;
+		}
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
@@ -1007,6 +1000,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			active.compactionState = undefined;
 		}
 		this.sessions.set(sessionId, active);
+		const held = heldSessionEvents ?? [];
+		heldSessionEvents = null;
+		for (const event of held) {
+			void this.eventBridge.handlePluginEvent(
+				sessionId,
+				event,
+				pluginEventFallbackAutomation,
+				pluginEventFallbackTelemetry,
+			);
+		}
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
@@ -1096,6 +1099,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			manifestPath,
 			messagesPath,
 			result,
+			...(bootstrap.pluginIssues.length > 0
+				? { pluginIssues: bootstrap.pluginIssues }
+				: {}),
 		};
 	}
 
@@ -1712,33 +1718,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
 		// Keep the persisted manifest in sync so session history reflects the
 		// connection the session is now using, not the one it started with.
-		const reasoningMetadata =
-			Object.hasOwn(updates, "thinking") ||
-			Object.hasOwn(updates, "reasoningEffort")
-				? {
-						thinking: session.config.thinking ?? null,
-						reasoningEffort: session.config.reasoningEffort ?? null,
-					}
-				: undefined;
-		if (reasoningMetadata) {
-			// Empty sessions persist lazily, so retain updates before artifacts exist.
-			session.sessionMetadata = {
-				...session.sessionMetadata,
-				...reasoningMetadata,
-			};
-		}
-		if (updates.providerId || updates.modelId || reasoningMetadata) {
-			await this.mutateSessionManifest(session, async (manifest) => {
+		if (updates.providerId || updates.modelId) {
+			await this.mutateSessionManifest(session, (manifest) => {
 				if (updates.providerId) manifest.provider = updates.providerId;
 				if (updates.modelId) manifest.model = updates.modelId;
-				if (reasoningMetadata) {
-					manifest.metadata = { ...manifest.metadata, ...reasoningMetadata };
-					await this.invokeOptionalValue("updateSession", {
-						sessionId,
-						metadata: manifest.metadata,
-					});
-					session.sessionMetadata = manifest.metadata;
-				}
 			});
 		}
 	}
@@ -1753,7 +1736,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
-		mutate: (manifest: SessionManifest) => void | Promise<void>,
+		mutate: (manifest: SessionManifest) => void,
 	): Promise<SessionManifest | undefined> {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
@@ -1766,7 +1749,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					"readSessionManifest",
 					sessionId,
 				)) ?? artifacts.manifest;
-			await mutate(latest);
+			mutate(latest);
 			artifacts.manifest = latest;
 			await this.invoke<void>(
 				"writeSessionManifest",
@@ -1815,6 +1798,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<AgentResult> {
+		// An abort that arrived between turns targeted a run that had already
+		// ended; only aborts issued from here on belong to this turn.
+		session.aborting = false;
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;
@@ -2015,9 +2001,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		try {
-			const runFn = shouldContinue
-				? () => session.agent.continue(prompt, userImages, userFiles)
-				: () => session.agent.run(prompt, userImages, userFiles);
+			const runFn = () => {
+				const run = shouldContinue
+					? session.agent.continue(prompt, userImages, userFiles)
+					: session.agent.run(prompt, userImages, userFiles);
+				// The agent drops abort() while it has no run in flight, so a Stop
+				// that landed during this turn's preparation (persistence, git
+				// metadata, credential sync) never reached it and the turn would
+				// run to completion behind a UI that already shows it stopped.
+				// Re-issue the abort now that the run exists.
+				if (session.aborting) {
+					session.agent.abort(new Error("Run aborted before it started"));
+				}
+				return run;
+			};
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,

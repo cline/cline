@@ -1,5 +1,8 @@
 /**
- * Script to install dependencies for running E2E tests in GitHub Actions.
+ * Installs what the E2E tests need besides the built extension: the VS Code
+ * build they drive, and the ffmpeg build Playwright records test videos with.
+ * The tests launch VS Code through Playwright's Electron support, so they need
+ * no Playwright browser.
  */
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
 import { execa } from "execa"
@@ -13,20 +16,20 @@ async function installVSCode() {
 	return await downloadAndUnzipVSCode(VSCODE_APP_TYPE, undefined, new SilentReporter())
 }
 
-async function installChromium() {
-	console.log("Installing Playwright Chromium...")
+async function installFfmpeg() {
+	console.log("Installing Playwright ffmpeg...")
 	try {
-		await execa("npm", ["exec", "playwright", "install", "chromium"], {
+		await execa("npm", ["exec", "playwright", "install", "ffmpeg"], {
 			stdio: "inherit",
 		})
-		console.log("Playwright Chromium installation completed successfully")
+		console.log("Playwright ffmpeg installation completed successfully")
 	} catch (error) {
-		throw new Error(`Failed to install Playwright Chromium: ${error}`)
+		throw new Error(`Failed to install Playwright ffmpeg: ${error}`)
 	}
 }
 
 async function installDependencies() {
-	return Promise.all([installVSCode(), installChromium()])
+	return Promise.all([installVSCode(), installFfmpeg()])
 }
 
 async function main() {

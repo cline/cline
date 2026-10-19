@@ -48,6 +48,7 @@ it("keeps file actions separate from disclosure and forwards panel focus/close",
 			".cline-ui-agent-changes__toggle",
 		);
 		expect(toggle).not.toBeNull();
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
 		expect(container.querySelector("pre")?.textContent).toBe("changed content");
 		await act(async () =>
 			container
@@ -66,8 +67,10 @@ it("keeps file actions separate from disclosure and forwards panel focus/close",
 		expect(onOpen).toHaveBeenCalledOnce();
 		expect(container.querySelector("pre")?.textContent).toBe("changed content");
 		await act(async () => toggle?.click());
+		expect(toggle?.getAttribute("aria-expanded")).toBe("false");
 		expect(container.querySelector("pre")).toBeNull();
 		await act(async () => toggle?.click());
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
 		expect(container.querySelector("pre")?.textContent).toBe("changed content");
 		closeRef.current?.focus();
 		expect(document.activeElement).toBe(closeRef.current);

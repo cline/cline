@@ -76,7 +76,7 @@ const CLOUD_WORKSPACE_ROOT = "/workspace";
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
-const CLOUD_SESSION_SYSTEM_PROMPT =
+export const CLOUD_SESSION_SYSTEM_PROMPT =
 	"IMPORTANT: GitHub authentication is handled automatically by the infrastructure. " +
 	"An egress proxy transparently injects credentials into all GitHub traffic. " +
 	"You do NOT need to set up, configure, or manage any tokens, API keys, or credentials, " +
@@ -85,6 +85,28 @@ const CLOUD_SESSION_SYSTEM_PROMPT =
 	"(`gh pr create`, `gh pr diff`, `gh issue list`, `gh api`, ...). " +
 	"`git` push and pull are authenticated the same way. " +
 	"Simply run the commands normally — credentials are injected transparently.";
+
+/** The prompt a new cloud task starts with: GitHub access plus its work-branch rules. */
+export function buildCloudSessionSystemPrompt(
+	record: Pick<CloudSessionRecord, "id" | "sandboxType" | "metadata">,
+): string {
+	const branch = `cline/${(record.metadata.taskId?.trim() || record.id).slice(-8).toLowerCase()}`;
+	const resumable =
+		record.sandboxType === "resumable" ||
+		record.metadata.sandboxType === "resumable";
+	return (
+		`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
+		`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
+		"(or check it out if it already exists), and never commit directly to the default branch. " +
+		(resumable
+			? "Commit and push only when the user asks. "
+			: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
+				`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
+				"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
+				`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
+		"Do not force-push or amend commits that are already pushed unless the user explicitly asks."
+	);
+}
 
 function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
 	if (!workspaceRelativePath) return CLOUD_WORKSPACE_ROOT;
@@ -678,6 +700,24 @@ export class CloudSessionController {
 
 	async list(): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
+		const currentTitle = (id: string) =>
+			this.sessions.get(id)?.title ?? this.knownSessions.get(id)?.title;
+		const titlesBeforeRefresh = new Map(
+			[...this.knownSessions.keys(), ...this.sessions.keys()].map((id) => [
+				id,
+				currentTitle(id),
+			]),
+		);
+		const preserveLocalTitle = (session: CloudSessionRecord) => {
+			const title = currentTitle(session.id);
+			// Preserve pending automatic titles and renames made during this request.
+			if (
+				this.titleWrites.has(session.id) ||
+				title !== titlesBeforeRefresh.get(session.id)
+			) {
+				session.title = title ?? session.title;
+			}
+		};
 		const organizationId = await this.resolveActiveOrganizationId();
 		const listed = (await this.options.api.list(organizationId)).map(
 			(session) => this.preserveConnectedRuntimeModel(session),
@@ -686,6 +726,7 @@ export class CloudSessionController {
 		// Keep canonical rows available while their status checks run.
 		this.lastListedSessions = listed;
 		for (const session of listed) {
+			preserveLocalTitle(session);
 			this.knownSessions.set(session.id, session);
 			this.unlistedSessions.delete(session.id);
 		}
@@ -723,8 +764,10 @@ export class CloudSessionController {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
+			preserveLocalTitle(session);
 			this.knownSessions.set(session.id, session);
 			const live = this.sessions.get(session.id);
+			if (live) live.title = session.title;
 			if (
 				live?.status === "provisioning" &&
 				session.status !== "provisioning"
@@ -2731,21 +2774,10 @@ export class CloudSessionController {
 			if (handoffSeed) throw new CloudHandoffSeedRejectedError(error);
 			throw error;
 		}
-		const branch = `cline/${(connection.remote.metadata.taskId?.trim() || connection.remote.id).slice(-8).toLowerCase()}`;
-		const resumable =
-			connection.remote.sandboxType === "resumable" ||
-			connection.remote.metadata.sandboxType === "resumable";
-		const systemPrompt =
-			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
-			`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
-			"(or check it out if it already exists), and never commit directly to the default branch. " +
-			(resumable
-				? "Commit and push only when the user asks. "
-				: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
-					`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
-					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
-					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		const systemPrompt = buildCloudSessionSystemPrompt(connection.remote);
+		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
+		const reasoningEffort =
+			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;
 		let dispatched = false;
 		const pendingReply = connection.client.command(
 			"session.create",
@@ -2771,29 +2803,17 @@ export class CloudSessionController {
 						: systemPrompt,
 					mode,
 					enableTools: true,
-					...(typeof (
-						handoffSeed?.config?.thinking ?? live?.config.thinking
-					) === "boolean"
-						? {
-								thinking:
-									handoffSeed?.config?.thinking ?? live?.config.thinking,
-							}
-						: {}),
-					...(typeof (
-						handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort
-					) === "string"
-						? {
-								reasoningEffort:
-									handoffSeed?.config?.reasoningEffort ??
-									live?.config.reasoningEffort,
-							}
-						: {}),
+					...(typeof thinking === "boolean" ? { thinking } : {}),
+					...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
 				},
 				metadata: {
 					source: this.options.clientIdentity?.source ?? "sdk",
 					provider: "cline",
 					model: modelId,
 					interactive: true,
+					thinking: thinking ?? null,
+					reasoningEffort:
+						thinking === false ? null : (reasoningEffort ?? null),
 					...(handoffSeed
 						? {
 								handoff: {

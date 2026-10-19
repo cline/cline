@@ -16,21 +16,13 @@ import { Button } from "@/components/ui/button";
 import { desktopClient } from "@/lib/desktop-client";
 import type { HubStatus } from "@/lib/hub-status";
 
-export function HubPanel({
-	onUrlChange,
-}: {
-	onUrlChange?: (url: string | null) => void;
-}) {
+export function HubPanel() {
 	const [status, setStatus] = useState<HubStatus | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [restarting, setRestarting] = useState(false);
 	const restartingRef = useRef(false);
 	const generation = useRef(0);
-
-	useEffect(() => {
-		onUrlChange?.(status?.url ?? null);
-	}, [onUrlChange, status?.url]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -85,6 +77,11 @@ export function HubPanel({
 					<h2 id="hub-heading" className="text-lg font-semibold">
 						Cline Hub
 					</h2>
+					{status ? (
+						<p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+							{status.url}
+						</p>
+					) : null}
 					<p className="mt-1 text-sm text-muted-foreground">
 						Restart the local hub to stop active sessions and reconnect clients.
 					</p>

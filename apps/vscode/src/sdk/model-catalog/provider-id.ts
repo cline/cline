@@ -59,6 +59,7 @@ const KNOWN_API_PROVIDERS = {
 	xiaomi: true,
 	"tencent-tokenhub": true,
 	chutes: true,
+	aiand: true,
 	"cline-pass": true,
 } satisfies Record<ApiProvider, true>
 

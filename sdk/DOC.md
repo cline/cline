@@ -1,4 +1,12 @@
 
+## Oversized tool result recovery
+
+Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
+
+Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core enables this for MCP and Composio tools. Original output remains in history and events; synchronous model preparation sends a bounded preview with a `cline://cache/<encoded-session-id>/<result-id>.result.txt` URI for cached oversized responses. Use `read_files` with `start_line`/`end_line` to read omitted content. Shell and filesystem search tools do not support these URIs. The stateless agent runtime does not own a cache.
+
+Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed
@@ -40,6 +48,10 @@ The API handles REST requests; the controller handles remote Hub connections,
 session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
+
+For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
+could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
+hosts should direct users to their session list instead of offering a blind retry.
 
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
@@ -151,16 +163,34 @@ configuration variables are `CLINE_REMOTE_HELPER_BINARY`,
 `CLINE_REMOTE_HELPER_DIRECTORY`, `CLINE_SSH_PATH`, and
 `CLINE_SSH_KNOWN_HOSTS_FILE`.
 
-Clients package a matching self-contained helper using the
-`@cline/core/remote/helper-entry` executable entrypoint, compiled with Bun for the remote OS and
-architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
-filename (`cline-remote-helper-<target-triple>`). Linux and macOS on x64/arm64
-are supported. Helpers must include the same SDK build as the client; missing
-helpers produce an explicit error, without installing a runtime from the network.
-The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
-and the core detached-daemon sentinel. Agent tools and persistence run remotely;
-the host only manages SSH and forwards the authenticated hub connection.
+Remote Hubs are CLI-managed. Clients package the self-contained Cline CLI
+binary (`apps/cli`, compiled with Bun) for each remote OS and architecture; the
+service stages it on the host and runs `cline hub ensure --json --discovery-path
+<path> ...` to start or reuse a loopback Hub, and `cline hub stop
+--discovery-path <path>` to stop it. Use `remoteHelperBinaryFilename({ platform,
+arch })` for the bundled filename (`cline-<target-triple>`). Linux and macOS on
+x64/arm64 are supported. The CLI must be built from the same SDK build as the
+client; missing binaries produce an explicit error, without installing a
+runtime from the network. Agent tools and persistence run remotely; the host
+only manages SSH and forwards the authenticated hub connection.
 
+Clients whose own process cannot host the Hub daemon can call
+`setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
+start are launched through the Cline CLI.
+
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, `resolveProviderLocalCli(provider)`, and
+`resolveProviderApiKeyOptional(provider)`. The resolvers accept provider data
+(`metadata.localCliCommand` with optional `docsUrl`, and `metadata.apiKeyOptional`);
+they perform no registry lookup. Hosts resolve providers through `@cline/llms` and
+then pass that data to the shared helpers. `listLocalProviders` includes the
+resulting facts in each `ProviderListItem.auth` (`localCli`, and `apiKeyOptional`
+for local inference servers and cloud-credential providers that run without a
+key), allowing browser clients to render authentication guidance and gate sessions
+without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
@@ -191,6 +221,34 @@ executes its available tools without inheriting that policy or approval callback
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
 
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
+fails during discovery, the new settings are still saved and the last known
+catalog is retained. Settings and catalog persistence errors still reject the save.
+Provider-service mutations are serialized per catalog file within the process,
+including across manager instances and different providers. Discovery prepares
+the update before the complete settings patch is persisted once. If the catalog
+write fails, the prior provider settings are restored only while the failed
+operation still owns the current settings entry; newer saves and removals are
+preserved. A rollback failure is reported alongside the original error.
+Explicit `updateLocalProvider` calls still reject failed model fetches and retain
+the prior settings and catalog.
+
+Catalog refreshes replace discovery-owned model IDs while retaining manually
+added models, their default selection, and overrides on retained model entries.
+`models.json` records discovery-only IDs in `discoveredModelIds`; IDs also supplied
+explicitly are user-managed. An explicit `models` update replaces the manual list.
+An existing model selection in provider settings does not count as a manual
+addition when initializing a source-backed catalog.
+Provider capabilities are inherited when registering models, so stored per-model
+capability overrides continue to take precedence after refreshes.
 
 ## Shared UI session rows
 
@@ -297,3 +355,53 @@ Hosts that record command telemetry should label a `CommandSpawnError` by its
 standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
+
+## Symlinked instruction files
+
+Rules and workflows can be symbolic links to regular files. Source paths and
+fallback names use the link's name and location, not the target's. Broken,
+circular, and non-file targets are skipped.
+
+`UnifiedConfigFileWatcher` watches only the directory containing the link, not
+the link's target. Edits to a symlink's target are picked up on the next
+refresh or new session.
+
+## Unknown model completion recovery
+
+The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. Explicit `stop`, `tool-calls`, `content-filter`, and `error` retain their meanings. The agent also treats a stream without a finish event as unknown.
+
+Without tool activity, an unknown response is preserved in history and continued once, with the model-visible user message “Previous turn ended unexpectedly. Continue from where you left off.” The message uses `displayRole: "system"` and `userRunSpan: 0`, matching injected hook context so it stays out of live and replayed chat transcripts. The system prompt is unchanged. A second unknown completion fails the run. Queued user instructions are consumed before the continuation, including in the first iteration. Tool calls receive their results through the normal loop; provider-executed actions are not replayed.
+
+## Host connector transport
+
+Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost`
+and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
+Paths start with `/api/v1/connectors`; the host supplies the API origin and
+authentication. Omit it to retain local account authentication and rollout checks.
+
+## MCP Apps (experimental)
+
+MCP Apps support is off by default.
+`createDefaultMcpServerClientFactory({ mcpApps: true })` turns it on by
+advertising the `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`)
+with the `text/html;profile=mcp-app` MIME type during `initialize`, for stdio
+and URL servers alike.
+
+`createMcpTools` always leaves out tools whose `_meta.ui.visibility` does not
+include `"model"`, whether or not the client advertised the extension.
+
+Tool descriptors keep the server's `_meta`. `getMcpAppToolMeta` reads
+`_meta.ui`: `resourceUri` is kept only for `ui://` URIs, and `visibility`
+defaults to `["model", "app"]` when it is not an array. An explicit array is
+used as given after dropping unknown entries, so `[]` makes the tool visible to
+neither. `isMcpToolVisibleToModel` and `isMcpToolVisibleToApp` check those
+lists; a host must reject app-initiated tool calls when
+`isMcpToolVisibleToApp` is false.
+
+`McpManager.readResource({ serverName, uri, context })` sends `resources/read`
+and returns `{ contents, _meta? }`, validated against the MCP SDK schema;
+malformed replies throw. It is optional on `McpManager` and
+`McpServerClient`. `InMemoryMcpManager` reads without waiting for in-flight
+tool calls on an already connected server. A read that starts while the server
+is being disconnected or re-registered can fail with a disconnect error; retry
+it.

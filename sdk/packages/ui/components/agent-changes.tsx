@@ -114,6 +114,7 @@ export function AgentChangedFile({
 			{/* group preserves hover reveal for host-provided native actions. */}
 			<div className="cline-ui-agent-changes__file-header group flex w-full items-center gap-2 bg-cline-ui-card/80 px-4 py-2 hover:bg-cline-ui-surface-hover-lighter transition-colors">
 				<button
+					aria-expanded={expanded}
 					className="cline-ui-agent-changes__toggle flex min-w-0 shrink items-center gap-2 text-left"
 					onClick={toggle}
 					type="button"

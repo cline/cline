@@ -60,6 +60,16 @@ function sessionTitle(record: Record<string, unknown>): string {
 	return basename(asString(record.workspaceRoot) ?? asString(record.cwd));
 }
 
+export function formatClientDetails(client: TrackedClient): string {
+	const details = [
+		client.version ? `v${client.version}` : undefined,
+		client.pid !== undefined ? `pid ${client.pid}` : undefined,
+	].filter(Boolean);
+	return details.length > 0
+		? `${formatClientName(client)} (${details.join(", ")})`
+		: formatClientName(client);
+}
+
 export function formatClientName(client: TrackedClient): string {
 	return (
 		client.displayName?.trim() ||

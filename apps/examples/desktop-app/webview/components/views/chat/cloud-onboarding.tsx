@@ -28,6 +28,8 @@ export function CloudOnboardingCard({
 	onConnect,
 	onRefresh,
 	onSignIn,
+	onCancelSignIn,
+	cancelling = false,
 	signingIn = false,
 	checking = false,
 }: {
@@ -35,6 +37,8 @@ export function CloudOnboardingCard({
 	onConnect: () => void;
 	onRefresh: () => void;
 	onSignIn?: () => void;
+	onCancelSignIn?: () => void;
+	cancelling?: boolean;
 	signingIn?: boolean;
 	checking?: boolean;
 }) {
@@ -69,7 +73,7 @@ export function CloudOnboardingCard({
 
 	return (
 		<div className="overflow-hidden rounded-xl border border-border bg-card/80 shadow-sm backdrop-blur-sm">
-			<div className="flex flex-col gap-6 p-6 max-[720px]:p-5">
+			<div className="flex flex-col gap-4 p-4">
 				<div className="flex items-start justify-between gap-6 max-[720px]:flex-col">
 					<div className="min-w-0">
 						<p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-primary">
@@ -132,10 +136,22 @@ export function CloudOnboardingCard({
 
 				<div className="flex flex-wrap items-center gap-3">
 					{isSignedOut ? (
-						<Button disabled={signingIn} onClick={onSignIn} size="sm">
-							<LogIn aria-hidden="true" className="size-3.5" />
-							{signingIn ? "Waiting for browser…" : "Sign in with Cline"}
-						</Button>
+						<>
+							<Button disabled={signingIn} onClick={onSignIn} size="sm">
+								<LogIn aria-hidden="true" className="size-3.5" />
+								{signingIn ? "Waiting for browser…" : "Sign in with Cline"}
+							</Button>
+							{signingIn && onCancelSignIn && (
+								<Button
+									disabled={cancelling}
+									onClick={onCancelSignIn}
+									size="sm"
+									variant="ghost"
+								>
+									Cancel
+								</Button>
+							)}
+						</>
 					) : (
 						<Button onClick={onConnect} size="sm">
 							<Github aria-hidden="true" className="size-3.5" />

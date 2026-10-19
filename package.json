@@ -66,7 +66,7 @@
         "typescript": "^5.9.3"
     },
     "overrides": {
-        "axios": "1.18.0",
+        "axios": "1.20.0",
         "fast-uri": ">=3.1.4",
         "undici": ">=7.29.0 <8",
         "@opentui/core": "0.4.3",
@@ -91,6 +91,7 @@
     "packageManager": "bun@1.4.2",
     "patchedDependencies": {
         "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch",
-        "ollama-ai-provider-v2@4.0.1": "patches/ollama-ai-provider-v2@4.0.1.patch"
+        "ollama-ai-provider-v2@4.0.1": "patches/ollama-ai-provider-v2@4.0.1.patch",
+        "@shadcn/react@0.3.1": "patches/@shadcn%2Freact@0.3.1.patch"
     }
 }

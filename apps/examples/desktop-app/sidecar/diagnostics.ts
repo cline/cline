@@ -11,7 +11,6 @@ import { arch, homedir, platform, release } from "node:os";
 import { join } from "node:path";
 import { readGlobalSettings, resolveClineDataDir } from "@cline/core";
 import packageJson from "../package.json";
-import { readDesktopSettings } from "./desktop-settings";
 import { readSessionManifest } from "./paths";
 
 /** How much of each log file (from the end) is included in the report. */
@@ -88,7 +87,6 @@ export function buildDiagnosticsReport(
 		},
 		dataDir,
 		globalSettings: readGlobalSettings(),
-		desktopSettings: readDesktopSettings(),
 	};
 	let text = `${JSON.stringify(report, null, 2)}\n`;
 
@@ -140,7 +138,9 @@ export function writeDiagnosticsReport(
 ): { path: string; sessionIds: string[] } {
 	const now = new Date();
 	const report = buildDiagnosticsReport(sessionIds, now);
-	mkdirSync(outputDir, { recursive: true });
+	// Bun on Windows can throw EEXIST from a recursive mkdir of an existing
+	// directory, so only create the directory when it is actually missing.
+	if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 	const path = join(
 		outputDir,
 		`cline-diagnostics-${packageJson.version}-${formatStamp(now)}.txt`,

@@ -33,7 +33,9 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
+import type { CoreCompactionContext } from "../../types/config";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -887,6 +889,52 @@ describe("SessionRuntime message preparation", () => {
 		expect(prepareTurn).toHaveBeenCalledWith(
 			expect.objectContaining({ previousRequestInputTokens: 123_456 }),
 		);
+	});
+
+	it("passes the resolved model context limit to auto compaction", async () => {
+		const modelId = "local-model";
+		const contextWindow = 65_536;
+		const compact = vi.fn((_context: CoreCompactionContext) => undefined);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId,
+			compaction: { enabled: true, compact },
+		});
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				// The discovered catalog entry has no limit; a selected-model
+				// override supplies the limit used by the gateway request.
+				knownModels: { [modelId]: { id: modelId, name: modelId } },
+				providerConfig: {
+					providerId: "anthropic",
+					modelId,
+					maxInputTokens: 128_000,
+					modelInfo: { id: modelId, contextWindow },
+				},
+				prepareTurn,
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		await configs[0]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [makeAgentMessage("m1", "user", "x".repeat(300_000))],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.model.info).toMatchObject({ contextWindow });
+		expect(context?.budget.request.maxInputTokens).toBe(contextWindow);
+		expect(context?.budget.request.triggerTokens).toBe(contextWindow * 0.9);
 	});
 
 	it("allows prepareTurn to return only a system prompt", async () => {
