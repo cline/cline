@@ -60,7 +60,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 	initialAttachments?: File[];
 	canOpen: () => boolean;
 	open: (draft?: string, attachments?: File[], draftId?: string) => void;
-	onSavedDraftOpened?: (saved: CloudHandoffFollowUp) => void | Promise<void>;
 }): Promise<boolean> {
 	let saved: CloudHandoffFollowUp | null = null;
 	const explicitRetry =
@@ -100,7 +99,6 @@ export async function openWithCloudHandoffFollowUp(options: {
 		attachments,
 		saved?.draftId,
 	);
-	if (!explicitRetry && saved) await options.onSavedDraftOpened?.(saved);
 	if (restoreFailed) {
 		toast({
 			title: "Cloud opened without the saved follow-up",

@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
-	buildCloudHandoffDashboardUrl,
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
@@ -19,7 +18,6 @@ import {
 	ProviderSettingsManager,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
-	readCloudHandoffMetadata,
 	readGlobalSettings,
 	readSessionCheckpointHistory,
 	resolveProviderApiKeyFromSettings,
@@ -27,8 +25,8 @@ import {
 	type SessionPendingPrompt,
 	type SessionRecord,
 	SessionSource,
-	SqliteSessionStore,
 	splitCoreSessionConfig,
+	summarizeConversation,
 	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
@@ -41,7 +39,6 @@ import {
 	type ConsecutiveMistakeLimitContext,
 	type ConsecutiveMistakeLimitDecision,
 	formatUserCommandBlock,
-	getClineEnvironmentConfig,
 	type SessionPluginIssue,
 } from "@cline/shared";
 import {
@@ -52,19 +49,13 @@ import {
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
 import {
-	assertCloudHandoffCreationResolved,
 	beginActiveSessionSend,
 	handleHandoff,
 	handlePrepareHandoff,
 	handlePrepareHandoffGit,
 	hasActiveSessionSend,
-	isCloudHandoffFollowUpBlocked,
-	isCloudHandoffInProgress,
 } from "./cloud-handoff";
-import {
-	readCloudHandoffFollowUp,
-	sendWithCloudHandoffFollowUp,
-} from "./cloud-handoff-follow-up";
+import { sendWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -1666,40 +1657,12 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
-	if (isCloudHandoffInProgress(ctx, sessionId)) {
-		throw new Error(
-			"Cloud handoff is in progress. Wait for it to finish before sending another prompt.",
-		);
-	}
 	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
 	try {
 		return await handleSendOnce(ctx, request, sessionId, prompt);
 	} finally {
 		finishActiveSend();
 	}
-}
-
-async function readHandoffSessionMetadata(
-	binding: SessionRuntimeBinding,
-	sessionId: string,
-) {
-	if (binding.kind !== "local") return undefined;
-	const persisted = await binding.sessionManager
-		.get(sessionId)
-		.catch((error) => {
-			if (!isHubLossError(error)) throw error;
-			const manifest = readSessionManifest(sessionId);
-			if (manifest) return manifest;
-			const store = new SqliteSessionStore();
-			try {
-				const row = store.get(sessionId);
-				if (!row) throw error;
-				return row;
-			} finally {
-				store.close();
-			}
-		});
-	return persisted?.metadata ?? readSessionMetadata(sessionId);
 }
 
 async function handleSendOnce(
@@ -1715,19 +1678,6 @@ async function handleSendOnce(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	const metadata = await readHandoffSessionMetadata(binding, sessionId);
-	assertCloudHandoffCreationResolved(metadata);
-	const handoff = readCloudHandoffMetadata(metadata);
-	if (handoff?.status === "pending") {
-		throw new Error(
-			`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
-		);
-	}
-	if (handoff?.status === "complete") {
-		throw new Error(
-			`This session continued in Cline Cloud: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}. Fork locally to continue here.`,
-		);
-	}
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
@@ -2103,9 +2053,6 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
-	if (isCloudHandoffInProgress(ctx, sourceSessionId)) {
-		throw new Error("Wait for the cloud handoff to finish before forking.");
-	}
 	const forkBeforeRunCount = request.forkBeforeRunCount;
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -2128,18 +2075,6 @@ async function handleFork(
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	const sourceSession = await manager.get(sourceSessionId);
-	const sourceMetadata =
-		binding.kind === "local"
-			? (sourceSession?.metadata ?? readSessionMetadata(sourceSessionId))
-			: undefined;
-	if (forkBeforeRunCount !== undefined)
-		assertCloudHandoffCreationResolved(sourceMetadata);
-	const sourceHandoff = readCloudHandoffMetadata(sourceMetadata);
-	if (sourceHandoff?.status === "pending") {
-		throw new Error(
-			`Cloud handoff is still pending. Retry /cloud or continue here: ${sourceHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, sourceHandoff.toCloudSessionId)}`,
-		);
-	}
 	if (
 		forkBeforeRunCount !== undefined &&
 		(sourceSession?.status === "running" || sourceSession?.status === "pending")
@@ -2163,10 +2098,6 @@ async function handleFork(
 		throw new Error("cwd or workspaceRoot is required to edit a message");
 	}
 	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () => {
-		// A handoff may have started while the source was read; once locked, new ones refuse.
-		if (isCloudHandoffInProgress(ctx, sourceSessionId)) {
-			throw new Error("Wait for the cloud handoff to finish before forking.");
-		}
 		return handleForkUnlocked(
 			ctx,
 			request,
@@ -2368,23 +2299,12 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
-		if (isCloudHandoffInProgress(ctx, sessionId)) {
-			throw new Error("Wait for the cloud handoff to finish before resetting.");
-		}
 		const binding = getSessionRuntimeBinding(
 			ctx,
 			sessionId,
 			readEnvironmentId(request.config),
 		);
 		const manager = binding.sessionManager;
-		const pendingHandoff = readCloudHandoffMetadata(
-			await readHandoffSessionMetadata(binding, sessionId),
-		);
-		if (pendingHandoff?.status === "pending") {
-			throw new Error(
-				`Cloud handoff is still pending. Retry /cloud or continue here: ${pendingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, pendingHandoff.toCloudSessionId)}`,
-			);
-		}
 		cancelHubReconnect(sessionId);
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
@@ -2410,11 +2330,6 @@ async function handleRestoreCheckpoint(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
-	if (isCloudHandoffInProgress(ctx, sourceSessionId)) {
-		throw new Error(
-			"Wait for the cloud handoff to finish before restoring a checkpoint.",
-		);
-	}
 	const runCount = request.checkpointRunCount;
 	if (
 		typeof runCount !== "number" ||
@@ -2431,36 +2346,6 @@ async function handleRestoreCheckpoint(
 		readEnvironmentId(requestedConfig),
 	);
 	const manager = binding.sessionManager;
-	const persisted =
-		binding.kind === "local" ? await manager.get(sourceSessionId) : undefined;
-	const handoffMetadata =
-		binding.kind === "local"
-			? (persisted?.metadata ?? readSessionMetadata(sourceSessionId))
-			: undefined;
-	const completedHandoff = readCloudHandoffMetadata(handoffMetadata);
-	assertCloudHandoffCreationResolved(handoffMetadata);
-	if (completedHandoff?.status === "pending") {
-		throw new Error(
-			`Cloud handoff is still pending. Retry /cloud or continue here: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}`,
-		);
-	}
-	if (completedHandoff?.status === "complete") {
-		throw new Error(
-			"This session continued in Cline Cloud. Fork locally before restoring a checkpoint.",
-		);
-	}
-	// The initial persisted read can race with a handoff beginning. Recheck
-	// after it resolves before any restore work mutates the source workspace.
-	if (
-		isCloudHandoffInProgress(
-			getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local"),
-			sourceSessionId,
-		)
-	) {
-		throw new Error(
-			"Wait for the cloud handoff to finish before restoring a checkpoint.",
-		);
-	}
 	const cwd =
 		(typeof requestedConfig.cwd === "string" && requestedConfig.cwd.trim()) ||
 		(typeof requestedConfig.workspaceRoot === "string" &&
@@ -2665,9 +2550,24 @@ const ACTION_HANDLERS: Record<
 	send: handleSend,
 	prepare_handoff: handlePrepareHandoff,
 	prepare_handoff_git: (ctx, request) =>
-		handlePrepareHandoffGit(ctx, request, (cwd, work) =>
-			withWorkspaceRestoreLock(ctx, cwd, work),
-		),
+		handlePrepareHandoffGit(ctx, request, async (messages, config) => {
+			const connection = buildSessionConnectionUpdate(
+				await withRemoteProviderCredentials(config),
+			);
+			if (!connection.providerId || !connection.modelId)
+				throw new Error(
+					"Select a local model before preparing a cloud summary.",
+				);
+			return summarizeConversation({
+				messages,
+				signal: AbortSignal.timeout(120_000),
+				config: {
+					...connection,
+					providerId: connection.providerId,
+					modelId: connection.modelId,
+				},
+			});
+		}),
 	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
@@ -2755,15 +2655,6 @@ export async function handleChatSessionCommand(
 				return await cloud.attach(sessionId);
 			case "send": {
 				if (!sessionId) throw new Error("sessionId is required");
-				const saved = readCloudHandoffFollowUp(sessionId);
-				if (
-					saved &&
-					(await isCloudHandoffFollowUpBlocked(ctx, saved.sourceSessionId))
-				) {
-					throw new Error(
-						"Wait for the cloud handoff to finish. Retry /cloud from the source session if it failed.",
-					);
-				}
 				if (request.attachments?.userFiles?.length) {
 					throw new Error(
 						"File attachments are not supported in cloud sessions",

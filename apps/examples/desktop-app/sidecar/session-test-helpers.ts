@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi } from "vitest";
-import { writeDesktopSettings } from "./desktop-settings";
 import type { SidecarContext } from "./types";
 
 export function localRuntimeContext(
@@ -55,7 +54,6 @@ export function enableCloudHandoffGates(): void {
 	handoffOptInDataDirs.push(dataDir);
 	process.env.CLINE_DATA_DIR = dataDir;
 	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-	writeDesktopSettings({ cloudSessionsEnabled: true });
 }
 
 export function cleanupCloudHandoffGates(): void {

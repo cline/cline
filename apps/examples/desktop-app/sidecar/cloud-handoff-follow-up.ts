@@ -8,8 +8,12 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { CloudSendLifecycle } from "@cline/core/cloud";
+import type {
+	CloudCreationOptions,
+	CloudSendLifecycle,
+} from "@cline/core/cloud";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { z } from "zod";
 
 export type CloudHandoffFollowUp = {
 	draftId: string;
@@ -17,7 +21,18 @@ export type CloudHandoffFollowUp = {
 	command: string;
 	userImages: string[];
 	unconfirmed?: boolean;
+	initialTask?: CloudCreationOptions;
 };
+
+const initialTaskSchema: z.ZodType<CloudCreationOptions> = z
+	.object({
+		autoApproveTools: z.boolean().optional(),
+		thinking: z.boolean().optional(),
+		reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
+		mode: z.enum(["act", "plan", "yolo", "zen"]).optional(),
+		workspaceRelativePath: z.string().optional(),
+	})
+	.strict();
 
 const activeRecoverySends = new Map<string, number>();
 
@@ -73,11 +88,21 @@ export function readCloudHandoffFollowUp(
 	) {
 		throw new Error("The saved cloud follow-up could not be read.");
 	}
+	if (value.initialTask !== undefined)
+		value.initialTask = initialTaskSchema.parse(value.initialTask);
 	return value;
 }
 
 export function clearCloudHandoffFollowUp(targetSessionId: string): void {
 	rmSync(followUpPath(targetSessionId), { force: true });
+}
+
+export function getRecoverableCloudHandoffFollowUp(
+	targetSessionId: string,
+): CloudHandoffFollowUp | null {
+	return activeRecoverySends.has(targetSessionId)
+		? null
+		: readCloudHandoffFollowUp(targetSessionId);
 }
 
 export function updateCloudHandoffFollowUp(
@@ -113,22 +138,33 @@ export async function sendWithCloudHandoffFollowUp<
 	draftId?: string,
 ): Promise<T> {
 	const saved = readCloudHandoffFollowUp(targetSessionId);
+	if (!saved) return await send();
 	const matches = (record: CloudHandoffFollowUp | null) =>
 		Boolean(
 			record &&
-				saved &&
 				record.draftId === saved.draftId &&
 				record.sourceSessionId === saved.sourceSessionId &&
 				record.command.trim() === command.trim() &&
 				isDeepStrictEqual(record.userImages, userImages),
 		);
 	const activeSends = activeRecoverySends.get(targetSessionId) ?? 0;
-	if (
-		!saved ||
-		(!matches(saved) &&
-			(activeSends > 0 || saved.unconfirmed || saved.draftId !== draftId))
-	)
-		return await send();
+	const ownsDraft =
+		matches(saved) ||
+		(activeSends === 0 && !saved.unconfirmed && saved.draftId === draftId);
+	const lifecycle: CloudSendLifecycle = {
+		beforeDispatch: () => {
+			const current = readCloudHandoffFollowUp(targetSessionId);
+			if (!current) return;
+			const markUnconfirmed = ownsDraft && matches(current);
+			if (!current.initialTask && !markUnconfirmed) return;
+			const { initialTask: _, ...dispatched } = current;
+			saveCloudHandoffFollowUp(targetSessionId, {
+				...dispatched,
+				...(markUnconfirmed ? { unconfirmed: true } : {}),
+			});
+		},
+	};
+	if (!ownsDraft) return await send(lifecycle);
 	activeRecoverySends.set(targetSessionId, activeSends + 1);
 	try {
 		if (!matches(saved))
@@ -137,16 +173,7 @@ export async function sendWithCloudHandoffFollowUp<
 				command,
 				userImages,
 			});
-		const result = await send({
-			beforeDispatch: () => {
-				const current = readCloudHandoffFollowUp(targetSessionId);
-				if (matches(current) && current)
-					saveCloudHandoffFollowUp(targetSessionId, {
-						...current,
-						unconfirmed: true,
-					});
-			},
-		});
+		const result = await send(lifecycle);
 		if (!result.recoveredAfterDisconnect) {
 			try {
 				if (matches(readCloudHandoffFollowUp(targetSessionId)))

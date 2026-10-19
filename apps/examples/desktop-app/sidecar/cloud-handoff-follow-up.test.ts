@@ -4,6 +4,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,7 @@ import {
 	updateCloudHandoffFollowUp,
 } from "./cloud-handoff-follow-up";
 import { CloudSessionApi, CloudSessionManager } from "./cloud-sessions";
+import { handleCommand } from "./commands";
 import { createSidecarContext, disposeSidecarContext } from "./context";
 import { localRuntimeContext } from "./session-test-helpers";
 
@@ -65,6 +67,23 @@ it("keeps untrusted session ids inside the recovery directory", () => {
 	});
 	expect(readdirSync(dataDir)).toEqual(["desktop-handoff-follow-ups"]);
 	expect(readCloudHandoffFollowUp("../../outside")?.command).toBe("hello");
+});
+
+it.each([
+	{ mode: "unknown" },
+	{ thinking: "yes" },
+	{ apiKey: "not-an-option" },
+])("rejects malformed initial-task options: %j", (initialTask) => {
+	saveCloudHandoffFollowUp("target", {
+		sourceSessionId: "source",
+		command: "continue",
+		userImages: [],
+	});
+	const directory = join(dataDir, "desktop-handoff-follow-ups");
+	const path = join(directory, readdirSync(directory)[0]);
+	const saved = readCloudHandoffFollowUp("target");
+	writeFileSync(path, JSON.stringify({ ...saved, initialTask }));
+	expect(() => readCloudHandoffFollowUp("target")).toThrow();
 });
 
 it.each([
@@ -254,7 +273,11 @@ it("restores or dismisses only the reviewed recovery copy", () => {
 		sourceSessionId: "source",
 		command: "inspect",
 		userImages: ["image"],
-		unconfirmed: true,
+		initialTask: {
+			mode: "plan" as const,
+			workspaceRelativePath: "packages/app",
+			autoApproveTools: false,
+		},
 	};
 	saveCloudHandoffFollowUp("target", saved);
 	const restored = updateCloudHandoffFollowUp("target", saved, "restore");
@@ -263,18 +286,27 @@ it("restores or dismisses only the reviewed recovery copy", () => {
 		sourceSessionId: "source",
 		command: "inspect",
 		userImages: ["image"],
+		initialTask: saved.initialTask,
 	});
 	expect(readCloudHandoffFollowUp("target")).toEqual(restored);
-	expect(() => updateCloudHandoffFollowUp("target", saved, "dismiss")).toThrow(
-		"changed",
-	);
+	expect(() =>
+		updateCloudHandoffFollowUp(
+			"target",
+			{ ...saved, command: "changed" },
+			"dismiss",
+		),
+	).toThrow("changed");
 	expect(readCloudHandoffFollowUp("target")).toEqual(restored);
 	if (!restored) throw new Error("Missing restored payload");
 	updateCloudHandoffFollowUp("target", restored, "dismiss");
 	expect(readCloudHandoffFollowUp("target")).toBeNull();
 });
 
-it("retains edits and images as a usable draft when preflight rejects", async () => {
+it.each([
+	false,
+	true,
+])("exposes the full recovery draft only after provisioning settles (rejected: %s)", async (rejected) => {
+	const ctx = createSidecarContext("/workspace");
 	saveCloudHandoffFollowUp("target", {
 		draftId: "draft",
 		sourceSessionId: "source",
@@ -282,35 +314,60 @@ it("retains edits and images as a usable draft when preflight rejects", async ()
 		userImages: [],
 	});
 	const images = ["data:image/png;base64,aW1hZ2U="];
-	await expect(
-		sendWithCloudHandoffFollowUp(
-			"target",
-			"edited",
-			images,
-			async () => {
-				throw new Error("preflight failed");
-			},
-			"draft",
-		),
-	).rejects.toThrow("preflight failed");
-	expect(readCloudHandoffFollowUp("target")).toEqual({
+	const provisioning = Promise.withResolvers<void>();
+	const sending = sendWithCloudHandoffFollowUp(
+		"target",
+		"edited",
+		images,
+		async (lifecycle) => {
+			await provisioning.promise;
+			if (rejected) throw new Error("preflight failed");
+			lifecycle?.beforeDispatch?.();
+			return { ok: true };
+		},
+		"draft",
+	);
+	const saved = {
 		draftId: "draft",
 		sourceSessionId: "source",
 		command: "edited",
 		userImages: images,
-	});
+	};
+	try {
+		expect(readCloudHandoffFollowUp("target")).toEqual(saved);
+		await expect(
+			handleCommand(ctx, "get_cloud_handoff_follow_up", {
+				sessionId: "target",
+			}),
+		).resolves.toBeNull();
+		provisioning.resolve();
+		if (rejected) await expect(sending).rejects.toThrow("preflight failed");
+		else await expect(sending).resolves.toEqual({ ok: true });
+		await expect(
+			handleCommand(ctx, "get_cloud_handoff_follow_up", {
+				sessionId: "target",
+			}),
+		).resolves.toEqual(rejected ? saved : null);
+	} finally {
+		provisioning.resolve();
+		await sending.catch(() => undefined);
+		await disposeSidecarContext(ctx);
+	}
 });
 
 it.each([
 	"accepted",
 	"failed",
 	"stale draft",
+	"preflight failed",
+	"not dispatched",
 ])("preserves an unseen unqueued draft during an unrelated send (%s)", async (outcome) => {
 	const saved = {
 		draftId: "draft",
 		sourceSessionId: "source",
 		command: "unseen draft",
 		userImages: ["image"],
+		initialTask: { mode: "plan" as const, autoApproveTools: false },
 	};
 	saveCloudHandoffFollowUp("target", saved);
 	const sending = sendWithCloudHandoffFollowUp(
@@ -318,6 +375,8 @@ it.each([
 		"unrelated",
 		[],
 		async (lifecycle) => {
+			if (outcome === "preflight failed") throw new Error("preflight failed");
+			if (outcome === "not dispatched") return { ok: true };
 			lifecycle?.beforeDispatch?.();
 			if (outcome === "failed") throw new Error("disconnected");
 			return { ok: true };
@@ -326,8 +385,15 @@ it.each([
 	);
 	if (outcome === "failed")
 		await expect(sending).rejects.toThrow("disconnected");
+	else if (outcome === "preflight failed")
+		await expect(sending).rejects.toThrow("preflight failed");
 	else await sending;
-	expect(readCloudHandoffFollowUp("target")).toEqual(saved);
+	const { initialTask: _, ...dispatched } = saved;
+	expect(readCloudHandoffFollowUp("target")).toEqual(
+		outcome === "preflight failed" || outcome === "not dispatched"
+			? saved
+			: dispatched,
+	);
 });
 
 it("preserves A recovery while an edited B dispatches during A pending", async () => {
