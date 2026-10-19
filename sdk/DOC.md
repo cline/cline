@@ -384,7 +384,10 @@ While it is on:
   `CommandSpawnError` rather than running unprotected.
 
 Sandbox requirements: MXC's streaming spawn needs Node 24+ (on Windows 24.21+
-or 26.8+); Bun 1.4+; Linux needs `bwrap`, `slirp4netns`, and `iptables`;
+or 26.8+); Bun 1.4+ with the stream fix in
+`patches/@microsoft%2Fmxc-sdk@1.0.0.patch` applied (`patchedDependencies`),
+without which sandboxed commands fail closed under Bun; Linux needs `bwrap`,
+`slirp4netns`, and `iptables`;
 macOS 15+ on Apple silicon; Windows 11 24H2/25H2 with the August 2026 update.
 Bundled or compiled hosts cannot inline MXC because its FFI layer loads native
 files from disk. Stage it with `sdk/packages/core/scripts/stage-mxc-runtime.ts`

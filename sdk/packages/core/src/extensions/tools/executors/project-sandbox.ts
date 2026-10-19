@@ -13,6 +13,7 @@ import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
+import { Socket } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough, type Readable, type Writable } from "node:stream";
@@ -277,6 +278,18 @@ class SandboxedProcess extends EventEmitter {
 		if (this.killRequested) {
 			sandboxed.kill();
 			sandboxed.dispose();
+			return;
+		}
+		// Unpatched MXC wraps output pipes in net.Socket, which never emits
+		// data under Bun; see patches/@microsoft%2Fmxc-sdk@1.0.0.patch.
+		if (process.versions.bun && sandboxed.standardOutput instanceof Socket) {
+			sandboxed.kill();
+			sandboxed.dispose();
+			this.fail(
+				new Error(
+					`Couldn't keep this command inside your project (this Bun host needs the MXC stream patch). To run it anyway, turn off "${PROJECT_SANDBOX_SETTING_LABEL}" in Settings.`,
+				),
+			);
 			return;
 		}
 		this.process = sandboxed;
