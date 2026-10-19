@@ -1,14 +1,33 @@
-import type { HubReplyEnvelope } from "@cline/shared";
+import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import type {
 	PluginCommandCatalog,
 	PluginCommandResult,
 	PluginCommandsApi,
 } from "../../services/plugin-command-api";
-import type { NodeHubClient } from "./index";
+import { HubCommandError, type NodeHubClient } from "./index";
 
-/** A Hub that predates plugin command RPCs, kept alive while it has active work. */
-function isUnsupported(reply: HubReplyEnvelope): boolean {
-	return !reply.ok && reply.error?.code === "unsupported_command";
+/**
+ * A Hub that predates plugin command RPCs, kept alive while it has active
+ * work, answers unsupported_command. Resolves undefined for that Hub.
+ */
+async function commandIfSupported(
+	client: Pick<NodeHubClient, "command">,
+	command: HubCommandEnvelope["command"],
+	payload: Record<string, unknown>,
+	sessionId: string | undefined,
+): Promise<HubReplyEnvelope | undefined> {
+	try {
+		return await client.command(command, payload, sessionId, {
+			timeoutMs: null,
+		});
+	} catch (error) {
+		if (
+			error instanceof HubCommandError &&
+			error.code === "unsupported_command"
+		)
+			return undefined;
+		throw error;
+	}
 }
 
 /** Uses the caller's existing connection and subscription lifecycle. */
@@ -17,14 +36,13 @@ export function createHubPluginCommandsApi(
 ): PluginCommandsApi {
 	return {
 		async list(target) {
-			const reply = await client.command(
+			const reply = await commandIfSupported(
+				client,
 				"plugins.commands.list",
 				{ ...target },
 				target.sessionId,
-				{ timeoutMs: null },
 			);
-			if (isUnsupported(reply))
-				return { ...target, status: "ready", commands: [] };
+			if (!reply) return { ...target, status: "ready", commands: [] };
 			if (!reply.ok)
 				throw new Error(
 					reply.error?.message ?? "Plugin command discovery failed",
@@ -32,13 +50,13 @@ export function createHubPluginCommandsApi(
 			return reply.payload?.catalog as unknown as PluginCommandCatalog;
 		},
 		async run(input) {
-			const reply = await client.command(
+			const reply = await commandIfSupported(
+				client,
 				"plugins.commands.run",
 				{ ...input },
 				input.sessionId,
-				{ timeoutMs: null },
 			);
-			if (isUnsupported(reply)) return undefined;
+			if (!reply) return undefined;
 			if (!reply.ok)
 				throw new Error(
 					reply.error?.message ?? "Plugin command execution failed",
