@@ -17,7 +17,7 @@
 			],
 			"dialog": true,
 			"windows": {
-				"installMode": "basic",
+				"installMode": "basicUi",
 				"installerArgs": ["/quiet"]
 			}
 		}
