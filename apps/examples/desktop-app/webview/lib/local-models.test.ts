@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	evaluateLocalModelFit,
+	getMachineMemoryBytes,
 	getRecommendedLocalModel,
 	normalizeOllamaModelName,
+	parseOllamaParameters,
 } from "./local-models";
 
 const mac = (totalMemoryGb: number) => ({
@@ -44,5 +46,29 @@ describe("local models", () => {
 			"laguna-xs-2.1:latest",
 		);
 		expect(normalizeOllamaModelName("qwen3.8:27b")).toBe("qwen3.8:27b");
+	});
+
+	it("parses ollama show parameters, keeping repeated stop sequences", () => {
+		expect(
+			parseOllamaParameters(
+				[
+					"repeat_penalty                 1",
+					'stop                           "<|im_start|>"',
+					'stop                           "<|im_end|>"',
+					"temperature                    0.6",
+					"",
+				].join("\n"),
+			),
+		).toEqual({
+			repeat_penalty: ["1"],
+			stop: ["<|im_start|>", "<|im_end|>"],
+			temperature: ["0.6"],
+		});
+		expect(parseOllamaParameters("")).toEqual({});
+	});
+
+	it("counts dedicated GPU memory but not unified memory twice", () => {
+		expect(getMachineMemoryBytes(pc(32, 24))).toBe(56 * 1024 ** 3);
+		expect(getMachineMemoryBytes(mac(32))).toBe(32 * 1024 ** 3);
 	});
 });

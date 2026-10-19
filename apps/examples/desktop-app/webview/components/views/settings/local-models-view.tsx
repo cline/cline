@@ -4,7 +4,7 @@ import {
 	Download,
 	Loader2,
 	Play,
-	RefreshCw,
+	SlidersHorizontal,
 	Square,
 	Trash2,
 	X,
@@ -16,14 +16,29 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	DEFAULT_LOCAL_CONTEXT_WINDOW,
+	describeModelPlacement,
+	describeUnloadTime,
 	evaluateLocalModelFit,
+	formatContext,
+	formatGb,
 	getLocalMemoryBudget,
+	getMachineMemoryBytes,
 	getRecommendedLocalModel,
 	LOCAL_MODEL_CATALOG,
 	type LocalHardwareInfo,
@@ -42,10 +57,13 @@ import {
 	loadProviderModels,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
-import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
+import { LocalModelDetailsDialog } from "./local-model-details-dialog";
+import { OllamaSetup } from "./ollama-setup";
 
 type ModelAction = "using" | "loading" | "unloading" | "deleting";
+type InstalledModel = LocalModelsStatus["installed"][number];
+type RunningModel = LocalModelsStatus["running"][number];
 
 const FIT_LABELS: Record<LocalModelFit, { text: string; className: string }> = {
 	great: {
@@ -62,9 +80,14 @@ const FIT_LABELS: Record<LocalModelFit, { text: string; className: string }> = {
 	},
 };
 
-const formatGb = (bytes: number) => `${(bytes / 1e9).toFixed(1)} GB`;
-const formatContext = (tokens: number) =>
-	`${Math.round(tokens / 1024)}K context`;
+const CAPABILITY_LABELS: Record<string, string> = {
+	tools: "Tools",
+	thinking: "Thinking",
+	vision: "Vision",
+};
+
+/** Polling interval while waiting for the user to install or start Ollama. */
+const WAITING_FOR_OLLAMA_POLL_MS = 3000;
 
 function readActiveOllamaModel(): string | undefined {
 	const selection = readModelSelectionStorageFromWindow();
@@ -88,29 +111,88 @@ function describeHardware(hardware: LocalHardwareInfo): string {
 	return `${hardware.cpuModel} · ${memory} RAM · No supported GPU detected`;
 }
 
-function describeRunning(running: LocalModelsStatus["running"][number]) {
-	const placement =
-		running.sizeVramBytes <= 0
-			? "on CPU"
-			: running.sizeVramBytes >= running.sizeBytes
-				? "on GPU"
-				: `${Math.round((running.sizeVramBytes / running.sizeBytes) * 100)}% on GPU`;
-	const parts = [`Loaded ${placement}`, formatGb(running.sizeBytes)];
-	if (running.contextLength > 0) {
-		parts.push(formatContext(running.contextLength));
-	}
-	// Ollama reports models pinned with keep_alive -1 as expiring centuries from now.
-	const oneYearMs = 365 * 24 * 60 * 60 * 1000;
-	if (running.expiresAtMs - Date.now() >= oneYearMs) {
-		parts.push("stays loaded until unloaded");
-	} else if (running.expiresAtMs > 0) {
-		const time = new Date(running.expiresAtMs).toLocaleTimeString([], {
-			hour: "numeric",
-			minute: "2-digit",
-		});
-		parts.push(`unloads at ${time} if idle`);
-	}
-	return parts.join(" · ");
+function describeRunning(running: RunningModel) {
+	return [
+		`Loaded ${describeModelPlacement(running)}`,
+		formatGb(running.sizeBytes),
+		running.contextLength > 0 ? formatContext(running.contextLength) : "",
+		describeUnloadTime(running.expiresAtMs) ?? "",
+	]
+		.filter(Boolean)
+		.join(" · ");
+}
+
+function describeInstalled(model: InstalledModel) {
+	return [
+		formatGb(model.sizeBytes),
+		model.parameterSize,
+		model.quantization,
+		...model.capabilities
+			.map((capability) => CAPABILITY_LABELS[capability])
+			.filter(Boolean),
+		model.contextLength > 0
+			? `up to ${formatContext(model.contextLength)}`
+			: "",
+	]
+		.filter(Boolean)
+		.join(" · ");
+}
+
+function SectionHeading({
+	title,
+	aside,
+}: {
+	title: string;
+	aside?: ReactNode;
+}) {
+	return (
+		<div className="mb-2 flex items-baseline justify-between gap-3">
+			<p className="text-sm font-semibold text-foreground">{title}</p>
+			{aside ? (
+				<span className="text-xs text-muted-foreground">{aside}</span>
+			) : null}
+		</div>
+	);
+}
+
+function StorageBar({
+	modelsBytes,
+	disk,
+}: {
+	modelsBytes: number;
+	disk: NonNullable<LocalModelsStatus["disk"]>;
+}) {
+	const percent = (bytes: number) =>
+		`${Math.max(0, Math.min(100, (bytes / disk.totalBytes) * 100))}%`;
+	const otherBytes = Math.max(
+		0,
+		disk.totalBytes - disk.freeBytes - modelsBytes,
+	);
+	return (
+		<div className="mb-3 flex flex-col gap-1.5">
+			<div className="flex h-2 overflow-hidden rounded-full bg-muted">
+				<div className="bg-primary" style={{ width: percent(modelsBytes) }} />
+				<div
+					className="bg-muted-foreground/30"
+					style={{ width: percent(otherBytes) }}
+				/>
+			</div>
+			<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+				<span className="flex items-center gap-1.5">
+					<span className="inline-block size-2 rounded-full bg-primary" />
+					Models {formatGb(modelsBytes)}
+				</span>
+				<span className="flex items-center gap-1.5">
+					<span className="inline-block size-2 rounded-full bg-muted-foreground/30" />
+					Other files {formatGb(otherBytes)}
+				</span>
+				<span className="flex items-center gap-1.5">
+					<span className="inline-block size-2 rounded-full border bg-muted" />
+					Free {formatGb(disk.freeBytes)}
+				</span>
+			</div>
+		</div>
+	);
 }
 
 export function LocalModelsContent() {
@@ -120,6 +202,8 @@ export function LocalModelsContent() {
 	const [actions, setActions] = useState<Record<string, ModelAction>>({});
 	const [errors, setErrors] = useState<Record<string, string>>({});
 	const [activeModel, setActiveModel] = useState(readActiveOllamaModel);
+	const [detailsModel, setDetailsModel] = useState<string>();
+	const [pendingDelete, setPendingDelete] = useState<InstalledModel>();
 
 	const setModelError = useCallback(
 		(model: string, message: string | undefined) => {
@@ -130,8 +214,8 @@ export function LocalModelsContent() {
 		[],
 	);
 
-	const refresh = useCallback(async () => {
-		setRefreshing(true);
+	const refresh = useCallback(async ({ quiet = false } = {}) => {
+		if (!quiet) setRefreshing(true);
 		try {
 			const next = await desktopClient.invoke<LocalModelsStatus>(
 				"get_local_models_status",
@@ -149,7 +233,7 @@ export function LocalModelsContent() {
 		} catch (error) {
 			console.error("Failed to read local models status:", error);
 		} finally {
-			setRefreshing(false);
+			if (!quiet) setRefreshing(false);
 		}
 	}, []);
 
@@ -195,6 +279,33 @@ export function LocalModelsContent() {
 		return () => window.clearTimeout(timer);
 	}, [nextExpiryMs, refresh]);
 
+	const reachable = status?.ollamaReachable ?? false;
+	// Pick Ollama up as soon as the user finishes installing or starting it.
+	useEffect(() => {
+		if (!status || reachable) {
+			return;
+		}
+		const timer = window.setInterval(
+			() => void refresh({ quiet: true }),
+			WAITING_FOR_OLLAMA_POLL_MS,
+		);
+		return () => window.clearInterval(timer);
+	}, [reachable, refresh, status]);
+
+	const startOllama = useCallback(async () => {
+		const { started } = await desktopClient.invoke<{ started: boolean }>(
+			"start_ollama",
+			undefined,
+			{ timeoutMs: 30_000 },
+		);
+		await refresh();
+		if (!started) {
+			throw new Error(
+				"Ollama didn't respond within 20 seconds. Try opening it yourself.",
+			);
+		}
+	}, [refresh]);
+
 	const runAction = useCallback(
 		async (model: string, action: ModelAction, run: () => Promise<unknown>) => {
 			setActions((prev) => ({ ...prev, [model]: action }));
@@ -233,14 +344,17 @@ export function LocalModelsContent() {
 		[setModelError],
 	);
 
+	const catalogEntryFor = (model: string) =>
+		LOCAL_MODEL_CATALOG.find(
+			(entry) => normalizeOllamaModelName(entry.id) === model,
+		);
+
 	const contextWindowFor = (model: string) => {
 		if (model === activeModel && status?.contextWindow) {
 			return status.contextWindow;
 		}
 		return (
-			LOCAL_MODEL_CATALOG.find(
-				(entry) => normalizeOllamaModelName(entry.id) === model,
-			)?.contextWindow ?? DEFAULT_LOCAL_CONTEXT_WINDOW
+			catalogEntryFor(model)?.contextWindow ?? DEFAULT_LOCAL_CONTEXT_WINDOW
 		);
 	};
 
@@ -250,6 +364,11 @@ export function LocalModelsContent() {
 			"load_ollama_model",
 			{ model, contextWindow },
 			{ timeoutMs: null },
+		);
+
+	const unloadModel = (model: string) =>
+		runAction(model, "unloading", () =>
+			desktopClient.invoke("unload_ollama_model", { model }),
 		);
 
 	const switchToModel = (model: string, contextWindow: number) =>
@@ -287,14 +406,20 @@ export function LocalModelsContent() {
 		[status],
 	);
 	const hardware = status?.hardware;
+	const disk = status?.disk;
 	const recommended = hardware ? getRecommendedLocalModel(hardware) : undefined;
-	const catalogIds = new Set(
-		LOCAL_MODEL_CATALOG.map((entry) => normalizeOllamaModelName(entry.id)),
+	const installedBySize = [...installed.entries()].sort(
+		([, a], [, b]) => b.sizeBytes - a.sizeBytes,
 	);
-	const otherInstalled = [...installed.entries()].filter(
-		([name]) => !catalogIds.has(name),
+	const modelsBytes = installedBySize.reduce(
+		(sum, [, model]) => sum + model.sizeBytes,
+		0,
 	);
-	const reachable = status?.ollamaReachable ?? false;
+	const machineMemoryBytes = hardware ? getMachineMemoryBytes(hardware) : 0;
+	const loadedBytes = [...running.values()].reduce(
+		(sum, model) => sum + model.sizeBytes,
+		0,
+	);
 
 	const renderModelRow = (
 		model: string,
@@ -302,30 +427,40 @@ export function LocalModelsContent() {
 			title,
 			entry,
 			details,
-		}: { title: string; entry?: LocalModelCatalogEntry; details: ReactNode },
+			section,
+		}: {
+			title: string;
+			entry?: LocalModelCatalogEntry;
+			details: ReactNode;
+			section: "recommended" | "downloaded";
+		},
 	) => {
 		const name = normalizeOllamaModelName(model);
-		const isInstalled = installed.has(name);
+		const installedModel = installed.get(name);
 		const runningModel = running.get(name);
 		const pull = pulls[model];
 		const action = actions[name];
 		const error = errors[model] ?? errors[name];
 		const isActive = name === activeModel;
+		// Catalog models are run from the recommended list; the downloaded list is for storage.
+		const showRunControls = section === "recommended" || !catalogEntryFor(name);
 		const fit =
-			entry && hardware
+			section === "recommended" && entry && hardware
 				? evaluateLocalModelFit(entry.memoryGb, hardware)
 				: undefined;
 		const pullPercent =
 			pull && pull.total > 0 ? (pull.completed / pull.total) * 100 : 0;
+		const notEnoughDisk =
+			!!entry && !!disk && entry.sizeGb * 1e9 > disk.freeBytes;
 
 		return (
 			<div
 				className="flex flex-col gap-2 border-b px-4 py-4 last:border-b-0"
-				key={model}
+				key={`${section}-${model}`}
 			>
 				<div className="flex flex-wrap items-center gap-2">
 					<span className="text-sm font-semibold text-foreground">{title}</span>
-					{entry && entry === recommended ? (
+					{section === "recommended" && entry && entry === recommended ? (
 						<Badge>Recommended for you</Badge>
 					) : null}
 					{isActive ? (
@@ -336,13 +471,18 @@ export function LocalModelsContent() {
 							In use
 						</Badge>
 					) : null}
-					{entry?.tags.map((tag) => (
-						<Badge key={tag} variant="muted">
-							{tag}
-						</Badge>
-					))}
+					{section === "recommended" && installedModel ? (
+						<Badge variant="outline">Downloaded</Badge>
+					) : null}
+					{section === "recommended"
+						? entry?.tags.map((tag) => (
+								<Badge key={tag} variant="muted">
+									{tag}
+								</Badge>
+							))
+						: null}
 				</div>
-				{entry ? (
+				{section === "recommended" && entry ? (
 					<p className="text-sm text-muted-foreground">{entry.description}</p>
 				) : null}
 				<p className="text-xs text-muted-foreground">
@@ -378,10 +518,10 @@ export function LocalModelsContent() {
 						{error}
 					</p>
 				) : null}
-				<div className="mt-1 flex flex-wrap gap-2">
-					{!isInstalled && !pull ? (
+				<div className="mt-1 flex flex-wrap items-center gap-2">
+					{!installedModel && !pull ? (
 						<Button
-							disabled={!reachable}
+							disabled={!reachable || notEnoughDisk}
 							onClick={() => void startPull(model)}
 							size="sm"
 							type="button"
@@ -390,6 +530,11 @@ export function LocalModelsContent() {
 							<Download />
 							Download{entry ? ` (${entry.sizeGb} GB)` : ""}
 						</Button>
+					) : null}
+					{!installedModel && !pull && notEnoughDisk && disk ? (
+						<span className="text-xs text-destructive">
+							Not enough disk space ({formatGb(disk.freeBytes)} free)
+						</span>
 					) : null}
 					{pull ? (
 						<Button
@@ -404,7 +549,7 @@ export function LocalModelsContent() {
 							Cancel
 						</Button>
 					) : null}
-					{isInstalled && !isActive ? (
+					{installedModel && showRunControls && !isActive ? (
 						<Button
 							disabled={!!action}
 							onClick={() =>
@@ -420,7 +565,7 @@ export function LocalModelsContent() {
 							Use with Cline
 						</Button>
 					) : null}
-					{isInstalled && !runningModel ? (
+					{installedModel && showRunControls && !runningModel ? (
 						<Button
 							disabled={!!action}
 							onClick={() =>
@@ -440,14 +585,10 @@ export function LocalModelsContent() {
 							{action === "loading" ? "Loading…" : "Load"}
 						</Button>
 					) : null}
-					{runningModel ? (
+					{runningModel && showRunControls ? (
 						<Button
 							disabled={!!action}
-							onClick={() =>
-								void runAction(name, "unloading", () =>
-									desktopClient.invoke("unload_ollama_model", { model: name }),
-								)
-							}
+							onClick={() => void unloadModel(name)}
 							size="sm"
 							type="button"
 							variant="outline"
@@ -460,17 +601,22 @@ export function LocalModelsContent() {
 							Unload
 						</Button>
 					) : null}
-					{isInstalled ? (
+					{installedModel ? (
 						<Button
-							aria-label={`Delete ${title}`}
-							disabled={!!action}
-							onClick={() =>
-								void runAction(name, "deleting", () =>
-									desktopClient.invoke("delete_ollama_model", { model: name }),
-								)
-							}
+							onClick={() => setDetailsModel(name)}
 							size="sm"
-							title="Delete from disk"
+							type="button"
+							variant="ghost"
+						>
+							<SlidersHorizontal />
+							Details
+						</Button>
+					) : null}
+					{installedModel && section === "downloaded" ? (
+						<Button
+							disabled={!!action}
+							onClick={() => setPendingDelete(installedModel)}
+							size="sm"
 							type="button"
 							variant="ghost"
 						>
@@ -479,6 +625,7 @@ export function LocalModelsContent() {
 							) : (
 								<Trash2 />
 							)}
+							Delete
 						</Button>
 					) : null}
 				</div>
@@ -487,6 +634,9 @@ export function LocalModelsContent() {
 	};
 
 	const budget = hardware ? getLocalMemoryBudget(hardware) : undefined;
+	const deleteName = pendingDelete
+		? normalizeOllamaModelName(pendingDelete.name)
+		: undefined;
 
 	return (
 		<PageFrame>
@@ -519,85 +669,109 @@ export function LocalModelsContent() {
 					</div>
 				) : null}
 
-				<div className="flex flex-col gap-2">
-					<div className="flex items-center gap-2 text-sm">
-						<span
-							className={cn(
-								"inline-block size-2 rounded-full",
-								!status
-									? "bg-muted-foreground/40"
-									: reachable
-										? "bg-emerald-500"
-										: "bg-destructive",
-							)}
+				<OllamaSetup
+					onRefresh={() => void refresh()}
+					onStart={startOllama}
+					refreshing={refreshing}
+					status={status}
+				/>
+
+				{running.size > 0 ? (
+					<div>
+						<SectionHeading
+							aside={
+								machineMemoryBytes > 0
+									? `${formatGb(loadedBytes)} of ${formatGb(machineMemoryBytes)} memory`
+									: undefined
+							}
+							title="Loaded in memory"
 						/>
-						<span className="flex-1 text-foreground">
-							{!status
-								? "Checking for Ollama…"
-								: reachable
-									? `Ollama ${status.ollamaVersion} is running`
-									: "Ollama isn't running"}
-						</span>
-						<Button
-							aria-label="Refresh"
-							disabled={refreshing}
-							onClick={() => void refresh()}
-							size="icon"
-							type="button"
-							variant="ghost"
-						>
-							<RefreshCw className={refreshing ? "animate-spin" : ""} />
-						</Button>
+						<div className="overflow-hidden rounded-lg border">
+							{[...running.entries()].map(([name, model]) => (
+								<div
+									className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0"
+									key={name}
+								>
+									<div className="flex min-w-0 flex-1 flex-col gap-1.5">
+										<div className="flex items-center gap-2">
+											<span className="inline-block size-2 shrink-0 rounded-full bg-emerald-500" />
+											<span className="truncate text-sm font-medium text-foreground">
+												{name}
+											</span>
+											{name === activeModel ? (
+												<Badge
+													className="border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
+													variant="outline"
+												>
+													In use
+												</Badge>
+											) : null}
+										</div>
+										{machineMemoryBytes > 0 ? (
+											<Progress
+												aria-label={`${name} memory use`}
+												className="h-1.5 max-w-md"
+												value={(model.sizeBytes / machineMemoryBytes) * 100}
+											/>
+										) : null}
+										<span className="text-xs text-muted-foreground">
+											{describeRunning(model)}
+										</span>
+										{errors[name] ? (
+											<span className="text-xs text-destructive" role="alert">
+												{errors[name]}
+											</span>
+										) : null}
+									</div>
+									<Button
+										disabled={!!actions[name]}
+										onClick={() => void unloadModel(name)}
+										size="sm"
+										type="button"
+										variant="outline"
+									>
+										{actions[name] === "unloading" ? (
+											<Loader2 className="animate-spin" />
+										) : (
+											<Square />
+										)}
+										Unload
+									</Button>
+								</div>
+							))}
+						</div>
 					</div>
-					{status && !reachable ? (
-						<p className="text-sm text-muted-foreground">
-							<button
-								className="text-primary underline-offset-4 hover:underline"
-								onClick={() =>
-									void openExternalUrl("https://ollama.com/download")
-								}
-								type="button"
-							>
-								Install Ollama
-							</button>{" "}
-							and start it (or run <code>ollama serve</code>). Cline looks for
-							it at {status.baseUrl || "http://localhost:11434"}, which you can
-							change under Providers → Ollama.
-						</p>
-					) : null}
-				</div>
+				) : null}
 
 				<div>
-					<p className="mb-2 text-sm font-semibold text-foreground">
-						Recommended models
-					</p>
+					<SectionHeading title="Recommended models" />
 					<div className="overflow-hidden rounded-lg border">
 						{LOCAL_MODEL_CATALOG.map((entry) =>
 							renderModelRow(entry.id, {
 								title: entry.name,
 								entry,
+								section: "recommended",
 								details: `${entry.id} · ${entry.sizeGb} GB download · needs ~${entry.memoryGb} GB memory · ${formatContext(entry.contextWindow)}`,
 							}),
 						)}
 					</div>
 				</div>
 
-				{otherInstalled.length > 0 ? (
+				{installedBySize.length > 0 ? (
 					<div>
-						<p className="mb-2 text-sm font-semibold text-foreground">
-							Other downloaded models
-						</p>
+						<SectionHeading
+							aside={`${installedBySize.length} ${installedBySize.length === 1 ? "model" : "models"} · ${formatGb(modelsBytes)}`}
+							title="Downloaded models"
+						/>
+						{disk ? <StorageBar disk={disk} modelsBytes={modelsBytes} /> : null}
 						<div className="overflow-hidden rounded-lg border">
-							{otherInstalled.map(([name, model]) =>
+							{installedBySize.map(([name, model]) =>
 								renderModelRow(name, {
-									title: model.name,
-									details: [
-										formatGb(model.sizeBytes),
-										model.parameterSize,
-										model.quantization,
-									]
-										.filter(Boolean)
-										.join(" · "),
+									title: catalogEntryFor(name)?.name ?? model.name,
+									section: "downloaded",
+									details: catalogEntryFor(name)
+										? `${model.name} · ${describeInstalled(model)}`
+										: describeInstalled(model),
 								}),
 							)}
 						</div>
@@ -612,6 +786,60 @@ export function LocalModelsContent() {
 					Providers → Ollama.
 				</p>
 			</section>
+
+			<LocalModelDetailsDialog
+				contextWindow={detailsModel ? contextWindowFor(detailsModel) : 0}
+				model={detailsModel}
+				onOpenChange={(open) => {
+					if (!open) setDetailsModel(undefined);
+				}}
+				running={detailsModel ? running.get(detailsModel) : undefined}
+				sizeBytes={
+					detailsModel ? (installed.get(detailsModel)?.sizeBytes ?? 0) : 0
+				}
+			/>
+
+			<AlertDialog
+				onOpenChange={(open) => {
+					if (!open) setPendingDelete(undefined);
+				}}
+				open={!!pendingDelete}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete {pendingDelete?.name}?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This frees {formatGb(pendingDelete?.sizeBytes ?? 0)} on your disk.
+							You can download it again anytime.
+							{deleteName === activeModel
+								? " Cline is set to use this model, so pick another one before your next message."
+								: ""}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-white hover:bg-destructive/90"
+							onClick={() => {
+								if (deleteName) {
+									void runAction(deleteName, "deleting", async () => {
+										if (running.has(deleteName)) {
+											await desktopClient.invoke("unload_ollama_model", {
+												model: deleteName,
+											});
+										}
+										await desktopClient.invoke("delete_ollama_model", {
+											model: deleteName,
+										});
+									});
+								}
+							}}
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageFrame>
 	);
 }

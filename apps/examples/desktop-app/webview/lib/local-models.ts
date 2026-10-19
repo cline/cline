@@ -120,11 +120,23 @@ export interface LocalModelsStatus {
 	contextWindow?: number;
 	ollamaReachable: boolean;
 	ollamaVersion?: string;
+	/** Only checked while Ollama is unreachable. */
+	ollamaInstall?: {
+		installed: boolean;
+		/** The base URL points at this machine, so Cline can start Ollama itself. */
+		localServer: boolean;
+	};
+	/** Space on the drive Ollama stores models on. Local servers only. */
+	disk?: { freeBytes: number; totalBytes: number };
 	installed: {
 		name: string;
 		sizeBytes: number;
 		parameterSize: string;
 		quantization: string;
+		/** e.g. `tools`, `thinking`, `vision`. Reported by newer Ollama versions. */
+		capabilities: string[];
+		/** The longest context the model supports, or 0 if unknown. */
+		contextLength: number;
 	}[];
 	running: {
 		name: string;
@@ -136,7 +148,65 @@ export interface LocalModelsStatus {
 	activePulls: OllamaPullProgress[];
 }
 
+/** Payload of `show_ollama_model`. */
+export interface LocalModelDetails {
+	name: string;
+	architecture: string;
+	parameterSize: string;
+	quantization: string;
+	format: string;
+	contextLength: number;
+	embeddingLength: number;
+	layers: number;
+	capabilities: string[];
+	/** Defaults baked into the model, e.g. `{ temperature: ["0.6"], stop: ["<|im_end|>"] }`. */
+	parameters: Record<string, string[]>;
+	template: string;
+	system: string;
+	license: string;
+	modelfile: string;
+}
+
 export const OLLAMA_PULL_PROGRESS_EVENT = "ollama_pull_progress";
+
+export const formatGb = (bytes: number) => `${(bytes / 1e9).toFixed(1)} GB`;
+
+export const formatContext = (tokens: number) =>
+	`${Math.round(tokens / 1024)}K context`;
+
+/** Ollama reports models pinned with keep_alive -1 as expiring centuries from now. */
+export function isPinnedLoaded(expiresAtMs: number): boolean {
+	return expiresAtMs - Date.now() >= 365 * 24 * 60 * 60 * 1000;
+}
+
+export function describeModelPlacement(
+	running: Pick<
+		LocalModelsStatus["running"][number],
+		"sizeBytes" | "sizeVramBytes"
+	>,
+): string {
+	if (running.sizeVramBytes <= 0) {
+		return "on CPU";
+	}
+	if (running.sizeVramBytes >= running.sizeBytes) {
+		return "on GPU";
+	}
+	return `${Math.round((running.sizeVramBytes / running.sizeBytes) * 100)}% on GPU`;
+}
+
+export function describeUnloadTime(expiresAtMs: number): string | undefined {
+	if (isPinnedLoaded(expiresAtMs)) {
+		return "stays loaded until unloaded";
+	}
+	if (expiresAtMs <= 0) {
+		return undefined;
+	}
+	const time = new Date(expiresAtMs).toLocaleTimeString([], {
+		hour: "numeric",
+		minute: "2-digit",
+	});
+	return `unloads at ${time} if idle`;
+}
 
 /**
  * - `great`: fits entirely in GPU (or Apple unified) memory
@@ -149,6 +219,14 @@ type LocalHardware = Pick<
 	LocalHardwareInfo,
 	"totalMemoryGb" | "unifiedMemory" | "gpus"
 >;
+
+/** System RAM plus dedicated GPU memory, in bytes. */
+export function getMachineMemoryBytes(hardware: LocalHardware): number {
+	const gpuGb = hardware.unifiedMemory
+		? 0
+		: hardware.gpus.reduce((sum, gpu) => sum + gpu.memoryGb, 0);
+	return (hardware.totalMemoryGb + gpuGb) * 1024 ** 3;
+}
 
 export function getLocalMemoryBudget(hardware: LocalHardware): {
 	gpuGb: number;
@@ -190,6 +268,24 @@ export function getRecommendedLocalModel(
 		(entry) => evaluateLocalModelFit(entry.memoryGb, hardware) === "slow",
 	);
 	return slow.find((entry) => entry.tags.includes("Fast")) ?? slow[0];
+}
+
+/**
+ * Parse `ollama show`'s `parameters` text, one `name value` pair per line.
+ * Names like `stop` can repeat.
+ */
+export function parseOllamaParameters(text: string): Record<string, string[]> {
+	const parameters: Record<string, string[]> = {};
+	for (const line of text.split("\n")) {
+		const match = line.trim().match(/^(\S+)\s+(.+)$/);
+		if (!match) {
+			continue;
+		}
+		const [, name, raw] = match;
+		const value = raw.trim().replace(/^"(.*)"$/, "$1");
+		parameters[name] = [...(parameters[name] ?? []), value];
+	}
+	return parameters;
 }
 
 /** Ollama treats an untagged name as `:latest`. */

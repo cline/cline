@@ -75,6 +75,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
+import { LocalModelIndicator } from "./local-model-indicator";
 import { PullRequestBar } from "./pull-request-bar";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -347,6 +348,8 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenModelSettings?: () => void;
+	/** Opens Settings → Local Models from the Ollama memory chip. */
+	onOpenLocalModels?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -391,6 +394,7 @@ function ChatInputBarImpl({
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
 	onOpenModelSettings,
+	onOpenLocalModels,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -1596,6 +1600,14 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
+					{executionTarget !== "cloud" &&
+					normalizeProviderId(provider) === "ollama" ? (
+						<LocalModelIndicator
+							isBusy={isBusy}
+							model={model}
+							onOpenLocalModels={onOpenLocalModels}
+						/>
+					) : null}
 				</AgentComposerSettingsGroup>
 
 				{/* Reserve room for the model and thinking controls so a long

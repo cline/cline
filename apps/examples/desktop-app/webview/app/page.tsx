@@ -1014,6 +1014,9 @@ export default function Home() {
 											onOpenModelSettings={() =>
 												handleSettingsSectionChange("Providers")
 											}
+											onOpenLocalModels={() =>
+												handleSettingsSectionChange("Local Models")
+											}
 											onOpenAccountSettings={() =>
 												handleSettingsSectionChange("Account")
 											}
@@ -1122,6 +1125,7 @@ function ChatThreadPane({
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenLocalModels,
 	onOpenAccountSettings,
 	onPickRemoteWorkspaceDirectory,
 	onSelectEnvironment,
@@ -1160,6 +1164,7 @@ function ChatThreadPane({
 	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenLocalModels?: () => void;
 	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
@@ -2534,6 +2539,7 @@ function ChatThreadPane({
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenModelSettings={onOpenModelSettings}
+			onOpenLocalModels={onOpenLocalModels}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
