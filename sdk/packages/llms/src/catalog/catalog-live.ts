@@ -552,8 +552,8 @@ export async function fetchLiveProviderModels(
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
-				providerModels.openrouter ?? {},
-				{ ...options, vercelModels: providerModels["vercel-ai-gateway"] },
+				providerModels,
+				options,
 			)
 		: {};
 

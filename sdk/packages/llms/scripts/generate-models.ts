@@ -138,8 +138,7 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		providerModels,
 		normalizeClineRecommendedProviderModels(
 			clineRecommendedPayloadResult,
-			providerModels.openrouter || {},
-			{ vercelModels: providerModels["vercel-ai-gateway"] },
+			providerModels,
 		),
 	);
 

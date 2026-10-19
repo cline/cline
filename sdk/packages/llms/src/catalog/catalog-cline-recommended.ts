@@ -67,24 +67,24 @@ function buildModelsNameMap(
 	return nameMap;
 }
 
+/**
+ * Builds the cline/cline-pass catalogs from the recommended-models payload,
+ * borrowing each entry's capabilities from the models.dev catalog. OpenRouter
+ * is the source of truth; Vercel AI Gateway is consulted only for entries
+ * OpenRouter doesn't list at all, since Cline's backend also routes
+ * Vercel-only models (e.g. free promotions).
+ */
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
-	openRouterModels: Record<string, ModelInfo>,
-	options: {
-		includeClineCloudModels?: boolean;
-		/**
-		 * Vercel AI Gateway catalog, consulted only for entries OpenRouter doesn't
-		 * list at all (Cline's backend also routes Vercel-only models, e.g. free
-		 * promotions). Any OpenRouter match, exact id or slug, wins.
-		 */
-		vercelModels?: Record<string, ModelInfo>;
-	} = {},
+	providerModels: Record<string, Record<string, ModelInfo>>,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	const models: Record<string, ModelInfo> = {};
 	const clineModels: Record<string, ModelInfo> = {};
+	const openRouterModels = providerModels.openrouter ?? {};
 	const openRouterModelsByName = buildModelsNameMap(openRouterModels);
-	const vercelModels = options.vercelModels ?? {};
+	const vercelModels = providerModels["vercel-ai-gateway"] ?? {};
 	const vercelModelsByName = buildModelsNameMap(vercelModels);
 
 	clinePass.forEach((entry) => {
@@ -108,7 +108,7 @@ export function normalizeClineRecommendedProviderModels(
 		includeInClinePass: boolean,
 	) => {
 		const capabilities =
-			openRouterModels?.[entry.id] ??
+			openRouterModels[entry.id] ??
 			findModelBySlug(entry, openRouterModelsByName) ??
 			vercelModels[entry.id] ??
 			findModelBySlug(entry, vercelModelsByName) ??
@@ -184,8 +184,8 @@ export async function fetchClineRecommendedModelsPayload(
 
 export async function fetchClineRecommendedProviderModels(
 	fetcher: typeof fetch = fetch,
-	openRouterModels: Record<string, ModelInfo>,
+	providerModels: Record<string, Record<string, ModelInfo>>,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const payload = await fetchClineRecommendedModelsPayload(fetcher);
-	return normalizeClineRecommendedProviderModels(payload, openRouterModels);
+	return normalizeClineRecommendedProviderModels(payload, providerModels);
 }
