@@ -1,2 +1,4 @@
 Synthetic tracked fixture for cloud snapshot verification.
 Baseline marker: original-copper.
+Approved unstaged marker: green-comet.
+Post-confirmation marker: purple-pine.
