@@ -602,15 +602,6 @@ export interface AgentPrepareTurnContext {
 	iteration: number;
 	messages: MessageWithMetadata[];
 	apiMessages: MessageWithMetadata[];
-	/**
-	 * Projects canonical messages into the provider-request shape (the same
-	 * transform that produced `apiMessages`). A prepare-turn pipeline that
-	 * substitutes its own transcript should run it through this before
-	 * estimating request size, so the estimate matches what is actually sent.
-	 */
-	prepareApiMessages?: (
-		messages: MessageWithMetadata[],
-	) => Promise<MessageWithMetadata[]>;
 	abortSignal: AbortSignal;
 	systemPrompt: string;
 	tools: AgentTool[];

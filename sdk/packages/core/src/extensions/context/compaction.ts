@@ -40,10 +40,6 @@ export interface ContextPipelinePrepareTurnInput {
 	iteration: number;
 	messages: CoreCompactionContext["messages"];
 	apiMessages: CoreCompactionContext["messages"];
-	/** See AgentPrepareTurnContext.prepareApiMessages. */
-	prepareApiMessages?: (
-		messages: CoreCompactionContext["messages"],
-	) => Promise<CoreCompactionContext["messages"]>;
 	abortSignal: AbortSignal;
 	systemPrompt: string;
 	tools: unknown[];
@@ -750,6 +746,15 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	/**
+	 * The runtime's provider-request transform (extension message builders +
+	 * `MessageBuilder.buildForApi`), i.e. what produced `context.apiMessages`
+	 * from `context.messages`. Re-compaction swaps in a projected transcript
+	 * and must estimate against its API-safe form, not the raw projection.
+	 */
+	prepareApiMessages: (
+		messages: CoreCompactionContext["messages"],
+	) => Promise<CoreCompactionContext["messages"]>;
+	/**
 	 * Persist a freshly-computed compaction state. `sourceMessages` are the
 	 * exact canonical messages the state's source-prefix hash was computed
 	 * over; hosts must validate projection against these rather than a
@@ -781,9 +786,7 @@ export function createCompactionStateAwarePrepareTurn(input: {
 				? await input.compact({
 						...context,
 						messages: projectedMessages,
-						apiMessages: context.prepareApiMessages
-							? await context.prepareApiMessages(projectedMessages)
-							: projectedMessages,
+						apiMessages: await input.prepareApiMessages(projectedMessages),
 					})
 				: undefined;
 			if (result?.messages) {

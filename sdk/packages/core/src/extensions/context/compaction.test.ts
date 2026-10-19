@@ -4600,6 +4600,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact: undefined,
 			getState: () => existingState,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
@@ -4646,17 +4647,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 		const compact = vi.fn().mockResolvedValue(undefined);
-		const prepareTurn = createCompactionStateAwarePrepareTurn({
-			compact,
-			getState: () => existingState,
-		});
-		const tail: LlmsProviders.Message[] = [
-			{ role: "user", content: "x".repeat(50_000) },
-		];
-		const currentMessages: LlmsProviders.Message[] = [
-			...originalMessages,
-			...tail,
-		];
 		const prepareApiMessages = vi.fn(
 			async (messages: LlmsProviders.Message[]) =>
 				messages.map((message) =>
@@ -4665,6 +4655,18 @@ describe("createContextCompactionPrepareTurn", () => {
 						: message,
 				),
 		);
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => existingState,
+			prepareApiMessages,
+		});
+		const tail: LlmsProviders.Message[] = [
+			{ role: "user", content: "x".repeat(50_000) },
+		];
+		const currentMessages: LlmsProviders.Message[] = [
+			...originalMessages,
+			...tail,
+		];
 
 		await prepareTurn({
 			agentId: "agent-1",
@@ -4676,7 +4678,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			tools: [],
 			messages: currentMessages,
 			apiMessages: await prepareApiMessages(currentMessages),
-			prepareApiMessages,
 			model: {
 				id: "mock-model",
 				provider: "anthropic",
@@ -4709,6 +4710,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => existingState,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
@@ -4753,6 +4755,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => undefined,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [

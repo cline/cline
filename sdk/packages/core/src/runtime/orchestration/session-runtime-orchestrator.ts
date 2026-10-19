@@ -1209,11 +1209,9 @@ export class SessionRuntime {
 			return undefined;
 		}
 
-		const prepareApiMessages = (messages: MessageWithMetadata[]) =>
-			this.prepareProviderMessagesForApi(messages);
 		return async (context) => {
 			const messages = agentMessagesToMessagesWithMetadata(context.messages);
-			const apiMessages = await prepareApiMessages(messages);
+			const apiMessages = await this.prepareProviderMessagesForApi(messages);
 			const result = await prepareTurn({
 				agentId: context.agentId,
 				conversationId:
@@ -1222,7 +1220,6 @@ export class SessionRuntime {
 				iteration: context.iteration,
 				messages,
 				apiMessages,
-				prepareApiMessages,
 				abortSignal: context.signal ?? new AbortController().signal,
 				systemPrompt: context.systemPrompt ?? "",
 				tools,
@@ -1258,7 +1255,14 @@ export class SessionRuntime {
 		return messagesToAgentMessages(providerMessages);
 	}
 
-	private async prepareProviderMessagesForApi(
+	/**
+	 * Projects canonical messages into the provider-request shape: extension
+	 * message builders, then `MessageBuilder.buildForApi` (tool-result
+	 * truncation, repairs). This is the transform `prepareTurn` receives as
+	 * `apiMessages`, exposed so compaction wiring can apply it to a projected
+	 * transcript before estimating request size.
+	 */
+	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;

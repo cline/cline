@@ -844,31 +844,8 @@ describe("SessionRuntime message preparation", () => {
 						maxInputTokens: 200_000,
 					},
 				},
-				prepareApiMessages: expect.any(Function),
 			}),
 		);
-		// The forwarded builder applies the same provider-request transform, so a
-		// prepareTurn that swaps in a projected transcript can re-derive
-		// API-safe messages for its own estimates.
-		const [{ prepareApiMessages }] = prepareTurn.mock
-			.calls[0] as unknown as [
-			{ prepareApiMessages: (messages: unknown[]) => Promise<unknown[]> },
-		];
-		await expect(
-			prepareApiMessages([
-				{
-					role: "user",
-					content: [
-						{ type: "text", text: "<user_input>projected</user_input>" },
-					],
-				},
-			]),
-		).resolves.toEqual([
-			expect.objectContaining({
-				role: "user",
-				content: [{ type: "text", text: "projected" }],
-			}),
-		]);
 		expect(result?.messages).toHaveLength(1);
 		expect(result?.messages?.[0]?.content).toEqual([
 			{ type: "text", text: "compacted transcript" },
