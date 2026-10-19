@@ -1,4 +1,6 @@
-This is the **Cline** monorepo. Toolchain is **Bun 1.3.13** (package manager + task runner) with **Node >=22** as the runtime. Do not use npm/yarn/pnpm.
+This is the **Cline** monorepo. Toolchain is **Bun 1.4.3** (package manager + task runner) with **Node >=22** as the runtime. Do not use npm/yarn/pnpm.
+
+> Bun 1.3.13's Windows build panics on this host (Xeon E5-2650 v3: AVX but no AVX2 — `Features: no_avx2`). The original 1.3.13 binary is backed up at `backups/bun-fix/bun-1.3.13-broken-20261019.exe`; `tools/bun-1.3.13/bun.exe` now holds the working 1.4.3 binary.
 
 ## Cloud Agent Instructions
 
