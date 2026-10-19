@@ -233,8 +233,11 @@ export class PluginCommandManager implements PluginCommandsApi {
 						sourceKey !== undefined &&
 						sourceKey === entry.sourceKey &&
 						entry.failedPaths?.length === 0
-					)
+					) {
+						// A watched root may have just been created; move the watchers into it.
+						this.watch(entry);
 						return;
+					}
 					entry.sourceKey = sourceKey;
 					await Promise.all(
 						entry.loaded.map((loaded) => loaded.shutdown?.().catch(() => {})),

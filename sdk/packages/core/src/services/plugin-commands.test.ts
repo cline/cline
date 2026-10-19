@@ -181,6 +181,23 @@ describe("runtime plugin catalogs", () => {
 			{ timeout: 3000 },
 		);
 	});
+	it("discovers plugins added after an empty plugins directory appears", async () => {
+		const workspacePath = await workspace();
+		await mkdir(join(workspacePath, ".cline"));
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({ load });
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory);
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		const calls = load.mock.calls.length;
+		await writeFile(join(directory, "echo.js"), "export default {};");
+		await vi.waitFor(
+			() => expect(load.mock.calls.length).toBeGreaterThan(calls),
+			{ timeout: 3000 },
+		);
+	});
 	it.each([
 		"add",
 		"edit",
