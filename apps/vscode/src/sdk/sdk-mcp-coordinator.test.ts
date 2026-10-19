@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { SdkMcpCoordinator, type SdkMcpCoordinatorOptions } from "./sdk-mcp-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -40,7 +41,6 @@ describe("SdkMcpCoordinator", () => {
 		coordinator.handleToolListChanged()
 
 		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
-		// Reloading tools is silent: only a status transition is emitted, no chat message.
 		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith([], {
 			type: "status",
 			payload: { sessionId: "old-session", status: "running" },
@@ -66,14 +66,33 @@ describe("SdkMcpCoordinator", () => {
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "mcpToolRestart",
 		})
-		// Success is silent: only a status transition back to idle, no chat
-		// message or completion banner.
 		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith([], {
 			type: "status",
 			payload: { sessionId: "new-session", status: "idle" },
 		})
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("queues a model-facing MCP tools notice after a successful restart", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator } = makeCoordinator({
+			activeSession,
+			servers: [
+				{
+					name: "bodyspec",
+					status: "connected",
+					tools: [{ name: "list_scan_results" }, { name: "search" }, { name: "fetch" }],
+				},
+			],
+		})
+
+		await coordinator.restartSessionForMcpTools()
+
+		const notice = coordinator.consumeMcpToolsNotice("new-session")
+		expect(notice).toContain("bodyspec: list_scan_results, search, fetch")
+		expect(notice).toContain("Do not diagnose MCP connectivity by reading settings JSON files.")
+		expect(coordinator.consumeMcpToolsNotice("new-session")).toBeNull()
 	})
 
 	it("emits an error message when restart fails", async () => {
@@ -94,6 +113,7 @@ describe("SdkMcpCoordinator", () => {
 			{ type: "status", payload: { sessionId: "old-session", status: "error" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(coordinator.consumeMcpToolsNotice("old-session")).toBeNull()
 	})
 })
 
@@ -105,6 +125,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		apiKey: "key",
 	}
 	const options = {
+		mcpHub: {
+			getServers: vi.fn(() => input.servers ?? []),
+		} as unknown as McpHub,
 		stateManager: {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
 		} as unknown as StateManager,
@@ -134,6 +157,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			}),
 		},
 	} as unknown as SdkMcpCoordinatorOptions & {
+		mcpHub: McpHub & { getServers: ReturnType<typeof vi.fn> }
 		stateManager: StateManager & { getGlobalSettingsKey: ReturnType<typeof vi.fn> }
 		sessions: SdkMcpCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -159,6 +183,11 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	mode: "act" | "plan"
+	servers: Array<{
+		name: string
+		status?: string
+		tools?: Array<{ name: string }>
+	}>
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
