@@ -569,6 +569,8 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 				bgExecutorShell = shell
 				bgExecutor = createShellExecutor({
 					shell,
+					// Commands rerouted here from foreground mode keep its longer allowance.
+					timeoutMs: options.bashTimeoutMs,
 					// Set SHELL env to match the shell we're spawning so child
 					// processes see the correct value instead of the inherited parent's.
 					env: { SHELL: shell },
