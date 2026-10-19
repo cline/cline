@@ -1,0 +1,4 @@
+Synthetic cloud continuation test.
+Approved marker: silver-lantern-19.
+Do not modify this repository during verification.
+Unstaged marker included in approved snapshot: copper-moon-19.
