@@ -25,10 +25,14 @@ export async function buildPluginRuntime(): Promise<void> {
 		const exports = Object.fromEntries(
 			Object.entries(manifest.exports).flatMap(([subpath, entry]) => {
 				const target = typeof entry === "string" ? entry : entry.import;
-				// Declaration-only exports do not emit a JavaScript entrypoint.
-				return target && existsSync(join(root, target))
-					? [[subpath, target]]
-					: [];
+				// Declaration-only exports need no runtime file. Declared JavaScript
+				// exports must exist; silently omitting one ships an incomplete SDK.
+				if (!target || /\.d\.[cm]?ts$/.test(target)) return [];
+				if (!existsSync(join(root, target)))
+					throw new Error(
+						`Missing plugin runtime export ${manifest.name}${subpath === "." ? "" : subpath.slice(1)}: ${target}. Build the SDK before packaging.`,
+					);
+				return [[subpath, target]];
 			}),
 		);
 		return { root, manifest, exports };

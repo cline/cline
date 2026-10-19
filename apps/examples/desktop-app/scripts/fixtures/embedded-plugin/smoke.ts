@@ -8,6 +8,7 @@ import {
 	resolvePluginRuntimeDirectory,
 } from "@cline/sdk";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "@cline/shared/types";
 
 export default {
 	name: "embedded-smoke",
@@ -18,6 +19,12 @@ export default {
 			typeof getAllProviders !== "function"
 		) {
 			throw new Error("Missing browser SDK exports");
+		}
+		if (
+			!AUTH_ERROR_PATTERNS.includes("unauthorized") ||
+			!isLikelyAuthError(new Error("401 Unauthorized"))
+		) {
+			throw new Error("Missing shared/types runtime exports");
 		}
 		if (!process.execArgv.includes("--use-system-ca")) {
 			throw new Error("Plugin runtime lost compiled system CA trust");
