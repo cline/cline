@@ -215,7 +215,10 @@ is shown through the existing backend-startup error flow.
 `build:runtime` bundles `install.sh`, `release.txt`, and `identity.json`. The
 release defaults to `cli-v<apps/cli/package.json version>`; set
 `CLINE_DESKTOP_CLI_RELEASE` to another exact CLI tag when needed. macOS/Linux
-bundles contain backend JS and installer resources; Windows keeps its bundled
+bundles contain backend JS, the matching Core `plugin-runtime` tree, and installer
+resources. The backend runs as an external script and reads its packaged runtime
+from disk; the CLI and its plugin children read directly from the binary’s Bun
+filesystem. Windows keeps its bundled
 CLI and Linux SSH runtimes. Development runs from source with a locally compiled
 CLI and can use `CLINE_REMOTE_HELPER_BINARY` or `CLINE_REMOTE_HELPER_DIRECTORY`
 for other SSH targets.

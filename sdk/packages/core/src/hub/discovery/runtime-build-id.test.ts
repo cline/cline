@@ -71,7 +71,10 @@ describe("SDK runtime build identity", () => {
 	it("changes when package resolution changes", () => {
 		const root = createRuntimeFixture();
 		const first = resolveSdkRuntimeBuildId(root);
-		writeFileSync(join(root, "sdk/packages/core/tsconfig.json"), JSON.stringify({ compilerOptions: { paths: {} } }));
+		writeFileSync(
+			join(root, "sdk/packages/core/tsconfig.json"),
+			JSON.stringify({ compilerOptions: { paths: {} } }),
+		);
 		expect(resolveSdkRuntimeBuildId(root)).not.toBe(first);
 	});
 

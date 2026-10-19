@@ -424,7 +424,13 @@ test.each([
 	"sandbox",
 ])("packaged desktop backend loads its on-disk SDK runtime (%s)", async (mode) => {
 	const cli = await resolveCliBinary();
-	const outdir = dirname(resolveBackendBundle());
+	const outdir = join(ensureBuildDir(), "desktop-backend-probe");
+	mkdirSync(outdir, { recursive: true });
+	cpSync(
+		join(dirname(resolveBackendBundle()), "plugin-runtime"),
+		join(outdir, "plugin-runtime"),
+		{ recursive: true },
+	);
 	const probe = join(outdir, "plugin-runtime-probe.js");
 	const built = await Bun.build({
 		entrypoints: [
