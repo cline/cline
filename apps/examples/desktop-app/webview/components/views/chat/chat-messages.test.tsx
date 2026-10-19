@@ -52,6 +52,53 @@ async function renderMessages(
 	});
 }
 
+describe("ChatMessages verification screenshots", () => {
+	it("shows the agent's screenshots after the transcript and expands them", async () => {
+		await renderMessages(
+			[
+				{
+					id: "answer",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Verified in the browser.",
+					createdAt: Date.now(),
+				},
+			],
+			{
+				verification: {
+					screenshots: [
+						{
+							id: "palette",
+							src: "data:image/webp;base64,AAAA",
+							title: "Palette opens",
+							status: "passed",
+						},
+					],
+					subtitle: "Chrome in the cloud sandbox",
+				},
+			},
+		);
+
+		const carousel = container.querySelector(
+			'[aria-roledescription="carousel"]',
+		);
+		expect(carousel?.textContent).toContain("Chrome in the cloud sandbox");
+		expect(carousel?.textContent).toContain("Palette opens");
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'button[aria-label="Expand screenshot"]',
+				)
+				?.click();
+		});
+		expect(
+			container
+				.querySelector('[role="dialog"][aria-label="Expanded attachment"] img')
+				?.getAttribute("src"),
+		).toBe("data:image/webp;base64,AAAA");
+	});
+});
+
 describe("ChatMessages error action", () => {
 	it("keeps the recovery action when the error is already in the transcript", async () => {
 		const onClick = vi.fn();

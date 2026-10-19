@@ -7,6 +7,16 @@ vi.mock("./MarkdownRow", () => ({
 	MarkdownRow: ({ markdown }: { markdown: string }) => <div>{markdown}</div>,
 }))
 
+vi.mock("@cline/ui", () => ({
+	AgentScreenshotCarousel: ({ title, screenshots }: { title: string; screenshots: { src: string; title: string }[] }) => (
+		<section aria-label={title}>
+			{screenshots.map((shot) => (
+				<img alt={shot.title} key={shot.src} src={shot.src} />
+			))}
+		</section>
+	),
+}))
+
 vi.mock("@/components/common/MarkdownBlock", () => ({
 	default: ({ markdown }: { markdown: string }) => <div>{markdown}</div>,
 }))
@@ -50,6 +60,36 @@ describe("CompletionOutputRow", () => {
 	beforeEach(() => {
 		writeText.mockClear()
 		Object.assign(navigator, { clipboard: { writeText } })
+	})
+
+	it("shows attached screenshots in a carousel and ignores non-image media", () => {
+		render(
+			<CompletionOutputRow
+				handleQuoteClick={vi.fn()}
+				media={[
+					{
+						id: "a",
+						modality: "image",
+						mediaType: "image/webp",
+						name: "Palette opens",
+						source: { type: "base64", data: "AAAA" },
+					},
+					{
+						id: "b",
+						modality: "file",
+						mediaType: "text/plain",
+						name: "log.txt",
+						source: { type: "base64", data: "AAAA" },
+					},
+				]}
+				quoteButtonState={hiddenQuoteButton}
+				text="Verified it"
+			/>,
+		)
+
+		expect(screen.getByRole("region", { name: "Verified visually" })).toBeInTheDocument()
+		expect(screen.getByRole("img", { name: "Palette opens" })).toHaveAttribute("src", "data:image/webp;base64,AAAA")
+		expect(screen.getAllByRole("img")).toHaveLength(1)
 	})
 
 	it("shows a small Completed header with a copy button", () => {
