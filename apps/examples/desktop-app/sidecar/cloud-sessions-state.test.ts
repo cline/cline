@@ -2,6 +2,10 @@ import { HubCommandError, HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	createCloudSessionTestRuntime,
+	type TestCloudSessionController,
+} from "./cloud-session-test-runtime";
+import {
 	CloudSessionApi,
 	CloudSessionManager,
 	type CloudSessionRecord,
@@ -39,7 +43,7 @@ async function createFixture() {
 	});
 	vi.spyOn(api, "list").mockResolvedValue([remote]);
 	const updateTitle = vi.spyOn(api, "updateTitle").mockResolvedValue(remote);
-	const manager = new CloudSessionManager(ctx, { ...options, api });
+	const manager = await createCloudSessionTestRuntime(ctx, { ...options, api });
 	const replies: Record<string, Record<string, unknown>> = {
 		"session.get": { session: { status: "idle" } },
 		"session.messages": { messages: [] },
@@ -59,7 +63,7 @@ async function createFixture() {
 		) => reply(name),
 	);
 	const connection: Awaited<
-		ReturnType<CloudSessionManager["ensureConnection"]>
+		ReturnType<TestCloudSessionController["ensureConnection"]>
 	> = {
 		remote,
 		innerSessionId: "inner-1",

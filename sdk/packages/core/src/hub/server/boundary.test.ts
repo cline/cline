@@ -60,6 +60,26 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
+	it("requires connection registration before cloud access even when another client id is known", async () => {
+		const transport = createTransport({ eventLog: false, runQueue: false });
+		try {
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "registered",
+				payload: { clientType: "test" },
+			});
+			const reply = await transport.handleCommand(
+				{ version: "v1", command: "cloud.watch", clientId: "registered" },
+				null,
+			);
+			expect(reply.ok).toBe(false);
+			expect(reply.error?.code).toBe("client_not_registered");
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
