@@ -130,7 +130,6 @@ describe("plugin chat commands", () => {
 		const commands: PluginCommandsApi = {
 			list: vi.fn().mockRejectedValue(new Error("hub unavailable")),
 			run: vi.fn().mockRejectedValue(new Error("must not execute")),
-			subscribe: vi.fn(),
 		};
 		const logger = { log: vi.fn(), debug: vi.fn() };
 		const { host } = await createWorkspaceChatCommandHost({
@@ -162,7 +161,6 @@ describe("plugin chat commands", () => {
 				error: "sibling failed",
 			}),
 			run: vi.fn(),
-			subscribe: vi.fn(),
 		};
 		const { host } = await createWorkspaceChatCommandHost({
 			commands,
@@ -192,7 +190,6 @@ describe("plugin chat commands", () => {
 				error: "sibling failed",
 			}),
 			run: vi.fn().mockRejectedValue(new Error("handler failed")),
-			subscribe: vi.fn(),
 		};
 		const { host } = await createWorkspaceChatCommandHost({
 			commands,

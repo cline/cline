@@ -96,6 +96,5 @@ export function createClineCorePluginCommandsApi(
 	return {
 		list: (target) => service().list(target),
 		run: (input) => service().run(input),
-		subscribe: (listener) => service().subscribe(listener),
 	};
 }

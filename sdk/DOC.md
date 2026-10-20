@@ -3,51 +3,34 @@
 Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
 `client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
 `NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
-These APIs reuse the runtime and connection; clients do not load plugins or
-own a separate command sandbox. Pass the active `sessionId` when invoking a
-command during a session so it runs in that session's plugin instance and retains
-the state and context shared with its hooks.
-
-Bootstrap/SDK resource loading is configured separately from this API. Changing
-how a host ships those resources does not change command ownership or payloads.
+These APIs reuse the runtime and connection; clients do not load plugins or own
+a separate command sandbox. Pass the active `sessionId` so a command runs in
+that session's plugin instance and retains the state and context shared with
+its hooks.
 
 If a connection closes after a command is dispatched, execution rejects without
 automatically resending it: the command may already have changed external state.
 
 ```ts
 const target = { workspacePath: workspaceRoot, sessionId };
-const stop = core.pluginCommands.subscribe((catalog) => {
-  if (catalog.workspacePath === workspaceRoot) refreshCommandMenu();
-});
 const catalog = await core.pluginCommands.list(target);
 const result = await core.pluginCommands.run({ ...target, prompt: "/upload-history" });
 // Display result?.reply; submit only result?.submitPrompt to the agent.
 // undefined means no registered command handled the input.
-stop();
 ```
 
-Omit `sessionId` for workspace discovery before a session exists. The runtime
-initializes that workspace catalog on its first request, watches plugin sources
-and settings, and publishes changes. A failed load produces `status: "error"`
-with diagnostics and retries in the background with bounded backoff. When only
-some plugins fail, the catalog still lists and executes healthy commands.
-Background retries load only the failed paths, preserving healthy plugin
-instances and command state. Source/settings changes still reload the workspace catalog. It never
-requires a Git query or a running agent turn. Dispose the owning runtime to
-release catalog watchers and sandboxes; unsubscribe when a view closes.
-Catalog invalidation follows discoverable plugin entries, imported source files,
-and plugin settings; runtime log/state output does not invalidate a catalog.
-If source files keep changing during initialization, a request rejects after
-two reconciliation passes instead of waiting indefinitely. Retry after edits settle.
+Omit `sessionId`, or pass one the runtime does not have, to use the workspace
+catalog. Every call checks the enabled plugins and their sources and reloads the
+catalog when they change, so call `list` again whenever the command menu needs to be
+current. A failed load lists healthy commands with `status: "error"` and is
+retried after 30 seconds. Workspace catalogs idle for 10 minutes release their
+plugin workers.
 
-For a resident session, both listing and execution use its initialized
-contribution registry and existing plugin sandbox, including session context.
-Session plugin registrations retain their existing session lifetime: workspace
-file changes refresh discovery for new sessions, not an active session's hooks
-or commands. A non-resident session can preview workspace commands; execution
-requires restoring the session first. Built-in command precedence and rendering
-remain host responsibilities. Preserve the original arguments when dispatching.
-
+For a resident session, listing and execution use its initialized contribution
+registry and existing plugin sandbox. Workspace file changes apply to new
+sessions, not an active session's commands. Built-in command precedence and
+rendering remain host responsibilities. Preserve the original arguments when
+dispatching.
 
 ## Oversized tool result recovery
 

@@ -27,13 +27,15 @@ export interface PluginCommandCatalog extends PluginCommandTarget {
 	commands: PluginSlashCommand[];
 	error?: string;
 }
-/** Owned by the runtime. Clients neither load plugins nor own their sandboxes. */
+/**
+ * Owned by the runtime. Clients neither load plugins nor own their sandboxes.
+ * Every call checks plugin sources, so re-listing is how clients stay current.
+ */
 export interface PluginCommandsApi {
 	list(target: PluginCommandTarget): Promise<PluginCommandCatalog>;
 	run(
 		input: PluginCommandTarget & { prompt: string },
 	): Promise<PluginCommandResult | undefined>;
-	subscribe(listener: (catalog: PluginCommandCatalog) => void): () => void;
 }
 export interface PluginCommandsRuntimeService {
 	readonly pluginCommands: PluginCommandsApi;

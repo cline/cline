@@ -230,13 +230,11 @@ export async function runInteractive(
 		}));
 	};
 	// Session commands come from the active session's plugins, so a session
-	// change can change the catalog without any workspace catalog event.
+	// change can change the catalog.
 	const activeSessionListeners = new Set<() => void>();
-	const subscribeAdditionalSlashCommands = async (listener: () => void) => {
-		const stop = (await ensurePluginHost()).subscribe(listener);
+	const subscribeAdditionalSlashCommands = (listener: () => void) => {
 		activeSessionListeners.add(listener);
 		return () => {
-			stop();
 			activeSessionListeners.delete(listener);
 		};
 	};

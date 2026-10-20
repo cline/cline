@@ -655,20 +655,39 @@ function ChatInputBarImpl({
 		environmentId: string;
 		response: UserInstructionConfigResponse;
 	}>();
-	const [pluginCommands, setPluginCommands] = useState<SlashCommand[]>([]);
-	const slashCommands = useMemo(
-		() => [
+	const [pluginResponse, setPluginResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		sessionId?: string;
+		commands: SlashCommand[];
+	}>();
+	const slashCommands = useMemo(() => {
+		const current = <
+			T extends { workspaceRoot: string; environmentId: string },
+		>(
+			target: T | undefined,
+		) =>
+			target?.workspaceRoot === workspaceRoot &&
+			target.environmentId === environmentId
+				? target
+				: undefined;
+		return [
 			...BUILTIN_SLASH_COMMANDS,
 			...buildUserInstructionSlashCommands(
-				instructionResponse?.workspaceRoot === workspaceRoot &&
-					instructionResponse.environmentId === environmentId
-					? instructionResponse.response
-					: {},
-				pluginCommands,
+				current(instructionResponse)?.response ?? {},
+				// A session's plugins can differ from the workspace catalog.
+				pluginResponse?.sessionId === (sessionId ?? undefined)
+					? (current(pluginResponse)?.commands ?? [])
+					: [],
 			),
-		],
-		[instructionResponse, pluginCommands, workspaceRoot, environmentId],
-	);
+		];
+	}, [
+		instructionResponse,
+		pluginResponse,
+		workspaceRoot,
+		environmentId,
+		sessionId,
+	]);
 	const [pluginLoading, setPluginLoading] = useState(false);
 	const [instructionLoading, setInstructionLoading] = useState(false);
 	const [pluginError, setPluginError] = useState<string>();
@@ -1028,128 +1047,64 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Runtime-owned plugin catalogs stay loaded across menu toggles.
+	// Refresh user and plugin commands whenever the slash menu opens, keeping
+	// the last results while fetching so suggestions do not flash away. Each
+	// request settles independently so one failure cannot hide the other.
 	useEffect(() => {
-		setPluginCommands([]);
-		setPluginError(undefined);
-		if (executionTarget !== "local") return;
+		if (!slashOpen) {
+			setInstructionLoading(false);
+			setPluginLoading(false);
+			return;
+		}
 		let cancelled = false;
-		let requestId = 0;
-		let retryCount = 0;
-		let retry: ReturnType<typeof setTimeout> | undefined;
+		setInstructionLoading(true);
 		setPluginLoading(true);
-		const refresh = async () => {
-			clearTimeout(retry);
-			const id = ++requestId;
-			try {
-				const catalog = await desktopClient.invoke<PluginCommandCatalog>(
-					"list_plugin_commands",
-					{
-						workspacePath: workspaceRoot,
-						environmentId,
-						sessionId: sessionId ?? undefined,
-					},
-				);
-				if (cancelled || id !== requestId) return;
-				retryCount = 0;
-				setPluginCommands(catalog.commands);
+		desktopClient
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs", {
+				workspacePath: workspaceRoot,
+				environmentId,
+			})
+			.then((response) => {
+				if (cancelled) return;
+				setInstructionResponse({ workspaceRoot, environmentId, response });
+				setInstructionError(undefined);
+			})
+			.catch(() => {
+				if (!cancelled) setInstructionError("Instruction commands unavailable");
+			})
+			.finally(() => {
+				if (!cancelled) setInstructionLoading(false);
+			});
+		desktopClient
+			.invoke<PluginCommandCatalog>("list_plugin_commands", {
+				workspacePath: workspaceRoot,
+				environmentId,
+				sessionId: sessionId ?? undefined,
+			})
+			.then((catalog) => {
+				if (cancelled) return;
+				setPluginResponse({
+					workspaceRoot,
+					environmentId,
+					sessionId: sessionId ?? undefined,
+					commands: catalog.commands,
+				});
 				setPluginError(
 					catalog.status === "error"
 						? "Plugin commands unavailable"
 						: undefined,
 				);
-			} catch {
-				if (!cancelled && id === requestId) {
-					setPluginError("Plugin commands unavailable");
-					retry = setTimeout(
-						() => void refresh(),
-						Math.min(1000 * 2 ** retryCount++, 30000),
-					);
-				}
-			} finally {
-				if (!cancelled && id === requestId) setPluginLoading(false);
-			}
-		};
-		const unsubscribe = desktopClient.subscribe(
-			"plugins.commands.changed",
-			(payload) => {
-				const event = payload as {
-					environmentId?: string;
-					catalog?: PluginCommandCatalog;
-				};
-				if (
-					event.environmentId === environmentId &&
-					event.catalog?.workspacePath === workspaceRoot
-				)
-					void refresh();
-			},
-		);
-		const unsubscribeSettings = desktopClient.subscribe(
-			"settings.changed",
-			(payload) => {
-				if (
-					(payload as { environmentId?: string }).environmentId ===
-					environmentId
-				)
-					void refresh();
-			},
-		);
-		void refresh();
+			})
+			.catch(() => {
+				if (!cancelled) setPluginError("Plugin commands unavailable");
+			})
+			.finally(() => {
+				if (!cancelled) setPluginLoading(false);
+			});
 		return () => {
 			cancelled = true;
-			clearTimeout(retry);
-			unsubscribe();
-			unsubscribeSettings();
 		};
-	}, [workspaceRoot, environmentId, sessionId, executionTarget]);
-
-	// Instruction files have no catalog-change event. Refresh them on open,
-	// retaining the last response while fetching so suggestions do not flash away.
-	useEffect(() => {
-		if (!slashOpen) {
-			setInstructionLoading(false);
-			return;
-		}
-		let cancelled = false;
-		let requestId = 0;
-		const refresh = async () => {
-			const id = ++requestId;
-			setInstructionLoading(true);
-			try {
-				const response =
-					await desktopClient.invoke<UserInstructionConfigResponse>(
-						"list_user_instruction_configs",
-						{
-							workspacePath: workspaceRoot,
-							environmentId,
-						},
-					);
-				if (cancelled || id !== requestId) return;
-				setInstructionResponse({ workspaceRoot, environmentId, response });
-				setInstructionError(undefined);
-			} catch {
-				if (!cancelled && id === requestId)
-					setInstructionError("Instruction commands unavailable");
-			} finally {
-				if (!cancelled && id === requestId) setInstructionLoading(false);
-			}
-		};
-		const unsubscribe = desktopClient.subscribe(
-			"settings.changed",
-			(payload) => {
-				if (
-					(payload as { environmentId?: string }).environmentId ===
-					environmentId
-				)
-					void refresh();
-			},
-		);
-		void refresh();
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
-	}, [slashOpen, workspaceRoot, environmentId]);
+	}, [slashOpen, workspaceRoot, environmentId, sessionId]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
