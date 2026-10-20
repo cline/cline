@@ -609,7 +609,11 @@ describe("resolveProviderConfig", () => {
 				`Bearer ${apiKey}:${tenant}`,
 			]);
 		}
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// Each fresh catalog also probes /api/show for vision; count list fetches.
+		const listFetches = fetchMock.mock.calls.filter(([url]) =>
+			String(url).endsWith("/api/tags"),
+		);
+		expect(listFetches).toHaveLength(3);
 	});
 
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
@@ -711,6 +715,41 @@ describe("resolveProviderConfig", () => {
 		expect(
 			resolved?.knownModels?.["old-server-model"]?.capabilities,
 		).not.toContain("images");
+	});
+
+	it("sends the Ollama credentials to /api/show as it does to /api/tags", async () => {
+		// An Ollama behind an auth proxy answers /api/show with 401 unless it gets
+		// the same key as the model list, which would hide every vision model.
+		const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+			const authorization = new Headers(init?.headers).get("authorization");
+			if (authorization !== "Bearer ollama-key") {
+				return new Response("unauthorized", { status: 401 });
+			}
+			if (url.endsWith("/api/tags")) {
+				return Response.json({ models: [{ name: "vision-model" }] });
+			}
+			return Response.json({ capabilities: ["completion", "vision"] });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"ollama",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "ollama",
+				modelId: "",
+				baseUrl: "https://ollama.example.com",
+				apiKey: "ollama-key",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://ollama.example.com/api/show",
+			expect.objectContaining({ redirect: "error" }),
+		);
+		expect(resolved?.knownModels?.["vision-model"]?.capabilities).toContain(
+			"images",
+		);
 	});
 
 	it("loads Poolside models from the authenticated models endpoint", async () => {

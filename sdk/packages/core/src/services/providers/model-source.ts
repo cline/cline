@@ -58,14 +58,15 @@ export interface ModelSourceAuth {
 	headers?: Record<string, string>;
 }
 
-export async function fetchModelIdsFromSource(
+/**
+ * A model source may be a third-party public catalog. Only send provider
+ * credentials to its own origin. Returns `undefined` when there is nothing to
+ * send, so callers know not to lock down redirects.
+ */
+function resolveSourceAuthHeaders(
 	url: string,
-	providerId: string,
-	auth: ModelSourceAuth = {},
-): Promise<string[]> {
-	// A model source may be a third-party public catalog. Only send provider
-	// credentials to its own origin, and do not follow authenticated redirects.
-	const headers = new Headers();
+	auth: ModelSourceAuth,
+): Headers | undefined {
 	let sameOrigin = false;
 	try {
 		sameOrigin =
@@ -74,21 +75,33 @@ export async function fetchModelIdsFromSource(
 		// An invalid API endpoint cannot establish trust, but should not prevent
 		// an independent public catalog from loading without credentials.
 	}
-	if (sameOrigin) {
-		if (auth.apiKey?.trim()) {
-			headers.set("Authorization", `Bearer ${auth.apiKey.trim()}`);
-		}
-		for (const [name, value] of Object.entries(auth.headers ?? {})) {
-			headers.set(name, value);
-		}
+	if (!sameOrigin) {
+		return undefined;
+	}
+	const headers = new Headers();
+	if (auth.apiKey?.trim()) {
+		headers.set("Authorization", `Bearer ${auth.apiKey.trim()}`);
+	}
+	for (const [name, value] of Object.entries(auth.headers ?? {})) {
+		headers.set(name, value);
 	}
 	let hasHeaders = false;
 	headers.forEach(() => {
 		hasHeaders = true;
 	});
+	return hasHeaders ? headers : undefined;
+}
+
+export async function fetchModelIdsFromSource(
+	url: string,
+	providerId: string,
+	auth: ModelSourceAuth = {},
+): Promise<string[]> {
+	// Do not follow authenticated redirects.
+	const headers = resolveSourceAuthHeaders(url, auth);
 	const response = await fetch(url, {
 		method: "GET",
-		...(hasHeaders ? { headers, redirect: "error" as const } : {}),
+		...(headers ? { headers, redirect: "error" as const } : {}),
 		signal: AbortSignal.timeout(5_000),
 	});
 	if (!response.ok) {
@@ -110,20 +123,26 @@ export async function fetchModelIdsFromSource(
  * (`"vision"`, `"tools"`, `"thinking"`, ...). Resolves to `undefined` when
  * the server cannot answer (an older Ollama that omits `capabilities`, a
  * request failure, or a custom source URL that is not `.../api/tags`) so the
- * caller keeps its existing default instead of guessing either way.
+ * caller keeps its existing default instead of guessing either way. Uses the
+ * same credentials as the models source, so it works behind an auth proxy.
  */
 export async function fetchOllamaVisionSupport(
 	modelsSourceUrl: string,
 	modelId: string,
+	auth: ModelSourceAuth = {},
 ): Promise<boolean | undefined> {
 	if (!modelsSourceUrl.endsWith("/api/tags")) {
 		return undefined;
 	}
 	const showUrl = `${modelsSourceUrl.slice(0, -"tags".length)}show`;
+	const authHeaders = resolveSourceAuthHeaders(showUrl, auth);
+	const headers = new Headers(authHeaders);
+	headers.set("content-type", "application/json");
 	try {
 		const response = await fetch(showUrl, {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers,
+			...(authHeaders ? { redirect: "error" as const } : {}),
 			body: JSON.stringify({ model: modelId }),
 			signal: AbortSignal.timeout(5_000),
 		});

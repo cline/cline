@@ -4,6 +4,7 @@ import * as Llms from "@cline/llms";
 import {
 	fetchModelIdsFromSource,
 	fetchOllamaVisionSupport,
+	type ModelSourceAuth,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -707,12 +708,13 @@ const OLLAMA_SHOW_CONCURRENCY = 8;
 async function probeOllamaVisionSupport(
 	sourceUrl: string,
 	modelIds: string[],
+	auth: ModelSourceAuth,
 ): Promise<Map<string, boolean>> {
 	const support = new Map<string, boolean>();
 	for (let i = 0; i < modelIds.length; i += OLLAMA_SHOW_CONCURRENCY) {
 		const batch = modelIds.slice(i, i + OLLAMA_SHOW_CONCURRENCY);
 		const results = await Promise.all(
-			batch.map((id) => fetchOllamaVisionSupport(sourceUrl, id)),
+			batch.map((id) => fetchOllamaVisionSupport(sourceUrl, id, auth)),
 		);
 		batch.forEach((id, index) => {
 			const vision = results[index];
@@ -753,15 +755,16 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId, {
+	const auth: ModelSourceAuth = {
 		baseUrl: config.baseUrl ?? collection?.provider.baseUrl,
 		apiKey: resolveAuthToken(config),
 		headers: config.headers,
-	})
+	};
+	const request = fetchModelIdsFromSource(sourceUrl, providerId, auth)
 		.then(async (modelIds) => {
 			const visionSupport =
 				providerId === "ollama"
-					? await probeOllamaVisionSupport(sourceUrl, modelIds)
+					? await probeOllamaVisionSupport(sourceUrl, modelIds, auth)
 					: new Map<string, boolean>();
 			const data = Object.fromEntries(
 				modelIds.map((id) => [
