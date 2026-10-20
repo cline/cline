@@ -7,6 +7,16 @@ Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core 
 
 Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
 
+## Compaction request projection
+
+Core's prepare-turn context provides optional `buildApiMessages(messages)` to
+rebuild provider-ready messages after projecting history. `SessionRuntime`
+supplies its registered message builders and configured API-safe message builder.
+`createCompactionStateAwarePrepareTurn` uses it when budgeting an existing
+compaction sidecar, while retaining full-fidelity projected messages for the
+compactor and canonical history. Standalone callers can supply the same callback;
+without it, the projection is estimated as supplied.
+
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed

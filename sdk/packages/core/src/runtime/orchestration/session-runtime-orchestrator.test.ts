@@ -31,9 +31,14 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	EMPTY_CONTENT_TEXT,
+	type MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "../../extensions/context/compaction";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import type { CoreCompactionContext } from "../../types/config";
 import {
@@ -851,6 +856,155 @@ describe("SessionRuntime message preparation", () => {
 			{ type: "text", text: "compacted transcript" },
 		]);
 		expect(Object.hasOwn(result ?? {}, "systemPrompt")).toBe(false);
+	});
+
+	it.each([
+		{
+			name: "default tool-result cap",
+			cap: 8_000,
+			pluginText: "",
+			shouldCompact: false,
+		},
+		{
+			name: "configured tool-result cap",
+			cap: 48_000,
+			pluginText: "",
+			shouldCompact: true,
+		},
+		{
+			name: "extension-projected messages",
+			cap: 8_000,
+			pluginText: "plugin context ".repeat(40_000),
+			shouldCompact: true,
+		},
+	])("budgets re-compaction from the provider projection ($name)", async ({
+		cap,
+		pluginText,
+		shouldCompact,
+	}) => {
+		vi.stubEnv(MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars, String(cap));
+		try {
+			const toolOutput = "x".repeat(48_000);
+			const messages: MessageWithMetadata[] = [
+				{ role: "user", content: [{ type: "text", text: "original request" }] },
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "original answer" }],
+				},
+			];
+			for (let i = 0; i < 8; i++) {
+				messages.push(
+					{
+						role: "assistant",
+						content: [
+							{
+								type: "tool_use",
+								id: `read-${i}`,
+								name: "read_files",
+								input: { file_paths: [`part-${i}.txt`] },
+							},
+						],
+					},
+					{
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: `read-${i}`,
+								name: "read_files",
+								content: toolOutput,
+							},
+						],
+					},
+				);
+			}
+			const originalMessages = structuredClone(messages);
+			const state = createSessionCompactionState({
+				sourceMessages: messages.slice(0, 2),
+				compactedMessages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "Context summary: earlier work" }],
+						metadata: { kind: "compaction_summary" },
+					},
+				],
+			});
+			const originalState = structuredClone(state);
+			const compact = vi.fn((_context: CoreCompactionContext) => ({
+				messages: [{ role: "user" as const, content: "compacted again" }],
+			}));
+			const prepareTurn = createCompactionStateAwarePrepareTurn({
+				compact: createContextCompactionPrepareTurn({
+					providerId: "anthropic",
+					modelId: "claude-3-5-sonnet",
+					compaction: { enabled: true, compact },
+				}),
+				getState: () => state,
+			});
+			const extension: AgentExtension = {
+				name: "compaction-budget-context",
+				manifest: { capabilities: ["messageBuilders"] },
+				setup(api) {
+					api.registerMessageBuilder({
+						name: "append-context",
+						build: async (input) =>
+							pluginText
+								? [...input, { role: "user", content: pluginText }]
+								: input,
+					});
+				},
+			};
+			const modelRequests: AgentMessage[][] = [];
+			const scriptedModel: AgentModel = {
+				async stream(request) {
+					modelRequests.push(structuredClone([...request.messages]));
+					return (async function* () {
+						yield { type: "text-delta" as const, text: "done" };
+						yield { type: "finish" as const, reason: "stop" as const };
+					})();
+				},
+			};
+			const session = new SessionRuntime(
+				makeAgentConfig({
+					prepareTurn,
+					extensions: [extension],
+					initialMessages: messages,
+					knownModels: {
+						"claude-3-5-sonnet": {
+							id: "claude-3-5-sonnet",
+							maxInputTokens: 128_000,
+						},
+					},
+				}),
+				{
+					createAgentRuntimeImpl: (config) =>
+						createAgentRuntime({ ...config, model: scriptedModel }),
+				},
+			);
+			const result = await session.continue("continue");
+			expect(result.finishReason).toBe("completed");
+			expect(result.text).toBe("done");
+			expect(modelRequests).toHaveLength(1);
+			expect(compact).toHaveBeenCalledTimes(shouldCompact ? 1 : 0);
+			if (shouldCompact) {
+				expect(JSON.stringify(compact.mock.calls[0]?.[0].messages)).toContain(
+					toolOutput,
+				);
+				expect(JSON.stringify(modelRequests[0])).toContain("compacted again");
+			} else {
+				expect(JSON.stringify(modelRequests[0])).toContain("truncated");
+				expect(JSON.stringify(modelRequests[0])).not.toContain(toolOutput);
+			}
+			if (pluginText)
+				expect(JSON.stringify(modelRequests[0])).toContain(
+					pluginText.slice(0, 100),
+				);
+			expect(JSON.stringify(session.getMessages())).toContain(toolOutput);
+			expect(messages).toEqual(originalMessages);
+			expect(state).toEqual(originalState);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it("forwards the previous request's actual input token count to prepareTurn", async () => {
