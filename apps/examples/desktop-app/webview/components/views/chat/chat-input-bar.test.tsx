@@ -199,6 +199,7 @@ async function renderVoiceComposer({
 	readOnly = false,
 	executionTarget,
 	onAttachFiles = vi.fn(),
+	sessionId,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -212,6 +213,7 @@ async function renderVoiceComposer({
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
+	sessionId?: string;
 } = {}) {
 	await act(async () => {
 		root.render(
@@ -221,6 +223,7 @@ async function renderVoiceComposer({
 					workspaceRoot="/workspace/cline"
 					readOnly={readOnly}
 					executionTarget={executionTarget}
+					sessionId={sessionId}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
@@ -432,6 +435,34 @@ describe("ChatInputBar", () => {
 		});
 		expect(container.textContent).toContain("Recovered command");
 		expect(container.textContent).not.toContain("Plugin commands unavailable");
+	});
+
+	it("does not show another session's plugin commands", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(
+			async (name, payload) => {
+				if (name !== "list_plugin_commands") return {};
+				if ((payload as { sessionId?: string }).sessionId === "session-b")
+					throw new Error("hub connection closed");
+				return {
+					status: "ready",
+					commands: [{ name: "publish-a", description: "Session A plugin" }],
+				};
+			},
+		);
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-a",
+		});
+		expect(container.textContent).toContain("Session A plugin");
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-b",
+		});
+		expect(container.textContent).not.toContain("Session A plugin");
 	});
 
 	it("refreshes commands on reopen without resetting cached suggestions", async () => {

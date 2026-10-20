@@ -658,6 +658,7 @@ function ChatInputBarImpl({
 	const [pluginResponse, setPluginResponse] = useState<{
 		workspaceRoot: string;
 		environmentId: string;
+		sessionId?: string;
 		commands: SlashCommand[];
 	}>();
 	const slashCommands = useMemo(() => {
@@ -674,10 +675,19 @@ function ChatInputBarImpl({
 			...BUILTIN_SLASH_COMMANDS,
 			...buildUserInstructionSlashCommands(
 				current(instructionResponse)?.response ?? {},
-				current(pluginResponse)?.commands ?? [],
+				// A session's plugins can differ from the workspace catalog.
+				pluginResponse?.sessionId === (sessionId ?? undefined)
+					? (current(pluginResponse)?.commands ?? [])
+					: [],
 			),
 		];
-	}, [instructionResponse, pluginResponse, workspaceRoot, environmentId]);
+	}, [
+		instructionResponse,
+		pluginResponse,
+		workspaceRoot,
+		environmentId,
+		sessionId,
+	]);
 	const [pluginLoading, setPluginLoading] = useState(false);
 	const [instructionLoading, setInstructionLoading] = useState(false);
 	const [pluginError, setPluginError] = useState<string>();
@@ -1076,6 +1086,7 @@ function ChatInputBarImpl({
 				setPluginResponse({
 					workspaceRoot,
 					environmentId,
+					sessionId: sessionId ?? undefined,
 					commands: catalog.commands,
 				});
 				setPluginError(
