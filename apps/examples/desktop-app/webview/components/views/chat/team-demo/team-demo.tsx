@@ -5,179 +5,234 @@ import {
 	AgentComposerBody,
 	AgentConversationLayout,
 } from "@cline/ui";
-import {
-	MessageScroller,
-	MessageScrollerContent,
-	MessageScrollerItem,
-	MessageScrollerProvider,
-	MessageScrollerViewport,
-} from "@cline/ui/components/message-scroller";
-import {
-	Loader2,
-	PanelRightClose,
-	PanelRightOpen,
-	RotateCcw,
-	Users,
-	X,
-} from "lucide-react";
+import { RotateCcw, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { Button } from "@/components/ui/button";
 import { WindowTitleBarContent } from "@/components/window-title-bar";
-import type { ChatMessage } from "@/lib/chat-schema";
-import type {
-	SessionAgentActivity,
-	SessionAgentEntry,
+import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
+import {
+	buildSessionAgentActivity,
+	mergeAgentActivity,
+	type SessionAgentEntry,
 } from "@/lib/session-agents";
-import { STREAMING_TITLE_CLASS } from "../messages/constants";
-import { MessageBubble } from "../messages/message-bubble";
-import { ToolMessageBlock } from "../messages/tool-message-block";
-import { MissionControl } from "./mission-control";
-import { isActiveStatus, TeamLanesCard, TeamPlanCard } from "./team-cards";
+import { ChatMessages } from "../chat-messages";
 import {
 	buildBeats,
-	type DemoSnapshot,
-	initialSnapshot,
+	FINAL_DIFF,
+	LEAD,
 	PROMPT,
-	SESSION_ID,
+	SCREENSHOTS,
+	type SessionKey,
+	TEAM_NAME,
+	TEAMMATE_IDS,
+	TEAMMATES,
+	type TeammateId,
 	TITLE,
 } from "./team-script";
 
 /*
- * Scripted preview of an agent team breaking down a large task. The inline
- * plan and lane cards and the Mission control panel all render the same team
- * state, which mirrors the SDK's team model.
+ * Scripted preview of an agent team. The lead session and every teammate
+ * session replay through the real transcript, and the header's agent roster is
+ * derived from those transcripts the same way the sidecar derives it, so
+ * opening a teammate behaves like opening a real child session.
  */
+
+const sessionIdFor = (key: SessionKey) => `team-demo/${key}`;
+const keyForSessionId = (sessionId: string): SessionKey | undefined =>
+	[LEAD, ...TEAMMATE_IDS].find((key) => sessionIdFor(key) === sessionId);
+
+type SessionState = {
+	messages: ChatMessage[];
+	status: ChatSessionStatus;
+	streamingMessageId: string | null;
+	startedAt?: number;
+};
+
+type DemoState = Record<SessionKey, SessionState>;
+
+const idleSession = (): SessionState => ({
+	messages: [],
+	status: "idle",
+	streamingMessageId: null,
+});
+
+function initialState(): DemoState {
+	return {
+		[LEAD]: { ...idleSession(), status: "starting" },
+		"backend-dev": idleSession(),
+		"ui-dev": idleSession(),
+		"integration-dev": idleSession(),
+		"qa-engineer": idleSession(),
+	};
+}
+
+async function toBase64(src: string): Promise<string> {
+	const blob = await (await fetch(src)).blob();
+	return await new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(blob);
+	});
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function useTeamPlayback(run: number): DemoSnapshot {
-	const [snapshot, setSnapshot] = useState(initialSnapshot);
+function useTeamPlayback(run: number): DemoState {
+	const [state, setState] = useState<DemoState>(initialState);
+
 	useEffect(() => {
 		void run;
 		let cancelled = false;
-		let clock = Date.now() - 6 * 60_000;
-		let state = initialSnapshot();
-		const commit = (mutate: (draft: DemoSnapshot) => void) => {
-			const next = structuredClone(state);
-			mutate(next);
-			state = next;
-			setSnapshot(next);
+		// Timestamps advance faster than playback so durations read like a real run.
+		let clock = Date.now() - 12 * 60_000;
+		const tick = (ms: number) => {
+			clock += ms * 6;
 		};
 		const message = (
+			key: SessionKey,
 			id: string,
 			role: ChatMessage["role"],
 			content: string,
-			meta?: ChatMessage["meta"],
+			extra?: Partial<ChatMessage>,
 		): ChatMessage => ({
 			id,
-			sessionId: SESSION_ID,
+			sessionId: sessionIdFor(key),
 			role,
 			content,
 			createdAt: clock,
-			meta,
+			...extra,
 		});
+		const update = (key: SessionKey, next: Partial<SessionState>) =>
+			setState((current) => ({
+				...current,
+				[key]: { ...current[key], ...next },
+			}));
+		const push = (key: SessionKey, next: ChatMessage) =>
+			setState((current) => ({
+				...current,
+				[key]: {
+					...current[key],
+					messages: [...current[key].messages, next],
+				},
+			}));
+		const replace = (key: SessionKey, next: ChatMessage) =>
+			setState((current) => ({
+				...current,
+				[key]: {
+					...current[key],
+					messages: current[key].messages.map((item) =>
+						item.id === next.id ? next : item,
+					),
+				},
+			}));
 		const toolMessage = (
+			key: SessionKey,
 			id: string,
 			tool: string,
 			input: unknown,
 			result: unknown,
-			running: boolean,
 		) =>
 			message(
+				key,
 				id,
 				"tool",
-				JSON.stringify({
-					toolName: tool,
-					input,
-					result: running ? null : result,
-				}),
+				JSON.stringify({ toolName: tool, input, result: result ?? null }),
 				{
-					toolName: tool,
-					toolCallId: id,
-					...(running ? { hookEventName: "tool_call_start" } : {}),
+					meta: {
+						toolName: tool,
+						toolCallId: id,
+						...(result == null ? { hookEventName: "tool_call_start" } : {}),
+					},
 				},
 			);
-		const replaceMessage = (next: ChatMessage) =>
-			commit((draft) => {
-				draft.transcript = draft.transcript.map((item) =>
-					item.kind === "message" && item.message.id === next.id
-						? { ...item, message: next }
-						: item,
-				);
-			});
-		const refs = new Map<
-			string,
-			{ id: string; tool: string; input: unknown }
-		>();
 
 		void (async () => {
-			commit((draft) => {
-				draft.team.startedAt = Date.now();
-				draft.transcript.push({
-					kind: "message",
-					message: message("prompt", "user", PROMPT),
-				});
-			});
+			const entries = await Promise.all(
+				SCREENSHOTS.map(
+					async (shot) => [shot.id, await toBase64(shot.src)] as const,
+				),
+			);
+			if (cancelled) return;
+			const images = Object.fromEntries(entries);
+			const fresh = initialState();
+			fresh[LEAD].messages = [message(LEAD, "prompt", "user", PROMPT)];
+			setState(fresh);
+
+			const open = new Map<string, { key: SessionKey; message: ChatMessage }>();
 			let index = 0;
-			for (const beat of buildBeats()) {
+			for (const beat of buildBeats(images)) {
 				await sleep(beat.wait);
 				if (cancelled) return;
-				clock += beat.wait * 8;
-				const id = `beat-${index++}`;
-				if (beat.do) commit((draft) => beat.do?.(draft, clock));
-				if (beat.complete) {
-					const ref = refs.get(beat.complete.ref);
-					if (ref)
-						replaceMessage(
-							toolMessage(
-								ref.id,
-								ref.tool,
-								ref.input,
-								beat.complete.result,
-								false,
+				tick(beat.wait);
+				const key = beat.in;
+				const id = `${key}-${index++}`;
+				if ("status" in beat) {
+					update(key, { status: beat.status });
+				} else if ("start" in beat) {
+					const teammate = TEAMMATES[key as TeammateId];
+					push(key, message(key, id, "user", teammate.task));
+					update(key, { status: "running", startedAt: clock });
+				} else if ("say" in beat) {
+					if (beat.thinkMs) clock += beat.thinkMs;
+					const reasoning = beat.reasoning
+						? { reasoning: beat.reasoning }
+						: undefined;
+					if (!beat.stream) {
+						push(key, message(key, id, "assistant", beat.say, reasoning));
+						continue;
+					}
+					const words = beat.say.split(/(?<=\s)/);
+					push(key, message(key, id, "assistant", "", reasoning));
+					update(key, { streamingMessageId: id });
+					for (let count = 4; count < words.length + 4; count += 4) {
+						await sleep(40);
+						if (cancelled) return;
+						replace(
+							key,
+							message(
+								key,
+								id,
+								"assistant",
+								words.slice(0, count).join(""),
+								reasoning,
 							),
 						);
-				}
-				if (beat.tool) {
-					const { tool, input, result, runMs, ref } = beat.tool;
-					commit((draft) => {
-						draft.transcript.push({
-							kind: "message",
-							message: toolMessage(id, tool, input, result, true),
-						});
-					});
-					if (ref) refs.set(ref, { id, tool, input });
-					if (runMs !== undefined) {
-						await sleep(runMs);
-						if (cancelled) return;
-						replaceMessage(toolMessage(id, tool, input, result, false));
 					}
-				}
-				if (beat.say) {
-					const { text, reasoning, thoughtMs, stream } = beat.say;
-					commit((draft) => {
-						draft.transcript.push({
-							kind: "message",
-							message: message(id, "assistant", stream ? "" : text),
-							reasoning,
-							thoughtMs,
-						});
-						if (stream) draft.streamingMessageId = id;
-					});
-					if (stream) {
-						const words = text.split(/(?<=\s)/);
-						for (let count = 3; count < words.length + 3; count += 3) {
-							await sleep(40);
-							if (cancelled) return;
-							replaceMessage(
-								message(id, "assistant", words.slice(0, count).join("")),
-							);
-						}
-						commit((draft) => {
-							draft.streamingMessageId = null;
-						});
+					update(key, { streamingMessageId: null });
+				} else if ("tool" in beat) {
+					const started = toolMessage(key, id, beat.tool, beat.input, null);
+					push(key, started);
+					if (beat.ref) {
+						open.set(beat.ref, { key, message: started });
+						continue;
 					}
+					await sleep(beat.runMs ?? 300);
+					if (cancelled) return;
+					tick(beat.runMs ?? 300);
+					replace(
+						key,
+						toolMessage(key, id, beat.tool, beat.input, beat.result),
+					);
+				} else {
+					const pending = open.get(beat.complete);
+					if (!pending) continue;
+					open.delete(beat.complete);
+					const payload = JSON.parse(pending.message.content) as {
+						toolName: string;
+						input: unknown;
+					};
+					replace(
+						pending.key,
+						toolMessage(
+							pending.key,
+							pending.message.id,
+							payload.toolName,
+							payload.input,
+							beat.result,
+						),
+					);
 				}
 			}
 		})();
@@ -185,225 +240,154 @@ function useTeamPlayback(run: number): DemoSnapshot {
 			cancelled = true;
 		};
 	}, [run]);
-	return snapshot;
+
+	return state;
 }
 
-type Row =
-	| {
-			kind: "message";
-			key: string;
-			message: ChatMessage;
-			reasoning?: string;
-			thoughtMs?: number;
-	  }
-	| { kind: "tools"; key: string; messages: ChatMessage[] }
-	| { kind: "plan"; key: string }
-	| { kind: "lanes"; key: string };
-
-function toRows(snapshot: DemoSnapshot): Row[] {
-	const rows: Row[] = [];
-	for (const item of snapshot.transcript) {
-		if (item.kind !== "message") {
-			rows.push({ kind: item.kind, key: item.kind });
-			continue;
+/** Mirrors the sidecar's `deriveLastAction`: the latest assistant text, or the tool it ran. */
+function lastActionOf(messages: ChatMessage[]): string | undefined {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (message?.role === "tool" && message.meta?.toolName) {
+			return `Running ${message.meta.toolName}`;
 		}
-		const last = rows.at(-1);
-		if (item.message.role === "tool") {
-			if (last?.kind === "tools") last.messages.push(item.message);
-			else
-				rows.push({
-					kind: "tools",
-					key: `tools-${item.message.id}`,
-					messages: [item.message],
-				});
-			continue;
+		if (message?.role === "assistant") {
+			const text = message.content.replace(/\s+/g, " ").trim();
+			if (text) return text.length > 140 ? `${text.slice(0, 139)}…` : text;
 		}
-		rows.push({
-			kind: "message",
-			key: item.message.id,
-			message: item.message,
-			reasoning: item.reasoning,
-			thoughtMs: item.thoughtMs,
-		});
 	}
-	return rows;
+	return undefined;
 }
+
+function rosterOf(state: DemoState): SessionAgentEntry[] {
+	return TEAMMATE_IDS.flatMap((id) => {
+		const session = state[id];
+		if (!session.startedAt) return [];
+		const teammate = TEAMMATES[id];
+		return [
+			{
+				sessionId: sessionIdFor(id),
+				agentId: id,
+				kind: "teamtask" as const,
+				status: session.status === "completed" ? "completed" : "running",
+				prompt: teammate.title,
+				lastAction: lastActionOf(session.messages),
+				teamName: TEAM_NAME,
+				startedAt: new Date(session.startedAt).toISOString(),
+				hasMessages: session.messages.length > 0,
+			},
+		];
+	});
+}
+
+const isActive = (status: ChatSessionStatus) =>
+	status === "starting" || status === "running" || status === "stopping";
 
 export function TeamDemo({ onExit }: { onExit: () => void }) {
 	const [run, setRun] = useState(0);
-	const snapshot = useTeamPlayback(run);
-	const [missionControlOpen, setMissionControlOpen] = useState(false);
-	const [focusedMember, setFocusedMember] = useState<string | null>(null);
-	const { team, status, streamingMessageId } = snapshot;
-	const rows = useMemo(() => toRows(snapshot), [snapshot]);
-	const running = status === "starting" || status === "running";
-	const lastMessage = [...snapshot.transcript]
-		.reverse()
-		.find((item) => item.kind === "message");
+	const [view, setView] = useState<SessionKey>(LEAD);
+	const state = useTeamPlayback(run);
+	const lead = state[LEAD];
+	const session = state[view];
+	const leadCompleted = lead.status === "completed";
 
-	const teammates = team.members.filter((m) => !m.lead);
-	const activity: SessionAgentActivity = {
-		total: teammates.length,
-		running: teammates.filter((m) => m.status !== "done").length,
-		completed: teammates.filter((m) => m.status === "done").length,
-		failed: 0,
-		cancelled: 0,
-		unresolved: 0,
-	};
-	const agents: SessionAgentEntry[] = teammates.map((m) => ({
-		sessionId: m.id,
-		agentId: m.id,
-		kind: "teamtask",
-		status: m.status === "done" ? "completed" : "running",
-		prompt: m.role,
-		lastAction: m.activity,
-		teamName: team.name,
-		startedAt: new Date(team.startedAt).toISOString(),
-		hasMessages: true,
-	}));
-	const focus = (id: string | null) => {
-		setFocusedMember(id);
-		if (id) setMissionControlOpen(true);
-	};
-	const replay = () => {
-		setFocusedMember(null);
-		setRun((value) => value + 1);
-	};
-
-	const transcript = (
-		<MessageScrollerProvider
-			autoScroll
-			defaultScrollPosition="end"
-			key={run}
-			scrollMargin={24}
-		>
-			<MessageScroller className="isolate h-full min-h-0 min-w-0">
-				<MessageScrollerViewport
-					aria-label="Agent conversation"
-					className="h-full min-h-0 min-w-0"
-				>
-					<MessageScrollerContent className="mx-auto w-full min-w-0 max-w-[calc(var(--breakpoint-lg)+3rem)] gap-4 pt-6 pb-16 pl-12 pr-6">
-						{rows.map((row) => (
-							<MessageScrollerItem
-								key={row.key}
-								messageId={row.key}
-								scrollAnchor={
-									row.kind === "message" && row.message.role === "user"
-								}
-							>
-								{row.kind === "tools" ? (
-									<ToolMessageBlock
-										isRunActive={running}
-										messages={row.messages}
-									/>
-								) : row.kind === "plan" ? (
-									<TeamPlanCard
-										onOpenMissionControl={() => setMissionControlOpen(true)}
-										team={team}
-									/>
-								) : row.kind === "lanes" ? (
-									<TeamLanesCard onFocusMember={focus} team={team} />
-								) : (
-									<MessageBubble
-										agentRole={
-											row.message.role === "user" ? "user" : "assistant"
-										}
-										isLastAssistantMessage={
-											lastMessage?.kind === "message" &&
-											lastMessage.message.id === row.message.id &&
-											row.message.role === "assistant"
-										}
-										isStreaming={streamingMessageId === row.message.id}
-										message={row.message}
-										reasoningContent={row.reasoning ?? ""}
-										reasoningRedacted={false}
-										thoughtDurationMilliseconds={row.thoughtMs}
-									/>
-								)}
-							</MessageScrollerItem>
-						))}
-						{status === "starting" ? (
-							<MessageScrollerItem
-								className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground"
-								messageId="activity"
-							>
-								<Loader2 className="size-4 animate-spin" />
-								<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
-							</MessageScrollerItem>
-						) : null}
-					</MessageScrollerContent>
-				</MessageScrollerViewport>
-			</MessageScroller>
-		</MessageScrollerProvider>
+	const agents = useMemo(() => rosterOf(state), [state]);
+	const agentActivity = useMemo(
+		() =>
+			mergeAgentActivity(
+				agents,
+				buildSessionAgentActivity(lead.messages, {
+					sessionActive: isActive(lead.status),
+				}),
+				{ sessionActive: isActive(lead.status) },
+			),
+		[agents, lead.messages, lead.status],
 	);
+
+	const openSession = (sessionId: string) => {
+		const key = keyForSessionId(sessionId);
+		if (key) setView(key);
+	};
 
 	return (
 		<div className="grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
 			<WindowTitleBarContent>
 				<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-					<AgentHeader
-						agentActivity={activity}
-						agents={agents}
-						onNewThread={onExit}
-						onOpenAgentSession={(id) => focus(id)}
-						status={status}
-						title={TITLE}
-					/>
+					{view === LEAD ? (
+						<AgentHeader
+							agentActivity={agentActivity}
+							agents={agents}
+							diff={leadCompleted ? FINAL_DIFF : undefined}
+							onNewThread={onExit}
+							onOpenAgentSession={openSession}
+							status={lead.status}
+							title={TITLE}
+						/>
+					) : (
+						<AgentHeader
+							onOpenParentSession={openSession}
+							parentSession={{ sessionId: sessionIdFor(LEAD), title: TITLE }}
+							status={session.status}
+							title={TEAMMATES[view].title}
+						/>
+					)}
 				</div>
 			</WindowTitleBarContent>
-			<div className="flex h-full min-h-0 overflow-hidden">
-				<div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
-					<AgentConversationLayout
-						body={transcript}
-						bodyClassName="cline-view-enter"
-						composer={
-							<AgentComposer>
-								<AgentComposerBody className="flex items-center gap-3">
-									<Users className="size-4 shrink-0 text-primary" />
-									<p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-										Scripted preview of an agent team.{" "}
-										{teammates.some((m) => isActiveStatus(m.status))
-											? `${teammates.filter((m) => isActiveStatus(m.status)).length} agents working.`
-											: ""}
-									</p>
-									<Button
-										onClick={() => setMissionControlOpen((open) => !open)}
-										size="sm"
-										variant="outline"
-									>
-										{missionControlOpen ? (
-											<PanelRightClose className="size-3.5" />
-										) : (
-											<PanelRightOpen className="size-3.5" />
-										)}
-										Mission control
-									</Button>
-									<Button onClick={replay} size="sm" variant="outline">
-										<RotateCcw className="size-3.5" />
-										Replay
-									</Button>
-									<Button onClick={onExit} size="sm" variant="ghost">
-										<X className="size-3.5" />
-										Exit
-									</Button>
-								</AgentComposerBody>
-							</AgentComposer>
+			<AgentConversationLayout
+				body={
+					<ChatMessages
+						chatTransportState="connected"
+						error={null}
+						key={view}
+						messages={session.messages}
+						onAnswerAskQuestion={() => {}}
+						onApproveToolApproval={() => {}}
+						onRejectToolApproval={() => {}}
+						pendingAskQuestions={[]}
+						pendingToolApprovals={[]}
+						sessionId={sessionIdFor(view)}
+						status={session.status}
+						streamingMessageId={session.streamingMessageId}
+						verification={
+							view === LEAD && leadCompleted
+								? {
+										screenshots: SCREENSHOTS,
+										title: "Verified in browser",
+										subtitle: "Captured by qa-engineer · Chrome 1280×800",
+									}
+								: undefined
 						}
-						welcome={false}
 					/>
-				</div>
-				{missionControlOpen ? (
-					<div className="min-h-0 w-[60%] min-w-[560px] shrink-0 animate-in fade-in-0 slide-in-from-right-4 duration-300">
-						<MissionControl
-							focusedMember={focusedMember}
-							onClose={() => setMissionControlOpen(false)}
-							onFocusMember={setFocusedMember}
-							running={running}
-							team={team}
-						/>
-					</div>
-				) : null}
-			</div>
+				}
+				bodyClassName="cline-view-enter"
+				composer={
+					<AgentComposer>
+						<AgentComposerBody className="flex items-center gap-3">
+							<Users className="size-4 shrink-0 text-primary" />
+							<p className="min-w-0 flex-1 text-sm text-muted-foreground">
+								Scripted preview of an agent team. Open the agents menu in the
+								header to look inside a teammate's session.
+							</p>
+							<Button
+								onClick={() => {
+									setView(LEAD);
+									setRun((value) => value + 1);
+								}}
+								size="sm"
+								variant="outline"
+							>
+								<RotateCcw className="size-3.5" />
+								Replay
+							</Button>
+							<Button onClick={onExit} size="sm" variant="ghost">
+								<X className="size-3.5" />
+								Exit
+							</Button>
+						</AgentComposerBody>
+					</AgentComposer>
+				}
+				welcome={false}
+			/>
 		</div>
 	);
 }
