@@ -1265,7 +1265,12 @@ export class SessionRuntime {
 		return messagesToAgentMessages(providerMessages);
 	}
 
-	private async prepareProviderMessagesForApi(
+	/**
+	 * Projects canonical messages into the provider-request shape: extension
+	 * message builders, then `MessageBuilder.buildForApi` (tool-result
+	 * truncation, repairs). Produces the `apiMessages` given to `prepareTurn`.
+	 */
+	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;

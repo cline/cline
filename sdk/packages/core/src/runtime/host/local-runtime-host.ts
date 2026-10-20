@@ -823,6 +823,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => activeSessionRef?.compactionState,
+			prepareApiMessages: (messages) => {
+				const agent = activeSessionRef?.agent;
+				if (!agent) {
+					throw new Error(
+						"Compaction prepareTurn ran before the session runtime was created",
+					);
+				}
+				return agent.prepareProviderMessagesForApi(messages);
+			},
 			saveState: async (state, sourceMessages) => {
 				const activeSession = activeSessionRef;
 				if (!activeSession) return;
