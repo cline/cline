@@ -28,7 +28,7 @@ import {
 
 const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
 
-function resolveProviderMaxInputTokens(
+export function resolveProviderMaxInputTokens(
 	providerConfig: ProviderConfig,
 ): number | undefined {
 	const modelInfoLimit = resolveEffectiveMaxInputTokens({
@@ -61,27 +61,41 @@ export function buildAgenticSummaryInputBudget(options: {
 
 interface SummaryGenerationResult {
 	text: string;
+	completed: boolean;
+	usedTools: boolean;
 	/** Reasoning/thinking output length; discarded from the summary itself. */
 	reasoningChars: number;
 	/** Provider-reported reason the response is incomplete (e.g. "max_output_tokens"). */
 	incompleteReason?: string;
 }
 
-async function generateSummary(options: {
+export async function generateSummary(options: {
 	providerConfig: ProviderConfig;
 	request: string;
+	systemPrompt?: string;
+	maxOutputChars?: number;
+	signal?: AbortSignal;
 	logger?: BasicLogger;
 }): Promise<SummaryGenerationResult> {
+	options.signal?.throwIfAborted();
 	const handler = await createHandlerAsync(options.providerConfig);
+	options.signal?.throwIfAborted();
 	let text = "";
 	let reasoningChars = 0;
+	let completed = false;
+	let usedTools = false;
 	let incompleteReason: string | undefined;
 	for await (const chunk of handler.createMessage(
-		"Summarize the provided coding session into a concise continuation note with detailed next steps.",
+		options.systemPrompt ??
+			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
 		[{ role: "user", content: options.request }],
 	)) {
+		options.signal?.throwIfAborted();
 		if (chunk.type === "text") {
 			text += chunk.text;
+			if (options.maxOutputChars && text.length > options.maxOutputChars) {
+				throw new Error("Conversation summary exceeded its output limit.");
+			}
 			continue;
 		}
 		if (chunk.type === "reasoning") {
@@ -93,8 +107,13 @@ async function generateSummary(options: {
 				throw new Error(chunk.error);
 			}
 			incompleteReason = chunk.incompleteReason ?? incompleteReason;
+			completed = chunk.success;
+		}
+		if (chunk.type === "tool_calls") {
+			usedTools = true;
 		}
 	}
+	options.signal?.throwIfAborted();
 	options.logger?.debug("Generated compaction summary", {
 		outputChars: text.length,
 		reasoningChars,
@@ -102,7 +121,13 @@ async function generateSummary(options: {
 		modelId: options.providerConfig.modelId,
 		providerId: options.providerConfig.providerId,
 	});
-	return { text: text.trim(), reasoningChars, incompleteReason };
+	return {
+		text: text.trim(),
+		completed,
+		usedTools,
+		reasoningChars,
+		incompleteReason,
+	};
 }
 
 function safeJsonSize(value: unknown): number {

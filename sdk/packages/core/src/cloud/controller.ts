@@ -45,6 +45,7 @@ import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
 	CloudQueuedPrompt,
+	CloudSendLifecycle,
 	CloudSessionAttachment,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -1176,11 +1177,19 @@ export class CloudSessionController {
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, record);
 		// REST does not round-trip these client-side first-task preferences.
-		const { autoApproveTools, thinking, reasoningEffort } = input;
+		const {
+			autoApproveTools,
+			thinking,
+			reasoningEffort,
+			mode,
+			workspaceRelativePath,
+		} = input;
 		this.pendingInitialTasks.set(record.id, {
 			autoApproveTools,
 			thinking,
 			reasoningEffort,
+			mode: mode ?? "act",
+			workspaceRelativePath,
 		});
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1315,6 +1324,7 @@ export class CloudSessionController {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		lifecycle?: CloudSendLifecycle,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1456,6 +1466,7 @@ export class CloudSessionController {
 								"The cloud session reconnected before the prompt could be sent. Please try again.",
 							);
 						}
+						lifecycle?.beforeDispatch?.();
 					},
 				},
 			);
@@ -2765,8 +2776,13 @@ export class CloudSessionController {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.sessions.get(connection.remote.id);
-		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
-		const mode = handoffSeed?.mode ?? "act";
+		const preferences =
+			this.pendingInitialTasks.get(connection.remote.id) ??
+			this.restoredOptions.get(connection.remote.id);
+		const cwd = cloudWorkspaceCwd(
+			handoffSeed?.workspaceRelativePath ?? preferences?.workspaceRelativePath,
+		);
+		const mode = handoffSeed?.mode ?? preferences?.mode ?? "act";
 		try {
 			await handoffSeed?.onSeeding?.();
 			this.assertSessionActive(connection.remote.id, connection);

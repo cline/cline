@@ -8,11 +8,11 @@ import {
 	type DesktopAppAction,
 	desktopAppReducer,
 } from "../lib/desktop-app-state";
-import { usePromptDraft } from "./use-prompt-draft";
+import { type PromptDraft, usePromptDraft } from "./use-prompt-draft";
 
 let container: HTMLDivElement;
 let root: Root;
-let drafts: Map<string, string>;
+let drafts: Map<string, PromptDraft>;
 let current: ReturnType<typeof usePromptDraft>;
 let renders: number;
 let appState: ReturnType<typeof createDesktopAppState<"General">>;
@@ -95,7 +95,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(current.promptDraft.value).toBe("Submitted prompt");
-		expect(drafts.get("new-session")).toBe("Submitted prompt");
+		expect(drafts.get("new-session")?.text).toBe("Submitted prompt");
 	});
 
 	it("does not restore a failed send after the user types and erases newer text", async () => {
@@ -111,7 +111,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(current.promptInputRef.current).toBe("");
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
 	it("invalidates recovery for an equal-valued external replacement", async () => {
@@ -122,7 +122,7 @@ describe("usePromptDraft", () => {
 			current.setPromptInput("");
 		});
 		act(() => expect(restore("Old prompt")).toBe(false));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
 	it("does not let an earlier send's failure replace a later send's draft", async () => {
@@ -288,7 +288,7 @@ describe("usePromptDraft", () => {
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("Edited fork prompt");
 		act(() => current.setPromptInput(""));
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
 		await openSession();
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("");
@@ -301,6 +301,60 @@ describe("usePromptDraft", () => {
 		await openSession();
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("");
-		expect(drafts.has("new-session")).toBe(false);
+		expect(drafts.get("new-session")?.text).toBe("");
+	});
+
+	it("keeps edited cloud text and images through a pane remount", async () => {
+		await openSession();
+		const image = new File(["synthetic"], "test.png", { type: "image/png" });
+		act(() => {
+			current.setPromptInput("Original follow-up");
+			current.setPendingAttachments([image]);
+			current.handlePromptInputChange("Edited follow-up");
+		});
+		await navigate({
+			type: "navigate",
+			destination: { ...appState.navigation.current, view: "sessions" },
+		});
+		await openSession();
+		expect(current.promptInputRef.current).toBe("Edited follow-up");
+		expect(current.pendingAttachments).toEqual([image]);
+		act(() => {
+			current.handlePromptInputChange("");
+			current.setPendingAttachments([]);
+		});
+		await navigate({ type: "back" });
+		await openSession();
+		expect(current.promptInputRef.current).toBe("");
+		expect(current.pendingAttachments).toEqual([]);
+	});
+
+	it("restores a rejected prompt and its files alongside attachments added during sending", async () => {
+		await navigate();
+		const original = new File(["a"], "a.png");
+		const added = new File(["b"], "b.png");
+		act(() => {
+			current.setPromptInput("Submitted prompt");
+			current.setPendingAttachments([original]);
+		});
+		const sent = current.pendingAttachments;
+		const update = current.setPendingAttachments;
+		let finish!: ReturnType<typeof current.clearPromptForSend>;
+		act(() => {
+			update([]);
+			finish = current.clearPromptForSend();
+		});
+		act(() => current.setPendingAttachments([added]));
+		act(() => {
+			if (finish("Submitted prompt")) update((files) => [...files, ...sent]);
+		});
+		expect(current.promptDraft.value).toBe("Submitted prompt");
+		expect(current.pendingAttachments).toEqual([added, original]);
+		act(() => {
+			update([]);
+			update((files) => [...files, original]);
+			update((files) => [...files, added]);
+		});
+		expect(current.pendingAttachments).toEqual([original, added]);
 	});
 });

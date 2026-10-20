@@ -26,6 +26,8 @@ export type ChatSessionCommandRequest = {
 		| "start"
 		| "attach"
 		| "send"
+		| "prepare_handoff"
+		| "handoff"
 		| "stop"
 		| "abort"
 		| "fork"
@@ -43,6 +45,11 @@ export type ChatSessionCommandRequest = {
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
+	/** Opaque webview correlation token echoed on handoff progress events. */
+	handoffAttemptId?: string;
+	gitPreparationId?: string;
+	/** Optional instruction appended to the locally generated summary. */
+	nextCommand?: string;
 };
 
 export type PromptInQueue = {

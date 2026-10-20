@@ -697,7 +697,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("surfaces run.failed errors as a visible error message", async () => {
-		const { ctx, events, hub, manager } = createFixture();
+		const { events, hub, manager } = createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
