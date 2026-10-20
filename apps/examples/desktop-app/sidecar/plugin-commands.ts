@@ -1,6 +1,7 @@
 import {
 	createHubPluginCommandsApi,
 	type PluginCommandResult,
+	parsePluginCommand,
 } from "@cline/core";
 import { getSessionRuntimeBinding } from "./context";
 import type { SidecarContext } from "./types";
@@ -49,16 +50,31 @@ export async function runPluginSlashCommand(
 		environmentId?: string;
 	},
 ): Promise<PluginCommandResult | undefined> {
-	return createHubPluginCommandsApi(
+	const commands = createHubPluginCommandsApi(
 		getSessionRuntimeBinding(ctx, input.sessionId, input.environmentId)
 			.hubClient,
-	).run({
+	);
+	const target = {
 		workspacePath: sessionWorkspacePath(
 			ctx,
 			input.sessionId,
 			input.workspacePath,
 		),
 		sessionId: input.sessionId,
-		prompt: input.prompt,
-	});
+	};
+	// A failed catalog read must not block skills and workflows sharing the
+	// slash syntax. Only a listed plugin command may fail the send.
+	try {
+		const name = parsePluginCommand(input.prompt)?.name;
+		const catalog = await commands.list(target);
+		if (!catalog.commands.some((command) => command.name === name))
+			return undefined;
+	} catch (error) {
+		ctx.logger?.log("Plugin command discovery failed", {
+			error,
+			severity: "warn",
+		});
+		return undefined;
+	}
+	return commands.run({ ...target, prompt: input.prompt });
 }
