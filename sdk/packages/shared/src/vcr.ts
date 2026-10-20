@@ -36,6 +36,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { registerDisposable } from "./dispose";
+import { redactSensitiveData, sanitizeSensitiveString } from "./sensitive-data";
 import type { VcrRecording } from "./types/vcr";
 
 // ── Types ───────────────────────────────────────────────────────────────
@@ -57,113 +58,6 @@ interface VcrConfig {
 
 interface InternalVcrRecording extends VcrRecording {
 	requestContentType?: string;
-}
-
-// ── Sensitive data sanitization ─────────────────────────────────────────
-
-/**
- * Sanitization is key-based: any JSON key whose name matches a rule gets
- * its value redacted. This is more robust than regex-matching values,
- * because it works regardless of the value format.
- *
- * Three categories of keys are redacted:
- *
- * 1. Exact key names (case-insensitive): secrets, tokens, credentials.
- * 2. Key name patterns (substring/suffix): catches ID fields, PII, etc.
- * 3. Value-level regex patterns: for values embedded in plain strings
- *    (e.g. filesystem paths, AWS key IDs in URLs).
- *
- * To add new sanitization rules, just add entries to the sets/arrays below.
- */
-
-/** Keys whose values are always fully redacted (case-insensitive exact match). */
-const REDACT_KEYS_EXACT = new Set([
-	// Secrets & tokens
-	// Exact keys are compared after lowercasing, so accessToken matches accesstoken.
-	"accesskeyid",
-	"secretaccesskey",
-	"idtoken",
-	"refreshtoken",
-	"accesstoken",
-	"access_token",
-	"refresh_token",
-	"apikey",
-	"api_key",
-	"authorization",
-	"password",
-	"secret",
-	"token",
-	// PII
-	"email",
-	"displayname",
-	"display_name",
-	"userinfo",
-]);
-
-/**
- * Keys whose values are redacted if the key name ends with or contains
- * one of these substrings (case-insensitive). Catches fields like
- * "userId", "organizationId", "memberId", "sessionId", etc.
- */
-const REDACT_KEY_SUFFIXES = [
-	"id", // matches *Id and *_id, covering most entity identifiers
-	"balance",
-	"cost",
-	"secret",
-];
-
-/** Check whether a key name should have its value redacted. */
-function shouldRedactKey(key: string): boolean {
-	const lower = key.toLowerCase();
-	if (REDACT_KEYS_EXACT.has(lower)) {
-		return true;
-	}
-	for (const suffix of REDACT_KEY_SUFFIXES) {
-		// Match "userId", "user_id", "id" but not "video" or "valid"
-		if (lower === suffix) {
-			return true;
-		}
-		// camelCase: ends with "Id", "Balance", etc.
-		if (lower.endsWith(suffix) && lower.length > suffix.length) {
-			const charBefore = lower[lower.length - suffix.length - 1];
-			// Must be preceded by a word boundary character (_, -, or uppercase transition)
-			if (charBefore === "_" || charBefore === "-") {
-				return true;
-			}
-			// camelCase: the suffix starts with lowercase but original key has uppercase
-			const originalChar = key[key.length - suffix.length];
-			if (
-				originalChar &&
-				originalChar === originalChar.toUpperCase() &&
-				originalChar !== originalChar.toLowerCase()
-			) {
-				return true;
-			}
-		}
-		// snake_case: ends with "_id", "_balance", etc.
-		if (lower.endsWith(`_${suffix}`)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-/** Regex patterns applied to plain string values (not key-based). */
-const SENSITIVE_VALUE_PATTERNS: { pattern: RegExp; replacement: string }[] = [
-	// AWS access key IDs
-	{ pattern: /AKIA[A-Z0-9]{16}/g, replacement: "AKIA_REDACTED" },
-	// Filesystem paths with usernames
-	{ pattern: /\/Users\/[A-Za-z0-9._-]+/g, replacement: "/Users/REDACTED_USER" },
-	{ pattern: /\/home\/[A-Za-z0-9._-]+/g, replacement: "/home/REDACTED_USER" },
-];
-
-/** Apply value-level regex sanitization to a plain string. */
-function sanitizeStringValue(input: string): string {
-	let result = input;
-	for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
-		result = result.replace(pattern, replacement);
-	}
-	return result;
 }
 
 function sortJsonValue(value: unknown): unknown {
@@ -227,50 +121,6 @@ function normalizePath(input: string): string {
 	return result;
 }
 
-/**
- * Deep-sanitize a value, redacting sensitive keys and patterns.
- * Handles objects, arrays, plain strings, and JSON-encoded strings.
- */
-function sanitizeValue(obj: unknown): unknown {
-	if (obj === null || obj === undefined) {
-		return obj;
-	}
-
-	if (typeof obj === "string") {
-		// Try to parse as JSON and sanitize recursively
-		try {
-			const parsed = JSON.parse(obj);
-			if (typeof parsed === "object" && parsed !== null) {
-				return JSON.stringify(sanitizeValue(parsed));
-			}
-		} catch {
-			// Not JSON, so apply string-level patterns
-		}
-		return sanitizeStringValue(obj);
-	}
-
-	if (Array.isArray(obj)) {
-		return obj.map(sanitizeValue);
-	}
-
-	if (typeof obj === "object") {
-		const result: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-			if (
-				shouldRedactKey(key) &&
-				(typeof value === "string" || typeof value === "number")
-			) {
-				result[key] = "REDACTED";
-			} else {
-				result[key] = sanitizeValue(value);
-			}
-		}
-		return result;
-	}
-
-	return obj;
-}
-
 function parseUrlEncodedBody(
 	input: string,
 ): Record<string, unknown> | undefined {
@@ -305,15 +155,15 @@ function sanitizeSerializedRequestBody(
 	contentType?: string,
 ): string {
 	try {
-		return canonicalStringify(sanitizeValue(JSON.parse(input)));
+		return canonicalStringify(redactSensitiveData(JSON.parse(input)));
 	} catch {
 		if (isUrlEncodedContentType(contentType)) {
 			const formBody = parseUrlEncodedBody(input);
 			if (formBody) {
-				return canonicalStringify(sanitizeValue(formBody));
+				return canonicalStringify(redactSensitiveData(formBody));
 			}
 		}
-		return sanitizeStringValue(input);
+		return sanitizeSensitiveString(input);
 	}
 }
 
@@ -342,7 +192,7 @@ function sanitizeRecording(
 
 	// Deep-sanitize response body
 	if (cleaned.response !== undefined) {
-		cleaned.response = sanitizeValue(cleaned.response);
+		cleaned.response = redactSensitiveData(cleaned.response);
 	}
 
 	return cleaned;

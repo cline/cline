@@ -33,7 +33,10 @@ import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
-import { nowIso } from "../../services/session-artifacts";
+import {
+	nowIso,
+	sessionHookLogFileName,
+} from "../../services/session-artifacts";
 import {
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
@@ -599,6 +602,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			localRuntime: input.localRuntime,
 			sessionId,
 			sessionOrigin,
+			sessionHookLogPath: join(sessionDir, sessionHookLogFileName(sessionId)),
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
