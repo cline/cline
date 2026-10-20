@@ -89,7 +89,8 @@ describe("ChatMessages verification screenshots", () => {
 		);
 		expect(
 			answer &&
-				carousel?.compareDocumentPosition(answer) &
+				carousel &&
+				carousel.compareDocumentPosition(answer) &
 					Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
 		await act(async () => {
