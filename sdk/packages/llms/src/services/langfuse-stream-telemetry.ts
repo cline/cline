@@ -43,6 +43,21 @@ export class LangfuseStreamTelemetry
 		}
 	}
 
+	override async executeLanguageModelCall<T>(params: {
+		callId: string;
+		execute: () => PromiseLike<T>;
+	}): Promise<T> {
+		try {
+			return await super.executeLanguageModelCall(params);
+		} catch (error) {
+			// Request-start failures are retried inside the AI SDK, before onError
+			// is notified. Export the failed attempt before backoff or recovery.
+			this.onLanguageModelCallError({ callId: params.callId, error });
+			this.endAttempt(params.callId);
+			throw error;
+		}
+	}
+
 	override onLanguageModelCallEnd(
 		event: LanguageModelCallEndEvent<ToolSet>,
 	): void {
