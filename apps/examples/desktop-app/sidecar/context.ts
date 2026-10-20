@@ -919,9 +919,6 @@ export function handleHubLiveEvent(
 		payload?: Record<string, unknown>;
 	},
 ): void {
-	if (ctx.activeEnvironmentId === LOCAL_ENVIRONMENT_ID) {
-		recordHubActivity(getSidecarContextOwner(ctx), event);
-	}
 	if (event.event === "approval.requested") {
 		if (typeof event.payload?.agendaTaskId !== "string") return;
 		void handleHubApprovalRequest(ctx, event).catch((error) => {
@@ -1532,6 +1529,7 @@ export async function ensureSharedHubClient(
 		try {
 			await client.connect();
 			client.subscribe((event) => {
+				recordHubActivity(getSidecarContextOwner(ctx), event);
 				handleHubLiveEvent(
 					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
 					event,

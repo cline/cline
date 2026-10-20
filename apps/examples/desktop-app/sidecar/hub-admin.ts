@@ -84,14 +84,20 @@ export function restartHub(
 	if (restartPending) return restartPending;
 	restartPending = (async () => {
 		const url = client.getUrl();
+		const original = await probeHubServer(url, {
+			signal: AbortSignal.timeout(2000),
+		});
+		if (!original?.hubId)
+			throw new Error("Unable to identify the hub to restart. Try again.");
 		if (!(await requestHubShutdown(url)))
 			throw new Error("The hub did not accept the restart request.");
 		const deadline = Date.now() + 15_000;
-		while (
-			await probeHubServer(url, { signal: AbortSignal.timeout(2000) }).catch(
-				() => undefined,
-			)
-		) {
+		while (true) {
+			const current = await probeHubServer(url, {
+				signal: AbortSignal.timeout(2000),
+			});
+			// Reconnecting clients may have already started a replacement here.
+			if (!current || current.hubId !== original.hubId) break;
 			if (Date.now() >= deadline)
 				throw new Error("The hub did not stop in time. Try again.");
 			await new Promise((resolve) => setTimeout(resolve, 100));
