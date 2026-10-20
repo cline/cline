@@ -8,6 +8,7 @@ import {
 	type AgentResult,
 	type BasicLogger,
 	captureSdkError,
+	classifyBumpText,
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
@@ -1153,6 +1154,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 				userImageCount: input.userImages?.length ?? 0,
 				userFileCount: input.userFiles?.length ?? 0,
 				delivery: delivery ?? "immediate",
+				// A prompt sent into a busy run, or right after one ended, is how
+				// users react to a stall; task.run_health carries the run's side.
+				agentBusy: !canStartRun,
+				bumpKind: classifyBumpText(input.prompt),
+				...(session.lastTurnEndedAt === undefined
+					? {}
+					: { msSinceTurnEnd: Date.now() - session.lastTurnEndedAt }),
 			},
 		});
 		if (delivery === "queue" || delivery === "steer") {
@@ -1855,6 +1863,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 			return result;
 		} finally {
+			session.lastTurnEndedAt = Date.now();
 			await this.refreshActiveSessionGitMetadata(session);
 		}
 	}

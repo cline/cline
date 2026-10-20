@@ -36,6 +36,7 @@ import {
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,
+	classifyFinalTurnText,
 	estimateTokens,
 	mergeModelOptions,
 	normalizeJsonLikeStringsForSchema,
@@ -46,6 +47,8 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	TASK_RUN_HEALTH_EVENT,
+	TASK_RUN_IDLE_EVENT,
 	TOOL_REJECTION_SUFFIX,
 	trimNonEmpty,
 } from "@cline/shared";
@@ -484,6 +487,20 @@ function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
 	return request.options?.thinking === false;
 }
 
+/** Silence (no runtime event, stream deltas included) before a run reports `task.run_idle`. */
+const RUN_IDLE_REPORT_MS = 60_000;
+
+/** Coarse shape of a message for `task.run_health`; never carries content. */
+function messageShape(message: AgentMessage | undefined): string {
+	if (!message || message.content.length === 0) {
+		return "empty";
+	}
+	const types = new Set(message.content.map((part) => part.type));
+	if (types.has("tool-call")) return "tool_call";
+	if (types.has("tool-result")) return "tool_result";
+	return `${message.role}_${types.has("text") ? "text" : "other"}`;
+}
+
 function textFromMessage(message: AgentMessage | undefined): string {
 	if (!message) {
 		return "";
@@ -596,6 +613,17 @@ export class AgentRuntime {
 	private maxTokensRecoveryCount = 0;
 	/** One automatic recovery attempt per run for max-tokens-truncated turns. */
 	private maxTokensRecoveryAttempted = false;
+	/** Progress gaps for the current run, reported as `task.run_health`. */
+	private runHealth = {
+		startedAt: 0,
+		lastEventAt: 0,
+		lastEventType: "",
+		maxIdleMs: 0,
+		maxIdleAfter: "",
+		idleReported: false,
+		lastFinishReason: undefined as AgentModelFinishReason | undefined,
+	};
+	private runIdleTimer?: ReturnType<typeof setTimeout>;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private modelSteerController?: AbortController;
@@ -646,8 +674,13 @@ export class AgentRuntime {
 				? reason
 				: new AgentRuntimeAbortError(reason);
 		this.state.lastError = abortError.message;
+		// How long the run had been silent when the user gave up on it.
 		this.captureTaskLifecycle(TASK_CANCELLED_EVENT, {
 			error: abortError,
+			properties: {
+				msSinceLastEvent: Date.now() - this.runHealth.lastEventAt,
+				lastEventType: this.runHealth.lastEventType,
+			},
 		});
 		this.abortController.abort(abortError);
 	}
@@ -808,6 +841,7 @@ export class AgentRuntime {
 		this.pendingHookContexts = [];
 		this.maxTokensRecoveryCount = 0;
 		this.maxTokensRecoveryAttempted = false;
+		this.startRunHealth();
 
 		try {
 			await this.callBeforeRunHooks();
@@ -851,6 +885,7 @@ export class AgentRuntime {
 				this.resetLastError();
 				const { message, finishReason, interrupted } =
 					await this.generateAssistantMessageWithProviderRetry();
+				this.runHealth.lastFinishReason = finishReason;
 				if (interrupted && message.content.length === 0) {
 					await this.emit({
 						type: "turn-finished",
@@ -1089,7 +1124,91 @@ export class AgentRuntime {
 			return result;
 		} finally {
 			this.abortController = undefined;
+			this.finishRunHealth();
 		}
+	}
+
+	private startRunHealth(): void {
+		const now = Date.now();
+		this.runHealth = {
+			startedAt: now,
+			lastEventAt: now,
+			lastEventType: "",
+			maxIdleMs: 0,
+			maxIdleAfter: "",
+			idleReported: false,
+			lastFinishReason: undefined,
+		};
+		clearTimeout(this.runIdleTimer);
+		this.scheduleRunIdleCheck();
+	}
+
+	/**
+	 * One pending timer per run, re-armed from the last event rather than per
+	 * event, and gone once it reports: hangs are counted while still stuck, so
+	 * runs the process never recovers from (app quit, crash) show up too.
+	 */
+	private scheduleRunIdleCheck(): void {
+		const delayMs =
+			this.runHealth.lastEventAt + RUN_IDLE_REPORT_MS - Date.now();
+		this.runIdleTimer = setTimeout(
+			() => {
+				const idleMs = Date.now() - this.runHealth.lastEventAt;
+				if (idleMs < RUN_IDLE_REPORT_MS) {
+					this.scheduleRunIdleCheck();
+					return;
+				}
+				this.runHealth.idleReported = true;
+				this.captureTaskLifecycle(TASK_RUN_IDLE_EVENT, {
+					properties: {
+						idleMs,
+						lastEventType: this.runHealth.lastEventType,
+						isSubagent: Boolean(this.state.parentAgentId),
+					},
+				});
+			},
+			Math.max(delayMs, 0),
+		);
+		this.runIdleTimer.unref?.();
+	}
+
+	private trackRunProgress(eventType: string): void {
+		const now = Date.now();
+		const health = this.runHealth;
+		if (now - health.lastEventAt > health.maxIdleMs) {
+			health.maxIdleMs = now - health.lastEventAt;
+			health.maxIdleAfter = health.lastEventType;
+		}
+		health.lastEventAt = now;
+		health.lastEventType = eventType;
+	}
+
+	private finishRunHealth(): void {
+		clearTimeout(this.runIdleTimer);
+		this.runIdleTimer = undefined;
+		const health = this.runHealth;
+		const lastMessage = this.state.messages.at(-1);
+		const endedOn = messageShape(lastMessage);
+		this.captureTaskLifecycle(TASK_RUN_HEALTH_EVENT, {
+			durationMs: Date.now() - health.startedAt,
+			properties: {
+				status: this.state.status,
+				isSubagent: Boolean(this.state.parentAgentId),
+				finishReason: health.lastFinishReason,
+				maxIdleMs: health.maxIdleMs,
+				maxIdleAfter: health.maxIdleAfter,
+				idleReported: health.idleReported,
+				endedOn,
+				// Only a text-only final turn has a text signature (detector parity).
+				...(lastMessage?.role === "assistant" && endedOn !== "tool_call"
+					? {
+							textSignature: classifyFinalTurnText(
+								textFromMessage(lastMessage),
+							),
+						}
+					: {}),
+			},
+		});
 	}
 
 	/**
@@ -2690,6 +2809,7 @@ export class AgentRuntime {
 	}
 
 	private async emit(event: AgentRuntimeEvent): Promise<void> {
+		this.trackRunProgress(event.type);
 		const metadata = buildEventMetadata(event);
 		switch (event.type) {
 			case "run-started":

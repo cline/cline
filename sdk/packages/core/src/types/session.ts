@@ -25,6 +25,8 @@ export type ActiveSession = {
 	agent: SessionRuntime;
 	started: boolean;
 	aborting: boolean;
+	/** Epoch ms the last turn ended; labels the next input for stall analysis. */
+	lastTurnEndedAt?: number;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;

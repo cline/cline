@@ -68,6 +68,10 @@ export const TASK_FIRST_CHUNK_RECEIVED_EVENT = "task.first_chunk_received";
 export const TASK_PROVIDER_STREAM_FAILED_EVENT = "task.provider_stream_failed";
 export const TASK_CANCELLED_EVENT = "task.cancelled";
 export const TASK_MAX_TOKENS_RECOVERY_EVENT = "task.max_tokens_recovery";
+/** One per agent run, on every exit path: progress gaps and end state, for stall-rate analysis. */
+export const TASK_RUN_HEALTH_EVENT = "task.run_health";
+/** At most once per run, when a running agent has emitted nothing for RUN_IDLE_REPORT_MS. */
+export const TASK_RUN_IDLE_EVENT = "task.run_idle";
 
 export interface CaptureTaskLifecycleEventInput {
 	event: string;
@@ -91,6 +95,8 @@ export interface CaptureTaskLifecycleEventInput {
 	 */
 	errorClass?: string;
 	messageLimit?: number;
+	/** Event-specific fields beyond the shared lifecycle identity. */
+	properties?: TelemetryProperties;
 }
 
 /**
@@ -303,6 +309,7 @@ export function captureTaskLifecycleEvent(
 				? {}
 				: normalizeSdkError(input.error, input.messageLimit)),
 			error_class: input.errorClass,
+			...input.properties,
 		}),
 	});
 }
