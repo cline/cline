@@ -2,7 +2,7 @@
 	"name": "next-turn",
 	"version": "0.0.1",
 	"private": true,
-	"description": "Next Turn: suggestions after each turn, Tasks and a Status Hub, as one Cline plugin.",
+	"description": "Next Turn: rules-based next-step suggestions in the composer, as one Cline plugin.",
 	"engines": {
 		"node": ">=22"
 	},
@@ -30,18 +30,10 @@
 	},
 	"peerDependencies": {
 		"@cline/core": "*",
-		"@cline/llms": "*",
-		"@cline/sdk": "*",
 		"@cline/shared": "*"
 	},
 	"peerDependenciesMeta": {
 		"@cline/core": {
-			"optional": true
-		},
-		"@cline/llms": {
-			"optional": true
-		},
-		"@cline/sdk": {
 			"optional": true
 		},
 		"@cline/shared": {
