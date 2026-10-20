@@ -1,6 +1,11 @@
 import type { ApiStreamChunk } from "@cline/llms";
-import type { MessageWithMetadata, ToolUseContent } from "@cline/shared";
+import type {
+	MessageWithMetadata,
+	ToolResultContent,
+	ToolUseContent,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import { buildSummaryMessage, estimateTokens } from "./compaction-shared";
 import { summarizeConversation } from "./summarize-conversation";
 
@@ -37,7 +42,7 @@ function respond(chunks: ApiStreamChunk[]) {
 
 function toolExchange(
 	call: ToolUseContent,
-	result: string,
+	result: ToolResultContent["content"],
 ): MessageWithMetadata[] {
 	return [
 		{ role: "assistant", content: [call] },
@@ -68,7 +73,62 @@ beforeEach(() => {
 });
 
 describe("summarizeConversation", () => {
+	it("retains structured tool outcomes without sending nested image data", async () => {
+		const output = toPersistedToolResultContent([
+			{
+				query: "test",
+				result: "Parser failed",
+				error: "Exit code 1",
+				success: false,
+			},
+			{ type: "image", mediaType: "image/png", data: "synthetic-image-data" },
+		]);
+		const history = [
+			...messages,
+			...toolExchange(
+				{
+					type: "tool_use",
+					id: "check",
+					name: "run_commands",
+					input: { commands: ["test"] },
+				},
+				output,
+			),
+		];
+		const original = structuredClone(history);
+		await summarizeConversation({ messages: history, config });
+		const request = createMessageMock.mock.calls[0][1][0].content;
+		expect(request).toContain("Parser failed");
+		expect(request).toContain("Exit code 1");
+		expect(request).toContain('"success":false');
+		expect(request).not.toContain("synthetic-image-data");
+		expect(history).toEqual(original);
+	});
+
+	it.each([
+		2000, 2001, 100_000,
+	])("budgets the full latest tool response (%s characters)", async (length) => {
+		const verdict = " FINAL_VERDICT_FAILED";
+		const result = "x".repeat(length - verdict.length) + verdict;
+		const history = [
+			...messages,
+			...toolExchange(
+				{ type: "tool_use", id: "check", name: "custom_check", input: {} },
+				result,
+			),
+		];
+		const summary = summarizeConversation({ messages: history, config });
+		if (length === 100_000) {
+			await expect(summary).rejects.toThrow("could not fit");
+			expect(createHandlerMock).not.toHaveBeenCalled();
+		} else {
+			await summary;
+			expect(createMessageMock.mock.calls[0][1][0].content).toContain(result);
+		}
+	});
+
 	it("summarizes the current context including the latest turn without changing history or connection", async () => {
+		const currentFile = `${"x".repeat(2100)} final constraint`;
 		const history: MessageWithMetadata[] = [
 			{ role: "user", content: "Obsolete history before compaction" },
 			buildSummaryMessage({
@@ -81,6 +141,7 @@ describe("summarizeConversation", () => {
 				role: "user",
 				content: [
 					{ type: "text", text: "Also handle empty input." },
+					{ type: "file", path: "constraints.txt", content: currentFile },
 					{
 						type: "image",
 						mediaType: "image/png",
@@ -109,6 +170,7 @@ describe("summarizeConversation", () => {
 		const [, request, tools] = createMessageMock.mock.calls[0];
 		expect(request[0].content).toContain("Preserve Unicode support");
 		expect(request[0].content).toContain("Also handle empty input");
+		expect(request[0].content).toContain(currentFile);
 		expect(request[0].content).toContain("Unicode test still fails");
 		expect(request[0].content).not.toContain("Obsolete history");
 		expect(request[0].content).not.toContain("historical-image-data");
