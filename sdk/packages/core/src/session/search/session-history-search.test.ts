@@ -43,6 +43,31 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 }
 
 describe("SessionHistorySearchService", () => {
+	it("drains an in-flight refresh and ignores refreshes during and after disposal", async () => {
+		let finishListing!: (sessions: SessionRecord[]) => void;
+		const listSessions = vi.fn(
+			() =>
+				new Promise<SessionRecord[]>((resolve) => {
+					finishListing = resolve;
+				}),
+		);
+		const service = new SessionHistorySearchService(
+			{ listSessions, readSessionMessages: async () => [] },
+			{ dbPath: ":memory:" },
+		);
+		const refresh = service.refreshNow();
+		const disposal = service.dispose();
+		await service.refreshNow();
+		expect(listSessions).toHaveBeenCalledTimes(1);
+		finishListing([]);
+		await expect(refresh).resolves.toBeUndefined();
+		await expect(disposal).resolves.toBeUndefined();
+		await expect(service.refreshNow()).resolves.toBeUndefined();
+		service.start();
+		await expect(service.dispose()).resolves.toBeUndefined();
+		expect(listSessions).toHaveBeenCalledTimes(1);
+	});
+
 	it("indexes session turns and returns ranked snippets", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
 		tempDirs.push(dir);

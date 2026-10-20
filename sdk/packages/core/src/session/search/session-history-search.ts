@@ -184,6 +184,7 @@ export class SessionHistorySearchService {
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private refreshPromise: Promise<void> | undefined;
 	private readyPromise: Promise<void> = Promise.resolve();
+	private disposePromise: Promise<void> | undefined;
 
 	constructor(
 		private readonly host: Pick<
@@ -202,7 +203,7 @@ export class SessionHistorySearchService {
 	}
 
 	start(): void {
-		if (!this.db) return;
+		if (!this.db || this.disposePromise) return;
 		this.readyPromise = this.refreshNow();
 		void this.readyPromise.catch((error) =>
 			console.warn("[hub] session search indexing failed", error),
@@ -215,16 +216,20 @@ export class SessionHistorySearchService {
 		this.timer.unref?.();
 	}
 
-	async dispose(): Promise<void> {
+	dispose(): Promise<void> {
+		if (this.disposePromise) return this.disposePromise;
 		if (this.timer) clearInterval(this.timer);
 		this.timer = undefined;
-		await this.refreshPromise?.catch(() => undefined);
-		this.db?.close?.();
+		this.disposePromise = (async () => {
+			await this.refreshPromise?.catch(() => undefined);
+			this.db?.close?.();
+		})();
+		return this.disposePromise;
 	}
 
 	refreshNow(): Promise<void> {
 		const db = this.db;
-		if (!db) return Promise.resolve();
+		if (!db || this.disposePromise) return Promise.resolve();
 		if (!this.refreshPromise) {
 			this.refreshPromise = this.reconcile(db).finally(() => {
 				this.removedDuringRefresh.clear();
