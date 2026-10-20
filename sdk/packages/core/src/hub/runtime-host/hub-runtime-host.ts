@@ -1325,21 +1325,20 @@ export class HubRuntimeHost implements RuntimeHost {
 		sessionId: string,
 		toolName: string,
 	): Promise<McpAppToolBinding | undefined> {
-		const reply = await this.client.command(
-			"session.mcp_apps.resolve_tool",
-			{ sessionId, toolName },
-			sessionId,
-			{ timeoutMs: null },
-		);
-		if (!reply.ok) {
-			if (reply.error?.code === "unsupported_command") {
+		try {
+			const reply = await this.client.command(
+				"session.mcp_apps.resolve_tool",
+				{ sessionId, toolName },
+				sessionId,
+				{ timeoutMs: null },
+			);
+			return reply.payload?.binding as McpAppToolBinding | undefined;
+		} catch (error) {
+			if ((error as { code?: unknown })?.code === "unsupported_command") {
 				return undefined;
 			}
-			throw new Error(
-				hubReplyErrorMessage(reply, "session.mcp_apps.resolve_tool"),
-			);
+			throw error;
 		}
-		return reply.payload?.binding as McpAppToolBinding | undefined;
 	}
 
 	async readMcpAppResource(

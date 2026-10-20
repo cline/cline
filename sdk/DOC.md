@@ -495,13 +495,14 @@ uses those same connections. Hosts reach it through `ClineCore`:
 Reads and calls reach every enabled settings and Agent Plugin server, including
 ones that failed to list tools at startup; the manager reconnects on demand.
 `resolveMcpAppTool` only searches servers that loaded tools at startup, since
-the agent can only call tools from those. Neither method checks which server an app came from, so a host bridging
-app requests must pass the `serverName` from the app's `resolveMcpAppTool`
-binding rather than one the app supplies.
+the agent can only call tools from those. Neither method checks which server an
+app came from, so a host bridging app requests must pass the `serverName` from
+the app's `resolveMcpAppTool` binding rather than one the app supplies.
 
 `readMcpAppResource` and `callMcpAppTool` throw when the session was started
-without `mcpApps` or has no MCP servers. Hub-backed hosts send these as the `session.mcp_apps.*`
-commands, so the hub daemon serves them from the session's own MCP manager.
+without `mcpApps` or has no MCP servers. Hub-backed hosts send these as the
+`session.mcp_apps.*` commands, so the hub daemon serves them from the session's
+own MCP manager.
 
 ## Run stall telemetry
 
