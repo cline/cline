@@ -87,6 +87,11 @@ Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
 
+The backend ships Core’s complete `plugin-runtime` artifact beside its script.
+The standalone CLI embeds the same artifact in its read-only Bun filesystem.
+The script runner does not mount that filesystem, so Desktop uses its packaged
+copy without extracting resources at startup.
+
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
 that context across the Hub transport and scopes the daemon-owned telemetry

@@ -763,10 +763,10 @@ Because no plugin code runs on the daemon's thread, its `uncaughtException` /
 #### Worker and subprocess transports
 
 Both transports share one RPC protocol and one bootstrap
-(`plugin-sandbox-bootstrap.ts`), bundled self-contained into
-`dist/extensions/plugin-sandbox-bootstrap.js` (the core build fails if it
-imports anything but Node builtins, because hosts ship it without
-`node_modules`):
+(`plugin-sandbox-bootstrap.ts`). After SDK compilation, Core builds
+`dist/plugin-runtime/`, containing the self-contained bootstrap and the complete
+SDK import graph under `node_modules/@cline`. Package exports come from the SDK
+manifests, including browser subpaths. Hosts ship this directory as one artifact:
 
 - `WorkerSandbox` (worker mode): structured clone over the worker's message
   port. A worker must not `chdir` (Bun would change the host's cwd), so the
@@ -779,16 +779,25 @@ imports anything but Node builtins, because hosts ship it without
 - `SubprocessSandbox` (sandbox mode): JSON IPC to a `node`/`bun` child with
   stdout ignored.
 
-Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
-or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop
-sidecar sets it to the copy shipped as a Tauri resource). A host that ships
-none cannot run plugins at all: every load fails with
-`PluginBootstrapMissingError`, which names the env var, rather than
-importing plugin code into the host. The SSH remote host is in that state
-today: since #14792 it is the bundled Cline CLI uploaded as a single file
-with no bootstrap beside it, so plugins fail on remotes until the remote
-runtime carries one.
+Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
+package-local `plugin-runtime` directory, or embedded resources. Source hosts
+prefer their sibling TypeScript bootstrap over packaged runtimes so development
+and tests execute the current bootstrap and module importer without rebuilding.
+The CLI compiler embeds the runtime tree and dashboard assets in Bun's read-only
+filesystem. Worker and subprocess transports read the same embedded bootstrap
+and SDK exports without extracting files or creating a runtime cache.
+VS Code and npm CLI copy the complete artifact into their bundles. Desktop
+ships it beside its external backend script, whose plain Bun host does not
+mount the CLI's filesystem.
+A host without a bootstrap fails closed with
+`PluginBootstrapMissingError`; plugin code never runs on the host main thread.
+
+Compiled hosts register their subprocess entrypoint with `setPluginSandboxLauncher`.
+The CLI and Desktop’s bundled CLI use the internal `--plugin-sandbox` flag,
+which lazily imports the embedded bootstrap with bunfs mounted and compiled
+runtime flags (including system CA trust) intact. Generic script sandboxes
+still use plain Bun mode when reusing a compiled runtime.
+
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

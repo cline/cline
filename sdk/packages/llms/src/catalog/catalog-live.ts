@@ -559,7 +559,7 @@ export async function fetchLiveProviderModels(
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
-				providerModels.openrouter ?? {},
+				providerModels,
 				options,
 			)
 		: {};

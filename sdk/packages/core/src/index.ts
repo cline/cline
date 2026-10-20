@@ -981,6 +981,11 @@ export {
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
 export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+	setPluginSandboxLauncher,
+} from "./extensions/plugin/plugin-runtime";
+export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
 	type ApplyPatchInput,
@@ -1121,6 +1126,7 @@ export type {
 	RegisterModelInput,
 	RegisterProviderInput,
 } from "./services/llms/runtime-types";
+export { SKILLS_CLI_PACKAGE, SKILLS_CLI_VERSION } from "./services/skills-cli";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

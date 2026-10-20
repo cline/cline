@@ -2,9 +2,13 @@ import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
 	closeSync,
+	copyFileSync,
+	cpSync,
+	mkdirSync,
 	mkdtempSync,
 	openSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -68,6 +72,16 @@ function resolveBackendBundle(): string {
 			{ encoding: "utf8", timeout: 120_000 },
 		);
 		expect(build.status, build.stderr || String(build.error)).toBe(0);
+		cpSync(
+			fileURLToPath(
+				new URL(
+					"../../../../sdk/packages/core/dist/plugin-runtime",
+					import.meta.url,
+				),
+			),
+			join(outdir, "plugin-runtime"),
+			{ recursive: true },
+		);
 		bundledBackend = join(outdir, "index.js");
 	}
 	return bundledBackend;
@@ -332,3 +346,233 @@ for (const discoveryContents of ["{ invalid json", "{}"]) {
 		);
 	}, 120_000);
 }
+
+test.each([
+	"worker",
+	"sandbox",
+])("standalone CLI loads an SDK plugin without Node (%s)", async (mode) => {
+	const cli = await resolveCliBinary();
+	const root = mkdtempSync(join(tmpdir(), "cline-plugin-installed-"));
+	try {
+		const directory = join(root, ".cline", "plugins");
+		mkdirSync(directory, { recursive: true });
+		// Occupy the old cache path: startup must succeed without extraction.
+		writeFileSync(join(root, ".cline", "runtime"), "no extraction");
+		const marker = join(root, "plugin-result.json");
+		// Copy the raw TypeScript fixture so SDK imports must resolve from the
+		// packaged runtime, outside the monorepo and without prebundling.
+		copyFileSync(
+			fileURLToPath(
+				new URL("./fixtures/embedded-plugin/smoke.ts", import.meta.url),
+			),
+			join(directory, "smoke.ts"),
+		);
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) =>
+					!/^(CLINE_|BUN_BE_BUN|NODE_PATH|npm_node_execpath|NODE$|BUN_EXEC_PATH)/.test(
+						key,
+					),
+			),
+		);
+		const result = spawnSync(cli, ["config", "tools", "--json"], {
+			cwd: root,
+			encoding: "utf8",
+			timeout: 30000,
+			env: {
+				...env,
+				HOME: root,
+				USERPROFILE: root,
+				CLINE_DIR: join(root, ".cline"),
+				PATH: root,
+				JITI_FS_CACHE: "false",
+				CLINE_PLUGIN_MODE: mode,
+				CLINE_TEST_PLUGIN_RESULT_PATH: marker,
+				TMPDIR: root,
+				CLINE_NO_AUTO_UPDATE: "1",
+			},
+		});
+		expect(result.status, result.stderr || String(result.error)).toBe(0);
+		expect(
+			JSON.parse(result.stdout).some(
+				(tool: { name: string }) => tool.name === "embedded_ping",
+			),
+		).toBe(true);
+		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
+			"no extraction",
+		);
+		expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({
+			pong: true,
+			// The native resolver expands Windows 8.3 short names (RUNNER~1), as
+			// the child's process.execPath does.
+			execPath: realpathSync.native(cli),
+			isMainThread: mode === "sandbox",
+			bunRuntimeFlag: null,
+		});
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);
+
+test.each([
+	"worker",
+	"sandbox",
+])("packaged desktop backend loads its on-disk SDK runtime (%s)", async (mode) => {
+	const cli = await resolveCliBinary();
+	const outdir = dirname(resolveBackendBundle());
+	const probe = join(outdir, "plugin-runtime-probe.js");
+	const built = await Bun.build({
+		entrypoints: [
+			fileURLToPath(
+				new URL("./fixtures/desktop-plugin-runtime.ts", import.meta.url),
+			),
+		],
+		target: "bun",
+		outdir,
+		naming: "plugin-runtime-probe.js",
+	});
+	expect(built.success, built.logs.map(String).join("\n")).toBe(true);
+	const root = mkdtempSync(join(tmpdir(), "cline-desktop-plugin-"));
+	try {
+		const plugins = join(root, ".cline", "plugins");
+		mkdirSync(plugins, { recursive: true });
+		copyFileSync(
+			fileURLToPath(
+				new URL("./fixtures/embedded-plugin/desktop.ts", import.meta.url),
+			),
+			join(plugins, "desktop.ts"),
+		);
+		writeFileSync(join(root, ".cline", "runtime"), "no extraction");
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(
+				([key]) =>
+					!/^(CLINE_|BUN_BE_BUN|NODE_PATH|npm_node_execpath|NODE$|BUN_EXEC_PATH)/.test(
+						key,
+					),
+			),
+		);
+		const result = spawnSync(
+			cli,
+			["run", "--use-system-ca", "--no-env-file", probe],
+			{
+				cwd: root,
+				encoding: "utf8",
+				timeout: 30000,
+				env: {
+					...env,
+					PATH: root,
+					HOME: root,
+					USERPROFILE: root,
+					CLINE_DIR: join(root, ".cline"),
+					BUN_BE_BUN: "1",
+					CLINE_DESKTOP_CLI_PATH: cli,
+					CLINE_PLUGIN_MODE: mode,
+					JITI_FS_CACHE: "false",
+				},
+			},
+		);
+		expect(result.status, result.stderr || String(result.error)).toBe(0);
+		expect(JSON.parse(result.stdout)).toEqual({
+			commands: [{ name: "packaged-ping" }],
+			result: { reply: "pong" },
+		});
+		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
+			"no extraction",
+		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+}, 120000);
+
+test("standalone CLI serves the dashboard and its assets without external files or Node", async () => {
+	const cli = await resolveCliBinary();
+	const root = mkdtempSync(join(tmpdir(), "cline-standalone-dashboard-"));
+	mkdirSync(join(root, ".cline"));
+	writeFileSync(join(root, ".cline", "runtime"), "no extraction");
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(
+			([key]) =>
+				!/^(CLINE_|BUN_BE_BUN|NODE_PATH|HOST$|PORT$|ROOM_SECRET$|PUBLIC_URL$)/.test(
+					key,
+				),
+		),
+	);
+	const port = await reserveLoopbackPort();
+	const isolatedEnv = {
+		...env,
+		HOME: root,
+		USERPROFILE: root,
+		CLINE_DIR: join(root, ".cline"),
+		CLINE_HUB_DISCOVERY_PATH: join(root, "hub.json"),
+		CLINE_HUB_PORT: String(await reserveLoopbackPort()),
+		CLINE_NO_AUTO_UPDATE: "1",
+		PATH: root,
+	};
+	const child = Bun.spawn(
+		[
+			cli,
+			"dashboard",
+			"--no-open",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			String(port),
+			"--cwd",
+			root,
+		],
+		{ cwd: root, env: isolatedEnv, stdout: "ignore", stderr: "pipe" },
+	);
+	try {
+		const url = `http://127.0.0.1:${port}`;
+		let response: Response | undefined;
+		const deadline = Date.now() + 20000;
+		while (Date.now() < deadline) {
+			try {
+				response = await fetch(url);
+				if (response.status === 200) break;
+			} catch {}
+			if (child.exitCode !== null)
+				throw new Error(await new Response(child.stderr).text());
+			await Bun.sleep(100);
+		}
+		expect(response?.status).toBe(200);
+		if (!response) throw new Error("Dashboard did not start");
+		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
+			"no extraction",
+		);
+		const html = await response.text();
+		expect(html).toContain("<html");
+		const assets = [
+			...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
+		].map((match) => match[1]);
+		expect(assets.length).toBeGreaterThan(0);
+		for (const asset of assets) {
+			if (!asset) throw new Error("Missing dashboard asset URL");
+			const resource = await fetch(new URL(asset, url));
+			expect(resource.status).toBe(200);
+			expect(resource.headers.get("content-type")).toMatch(
+				asset.endsWith(".css") ? /text\/css/ : /(?:javascript|ecmascript)/,
+			);
+			expect((await resource.arrayBuffer()).byteLength).toBeGreaterThan(0);
+		}
+	} finally {
+		child.kill("SIGTERM");
+		await child.exited;
+		spawnSync(cli, ["hub", "stop"], {
+			cwd: root,
+			env: isolatedEnv,
+			timeout: 10000,
+		});
+		// The stopped Hub can hold its cwd briefly on Windows (EBUSY).
+		try {
+			rmSync(root, {
+				recursive: true,
+				force: true,
+				maxRetries: 20,
+				retryDelay: 100,
+			});
+		} catch {
+			/* The runner discards its temp directory anyway. */
+		}
+	}
+}, 120000);

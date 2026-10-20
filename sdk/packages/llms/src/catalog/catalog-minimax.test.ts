@@ -2,6 +2,7 @@ import { ModelInfoSchema } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { normalizeUsage } from "../providers/ai-sdk";
 import { GENERATED_PROVIDER_MODELS } from "./catalog.generated";
+import { normalizeClineRecommendedProviderModels } from "./catalog-cline-recommended";
 import {
 	normalizeModelsDevProviderModels,
 	normalizeModelsDevProviderSpecs,
@@ -68,6 +69,48 @@ describe("active MiniMax catalog", () => {
 			"other/model",
 		]);
 		expect(models.openrouter["minimax/minimax-m3"].pricing?.input).toBe(9);
+	});
+
+	it("filters retired recommendations while preserving gateway capability fallback", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [
+					{ id: "cline-pass/minimax-m2.7" },
+					{ id: "cline-pass/minimax-m3" },
+				],
+				free: [{ id: "cline-free/minimax-m2.7" }],
+				clineCloud: [
+					{ id: "cline-cloud/minimax-m3.1-flash-preview" },
+					{ id: "cline-cloud/minimax-m3" },
+				],
+			},
+			{
+				"vercel-ai-gateway": {
+					"minimax/minimax-m2.7": {
+						id: "minimax/minimax-m2.7",
+						contextWindow: 200_000,
+					},
+					"minimax/minimax-m3": {
+						id: "minimax/minimax-m3",
+						contextWindow: 256_000,
+						maxTokens: 32_000,
+						capabilities: ["images", "tools"],
+					},
+				},
+			},
+			{ includeClineCloudModels: true },
+		);
+		expect(Object.keys(result["cline-pass"])).toEqual([
+			"cline-pass/minimax-m3",
+		]);
+		expect(Object.keys(result.cline)).toEqual(["cline-cloud/minimax-m3"]);
+		for (const models of Object.values(result)) {
+			expect(Object.values(models)[0]).toMatchObject({
+				contextWindow: 256_000,
+				maxTokens: 32_000,
+				capabilities: ["images", "tools"],
+			});
+		}
 	});
 
 	it("preserves non-text MiniMax models and unrelated models", () => {
