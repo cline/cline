@@ -1,5 +1,5 @@
 import type { ApiStreamChunk } from "@cline/llms";
-import type { MessageWithMetadata } from "@cline/shared";
+import type { MessageWithMetadata, ToolUseContent } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSummaryMessage, estimateTokens } from "./compaction-shared";
 import { summarizeConversation } from "./summarize-conversation";
@@ -33,6 +33,26 @@ function respond(chunks: ApiStreamChunk[]) {
 	createMessageMock.mockImplementation(async function* () {
 		yield* chunks;
 	});
+}
+
+function toolExchange(
+	call: ToolUseContent,
+	result: string,
+): MessageWithMetadata[] {
+	return [
+		{ role: "assistant", content: [call] },
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: call.id,
+					name: call.name,
+					content: result,
+				},
+			],
+		},
+	];
 }
 
 beforeEach(() => {
@@ -138,28 +158,15 @@ describe("summarizeConversation", () => {
 		const history: MessageWithMetadata[] = [
 			prior,
 			{ role: "user", content: "Implement it." },
-			{
-				role: "assistant",
-				content: [
-					{
-						type: "tool_use",
-						id: "call",
-						name: "apply_patch",
-						input: { patch: "x".repeat(96_000) },
-					},
-				],
-			},
-			{
-				role: "user",
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "call",
-						name: "apply_patch",
-						content: "Applied.",
-					},
-				],
-			},
+			...toolExchange(
+				{
+					type: "tool_use",
+					id: "call",
+					name: "apply_patch",
+					input: { patch: "x".repeat(96_000) },
+				},
+				"Applied.",
+			),
 			{ role: "user", content: "Continue." },
 			{ role: "assistant", content: "Tests remain." },
 		];
@@ -184,28 +191,15 @@ describe("summarizeConversation", () => {
 		const history: MessageWithMetadata[] = [start];
 		for (let index = 0; index < 100; index += 1) {
 			history.push(
-				{
-					role: "assistant",
-					content: [
-						{
-							type: "tool_use",
-							id: `call-${index}`,
-							name: "read_files",
-							input: { path: "parser.ts" },
-						},
-					],
-				},
-				{
-					role: "user",
-					content: [
-						{
-							type: "tool_result",
-							tool_use_id: `call-${index}`,
-							name: "read_files",
-							content: "x".repeat(1300),
-						},
-					],
-				},
+				...toolExchange(
+					{
+						type: "tool_use",
+						id: `call-${index}`,
+						name: "read_files",
+						input: { path: "parser.ts" },
+					},
+					"x".repeat(1300),
+				),
 			);
 		}
 		history.push({

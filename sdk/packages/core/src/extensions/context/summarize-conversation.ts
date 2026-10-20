@@ -41,7 +41,7 @@ export async function summarizeConversation(options: {
 	if (
 		collection?.provider.capabilities?.includes("provider-tools") ||
 		routedProvider?.capabilities?.includes("provider-tools") ||
-		// These agent/workflow adapters do not declare provider-tools or offer a text-only contract.
+		// These adapters can execute tools but lack the provider-tools capability flag.
 		routedProviderId === "opencode" ||
 		routedProviderId === "dify"
 	) {
@@ -89,7 +89,7 @@ export async function summarizeConversation(options: {
 			policyIntent: "agentic_summary",
 			estimateMessageTokens,
 		});
-	// Apply the existing thinking/media filtering without shortening retained context.
+	// Filter thinking and media without truncating the reserved context.
 	const messages = project(
 		options.messages.slice(Math.max(0, latestSummaryIndex)),
 		Number.POSITIVE_INFINITY,
@@ -115,7 +115,7 @@ export async function summarizeConversation(options: {
 		0,
 	);
 	const budget = inputLimit - overhead - reservedTokens;
-	// Keep the latest instruction in the projection so its existing protections still apply.
+	// Keep the current instruction inside the projection so it stays protected.
 	const older = project(remaining.slice(0, tailStart), Math.max(1, budget));
 	const conversation = serializeConversation([
 		...prior,

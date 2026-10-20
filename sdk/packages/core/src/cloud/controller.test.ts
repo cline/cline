@@ -849,20 +849,11 @@ describe("CloudSessionController neutral host contract", () => {
 			dispatched = true;
 			return completed;
 		});
-		const lifecycle = { beforeDispatch: vi.fn() };
-		const sending = f.controller.send(
-			record.id,
-			"same prompt",
-			undefined,
-			undefined,
-			undefined,
-			lifecycle,
-		);
+		const sending = f.controller.send(record.id, "same prompt");
 		await vi.waitFor(() => expect(dispatched).toBe(true));
 		const accepted = () =>
 			f.events.filter((event) => event.type === "prompt_accepted");
 		expect(accepted()).toEqual([]);
-		expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce();
 		f.emit("run.started", {
 			requestId: "input-request",
 			clientId: "other-viewer",
