@@ -1,14 +1,11 @@
 import type { SessionThread } from "@/hooks/use-session-history";
 import type { SessionHistoryStatus } from "@/lib/session-history";
-import { TITLE } from "./team-script";
 
 /*
- * Sidebar history shown while the team demo is open, so the recording is not
- * framed by whatever test sessions the machine happens to have. The titles are
- * the kind of work the Tidepool board's own cards describe.
+ * Sidebar history shown while a dev demo is open, so recordings are not framed
+ * by whatever test sessions the machine happens to have. The titles are the
+ * kind of work the Tidepool board's own cards describe.
  */
-
-export const DEMO_SESSION_ID = "team-demo/lead";
 
 const WORKSPACE = "~/code/tidepool";
 
@@ -42,13 +39,16 @@ const thread = (
 	isScheduled: false,
 });
 
-export function demoSidebarThreads(
-	status: SessionHistoryStatus,
-): SessionThread[] {
+/** The demo's own session first, then recent history. */
+export function demoSidebarThreads(session: {
+	id: string;
+	title: string;
+	status: SessionHistoryStatus;
+}): SessionThread[] {
 	return [
-		thread(DEMO_SESSION_ID, TITLE, "now", status),
+		thread(session.id, session.title, "now", session.status),
 		...HISTORY.map(([title, time], index) =>
-			thread(`team-demo/history-${index}`, title, time, "completed"),
+			thread(`demo-history-${index}`, title, time, "completed"),
 		),
 	];
 }

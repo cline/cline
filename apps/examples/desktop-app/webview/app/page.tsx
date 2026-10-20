@@ -1050,18 +1050,13 @@ export default function Home() {
 									>
 										{DEMOS && demo?.threadId === activeThread.id ? (
 											(() => {
-												if (demo.kind === "team") {
-													return (
-														<DEMOS.team
-															key={demo.kind}
-															onExit={() => setDemo(null)}
-															onSidebarSessions={setDemoSidebarThreads}
-														/>
-													);
-												}
 												const Demo = DEMOS[demo.kind];
 												return (
-													<Demo key={demo.kind} onExit={() => setDemo(null)} />
+													<Demo
+														key={demo.kind}
+														onExit={() => setDemo(null)}
+														onSidebarSessions={setDemoSidebarThreads}
+													/>
 												);
 											})()
 										) : (

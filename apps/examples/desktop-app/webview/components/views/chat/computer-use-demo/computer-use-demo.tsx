@@ -18,8 +18,10 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { WindowTitleBarContent } from "@/components/window-title-bar";
+import type { SessionThread } from "@/hooks/use-session-history";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { ChatMessages } from "../chat-messages";
+import { demoSidebarThreads } from "../demo-sidebar";
 import board from "./screenshots/01-board.webp";
 import palette from "./screenshots/02-palette.webp";
 import search from "./screenshots/03-search.webp";
@@ -438,10 +440,32 @@ function useDemoPlayback(run: number): DemoState {
 	return state;
 }
 
-export function ComputerUseDemo({ onExit }: { onExit: () => void }) {
+export function ComputerUseDemo({
+	onExit,
+	onSidebarSessions,
+}: {
+	onExit: () => void;
+	onSidebarSessions?: (threads: SessionThread[] | null) => void;
+}) {
 	const [run, setRun] = useState(0);
 	const { messages, status, label, streamingMessageId } = useDemoPlayback(run);
 	const completed = status === "completed";
+	const sidebarStatus = completed
+		? "completed"
+		: status === "starting"
+			? "provisioning"
+			: "running";
+
+	useEffect(() => {
+		onSidebarSessions?.(
+			demoSidebarThreads({
+				id: SESSION_ID,
+				title: TITLE,
+				status: sidebarStatus,
+			}),
+		);
+	}, [onSidebarSessions, sidebarStatus]);
+	useEffect(() => () => onSidebarSessions?.(null), [onSidebarSessions]);
 
 	return (
 		<div className="grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden">

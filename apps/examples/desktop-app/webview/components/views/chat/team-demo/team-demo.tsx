@@ -15,7 +15,7 @@ import {
 	type SessionAgentEntry,
 } from "@/lib/session-agents";
 import { ChatMessages } from "../chat-messages";
-import { demoSidebarThreads } from "./demo-sessions";
+import { demoSidebarThreads } from "../demo-sidebar";
 import { TeamPanel, type TeamPanelMember } from "./team-panel";
 import {
 	buildBeats,
@@ -330,7 +330,13 @@ export function TeamDemo({
 	const sidebarStatus = lead.status === "completed" ? "completed" : "running";
 
 	useEffect(() => {
-		onSidebarSessions?.(demoSidebarThreads(sidebarStatus));
+		onSidebarSessions?.(
+			demoSidebarThreads({
+				id: sessionIdFor(LEAD),
+				title: TITLE,
+				status: sidebarStatus,
+			}),
+		);
 	}, [onSidebarSessions, sidebarStatus]);
 	useEffect(() => () => onSidebarSessions?.(null), [onSidebarSessions]);
 	const session = state.sessions[view];
