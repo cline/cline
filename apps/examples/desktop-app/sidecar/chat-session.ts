@@ -69,7 +69,6 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
-// Share workspace and reasoning parsing with handoff so both paths interpret session config alike.
 import {
 	readReasoningEffort,
 	readWorkspacePath,
@@ -1604,7 +1603,6 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
-	// Keep /cloud from snapshotting a send still in preparation, before the runtime reports busy.
 	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
 	try {
 		return await handleSendOnce(ctx, request, sessionId, prompt);
@@ -2501,7 +2499,6 @@ const ACTION_HANDLERS: Record<
 	prepare_handoff: handlePrepareHandoff,
 	handoff: (ctx, request) =>
 		handleHandoff(ctx, request, async (messages, config) => {
-			// Summarize with the source session's model and credentials before creating the cloud task.
 			const connection = buildSessionConnectionUpdate(
 				await withRemoteProviderCredentials(config),
 			);
