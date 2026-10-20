@@ -2385,6 +2385,34 @@ Follow the desktop send workflow instructions.`,
 		);
 	});
 
+	it("targets the session's workspace root when its cwd is a subdirectory", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, session, sessionId } = createContext(workspace);
+		Object.assign(session.config, {
+			cwd: join(workspace, "packages", "app"),
+			workspaceRoot: workspace,
+		});
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		const command = vi.fn(async () => ({
+			version: "v1" as const,
+			ok: true,
+			payload: { result: { reply: "Goal set" } },
+		}));
+		binding.hubClient.command = command;
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/goal original",
+		});
+		expect(command).toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.objectContaining({ workspacePath: workspace, sessionId }),
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+	});
+
 	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
