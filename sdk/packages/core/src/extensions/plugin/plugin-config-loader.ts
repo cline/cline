@@ -336,23 +336,6 @@ export interface ResolveAndLoadAgentPluginsOptions
 
 export async function resolveAndLoadAgentPlugins(
 	options: ResolveAndLoadAgentPluginsOptions = {},
-) {
-	const resolved = resolveAgentPluginPathsWithDiagnostics(options);
-	return loadResolvedAgentPlugins({
-		...options,
-		pluginPaths: resolved.paths,
-		disabledPluginPaths: resolved.disabledPaths,
-		discoveryFailures: resolved.discoveryFailures,
-	});
-}
-
-/** Load only the supplied resolved paths, without rediscovering other plugins. */
-export async function loadResolvedAgentPlugins(
-	options: ResolveAndLoadAgentPluginsOptions & {
-		pluginPaths: string[];
-		disabledPluginPaths?: string[];
-		discoveryFailures?: Array<{ pluginPath: string; error: unknown }>;
-	},
 ): Promise<
 	{
 		extensions: AgentPlugin[];
@@ -364,11 +347,7 @@ export async function loadResolvedAgentPlugins(
 > {
 	const mode = resolvePluginExecutionMode(options.mode);
 	if (mode === "worker") {
-		const resolved = {
-			paths: options.pluginPaths,
-			disabledPaths: options.disabledPluginPaths ?? [],
-			discoveryFailures: options.discoveryFailures ?? [],
-		};
+		const resolved = resolveAgentPluginPathsWithDiagnostics(options);
 		if (
 			resolved.paths.length === 0 &&
 			resolved.disabledPaths.length === 0 &&
@@ -421,7 +400,7 @@ export async function loadResolvedAgentPlugins(
 
 	// The subprocess sandbox does not apply the per-session `policy`; it is
 	// an opt-in escape hatch and loads every discovered plugin.
-	const paths = options.pluginPaths;
+	const paths = resolveAgentPluginPaths(options);
 	if (paths.length === 0) {
 		return {
 			extensions: [],

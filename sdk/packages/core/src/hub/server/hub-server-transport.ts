@@ -295,7 +295,6 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
-	private readonly unsubscribePluginCommands?: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
 		this.plugins.setLogger(hubPluginLogger);
@@ -476,11 +475,6 @@ export class HubServerTransport implements NativeHubTransport {
 			createTasksPromptExtension({ todoEnabled: AGENDA_TODO_TOOL_ENABLED }),
 		);
 		this.settings = options.settingsService ?? new CoreSettingsService();
-		this.unsubscribePluginCommands = (
-			this.sessionHost as RuntimeHost & Partial<PluginCommandsRuntimeService>
-		).pluginCommands?.subscribe((catalog) => {
-			this.publish(buildHubEvent("plugins.commands.changed", { catalog }));
-		});
 		if (options.cronOptions) {
 			this.cronService = new CronService({
 				runtimeHandlers: options.runtimeHandlers,
@@ -770,7 +764,6 @@ export class HubServerTransport implements NativeHubTransport {
 		);
 		await this.sessionSearch.dispose();
 		await this.tasks.dispose();
-		this.unsubscribePluginCommands?.();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {

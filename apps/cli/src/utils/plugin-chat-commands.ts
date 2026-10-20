@@ -55,10 +55,5 @@ export async function createWorkspaceChatCommandHost(input: {
 				input.logger?.log(`Plugin commands unavailable: ${catalog.error}`);
 			return catalog.commands;
 		},
-		subscribe(listener: () => void) {
-			return commands.subscribe((catalog) => {
-				if (catalog.workspacePath === target().workspacePath) listener();
-			});
-		},
 	};
 }

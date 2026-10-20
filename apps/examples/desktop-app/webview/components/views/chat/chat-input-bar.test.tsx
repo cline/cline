@@ -402,73 +402,39 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).toContain("Publish workflow");
 	});
 
-	it("retries rejected plugin reads without an event and stops retrying after recovery", async () => {
-		vi.useFakeTimers();
+	it("re-reads plugin commands when the slash menu reopens after a failure", async () => {
 		let available = false;
-		const invoke = vi
-			.spyOn(desktopClient, "invoke")
-			.mockImplementation(async (name) => {
-				if (name !== "list_plugin_commands") return { runtimeCommands: [] };
-				if (!available) throw new Error("hub connection lost");
-				return {
-					workspacePath: "/workspace/cline",
-					status: "ready",
-					commands: [{ name: "restored", description: "Recovered command" }],
-				};
-			});
-		try {
-			await renderVoiceComposer({ prompt: "/rest", executionTarget: "local" });
-			expect(container.textContent).toContain("Plugin commands unavailable");
-			await act(async () => {
-				await vi.advanceTimersByTimeAsync(1000);
-			});
-			expect(
-				invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
-			).toHaveLength(2);
-			available = true;
-			await act(async () => {
-				await vi.advanceTimersByTimeAsync(2000);
-			});
-			expect(container.textContent).toContain("Recovered command");
-			expect(container.textContent).not.toContain(
-				"Plugin commands unavailable",
-			);
-			await act(async () => {
-				await vi.advanceTimersByTimeAsync(30000);
-			});
-			expect(
-				invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
-			).toHaveLength(3);
-		} finally {
-			vi.useRealTimers();
-		}
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			if (!available) throw new Error("hub connection lost");
+			return {
+				workspacePath: "/workspace/cline",
+				status: "ready",
+				commands: [{ name: "restored", description: "Recovered command" }],
+			};
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Plugin commands unavailable");
+		available = true;
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Recovered command");
+		expect(container.textContent).not.toContain("Plugin commands unavailable");
 	});
 
-	it("cancels failed plugin read retries when the composer unmounts", async () => {
-		vi.useFakeTimers();
-		const invoke = vi
-			.spyOn(desktopClient, "invoke")
-			.mockImplementation(async (name) => {
-				if (name === "list_plugin_commands")
-					throw new Error("hub connection lost");
-				return { runtimeCommands: [] };
-			});
-		try {
-			await renderVoiceComposer({ prompt: "/rest", executionTarget: "local" });
-			await act(async () => root.unmount());
-			root = createRoot(container);
-			await act(async () => {
-				await vi.advanceTimersByTimeAsync(30000);
-			});
-			expect(
-				invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
-			).toHaveLength(1);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("refreshes instruction files on reopen without resetting plugin or cached suggestions", async () => {
+	it("refreshes commands on reopen without resetting cached suggestions", async () => {
 		const updated = deferred<{
 			runtimeCommands: Array<{
 				name: string;
@@ -524,7 +490,7 @@ describe("ChatInputBar", () => {
 		expect(instructionRequests).toBe(2);
 		expect(
 			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
-		).toHaveLength(1);
+		).toHaveLength(2);
 		await act(async () =>
 			updated.resolve({
 				runtimeCommands: [
@@ -539,45 +505,6 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Old skill");
 		expect(container.textContent).toContain("New workflow");
 		expect(container.textContent).toContain("Plugin suggestion");
-	});
-
-	it("refreshes the open slash menu when the hub catalog recovers", async () => {
-		let available = false;
-		let changed: ((payload: unknown) => void) | undefined;
-		vi.spyOn(desktopClient, "subscribe").mockImplementation(
-			(name, listener) => {
-				if (name === "plugins.commands.changed") changed = listener;
-				return vi.fn();
-			},
-		);
-		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
-			if (name === "list_plugin_commands")
-				return {
-					workspacePath: "/workspace/cline",
-					status: available ? "ready" : "error",
-					commands: available
-						? [{ name: "upload-history", description: "Upload history" }]
-						: [],
-				};
-			return { runtimeCommands: [] };
-		});
-		await renderVoiceComposer({ prompt: "/upload-", executionTarget: "local" });
-		expect(container.textContent).toContain("Plugin commands unavailable");
-		available = true;
-		await act(async () => {
-			changed?.({
-				environmentId: "other-host",
-				catalog: { workspacePath: "/workspace/cline" },
-			});
-		});
-		expect(container.textContent).not.toContain("Upload history");
-		await act(async () => {
-			changed?.({
-				environmentId: "local",
-				catalog: { workspacePath: "/workspace/cline" },
-			});
-		});
-		expect(container.textContent).toContain("Upload history");
 	});
 
 	it("prevents sending from a read-only session", async () => {

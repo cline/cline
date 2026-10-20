@@ -30,61 +30,20 @@ export function useSlashCommands(input: {
 		}
 		let cancelled = false;
 		let requestId = 0;
-		let publishedRequestId = 0;
-		let refreshRetry: ReturnType<typeof setTimeout> | undefined;
-		let subscribeRetry: ReturnType<typeof setTimeout> | undefined;
-		let refreshDelay = 1000;
-		let subscribeDelay = 1000;
-		const refresh = async () => {
-			if (cancelled) return;
-			clearTimeout(refreshRetry);
+		const refresh = () => {
 			const id = ++requestId;
-			try {
-				const commands = await loadAdditionalSlashCommands();
-				if (!cancelled && id > publishedRequestId) {
-					// A newer pending/failed request must not discard a usable catalog.
-					publishedRequestId = id;
-					if (id === requestId) refreshDelay = 1000;
-					setAdditionalSlashCommands(commands);
-				}
-			} catch {
-				if (!cancelled && id === requestId) {
-					// Keep the last catalog visible while the runtime reconnects.
-					refreshRetry = setTimeout(() => {
-						void refresh();
-					}, refreshDelay);
-					refreshDelay = Math.min(refreshDelay * 2, 30_000);
-				}
-			}
+			void loadAdditionalSlashCommands()
+				.then((commands) => {
+					if (!cancelled && id === requestId)
+						setAdditionalSlashCommands(commands);
+				})
+				// Keep the last catalog; the next refresh tries again.
+				.catch(() => {});
 		};
-		void refresh();
-		let unsubscribe: (() => void) | undefined;
-		const subscribe = async () => {
-			if (cancelled || !subscribeAdditionalSlashCommands) return;
-			try {
-				const stop = await subscribeAdditionalSlashCommands(() => {
-					void refresh();
-				});
-				if (cancelled) stop();
-				else {
-					unsubscribe = stop;
-					// Catch any catalog change missed before subscription was established.
-					void refresh();
-				}
-			} catch {
-				if (!cancelled) {
-					subscribeRetry = setTimeout(() => {
-						void subscribe();
-					}, subscribeDelay);
-					subscribeDelay = Math.min(subscribeDelay * 2, 30_000);
-				}
-			}
-		};
-		void subscribe();
+		refresh();
+		const unsubscribe = subscribeAdditionalSlashCommands?.(refresh);
 		return () => {
 			cancelled = true;
-			clearTimeout(refreshRetry);
-			clearTimeout(subscribeRetry);
 			unsubscribe?.();
 		};
 	}, [loadAdditionalSlashCommands, subscribeAdditionalSlashCommands]);

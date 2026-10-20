@@ -156,55 +156,6 @@ describe("hub-owned plugin commands", () => {
 		expect(stopped).toBe(true);
 	});
 
-	it("recovers a failed sandbox plugin without restarting its healthy sibling", async () => {
-		const readyPath = join(root, "allow-recovery");
-		await writeFile(
-			join(root, ".cline", "plugins", "retry.js"),
-			`import {existsSync} from 'node:fs';
-export default {name:'retry',manifest:{capabilities:['commands']},setup(api){
-if (!existsSync(${JSON.stringify(readyPath)})) throw new Error('not ready');
-api.registerCommand({name:'recovered',handler:()=> 'ready'});
-}};`,
-		);
-		const target = { workspacePath: root };
-		await runtime.pluginCommands.list(target);
-		expect(
-			await runtime.pluginCommands.run({ ...target, prompt: "/counter first" }),
-		).toMatchObject({ reply: "workspace:1:first" });
-		const updates = vi.fn();
-		const stop = runtime.pluginCommands.subscribe(updates);
-		await vi.waitFor(
-			() =>
-				expect(updates).toHaveBeenCalledWith(
-					expect.objectContaining({ status: "error" }),
-				),
-			{ timeout: 5000 },
-		);
-		expect(
-			await runtime.pluginCommands.run({
-				...target,
-				prompt: "/counter second",
-			}),
-		).toMatchObject({ reply: "workspace:2:second" });
-		await writeFile(readyPath, "ready");
-		await vi.waitFor(
-			() =>
-				expect(updates).toHaveBeenLastCalledWith(
-					expect.objectContaining({ status: "ready" }),
-				),
-			{ timeout: 7000 },
-		);
-		expect(
-			await runtime.pluginCommands.run({ ...target, prompt: "/recovered" }),
-		).toMatchObject({ reply: "ready" });
-		expect(
-			await runtime.pluginCommands.run({ ...target, prompt: "/counter third" }),
-		).toMatchObject({ reply: "workspace:3:third" });
-		expect((await readFile(join(root, "setups.txt"), "utf8")).trim()).toBe(
-			"workspace",
-		);
-		stop();
-	});
 	it("keeps healthy commands available while a sibling plugin fails", async () => {
 		const broken = join(root, ".cline", "plugins", "broken.js");
 		await writeFile(
@@ -223,48 +174,28 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 				prompt: "/counter healthy",
 			}),
 		).toMatchObject({ reply: "workspace:1:healthy" });
-		const updates = vi.fn();
-		const stop = runtime.pluginCommands.subscribe(updates);
 		await rm(broken);
-		await vi.waitFor(
-			() =>
-				expect(updates).toHaveBeenLastCalledWith(
-					expect.objectContaining({
-						status: "ready",
-						commands: [{ name: "counter" }],
-					}),
-				),
-			{ timeout: 5000 },
-		);
-		stop();
+		expect(
+			await runtime.pluginCommands.list({ workspacePath: root }),
+		).toMatchObject({ status: "ready", commands: [{ name: "counter" }] });
 	});
-	it("delivers invalidations and current commands through the shared client API", async () => {
+	it("serves newly added commands through the shared client API", async () => {
 		const api = createHubPluginCommandsApi({
 			command: (name, payload, sessionId) =>
 				command(name, payload ?? {}, sessionId),
-			subscribe: (listener) => transport.subscribe("observer", listener),
 		});
-		const updates = vi.fn();
-		const stop = api.subscribe(updates);
 		await api.list({ workspacePath: root });
 		await writeFile(
 			join(root, ".cline", "plugins", "extra.js"),
 			`export default {name:'extra',manifest:{capabilities:['commands']},setup(api){api.registerCommand({name:'extra',handler:()=> 'new command'});}};`,
 		);
-		await vi.waitFor(
-			() =>
-				expect(updates).toHaveBeenLastCalledWith(
-					expect.objectContaining({
-						commands: expect.arrayContaining([{ name: "extra" }]),
-					}),
-				),
-			{ timeout: 5000 },
+		expect((await api.list({ workspacePath: root })).commands).toEqual(
+			expect.arrayContaining([{ name: "extra" }]),
 		);
 		expect(await api.run({ workspacePath: root, prompt: "/extra" })).toEqual({
 			reply: "new command",
 			submitPrompt: undefined,
 		});
-		stop();
 	});
 	it("treats a Hub without plugin command RPCs as having no plugin commands", async () => {
 		const api = createHubPluginCommandsApi({
@@ -275,7 +206,6 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 					`Unsupported hub schedule command: ${name}`,
 				);
 			},
-			subscribe: () => () => {},
 		});
 		expect(await api.list({ workspacePath: root })).toEqual({
 			workspacePath: root,

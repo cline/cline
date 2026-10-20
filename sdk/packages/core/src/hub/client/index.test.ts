@@ -194,42 +194,6 @@ describe("NodeHubClient", () => {
 			}
 		});
 
-		it("deduplicates overlapping events per listener while retaining a new listener's replay", async () => {
-			vi.stubGlobal("WebSocket", MockWebSocket);
-			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
-			try {
-				await client.connect();
-				const global = vi.fn();
-				const session = vi.fn();
-				client.subscribe(global);
-				const deliver = (eventId: string) =>
-					MockWebSocket.instances[0].emit("message", {
-						data: JSON.stringify({
-							kind: "event",
-							envelope: {
-								version: "v1",
-								event: "assistant.delta",
-								eventId,
-								sessionId: "session",
-								payload: { text: "same text" },
-							},
-						}),
-					});
-				deliver("event-1");
-				client.subscribe(session, { sessionId: "session" });
-				deliver("event-1");
-				deliver("event-1");
-				expect(global).toHaveBeenCalledTimes(1);
-				expect(session).toHaveBeenCalledTimes(1);
-				deliver("event-2");
-				deliver("event-2");
-				expect(global).toHaveBeenCalledTimes(2);
-				expect(session).toHaveBeenCalledTimes(2);
-			} finally {
-				await client.dispose();
-			}
-		});
-
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 

@@ -799,58 +799,32 @@ runtime flags (including system CA trust) intact. Generic script sandboxes
 still use plain Bun mode when reusing a compiled runtime.
 
 
-Command ownership is independent of how the host packages or locates the plugin
-bootstrap and SDK resources. Resource loading supplies the existing plugin
-runtime; it does not introduce another command service or command payload.
+`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution,
+exposed to clients through Hub RPC (`plugins.commands.list` /
+`plugins.commands.run`). The desktop sidecar, CLI, and connectors reuse their
+existing runtime connections and do not load plugins themselves. Plugin command
+execution can recover a connection before dispatch, but never resends a
+dispatched action whose reply was lost.
 
-`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution.
-Hub clients deduplicate overlapping stream event IDs per listener before dispatch,
-while retaining replay for newly subscribed listeners. Plugin command execution
-can recover a connection before dispatch, but cannot replay a dispatched action
-whose reply was lost.
-
-Hub RPC (`plugins.commands.list` / `plugins.commands.run`) and
-`plugins.commands.changed` expose the same service to every client. The desktop
-sidecar, CLI, and connectors reuse their existing hub connections. Workspace
-catalogs are initialized when a composer first requests them and refreshed by
-runtime-owned plugin/settings watchers, including for non-Git folders. Watches
-follow directory creation and replacement independently of source fingerprints,
-so an empty `.cline` directory cannot hide later plugin installation events.
-A debounced source check also reconciles writes whose native events coalesce
-during watch registration, without restarting unchanged plugins. Failed
-initialization retries in the background and publishes explicit error/recovery
-state. Workspace catalogs use their own worker registry so catalog failures do not disable resident session instances. Partial retries reload only failed plugin paths and retain
-healthy instances; source/settings changes reload the workspace catalog. Git
-queries and individual UI mounts do not own plugin lifetimes. Catalog requests
-also fingerprint the imported source graph, including helpers outside watched
-directories, before serving commands. Only discoverable entries, their imported
-source graph, and plugin settings participate in this fingerprint; setup logs and
-runtime state files beside a plugin do not. Requests allow at most two
-reconciliation passes and reject if sources keep changing, so a setup cannot
-trap a request in a refresh loop. Partial recovery follows the original
-plugin path precedence and releases overridden workers independently.
-
-A workspace catalog owns a discovery sandbox; a resident session instead lists
-and executes its own contribution registry, retaining the same plugin instance
-and context as its hooks. Existing session registrations remain fixed for that
-session, while changed workspace catalogs apply to new sessions. Reload and
-disposal wait for command handlers before terminating their workers. Hub status and replacement checks count active command requests even without a chat participant; draining refuses new catalog and command requests.
+A resident session lists and executes commands from its own contribution
+registry, retaining the plugin instance and context shared with its hooks.
+Session registrations keep their session lifetime. Without a resident session,
+the runtime uses a per-workspace catalog. Each request fingerprints discoverable
+plugin entries, their imported source graph, and plugin settings, and reloads
+the catalog when that changes; setup logs and state files beside a plugin do
+not. A failed load keeps healthy commands, reports `status: "error"`, and is
+retried by a request after 30 seconds. Catalogs idle for 10 minutes release
+their workers. Reload, eviction, and disposal wait for running handlers. Clients
+re-list to stay current (for example when a slash menu opens or the active
+session changes); there is no catalog push event.
 
 The shared command executor records `task.tool_used` once per matched handler,
-including failures, for both direct runtime and Hub calls. Resident execution
-uses session/provider/model and agent identity; workspace execution uses an
-action correlation ID without inventing a session. Catalog reads and unmatched
-commands do not count as tool use. CLI interactive initialization shares one
-pending core across catalog discovery and session startup and waits for it
-during cleanup. CLI fallback checks command ownership before execution:
-discovery failures leave skills/workflows available, while errors from owned
-plugin handlers remain visible to the caller.
-Telemetry failures cannot replace a command's result or original error. The
-CLI suggestion hook preserves its last successful catalog while refresh or
-subscription initialization retries with capped exponential backoff, and
-unmount cancels retries and releases subscriptions that finish late. Desktop
-composers also retry failed catalog reads with capped backoff, cancel retries
-on target changes or unmount, and stop retrying after a successful read.
+including failures, for both direct runtime and Hub calls. Telemetry failures
+cannot replace a command's result or original error. Hub status and replacement
+checks count active command requests even without a chat participant; draining
+refuses new catalog and command requests. CLI and desktop fallbacks treat a
+failed catalog read as "not a plugin command" so skills and workflows still
+work, while errors from a listed plugin's handler remain visible.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

@@ -144,7 +144,7 @@ function makeManager() {
 	});
 	return {
 		start,
-		pluginCommands: { list: vi.fn(), run: vi.fn(), subscribe: vi.fn() },
+		pluginCommands: { list: vi.fn(), run: vi.fn() },
 		stop: vi.fn(async () => {}),
 		send: vi.fn(),
 		getAccumulatedUsage: vi.fn(),

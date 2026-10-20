@@ -1,13 +1,4 @@
-import { EventEmitter } from "node:events";
-import type { watch } from "node:fs";
-import {
-	copyFile,
-	mkdir,
-	mkdtemp,
-	readFile,
-	rm,
-	writeFile,
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -31,6 +22,7 @@ beforeEach(async () => {
 });
 const managers: PluginCommandManager[] = [];
 afterEach(async () => {
+	vi.useRealTimers();
 	await Promise.all(managers.splice(0).map((m) => m.dispose()));
 	setHomeDir(originalHome ?? "~");
 	setClineDir(originalClineDir ?? join(originalHome ?? "~", ".cline"));
@@ -58,7 +50,11 @@ function loaded(
 			},
 		],
 		pluginPaths: [],
-		failures: [],
+		failures: [] as Array<{
+			pluginPath: string;
+			phase: "setup";
+			message: string;
+		}>,
 		warnings: [],
 		issues: [],
 		shutdown: vi.fn(async () => {}),
@@ -87,112 +83,39 @@ describe("runtime plugin catalogs", () => {
 			manager.run({ workspacePath, prompt: "/unknown" }),
 		).resolves.toBeUndefined();
 	});
-	it("retries only failed paths while retaining healthy command state", async () => {
+
+	it("keeps healthy commands through a failure and retries the load after a delay", async () => {
+		vi.useFakeTimers();
 		const workspacePath = await workspace();
-		const brokenPath = join(workspacePath, "broken.js");
-		const failures = [
-			{ pluginPath: brokenPath, phase: "setup" as const, message: "broken" },
-		];
-		let counter = 0;
-		let recover = false;
-		const healthy = loaded(async () => String(++counter));
-		const recovered = loaded();
-		recovered.extensions[0].name = "recovered-plugin";
-		recovered.extensions[0].setup = (api) =>
-			api.registerCommand({ name: "fixed", handler: () => "recovered" });
-		const load = vi.fn(async (_options: { pluginPaths: string[] }) => {
-			if (load.mock.calls.length === 1) return { ...healthy, failures };
-			return recover ? recovered : { ...loaded(), extensions: [], failures };
+		const failing = loaded();
+		failing.failures.push({
+			pluginPath: join(workspacePath, "broken.js"),
+			phase: "setup",
+			message: "broken",
 		});
-		const manager = new PluginCommandManager({ load, retryDelayMs: 10 });
-		managers.push(manager);
-		const updates = vi.fn();
-		manager.subscribe(updates);
-		await manager.list({ workspacePath });
-		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
-			{ reply: "1" },
-		);
-		await vi.waitFor(
-			() => expect(load.mock.calls.length).toBeGreaterThanOrEqual(3),
-			{ timeout: 5000 },
-		);
-		expect(healthy.shutdown).not.toHaveBeenCalled();
-		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
-			{ reply: "2" },
-		);
-		for (const [options] of load.mock.calls.slice(1))
-			expect(options.pluginPaths).toEqual([brokenPath]);
-		recover = true;
-		await vi.waitFor(
-			() =>
-				expect(updates).toHaveBeenLastCalledWith(
-					expect.objectContaining({ status: "ready" }),
-				),
-			{ timeout: 5000 },
-		);
-		expect(
-			await manager.run({ workspacePath, prompt: "/fixed" }),
-		).toMatchObject({ reply: "recovered" });
-		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
-			{ reply: "3" },
-		);
-		expect(healthy.shutdown).not.toHaveBeenCalled();
-	});
-	it.each([
-		"earlier",
-		"later",
-	])("a recovered %s duplicate preserves priority and releases only the replaced plugin", async (failed) => {
-		const workspacePath = await workspace();
-		const directory = join(workspacePath, ".cline", "plugins");
-		await mkdir(directory, { recursive: true });
-		const earlier = join(directory, "a.js");
-		const later = join(directory, "b.js");
-		const disposed = join(workspacePath, "disposed.txt");
-		const gate = join(workspacePath, "ready.txt");
-		await copyFile(
-			new URL("./fixtures/command-priority/earlier.js", import.meta.url),
-			earlier,
-		);
-		await copyFile(
-			new URL("./fixtures/command-priority/later.js", import.meta.url),
-			later,
-		);
-		await writeFile(
-			join(directory, "fixture-settings.json"),
-			JSON.stringify({ gate, disposed, failedPlugin: failed }),
-		);
-		const manager = new PluginCommandManager({ retryDelayMs: 10 });
+		const load = vi
+			.fn()
+			.mockResolvedValueOnce(failing)
+			.mockImplementation(async () => loaded());
+		const manager = new PluginCommandManager({ load });
 		managers.push(manager);
 		expect(await manager.list({ workspacePath })).toMatchObject({
 			status: "error",
+			error: "broken",
+			commands: [{ name: "echo" }],
 		});
-		const initial = (await manager.run({ workspacePath, prompt: "/same" }))
-			?.reply;
-		expect(initial).toMatch(failed === "later" ? /^earlier:/ : /^later:/);
-		await writeFile(gate, "ready");
-		await vi.waitFor(
-			async () => {
-				expect(await manager.list({ workspacePath })).toMatchObject({
-					status: "ready",
-					commands: [{ name: "same" }],
-				});
-			},
-			{ timeout: 5000 },
-		);
-		const winner = (await manager.run({ workspacePath, prompt: "/same" }))
-			?.reply;
-		expect(winner).toMatch(/^later:/);
-		if (failed === "earlier") expect(winner).toBe(initial);
-		expect(
-			await manager.run({ workspacePath, prompt: "/obsolete" }),
-		).toBeUndefined();
-		const releases = (await readFile(disposed, "utf8")).trim().split("\n");
-		expect(releases.filter((id) => id === initial)).toHaveLength(
-			failed === "later" ? 1 : 0,
-		);
+		await manager.run({ workspacePath, prompt: "/echo" });
+		expect(load).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			status: "ready",
+			commands: [{ name: "echo" }],
+		});
+		expect(load).toHaveBeenCalledTimes(2);
+		expect(failing.shutdown).toHaveBeenCalledTimes(1);
 	});
 
-	it("rechecks imported helpers outside watched plugin directories", async () => {
+	it("rechecks imported helpers outside plugin directories", async () => {
 		const workspacePath = await workspace();
 		const directory = join(workspacePath, ".cline", "plugins");
 		await mkdir(directory, { recursive: true });
@@ -203,12 +126,7 @@ describe("runtime plugin catalogs", () => {
 			`import {value} from '../../helpers.js';
 export default {name:'helper',manifest:{capabilities:['commands']},setup(api){api.registerCommand({name:'helper',description:value,handler:()=>value})}};`,
 		);
-		const manager = new PluginCommandManager({
-			watch: (() =>
-				Object.assign(new EventEmitter(), {
-					close() {},
-				})) as unknown as typeof watch,
-		});
+		const manager = new PluginCommandManager();
 		managers.push(manager);
 		expect(
 			await manager.run({ workspacePath, prompt: "/helper" }),
@@ -222,7 +140,7 @@ export default {name:'helper',manifest:{capabilities:['commands']},setup(api){ap
 		).toMatchObject({ reply: "later" });
 	});
 
-	it("reconciles edits made during initial catalog loading", async () => {
+	it("reloads edits made during initial catalog loading on the next request", async () => {
 		const workspacePath = await workspace();
 		const directory = join(workspacePath, ".cline", "plugins");
 		await mkdir(directory, { recursive: true });
@@ -233,13 +151,7 @@ export default {name:'helper',manifest:{capabilities:['commands']},setup(api){ap
 			if (load.mock.calls.length === 1) await writeFile(plugin, "// changed");
 			return loaded(async () => contents);
 		});
-		const manager = new PluginCommandManager({
-			load,
-			watch: (() =>
-				Object.assign(new EventEmitter(), {
-					close() {},
-				})) as unknown as typeof watch,
-		});
+		const manager = new PluginCommandManager({ load });
 		managers.push(manager);
 		await manager.list({ workspacePath });
 		expect(await manager.run({ workspacePath, prompt: "/echo" })).toMatchObject(
@@ -259,250 +171,45 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 		);
 		const manager = new PluginCommandManager();
 		managers.push(manager);
-		// A broken refresh implementation must still be interruptible so this
-		// regression test can dispose its workers instead of hanging the suite.
-		const deadline = setTimeout(() => void manager.dispose(), 5000);
-		try {
-			expect(await manager.list({ workspacePath })).toMatchObject({
-				status: "ready",
-				commands: [{ name: "counter" }],
-			});
-			expect(
-				await manager.run({ workspacePath, prompt: "/counter" }),
-			).toMatchObject({ reply: "1" });
-			await writeFile(join(directory, "state.json"), '{"count":1}');
-			await manager.list({ workspacePath });
-			expect(
-				await manager.run({ workspacePath, prompt: "/counter" }),
-			).toMatchObject({ reply: "2" });
-			expect(await readFile(join(directory, "setup.log"), "utf8")).toBe(
-				"setup\n",
-			);
-		} finally {
-			clearTimeout(deadline);
-			await manager.dispose();
-		}
-	});
-
-	it("bounds reconciliation when imported source keeps changing during setup", async () => {
-		const workspacePath = await workspace();
-		const directory = join(workspacePath, ".cline", "plugins");
-		await mkdir(directory, { recursive: true });
-		const plugin = join(directory, "changing.js");
-		await writeFile(plugin, "// initial");
-		const load = vi.fn(async () => {
-			if (load.mock.calls.length <= 5)
-				await writeFile(plugin, `// edit ${load.mock.calls.length}`);
-			return loaded();
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			status: "ready",
+			commands: [{ name: "counter" }],
 		});
-		const manager = new PluginCommandManager({
-			load,
-			watch: (() =>
-				Object.assign(new EventEmitter(), {
-					close() {},
-				})) as unknown as typeof watch,
-		});
-		managers.push(manager);
-		await expect(manager.list({ workspacePath })).rejects.toThrow(
-			"Plugin sources changed repeatedly",
+		expect(
+			await manager.run({ workspacePath, prompt: "/counter" }),
+		).toMatchObject({ reply: "1" });
+		await writeFile(join(directory, "state.json"), '{"count":1}');
+		await manager.list({ workspacePath });
+		expect(
+			await manager.run({ workspacePath, prompt: "/counter" }),
+		).toMatchObject({ reply: "2" });
+		expect(await readFile(join(directory, "setup.log"), "utf8")).toBe(
+			"setup\n",
 		);
-		expect(load).toHaveBeenCalledTimes(2);
-		await manager.dispose();
 	});
 
-	it("recovers from initialization timeout without another client request", async () => {
+	it("releases idle workspace catalogs and reloads them on demand", async () => {
+		vi.useFakeTimers();
 		const workspacePath = await workspace();
-		let recover!: (value: ReturnType<typeof loaded>) => void;
-		const recovered = new Promise<ReturnType<typeof loaded>>((resolve) => {
-			recover = resolve;
-		});
+		const first = loaded();
 		const load = vi
 			.fn()
-			.mockRejectedValueOnce(new Error("plugin-sandbox initialize timed out"))
-			.mockImplementation(() => recovered);
-		const manager = new PluginCommandManager({ load, retryDelayMs: 10 });
-		managers.push(manager);
-		const updates = vi.fn();
-		manager.subscribe(updates);
-		const initial = await manager.list({ workspacePath });
-		recover(loaded());
-		expect(initial).toMatchObject({
-			status: "error",
-			commands: [],
-			error: expect.stringContaining("timed out"),
-		});
-		await vi.waitFor(
-			() =>
-				expect(updates).toHaveBeenLastCalledWith(
-					expect.objectContaining({
-						status: "ready",
-						commands: [{ name: "echo", description: "Echo" }],
-					}),
-				),
-			{ timeout: 5000 },
-		);
-		await expect(
-			manager.run({ workspacePath, prompt: "/echo recovered" }),
-		).resolves.toMatchObject({ reply: "echo:recovered" });
-	});
-	it("watches newly created plugin directories in non-Git workspaces", async () => {
-		const workspacePath = await workspace();
-		const load = vi.fn(async () => loaded());
+			.mockResolvedValueOnce(first)
+			.mockImplementation(async () => loaded());
 		const manager = new PluginCommandManager({ load });
 		managers.push(manager);
 		await manager.list({ workspacePath });
-		const directory = join(workspacePath, ".cline", "plugins");
-		await mkdir(directory, { recursive: true });
-		await writeFile(join(directory, "echo.js"), "export default {};");
-		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1), {
-			timeout: 3000,
-		});
-		const calls = load.mock.calls.length;
-		await writeFile(
-			join(directory, "echo.js"),
-			"export default {name:'changed'};",
-		);
-		await vi.waitFor(
-			() => expect(load.mock.calls.length).toBeGreaterThan(calls),
-			{ timeout: 3000 },
-		);
-	});
-	it("moves ancestor watches toward a new plugin directory before its source fingerprint changes", async () => {
-		const workspacePath = await workspace();
-		const callbacks: Array<{
-			directory: string;
-			listener: (event: string, file: string) => void;
-			closed: boolean;
-		}> = [];
-		const watchFiles = vi.fn(
-			(
-				directory: string,
-				_options: unknown,
-				listener: (event: string, file: string) => void,
-			) => {
-				const watched = { directory, listener, closed: false };
-				callbacks.push(watched);
-				return Object.assign(new EventEmitter(), {
-					close: () => {
-						watched.closed = true;
-					},
-				});
-			},
-		);
-		const load = vi.fn(async () => loaded());
-		const manager = new PluginCommandManager({
-			load,
-			watch: watchFiles as unknown as typeof watch,
-		});
-		managers.push(manager);
+		await vi.advanceTimersByTimeAsync(9 * 60_000);
 		await manager.list({ workspacePath });
-		const currentWatch = (directory: string) => {
-			const watched = [...callbacks]
-				.reverse()
-				.find((item) => item.directory === directory && !item.closed);
-			if (!watched) throw new Error(`Missing active watcher for ${directory}`);
-			return watched;
-		};
-		const config = join(workspacePath, ".cline");
-		await mkdir(config);
-		currentWatch(workspacePath).listener("rename", ".cline");
-		// An empty config directory changes watch topology, not plugin sources.
-		const configWatch = currentWatch(config);
-		expect(load).toHaveBeenCalledTimes(1);
-		const plugins = join(config, "plugins");
-		await mkdir(plugins);
-		configWatch.listener("rename", "plugins");
-		const pluginWatch = currentWatch(plugins);
-		await writeFile(join(plugins, "echo.js"), "export default {};");
-		pluginWatch.listener("rename", "echo.js");
-		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1));
+		expect(first.shutdown).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(10 * 60_000);
+		expect(first.shutdown).toHaveBeenCalledTimes(1);
+		await expect(
+			manager.run({ workspacePath, prompt: "/echo again" }),
+		).resolves.toMatchObject({ reply: "echo:again" });
+		expect(load).toHaveBeenCalledTimes(2);
 	});
-	it("reconciles a plugin written after the only ancestor event", async () => {
-		const workspacePath = await workspace();
-		let ancestorEvent: ((event: string, file: string) => void) | undefined;
-		const watchFiles = vi.fn(
-			(
-				directory: string,
-				_options: unknown,
-				listener: (event: string, file: string) => void,
-			) => {
-				if (directory === workspacePath) ancestorEvent = listener;
-				return Object.assign(new EventEmitter(), { close: vi.fn() });
-			},
-		);
-		const load = vi.fn(async () => loaded());
-		const manager = new PluginCommandManager({
-			load,
-			watch: watchFiles as unknown as typeof watch,
-		});
-		managers.push(manager);
-		await manager.list({ workspacePath });
-		vi.useFakeTimers();
-		try {
-			const directory = join(workspacePath, ".cline", "plugins");
-			await mkdir(join(workspacePath, ".cline"));
-			if (!ancestorEvent) throw new Error("Missing ancestor watcher");
-			ancestorEvent("rename", ".cline");
-			// Complete the immediate empty-source check before writing the plugin.
-			await manager.list({ workspacePath });
-			await mkdir(directory);
-			await writeFile(join(directory, "echo.js"), "export default {};");
-			// Native events can coalesce while a recursive watch is installed.
-			// No second event is delivered; the debounce must reconcile this write.
-			await vi.advanceTimersByTimeAsync(100);
-		} finally {
-			vi.useRealTimers();
-		}
-		await vi.waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(1));
-	});
-	it.each([
-		"add",
-		"edit",
-		"remove",
-		"unchanged",
-		"watch-throw",
-	])("reconciles %s during watcher outages without resetting unchanged plugins", async (change) => {
-		const workspacePath = await workspace();
-		const directory = join(workspacePath, ".cline", "plugins");
-		await mkdir(directory, { recursive: true });
-		const file = join(directory, "echo.js");
-		if (change !== "add") await writeFile(file, "before");
-		const watchers: EventEmitter[] = [];
-		let unavailable = change === "watch-throw";
-		const watchFiles = vi.fn(() => {
-			if (unavailable) throw new Error("watch unavailable");
-			const watcher = Object.assign(new EventEmitter(), { close: vi.fn() });
-			watchers.push(watcher);
-			return watcher;
-		});
-		const initial = loaded();
-		const load = vi.fn(async () => initial);
-		const manager = new PluginCommandManager({
-			load,
-			watch: watchFiles as unknown as typeof watch,
-		});
-		managers.push(manager);
-		const updates = vi.fn();
-		manager.subscribe(updates);
-		await manager.list({ workspacePath });
-		const attempts = watchFiles.mock.calls.length;
-		watchers[0]?.emit("error", new Error("watch lost"));
-		if (change === "remove") await rm(file);
-		else if (change !== "unchanged") await writeFile(file, "after");
-		unavailable = false;
-		await vi.waitFor(
-			() => expect(watchFiles.mock.calls.length).toBeGreaterThan(attempts),
-			{ timeout: 3000 },
-		);
-		if (change === "unchanged") {
-			expect(load).toHaveBeenCalledTimes(1);
-			expect(initial.shutdown).not.toHaveBeenCalled();
-		} else {
-			await vi.waitFor(() => expect(updates).toHaveBeenCalledTimes(2));
-			expect(load).toHaveBeenCalledTimes(2);
-			expect(initial.shutdown).toHaveBeenCalledTimes(1);
-		}
-	});
+
 	it("waits for active handlers before disposing the sandbox", async () => {
 		const workspacePath = await workspace();
 		let finish!: (result: string) => void;
@@ -526,6 +233,7 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 		expect(plugins.shutdown).toHaveBeenCalledTimes(1);
 		await expect(manager.list({ workspacePath })).rejects.toThrow("disposed");
 	});
+
 	it("isolates workspaces and propagates handler errors", async () => {
 		const a = await workspace();
 		const b = await workspace();
@@ -554,6 +262,7 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 			),
 		).rejects.toThrow("handler boom");
 	});
+
 	it("parses slash input without changing internal whitespace", () => {
 		expect(parsePluginCommand(" \n/GOAL a  b\nc ")).toEqual({
 			name: "goal",

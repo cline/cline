@@ -29,9 +29,9 @@ async function commandIfSupported(
 	}
 }
 
-/** Uses the caller's existing connection and subscription lifecycle. */
+/** Uses the caller's existing connection. */
 export function createHubPluginCommandsApi(
-	client: Pick<NodeHubClient, "command" | "subscribe">,
+	client: Pick<NodeHubClient, "command">,
 ): PluginCommandsApi {
 	return {
 		async list(target) {
@@ -63,12 +63,6 @@ export function createHubPluginCommandsApi(
 					reply.error?.message ?? "Plugin command execution failed",
 				);
 			return reply.payload?.result as PluginCommandResult | undefined;
-		},
-		subscribe(listener) {
-			return client.subscribe((event) => {
-				if (event.event === "plugins.commands.changed")
-					listener(event.payload?.catalog as unknown as PluginCommandCatalog);
-			});
 		},
 	};
 }

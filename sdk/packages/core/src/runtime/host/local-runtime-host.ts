@@ -394,7 +394,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 					),
 				);
 			},
-			subscribe: this.pluginCommandManager.subscribe,
 		};
 		// A caller-owned telemetry service may already be identified to an
 		// authenticated account (the long-lived Hub daemon is one example).

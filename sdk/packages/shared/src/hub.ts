@@ -813,7 +813,6 @@ export type HubEventName =
 	| "task.run.completed"
 	| "task.run.failed"
 	| "task.automation.updated"
-	| "plugins.commands.changed"
 	| "settings.changed"
 	| "plugin.status_changed"
 	| "ui.notify"

@@ -197,7 +197,6 @@ describe("handleConnectorUserTurn", () => {
 				list: vi
 					.fn()
 					.mockResolvedValue({ status: "ready", commands: [{ name: "echo" }] }),
-				subscribe: vi.fn(),
 			},
 		});
 		await Promise.all(
