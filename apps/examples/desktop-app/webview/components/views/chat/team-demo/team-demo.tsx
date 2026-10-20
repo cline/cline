@@ -6,6 +6,7 @@ import { AgentHeader } from "@/components/agent-header";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { WindowTitleBarContent } from "@/components/window-title-bar";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import type { SessionThread } from "@/hooks/use-session-history";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import {
@@ -14,6 +15,7 @@ import {
 	type SessionAgentEntry,
 } from "@/lib/session-agents";
 import { ChatMessages } from "../chat-messages";
+import { demoSidebarThreads } from "./demo-sessions";
 import { TeamPanel, type TeamPanelMember } from "./team-panel";
 import {
 	buildBeats,
@@ -314,11 +316,23 @@ function panelMembersOf(state: DemoState): TeamPanelMember[] {
 const isActive = (status: ChatSessionStatus) =>
 	status === "starting" || status === "running" || status === "stopping";
 
-export function TeamDemo({ onExit }: { onExit: () => void }) {
+export function TeamDemo({
+	onExit,
+	onSidebarSessions,
+}: {
+	onExit: () => void;
+	onSidebarSessions?: (threads: SessionThread[] | null) => void;
+}) {
 	const [view, setView] = useState<SessionKey>(LEAD);
 	const state = useTeamPlayback();
 	const stored = useStoredModel();
 	const lead = state.sessions[LEAD];
+	const sidebarStatus = lead.status === "completed" ? "completed" : "running";
+
+	useEffect(() => {
+		onSidebarSessions?.(demoSidebarThreads(sidebarStatus));
+	}, [onSidebarSessions, sidebarStatus]);
+	useEffect(() => () => onSidebarSessions?.(null), [onSidebarSessions]);
 	const session = state.sessions[view];
 	const leadCompleted = lead.status === "completed";
 

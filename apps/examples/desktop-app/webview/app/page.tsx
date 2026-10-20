@@ -60,7 +60,10 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
-import { useSessionHistory } from "@/hooks/use-session-history";
+import {
+	type SessionThread,
+	useSessionHistory,
+} from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -349,6 +352,11 @@ export default function Home() {
 		kind: keyof NonNullable<typeof DEMOS>;
 		threadId: string;
 	} | null>(null);
+	// A demo can stand in its own sidebar history so recordings aren't framed by
+	// whatever sessions this machine happens to have.
+	const [demoSidebarThreads, setDemoSidebarThreads] = useState<
+		SessionThread[] | null
+	>(null);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -862,6 +870,18 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const sidebarSessionHistory = useMemo(
+		() =>
+			demo && demoSidebarThreads
+				? {
+						...sessionHistory,
+						threads: demoSidebarThreads,
+						unreadSessionIds: new Set<string>(),
+						openThread: () => {},
+					}
+				: sessionHistory,
+		[demo, demoSidebarThreads, sessionHistory],
+	);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;
@@ -993,14 +1013,18 @@ export default function Home() {
 							collapsible="icon"
 						>
 							<AgentSidebar
-								activeSessionId={activeHistorySessionId}
+								activeSessionId={
+									demo && demoSidebarThreads
+										? demoSidebarThreads[0]?.id
+										: activeHistorySessionId
+								}
 								newTaskActive={newTaskActive}
 								onHome={handleHome}
 								onNavigateBack={handleNavigateBack}
 								onNavigateForward={handleNavigateForward}
 								onOpenSearch={handleOpenCommandBar}
 								onSettingsSectionChange={handleSettingsSectionChange}
-								sessionHistory={sessionHistory}
+								sessionHistory={sidebarSessionHistory}
 								setView={handleViewChange}
 								settingsSection={settingsSection}
 								view={view}
@@ -1026,6 +1050,15 @@ export default function Home() {
 									>
 										{DEMOS && demo?.threadId === activeThread.id ? (
 											(() => {
+												if (demo.kind === "team") {
+													return (
+														<DEMOS.team
+															key={demo.kind}
+															onExit={() => setDemo(null)}
+															onSidebarSessions={setDemoSidebarThreads}
+														/>
+													);
+												}
 												const Demo = DEMOS[demo.kind];
 												return (
 													<Demo key={demo.kind} onExit={() => setDemo(null)} />
