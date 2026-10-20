@@ -93,6 +93,11 @@ import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	clearCloudHandoffFollowUp,
+	getRecoverableCloudHandoffFollowUp,
+	updateCloudHandoffFollowUp,
+} from "./cloud-handoff-follow-up";
+import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
@@ -1880,10 +1885,14 @@ export async function handleCommand(
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	const explicitEnvironment = requestedEnvironmentId(args);
+	const requestedSession = args?.sessionId ?? args?.session_id;
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);
-	} else if (typeof args?.sessionId === "string" && args.sessionId.trim()) {
-		const binding = await findSessionRuntimeBinding(ctx, args.sessionId.trim());
+	} else if (typeof requestedSession === "string" && requestedSession.trim()) {
+		const binding = await findSessionRuntimeBinding(
+			ctx,
+			requestedSession.trim(),
+		);
 		if (binding) ctx = getEnvironmentContext(ctx, binding.environmentId);
 	}
 
@@ -2074,12 +2083,15 @@ export async function handleCommand(
 
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
+		const request = (args?.request ?? args) as ChatSessionCommandRequest;
+		if (
+			request.action === "prepare_handoff_git" &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("Git preparation requires a trusted desktop connection");
+		}
 		const { handleChatSessionCommand } = await import("./chat-session");
-		return await handleChatSessionCommand(
-			ctx,
-			(args?.request as ChatSessionCommandRequest | undefined) ??
-				(args as ChatSessionCommandRequest),
-		);
+		return await handleChatSessionCommand(ctx, request);
 	}
 	if (command === "proceed_while_running") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -2466,6 +2478,21 @@ export async function handleCommand(
 		}
 		return hits.slice(0, limit);
 	}
+	if (
+		command === "get_cloud_handoff_follow_up" ||
+		command === "restore_cloud_handoff_follow_up" ||
+		command === "dismiss_cloud_handoff_follow_up"
+	) {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) throw new Error("session id is required");
+		if (command === "get_cloud_handoff_follow_up")
+			return getRecoverableCloudHandoffFollowUp(sessionId);
+		return updateCloudHandoffFollowUp(
+			sessionId,
+			args?.expected as Parameters<typeof updateCloudHandoffFollowUp>[1],
+			command === "restore_cloud_handoff_follow_up" ? "restore" : "dismiss",
+		);
+	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -2485,6 +2512,8 @@ export async function handleCommand(
 					null
 				);
 			} catch {
+				// Preserve offline access, but never let a successful fresh list be
+				// shadowed forever by a session deleted on another device.
 				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
 			}
 		}
@@ -2575,13 +2604,13 @@ export async function handleCommand(
 		// updateSession replaces metadata wholesale in both the session row and
 		// the manifest, so merge over what each already holds. A null value
 		// removes the key, which is how callers clear a flag.
-		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		if (!binding) throw new Error(`Session ${sessionId} not found`);
 		const store = new SqliteSessionStore();
 		const asRecord = (value: unknown): JsonRecord =>
 			value && typeof value === "object" && !Array.isArray(value)
 				? (value as JsonRecord)
 				: {};
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		if (!binding) throw new Error(`Session ${sessionId} not found`);
 		const existingSession = await binding.sessionManager.get(sessionId);
 		const existing =
 			binding.kind === "local" ? store.get(sessionId) : undefined;
@@ -2617,8 +2646,21 @@ export async function handleCommand(
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
 			await cloud.delete(sessionId);
+			try {
+				clearCloudHandoffFollowUp(sessionId);
+			} catch (error) {
+				ctx.logger?.error?.(
+					"Failed to clear the deleted session's handoff follow-up",
+					{ error },
+				);
+			}
 			return true;
 		}
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		ctx = getEnvironmentContext(
+			ctx,
+			binding?.environmentId ?? LOCAL_ENVIRONMENT_ID,
+		);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
@@ -2626,7 +2668,6 @@ export async function handleCommand(
 		const sessionCwd =
 			row?.cwd?.trim() ||
 			(typeof manifest?.cwd === "string" ? manifest.cwd.trim() : "");
-		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
@@ -2681,14 +2722,10 @@ export async function handleCommand(
 			}
 		}
 		for (const path of [sessionLogPath(sessionId)]) {
-			if (removePathIfExists(path, { recursive: true })) {
-				deleted = true;
-			}
+			if (removePathIfExists(path, { recursive: true })) deleted = true;
 		}
 		for (const dir of directoryCandidates) {
-			if (removePathIfExists(dir, { recursive: true })) {
-				deleted = true;
-			}
+			if (removePathIfExists(dir, { recursive: true })) deleted = true;
 		}
 		for (const path of [
 			row?.messagesPath,
@@ -2697,20 +2734,15 @@ export async function handleCommand(
 				: null,
 			join(sharedSessionDataDir(), sessionId, `${sessionId}.json`),
 		].filter((v): v is string => typeof v === "string" && v.length > 0)) {
-			if (removePathIfExists(path)) {
-				deleted = true;
-			}
+			if (removePathIfExists(path)) deleted = true;
 		}
 		for (const suffix of ["messages.json"]) {
-			const fileName = `${sessionId}.${suffix}`;
 			const found = findArtifactUnderDir(
 				join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),
-				fileName,
+				`${sessionId}.${suffix}`,
 				4,
 			);
-			if (found && removePathIfExists(found)) {
-				deleted = true;
-			}
+			if (found && removePathIfExists(found)) deleted = true;
 		}
 		if (!deleted && deleteError) {
 			ctx.logger?.error?.("Failed to delete desktop chat session", {
@@ -2899,14 +2931,9 @@ export async function handleCommand(
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const includeCloudModels =
-			providerId === "cline" &&
-			args?.includeCloudModels === true &&
-			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
 			providerId,
 			manager.getProviderConfig(providerId, { includeKnownModels: false }),
-			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
