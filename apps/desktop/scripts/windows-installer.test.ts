@@ -21,7 +21,7 @@ const hook = path.resolve(
 	import.meta.dir,
 	"../src-tauri/nsis/installer-hooks.nsh",
 );
-const lockfile = path.resolve(import.meta.dir, "../../../../bun.lock");
+const lockfile = path.resolve(import.meta.dir, "../../../bun.lock");
 
 // The shipped installer is compiled by the NSIS that tauri-bundler pins
 // (NSIS_URL / NSIS_SHA1 in crates/tauri-bundler/src/bundle/windows/nsis/mod.rs

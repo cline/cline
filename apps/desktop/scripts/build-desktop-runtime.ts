@@ -4,7 +4,7 @@ import { $ } from "bun";
 import {
 	compileCliBinary,
 	installOpenTuiNativeVariants,
-} from "../../../cli/script/compile-binary";
+} from "../../cli/script/compile-binary";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 // The desktop app ships two runtime artifacts and no app-specific executable:
@@ -20,7 +20,7 @@ import { telemetryDefineArgs } from "./telemetry-define-args";
 // Hub too; macOS remotes reuse the signed universal CLI itself.
 
 const APP_ROOT = fileURLToPath(new URL("..", import.meta.url));
-const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const BIN_DIR = "src-tauri/bin";
 export const DESKTOP_CLI_NAME = "cline-cli";
 export const DESKTOP_BACKEND_BUNDLE = `${BIN_DIR}/desktop-backend/index.js`;

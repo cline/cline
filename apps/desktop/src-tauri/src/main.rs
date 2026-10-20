@@ -438,8 +438,7 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     let candidates = [
         PathBuf::from(&context.workspace_root)
             .join("apps")
-            .join("examples")
-            .join("desktop-app")
+            .join("desktop")
             .join("sidecar")
             .join("index.ts"),
         launch_cwd.join("sidecar").join("index.ts"),
@@ -449,8 +448,7 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
             .unwrap_or_else(|| PathBuf::from("")),
         launch_cwd
             .join("apps")
-            .join("examples")
-            .join("desktop-app")
+            .join("desktop")
             .join("sidecar")
             .join("index.ts"),
     ];
@@ -481,8 +479,7 @@ fn non_empty_env_path(name: &str) -> Option<PathBuf> {
 fn desktop_app_bin_dir(context: &AppContext) -> PathBuf {
     PathBuf::from(&context.workspace_root)
         .join("apps")
-        .join("examples")
-        .join("desktop-app")
+        .join("desktop")
         .join("src-tauri")
         .join("bin")
 }

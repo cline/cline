@@ -131,39 +131,7 @@
         "vite": "^8.0.0",
       },
     },
-    "apps/examples/cli-agent": {
-      "name": "@cline/example-cli-agent",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/cline-core-cli-agent": {
-      "name": "@cline/example-cline-core-cli-agent",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/code-review-bot": {
-      "name": "@cline/example-code-review-bot",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/desktop-app": {
+    "apps/desktop": {
       "name": "@cline/code",
       "version": "0.0.48",
       "dependencies": {
@@ -249,6 +217,38 @@
         "tw-animate-css": "1.3.3",
         "typescript": "5.7.3",
         "vitest": "^4.0.18",
+      },
+    },
+    "apps/examples/cli-agent": {
+      "name": "@cline/example-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/cline-core-cli-agent": {
+      "name": "@cline/example-cline-core-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/code-review-bot": {
+      "name": "@cline/example-code-review-bot",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
       },
     },
     "apps/examples/menubar": {
@@ -1107,7 +1107,7 @@
 
     "@cline/cline-hub-webview": ["@cline/cline-hub-webview@workspace:apps/cline-hub/src/webview"],
 
-    "@cline/code": ["@cline/code@workspace:apps/examples/desktop-app"],
+    "@cline/code": ["@cline/code@workspace:apps/desktop"],
 
     "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
 

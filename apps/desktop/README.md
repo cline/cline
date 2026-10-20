@@ -4,7 +4,7 @@ Tauri desktop shell + desktop backend (`sidecar/`) + Next.js UI for running and 
 
 ## Dev Commands
 
-From `apps/examples/desktop-app/`:
+From `apps/desktop/`:
 
 - `bun run dev:headless` - Next.js UI (`http://localhost:3125`) and sidecar backend with a fresh shared approval credential
 - `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
@@ -124,7 +124,7 @@ agent-spawned child (run_commands, MCP servers) inherits. Only `PATH` is
 imported, deliberately; other login-environment variables (`SSH_AUTH_SOCK`,
 API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
 `CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
-[`core shell-path.ts`](../../../sdk/packages/core/src/remote/shell-path.ts).
+[`core shell-path.ts`](../../sdk/packages/core/src/remote/shell-path.ts).
 
 ## SSH Remote Environments
 
@@ -191,7 +191,7 @@ that its messages can be read back.
 ## Web Visual System
 
 The framework-neutral color, typography, radius, and navigation contract lives
-in the internal [`@cline/ui`](../../../sdk/packages/ui/README.md) workspace
+in the internal [`@cline/ui`](../../sdk/packages/ui/README.md) workspace
 package. Other Cline web surfaces can take only its tokens or opt into the
 Tailwind adapter and shared base styles without depending on the desktop
 runtime. See [`webview/styles/README.md`](./webview/styles/README.md) for the
@@ -341,7 +341,7 @@ Desktop transport envelope:
 - Canonical replay/export artifact: `<sessionId>.messages.json`.
 - `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
 - `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
-- Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../../sdk/packages/core/docs/messages-contract-v1.md).
+- Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../sdk/packages/core/docs/messages-contract-v1.md).
 
 ## Sidecar observability
 

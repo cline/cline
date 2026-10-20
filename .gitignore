@@ -87,10 +87,10 @@ apps/vscode/webview-ui/src/**/*.js.map
 apps/vscode/tsconfig.test.generated.json
 .next/dev/static
 **/src-tauri/target/debug/.fingerprint
-apps/examples/desktop-app/src-tauri/target
-apps/examples/desktop-app/src-tauri/dmg/background.gen.tiff
-apps/examples/desktop-app/webview/.next
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/dmg/background.gen.tiff
+apps/desktop/webview/.next
 
 # Next.js generated type shim (churns between dev and build)
-apps/examples/desktop-app/webview/next-env.d.ts
-apps/examples/desktop-app/.cursor/settings.json
+apps/desktop/webview/next-env.d.ts
+apps/desktop/.cursor/settings.json

@@ -73,15 +73,7 @@ function macCliCandidates(
 			? [desktopCliPath]
 			: []),
 		join(cwd, "src-tauri", "bin", compiledCli),
-		join(
-			cwd,
-			"apps",
-			"examples",
-			"desktop-app",
-			"src-tauri",
-			"bin",
-			compiledCli,
-		),
+		join(cwd, "apps", "desktop", "src-tauri", "bin", compiledCli),
 	];
 }
 
@@ -113,6 +105,6 @@ export function resolveDesktopRemoteHelper(
 		join(executableDirectory, bundledPath),
 		join(executableDirectory, "..", "Resources", bundledPath),
 		join(cwd, "src-tauri", bundledPath),
-		join(cwd, "apps", "examples", "desktop-app", "src-tauri", bundledPath),
+		join(cwd, "apps", "desktop", "src-tauri", bundledPath),
 	].find(existsSync);
 }

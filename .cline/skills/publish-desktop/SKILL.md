@@ -1,6 +1,6 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (artifact-only test build of main's HEAD, tagged desktop-nightly-<stamp> after it builds). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
+description: Use when preparing, tagging, and publishing a Cline desktop app (apps/desktop) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (artifact-only test build of main's HEAD, tagged desktop-nightly-<stamp> after it builds). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
 ---
 
 # Desktop App Release
@@ -9,17 +9,17 @@ Use this skill when the user asks to release the desktop app, publish the Cline 
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases ship three platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Linux: x64 `.deb` and `.rpm` packages (`<Product>_<version>_amd64.deb`, `<Product>_<version>_x86_64.rpm`) built on Ubuntu 22.04 in the `build-linux` job, deb + rpm only (no AppImage: linuxdeploy cannot process the Bun-compiled Cline CLI the app bundles). Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
+Desktop releases ship three platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Linux: x64 `.deb` and `.rpm` packages (`<Product>_<version>_amd64.deb`, `<Product>_<version>_x86_64.rpm`) built on Ubuntu 22.04 in the `build-linux` job, deb + rpm only (no AppImage: linuxdeploy cannot process the Bun-compiled Cline CLI the app bundles). Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/desktop/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
 
 ## Release contract
 
 - Three channels, one workflow (`channel` input on `desktop-publish.yml`):
   - **stable** — tag `desktop-vX.Y.Z` (no suffix; the workflow rejects prerelease suffixes on this channel), cut from `main`, feeds the rolling `desktop-latest` release, ships as "Cline".
-  - **beta** — tag `desktop-vX.Y.Z-beta.N`, cut from `desktop-experimental`, feeds the rolling `desktop-beta` release, ships as "Cline Beta" (separate bundle identifier `bot.cline.app.beta`; installs side by side with stable). Built with the extra `src-tauri/tauri.beta.conf.json` overlay. Process background: `apps/examples/desktop-app/EXPERIMENTAL.md`.
+  - **beta** — tag `desktop-vX.Y.Z-beta.N`, cut from `desktop-experimental`, feeds the rolling `desktop-beta` release, ships as "Cline Beta" (separate bundle identifier `bot.cline.app.beta`; installs side by side with stable). Built with the extra `src-tauri/tauri.beta.conf.json` overlay. Process background: `apps/desktop/EXPERIMENTAL.md`.
   - **nightly** — no release tag input, no release, no feed. Builds `main`'s HEAD, ships as "Cline Nightly" (identifier `bot.cline.app.nightly`, empty updater endpoints, `src-tauri/tauri.nightly.conf.json` overlay), uploads the signed installers as Actions artifacts only, then tags the commit `desktop-nightly-<utc stamp>` and announces the changes since the previous nightly or release to Slack. See "Nightly builds" below.
-- Version sources (must match each other and the tag): `apps/examples/desktop-app/package.json` and `apps/examples/desktop-app/src-tauri/tauri.conf.json`. (`src-tauri/Cargo.toml` has its own version but `tauri.conf.json` overrides it; no need to touch it.)
+- Version sources (must match each other and the tag): `apps/desktop/package.json` and `apps/desktop/src-tauri/tauri.conf.json`. (`src-tauri/Cargo.toml` has its own version but `tauri.conf.json` overrides it; no need to touch it.)
 - Beta versions are prereleases of the **next** stable: stable `0.0.13` → betas `0.0.14-beta.1`, `-beta.2`, … Once a stable ≥ the beta base ships, the next beta bumps its base (`0.0.15-beta.1`).
-- Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update — committed on `main` for stable, on `desktop-experimental` for beta.
+- Release prep includes approved release notes, the version bumps, and an `apps/desktop/CHANGELOG.md` update — committed on `main` for stable, on `desktop-experimental` for beta.
 - Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch; for stable and beta it requires the tag to exist, point at the checked-out commit, and be reachable from the channel's branch — `origin/main` for stable, `origin/desktop-experimental` for beta. Nightly takes no tag and validation rejects one).
 - **Every channel dispatches from `main`.** This is a security invariant, not a convenience: the run executes `main`'s workflow copy and only the checkout points at the tag, so the signing-secret gates (the `github.ref == main` check and the PublishDesktop environment's main-only deployment-branch policy) hold for beta too. Never add `desktop-experimental` to the PublishDesktop deployment-branch policy.
 - The workflow creates the tag's GitHub release (universal DMG + macOS updater artifact + Windows NSIS installer and Linux deb/rpm packages, each with its updater signature, + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
@@ -38,8 +38,8 @@ Desktop releases ship three platforms, built entirely in GitHub Actions — ther
 git status --short --branch
 git fetch origin --tags
 git tag --list 'desktop-v*' --sort=-v:refname | head -10
-node -p "require('./apps/examples/desktop-app/package.json').version"
-node -p "require('./apps/examples/desktop-app/src-tauri/tauri.conf.json').version"
+node -p "require('./apps/desktop/package.json').version"
+node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version"
 ```
 
 If there is no `desktop-v*` tag yet, this is the first release; use the desktop app's first commit as the baseline and say the baseline is inferred.
@@ -50,9 +50,9 @@ For a **beta** release, work on `desktop-experimental` (check out `origin/deskto
 
 ```sh
 # stable (on main):
-git log <last-desktop-tag>..HEAD --oneline --no-merges -- apps/examples/desktop-app apps/cli sdk/packages .github/workflows/desktop-publish.yml
+git log <last-desktop-tag>..HEAD --oneline --no-merges -- apps/desktop apps/cli sdk/packages .github/workflows/desktop-publish.yml
 # beta (on desktop-experimental):
-git log <last-desktop-tag>..origin/desktop-experimental --oneline --no-merges -- apps/examples/desktop-app apps/cli sdk/packages .github/workflows/desktop-publish.yml
+git log <last-desktop-tag>..origin/desktop-experimental --oneline --no-merges -- apps/desktop apps/cli sdk/packages .github/workflows/desktop-publish.yml
 ```
 
 The desktop backend and the bundled Cline CLI (which runs the Hub) are built from the monorepo's `@cline/core` and friends, so SDK and CLI changes ship inside the desktop app too. Fold user-visible SDK changes (providers, models, behavior fixes) into the notes; skip purely internal ones.
@@ -61,7 +61,7 @@ The desktop backend and the bundled Cline CLI (which runs the Hub) are built fro
 
 Flat bullet list, user-facing language.
 
-**Scope notes to the desktop app.** Shared-code commits in the range are often for the CLI or the extension. Keep a bullet only if the change reaches `apps/examples/desktop-app` (CLI subcommands, TUI, and yolo prompt rules don't). Skip items already in the last desktop section, grep any quoted string, and leave out anything uncertain.
+**Scope notes to the desktop app.** Shared-code commits in the range are often for the CLI or the extension. Keep a bullet only if the change reaches `apps/desktop` (CLI subcommands, TUI, and yolo prompt rules don't). Skip items already in the last desktop section, grep any quoted string, and leave out anything uncertain.
 
 Present the draft and wait for approval before editing files.
 
@@ -73,15 +73,15 @@ Beta: apply the versioning rule — base = next stable version, increment `N` (`
 
 5. Update release files (on `main` for stable, on `desktop-experimental` for beta).
 
-- `apps/examples/desktop-app/package.json` → new version
-- `apps/examples/desktop-app/src-tauri/tauri.conf.json` → same version
-- Prepend `## X.Y.Z` (no date; `## X.Y.Z-beta.N` for beta) to `apps/examples/desktop-app/CHANGELOG.md` with the approved notes.
+- `apps/desktop/package.json` → new version
+- `apps/desktop/src-tauri/tauri.conf.json` → same version
+- Prepend `## X.Y.Z` (no date; `## X.Y.Z-beta.N` for beta) to `apps/desktop/CHANGELOG.md` with the approved notes.
 
 6. Verify before committing.
 
 ```sh
 bun -F @cline/code typecheck
-bun test apps/examples/desktop-app/scripts/generate-update-manifest.test.ts
+bun test apps/desktop/scripts/generate-update-manifest.test.ts
 ```
 
 The full desktop bundle can only be built on macOS; the workflow's build job is the real verification. For extra local confidence on a Mac checkout, `bun run package:desktop:mac --allow-unsigned-mac` from the app directory.
@@ -89,7 +89,7 @@ The full desktop bundle can only be built on macOS; the workflow's build job is 
 7. Commit release changes.
 
 ```sh
-git add apps/examples/desktop-app/package.json apps/examples/desktop-app/src-tauri/tauri.conf.json apps/examples/desktop-app/CHANGELOG.md
+git add apps/desktop/package.json apps/desktop/src-tauri/tauri.conf.json apps/desktop/CHANGELOG.md
 git commit -m "chore(desktop): release vX.Y.Z"
 ```
 
@@ -177,7 +177,7 @@ What the workflow does differently:
   (the stamp from the version) and posts to the Slack release channel: the
   commits since the nearest `desktop-v*` or `desktop-nightly-*` tag (previous
   nightly or last release, whichever is closer), scoped to
-  `apps/examples/desktop-app`, `sdk/packages`, and the publish workflow, with
+  `apps/desktop`, `sdk/packages`, and the publish workflow, with
   PR links and a compare link. The list caps at 15 lines to stay under Slack's
   3000-character block limit. Never rename `desktop-nightly-*` tags; the
   stable release compare (`--exclude 'desktop-v*-*'`, `--match 'desktop-v*'`)

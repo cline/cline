@@ -6,30 +6,30 @@ on:
       - main
       - desktop-experimental
     paths:
-      - "apps/examples/desktop-app/package.json"
-      - "apps/examples/desktop-app/scripts/dmg-background.ts"
-      - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
-      - "apps/examples/desktop-app/scripts/windows-installer.test.ts"
-      - "apps/examples/desktop-app/src-tauri/nsis/**"
+      - "apps/desktop/package.json"
+      - "apps/desktop/scripts/dmg-background.ts"
+      - "apps/desktop/scripts/dmg-background.test.ts"
+      - "apps/desktop/scripts/windows-installer.test.ts"
+      - "apps/desktop/src-tauri/nsis/**"
       # windows-installer.test.ts pins the @tauri-apps/cli version bun.lock resolves.
       - "bun.lock"
-      - "apps/examples/desktop-app/src-tauri/dmg/background.png"
-      - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
+      - "apps/desktop/src-tauri/dmg/background.png"
+      - "apps/desktop/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
   pull_request:
     branches:
       - main
       - desktop-experimental
     paths:
-      - "apps/examples/desktop-app/package.json"
-      - "apps/examples/desktop-app/scripts/dmg-background.ts"
-      - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
-      - "apps/examples/desktop-app/scripts/windows-installer.test.ts"
-      - "apps/examples/desktop-app/src-tauri/nsis/**"
+      - "apps/desktop/package.json"
+      - "apps/desktop/scripts/dmg-background.ts"
+      - "apps/desktop/scripts/dmg-background.test.ts"
+      - "apps/desktop/scripts/windows-installer.test.ts"
+      - "apps/desktop/src-tauri/nsis/**"
       # windows-installer.test.ts pins the @tauri-apps/cli version bun.lock resolves.
       - "bun.lock"
-      - "apps/examples/desktop-app/src-tauri/dmg/background.png"
-      - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
+      - "apps/desktop/src-tauri/dmg/background.png"
+      - "apps/desktop/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
   workflow_dispatch:
 
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

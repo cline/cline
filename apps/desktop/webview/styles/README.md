@@ -1,7 +1,7 @@
 # Cline web visual foundation
 
 The shared visual contract now lives in the internal
-[`@cline/ui`](../../../../../sdk/packages/ui/README.md) workspace package
+[`@cline/ui`](../../../../sdk/packages/ui/README.md) workspace package
 instead of beside the desktop app.
 
 The desktop imports the complete `@cline/ui/theme/index.css` entry point. Other

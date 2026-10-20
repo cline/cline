@@ -3,9 +3,9 @@
 How experimental desktop features are developed on the `desktop-experimental`
 branch, shipped to users as **Cline Beta**, and graduated into `main`.
 The release mechanics (workflow internals, secrets) live in
-[`.github/workflows/desktop-publish.yml`](../../../.github/workflows/desktop-publish.yml)
+[`.github/workflows/desktop-publish.yml`](../../.github/workflows/desktop-publish.yml)
 and the `publish-desktop` skill
-([`.cline/skills/publish-desktop/SKILL.md`](../../../.cline/skills/publish-desktop/SKILL.md));
+([`.cline/skills/publish-desktop/SKILL.md`](../../.cline/skills/publish-desktop/SKILL.md));
 this doc is the process.
 
 ## What the beta channel is

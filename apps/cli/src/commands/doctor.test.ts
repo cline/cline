@@ -390,7 +390,7 @@ describe("runDoctorCommand", () => {
 	it.each([
 		[
 			"/src-tauri/bin/code-sidecar",
-			"60123 /Users/example/dev/apps/examples/desktop-app/src-tauri/bin/code-sidecar\n",
+			"60123 /Users/example/dev/apps/desktop/src-tauri/bin/code-sidecar\n",
 		],
 		[
 			"/bin/desktop-backend/index.js",

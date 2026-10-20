@@ -1,6 +1,6 @@
 ---
 name: desktop-whats-new
-description: Use when the team wants to catch desktop app users up on recent features with a one-time "What's new" dialog (apps/examples/desktop-app). Guides deciding whether a catch-up is warranted, picking the highlights from the changelog, writing tight copy, adding the entry to webview/lib/whats-new-content.ts, and previewing it from Settings → About. Not for individual releases — those only appear on the About page's release notes.
+description: Use when the team wants to catch desktop app users up on recent features with a one-time "What's new" dialog (apps/desktop). Guides deciding whether a catch-up is warranted, picking the highlights from the changelog, writing tight copy, adding the entry to webview/lib/whats-new-content.ts, and previewing it from Settings → About. Not for individual releases — those only appear on the About page's release notes.
 ---
 
 # Desktop "What's new" catch-up
@@ -13,7 +13,7 @@ The desktop app ships every couple of days, so individual releases are never ann
 
 ## How it works
 
-- Content lives in `apps/examples/desktop-app/webview/lib/whats-new-content.ts` as `WHATS_NEW_RELEASES`, newest first. Each entry has a stable `id`, a `title`, and 3–4 `highlights` (`title`, `description`, lucide `icon`).
+- Content lives in `apps/desktop/webview/lib/whats-new-content.ts` as `WHATS_NEW_RELEASES`, newest first. Each entry has a stable `id`, a `title`, and 3–4 `highlights` (`title`, `description`, lucide `icon`).
 - `webview/lib/whats-new.ts` stores the last seen `id` in localStorage (`cline.code.whats-new.v1`). The app shell (`webview/app/page.tsx`) shows `WhatsNewDialog` when the newest id differs from the stored one; closing it, or clicking "See all changes", stores the id.
 - Fresh installs never see a catch-up: completing onboarding marks the newest entry seen.
 - Settings → About has a "Show what's new" button that replays the newest entry without marking it seen. That is the preview path.
@@ -24,8 +24,8 @@ The desktop app ships every couple of days, so individual releases are never ann
 1. Decide whether a catch-up is warranted.
 
 ```sh
-git log --oneline -1 -- apps/examples/desktop-app/webview/lib/whats-new-content.ts
-sed -n '1,80p' apps/examples/desktop-app/CHANGELOG.md
+git log --oneline -1 -- apps/desktop/webview/lib/whats-new-content.ts
+sed -n '1,80p' apps/desktop/CHANGELOG.md
 ```
 
 Read the changelog sections since the last catch-up (the first entry's `id` is date-prefixed; the git log above shows when it landed). A catch-up needs **3–4 features a user would change how they work for** — new capabilities, not fixes or polish. If there are fewer, say so and stop; the About page already covers everything else. Never ship a catch-up for a single release or for bug fixes.
@@ -38,7 +38,7 @@ Read the changelog sections since the last catch-up (the first entry's `id` is d
 - **Icon**: a `lucide-react` icon that already exists in the codebase or the lucide set (`Network`, `GitBranchPlus`, `GitPullRequest`, `Users`, `Terminal`, `Mic`, `Cloud`, …).
 - Order highlights by impact, top-left first.
 
-3. Add the entry to the **top** of `WHATS_NEW_RELEASES` in `apps/examples/desktop-app/webview/lib/whats-new-content.ts`.
+3. Add the entry to the **top** of `WHATS_NEW_RELEASES` in `apps/desktop/webview/lib/whats-new-content.ts`.
 
 ```ts
 {
@@ -56,12 +56,12 @@ Import any new icons at the top of the file. The `id` is what the seen-tracking 
 4. Verify.
 
 ```sh
-cd apps/examples/desktop-app
+cd apps/desktop
 bunx vitest run webview/lib/whats-new.test.ts --config vitest.config.ts   # ids unique, newest resolves
 bun run typecheck
 ```
 
-Then preview in the app. From `apps/examples/desktop-app`, start `bun run dev:sidecar` and `bun run dev:web` (or `bun run dev` for the native window), open Settings → About → "Show what's new", and check both themes (General → Dark mode). Confirm no description wraps past three lines at the default font size and the headline fits on one line at 560px. Also confirm the dialog appears on launch for a returning user: clear `cline.code.whats-new.v1` from localStorage and reload.
+Then preview in the app. From `apps/desktop`, start `bun run dev:sidecar` and `bun run dev:web` (or `bun run dev` for the native window), open Settings → About → "Show what's new", and check both themes (General → Dark mode). Confirm no description wraps past three lines at the default font size and the headline fits on one line at 560px. Also confirm the dialog appears on launch for a returning user: clear `cline.code.whats-new.v1` from localStorage and reload.
 
 5. Ship it. The catch-up rides the next desktop release; nothing else is needed. Do not add a changelog bullet for the catch-up itself. If the user asks to release, hand off to the `publish-desktop` skill.
 

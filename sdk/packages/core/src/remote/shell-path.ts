@@ -26,7 +26,7 @@ const PATH_MARKER_END = "__CLINE_SIDECAR_PATH_END__";
  * missing runtimes for everything the sidecar spawns (cline/cline#14129).
  * Worst case both attempts together take 1.5x this budget (see
  * ensureLoginShellPath), comfortably inside the Tauri shell's 30s
- * endpoint-readiness wait (apps/examples/desktop-app/src-tauri/src/main.rs).
+ * endpoint-readiness wait (apps/desktop/src-tauri/src/main.rs).
  */
 const SHELL_TIMEOUT_MS = 5_000;
 

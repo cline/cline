@@ -22,7 +22,7 @@ export function releaseUrl(version: string): string {
 	return `${REPO_URL}/releases/tag/desktop-v${version}`;
 }
 
-export const CHANGELOG_URL_ON_GITHUB = `${REPO_URL}/blob/main/apps/examples/desktop-app/CHANGELOG.md`;
+export const CHANGELOG_URL_ON_GITHUB = `${REPO_URL}/blob/main/apps/desktop/CHANGELOG.md`;
 export const ISSUES_URL = `${REPO_URL}/issues/new/choose`;
 
 /**

@@ -16,7 +16,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compileCliBinary } from "../../../cli/script/compile-binary";
+import { compileCliBinary } from "../../cli/script/compile-binary";
 
 // Exercise the shipped runtime artifacts: the compiled Cline CLI that starts
 // the Hub and the backend bundle that runs on its embedded runtime. Source-only
@@ -75,7 +75,7 @@ function resolveBackendBundle(): string {
 		cpSync(
 			fileURLToPath(
 				new URL(
-					"../../../../sdk/packages/core/dist/plugin-runtime",
+					"../../../sdk/packages/core/dist/plugin-runtime",
 					import.meta.url,
 				),
 			),

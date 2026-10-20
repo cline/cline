@@ -30,7 +30,7 @@ function MockDiff({ label }: { label: string }) {
 
 const files = [
 	"sdk/packages/ui/components/agent-changes.tsx",
-	"apps/examples/desktop-app/webview/components/views/chat/diff-view.tsx",
+	"apps/desktop/webview/components/views/chat/diff-view.tsx",
 ];
 
 function PanelFrame({
@@ -77,7 +77,7 @@ function Changes({ collapsed = false, long = false, narrow = false }) {
 	const paths = long
 		? Array.from({ length: 12 }, (_, index) =>
 				index === 0
-					? "apps/examples/desktop-app/webview/components/views/chat/a-very-long-file-name-for-responsive-layout.tsx"
+					? "apps/desktop/webview/components/views/chat/a-very-long-file-name-for-responsive-layout.tsx"
 					: `sdk/packages/ui/components/example-${index}.tsx`,
 			)
 		: files;
