@@ -32,6 +32,24 @@ sessions, not an active session's commands. Built-in command precedence and
 rendering remain host responsibilities. Preserve the original arguments when
 dispatching.
 
+## Model request retries and Langfuse
+
+AI SDK text requests allow three retries after the initial request (four total
+attempts) for retryable request-start failures. Provider errors received after
+streaming starts have a separate budget of three stream retries. Exhausting
+either budget does not trigger another whole-turn retry.
+
+When Langfuse tracing is enabled, each failed request-start or stream attempt
+records its error on its model-call span, including attempts followed by a
+successful retry. Request-start failures close their attempt spans before retry
+backoff begins. A recovered request keeps a successful overall trace; exhausted
+retries mark the overall operation as failed. Span export follows the configured
+telemetry processor's flushing policy.
+
+Caller cancellation closes model-call spans without recording an exception or
+marking a provider failure, including cancellation before the response opens.
+Timeout cancellations remain failures.
+
 ## Oversized tool result recovery
 
 Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
