@@ -184,3 +184,52 @@ export function listSessionAgents(
 	}
 	return out;
 }
+
+const TEAMMATE_SESSION_TTL_MS = 2_000;
+const teammateSessionCache = new Map<
+	string,
+	{ sessionId?: string; checkedAt: number }
+>();
+
+/**
+ * The child session of the teammate run `agentId` is working in under
+ * `rootSessionId`: its latest team-task run. Teammate events stream under the
+ * root session carrying only the agent id, so this is what routes them to the
+ * session they belong to. Lookups are cached briefly because events arrive per
+ * streamed chunk, and refreshed so a teammate's next run is picked up.
+ */
+export function resolveTeammateSessionId(
+	rootSessionId: string,
+	agentId: string,
+	now = Date.now(),
+): string | undefined {
+	const key = `${rootSessionId}\u0000${agentId}`;
+	const cached = teammateSessionCache.get(key);
+	if (cached && now - cached.checkedAt < TEAMMATE_SESSION_TTL_MS) {
+		return cached.sessionId;
+	}
+	let latest: { sessionId: string; startedAt: string } | undefined;
+	try {
+		for (const record of new SqliteSessionStore().listChildren(
+			rootSessionId,
+			200,
+		)) {
+			if (
+				record.agentId?.trim() !== agentId ||
+				!record.sessionId.includes(TEAM_TASK_MARKER)
+			) {
+				continue;
+			}
+			if (!latest || record.startedAt > latest.startedAt) {
+				latest = { sessionId: record.sessionId, startedAt: record.startedAt };
+			}
+		}
+	} catch {
+		// No session database on this host; nothing to route to.
+	}
+	teammateSessionCache.set(key, {
+		sessionId: latest?.sessionId,
+		checkedAt: now,
+	});
+	return latest?.sessionId;
+}

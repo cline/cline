@@ -18,6 +18,17 @@ const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
 const updateCapabilitiesMock = vi.hoisted(() => vi.fn());
 
+vi.mock("./session-data/agents", async () => {
+	const actual = await vi.importActual<typeof import("./session-data/agents")>(
+		"./session-data/agents",
+	);
+	return {
+		...actual,
+		resolveTeammateSessionId: (_rootSessionId: string, agentId: string) =>
+			agentId === "reviewer" ? "child-reviewer" : undefined,
+	};
+});
+
 vi.mock("@ai-sdk/provider-utils", () => ({
 	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
 }));
@@ -1763,29 +1774,38 @@ describe("Chat chunk pipe selection", () => {
 		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
 	});
 
-	it("keeps teammate output out of the lead session's stream", async () => {
+	it("routes teammate output to its own session, never the lead's", async () => {
 		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
 			"./context"
 		);
 		const ctx = await createStreamingContext("session-1");
+		const teammateText = (teamAgentId: string, text: string) =>
+			({
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					teamRole: "teammate",
+					teamAgentId,
+					event: { type: "content_start", contentType: "text", text },
+				},
+			}) as never;
 
-		handleCoreSessionEvent(ctx, {
-			type: "agent_event",
-			payload: {
-				sessionId: "session-1",
-				teamRole: "teammate",
-				teamAgentId: "reviewer",
-				event: { type: "content_start", contentType: "text", text: "nope" },
-			},
-		} as never);
+		handleCoreSessionEvent(ctx, teammateText("reviewer", "Reviewing"));
+		handleCoreSessionEvent(ctx, teammateText("ghost", "unroutable"));
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
-			payload: { text: "nope", agent: { teamRole: "teammate" } },
+			payload: { text: "observer copy", agent: { teamRole: "teammate" } },
 		});
 		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "lead"));
 
-		expect(chunksFor(ctx, "chat_text")).toEqual(["lead"]);
+		const textBySession = eventsFor(ctx, "chat_event")
+			.filter((payload) => payload.stream === "chat_text")
+			.map((payload) => [payload.sessionId, payload.chunk]);
+		expect(textBySession).toEqual([
+			["child-reviewer", "Reviewing"],
+			["session-1", "lead"],
+		]);
 	});
 
 	it("mutes the whole observer projection, not just text", async () => {

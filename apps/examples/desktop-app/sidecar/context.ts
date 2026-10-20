@@ -31,6 +31,7 @@ import {
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
 import { sessionLogPath } from "./paths";
+import { resolveTeammateSessionId } from "./session-data/agents";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -549,12 +550,26 @@ export function handleCoreSessionEvent(
 			break;
 		}
 		case "agent_event": {
-			const { sessionId, event: agentEvent, teamRole } = event.payload;
+			const {
+				sessionId,
+				event: agentEvent,
+				teamRole,
+				teamAgentId,
+			} = event.payload;
 			// Teammates stream under the root session, but their work belongs to
-			// their own child sessions and the team panel. In the lead's stream it
-			// would interleave with the lead's text, and a teammate's `done` or
-			// usage would be taken for the lead's.
-			if (teamRole === "teammate") break;
+			// their own child sessions. In the lead's stream it would interleave
+			// with the lead's text, and a teammate's `done` or usage would be taken
+			// for the lead's; routed to the child session, an open teammate view
+			// follows along live.
+			if (teamRole === "teammate") {
+				const teammateSessionId = teamAgentId
+					? resolveTeammateSessionId(sessionId, teamAgentId)
+					: undefined;
+				if (teammateSessionId) {
+					handleAgentEvent(ctx, teammateSessionId, agentEvent);
+				}
+				break;
+			}
 			handleAgentEvent(ctx, sessionId, agentEvent);
 			break;
 		}
