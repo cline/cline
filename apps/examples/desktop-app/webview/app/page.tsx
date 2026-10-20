@@ -40,6 +40,7 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
+import { TeamPanel } from "@/components/views/chat/team-panel";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
@@ -61,6 +62,7 @@ import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
+import { useTeamProgress } from "@/hooks/use-team-progress";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -127,6 +129,7 @@ import {
 import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
+import { buildTeamMembers } from "@/lib/team-activity";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	markCurrentWhatsNewSeen,
@@ -2419,6 +2422,53 @@ function ChatThreadPane({
 		},
 		[environmentId, onOpenSessionById],
 	);
+	// A teammate's own session shows its parent's team, so moving between
+	// teammates never requires going back to the main session first.
+	const { agents: parentAgents } = useSessionAgents({
+		environmentId,
+		sessionId: isCloudSession ? null : (parentSession?.sessionId ?? null),
+		sessionActive: false,
+	});
+	const teamAgents = parentSession ? parentAgents : agents;
+	const teamProgress = useTeamProgress(
+		isCloudSession ? null : (parentSession?.sessionId ?? displayedSessionId),
+	);
+	const teamMembers = useMemo(
+		() => buildTeamMembers(teamAgents, teamProgress),
+		[teamAgents, teamProgress],
+	);
+	const teamName = useMemo(
+		() =>
+			teamAgents.find((agent) => agent.kind === "teamtask" && agent.teamName)
+				?.teamName,
+		[teamAgents],
+	);
+	const openTeammateSession = useCallback(
+		(agentSessionId: string) => {
+			void onOpenAgentSession(agentSessionId);
+		},
+		[onOpenAgentSession],
+	);
+	// Memoized: the composer is memoized on referentially stable props, and this
+	// pane re-renders on every stream flush.
+	const teamPanel = useMemo(
+		() =>
+			teamMembers.length > 0 ? (
+				<TeamPanel
+					activeSessionId={parentSession ? displayedSessionId : null}
+					members={teamMembers}
+					onOpenSession={openTeammateSession}
+					teamName={teamName}
+				/>
+			) : null,
+		[
+			displayedSessionId,
+			openTeammateSession,
+			parentSession,
+			teamMembers,
+			teamName,
+		],
+	);
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -2521,6 +2571,7 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			aboveInput={teamPanel}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}
