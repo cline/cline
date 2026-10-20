@@ -395,6 +395,36 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 			session.sessionId,
 		);
 	});
+	it("exposes session plugin commands loaded in subprocess mode", async () => {
+		const previousMode = process.env.CLINE_PLUGIN_MODE;
+		process.env.CLINE_PLUGIN_MODE = "sandbox";
+		try {
+			const session = await runtime.startSession({
+				...splitCoreSessionConfig({
+					cwd: root,
+					workspaceRoot: root,
+					providerId: "openai-native",
+					modelId: "gpt-4o-mini",
+					apiKey: "test",
+					systemPrompt: "test",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				}),
+				interactive: true,
+			});
+			const target = { workspacePath: root, sessionId: session.sessionId };
+			expect((await runtime.pluginCommands.list(target)).commands).toEqual([
+				{ name: "counter" },
+			]);
+			expect(
+				await runtime.pluginCommands.run({ ...target, prompt: "/counter x" }),
+			).toMatchObject({ reply: `${session.sessionId}:1:x` });
+		} finally {
+			if (previousMode === undefined) delete process.env.CLINE_PLUGIN_MODE;
+			else process.env.CLINE_PLUGIN_MODE = previousMode;
+		}
+	});
 	it("does not expose session skills as plugin commands", async () => {
 		const skill = join(root, ".cline", "skills", "hello-skill");
 		await mkdir(skill, { recursive: true });
