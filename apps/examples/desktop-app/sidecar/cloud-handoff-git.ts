@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { normalizeGitHubRemoteUrl } from "@cline/core";
 
+const isolatedHookNotice =
+	"If a repository hook failed, it ran in an isolated checkout without your local dependencies or generated files.";
+
 export type HandoffGitPlan = {
 	id: string;
 	root: string;
@@ -64,7 +67,7 @@ async function git(
 	} catch {
 		// Git errors can contain credential-bearing URLs or hook output.
 		throw new Error(
-			`Git ${args[0]} failed. Check Git authentication, permissions, and repository state.`,
+			`Git ${args[0]} failed. Check Git authentication, permissions, and repository state.${options.hooksPath ? ` ${isolatedHookNotice}` : ""}`,
 		);
 	}
 }
@@ -134,6 +137,43 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 			"Potentially sensitive files need review before cloud preparation. Keep private files out of the changes and unpublished history before retrying /cloud.",
 		);
 	}
+	const indexTree = await git(root, ["write-tree"]);
+	const temporary = await mkdtemp(join(tmpdir(), "cline-handoff-index-"));
+	let treeSha: string;
+	try {
+		const env = { GIT_INDEX_FILE: join(temporary, "index") };
+		await git(root, ["read-tree", indexTree], { env });
+		await git(root, ["add", "-A", "--", ":/"], { env });
+		treeSha = await git(root, ["write-tree"], { env });
+	} finally {
+		await rm(temporary, { recursive: true, force: true });
+	}
+	const candidateSubmodules = (
+		await git(root, ["ls-tree", "-r", "-z", treeSha])
+	)
+		.split("\0")
+		.filter((entry) => entry.startsWith("160000 "))
+		.map((entry) => entry.slice(entry.indexOf("\t") + 1));
+	if (candidateSubmodules.some((path) => !submodules.includes(path)))
+		throw new Error(
+			"Nested Git repositories cannot be included in automatic cloud preparation. Review them before continuing.",
+		);
+	if (
+		(await git(root, [
+			"status",
+			"--porcelain=v1",
+			"-z",
+			"--untracked-files=all",
+			"--ignore-submodules=none",
+			"--no-renames",
+		])) !== status ||
+		(await git(root, ["rev-parse", "HEAD"])) !== headSha ||
+		(await git(root, ["write-tree"])) !== indexTree
+	) {
+		throw new Error(
+			"The repository changed while preparing the preview. Run /cloud again.",
+		);
+	}
 	const remote =
 		(await optionalConfig(root, `branch.${sourceBranch}.remote`)) || "origin";
 	if (remote === "." || remote.startsWith("-"))
@@ -201,43 +241,6 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 	if (historicalPaths.split("\0").some(isSensitivePath)) {
 		throw new Error(
 			"Potentially sensitive files exist in unpublished history, even if deleted later. Review that history before retrying /cloud; no branch was created or pushed.",
-		);
-	}
-	const indexTree = await git(root, ["write-tree"]);
-	const temporary = await mkdtemp(join(tmpdir(), "cline-handoff-index-"));
-	let treeSha: string;
-	try {
-		const env = { GIT_INDEX_FILE: join(temporary, "index") };
-		await git(root, ["read-tree", indexTree], { env });
-		await git(root, ["add", "-A", "--", ":/"], { env });
-		treeSha = await git(root, ["write-tree"], { env });
-	} finally {
-		await rm(temporary, { recursive: true, force: true });
-	}
-	const candidateSubmodules = (
-		await git(root, ["ls-tree", "-r", "-z", treeSha])
-	)
-		.split("\0")
-		.filter((entry) => entry.startsWith("160000 "))
-		.map((entry) => entry.slice(entry.indexOf("\t") + 1));
-	if (candidateSubmodules.some((path) => !submodules.includes(path)))
-		throw new Error(
-			"Nested Git repositories cannot be included in automatic cloud preparation. Review them before continuing.",
-		);
-	if (
-		(await git(root, [
-			"status",
-			"--porcelain=v1",
-			"-z",
-			"--untracked-files=all",
-			"--ignore-submodules=none",
-			"--no-renames",
-		])) !== status ||
-		(await git(root, ["rev-parse", "HEAD"])) !== headSha ||
-		(await git(root, ["write-tree"])) !== indexTree
-	) {
-		throw new Error(
-			"The repository changed while preparing the preview. Run /cloud again.",
 		);
 	}
 	return {
@@ -396,7 +399,7 @@ export async function applyHandoffGit(plan: HandoffGitPlan): Promise<string> {
 	} catch (error) {
 		if (pushing) {
 			throw new Error(
-				`Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying.`,
+				`Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying. ${isolatedHookNotice}`,
 			);
 		}
 		throw new Error(

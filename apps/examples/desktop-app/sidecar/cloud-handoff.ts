@@ -321,7 +321,7 @@ async function handleHandoffOnce(
 		warning =
 			warningKind === "unconfirmed"
 				? "The cloud session was created, but delivery is unconfirmed. Check the conversation before resending."
-				: "The cloud session was created, but the prepared prompt could not be sent. Open it to continue.";
+				: "The cloud workspace was created, but the prompt was not sent. Keep Cline open to retry; closing it loses the unsent draft and may require a new cloud task.";
 	}
 	const result = {
 		sourceSessionId,

@@ -507,6 +507,11 @@ describe("summary cloud handoff", () => {
 		expect(result).toMatchObject({
 			sessionId: "ses-target",
 			warningKind: dispatched ? "unconfirmed" : "unqueued",
+			warning: expect.stringContaining(
+				dispatched
+					? "delivery is unconfirmed"
+					: "closing it loses the unsent draft",
+			),
 		});
 		expect(completed).toEqual([expect.objectContaining(result)]);
 	});

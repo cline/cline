@@ -23,6 +23,7 @@ const transport = vi.hoisted(() => ({
 	pushUrl: "https://github.com/cline/todo-app",
 	rejectPush: false,
 	rejectFetch: false,
+	beforeFetch: () => {},
 }));
 vi.mock("node:child_process", async (original) => {
 	const actual = await original<typeof import("node:child_process")>();
@@ -59,6 +60,7 @@ vi.mock("node:child_process", async (original) => {
 			return { stdin: null };
 		}
 		const mapped = [...args];
+		if (args[0] === "fetch") transport.beforeFetch();
 		if (push >= 0) mapped[push + 1] = transport.remote;
 		return actual.execFile(file, mapped, options, callback);
 	};
@@ -81,6 +83,7 @@ beforeEach(() => {
 	transport.fetchUrl = transport.pushUrl = "https://github.com/cline/todo-app";
 	transport.rejectPush = false;
 	transport.rejectFetch = false;
+	transport.beforeFetch = () => {};
 	git("init", "-b", "main");
 	git("config", "user.email", "qa@example.com");
 	git("config", "user.name", "QA");
@@ -309,6 +312,21 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("branch", "--show-current")).toBe("main");
 	});
 
+	it("captures file contents before remote inspection while local edits continue", async () => {
+		writeFileSync(join(repo, "tracked.txt"), "captured with conversation\n");
+		transport.beforeFetch = () => {
+			writeFileSync(join(repo, "tracked.txt"), "later local turn\n");
+		};
+		const plan = await inspectHandoffGit(repo);
+		await applyHandoffGit(plan);
+		expect(
+			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),
+		).toBe("captured with conversation");
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe(
+			"later local turn\n",
+		);
+	});
+
 	it("rejects a changed publication destination", async () => {
 		const plan = await inspectHandoffGit(repo);
 		transport.fetchUrl = transport.pushUrl = "https://github.com/cline/another";
@@ -338,7 +356,9 @@ describe("cloud handoff Git preparation", () => {
 		const plan = await inspectHandoffGit(repo);
 		transport.rejectPush = true;
 		await expect(applyHandoffGit(plan)).rejects.toMatchObject({
-			message: `Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}. Check GitHub write access and your connection before retrying.`,
+			message: expect.stringContaining(
+				`Couldn't complete the push. Your checkpoint is saved locally on ${plan.branch}.`,
+			),
 		});
 		expect(git("branch", "--show-current")).toBe("main");
 		expect(git("show", `${plan.branch}:tracked.txt`)).toBe("keep this");
@@ -369,18 +389,31 @@ describe("cloud handoff Git preparation", () => {
 	it.each([
 		"pre-commit",
 		"pre-push",
-	])("runs generated %s hooks configured with a relative path", async (hook) => {
-		writeFileSync(join(repo, ".gitignore"), ".hooks/\n");
+	])("explains when a %s hook needs tools absent from the isolated checkout", async (hook) => {
+		writeFileSync(join(repo, ".gitignore"), ".hooks/\nnode_modules/\n");
 		git("add", ".gitignore");
 		git("commit", "-m", "ignore generated hooks");
 		mkdirSync(join(repo, ".hooks"));
-		writeFileSync(join(repo, ".hooks", hook), "#!/bin/sh\nexit 1\n", {
-			mode: 0o755,
-		});
+		mkdirSync(join(repo, "node_modules/.bin"), { recursive: true });
+		writeFileSync(
+			join(repo, "node_modules/.bin/check"),
+			"#!/bin/sh\nexit 0\n",
+			{
+				mode: 0o755,
+			},
+		);
+		writeFileSync(
+			join(repo, ".hooks", hook),
+			"#!/bin/sh\n./node_modules/.bin/check\n",
+			{
+				mode: 0o755,
+			},
+		);
 		git("config", "core.hooksPath", ".hooks");
+		git("hook", "run", hook);
 		writeFileSync(join(repo, "tracked.txt"), "approved\n");
 		const plan = await inspectHandoffGit(repo);
-		await expect(applyHandoffGit(plan)).rejects.toThrow();
+		await expect(applyHandoffGit(plan)).rejects.toThrow("isolated checkout");
 		expect(git("ls-remote", "origin", `refs/heads/${plan.branch}`)).toBe("");
 		expect(git("branch", "--show-current")).toBe("main");
 		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("approved\n");
