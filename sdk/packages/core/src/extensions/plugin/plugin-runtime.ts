@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SubprocessSandboxLauncher } from "../../runtime/tools/subprocess-sandbox";
 
@@ -21,11 +21,12 @@ function isPluginRuntime(directory: string): boolean {
 export function resolvePluginRuntimeDirectory(): string | undefined {
 	const configured = process.env[CLINE_PLUGIN_RUNTIME_DIR_ENV]?.trim();
 	if (configured) {
-		if (!isPluginRuntime(configured))
+		const resolved = resolve(configured);
+		if (!isPluginRuntime(resolved))
 			throw new Error(
 				`${CLINE_PLUGIN_RUNTIME_DIR_ENV} does not contain a complete plugin runtime: ${configured}`,
 			);
-		return configured;
+		return resolved;
 	}
 	if (typeof __CLINE_PLUGIN_RUNTIME_DIR__ !== "undefined")
 		return __CLINE_PLUGIN_RUNTIME_DIR__;
