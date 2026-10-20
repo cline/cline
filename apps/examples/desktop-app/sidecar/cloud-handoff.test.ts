@@ -85,17 +85,18 @@ function fixture() {
 	const update = vi.fn();
 	const readLiveMessages = vi.fn().mockResolvedValue(messages);
 	const pending = vi.fn().mockResolvedValue([]);
+	const get = vi.fn().mockResolvedValue({
+		sessionId: sourceSessionId,
+		status: "idle",
+		cwd: config.cwd,
+		provider: "cline",
+		model: modelId,
+	});
 	const ctx = Object.assign(
 		createSidecarContext(config.cwd),
 		localRuntimeContext(
 			{
-				get: vi.fn().mockResolvedValue({
-					sessionId: sourceSessionId,
-					status: "idle",
-					cwd: config.cwd,
-					provider: "cline",
-					model: modelId,
-				}),
+				get,
 				readLiveMessages,
 				update,
 				pendingPrompts: { list: pending },
@@ -165,6 +166,7 @@ function fixture() {
 		messages,
 		update,
 		pending,
+		get,
 		readLiveMessages,
 		prepare,
 		handoff: (input = request) => handleHandoff(ctx, input, summarize),
@@ -197,12 +199,9 @@ describe("summary cloud handoff", () => {
 				await resetCloudSessionManager(f.ctx);
 			});
 		if (stage === "model")
-			f.apply.mockImplementation(async () => {
-				vi.mocked(loadCloudModels).mockImplementation(async () => {
-					await resetCloudSessionManager(f.ctx);
-					return [{ id: "test-model", catalogId: "cline-cloud", name: "Test" }];
-				});
-				return f.git.headSha;
+			vi.mocked(loadCloudModels).mockImplementation(async () => {
+				await resetCloudSessionManager(f.ctx);
+				return [{ id: "test-model", catalogId: "cline-cloud", name: "Test" }];
 			});
 		await expect(f.handoff(f.request)).rejects.toThrow("account changed");
 		if (stage === "preview" || stage === "summary")
@@ -252,7 +251,7 @@ describe("summary cloud handoff", () => {
 		expect(f.ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it("excludes competing previews and joins duplicate confirmed requests", async () => {
+	it("rejects competing previews and duplicate confirmed requests", async () => {
 		const f = fixture();
 		const first = handlePrepareHandoff(f.ctx, f.request);
 		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
@@ -261,15 +260,18 @@ describe("summary cloud handoff", () => {
 		await first;
 		expect(f.readLiveMessages).toHaveBeenCalledTimes(1);
 		expect(gitPreparation.inspectHandoffGit).toHaveBeenCalledTimes(1);
+		const summary = Promise.withResolvers<string>();
+		f.summarize.mockReturnValue(summary.promise);
 		const execution = f.handoff();
-		const duplicate = f.handoff();
+		await expect(f.handoff()).rejects.toThrow("already in progress");
 		await expect(
 			f.handoff({ ...f.request, nextCommand: "other" }),
 		).rejects.toThrow("already in progress");
 		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
 			"already in progress",
 		);
-		expect(await duplicate).toEqual(await execution);
+		summary.resolve("Prepared summary");
+		expect(await execution).toMatchObject({ sessionId: "ses-target" });
 		expect(f.summarize).toHaveBeenCalledOnce();
 		expect(f.apply).toHaveBeenCalledOnce();
 		expect(f.create).toHaveBeenCalledOnce();
@@ -404,6 +406,7 @@ describe("summary cloud handoff", () => {
 
 	it.each([
 		"busy",
+		"running in Hub",
 		"queued",
 	] as const)("rejects a %s source before Git preparation", async (state) => {
 		const f = fixture();
@@ -411,9 +414,14 @@ describe("summary cloud handoff", () => {
 			const source = f.ctx.liveSessions.get(f.sourceSessionId);
 			if (!source) throw new Error("Source fixture is missing");
 			source.busy = true;
+		} else if (state === "running in Hub") {
+			f.get.mockResolvedValue({
+				sessionId: f.sourceSessionId,
+				status: "running",
+			});
 		} else f.pending.mockResolvedValue([{ id: "queued" }]);
 		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
-			state === "busy" ? "current run" : "queued prompts",
+			state === "queued" ? "queued prompts" : "current run",
 		);
 		expect(f.apply).not.toHaveBeenCalled();
 		expect(f.create).not.toHaveBeenCalled();
@@ -443,7 +451,7 @@ describe("summary cloud handoff", () => {
 	it.each([
 		"git",
 		"model",
-	] as const)("rejects published %s becoming unavailable before handoff", async (changed) => {
+	] as const)("rejects %s becoming unavailable after preview", async (changed) => {
 		const f = fixture();
 		await f.prepare();
 		if (changed === "git")
@@ -451,21 +459,14 @@ describe("summary cloud handoff", () => {
 				new Error("Published branch changed"),
 			);
 		else
-			f.apply.mockImplementation(async () => {
-				vi.mocked(loadCloudModels).mockResolvedValue([
-					{ id: "other-model", catalogId: "cline-cloud", name: "Other" },
-				]);
-				return f.git.headSha;
-			});
-		await expect(
-			f.handoff({
-				...f.request,
-				...(changed === "model"
-					? { config: { ...f.request.config, model: "other-model" } }
-					: {}),
-			}),
-		).rejects.toThrow(changed === "git" ? "changed" : "not available");
-		expect(f.summarize).toHaveBeenCalledTimes(1);
+			vi.mocked(loadCloudModels).mockResolvedValue([
+				{ id: "other-model", catalogId: "cline-cloud", name: "Other" },
+			]);
+		await expect(f.handoff()).rejects.toThrow(
+			changed === "git" ? "changed" : "not available",
+		);
+		expect(f.summarize).toHaveBeenCalledTimes(changed === "git" ? 1 : 0);
+		if (changed === "model") expect(f.apply).not.toHaveBeenCalled();
 		expect(f.create).not.toHaveBeenCalled();
 		expect(f.update).not.toHaveBeenCalled();
 	});

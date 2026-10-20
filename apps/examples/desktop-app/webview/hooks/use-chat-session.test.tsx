@@ -2484,15 +2484,6 @@ describe("useChatSession", () => {
 			}),
 		);
 		await act(async () => current.sendPrompt("Keep working"));
-		expect(invokeMock).toHaveBeenCalledWith(
-			"chat_session_command",
-			{
-				request: expect.objectContaining({
-					action: "send",
-				}),
-			},
-			{ timeoutMs: null },
-		);
 
 		expect(current.status).toBe("running");
 		expect(current.error).toBeNull();

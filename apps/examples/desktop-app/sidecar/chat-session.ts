@@ -7,7 +7,6 @@ import {
 	type ClineCore,
 	type ClineCoreStartConfig,
 	createContextCompactionPrepareTurn,
-	createForkSessionMetadata,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
@@ -449,13 +448,12 @@ function createLiveSession(
 		config,
 		messages: overrides?.messages ?? [],
 		promptsInQueue: overrides?.promptsInQueue ?? [],
-		busy: overrides?.busy ?? false,
+		busy: false,
 		startedAt: nowMs(),
 		status: overrides?.status ?? "idle",
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
-		lastHubStatusSequence: overrides?.lastHubStatusSequence,
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -1170,27 +1168,8 @@ async function handleAttach(
 		session.metadata && typeof session.metadata === "object"
 			? (session.metadata as JsonRecord)
 			: undefined;
-	const reply = await binding.hubClient.command(
-		"session.attach",
-		{ sessionId },
-		sessionId,
-	);
-	const attachedSession = reply.payload?.session;
-	const replyStatus =
-		attachedSession &&
-		typeof attachedSession === "object" &&
-		"status" in attachedSession &&
-		typeof attachedSession.status === "string"
-			? attachedSession.status
-			: undefined;
-	// Only observed live state can override Core's resident-process snapshot.
 	const existing = ctx.liveSessions.get(sessionId);
-	const liveStatus =
-		existing &&
-		(existing.attachedViaHub || manager.hasSessionSubscription(sessionId))
-			? existing
-			: undefined;
-	const attachedStatus = liveStatus?.status ?? replyStatus ?? session.status;
+	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
@@ -1215,11 +1194,7 @@ async function handleAttach(
 			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
-			status: attachedStatus,
-			busy:
-				liveStatus?.busy ??
-				(attachedStatus === "running" || attachedStatus === "pending"),
-			lastHubStatusSequence: existing?.lastHubStatusSequence,
+			status: session.status,
 			prompt:
 				session.prompt ||
 				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
@@ -1241,7 +1216,7 @@ async function handleAttach(
 	return {
 		sessionId,
 		environmentId: binding.environmentId,
-		status: attachedStatus,
+		status: session.status,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,
@@ -2149,17 +2124,26 @@ async function handleForkUnlocked(
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(baseForkConfig)
 			: baseForkConfig;
+	const checkpointMetadata =
+		sourceMetadata?.checkpoint !== undefined
+			? { checkpoints: sourceMetadata.checkpoint }
+			: {};
 	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
-	const forkMetadata = createForkSessionMetadata({
-		metadata: sourceMetadata,
-		forkedFromSessionId: sourceSessionId,
-		forkedAt: new Date().toISOString(),
-		source: sourceSession?.source ?? "desktop",
-		beforeRunCount: forkBeforeRunCount,
-	});
+	const forkMetadata: JsonRecord = {
+		...(sourceMetadata ?? {}),
+		fork: {
+			forkedFromSessionId: sourceSessionId,
+			forkedAt: new Date().toISOString(),
+			source: sourceSession?.source ?? "desktop",
+			...(forkBeforeRunCount !== undefined
+				? { beforeRunCount: forkBeforeRunCount }
+				: {}),
+			...checkpointMetadata,
+		},
+	};
 	const systemPrompt =
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(forkConfig)

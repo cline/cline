@@ -18,7 +18,7 @@ export type CloudHandoffUiEntry =
 			unsentDraft?: HandoffDraft;
 	  }
 	| {
-			status: "failed" | "retry_restored";
+			status: "failed";
 			message: string;
 			retryDraft: string;
 			retryAttachments: File[];
@@ -28,7 +28,7 @@ export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
 export type CloudHandoffUiAction =
 	| {
-			type: "start" | "dismiss" | "local_prompt_delivered" | "retry_restored";
+			type: "start" | "dismiss";
 			sourceSessionId: string;
 	  }
 	| {
@@ -93,13 +93,6 @@ export function cloudHandoffUiReducer(
 					retryAttachments: action.retryAttachments,
 				},
 			};
-		case "retry_restored":
-			return current?.status === "failed"
-				? {
-						...state,
-						[action.sourceSessionId]: { ...current, status: "retry_restored" },
-					}
-				: state;
 		case "cloud_draft_restored":
 			return current?.status === "complete" &&
 				current.unsentDraft === action.draft
@@ -119,13 +112,7 @@ export function cloudHandoffUiReducer(
 					unsentDraft: action.unsentDraft,
 				},
 			};
-		case "local_prompt_delivered":
 		case "dismiss": {
-			if (
-				action.type === "local_prompt_delivered" &&
-				current?.status !== "retry_restored"
-			)
-				return state;
 			const next = { ...state };
 			delete next[action.sourceSessionId];
 			return next;

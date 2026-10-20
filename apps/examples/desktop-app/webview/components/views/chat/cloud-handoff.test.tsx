@@ -133,20 +133,21 @@ describe("CloudHandoffStatus", () => {
 		let state = cloudHandoffUiReducer({}, { ...failure, retryAttachments: [] });
 		const restore = vi.fn(() => {
 			state = cloudHandoffUiReducer(state, {
-				type: "retry_restored",
+				type: "dismiss",
 				sourceSessionId: "local",
 			});
 			root?.render(status());
 		});
-		const status = (key = "initial") => (
-			<CloudHandoffStatus
-				key={key}
-				state={state.local}
-				onOpenCloud={vi.fn()}
-				onRestoreDraft={restore}
-				onDismiss={vi.fn()}
-			/>
-		);
+		const status = (key = "initial") =>
+			state.local ? (
+				<CloudHandoffStatus
+					key={key}
+					state={state.local}
+					onOpenCloud={vi.fn()}
+					onRestoreDraft={restore}
+					onDismiss={vi.fn()}
+				/>
+			) : null;
 		const view = render(status());
 		expect(view.textContent).toContain("Summary failed");
 		expect(restore).not.toHaveBeenCalled();

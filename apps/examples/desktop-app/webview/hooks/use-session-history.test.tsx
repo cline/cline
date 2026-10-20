@@ -5,7 +5,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sessionKey } from "../lib/session-identity";
 import {
-	resolveLiveHistorySession,
 	sessionActivityTimestamp,
 	useSessionHistory,
 } from "./use-session-history";
@@ -61,18 +60,6 @@ it("uses server activity when it is newer than local timestamps", () => {
 			lastActivityAt: "2026-07-20T12:00:00.000Z",
 		}),
 	).toBe(Date.parse("2026-07-20T12:00:00.000Z"));
-});
-
-describe("resolveLiveHistorySession", () => {
-	it("refreshes only the snapshot's environment when session IDs collide", () => {
-		const snapshot = sessionRow("shared-id");
-		const remote = { ...snapshot, environmentId: "ssh-1" };
-		const local = { ...snapshot, metadata: { title: "Local updated" } };
-
-		expect(resolveLiveHistorySession(snapshot, [remote, local])).toBe(local);
-		expect(resolveLiveHistorySession(snapshot, [remote])).toBe(snapshot);
-		expect(resolveLiveHistorySession(remote, [local, remote])).toBe(remote);
-	});
 });
 
 let container: HTMLDivElement;

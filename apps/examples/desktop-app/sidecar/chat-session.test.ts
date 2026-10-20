@@ -27,9 +27,7 @@ import {
 } from "./chat-session";
 import {
 	getEnvironmentContext,
-	getSessionRuntimeBinding,
 	handleCoreSessionEvent,
-	handleHubLiveEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
@@ -834,16 +832,7 @@ describe("session forks", () => {
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
-			expect.objectContaining({
-				initialMessages: sourceMessages,
-				sessionMetadata: {
-					fork: {
-						forkedFromSessionId: sourceSessionId,
-						forkedAt: expect.any(String),
-						source: "desktop",
-					},
-				},
-			}),
+			expect.objectContaining({ initialMessages: sourceMessages }),
 		);
 	});
 
@@ -1151,7 +1140,6 @@ describe("first-send connection updates", () => {
 		} as unknown as SidecarContext;
 		return {
 			ctx,
-			get,
 			readMessages,
 			readSessionCompactionState,
 			send,
@@ -1161,114 +1149,6 @@ describe("first-send connection updates", () => {
 			updateSessionConnection,
 		};
 	}
-
-	it("preserves a newer Hub idle event over a running attach reply", async () => {
-		const { ctx, sessionId } = createContext({ attachedViaHub: true });
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
-			handleHubLiveEvent(ctx, {
-				event: "session.attached",
-				sessionId,
-				sequence: 1,
-				payload: { session: { status: "running" } },
-			});
-			handleHubLiveEvent(ctx, {
-				event: "session.updated",
-				sessionId,
-				sequence: 2,
-				payload: { session: { status: "idle" } },
-			});
-			return {
-				version: "v1",
-				ok: true,
-				payload: { session: { status: "running" } },
-			};
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
-		).resolves.toMatchObject({ status: "idle" });
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "idle",
-			busy: false,
-		});
-	});
-
-	it.each([
-		"observer",
-		"core",
-	])("preserves a run started through %s while attach is pending", async (subscription) => {
-		enableCloudHandoffGates();
-		const { ctx, sessionId } = createContext({
-			attachedViaHub: subscription === "observer",
-		});
-		localSessionManager(ctx).get = vi.fn(async () => ({
-			sessionId,
-			status: "idle",
-		}));
-		localSessionManager(ctx).hasSessionSubscription = () =>
-			subscription === "core";
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		const attaching = Promise.withResolvers<void>();
-		const attached = Promise.withResolvers<void>();
-		vi.mocked(binding.hubClient.command).mockImplementationOnce(async () => {
-			attaching.resolve();
-			await attached.promise;
-			return {
-				version: "v1",
-				ok: true,
-				payload: { session: { status: "idle" } },
-			};
-		});
-		const result = handleChatSessionCommand(ctx, {
-			action: "attach",
-			sessionId,
-		});
-		await attaching.promise;
-		if (subscription === "observer")
-			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 2 });
-		else
-			handleCoreSessionEvent(ctx, {
-				type: "status",
-				payload: { sessionId, status: "running" },
-			});
-		attached.resolve();
-		await expect(result).resolves.toMatchObject({ status: "running" });
-		handleHubLiveEvent(ctx, {
-			event: "session.attached",
-			sessionId,
-			sequence: 1,
-			payload: { session: { status: "idle" } },
-		});
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
-		).rejects.toThrow(
-			"Wait for the current run to finish before using /cloud.",
-		);
-	});
-
-	it("uses the attach reply when no subscribed live state exists", async () => {
-		const { ctx, sessionId } = createContext();
-		const binding = ctx.runtimeBindings.get("local");
-		if (!binding) throw new Error("missing binding");
-		vi.mocked(binding.hubClient.command).mockResolvedValueOnce({
-			version: "v1",
-			ok: true,
-			payload: { session: { status: "pending" } },
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
-		).resolves.toMatchObject({ status: "pending" });
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "pending",
-			busy: true,
-		});
-	});
 
 	it("blocks handoff while a local prompt is still being prepared", async () => {
 		enableCloudHandoffGates();
@@ -1580,51 +1460,6 @@ describe("first-send connection updates", () => {
 			}
 			rmSync(testSessionDataDir, { recursive: true, force: true });
 		}
-	});
-
-	it.each([
-		"before",
-		"during",
-	])("reattaches a stopped local session when another client starts a run %s attach", async (when) => {
-		enableCloudHandoffGates();
-		const { ctx, sessionId } = createContext();
-		localSessionManager(ctx).hasSessionSubscription = () => false;
-		await handleChatSessionCommand(ctx, { action: "stop", sessionId });
-		if (when === "before")
-			handleHubLiveEvent(ctx, { event: "run.started", sessionId, sequence: 1 });
-		const running = { sessionId, status: "running" };
-		localSessionManager(ctx).get = vi.fn(async () =>
-			when === "before" ? running : { sessionId, status: "stopped" },
-		);
-		vi.mocked(
-			getSessionRuntimeBinding(ctx).hubClient.command,
-		).mockImplementationOnce(async () => {
-			if (when === "during")
-				handleHubLiveEvent(ctx, {
-					event: "run.started",
-					sessionId,
-					sequence: 1,
-				});
-			handleHubLiveEvent(ctx, {
-				event: "session.attached",
-				sessionId,
-				sequence: 2,
-				payload: { session: running },
-			});
-			return { version: "v1", ok: true, payload: { session: running } };
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "attach", sessionId }),
-		).resolves.toMatchObject({ status: "running" });
-		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
-			status: "running",
-			busy: true,
-		});
-		await expect(
-			handleChatSessionCommand(ctx, { action: "prepare_handoff", sessionId }),
-		).rejects.toThrow(
-			"Wait for the current run to finish before using /cloud.",
-		);
 	});
 
 	it("updates a changed connection before sending", async () => {

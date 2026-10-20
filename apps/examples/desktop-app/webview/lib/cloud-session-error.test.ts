@@ -66,16 +66,6 @@ describe("parseCloudSessionError", () => {
 		).toBe("Repository clone failed.");
 	});
 
-	it("replaces malformed environment mismatch details with actionable copy", () => {
-		expect(
-			humanizeCloudSessionError(
-				"The session belongs to environment undefined, not local.",
-			),
-		).toBe(
-			"Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
-		);
-	});
-
 	it("reassures handoff users when Cline Cloud is unreachable", () => {
 		for (const message of [
 			"fetch failed",

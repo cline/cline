@@ -65,10 +65,7 @@ import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { type PromptDraft, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useSessionAgents } from "@/hooks/use-session-agents";
-import {
-	resolveLiveHistorySession,
-	useSessionHistory,
-} from "@/hooks/use-session-history";
+import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
@@ -883,10 +880,6 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
-	const activeHistorySession = resolveLiveHistorySession(
-		activeThread?.historySession,
-		sessionHistory.sessions,
-	);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;
@@ -1162,7 +1155,7 @@ export default function Home() {
 													? activeRemoteEnvironment
 													: null
 											}
-											historySession={activeHistorySession}
+											historySession={activeThread.historySession}
 											liveHistorySession={
 												activeHistorySessionId
 													? sessionHistory.sessionById.get(
@@ -1591,6 +1584,9 @@ function ChatThreadPane({
 		config.repoUrl || historySession?.repoUrl,
 		isCloudSession && status === "starting",
 		liveProvisioningPhase ??
+			readCloudProvisioningPhase(
+				liveHistorySession?.metadata?.provisioningPhase,
+			) ??
 			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
 		historySession?.startedAt,
 	);
@@ -2162,7 +2158,7 @@ function ChatThreadPane({
 			handoffUi.retryDraft ? `/cloud ${handoffUi.retryDraft}` : "/cloud",
 		);
 		setPendingAttachments([...handoffUi.retryAttachments]);
-		onHandoffUiAction({ type: "retry_restored", sourceSessionId });
+		onHandoffUiAction({ type: "dismiss", sourceSessionId });
 	}, [
 		draftRef,
 		handoffUi,
@@ -2276,7 +2272,6 @@ function ChatThreadPane({
 							action: "handoff",
 							sessionId: sourceSessionId,
 							handoffAttemptId,
-							config,
 							gitPreparationId: gitPreparation.id,
 							nextCommand: nextCommand || undefined,
 							attachments: attachments.userImages.length
@@ -2338,17 +2333,14 @@ function ChatThreadPane({
 			// composer remounts (e.g. a transport blip re-showing the loader).
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			const finishPromptSend = clearPromptForSend();
+			const restorePrompt = clearPromptForSend();
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
 			});
-			if (promptTaken && !isCloudSession && sourceSessionId) {
-				onHandoffUiAction({ type: "local_prompt_delivered", sourceSessionId });
-			}
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping, but only if this pane still owns the unchanged draft.
-			if (finishPromptSend(!promptTaken ? trimmed : undefined)) {
+			if (!promptTaken && restorePrompt(trimmed)) {
 				handleAttachFiles(toSend);
 			}
 		},
@@ -2358,14 +2350,12 @@ function ChatThreadPane({
 			handleAttachFiles,
 			isCloudSession,
 			isNewThread,
-			onHandoffUiAction,
 			onThreadStarted,
 			pendingAttachments,
 			prepareHandoff,
 			sendPrompt,
 			sessionId,
 			setPendingAttachments,
-			sourceSessionId,
 			threadId,
 			cloudAgentsEnabled,
 			workIn,

@@ -888,7 +888,7 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(accepted()).toHaveLength(1);
 		await f.controller.dispose();
 	});
-	it("prevents dispatch if durable recovery cannot be saved", async () => {
+	it("prevents dispatch if beforeDispatch throws", async () => {
 		const f = await attached();
 		try {
 			await expect(

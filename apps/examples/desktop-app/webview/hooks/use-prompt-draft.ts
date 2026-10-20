@@ -9,7 +9,6 @@ import {
 export type PromptDraft = {
 	text: string;
 	attachments: File[];
-	revision: number;
 };
 
 /**
@@ -22,18 +21,20 @@ export function usePromptDraft(
 	threadId: string,
 ) {
 	const draftRef = useRef<PromptDraft>(
-		drafts.get(threadId) ?? { text: "", attachments: [], revision: 0 },
+		drafts.get(threadId) ?? { text: "", attachments: [] },
 	);
 	const promptInputRef = useRef(draftRef.current.text);
 	const [pendingAttachments, setAttachments] = useState(
 		draftRef.current.attachments,
 	);
 	const mountedRef = useRef(true);
+	const revisionRef = useRef(0);
 	useLayoutEffect(() => {
 		drafts.set(threadId, draftRef.current);
 		mountedRef.current = true;
 		return () => {
 			mountedRef.current = false;
+			revisionRef.current += 1;
 		};
 	}, [drafts, threadId]);
 	const setPendingAttachments = useCallback(
@@ -56,7 +57,7 @@ export function usePromptDraft(
 		if (!mountedRef.current) return;
 		// The composer echoes external replacements. Those acknowledgements
 		// aren't new edits and must not invalidate a pending send's recovery.
-		if (promptInputRef.current !== value) draftRef.current.revision += 1;
+		if (promptInputRef.current !== value) revisionRef.current += 1;
 		promptInputRef.current = value;
 		draftRef.current.text = value;
 	}, []);
@@ -64,7 +65,7 @@ export function usePromptDraft(
 		(value: string) => {
 			if (!mountedRef.current) return;
 			// Even an equal-valued external replacement supersedes pending work.
-			draftRef.current.revision += 1;
+			revisionRef.current += 1;
 			handlePromptInputChange(value);
 			setPromptDraft((prev) => ({ version: prev.version + 1, value }));
 		},
@@ -72,20 +73,19 @@ export function usePromptDraft(
 	);
 	const clearPromptForSend = useCallback(() => {
 		setPromptInput("");
-		const revision = draftRef.current.revision;
-		return (rejectedPrompt?: string): boolean => {
+		const revision = revisionRef.current;
+		return (rejectedPrompt: string): boolean => {
 			if (
-				drafts.get(threadId) !== draftRef.current ||
-				draftRef.current.revision !== revision ||
+				!mountedRef.current ||
+				revisionRef.current !== revision ||
 				draftRef.current.text.trim() !== ""
 			) {
 				return false;
 			}
-			if (rejectedPrompt === undefined || !mountedRef.current) return false;
 			setPromptInput(rejectedPrompt);
 			return true;
 		};
-	}, [drafts, threadId, setPromptInput]);
+	}, [setPromptInput]);
 
 	return {
 		draftRef,

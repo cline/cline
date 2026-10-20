@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
 import { buildCloudHandoffDashboardUrl, type ClineCore } from "@cline/core";
 import { type CloudCreationOptions, loadCloudModels } from "@cline/core/cloud";
 import type { MessageWithMetadata } from "@cline/llms";
@@ -49,10 +48,7 @@ type HandoffSnapshot = {
 
 const gitPlans = new WeakMap<SidecarContext, Map<string, HandoffSnapshot>>();
 const gitPreparations = new WeakMap<SidecarContext, Set<string>>();
-const handoffRequests = new WeakMap<
-	SidecarContext,
-	Map<string, { request: ChatSessionCommandRequest; promise: Promise<unknown> }>
->();
+const handoffRequests = new WeakMap<SidecarContext, Set<string>>();
 const activeSendRequests = new WeakMap<SidecarContext, Map<string, number>>();
 
 function assertCloudHandoffAvailable(): void {
@@ -236,7 +232,12 @@ async function handleHandoffOnce(
 					}
 				: {}),
 		});
-	await resolveCloudModel(ctx, cloud, config, plan.repoUrl);
+	const { modelId, organizationId } = await resolveCloudModel(
+		ctx,
+		cloud,
+		config,
+		plan.repoUrl,
+	);
 	assertHandoffAccount(ctx, cloud);
 	emitProgress("summarizing", "Preparing a summary of this conversation.");
 	const summary = (await summarize(messages, config)).trim();
@@ -250,12 +251,6 @@ async function handleHandoffOnce(
 	assertHandoffAccount(ctx, cloud);
 	assertCloudHandoffAvailable();
 	await verifyPublishedHandoffGit(plan, headSha);
-	const { modelId, organizationId } = await resolveCloudModel(
-		ctx,
-		cloud,
-		config,
-		plan.repoUrl,
-	);
 	assertHandoffAccount(ctx, cloud);
 	const followUp = request.nextCommand?.trim();
 	const command = [
@@ -355,23 +350,17 @@ export async function handleHandoff(
 		throw new Error("Wait for Git preparation to finish before continuing.");
 	let requests = handoffRequests.get(ctx);
 	if (!requests) {
-		requests = new Map();
+		requests = new Set();
 		handoffRequests.set(ctx, requests);
 	}
-	const existing = requests.get(sessionId);
-	if (existing) {
-		if (!isDeepStrictEqual(existing.request, request))
-			throw new Error("A different cloud preparation is already in progress.");
-		return await existing.promise;
+	if (requests.has(sessionId))
+		throw new Error("Cloud preparation is already in progress.");
+	requests.add(sessionId);
+	try {
+		return await handleHandoffOnce(ctx, request, summarize);
+	} finally {
+		requests.delete(sessionId);
 	}
-	const running = handleHandoffOnce(ctx, request, summarize).finally(() =>
-		requests.delete(sessionId),
-	);
-	requests.set(sessionId, {
-		request: structuredClone(request),
-		promise: running,
-	});
-	return await running;
 }
 
 export function beginActiveSessionSend(

@@ -309,7 +309,7 @@ function DraftComposer({
 describe("ChatInputBar draft navigation", () => {
 	it("restores a failed send after the real composer acknowledges the external clear", async () => {
 		const drafts = new Map<string, PromptDraft>([
-			["A", { text: "Try again", attachments: [], revision: 0 }],
+			["A", { text: "Try again", attachments: [] }],
 		]);
 		const response = deferred<boolean>();
 		await act(async () => {
