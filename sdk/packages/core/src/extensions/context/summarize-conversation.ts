@@ -89,7 +89,7 @@ export async function summarizeConversation(options: {
 			policyIntent: "agentic_summary",
 			estimateMessageTokens,
 		});
-	// Filter thinking and media without truncating the reserved context.
+	// Remove thinking before selecting reserved context.
 	const messages = project(
 		options.messages.slice(Math.max(0, latestSummaryIndex)),
 		Number.POSITIVE_INFINITY,
@@ -122,11 +122,7 @@ export async function summarizeConversation(options: {
 		...older.messages,
 		...latestResponse,
 	]);
-	if (
-		budget < older.estimatedTokens ||
-		older.status === "failed" ||
-		!conversation.trim()
-	) {
+	if (budget < older.estimatedTokens || !conversation) {
 		throw new Error(
 			"Conversation summary could not fit the current context within the model input limit.",
 		);

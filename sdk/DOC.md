@@ -69,7 +69,7 @@ the remote task. Call `dispose` when the host shuts down.
 The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
-`run.started` alone does not confirm admission.
+The callback does not confirm acceptance.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

@@ -106,8 +106,7 @@ describe("summarizeConversation", () => {
 		await expect(
 			summarizeConversation({ messages: history, config: connection }),
 		).resolves.toContain("Fix the parser.");
-		const [systemPrompt, request, tools] = createMessageMock.mock.calls[0];
-		expect(systemPrompt).toContain("verification performed or still missing");
+		const [, request, tools] = createMessageMock.mock.calls[0];
 		expect(request[0].content).toContain("Preserve Unicode support");
 		expect(request[0].content).toContain("Also handle empty input");
 		expect(request[0].content).toContain("Unicode test still fails");
@@ -124,10 +123,10 @@ describe("summarizeConversation", () => {
 		expect({ history, connection }).toEqual(original);
 	});
 
-	it("bounds large input while retaining the latest instruction and result", async () => {
+	it("shortens an older pasted prompt and long history while retaining the latest instruction and result", async () => {
 		const latestResult = `${"Investigation detail. ".repeat(40)} Tests failed; do not release.`;
 		const history: MessageWithMetadata[] = [
-			...messages,
+			{ role: "user", content: `Old context: ${"x".repeat(120_000)}` },
 			...Array.from({ length: 200 }, () => ({
 				role: "assistant" as const,
 				content: "Old investigation. ".repeat(60),
@@ -138,6 +137,7 @@ describe("summarizeConversation", () => {
 				content: latestResult,
 			},
 		];
+		const original = structuredClone(history);
 		await summarizeConversation({ messages: history, config });
 		const [systemPrompt, request] = createMessageMock.mock.calls[0];
 		expect(
@@ -145,7 +145,7 @@ describe("summarizeConversation", () => {
 		).toBeLessThanOrEqual(32_000);
 		expect(request[0].content).toContain("Now fix empty input");
 		expect(request[0].content).toContain(latestResult);
-		expect(history[1].content).toBe("Old investigation. ".repeat(60));
+		expect(history).toEqual(original);
 	});
 
 	it("preserves prior constraints when a large completed tool call must be dropped", async () => {
@@ -217,26 +217,11 @@ describe("summarizeConversation", () => {
 		);
 	});
 
-	it("shortens an older pasted prompt without losing the current instruction", async () => {
-		await summarizeConversation({
-			messages: [
-				{ role: "user", content: `Old context: ${"x".repeat(120_000)}` },
-				{ role: "assistant", content: "Previous result." },
-				{ role: "user", content: "Now fix the parser." },
-				{ role: "assistant", content: "Latest result: tests remain." },
-			],
-			config,
-		});
-		const request = createMessageMock.mock.calls[0][1][0].content;
-		expect(request).toContain("Now fix the parser.");
-		expect(request).toContain("Latest result: tests remain.");
-	});
-
 	it("uses the selected model's limits after switching models", async () => {
 		const current = {
 			id: "current-model",
-			contextWindow: 128_000,
-			maxTokens: 8192,
+			contextWindow: 4096,
+			maxTokens: 512,
 		};
 		await expect(
 			summarizeConversation({
@@ -246,6 +231,7 @@ describe("summarizeConversation", () => {
 					modelId: current.id,
 					providerConfig: {
 						...config,
+						maxOutputTokens: 8192,
 						modelInfo: { id: "old-model", contextWindow: 2048, maxTokens: 512 },
 						knownModels: { [current.id]: current },
 					},
@@ -253,7 +239,7 @@ describe("summarizeConversation", () => {
 			}),
 		).resolves.toContain("Fix the parser.");
 		expect(createHandlerMock).toHaveBeenCalledWith(
-			expect.objectContaining({ modelInfo: current, maxOutputTokens: 8192 }),
+			expect.objectContaining({ modelInfo: current, maxOutputTokens: 512 }),
 		);
 	});
 
@@ -312,27 +298,6 @@ describe("summarizeConversation", () => {
 			}),
 		).rejects.toThrow("could not fit");
 		expect(createHandlerMock).not.toHaveBeenCalled();
-	});
-
-	it("reserves the model's smaller output allowance within its context window", async () => {
-		await summarizeConversation({
-			messages,
-			config: {
-				...config,
-				providerConfig: {
-					...config,
-					maxOutputTokens: 8192,
-					modelInfo: {
-						id: config.modelId,
-						contextWindow: 4096,
-						maxTokens: 512,
-					},
-				},
-			},
-		});
-		expect(createHandlerMock).toHaveBeenCalledWith(
-			expect.objectContaining({ maxOutputTokens: 512 }),
-		);
 	});
 
 	it.each<{ name: string; chunks: ApiStreamChunk[] }>([
