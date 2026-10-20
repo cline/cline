@@ -1,3 +1,37 @@
+## Plugin slash commands
+
+Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
+`client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
+`NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
+These APIs reuse the runtime and connection; clients do not load plugins or own
+a separate command sandbox. Pass the active `sessionId` so a command runs in
+that session's plugin instance and retains the state and context shared with
+its hooks.
+
+If a connection closes after a command is dispatched, execution rejects without
+automatically resending it: the command may already have changed external state.
+
+```ts
+const target = { workspacePath: workspaceRoot, sessionId };
+const catalog = await core.pluginCommands.list(target);
+const result = await core.pluginCommands.run({ ...target, prompt: "/upload-history" });
+// Display result?.reply; submit only result?.submitPrompt to the agent.
+// undefined means no registered command handled the input.
+```
+
+Omit `sessionId`, or pass one the runtime does not have, to use the workspace
+catalog. Every call checks the enabled plugins and their sources and reloads the
+catalog when they change, so call `list` again whenever the command menu needs to be
+current. A failed load lists healthy commands with `status: "error"` and is
+retried after 30 seconds. Workspace catalogs idle for 10 minutes release their
+plugin workers.
+
+For a resident session, listing and execution use its initialized contribution
+registry and existing plugin sandbox. Workspace file changes apply to new
+sessions, not an active session's commands. Built-in command precedence and
+rendering remain host responsibilities. Preserve the original arguments when
+dispatching.
+
 ## Model request retries and Langfuse
 
 AI SDK text requests allow three retries after the initial request (four total
