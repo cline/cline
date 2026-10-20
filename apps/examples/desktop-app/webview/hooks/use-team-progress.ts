@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
-import type { TeamLiveActivity } from "@/lib/team-activity";
+import {
+	shouldReplaceLiveActivity,
+	type TeamLiveActivity,
+} from "@/lib/team-activity";
 
 type TeamProgressPayload = {
 	sessionId?: unknown;
@@ -22,8 +25,8 @@ const EMPTY: ReadonlyMap<string, TeamLiveActivity> = new Map();
 
 /**
  * Latest live activity per teammate of the team rooted at `rootSessionId`,
- * from the `team_progress` events the sidecar forwards. Heartbeats and other
- * events that carry no agent are ignored. The state is tagged with its root
+ * from the `team_progress` events the sidecar forwards. Events that carry no
+ * agent or say nothing about what it is doing are ignored. The state is tagged with its root
  * session so another team's activity can never surface under this one.
  */
 export function useTeamProgress(
@@ -46,12 +49,15 @@ export function useTeamProgress(
 				typeof payload.lifecycle?.message === "string"
 					? payload.lifecycle.message
 					: undefined;
-			if (eventType === "run_progress" && message === "heartbeat") return;
+			const next = { eventType, message, at: Date.now() };
 			setState((current) => {
-				const byAgent = new Map(
-					current.rootSessionId === rootSessionId ? current.byAgent : EMPTY,
-				);
-				byAgent.set(agentId, { eventType, message, at: Date.now() });
+				const previous =
+					current.rootSessionId === rootSessionId ? current.byAgent : EMPTY;
+				if (!shouldReplaceLiveActivity(previous.get(agentId), next)) {
+					return current;
+				}
+				const byAgent = new Map(previous);
+				byAgent.set(agentId, next);
 				return { rootSessionId, byAgent };
 			});
 		});

@@ -99,13 +99,16 @@ export function stepForTool(toolName: string): string {
 	return TOOL_STEP[name] ?? `Running ${name}`;
 }
 
-const RUNNING_TOOL_PREFIX = "running_tool_";
 const LAST_ACTION_TOOL_PREFIX = "Running ";
+// Tool starts and ends are both reported, and the throttled stream often only
+// delivers the end, so either names what the teammate is working on.
+const TOOL_ACTIVITY =
+	/^(?:running_tool_|finished_tool_)([\w.-]+)$|^tool_([\w.-]+?)_error/;
 
 /** Tool named by a `run_progress` activity such as `running_tool_editor`. */
 function toolFromActivity(message?: string): string | undefined {
-	if (!message?.startsWith(RUNNING_TOOL_PREFIX)) return undefined;
-	const tool = message.slice(RUNNING_TOOL_PREFIX.length);
+	const match = message ? TOOL_ACTIVITY.exec(message) : null;
+	const tool = match?.[1] ?? match?.[2];
 	return tool && tool !== "unknown" ? tool : undefined;
 }
 
@@ -149,6 +152,26 @@ export function phaseFromLiveActivity(
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * Whether a new live event should replace the one kept for an agent. Model turns
+ * take seconds while tools take milliseconds, so every tool's activity is
+ * followed at once by the next iteration starting; letting that overwrite it
+ * would show nearly every teammate as thinking. A teammate keeps its latest
+ * kind of work until it does something else, and anything uninterpretable is
+ * ignored.
+ */
+export function shouldReplaceLiveActivity(
+	previous: TeamLiveActivity | undefined,
+	next: TeamLiveActivity,
+): boolean {
+	if (!phaseFromLiveActivity(next)) return false;
+	const isIteration =
+		next.eventType === "run_progress" &&
+		Boolean(next.message?.startsWith("iteration_"));
+	if (!isIteration || !previous) return true;
+	return !toolFromActivity(previous.message);
 }
 
 /** Team task prompts are often multi-line briefs; the first line is the task. */

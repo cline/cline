@@ -5,6 +5,7 @@ import {
 	isTeamSettled,
 	phaseForTool,
 	phaseFromLiveActivity,
+	shouldReplaceLiveActivity,
 	summarizeTeam,
 	type TeamLiveActivity,
 } from "@/lib/team-activity";
@@ -46,6 +47,12 @@ describe("phaseFromLiveActivity", () => {
 		).toEqual({ phase: "editing", step: "Editing files" });
 	});
 
+	it("reads the tool out of a finished-tool activity too", () => {
+		expect(
+			phaseFromLiveActivity(live("run_progress", "finished_tool_run_commands")),
+		).toEqual({ phase: "running", step: "Running commands" });
+	});
+
 	it("treats a new iteration as thinking", () => {
 		expect(
 			phaseFromLiveActivity(live("run_progress", "iteration_3_started")),
@@ -57,6 +64,47 @@ describe("phaseFromLiveActivity", () => {
 			undefined,
 		);
 		expect(phaseFromLiveActivity(live("outcome_created"))).toBe(undefined);
+	});
+});
+
+describe("shouldReplaceLiveActivity", () => {
+	const live = (eventType: string, message?: string): TeamLiveActivity => ({
+		eventType,
+		message,
+		at: 0,
+	});
+
+	it("keeps the latest tool when the next iteration starts", () => {
+		expect(
+			shouldReplaceLiveActivity(
+				live("run_progress", "finished_tool_editor"),
+				live("run_progress", "iteration_4_started"),
+			),
+		).toBe(false);
+	});
+
+	it("lets a first iteration or a new tool through", () => {
+		expect(
+			shouldReplaceLiveActivity(
+				live("run_started"),
+				live("run_progress", "iteration_1_started"),
+			),
+		).toBe(true);
+		expect(
+			shouldReplaceLiveActivity(
+				live("run_progress", "finished_tool_editor"),
+				live("run_progress", "running_tool_run_commands"),
+			),
+		).toBe(true);
+	});
+
+	it("ignores events it cannot interpret", () => {
+		expect(
+			shouldReplaceLiveActivity(undefined, live("run_progress", "heartbeat")),
+		).toBe(false);
+		expect(shouldReplaceLiveActivity(undefined, live("agent_event"))).toBe(
+			false,
+		);
 	});
 });
 
