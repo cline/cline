@@ -1,4 +1,8 @@
-import { HubCommandError, HubTransportError } from "@cline/core";
+import {
+	HubCommandError,
+	HubTransportError,
+	type NodeHubClient,
+} from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -55,8 +59,11 @@ async function createFixture() {
 			name: string,
 			_payload?: unknown,
 			_sessionId?: string,
-			_options?: unknown,
-		) => reply(name),
+			options?: Parameters<NodeHubClient["command"]>[3],
+		) => {
+			options?.beforeDispatch?.();
+			return reply(name);
+		},
 	);
 	const connection: Awaited<
 		ReturnType<CloudSessionManager["ensureConnection"]>

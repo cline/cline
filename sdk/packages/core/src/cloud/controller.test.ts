@@ -881,6 +881,7 @@ describe("CloudSessionController neutral host contract", () => {
 	});
 	it("prevents dispatch if beforeDispatch throws", async () => {
 		const f = await attached();
+		const previousTitle = f.controller.getSnapshot(record.id)?.title;
 		try {
 			await expect(
 				f.controller.send(
@@ -899,6 +900,20 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(
 				f.commands.some((command) => command.command === "session.send_input"),
 			).toBe(false);
+			expect(f.api.updateTitle).not.toHaveBeenCalled();
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(previousTitle);
+			expect(
+				f.controller.getSnapshot(record.id)?.record?.title,
+			).toBeUndefined();
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBeUndefined();
+			await f.controller.send(record.id, "accepted prompt");
+			expect(f.api.updateTitle).toHaveBeenCalledExactlyOnceWith(
+				record.id,
+				"accepted prompt",
+			);
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(
+				"accepted prompt",
+			);
 		} finally {
 			await f.controller.dispose();
 		}

@@ -1400,32 +1400,7 @@ export class CloudSessionController {
 			const statusChanged = live.status !== "running";
 			live.busy = true;
 			live.status = "running";
-			live.prompt ||= prompt;
 			if (statusChanged) this.publishSnapshot(outerSessionId, false, "status");
-		}
-		const record = this.knownSessions.get(outerSessionId);
-		if (
-			record &&
-			!record.title?.trim() &&
-			!this.titleWrites.has(outerSessionId)
-		) {
-			const title = deriveCloudSessionTitle(prompt);
-			if (title) {
-				record.title = title;
-				if (live) {
-					live.title = title;
-				}
-				const write = this.options.api
-					.updateTitle?.(outerSessionId, title)
-					.then(() => {})
-					.catch(() => {})
-					.finally(() => {
-						if (this.titleWrites.get(outerSessionId) === write) {
-							this.titleWrites.delete(outerSessionId);
-						}
-					});
-				if (write) this.titleWrites.set(outerSessionId, write);
-			}
 		}
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
@@ -1467,6 +1442,31 @@ export class CloudSessionController {
 							);
 						}
 						lifecycle?.beforeDispatch?.();
+						if (live && ownsBusyState) live.prompt ||= prompt;
+						const record = this.knownSessions.get(outerSessionId);
+						if (
+							record &&
+							!record.title?.trim() &&
+							!this.titleWrites.has(outerSessionId)
+						) {
+							const title = deriveCloudSessionTitle(prompt);
+							if (title) {
+								record.title = title;
+								if (live) {
+									live.title = title;
+								}
+								const write = this.options.api
+									.updateTitle?.(outerSessionId, title)
+									.then(() => {})
+									.catch(() => {})
+									.finally(() => {
+										if (this.titleWrites.get(outerSessionId) === write) {
+											this.titleWrites.delete(outerSessionId);
+										}
+									});
+								if (write) this.titleWrites.set(outerSessionId, write);
+							}
+						}
 					},
 				},
 			);
