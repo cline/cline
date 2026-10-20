@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { splitCoreSessionConfig } from "../../runtime/host/runtime-host";
 import { FileSessionService } from "../../session/services/file-session-service";
+import { HubCommandError } from "../client";
 import { createHubPluginCommandsApi } from "../client/plugin-commands";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "./hub-server-transport";
@@ -264,6 +265,26 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 			submitPrompt: undefined,
 		});
 		stop();
+	});
+	it("treats a Hub without plugin command RPCs as having no plugin commands", async () => {
+		const api = createHubPluginCommandsApi({
+			command: async (name) => {
+				throw new HubCommandError(
+					name,
+					"unsupported_command",
+					`Unsupported hub schedule command: ${name}`,
+				);
+			},
+			subscribe: () => () => {},
+		});
+		expect(await api.list({ workspacePath: root })).toEqual({
+			workspacePath: root,
+			status: "ready",
+			commands: [],
+		});
+		expect(
+			await api.run({ workspacePath: root, prompt: "/counter" }),
+		).toBeUndefined();
 	});
 	it("shares a workspace sandbox across client requests and preserves arguments", async () => {
 		const first = await command("plugins.commands.list", {
