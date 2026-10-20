@@ -6,6 +6,7 @@ import type {
 import { describe, expect, it, vi } from "vitest";
 import { toHubSessionRecord } from "../hub/server/hub-session-records";
 import {
+	CloudSessionApi,
 	CloudSessionError,
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
@@ -210,6 +211,32 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("reuses cloud authentication instructions without adding branch policy to handoff", async () => {
+		const f = fixture();
+		f.setHasInner(false);
+		try {
+			await f.controller.seedHandoff(record.id, {
+				sourceSessionId: "local-source",
+				messages: [],
+				workspaceRelativePath: "packages/app",
+			});
+			const payload = f.commands.find(
+				(entry) => entry.command === "session.create",
+			)?.payload as { sessionConfig: Record<string, unknown> };
+			const config = payload.sessionConfig;
+			expect(config.systemPrompt).toContain("egress proxy");
+			expect(config.systemPrompt).toContain("must never run `gh auth login`");
+			expect(config.systemPrompt).toContain("fresh Linux clone");
+			expect(config.systemPrompt).toContain("are stale");
+			expect(config.systemPrompt).toContain(
+				"subdirectory at /workspace/packages/app",
+			);
+			expect(config.systemPrompt).not.toContain("SAVE YOUR WORK");
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
 	it("refreshes an attached session title after an external rename", async () => {
 		const f = await attached();
 		await f.controller.updateTitle(record.id, "Desktop title");
@@ -1303,6 +1330,34 @@ describe("CloudSessionController neutral host contract", () => {
 			JSON.stringify(f.controller.getSnapshot(record.id)?.messages),
 		).not.toContain("Old");
 		await f.controller.dispose();
+	});
+	it("recovers a creation marker without issuing a POST", async () => {
+		const requests: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch: async (_url, init) => {
+				requests.push(init?.method ?? "GET");
+				return new Response(
+					JSON.stringify({
+						data: [{ ...record, title: "__cline_create_request__:id" }],
+					}),
+					{ status: 200 },
+				);
+			},
+		});
+		expect(
+			(
+				await api.recoverCreation({
+					requestId: "id",
+					repoUrl: record.repoContext.repoUrl!,
+					modelId: "model",
+					branch: "main",
+				})
+			)?.id,
+		).toBe(record.id);
+		expect(requests).toEqual(["GET"]);
 	});
 });
 

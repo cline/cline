@@ -1,5 +1,20 @@
 let activeRuntimeAbort: (() => void) | undefined;
 let activeRuntimeCleanup: (() => void) | undefined;
+export type RuntimeSignal = "SIGINT" | "SIGTERM" | "SIGHUP";
+let activeRuntimeSignalHandler: ((signal: RuntimeSignal) => void) | undefined;
+
+export function setActiveRuntimeSignalHandler(
+	handler: ((signal: RuntimeSignal) => void) | undefined,
+): void {
+	activeRuntimeSignalHandler = handler;
+}
+
+/** The entrypoint owns OS listeners; an interactive host owns their meaning. */
+export function dispatchActiveRuntimeSignal(signal: RuntimeSignal): boolean {
+	if (!activeRuntimeSignalHandler) return false;
+	activeRuntimeSignalHandler(signal);
+	return true;
+}
 let abortGraceTimer: ReturnType<typeof setTimeout> | undefined;
 let abortInProgress = false;
 let savedRejectionListeners: Array<(...args: unknown[]) => void> | undefined;
