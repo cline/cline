@@ -549,7 +549,12 @@ export function handleCoreSessionEvent(
 			break;
 		}
 		case "agent_event": {
-			const { sessionId, event: agentEvent } = event.payload;
+			const { sessionId, event: agentEvent, teamRole } = event.payload;
+			// Teammates stream under the root session, but their work belongs to
+			// their own child sessions and the team panel. In the lead's stream it
+			// would interleave with the lead's text, and a teammate's `done` or
+			// usage would be taken for the lead's.
+			if (teamRole === "teammate") break;
 			handleAgentEvent(ctx, sessionId, agentEvent);
 			break;
 		}
@@ -976,6 +981,11 @@ export function handleHubLiveEvent(
 			.get(ctx.activeEnvironmentId ?? LOCAL_ENVIRONMENT_ID)
 			?.sessionManager.hasSessionSubscription(sessionId)
 	) {
+		return;
+	}
+
+	const agent = event.payload?.agent as { teamRole?: unknown } | undefined;
+	if (agent?.teamRole === "teammate") {
 		return;
 	}
 

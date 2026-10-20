@@ -1763,6 +1763,31 @@ describe("Chat chunk pipe selection", () => {
 		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
 	});
 
+	it("keeps teammate output out of the lead session's stream", async () => {
+		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = await createStreamingContext("session-1");
+
+		handleCoreSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamRole: "teammate",
+				teamAgentId: "reviewer",
+				event: { type: "content_start", contentType: "text", text: "nope" },
+			},
+		} as never);
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "nope", agent: { teamRole: "teammate" } },
+		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "lead"));
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["lead"]);
+	});
+
 	it("mutes the whole observer projection, not just text", async () => {
 		const { handleHubLiveEvent } = await import("./context");
 		const ctx = await createStreamingContext(
