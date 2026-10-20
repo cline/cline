@@ -111,6 +111,17 @@ describe("ClineModelPicker", () => {
 		})
 	})
 
+	it("edits a caller-owned selection without touching the Plan/Act model", async () => {
+		const onChange = vi.fn()
+		render(<ClineModelPicker currentMode="act" modelSelection={{ modelId: "cline-default", onChange }} />)
+
+		fireEvent.click(await screen.findByText("Cline Next"))
+
+		expect(onChange).toHaveBeenCalledWith("cline-next")
+		expect(mocks.commitSelection).not.toHaveBeenCalled()
+		expect(mocks.updateApiConfigurationProto).not.toHaveBeenCalled()
+	})
+
 	it("renders RPC-provided display names on featured cards, falling back to ids", async () => {
 		// Names arrive display-ready: the extension host resolves them against
 		// the model catalog in fetchClineRecommendedModels.

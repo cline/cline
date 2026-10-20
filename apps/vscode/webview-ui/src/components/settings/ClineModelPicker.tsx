@@ -52,6 +52,8 @@ interface ClineModelPickerProps {
 	currentMode: Mode
 	showProviderRouting?: boolean
 	initialTab?: "recommended" | "free"
+	/** Replaces the Plan/Act selection with one the caller owns, e.g. the model new cloud tasks run on. */
+	modelSelection?: { modelId: string; onChange: (modelId: string) => void }
 }
 
 interface FeaturedModelCardEntry {
@@ -94,7 +96,13 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
-const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
+const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
+	isPopup,
+	currentMode,
+	showProviderRouting,
+	initialTab,
+	modelSelection,
+}) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
@@ -103,12 +111,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const effectiveClineModels = catalogClineModels
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
-	const currentClineModelId =
-		committedSelection?.modelId ||
-		modeFields.clineModelId ||
-		clineDefaultModelId ||
-		Object.keys(effectiveClineModels ?? {})[0] ||
-		""
+	const currentClineModelId = modelSelection
+		? modelSelection.modelId
+		: committedSelection?.modelId ||
+			modeFields.clineModelId ||
+			clineDefaultModelId ||
+			Object.keys(effectiveClineModels ?? {})[0] ||
+			""
 	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
 	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -212,6 +221,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
 
+		if (modelSelection) {
+			modelSelection.onChange(newModelId)
+			return
+		}
+
 		const modelInfo = effectiveClineModels?.[newModelId] ?? {
 			...openAiModelInfoSafeDefaults,
 			name: newModelId,
@@ -253,7 +267,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					...selected,
 					selectedModelId: currentClineModelId,
 					selectedModelInfo: (() => {
-						const persistedModelInfo = committedModelInfo || modeFields.clineModelInfo || selected.selectedModelInfo
+						const persistedModelInfo = modelSelection
+							? openAiModelInfoSafeDefaults
+							: committedModelInfo || modeFields.clineModelInfo || selected.selectedModelInfo
 						const liveModelInfo = effectiveClineModels?.[currentClineModelId]
 						// Persisted Cline model info is a snapshot from selection time. When the
 						// model is still in the catalog, refresh metadata/capability flags from
@@ -283,6 +299,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		effectiveClineModels,
 		freeClineModelIdSet,
 		modeFields.clineModelInfo,
+		modelSelection,
 	])
 
 	useEffect(() => {
@@ -559,7 +576,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 			{hasInfo ? (
 				<>
-					{showReasoningEffort && (
+					{showReasoningEffort && !modelSelection && (
 						<ReasoningEffortSelector
 							allowedEfforts={
 								showAdaptiveThinkingEffort ? (["none", "low", "medium", "high", "xhigh"] as const) : undefined

@@ -215,7 +215,7 @@ export function TaskTargetPanel() {
 	)
 }
 
-function TargetButton({
+export function TargetButton({
 	active,
 	icon,
 	label,

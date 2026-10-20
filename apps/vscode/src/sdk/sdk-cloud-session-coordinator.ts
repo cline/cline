@@ -902,12 +902,16 @@ export class SdkCloudSessionCoordinator {
 	// ---- Starting a task ----
 
 	/**
-	 * The Cline model a new sandbox runs: the user's Act-mode Cline model,
-	 * else the top recommendation known so far. Synchronous, and the only
-	 * source for both the composer label and the start path, so the sandbox
-	 * runs the model the user saw when they submitted.
+	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
+	 * else the user's Act-mode Cline model, else the top recommendation known
+	 * so far. Synchronous, and the only source for both the composer label and
+	 * the start path, so the sandbox runs the model the user saw when they submitted.
 	 */
-	private nextCloudModelId(): string {
+	nextCloudModelId(): string {
+		const chosen = this.options.stateManager.getGlobalStateKey("cloudModelId")?.trim()
+		if (chosen) {
+			return chosen
+		}
 		const apiConfig = this.options.stateManager.getApiConfiguration()
 		if (apiConfig.actModeApiProvider === "cline" && apiConfig.actModeClineModelId?.trim()) {
 			return apiConfig.actModeClineModelId.trim()

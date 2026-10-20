@@ -171,6 +171,28 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
+	it("starts the sandbox on the cloud model picked in Settings over the Act-mode Cline model", async () => {
+		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		const { coordinator, cloudSessions } = makeCoordinator({
+			stateManager: makeStateManager({ cloudModelId: "settings-cloud-model" }) as never,
+			sessions: {
+				startNewSession: vi.fn(async () => ({ sdkHost: host, startResult: { sessionId: record.id } })),
+				fireAndForgetSend: vi.fn(),
+			} as never,
+		})
+
+		expect(coordinator.nextCloudModelId()).toBe("settings-cloud-model")
+		expect(await coordinator.beginCloudTask({ prompt: "test", repoUrl: record.repoContext.repoUrl! })()).toBe(record.id)
+		expect(cloudSessions.createSession).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "settings-cloud-model" }),
+			expect.any(Function),
+			expect.any(AbortSignal),
+			expect.any(Function),
+		)
+		await coordinator.dispose()
+	})
+
 	it("updates the provisioning row in place as the sandbox reports its phase", async () => {
 		const host = { status: "idle", readMessages: async () => [], dispose: async () => {} } as unknown as CloudSessionHost
 		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
