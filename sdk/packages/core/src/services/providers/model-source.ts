@@ -1,19 +1,19 @@
+function parseModelId(item: unknown): string {
+	if (typeof item === "string") return item.trim();
+	if (item && typeof item === "object") {
+		const entry = item as { id?: unknown; name?: unknown; model?: unknown };
+		for (const value of [entry.id, entry.name, entry.model]) {
+			if (typeof value === "string" && value.trim()) {
+				return value.trim();
+			}
+		}
+	}
+	return "";
+}
+
 function parseModelIdList(input: unknown): string[] {
 	if (!Array.isArray(input)) return [];
-	return input
-		.map((item) => {
-			if (typeof item === "string") return item.trim();
-			if (item && typeof item === "object") {
-				const entry = item as { id?: unknown; name?: unknown; model?: unknown };
-				for (const value of [entry.id, entry.name, entry.model]) {
-					if (typeof value === "string" && value.trim()) {
-						return value.trim();
-					}
-				}
-			}
-			return "";
-		})
-		.filter((id) => id.length > 0);
+	return input.map(parseModelId).filter((id) => id.length > 0);
 }
 
 export function extractModelIdsFromPayload(
@@ -97,6 +97,16 @@ export async function fetchModelIdsFromSource(
 	providerId: string,
 	auth: ModelSourceAuth = {},
 ): Promise<string[]> {
+	return extractModelIdsFromPayload(
+		await fetchModelSourcePayload(url, auth),
+		providerId,
+	);
+}
+
+export async function fetchModelSourcePayload(
+	url: string,
+	auth: ModelSourceAuth = {},
+): Promise<unknown> {
 	// Do not follow authenticated redirects.
 	const headers = resolveSourceAuthHeaders(url, auth);
 	const response = await fetch(url, {
@@ -109,10 +119,33 @@ export async function fetchModelIdsFromSource(
 			`failed to fetch models from ${url}: HTTP ${response.status}`,
 		);
 	}
-	return extractModelIdsFromPayload(
-		(await response.json()) as unknown,
-		providerId,
-	);
+	return (await response.json()) as unknown;
+}
+
+/**
+ * Read image support straight from an Ollama `/api/tags` payload.
+ *
+ * Recent Ollama versions list each model's `capabilities` in `/api/tags`, so
+ * there is no need to ask `/api/show` for those models. Models without a
+ * `capabilities` array (older servers) are left out of the map.
+ */
+export function extractOllamaVisionSupportFromTags(
+	payload: unknown,
+): Map<string, boolean> {
+	const support = new Map<string, boolean>();
+	const models = (payload as { models?: unknown } | null)?.models;
+	if (!Array.isArray(models)) {
+		return support;
+	}
+	for (const item of models) {
+		const id = parseModelId(item);
+		const capabilities = (item as { capabilities?: unknown } | null)
+			?.capabilities;
+		if (id && Array.isArray(capabilities)) {
+			support.set(id, capabilities.includes("vision"));
+		}
+	}
+	return support;
 }
 
 /**

@@ -686,6 +686,46 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("reads Ollama capabilities from /api/tags and asks /api/show only for the rest", async () => {
+		// Recent Ollama versions list capabilities in /api/tags, so a lookup per
+		// model is only needed for entries that lack them.
+		const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+			if (url.endsWith("/api/tags")) {
+				return Response.json({
+					models: [
+						{ name: "listed-vision", capabilities: ["completion", "vision"] },
+						{ name: "listed-text", capabilities: ["completion", "tools"] },
+						{ name: "unlisted" },
+					],
+				});
+			}
+			const { model } = JSON.parse(String(init?.body)) as { model: string };
+			if (model !== "unlisted") {
+				throw new Error(`unexpected /api/show for ${model}`);
+			}
+			return Response.json({ capabilities: ["completion", "vision"] });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"ollama",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{ providerId: "ollama", modelId: "", baseUrl: "http://localhost:11434" },
+		);
+
+		const showCalls = fetchMock.mock.calls.filter(([url]) =>
+			url.endsWith("/api/show"),
+		);
+		expect(showCalls).toHaveLength(1);
+		expect(resolved?.knownModels?.["listed-vision"]?.capabilities).toContain(
+			"images",
+		);
+		expect(resolved?.knownModels?.["listed-text"]?.capabilities).not.toContain(
+			"images",
+		);
+		expect(resolved?.knownModels?.unlisted?.capabilities).toContain("images");
+	});
+
 	it("keeps Ollama models text-only when /api/show cannot answer", async () => {
 		// Older servers omit `capabilities`, and a failed probe must not break the
 		// model list: the previous default (no image capability) applies.
