@@ -250,11 +250,42 @@ export async function runAgenticCompaction(options: {
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 		triggerTokens: options.context.budget.request.triggerTokens,
 	});
-	const summaryResult = await generateSummary({
-		providerConfig: summarizerProviderConfig,
-		request: summaryRequest,
-		logger: options.logger,
-	});
+	let summaryResult: SummaryGenerationResult;
+	try {
+		summaryResult = await generateSummary({
+			providerConfig: summarizerProviderConfig,
+			request: summaryRequest,
+			logger: options.logger,
+		});
+	} catch (error) {
+		// Endpoints with mandatory reasoning reject the summarizer's explicit
+		// disable (e.g. "Reasoning is mandatory for this endpoint and cannot be
+		// disabled."), so retry those with the provider's default reasoning.
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		if (!/reasoning|thinking/i.test(errorMessage)) {
+			throw error;
+		}
+		options.logger?.log(
+			"Agentic compaction summarizer rejected disabled reasoning; retrying with provider default reasoning",
+			{
+				severity: "warn",
+				errorMessage,
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+			},
+		);
+		const {
+			thinking: _thinking,
+			reasoningEffort: _reasoningEffort,
+			thinkingBudgetTokens: _thinkingBudgetTokens,
+			...providerDefaultReasoningConfig
+		} = summarizerProviderConfig;
+		summaryResult = await generateSummary({
+			providerConfig: providerDefaultReasoningConfig,
+			request: summaryRequest,
+			logger: options.logger,
+		});
+	}
 	const rawSummary = summaryResult.text;
 	if (!rawSummary) {
 		options.logger?.log(
