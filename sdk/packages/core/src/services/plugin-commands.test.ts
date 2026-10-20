@@ -9,7 +9,7 @@ import type {
 } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
+import { getProcessPluginRegistry } from "../extensions/plugin/plugin-registry";
 import { writeGlobalSettings } from "./global-settings";
 import { executePluginCommand, parsePluginCommand } from "./plugin-command-api";
 import { PluginCommandManager } from "./plugin-commands";
@@ -117,6 +117,55 @@ describe("runtime plugin catalogs", () => {
 		expect(failing.shutdown).toHaveBeenCalledTimes(1);
 	});
 
+	it("re-imports a plugin whose import failed without touching the shared registry", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const ready = join(workspacePath, "ready.txt");
+		await writeFile(
+			join(directory, "flaky.js"),
+			`import {existsSync} from 'node:fs';
+if (!existsSync(${JSON.stringify(ready)})) throw new Error('not ready');
+export default {name:'flaky',manifest:{capabilities:['commands']},setup(api){api.registerCommand({name:'flaky',handler:()=>'ready'})}};`,
+		);
+		const manager = new PluginCommandManager();
+		managers.push(manager);
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			status: "error",
+			error: expect.stringContaining("not ready"),
+			commands: [],
+		});
+		expect(getProcessPluginRegistry().list()).toEqual([]);
+		await writeFile(ready, "ready");
+		vi.setSystemTime(Date.now() + 30_000);
+		expect(await manager.list({ workspacePath })).toMatchObject({
+			status: "ready",
+			commands: [{ name: "flaky" }],
+		});
+		expect(
+			await manager.run({ workspacePath, prompt: "/flaky" }),
+		).toMatchObject({ reply: "ready" });
+	});
+
+	it("reloads when a plugin is disabled but not for unrelated settings", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		const plugin = join(directory, "toggle.js");
+		await writeFile(plugin, "export default {}");
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({ load });
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		writeGlobalSettings({ tuiTheme: "dark" });
+		await manager.list({ workspacePath });
+		expect(load).toHaveBeenCalledTimes(1);
+		writeGlobalSettings({ tuiTheme: "dark", disabledPlugins: [plugin] });
+		await manager.list({ workspacePath });
+		expect(load).toHaveBeenCalledTimes(2);
+	});
+
 	it("rechecks imported helpers outside plugin directories", async () => {
 		const workspacePath = await workspace();
 		const directory = join(workspacePath, ".cline", "plugins");
@@ -188,26 +237,6 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 		expect(await readFile(join(directory, "setup.log"), "utf8")).toBe(
 			"setup\n",
 		);
-	});
-
-	it("reloads for plugin toggles but not unrelated settings changes", async () => {
-		const workspacePath = await workspace();
-		const directory = join(workspacePath, ".cline", "plugins");
-		await mkdir(directory, { recursive: true });
-		await writeFile(join(directory, "echo.js"), "export default {};");
-		const load = vi.fn(async () => loaded());
-		const manager = new PluginCommandManager({ load });
-		managers.push(manager);
-		await manager.list({ workspacePath });
-		writeGlobalSettings({ tuiTheme: "light" });
-		await manager.list({ workspacePath });
-		expect(load).toHaveBeenCalledTimes(1);
-		writeGlobalSettings({
-			tuiTheme: "light",
-			disabledPlugins: resolveAgentPluginPaths({ workspacePath }),
-		});
-		await manager.list({ workspacePath });
-		expect(load).toHaveBeenCalledTimes(2);
 	});
 
 	it("releases idle workspace catalogs and reloads them on demand", async () => {

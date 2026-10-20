@@ -974,13 +974,16 @@ export class HubServerTransport implements NativeHubTransport {
 							message: "This runtime does not support plugin commands",
 						},
 					};
+				// An unregistered connection has no workspace scope to check the
+				// caller-chosen path against, so it cannot run commands anywhere.
+				if (!authority)
+					throw new Error("Plugin commands require a Hub-authorized workspace");
 				const workspacePath =
 					typeof envelope.payload?.workspacePath === "string"
 						? envelope.payload.workspacePath
-						: authority?.workspaceContext?.workspaceRoot;
+						: authority.workspaceContext?.workspaceRoot;
 				if (!workspacePath) throw new Error("workspacePath is required");
 				if (
-					authority &&
 					!authority.crossWorkspace &&
 					resolve(workspacePath) !==
 						resolve(authority.workspaceContext?.workspaceRoot ?? "")

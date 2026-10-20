@@ -13,6 +13,7 @@ import {
 	resolveAndLoadAgentPlugins,
 } from "../extensions/plugin/plugin-config-loader";
 import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
+import { PluginRegistry } from "../extensions/plugin/plugin-registry";
 import {
 	executePluginCommand,
 	listPluginCommands,
@@ -113,10 +114,9 @@ export class PluginCommandManager {
 		await shutdown?.().catch(() => {});
 	}
 
-	/** Fingerprint enabled plugin entries and their import graphs. The resolved
-	 * paths already exclude plugins disabled in settings, so unrelated settings
-	 * changes do not reset plugin state. Runtime output beside a plugin is not
-	 * source and must not reset its state either. */
+	/** Fingerprint discoverable entries and their import graphs. The entry list
+	 * already excludes plugins disabled in settings, so other settings do not
+	 * participate. Runtime output beside a plugin is not source either. */
 	private fingerprint(workspacePath: string): string {
 		const hash = createHash("sha256");
 		try {
@@ -147,9 +147,13 @@ export class PluginCommandManager {
 		entry.failedAt = undefined;
 		let error: string | undefined;
 		try {
+			// A registry of its own: a catalog import failure must not block the
+			// shared process registry's copies in live sessions, and a fresh one
+			// per load lets the retry re-import a plugin the last load blocked.
 			const loaded = await (this.options.load ?? resolveAndLoadAgentPlugins)({
 				cwd: entry.workspacePath,
 				workspacePath: entry.workspacePath,
+				registry: new PluginRegistry({ logger: this.options.logger }),
 			});
 			entry.shutdown = loaded.shutdown;
 			const registry = createContributionRegistry<
