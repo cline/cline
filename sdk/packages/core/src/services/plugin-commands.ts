@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
 	type AgentExtensionCommand,
@@ -9,12 +8,12 @@ import {
 	type ITelemetryService,
 	type Message,
 } from "@cline/shared";
-import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 } from "../extensions/plugin/plugin-config-loader";
 import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
+import { PluginRegistry } from "../extensions/plugin/plugin-registry";
 import {
 	executePluginCommand,
 	listPluginCommands,
@@ -115,9 +114,10 @@ export class PluginCommandManager {
 		await shutdown?.().catch(() => {});
 	}
 
-	/** Fingerprint discoverable entries, their import graphs, and plugin settings.
-	 * Runtime output beside a plugin is not source and must not reset its state. */
-	private async fingerprint(workspacePath: string): Promise<string> {
+	/** Fingerprint discoverable entries and their import graphs. The entry list
+	 * already excludes plugins disabled in settings, so other settings do not
+	 * participate. Runtime output beside a plugin is not source either. */
+	private fingerprint(workspacePath: string): string {
 		const hash = createHash("sha256");
 		try {
 			const paths = resolveAgentPluginPaths({
@@ -129,18 +129,11 @@ export class PluginCommandManager {
 		} catch (error) {
 			hash.update(`discovery:${String(error)}`);
 		}
-		try {
-			hash.update(await readFile(resolveGlobalSettingsPath()));
-		} catch (error) {
-			hash.update(
-				`settings:${(error as NodeJS.ErrnoException).code ?? "unknown"}`,
-			);
-		}
 		return hash.digest("hex");
 	}
 
 	private async refresh(entry: Entry): Promise<void> {
-		const key = await this.fingerprint(entry.workspacePath);
+		const key = this.fingerprint(entry.workspacePath);
 		if (
 			key === entry.key &&
 			(entry.failedAt === undefined ||
@@ -154,9 +147,13 @@ export class PluginCommandManager {
 		entry.failedAt = undefined;
 		let error: string | undefined;
 		try {
+			// A registry of its own: a catalog import failure must not block the
+			// shared process registry's copies in live sessions, and a fresh one
+			// per load lets the retry re-import a plugin the last load blocked.
 			const loaded = await (this.options.load ?? resolveAndLoadAgentPlugins)({
 				cwd: entry.workspacePath,
 				workspacePath: entry.workspacePath,
+				registry: new PluginRegistry({ logger: this.options.logger }),
 			});
 			entry.shutdown = loaded.shutdown;
 			const registry = createContributionRegistry<
