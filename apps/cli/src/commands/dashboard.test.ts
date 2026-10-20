@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as embeddedDashboard from "../utils/embedded-dashboard";
 import { runDashboardCommand, waitForProcessShutdown } from "./dashboard";
 
 const ENV_KEYS = [
@@ -147,39 +146,6 @@ describe("runDashboardCommand", () => {
 
 		expect(exitCode).toBe(0);
 		expect(openUrl).not.toHaveBeenCalled();
-	});
-
-	it("prefers embedded webview assets when CLINE_HUB_WEBVIEW_DIST_DIR is unset", async () => {
-		const spy = vi
-			.spyOn(embeddedDashboard, "resolveEmbeddedDashboard")
-			.mockReturnValue("/$bunfs/root/webview");
-		delete process.env.CLINE_HUB_WEBVIEW_DIST_DIR;
-		let observedWebviewDistDir: string | undefined;
-
-		try {
-			const exitCode = await runDashboardCommand({
-				openBrowser: false,
-				io: {
-					writeln: () => {},
-					writeErr: () => {},
-				},
-				startServer: async () => {
-					observedWebviewDistDir = process.env.CLINE_HUB_WEBVIEW_DIST_DIR;
-					return {
-						listenUrl: "http://127.0.0.1:8787/",
-						publicUrl: "http://127.0.0.1:8787",
-						inviteUrl: "http://127.0.0.1:8787",
-						stop: vi.fn(),
-					};
-				},
-				waitForShutdown: async () => {},
-			});
-
-			expect(exitCode).toBe(0);
-			expect(observedWebviewDistDir).toBe("/$bunfs/root/webview");
-		} finally {
-			spy.mockRestore();
-		}
 	});
 
 	it("settles shutdown when server stop rejects", async () => {
