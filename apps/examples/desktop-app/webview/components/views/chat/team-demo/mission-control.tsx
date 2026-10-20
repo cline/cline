@@ -346,6 +346,14 @@ export function MissionControl({
 											<p className="mt-0.5 text-xs leading-relaxed text-foreground/90">
 												{entry.text}
 											</p>
+											{entry.image ? (
+												// biome-ignore lint/performance/noImgElement: Bundled demo screenshot.
+												<img
+													alt=""
+													className="mt-1.5 h-28 w-auto rounded-md border border-border"
+													src={entry.image}
+												/>
+											) : null}
 										</div>
 									</div>
 								);

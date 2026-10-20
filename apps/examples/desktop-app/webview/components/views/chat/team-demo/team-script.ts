@@ -1,4 +1,10 @@
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
+import qaBoard from "./screenshots/qa-01-board.webp";
+import qaPalette from "./screenshots/qa-02-palette.webp";
+import qaSettings from "./screenshots/qa-03-settings.webp";
+import qaDark from "./screenshots/qa-04-dark.webp";
+import qaShortcuts from "./screenshots/qa-05-shortcut.webp";
+import qaSaved from "./screenshots/qa-06-saved.webp";
 
 /*
  * Scripted agent-team run for the dev-only team demo. The shapes mirror the
@@ -23,6 +29,8 @@ export type TeamMember = {
 	status: MemberStatus;
 	activity: string;
 	recent: string[];
+	/** Latest screenshot this teammate captured, for agents that drive the app. */
+	shot?: string;
 };
 
 export type TeamTaskStatus =
@@ -55,6 +63,7 @@ export type FeedEntry = {
 	text: string;
 	to?: string;
 	at: number;
+	image?: string;
 };
 
 export type OutcomeSection = {
@@ -161,7 +170,7 @@ const TASKS: TeamTask[] = [
 	},
 	{
 		id: "#3",
-		title: "Apply theme: light, dark, or system",
+		title: "Apply theme: Light, Dark, or Auto",
 		assignee: "integration-dev",
 		status: "pending",
 		dependsOn: ["#1"],
@@ -226,9 +235,9 @@ const SECTIONS: OutcomeSection[] = [
 const FINAL_ANSWER = `The Settings panel is in, built by a team of four and verified in the browser.
 
 - **backend-dev** added \`src/settings.js\`: defaults, \`localStorage\` under \`tidepool.settings.v1\`, and change events
-- **ui-dev** built the dialog: theme picker, due-soon reminders, digest time, and a shortcut field
-- **integration-dev** wired theme (including live OS changes for "system"), the rebindable palette shortcut, a gear button, and an "Open settings" palette command
-- **qa-engineer** ran the app, caught that "system" ignored OS theme changes, and re-verified after the fix
+- **ui-dev** built the dialog: theme picker, daily digest time, and an editable Keyboard Shortcuts section
+- **integration-dev** wired theme (including live OS changes for "Auto"), the rebindable palette shortcut, a gear button, and an "Open settings" palette command
+- **qa-engineer** ran the app, caught that "Auto" ignored OS theme changes, and re-verified after the fix
 
 The team's write-up is finalized in the outcome, section by section.`;
 
@@ -271,6 +280,11 @@ const act =
 			m.recent = [m.activity, ...m.recent].slice(0, 3);
 		m.status = status;
 		m.activity = activity;
+	};
+const shot =
+	(id: string, src: { src: string }): Mutator =>
+	(s) => {
+		member(s, id).shot = src.src;
 	};
 const task =
 	(id: string, status: TeamTaskStatus, note?: string): Mutator =>
@@ -472,7 +486,7 @@ export function buildBeats(): Beat[] {
 				feed(
 					"integration-dev",
 					"decision",
-					'Apply theme with data-theme on <html>; "system" follows prefers-color-scheme.',
+					'Apply theme with data-theme on <html>; "Auto" follows prefers-color-scheme.',
 				),
 			),
 		},
@@ -495,7 +509,7 @@ export function buildBeats(): Beat[] {
 				feed(
 					"backend-dev",
 					"handoff",
-					'Store is ready: getSettings(), updateSettings(patch), onSettingsChange(fn). Defaults: theme "system", shortcut "Mod+K". 11/11 validation checks pass.',
+					'Store is ready: getSettings(), updateSettings(patch), onSettingsChange(fn). Defaults: theme "auto", shortcut "Mod+K". 11/11 validation checks pass.',
 					"integration-dev",
 				),
 				section(
@@ -604,37 +618,52 @@ export function buildBeats(): Beat[] {
 				task("#6", "completed"),
 				act("integration-dev", "done", "#3, #4, and #6 complete"),
 				section(
-					"integration-dev",
+					"integration_notes",
 					"draft",
 					'Theme via data-theme, rebindable palette shortcut, gear button, and an "Open settings" palette command.',
 				),
 				task("#7", "in_progress"),
 				act("qa-engineer", "working", "Starting the app on :5173"),
+				shot("qa-engineer", qaBoard),
 			),
 		},
 		{
 			wait: 1300,
-			do: act(
-				"qa-engineer",
-				"working",
-				"Opening Settings with the gear button",
+			do: all(
+				act("qa-engineer", "working", "Opening Settings from the palette"),
+				shot("qa-engineer", qaPalette),
+			),
+		},
+		{
+			wait: 1000,
+			do: all(
+				act("qa-engineer", "working", "Checking the Settings dialog"),
+				shot("qa-engineer", qaSettings),
 			),
 		},
 		{
 			wait: 1200,
-			do: act("qa-engineer", "working", "Switching theme to dark, then system"),
+			do: all(
+				act("qa-engineer", "working", "Switching theme to Dark, then Auto"),
+				shot("qa-engineer", qaDark),
+			),
 		},
 		{
 			wait: 1400,
 			do: all(
-				act("qa-engineer", "blocked", "Found a bug in system theme"),
-				task("#7", "blocked", "System theme ignores OS changes"),
-				feed(
-					"qa-engineer",
-					"blocked",
-					'With theme set to "system", changing the OS theme doesn\'t update the app until reload.',
-					"integration-dev",
-				),
+				act("qa-engineer", "blocked", "Found a bug in Auto theme"),
+				task("#7", "blocked", "Auto theme ignores OS changes"),
+				(s, now) => {
+					s.team.feed.push({
+						id: `f${feedSeq++}`,
+						agentId: "qa-engineer",
+						kind: "blocked",
+						text: 'With theme set to "Auto", changing the OS theme doesn\'t update the app until reload.',
+						to: "integration-dev",
+						at: now,
+						image: qaSettings.src,
+					});
+				},
 				task("#3", "in_progress", "Reopened by qa"),
 				act(
 					"integration-dev",
@@ -651,19 +680,18 @@ export function buildBeats(): Beat[] {
 				feed(
 					"integration-dev",
 					"message",
-					'Fixed: the theme now listens for matchMedia changes while set to "system".',
+					'Fixed: the theme now listens for matchMedia changes while set to "Auto".',
 					"qa-engineer",
 				),
 				task("#7", "in_progress"),
-				act("qa-engineer", "working", "Re-checking system theme"),
+				act("qa-engineer", "working", "Re-checking Auto theme"),
 			),
 		},
 		{
 			wait: 1300,
-			do: act(
-				"qa-engineer",
-				"working",
-				"Rebinding the palette to Ctrl+Shift+P",
+			do: all(
+				act("qa-engineer", "working", "Checking keyboard shortcuts"),
+				shot("qa-engineer", qaShortcuts),
 			),
 		},
 		{
@@ -671,10 +699,11 @@ export function buildBeats(): Beat[] {
 			do: all(
 				task("#7", "completed"),
 				act("qa-engineer", "done", "All checks passed"),
+				shot("qa-engineer", qaSaved),
 				feed(
 					"qa-engineer",
 					"done",
-					"Verified theme (all three modes), notifications, digest time, the rebound shortcut, and both ways to open Settings.",
+					"Verified theme (Light, Dark, Auto), the daily digest, keyboard shortcuts, saving, and both ways to open Settings.",
 				),
 				section(
 					"testing_results",

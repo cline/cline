@@ -325,6 +325,15 @@ export function TeamLanesCard({
 								<StatusPill status={m.status} />
 							</div>
 							<ActivityText className="text-xs font-medium" member={m} />
+							{m.shot ? (
+								// biome-ignore lint/performance/noImgElement: Bundled demo screenshot.
+								<img
+									alt={`${m.name} latest screenshot`}
+									className="h-24 w-full animate-in fade-in-0 rounded-md border border-border object-cover object-top duration-300"
+									key={m.shot}
+									src={m.shot}
+								/>
+							) : null}
 							<ul className="flex min-h-[3.25rem] flex-col gap-0.5">
 								{m.recent.map((step, index) => (
 									<li
