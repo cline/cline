@@ -37,7 +37,7 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 				{showCloud && (
 					<div
 						aria-label="Model settings for"
-						className="inline-flex rounded-sm border border-input-foreground/20 p-0.5 mb-4"
+						className="inline-flex self-start rounded-sm border border-input-foreground/20 p-0.5 mb-1"
 						role="radiogroup">
 						<TargetButton
 							active={!isCloud}
@@ -136,12 +136,12 @@ const CloudModelSettings = () => {
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
 	return (
 		<>
-			<p className="text-xs mt-0 mb-3 text-(--vscode-descriptionForeground)">
+			<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
 				Cloud tasks run in an isolated sandbox on a Cline model and use Cline credits. This model is separate from your
 				local Plan and Act models.
 			</p>
 			{runningModelId && (
-				<p className="text-xs mt-0 mb-3 text-(--vscode-descriptionForeground)">
+				<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
 					The current cloud task runs on <code>{runningModelId}</code>. A model change applies to the next cloud task.
 				</p>
 			)}
