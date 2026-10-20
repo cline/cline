@@ -1,4 +1,4 @@
-import type { ApiStreamChunk, ProviderConfig } from "@cline/llms";
+import type { ApiStreamChunk } from "@cline/llms";
 import type { MessageWithMetadata } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSummaryMessage, estimateTokens } from "./compaction-shared";
@@ -105,13 +105,17 @@ describe("summarizeConversation", () => {
 	});
 
 	it("bounds large input while retaining the latest instruction and result", async () => {
+		const latestResult = `${"Investigation detail. ".repeat(40)} Tests failed; do not release.`;
 		const history: MessageWithMetadata[] = [
 			...messages,
-			{ role: "assistant", content: "Old investigation. ".repeat(50_000) },
+			...Array.from({ length: 200 }, () => ({
+				role: "assistant" as const,
+				content: "Old investigation. ".repeat(60),
+			})),
 			{ role: "user", content: "Now fix empty input." },
 			{
 				role: "assistant",
-				content: "Latest result: empty input is fixed; tests remain.",
+				content: latestResult,
 			},
 		];
 		await summarizeConversation({ messages: history, config });
@@ -120,8 +124,153 @@ describe("summarizeConversation", () => {
 			estimateTokens(systemPrompt.length + request[0].content.length),
 		).toBeLessThanOrEqual(32_000);
 		expect(request[0].content).toContain("Now fix empty input");
-		expect(request[0].content).toContain("Latest result");
-		expect(history[1].content).toBe("Old investigation. ".repeat(50_000));
+		expect(request[0].content).toContain(latestResult);
+		expect(history[1].content).toBe("Old investigation. ".repeat(60));
+	});
+
+	it("preserves prior constraints when a large completed tool call must be dropped", async () => {
+		const prior = buildSummaryMessage({
+			summary: "Preserve the legacy delimiter.",
+			fileOps: { readFiles: [], modifiedFiles: [] },
+			tokensBefore: 1000,
+			userRunSpan: 1,
+		});
+		const history: MessageWithMetadata[] = [
+			prior,
+			{ role: "user", content: "Implement it." },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call",
+						name: "apply_patch",
+						input: { patch: "x".repeat(96_000) },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call",
+						name: "apply_patch",
+						content: "Applied.",
+					},
+				],
+			},
+			{ role: "user", content: "Continue." },
+			{ role: "assistant", content: "Tests remain." },
+		];
+		await summarizeConversation({ messages: history, config });
+		expect(createMessageMock.mock.calls[0][1][0].content).toContain(
+			"Preserve the legacy delimiter.",
+		);
+	});
+
+	it.each([
+		false,
+		true,
+	])("summarizes a long tool run (compacted: %s)", async (compacted) => {
+		const start = compacted
+			? buildSummaryMessage({
+					summary: "Fix the parser; preserve Unicode support.",
+					fileOps: { readFiles: [], modifiedFiles: [] },
+					tokensBefore: 1000,
+					userRunSpan: 1,
+				})
+			: messages[0];
+		const history: MessageWithMetadata[] = [start];
+		for (let index = 0; index < 100; index += 1) {
+			history.push(
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: `call-${index}`,
+							name: "read_files",
+							input: { path: "parser.ts" },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: `call-${index}`,
+							name: "read_files",
+							content: "x".repeat(1300),
+						},
+					],
+				},
+			);
+		}
+		history.push({
+			role: "assistant",
+			content: "Latest result: Unicode tests still fail.",
+		});
+		await summarizeConversation({ messages: history, config });
+		const [systemPrompt, request] = createMessageMock.mock.calls[0];
+		expect(
+			estimateTokens(systemPrompt.length + request[0].content.length),
+		).toBeLessThanOrEqual(32_000);
+		expect(request[0].content).toContain("Fix the parser");
+		expect(request[0].content).toContain(
+			"Latest result: Unicode tests still fail.",
+		);
+	});
+
+	it("shortens an older pasted prompt without losing the current instruction", async () => {
+		await summarizeConversation({
+			messages: [
+				{ role: "user", content: `Old context: ${"x".repeat(120_000)}` },
+				{ role: "assistant", content: "Previous result." },
+				{ role: "user", content: "Now fix the parser." },
+				{ role: "assistant", content: "Latest result: tests remain." },
+			],
+			config,
+		});
+		const request = createMessageMock.mock.calls[0][1][0].content;
+		expect(request).toContain("Now fix the parser.");
+		expect(request).toContain("Latest result: tests remain.");
+	});
+
+	it("uses the selected model's limits after switching models", async () => {
+		const current = {
+			id: "current-model",
+			contextWindow: 128_000,
+			maxTokens: 8192,
+		};
+		await expect(
+			summarizeConversation({
+				messages: [{ role: "user", content: "x".repeat(6000) }],
+				config: {
+					...config,
+					modelId: current.id,
+					providerConfig: {
+						...config,
+						modelInfo: { id: "old-model", contextWindow: 2048, maxTokens: 512 },
+						knownModels: { [current.id]: current },
+					},
+				},
+			}),
+		).resolves.toContain("Fix the parser.");
+		expect(createHandlerMock).toHaveBeenCalledWith(
+			expect.objectContaining({ modelInfo: current, maxOutputTokens: 8192 }),
+		);
+	});
+
+	it("accepts normal stream completion without an optional done chunk", async () => {
+		respond([
+			text("Complete continuation note."),
+			{ type: "usage", id: "summary", inputTokens: 20, outputTokens: 10 },
+		]);
+		await expect(summarizeConversation({ messages, config })).resolves.toBe(
+			"Complete continuation note.",
+		);
 	});
 
 	it.each([
@@ -156,6 +305,15 @@ describe("summarizeConversation", () => {
 		await expect(
 			summarizeConversation({
 				messages: [{ role: "user", content: "x".repeat(200_000) }],
+				config,
+			}),
+		).rejects.toThrow("could not fit");
+		await expect(
+			summarizeConversation({
+				messages: [
+					...messages,
+					{ role: "assistant", content: "x".repeat(200_000) },
+				],
 				config,
 			}),
 		).rejects.toThrow("could not fit");
@@ -200,10 +358,6 @@ describe("summarizeConversation", () => {
 			name: "failed with an error",
 			chunks: [{ ...done, success: false, error: "Provider failed" }],
 		},
-		{
-			name: "stream ended without completion",
-			chunks: [text("Partial summary")],
-		},
 		{ name: "oversized", chunks: [text("x".repeat(12_001)), done] },
 		{
 			name: "tool call",
@@ -223,17 +377,17 @@ describe("summarizeConversation", () => {
 
 	it("propagates cancellation to the provider and never accepts partial output", async () => {
 		const controller = new AbortController();
-		createHandlerMock.mockImplementation(async (provider: ProviderConfig) => ({
+		createHandlerMock.mockImplementation(async () => ({
 			createMessage: async function* () {
 				yield text("Partial summary");
 				controller.abort();
-				expect(provider.abortSignal?.aborted).toBe(true);
 				yield done;
 			},
 		}));
 		await expect(
 			summarizeConversation({ messages, config, signal: controller.signal }),
 		).rejects.toThrow();
+		expect(createHandlerMock.mock.calls[0][0].abortSignal?.aborted).toBe(true);
 		createHandlerMock.mockClear();
 		await expect(
 			summarizeConversation({ messages, config, signal: controller.signal }),
