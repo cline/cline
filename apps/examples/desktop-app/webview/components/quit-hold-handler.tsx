@@ -103,7 +103,9 @@ export function QuitHoldHandler({
 			}
 			const now = performance.now();
 			const hold = holdRef.current;
-			if (!hold) {
+			if (!hold || !event.repeat) {
+				// A fresh press starts over even if macOS omitted the previous keyup.
+				stop();
 				holdRef.current = { start: now, lastRepeat: null };
 				setProgress(0);
 				timer = window.setInterval(tick, TICK_MS);
@@ -111,7 +113,6 @@ export function QuitHoldHandler({
 			}
 			// A bare tap never auto-repeats, so the quit needs a repeat event that
 			// arrives at or after the threshold: proof the key is still down.
-			if (!event.repeat) return;
 			hold.lastRepeat = now;
 			if (now - hold.start >= holdMs) {
 				stop();
