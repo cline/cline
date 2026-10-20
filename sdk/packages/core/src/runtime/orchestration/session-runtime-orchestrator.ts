@@ -1258,9 +1258,7 @@ export class SessionRuntime {
 	/**
 	 * Projects canonical messages into the provider-request shape: extension
 	 * message builders, then `MessageBuilder.buildForApi` (tool-result
-	 * truncation, repairs). This is the transform `prepareTurn` receives as
-	 * `apiMessages`, exposed so compaction wiring can apply it to a projected
-	 * transcript before estimating request size.
+	 * truncation, repairs). Produces the `apiMessages` given to `prepareTurn`.
 	 */
 	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],

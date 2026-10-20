@@ -776,12 +776,6 @@ export function createCompactionStateAwarePrepareTurn(input: {
 			// canonical tail. This keeps automatic turns bounded without rebuilding a
 			// full-transcript summary every turn; manual `/compact` is the path for a
 			// fresh summary from canonical history.
-			//
-			// The trigger estimates against `apiMessages`, so the projection must go
-			// through the same provider-request transform (tool-result truncation)
-			// the runtime applies before sending; otherwise the estimate counts
-			// full-size tool results the model never sees and re-compacts every
-			// few turns.
 			const result = input.compact
 				? await input.compact({
 						...context,

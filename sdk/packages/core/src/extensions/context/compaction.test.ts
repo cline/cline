@@ -4633,10 +4633,6 @@ describe("createContextCompactionPrepareTurn", () => {
 	});
 
 	it("runs the projected transcript through prepareApiMessages before re-compaction estimates it", async () => {
-		// Regression: once a sidecar exists, the projection was passed as
-		// `apiMessages` verbatim, so the trigger counted full-size tool results
-		// that the runtime truncates before sending and re-compacted every few
-		// turns (cline/cline#15159).
 		const originalMessages: LlmsProviders.Message[] = [
 			{ role: "user", content: "original request" },
 			{ role: "assistant", content: "original answer" },

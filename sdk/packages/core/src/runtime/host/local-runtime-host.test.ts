@@ -6761,15 +6761,8 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(liveMessages),
 				messages: liveMessages,
-				// Stand-in for the runtime's provider-request transform; marks
-				// each message so the test can tell the projection was routed
-				// through it before the compaction pipeline estimated it.
 				prepareProviderMessagesForApi: vi.fn(
-					async (messages: MessageWithMetadata[]) =>
-						messages.map((message) => ({
-							...message,
-							metadata: { apiSafe: true },
-						})),
+					async (messages: MessageWithMetadata[]) => messages,
 				),
 			});
 			const manager = new RuntimeHostUnderTest({
@@ -6839,8 +6832,6 @@ describe("LocalRuntimeHost", () => {
 					{ role: "user", content: "next" },
 				],
 			});
-			// Re-compaction must estimate against the API-safe form of the
-			// projection, derived through the runtime's own transform.
 			expect(
 				createAgent.mock.results[0]?.value.prepareProviderMessagesForApi,
 			).toHaveBeenCalledWith([
