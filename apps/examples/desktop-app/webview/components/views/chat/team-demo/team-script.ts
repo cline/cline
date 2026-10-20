@@ -1,34 +1,36 @@
-import type { AgentScreenshot } from "@cline/ui";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
-import qaBoard from "./screenshots/qa-01-board.webp";
-import qaPalette from "./screenshots/qa-02-palette.webp";
-import qaSettings from "./screenshots/qa-03-settings.webp";
-import qaDark from "./screenshots/qa-04-dark.webp";
-import qaShortcuts from "./screenshots/qa-05-shortcut.webp";
-import qaSaved from "./screenshots/qa-06-saved.webp";
 
 /*
- * Scripted agent team run: a lead session that plans and delegates with the
- * real team tools, and one child session per teammate. Tool names, inputs, and
- * results follow the SDK team tools so the transcript and the header's agent
- * roster render exactly as they do for a live run. The QA screenshots were
- * captured from the Settings panel a real team built for this fixture app.
+ * Scripted agent team run: a lead session that plans, delegates, and routes
+ * findings with the real team tools, and one child session per teammate. Tool
+ * names, inputs, and results follow the SDK team tools so the transcripts and
+ * the header's agent roster render exactly as they do for a live run.
  */
 
-export const TEAM_NAME = "tidepool-settings";
+export const TEAM_NAME = "tidepool-realtime";
 export const LEAD = "lead";
 export const TEAMMATE_IDS = [
-	"backend-dev",
-	"ui-dev",
-	"integration-dev",
-	"qa-engineer",
+	"architect",
+	"server-dev",
+	"client-dev",
+	"presence-dev",
+	"test-engineer",
+	"reviewer",
 ] as const;
 export type TeammateId = (typeof TEAMMATE_IDS)[number];
 export type SessionKey = typeof LEAD | TeammateId;
 
-export const TITLE = "Add a Settings panel: theme, digest, shortcuts";
+export type TeammatePhase =
+	| "planning"
+	| "editing"
+	| "testing"
+	| "reviewing"
+	| "waiting"
+	| "done";
+
+export const TITLE = "Add real-time collaboration to the board";
 export const PROMPT =
-	"Add a Settings panel to Tidepool: a Light / Dark / Auto theme, a daily digest email with a send time, and editable keyboard shortcuts. Persist settings in localStorage, and open Settings from the command palette, a gear button, and Ctrl+,. Use a team for this, and have someone verify it in the browser.";
+	"Add real-time collaboration to the Tidepool board: card edits and moves should sync live across open tabs, show who else is viewing the board, and resolve concurrent reorders without conflicts. Include tests and a short design doc. Break it up across a team.";
 
 export type Teammate = {
 	id: TeammateId;
@@ -39,107 +41,75 @@ export type Teammate = {
 };
 
 export const TEAMMATES: Record<TeammateId, Teammate> = {
-	"backend-dev": {
-		id: "backend-dev",
-		runId: "run_4f2a91",
-		title: "Build the settings store and localStorage persistence",
-		role: "You own application state and persistence.",
-		task: "Create src/settings.js: defaults for theme, digest, and shortcuts, persistence in localStorage under tidepool.settings.v1, and a change event other modules can subscribe to. Tell integration-dev the API when it is ready.",
+	architect: {
+		id: "architect",
+		runId: "run_1a7c40",
+		title: "Design the sync protocol and ordering model",
+		role: "You design protocols and data models before code is written.",
+		task: "Design the real-time sync protocol: event shape, versioning, reconnect behavior, and how card order survives concurrent moves. Write it up in docs/realtime.md and tell the team when it is ready.",
 	},
-	"ui-dev": {
-		id: "ui-dev",
-		runId: "run_8c07de",
-		title: "Design and build the Settings dialog",
-		role: "You own UI markup and styles.",
-		task: "Build the Settings dialog with Theme, Notifications, and Keyboard Shortcuts sections. Match the command palette's dialog styles and reuse the existing design tokens.",
+	"server-dev": {
+		id: "server-dev",
+		runId: "run_5e02b9",
+		title: "Build the WebSocket hub and event persistence",
+		role: "You own the Bun server and its storage.",
+		task: "Add a WebSocket hub to the server that applies and broadcasts board events per board, persists them, and replays missed events on reconnect. Follow docs/realtime.md once architect publishes it; read the server code while you wait.",
 	},
-	"integration-dev": {
-		id: "integration-dev",
-		runId: "run_b513e0",
-		title: "Wire Settings into the theme, palette, and shortcuts",
-		role: "You connect features across the app.",
-		task: "Once the store and dialog exist, apply the theme, make the palette shortcut configurable, and open Settings from a gear button, a palette action, and Ctrl+,. Plan against the current code while you wait.",
+	"client-dev": {
+		id: "client-dev",
+		runId: "run_92d4e1",
+		title: "Replace polling with an optimistic sync store",
+		role: "You own client state and networking.",
+		task: "Replace the 5-second polling with a sync store: apply edits and moves optimistically, send them over the socket, and roll back on rejection. Follow docs/realtime.md once it lands; map the current mutations while you wait.",
 	},
-	"qa-engineer": {
-		id: "qa-engineer",
-		runId: "run_e9d342",
-		title: "Verify the Settings panel in the browser",
-		role: "You run the app and verify features like a user would.",
-		task: "When integration-dev says it is ready, run the app in Chrome and verify every requirement with screenshots. Report bugs to the owner, then re-verify.",
+	"presence-dev": {
+		id: "presence-dev",
+		runId: "run_c3b817",
+		title: "Show who is viewing the board",
+		role: "You own board UI.",
+		task: "Show who else is viewing the board using the presence events from docs/realtime.md. Reuse the existing avatar stack and design tokens.",
+	},
+	"test-engineer": {
+		id: "test-engineer",
+		runId: "run_e8f056",
+		title: "Write multi-client sync tests",
+		role: "You write tests that exercise real behavior.",
+		task: "Write tests that run two clients against one server: edits, moves, concurrent moves into the same slot, reconnect replay, and presence. Plan the matrix now and write the tests once the protocol lands.",
+	},
+	reviewer: {
+		id: "reviewer",
+		runId: "run_07a6d3",
+		title: "Review each change as it lands",
+		role: "You review code for correctness against the design.",
+		task: "Review each teammate's change against docs/realtime.md as it lands. Approve, or send concrete findings to the owner or the main session.",
 	},
 };
 
-export const SCREENSHOTS: AgentScreenshot[] = [
-	{
-		id: "board",
-		src: qaBoard.src,
-		title: "Board loads with the new gear button",
-		action: "launch",
-		detail: "localhost:5173",
-		status: "passed",
-	},
-	{
-		id: "palette",
-		src: qaPalette.src,
-		title: "“Settings” is a palette action",
-		action: "type",
-		detail: "sett",
-		status: "passed",
-	},
-	{
-		id: "settings",
-		src: qaSettings.src,
-		title: "Settings opens with Theme and Notifications",
-		action: "key",
-		detail: "Enter",
-		status: "passed",
-	},
-	{
-		id: "dark",
-		src: qaDark.src,
-		title: "Dark theme applies instantly",
-		action: "click",
-		detail: "Dark",
-		pointer: { x: 0.35, y: 0.456 },
-		status: "passed",
-	},
-	{
-		id: "shortcuts",
-		src: qaShortcuts.src,
-		title: "Keyboard shortcuts are editable",
-		action: "scroll",
-		detail: "Keyboard Shortcuts",
-		status: "passed",
-	},
-	{
-		id: "saved",
-		src: qaSaved.src,
-		title: "Saved settings survive a reload",
-		action: "key",
-		detail: "F5",
-		status: "passed",
-	},
-];
+export const FINAL_DIFF = { additions: 1184, deletions: 212 };
 
-export const FINAL_DIFF = { additions: 486, deletions: 41 };
+const LEAD_PLAN = `Tidepool polls the API every 5 seconds and stores card order as integer positions, so this is a protocol change first and code second. I'll split it six ways:
 
-const LEAD_PLAN = `This splits into four pieces. Only the store is a hard dependency, so the store and the dialog can start in parallel while integration plans against the current code.
+1. **architect**: event protocol and ordering model. Everything else builds on this.
+2. **server-dev**: WebSocket hub and event persistence
+3. **client-dev**: optimistic sync store to replace polling
+4. **presence-dev**: who's viewing, in the existing avatar stack
+5. **test-engineer**: two-client sync tests
+6. **reviewer**: reviews each change as it lands
 
-1. **backend-dev**: settings store and \`localStorage\` persistence
-2. **ui-dev**: the Settings dialog, in the palette's existing styles
-3. **integration-dev**: theme, configurable palette shortcut, and the three ways to open Settings, once 1 and 2 land
-4. **qa-engineer**: run the app in Chrome and verify every requirement, once 3 lands`;
+The builders plan against the current code until the protocol is ready.`;
 
-const LEAD_FINAL = `Settings is in. Four teammates built it in parallel, and qa-engineer verified it in the browser.
+const LEAD_FINAL = `Real-time collaboration is in. Six teammates built it in parallel; I planned the split, routed one review finding, and ran the full suite.
 
-- **backend-dev** added \`src/settings.js\`: defaults, persistence under \`tidepool.settings.v1\`, and change events
-- **ui-dev** built the dialog with Theme, Notifications, and Keyboard Shortcuts sections in the existing styles
-- **integration-dev** applied the theme, made the palette shortcut configurable, and added a gear button, a "Settings" palette action, and \`Ctrl ,\`
-- **qa-engineer** found that **Auto** ignored OS theme changes, sent it back to integration-dev, and re-verified the fix
+- **architect** wrote \`docs/realtime.md\`: versioned events over one WebSocket, and fractional indexes so a move touches one card
+- **server-dev** added the hub in \`server/realtime.ts\` with per-board rooms and replay on reconnect
+- **client-dev** replaced 5-second polling with an optimistic sync store that rolls back on rejection
+- **presence-dev** shows who's viewing the board in the existing avatar stack
+- **test-engineer** found that concurrent moves into one slot diverged, and added a deterministic tiebreak
+- **reviewer** caught moves still sending integer positions before client-dev landed
 
-31 tests pass.`;
+38 tests pass.`;
 
-export type Beat = { wait: number; in: SessionKey } & (
+type BeatAction =
 	| { status: ChatSessionStatus }
 	/** Opens a teammate's session with its task as the first message. */
 	| { start: true }
@@ -159,13 +129,17 @@ export type Beat = { wait: number; in: SessionKey } & (
 			ref?: string;
 	  }
 	| { complete: string; result: unknown }
-);
+	| { note: true };
+
+export type Beat = {
+	wait: number;
+	in: SessionKey;
+	/** What a teammate is doing from this beat on, as shown in the team panel. */
+	phase?: TeammatePhase;
+	step?: string;
+} & BeatAction;
 
 const commandResult = (query: string, result: string) => [{ query, result }];
-
-const screenshot = (images: Record<string, string>, id: string) => [
-	{ type: "image", mediaType: "image/webp", data: images[id] ?? "" },
-];
 
 const runSummary = (teammate: Teammate, status = "completed") => ({
 	id: teammate.runId,
@@ -173,12 +147,17 @@ const runSummary = (teammate: Teammate, status = "completed") => ({
 	status,
 });
 
-export function buildBeats(images: Record<string, string>): Beat[] {
-	const backend = TEAMMATES["backend-dev"];
-	const ui = TEAMMATES["ui-dev"];
-	const integration = TEAMMATES["integration-dev"];
-	const qa = TEAMMATES["qa-engineer"];
-	const all = [backend, ui, integration, qa];
+const mail = (
+	id: string,
+	from: SessionKey,
+	to: SessionKey,
+	subject: string,
+) => [{ id, fromAgentId: from, toAgentId: to, subject }];
+
+export function buildBeats(): Beat[] {
+	const all = TEAMMATE_IDS.map((id) => TEAMMATES[id]);
+	const architect = TEAMMATES.architect;
+	const server = TEAMMATES["server-dev"];
 
 	return [
 		{ wait: 500, in: LEAD, status: "running" },
@@ -186,16 +165,21 @@ export function buildBeats(images: Record<string, string>): Beat[] {
 			wait: 500,
 			in: LEAD,
 			reasoning:
-				"A settings panel touches state, UI, theming, and keyboard handling. Before deciding how to split it, I need to see where those live today.",
+				"Live sync touches the server, client state, the board UI, and ordering. I need to see how data flows today before deciding how to split it.",
 			thinkMs: 4000,
-			say: "I'll look at how Tidepool handles state, theming, and shortcuts before splitting this up.",
+			say: "I'll map how the board loads and saves data before splitting this up.",
 		},
 		{
 			wait: 300,
 			in: LEAD,
 			tool: "read_files",
 			input: {
-				files: ["index.html", "src/app.js", "src/palette.js", "src/styles.css"],
+				files: [
+					"src/api.js",
+					"src/board.js",
+					"server/index.ts",
+					"server/db.ts",
+				],
 			},
 			result: "ok",
 			runMs: 700,
@@ -204,40 +188,36 @@ export function buildBeats(images: Record<string, string>): Beat[] {
 			wait: 200,
 			in: LEAD,
 			tool: "search_codebase",
-			input: { queries: ["keydown", "localStorage", "data-theme"] },
+			input: { queries: ["setInterval", "position", "PATCH /cards"] },
 			result:
-				"src/app.js:41 document.addEventListener('keydown', …)\nsrc/palette.js:12 if (e.ctrlKey && e.key === 'k')\nsrc/styles.css:3 :root[data-theme='dark']",
+				"src/board.js:22 setInterval(fetchBoard, 5000)\nserver/db.ts:31 position INTEGER NOT NULL\nserver/index.ts:58 PATCH /cards/:id",
 			runMs: 500,
 		},
 		{
 			wait: 500,
 			in: LEAD,
 			reasoning:
-				"Dependencies first. Theme, shortcuts, and notifications all read settings, so the store comes first, but the dialog markup doesn't need it, so the store and the dialog can run in parallel. Integration can plan against the existing keydown and theme code while it waits. QA needs everything wired, so it goes last and should exercise the real UI in a browser.",
-			thinkMs: 9000,
+				"The protocol is the critical path: the server, client, presence, and tests all depend on the event shape and the ordering model. One agent should design it while the others learn their part of the codebase, so nobody idles and nobody builds against a guess. A reviewer running alongside catches drift from the design before it compounds.",
+			thinkMs: 11000,
 			say: LEAD_PLAN,
 			stream: true,
 		},
 		...all.map(
 			(teammate): Beat => ({
-				wait: 120,
+				wait: 110,
 				in: LEAD,
 				tool: "team_spawn_teammate",
 				input: { agentId: teammate.id, rolePrompt: teammate.role },
 				result: { agentId: teammate.id, status: "spawned" },
-				runMs: 220,
+				runMs: 200,
 			}),
 		),
 		...all.flatMap((teammate): Beat[] => [
 			{
-				wait: 100,
+				wait: 90,
 				in: LEAD,
 				tool: "team_run_task",
-				input: {
-					agentId: teammate.id,
-					task: teammate.task,
-					runMode: "async",
-				},
+				input: { agentId: teammate.id, task: teammate.task, runMode: "async" },
 				result: {
 					agentId: teammate.id,
 					mode: "async",
@@ -246,216 +226,521 @@ export function buildBeats(images: Record<string, string>): Beat[] {
 					message: `Task dispatched to ${teammate.id} and queued as ${teammate.runId}.`,
 					runId: teammate.runId,
 				},
-				runMs: 200,
+				runMs: 180,
 			},
-			{ wait: 60, in: teammate.id, start: true },
+			{
+				wait: 40,
+				in: teammate.id,
+				start: true,
+				phase: teammate.id === "reviewer" ? "waiting" : "planning",
+				step: "Reading the task",
+			},
 		]),
 		{
 			wait: 400,
 			in: LEAD,
-			say: "The team is running. backend-dev and ui-dev are building now; integration-dev and qa-engineer are planning until their inputs land.",
+			say: "Six teammates are running. architect is designing the protocol; the others are planning against the current code until it lands.",
 		},
 		{
 			wait: 200,
 			in: LEAD,
 			tool: "team_await_runs",
-			input: { runId: backend.runId },
-			ref: "await-store",
+			input: { runId: architect.runId },
+			ref: "await-architect",
 		},
 
-		// Builders act while integration-dev and qa-engineer plan.
+		// Everyone plans while architect designs the protocol.
 		{
 			wait: 300,
-			in: "backend-dev",
+			in: "architect",
+			step: "Comparing ordering strategies",
 			reasoning:
-				"Everyone else reads from this module, so the API matters more than the internals. Keep it small: get, update with a patch, and subscribe.",
-			thinkMs: 3000,
-			say: "Starting with the storage format so the rest of the team has a stable API.",
-		},
-		{
-			wait: 300,
-			in: "ui-dev",
-			say: "I'll match the command palette's dialog so Settings feels native.",
+				"Two decisions everything else depends on: the event shape, and how card order survives concurrent moves. Integer positions mean a move rewrites every card after it, and two concurrent moves fight over the same rows. Fractional indexes let a move write one card.",
+			thinkMs: 9000,
+			say: "Starting with the two decisions everything depends on: the event shape, and how card order survives concurrent moves.",
 		},
 		{
 			wait: 250,
-			in: "integration-dev",
+			in: "server-dev",
+			step: "Reading the server's persistence layer",
+			say: "While the protocol is drafted, I'll learn how the server stores and updates cards.",
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			step: "Mapping every board mutation",
+			say: "Mapping every place the board mutates state, so each one can become an optimistic update.",
+		},
+		{
+			wait: 200,
+			in: "presence-dev",
+			step: "Planning around the avatar stack",
 			reasoning:
-				"My work depends on the store and the dialog, neither of which exists yet. The useful thing now is to find every place theme and shortcuts are handled, so I can wire them up the moment the others land.",
+				"The header already renders an avatar stack for assignees. Presence should reuse it with a live ring, rather than add a new widget.",
 			thinkMs: 5000,
-			say: "Nothing to wire yet. I'll map where theme and shortcuts are handled today.",
+			say: "Presence should reuse the header's avatar stack. Checking how it's built.",
 		},
 		{
-			wait: 250,
-			in: "backend-dev",
+			wait: 200,
+			in: "server-dev",
 			tool: "read_files",
-			input: { files: ["src/app.js"] },
+			input: { files: ["server/index.ts", "server/db.ts"] },
 			result: "ok",
 			runMs: 500,
 		},
 		{
 			wait: 150,
-			in: "ui-dev",
+			in: "reviewer",
+			step: "Waiting for the first change",
+			say: "Nothing to review yet. I'll read the current sync path so I can review changes against it.",
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			tool: "search_codebase",
+			input: { queries: ["fetch(", "renderBoard", "moveCard"] },
+			result:
+				"src/api.js:8 fetch(boardUrl(id))\nsrc/board.js:22 setInterval(fetchBoard, 5000)\nsrc/board.js:71 moveCard(id, toIndex)",
+			runMs: 500,
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
+			step: "Drafting the test matrix",
+			say: `Test plan, two clients against one server:
+
+- An edit on A appears on B
+- A move on A appears on B in the same order
+- Concurrent moves into the same slot converge
+- Reconnect replays missed events
+- Presence join and leave`,
+			stream: true,
+		},
+		{
+			wait: 200,
+			in: "presence-dev",
+			tool: "search_codebase",
+			input: { queries: ["avatar-stack", "renderAvatars"] },
+			result: "src/header.js:14 function renderAvatars(users)",
+			runMs: 450,
+		},
+		{
+			wait: 200,
+			in: "architect",
+			step: "Writing docs/realtime.md",
+			tool: "editor",
+			input: {
+				path: "docs/realtime.md",
+				new_text: `# Real-time sync
+
+One WebSocket per tab at \`/ws?board=<id>\`. The server is the source of truth.
+
+## Events
+Every event is \`{ seq, boardId, clientId, type, payload }\`. \`seq\` is assigned by
+the server and strictly increases per board.
+
+- \`card.updated\` { id, fields }
+- \`card.moved\` { id, columnId, order }
+- \`presence.joined\` / \`presence.left\` { userId }
+
+## Ordering
+Cards sort by a fractional index string (\`order\`). A move writes one card: the
+new order sits between its neighbours. Ties sort by \`clientId\`.
+
+## Reconnect
+Clients send \`lastSeq\`; the server replays every later event before going live.`,
+			},
+			result: "Created docs/realtime.md",
+			runMs: 1100,
+		},
+		{
+			wait: 200,
+			in: "reviewer",
 			tool: "read_files",
-			input: { files: ["src/palette.js", "src/styles.css"] },
+			input: { files: ["src/board.js", "server/index.ts"] },
 			result: "ok",
 			runMs: 500,
 		},
 		{
-			wait: 250,
-			in: "qa-engineer",
-			say: "Nothing to test yet. I'll turn the requirements into a checklist while the build lands.",
+			wait: 200,
+			in: "client-dev",
+			step: "Planning the store API",
+			say: "Five mutations to convert: edit title, edit fields, move, create, archive. Each gets an optimistic apply and a rollback.",
 		},
 		{
 			wait: 250,
-			in: "integration-dev",
-			tool: "search_codebase",
-			input: { queries: ["keydown", "prefers-color-scheme", "openPalette"] },
-			result:
-				"src/app.js:41 document.addEventListener('keydown', …)\nsrc/palette.js:12 if (e.ctrlKey && e.key === 'k') openPalette()",
-			runMs: 500,
-		},
-		{
-			wait: 250,
-			in: "backend-dev",
-			tool: "editor",
+			in: "architect",
+			tool: "team_broadcast",
 			input: {
-				path: "src/settings.js",
-				new_text: `const KEY = "tidepool.settings.v1";
-
-export const DEFAULTS = {
-	theme: "auto",
-	digest: { enabled: true, time: "09:00" },
-	shortcuts: { palette: "Mod+K", settings: "Mod+,", theme: "Mod+Shift+L" },
-};
-
-export function getSettings() {
-	const saved = JSON.parse(localStorage.getItem(KEY) ?? "{}");
-	return { ...DEFAULTS, ...saved };
-}
-
-export function updateSettings(patch) {
-	const next = { ...getSettings(), ...patch };
-	localStorage.setItem(KEY, JSON.stringify(next));
-	window.dispatchEvent(new CustomEvent("settingschange", { detail: next }));
-	return next;
-}
-
-export function onSettingsChange(listener) {
-	const handle = (event) => listener(event.detail);
-	window.addEventListener("settingschange", handle);
-	return () => window.removeEventListener("settingschange", handle);
-}`,
+				subject: "Protocol v1 is in docs/realtime.md",
+				body: "Versioned events over one socket per tab, fractional-index ordering with a clientId tiebreak, replay from lastSeq on reconnect.",
 			},
-			result: "Created src/settings.js",
-			runMs: 800,
+			result: { delivered: 5 },
+			runMs: 250,
 		},
 		{
 			wait: 250,
-			in: "qa-engineer",
-			tool: "editor",
-			input: {
-				path: "qa/settings-checklist.md",
-				new_text: `# Settings checklist
-
-- [ ] Gear button opens Settings
-- [ ] "Settings" palette action opens Settings
-- [ ] Ctrl+, opens Settings
-- [ ] Light, Dark, and Auto apply instantly
-- [ ] Auto follows OS theme changes without a reload
-- [ ] Daily digest toggle and send time
-- [ ] Shortcuts are editable and take effect
-- [ ] Settings survive a reload`,
-			},
-			result: "Created qa/settings-checklist.md",
-			runMs: 600,
+			in: "architect",
+			say: "Protocol v1 is published in `docs/realtime.md`: versioned events over one socket, fractional indexes so a move writes one card, and replay from `lastSeq` on reconnect.",
+			stream: true,
 		},
+		{ wait: 200, in: "architect", status: "completed" },
 		{
-			wait: 250,
-			in: "ui-dev",
-			tool: "editor",
-			input: {
-				path: "index.html",
-				old_text: `<div id="palette" class="dialog" hidden></div>`,
-				new_text: `<div id="palette" class="dialog" hidden></div>
-<div id="settings" class="dialog settings" role="dialog" aria-labelledby="settings-title" hidden>
-	<header><h2 id="settings-title">Settings</h2><button data-close aria-label="Close">×</button></header>
-	<section data-section="theme"></section>
-	<section data-section="notifications"></section>
-	<section data-section="shortcuts"></section>
-	<footer><button data-reset>Reset to defaults</button><button data-save class="primary">Save changes</button></footer>
-</div>`,
-			},
-			result: "Edited index.html",
-			runMs: 700,
+			wait: 200,
+			in: LEAD,
+			complete: "await-architect",
+			result: runSummary(architect),
 		},
 		{
 			wait: 300,
-			in: "integration-dev",
-			say: `Plan, once the store and dialog land:
-
-1. Apply \`data-theme\` on \`<html>\` from settings, with **Auto** following \`prefers-color-scheme\`
-2. Replace the hard-coded \`Ctrl+K\` check with the configured binding
-3. Add a gear button, a "Settings" palette action, and \`Ctrl ,\``,
-			stream: true,
+			in: LEAD,
+			say: "The protocol is in, and the builders are unblocked. Waiting on server-dev next, since client-dev needs a live server to test against.",
 		},
 		{
+			wait: 200,
+			in: LEAD,
+			tool: "team_await_runs",
+			input: { runId: server.runId },
+			ref: "await-server",
+		},
+
+		// Builders act on the protocol; reviewer waits for the first change.
+		{
 			wait: 250,
-			in: "backend-dev",
-			tool: "run_commands",
-			input: { commands: ["bun test src/settings.test.js"] },
-			result: commandResult(
-				"bun test src/settings.test.js",
-				"✓ returns defaults when nothing is saved\n✓ merges a patch and persists it\n✓ notifies subscribers on change\n\n 11 pass\n 0 fail",
+			in: "server-dev",
+			phase: "editing",
+			step: "Reading the protocol",
+			tool: "team_read_mailbox",
+			input: { unreadOnly: true },
+			result: mail(
+				"msg_1",
+				"architect",
+				"server-dev",
+				"Protocol v1 is in docs/realtime.md",
 			),
+			runMs: 250,
+		},
+		{
+			wait: 150,
+			in: "client-dev",
+			phase: "editing",
+			step: "Reading the protocol",
+			tool: "team_read_mailbox",
+			input: { unreadOnly: true },
+			result: mail(
+				"msg_1",
+				"architect",
+				"client-dev",
+				"Protocol v1 is in docs/realtime.md",
+			),
+			runMs: 250,
+		},
+		{
+			wait: 150,
+			in: "presence-dev",
+			phase: "editing",
+			step: "Reading the protocol",
+			tool: "team_read_mailbox",
+			input: { unreadOnly: true },
+			result: mail(
+				"msg_1",
+				"architect",
+				"presence-dev",
+				"Protocol v1 is in docs/realtime.md",
+			),
+			runMs: 250,
+		},
+		{
+			wait: 200,
+			in: "server-dev",
+			step: "Writing server/realtime.ts",
+			tool: "editor",
+			input: {
+				path: "server/realtime.ts",
+				new_text: `const rooms = new Map<string, Set<ServerWebSocket<Client>>>();
+
+export function open(ws: ServerWebSocket<Client>) {
+	const room = rooms.get(ws.data.boardId) ?? new Set();
+	rooms.set(ws.data.boardId, room.add(ws));
+	for (const event of db.eventsSince(ws.data.boardId, ws.data.lastSeq)) {
+		ws.send(JSON.stringify(event));
+	}
+	broadcast(ws.data.boardId, { type: "presence.joined", payload: { userId: ws.data.userId } });
+}
+
+export function message(ws: ServerWebSocket<Client>, raw: string) {
+	const event = db.applyEvent(ws.data.boardId, ws.data.clientId, JSON.parse(raw));
+	broadcast(ws.data.boardId, event);
+}`,
+			},
+			result: "Created server/realtime.ts",
+			runMs: 1000,
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
+			phase: "editing",
+			step: "Writing tests/realtime.test.ts",
+			tool: "team_read_mailbox",
+			input: { unreadOnly: true },
+			result: mail(
+				"msg_1",
+				"architect",
+				"test-engineer",
+				"Protocol v1 is in docs/realtime.md",
+			),
+			runMs: 250,
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			step: "Writing src/sync/store.js",
+			tool: "editor",
+			input: {
+				path: "src/sync/store.js",
+				new_text: `export function createSyncStore(board, socket) {
+	const pending = new Map();
+
+	function apply(event) {
+		const undo = board.apply(event);
+		pending.set(event.id, undo);
+		socket.send(event);
+	}
+
+	socket.onEvent((event) => {
+		if (pending.has(event.id)) return pending.delete(event.id);
+		board.apply(event);
+	});
+
+	socket.onReject((id) => {
+		pending.get(id)?.();
+		pending.delete(id);
+	});
+
+	return { apply };
+}`,
+			},
+			result: "Created src/sync/store.js",
+			runMs: 1000,
+		},
+		{
+			wait: 200,
+			in: "presence-dev",
+			step: "Adding live presence to the avatar stack",
+			tool: "editor",
+			input: {
+				path: "src/header.js",
+				old_text: "function renderAvatars(users) {",
+				new_text: `function renderAvatars(users, online = new Set()) {
+	users = [...users].sort((a, b) => online.has(b.id) - online.has(a.id));`,
+			},
+			result: "Edited src/header.js",
+			runMs: 700,
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
+			tool: "editor",
+			input: {
+				path: "tests/realtime.test.ts",
+				new_text: `test("concurrent moves into the same slot converge", async () => {
+	const [a, b] = await connectClients(2, { board: "launch-q4" });
+	await Promise.all([
+		a.move("card-1", { column: "doing", index: 0 }),
+		b.move("card-2", { column: "doing", index: 0 }),
+	]);
+	await settle(a, b);
+	expect(a.column("doing")).toEqual(b.column("doing"));
+});`,
+			},
+			result: "Created tests/realtime.test.ts",
 			runMs: 900,
 		},
 		{
-			wait: 250,
-			in: "ui-dev",
+			wait: 200,
+			in: "server-dev",
+			tool: "editor",
+			input: {
+				path: "server/index.ts",
+				old_text: `fetch(req) {`,
+				new_text: `websocket: realtime,
+	fetch(req, server) {
+		if (new URL(req.url).pathname === "/ws") return upgrade(req, server);`,
+			},
+			result: "Edited server/index.ts",
+			runMs: 700,
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
+			phase: "waiting",
+			step: "Waiting on server-dev and client-dev",
+			say: "Five tests are written. They need the hub and the sync store, so I'll run them when both land.",
+		},
+		{
+			wait: 200,
+			in: "server-dev",
+			phase: "testing",
+			step: "Running server tests",
+			tool: "run_commands",
+			input: { commands: ["bun test server"] },
+			result: commandResult(
+				"bun test server",
+				"✓ replays events after lastSeq\n✓ assigns increasing seq per board\n✓ broadcasts to the board's room only\n\n 9 pass\n 0 fail",
+			),
+			runMs: 1000,
+		},
+		{
+			wait: 200,
+			in: "presence-dev",
+			step: "Styling the live ring",
 			tool: "editor",
 			input: {
 				path: "src/styles.css",
-				old_text: `.dialog {`,
-				new_text: `.settings { width: min(512px, 92vw); max-height: 86vh; }
-.settings section { padding: var(--space-4) var(--space-5); }
-.settings .option { border: 1px solid var(--border); border-radius: var(--radius-md); }
-.settings .option[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+				old_text: ".avatar {",
+				new_text: `.avatar[data-online] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 
-.dialog {`,
+.avatar {`,
 			},
 			result: "Edited src/styles.css",
 			runMs: 600,
 		},
 		{
-			wait: 250,
-			in: "backend-dev",
+			wait: 200,
+			in: "server-dev",
 			tool: "team_send_message",
 			input: {
-				toAgentId: "integration-dev",
-				subject: "Settings store is ready",
-				body: "src/settings.js exports getSettings(), updateSettings(patch), and onSettingsChange(fn). Defaults: theme auto, digest 09:00, palette Mod+K, settings Mod+,.",
+				toAgentId: "reviewer",
+				subject: "Ready for review: WebSocket hub",
+				body: "server/realtime.ts and the /ws upgrade in server/index.ts. 9 server tests pass.",
 			},
-			result: { id: "msg_1", toAgentId: "integration-dev" },
+			result: { id: "msg_2", toAgentId: "reviewer" },
 			runMs: 250,
 		},
 		{
-			wait: 300,
-			in: "backend-dev",
-			say: "The settings store is done: `src/settings.js` with defaults, persistence under `tidepool.settings.v1`, and a `settingschange` event. 11 tests pass, and integration-dev has the API.",
+			wait: 200,
+			in: "server-dev",
+			say: "The hub is done: per-board rooms, server-assigned `seq`, and replay from `lastSeq` on reconnect. 9 tests pass, and it's with reviewer.",
 			stream: true,
 		},
-		{ wait: 200, in: "backend-dev", status: "completed" },
+		{ wait: 150, in: "server-dev", status: "completed" },
+		{
+			wait: 150,
+			in: LEAD,
+			complete: "await-server",
+			result: runSummary(server),
+		},
+		{
+			wait: 250,
+			in: LEAD,
+			say: "server-dev finished the hub, and reviewer has it. client-dev, presence-dev, and test-engineer are still going.",
+		},
+
+		// Reviewer finds a design drift; the lead routes it.
+		{
+			wait: 250,
+			in: "reviewer",
+			phase: "reviewing",
+			step: "Reviewing server/realtime.ts",
+			tool: "team_read_mailbox",
+			input: { unreadOnly: true },
+			result: mail(
+				"msg_2",
+				"server-dev",
+				"reviewer",
+				"Ready for review: WebSocket hub",
+			),
+			runMs: 250,
+		},
+		{
+			wait: 200,
+			in: "reviewer",
+			tool: "read_files",
+			input: {
+				files: ["server/realtime.ts", "server/index.ts", "src/sync/store.js"],
+			},
+			result: "ok",
+			runMs: 600,
+		},
+		{
+			wait: 200,
+			in: "presence-dev",
+			phase: "testing",
+			step: "Running presence tests",
+			tool: "run_commands",
+			input: { commands: ["bun test src/header.test.js"] },
+			result: commandResult(
+				"bun test src/header.test.js",
+				"✓ online users sort first\n✓ marks online avatars\n\n 4 pass\n 0 fail",
+			),
+			runMs: 800,
+		},
+		{
+			wait: 200,
+			in: "reviewer",
+			reasoning:
+				"The hub matches the design: per-board rooms, server-assigned seq, replay from lastSeq. But the client store passes board.moveCard's integer index straight through, so moves would still renumber every card after the target. That defeats the ordering model, and it isn't in server-dev's diff, so it should go to the main session.",
+			thinkMs: 7000,
+			say: "The hub matches `docs/realtime.md`. Approved. One problem outside this diff: the client still sends integer positions on move, which would undo the ordering model.",
+		},
+		{
+			wait: 200,
+			in: "reviewer",
+			tool: "team_send_message",
+			input: {
+				toAgentId: "lead",
+				subject: "Moves still send integer positions",
+				body: "src/sync/store.js forwards moveCard's integer index. Per docs/realtime.md, moves must send a fractional order between neighbours.",
+			},
+			result: { id: "msg_3", toAgentId: "lead" },
+			runMs: 250,
+		},
+		{
+			wait: 150,
+			in: "reviewer",
+			phase: "waiting",
+			step: "Waiting for client-dev's change",
+			note: true,
+		},
+		{
+			wait: 200,
+			in: "presence-dev",
+			say: "Presence is in: viewers sort to the front of the avatar stack with a live ring, driven by `presence.joined` and `presence.left`. 4 tests pass.",
+			stream: true,
+		},
+		{ wait: 150, in: "presence-dev", status: "completed" },
 		{
 			wait: 200,
 			in: LEAD,
-			complete: "await-store",
-			result: runSummary(backend),
+			tool: "team_read_mailbox",
+			input: { unreadOnly: true },
+			result: mail(
+				"msg_3",
+				"reviewer",
+				"lead",
+				"Moves still send integer positions",
+			),
+			runMs: 250,
 		},
 		{
-			wait: 400,
+			wait: 200,
 			in: LEAD,
-			say: "The store is in and integration-dev has the API. Waiting on the rest of the team.",
+			reasoning:
+				"reviewer is right: forwarding the integer index means every move renumbers the column, which is exactly the conflict the protocol was designed out of. client-dev hasn't finished, so the cheapest fix is now, before tests are built on top of it.",
+			thinkMs: 5000,
+			say: "Good catch from reviewer. client-dev hasn't landed yet, so I'm sending it back now rather than after tests depend on it.",
+		},
+		{
+			wait: 200,
+			in: LEAD,
+			tool: "team_send_message",
+			input: {
+				toAgentId: "client-dev",
+				subject: "Use fractional order for moves",
+				body: "reviewer found src/sync/store.js forwards moveCard's integer index. Compute the order between the new neighbours, per docs/realtime.md.",
+			},
+			result: { id: "msg_4", toAgentId: "client-dev" },
+			runMs: 250,
 		},
 		{
 			wait: 200,
@@ -464,293 +749,214 @@ export function onSettingsChange(listener) {
 			input: {},
 			ref: "await-all",
 		},
-
-		// Integration picks up the store while ui-dev finishes the dialog.
 		{
-			wait: 300,
-			in: "integration-dev",
+			wait: 250,
+			in: "client-dev",
+			step: "Switching moves to fractional order",
 			tool: "team_read_mailbox",
 			input: { unreadOnly: true },
-			result: [
-				{
-					id: "msg_1",
-					fromAgentId: "backend-dev",
-					toAgentId: "integration-dev",
-					subject: "Settings store is ready",
-				},
-			],
-			runMs: 250,
-		},
-		{
-			wait: 250,
-			in: "ui-dev",
-			tool: "editor",
-			input: {
-				path: "src/settings-panel.js",
-				new_text: `import { getSettings, updateSettings, DEFAULTS } from "./settings.js";
-
-export function openSettings() {
-	const dialog = document.getElementById("settings");
-	render(dialog, getSettings());
-	dialog.hidden = false;
-	dialog.querySelector("[data-save]").onclick = () => {
-		updateSettings(readForm(dialog));
-		dialog.hidden = true;
-	};
-	dialog.querySelector("[data-reset]").onclick = () => render(dialog, DEFAULTS);
-}`,
-			},
-			result: "Created src/settings-panel.js",
-			runMs: 800,
-		},
-		{
-			wait: 250,
-			in: "integration-dev",
-			tool: "editor",
-			input: {
-				path: "src/theme.js",
-				new_text: `import { getSettings, onSettingsChange } from "./settings.js";
-
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
-
-function apply({ theme }) {
-	const resolved = theme === "auto" ? (dark.matches ? "dark" : "light") : theme;
-	document.documentElement.dataset.theme = resolved;
-}
-
-export function initTheme() {
-	apply(getSettings());
-	onSettingsChange(apply);
-}`,
-			},
-			result: "Created src/theme.js",
-			runMs: 700,
-		},
-		{
-			wait: 250,
-			in: "ui-dev",
-			say: "The Settings dialog is done: Theme, Notifications, and Keyboard Shortcuts sections, styled with the palette's tokens, with `openSettings()` exported for integration-dev.",
-			stream: true,
-		},
-		{ wait: 200, in: "ui-dev", status: "completed" },
-		{
-			wait: 250,
-			in: "integration-dev",
-			tool: "editor",
-			input: {
-				path: "src/palette.js",
-				old_text: `if (e.ctrlKey && e.key === 'k') openPalette();`,
-				new_text: `if (matchesShortcut(e, getSettings().shortcuts.palette)) openPalette();`,
-			},
-			result: "Edited src/palette.js",
-			runMs: 600,
-		},
-		{
-			wait: 250,
-			in: "integration-dev",
-			tool: "editor",
-			input: {
-				path: "src/app.js",
-				old_text: `initPalette(commands);`,
-				new_text: `initTheme();
-commands.push({ id: "settings", label: "Settings", shortcut: "Mod+,", run: openSettings });
-initPalette(commands);
-document.getElementById("gear").addEventListener("click", openSettings);`,
-			},
-			result: "Edited src/app.js",
-			runMs: 700,
-		},
-		{
-			wait: 250,
-			in: "integration-dev",
-			tool: "team_send_message",
-			input: {
-				toAgentId: "qa-engineer",
-				subject: "Ready to test",
-				body: "Theme, the configurable palette shortcut, the gear button, the Settings palette action, and Ctrl+, are all wired. bun run dev serves it on :5173.",
-			},
-			result: { id: "msg_2", toAgentId: "qa-engineer" },
-			runMs: 250,
-		},
-
-		// QA drives the real UI and finds a bug.
-		{
-			wait: 300,
-			in: "qa-engineer",
-			tool: "team_read_mailbox",
-			input: { unreadOnly: true },
-			result: [
-				{
-					id: "msg_2",
-					fromAgentId: "integration-dev",
-					toAgentId: "qa-engineer",
-					subject: "Ready to test",
-				},
-			],
+			result: mail(
+				"msg_4",
+				"lead",
+				"client-dev",
+				"Use fractional order for moves",
+			),
 			runMs: 250,
 		},
 		{
 			wait: 200,
-			in: "qa-engineer",
-			tool: "run_commands",
+			in: "client-dev",
+			say: "Right, I was forwarding the index from `moveCard`. Adding an order helper so a move writes one card.",
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			tool: "editor",
 			input: {
-				commands: [
-					"bun run dev & Xvfb :99 -screen 0 1280x800x24 & DISPLAY=:99 google-chrome --app=http://localhost:5173 &",
-				],
+				path: "src/sync/order.js",
+				new_text: `export function between(before, after) {
+	const lo = before ? parse(before) : 0;
+	const hi = after ? parse(after) : 1;
+	return format((lo + hi) / 2);
+}
+
+export const compareCards = (a, b) =>
+	a.order < b.order ? -1 : a.order > b.order ? 1 : 0;`,
 			},
+			result: "Created src/sync/order.js",
+			runMs: 800,
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			tool: "editor",
+			input: {
+				path: "src/board.js",
+				old_text: `export function moveCard(id, toIndex) {\n\tapi.patch(\`/cards/\${id}\`, { position: toIndex });`,
+				new_text: `export function moveCard(id, columnId, toIndex) {\n\tconst [before, after] = neighbours(columnId, toIndex);\n\tsync.apply({ type: "card.moved", payload: { id, columnId, order: between(before, after) } });`,
+			},
+			result: "Edited src/board.js",
+			runMs: 700,
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			tool: "editor",
+			input: {
+				path: "src/board.js",
+				old_text: "setInterval(fetchBoard, 5000);",
+				new_text:
+					"const sync = createSyncStore(board, connect(boardId, lastSeq));",
+			},
+			result: "Edited src/board.js",
+			runMs: 600,
+		},
+		{
+			wait: 200,
+			in: "client-dev",
+			phase: "testing",
+			step: "Running client tests",
+			tool: "run_commands",
+			input: { commands: ["bun test src/sync"] },
 			result: commandResult(
-				"bun run dev",
-				"Serving on http://localhost:5173\nChrome attached to display :99",
+				"bun test src/sync",
+				"✓ applies edits optimistically\n✓ rolls back a rejected move\n✓ between() orders strictly\n\n 12 pass\n 0 fail",
 			),
 			runMs: 900,
 		},
 		{
-			wait: 250,
-			in: "qa-engineer",
-			tool: "computer",
-			input: { action: "screenshot" },
-			result: screenshot(images, "board"),
-			runMs: 500,
-		},
-		{
-			wait: 1100,
-			in: "qa-engineer",
-			tool: "computer",
-			input: { action: "type", text: "sett" },
-			result: screenshot(images, "palette"),
-			runMs: 500,
-		},
-		{
-			wait: 1100,
-			in: "qa-engineer",
-			tool: "computer",
-			input: { action: "key", text: "Return" },
-			result: screenshot(images, "settings"),
-			runMs: 500,
-		},
-		{
-			wait: 1100,
-			in: "qa-engineer",
-			tool: "computer",
-			input: { action: "left_click", coordinate: [448, 365] },
-			result: screenshot(images, "dark"),
-			runMs: 500,
-		},
-		{
-			wait: 1100,
-			in: "qa-engineer",
-			reasoning:
-				"Light and Dark work. For Auto, the theme has to follow the OS while the app is open. I selected Auto, switched the system to dark, and the page stayed light until I reloaded.",
-			thinkMs: 4000,
-			say: "Found a bug: with **Auto** selected, changing the OS theme doesn't update the app until a reload. Sending it to integration-dev.",
-		},
-		{
-			wait: 250,
-			in: "qa-engineer",
-			tool: "team_send_message",
+			wait: 200,
+			in: "client-dev",
+			tool: "team_broadcast",
 			input: {
-				toAgentId: "integration-dev",
-				subject: "Auto theme ignores OS changes",
-				body: "With theme set to Auto, switching the OS to dark leaves the app light until reload. Repro: select Auto, then toggle prefers-color-scheme.",
+				subject: "Sync store landed",
+				body: "Polling is gone. Moves send a fractional order. 12 client tests pass.",
 			},
-			result: { id: "msg_3", toAgentId: "integration-dev" },
+			result: { delivered: 3 },
 			runMs: 250,
 		},
 		{
-			wait: 400,
-			in: "integration-dev",
-			tool: "team_read_mailbox",
-			input: { unreadOnly: true },
-			result: [
-				{
-					id: "msg_3",
-					fromAgentId: "qa-engineer",
-					toAgentId: "integration-dev",
-					subject: "Auto theme ignores OS changes",
-				},
-			],
-			runMs: 250,
+			wait: 200,
+			in: "client-dev",
+			say: "The sync store is in: optimistic edits and moves with rollback, fractional order for moves, and no more polling. 12 tests pass.",
+			stream: true,
 		},
+		{ wait: 150, in: "client-dev", status: "completed" },
+
+		// Tests catch a real convergence bug; test-engineer fixes it.
 		{
 			wait: 250,
-			in: "integration-dev",
-			say: "Good catch. `apply` only runs on settings changes, so it needs to listen to the media query too.",
+			in: "test-engineer",
+			phase: "testing",
+			step: "Running two-client tests",
+			tool: "run_commands",
+			input: { commands: ["bun test tests/realtime.test.ts"] },
+			result: commandResult(
+				"bun test tests/realtime.test.ts",
+				`✓ an edit on A appears on B
+✓ a move on A appears on B in the same order
+✗ concurrent moves into the same slot converge
+  expected ["card-2", "card-1"]
+  received ["card-1", "card-2"] on client B
+✓ reconnect replays missed events
+✓ presence join and leave
+
+ 4 pass
+ 1 fail`,
+			),
+			runMs: 1100,
 		},
 		{
-			wait: 250,
-			in: "integration-dev",
-			tool: "editor",
+			wait: 200,
+			in: "reviewer",
+			phase: "reviewing",
+			step: "Reviewing src/sync and src/board.js",
+			tool: "read_files",
 			input: {
-				path: "src/theme.js",
-				old_text: `	onSettingsChange(apply);`,
-				new_text: `	onSettingsChange(apply);
-	dark.addEventListener("change", () => apply(getSettings()));`,
+				files: ["src/sync/store.js", "src/sync/order.js", "src/board.js"],
 			},
-			result: "Edited src/theme.js",
+			result: "ok",
 			runMs: 600,
 		},
 		{
-			wait: 250,
-			in: "integration-dev",
+			wait: 200,
+			in: "test-engineer",
+			step: "Fixing the tie in compareCards",
+			reasoning:
+				"Both clients compute the same order between the same neighbours, so the two cards tie. The design says ties sort by clientId, but compareCards returns 0, so each client keeps arrival order and they disagree.",
+			thinkMs: 6000,
+			say: "One real bug: two moves into the same slot get the same order, and ties fall back to arrival order, so clients disagree. The design says ties sort by `clientId`; `compareCards` doesn't.",
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
+			phase: "editing",
+			tool: "editor",
+			input: {
+				path: "src/sync/order.js",
+				old_text: "a.order < b.order ? -1 : a.order > b.order ? 1 : 0;",
+				new_text:
+					"a.order < b.order ? -1 : a.order > b.order ? 1 : a.clientId.localeCompare(b.clientId);",
+			},
+			result: "Edited src/sync/order.js",
+			runMs: 600,
+		},
+		{
+			wait: 200,
+			in: "reviewer",
+			say: "Client changes match the design now: moves send a fractional order, and rollback restores the previous order. Approved.",
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
+			phase: "testing",
+			tool: "run_commands",
+			input: { commands: ["bun test tests/realtime.test.ts"] },
+			result: commandResult(
+				"bun test tests/realtime.test.ts",
+				"✓ an edit on A appears on B\n✓ a move on A appears on B in the same order\n✓ concurrent moves into the same slot converge\n✓ reconnect replays missed events\n✓ presence join and leave\n\n 5 pass\n 0 fail",
+			),
+			runMs: 1000,
+		},
+		{
+			wait: 200,
+			in: "test-engineer",
 			tool: "team_send_message",
 			input: {
-				toAgentId: "qa-engineer",
-				subject: "Fixed: Auto theme",
-				body: "The theme now listens for prefers-color-scheme changes while set to Auto.",
+				toAgentId: "reviewer",
+				subject: "Tiebreak fix in src/sync/order.js",
+				body: "compareCards now breaks ties by clientId, per docs/realtime.md. All 5 two-client tests pass.",
 			},
-			result: { id: "msg_4", toAgentId: "qa-engineer" },
+			result: { id: "msg_5", toAgentId: "reviewer" },
 			runMs: 250,
 		},
 		{
-			wait: 250,
-			in: "integration-dev",
-			say: 'Settings is wired in: theme with live OS changes for Auto, a configurable palette shortcut, a gear button, a "Settings" palette action, and `Ctrl ,`.',
+			wait: 200,
+			in: "test-engineer",
+			say: "All 5 two-client tests pass, including concurrent moves into one slot after the `clientId` tiebreak fix.",
 			stream: true,
 		},
-		{ wait: 200, in: "integration-dev", status: "completed" },
+		{ wait: 150, in: "test-engineer", status: "completed" },
 		{
-			wait: 300,
-			in: "qa-engineer",
+			wait: 250,
+			in: "reviewer",
 			tool: "team_read_mailbox",
 			input: { unreadOnly: true },
-			result: [
-				{
-					id: "msg_4",
-					fromAgentId: "integration-dev",
-					toAgentId: "qa-engineer",
-					subject: "Fixed: Auto theme",
-				},
-			],
+			result: mail(
+				"msg_5",
+				"test-engineer",
+				"reviewer",
+				"Tiebreak fix in src/sync/order.js",
+			),
 			runMs: 250,
 		},
 		{
-			wait: 300,
-			in: "qa-engineer",
-			say: "Re-checked Auto: the app now follows the OS theme live. Moving on to shortcuts.",
-		},
-		{
-			wait: 300,
-			in: "qa-engineer",
-			tool: "computer",
-			input: { action: "scroll", coordinate: [512, 400], direction: "down" },
-			result: screenshot(images, "shortcuts"),
-			runMs: 500,
-		},
-		{
-			wait: 1100,
-			in: "qa-engineer",
-			tool: "computer",
-			input: { action: "key", text: "F5" },
-			result: screenshot(images, "saved"),
-			runMs: 500,
-		},
-		{
-			wait: 250,
-			in: "qa-engineer",
-			say: "Verified all 8 checklist items in Chrome: every way to open Settings, Light / Dark / Auto (including the OS change fix), the daily digest, editable shortcuts, and persistence across a reload.",
+			wait: 200,
+			in: "reviewer",
+			say: "Reviewed all four changes against `docs/realtime.md`: the hub, the sync store, presence, and the tiebreak fix. Approved, with one finding routed and fixed before it landed.",
 			stream: true,
 		},
-		{ wait: 200, in: "qa-engineer", status: "completed" },
+		{ wait: 150, in: "reviewer", status: "completed" },
 
 		{
 			wait: 300,
@@ -765,9 +971,9 @@ document.getElementById("gear").addEventListener("click", openSettings);`,
 			input: { commands: ["bun test"] },
 			result: commandResult(
 				"bun test",
-				" 31 pass\n 0 fail\nRan 31 tests across 9 files.",
+				" 38 pass\n 0 fail\nRan 38 tests across 11 files.",
 			),
-			runMs: 900,
+			runMs: 1000,
 		},
 		{ wait: 400, in: LEAD, say: LEAD_FINAL, stream: true },
 		{ wait: 300, in: LEAD, status: "completed" },

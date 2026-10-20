@@ -96,11 +96,7 @@ type ChatMessagesProps = {
 	/** Opens the settings page that fixes a credential failure. */
 	onFixCredentials?: (target: "account" | "models") => void;
 	/** Screenshots the agent captured while verifying its work, shown after the transcript. */
-	verification?: {
-		screenshots: AgentScreenshot[];
-		title?: string;
-		subtitle?: string;
-	};
+	verification?: { screenshots: AgentScreenshot[]; subtitle?: string };
 };
 
 type AskQuestionRequestItem = {
@@ -281,7 +277,6 @@ function ChatMessagesImpl({
 			}
 			screenshots={verification.screenshots}
 			subtitle={verification.subtitle}
-			title={verification.title}
 		/>
 	) : null;
 	// Built once per pendingAskQuestions change instead of per render: the

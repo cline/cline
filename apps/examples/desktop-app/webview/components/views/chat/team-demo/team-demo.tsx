@@ -17,25 +17,27 @@ import {
 	type SessionAgentEntry,
 } from "@/lib/session-agents";
 import { ChatMessages } from "../chat-messages";
+import { TeamPanel, type TeamPanelMember } from "./team-panel";
 import {
 	buildBeats,
 	FINAL_DIFF,
 	LEAD,
 	PROMPT,
-	SCREENSHOTS,
 	type SessionKey,
 	TEAM_NAME,
 	TEAMMATE_IDS,
 	TEAMMATES,
 	type TeammateId,
+	type TeammatePhase,
 	TITLE,
 } from "./team-script";
 
 /*
  * Scripted preview of an agent team. The lead session and every teammate
- * session replay through the real transcript, and the header's agent roster is
- * derived from those transcripts the same way the sidecar derives it, so
- * opening a teammate behaves like opening a real child session.
+ * session replay through the real transcript, the header's agent roster is
+ * derived from those transcripts, and opening a teammate behaves like opening
+ * a real child session. The team panel above the composer is the one piece
+ * that does not exist yet: a live view of what each teammate is doing.
  */
 
 const sessionIdFor = (key: SessionKey) => `team-demo/${key}`;
@@ -46,10 +48,17 @@ type SessionState = {
 	messages: ChatMessage[];
 	status: ChatSessionStatus;
 	streamingMessageId: string | null;
+	phase?: TeammatePhase;
+	step?: string;
 	startedAt?: number;
+	endedAt?: number;
 };
 
-type DemoState = Record<SessionKey, SessionState>;
+type DemoState = {
+	sessions: Record<SessionKey, SessionState>;
+	/** Demo clock, which runs faster than playback. */
+	now: number;
+};
 
 const idleSession = (): SessionState => ({
 	messages: [],
@@ -57,38 +66,27 @@ const idleSession = (): SessionState => ({
 	streamingMessageId: null,
 });
 
-function initialState(): DemoState {
-	return {
+function initialState(now = Date.now()): DemoState {
+	const sessions = {
 		[LEAD]: { ...idleSession(), status: "starting" },
-		"backend-dev": idleSession(),
-		"ui-dev": idleSession(),
-		"integration-dev": idleSession(),
-		"qa-engineer": idleSession(),
-	};
-}
-
-async function toBase64(src: string): Promise<string> {
-	const blob = await (await fetch(src)).blob();
-	return await new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
-		reader.onerror = () => reject(reader.error);
-		reader.readAsDataURL(blob);
-	});
+	} as Record<SessionKey, SessionState>;
+	for (const id of TEAMMATE_IDS) sessions[id] = idleSession();
+	return { sessions, now };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function useTeamPlayback(run: number): DemoState {
-	const [state, setState] = useState<DemoState>(initialState);
+	const [state, setState] = useState<DemoState>(() => initialState());
 
 	useEffect(() => {
 		void run;
 		let cancelled = false;
 		// Timestamps advance faster than playback so durations read like a real run.
-		let clock = Date.now() - 12 * 60_000;
+		let clock = Date.now() - 20 * 60_000;
 		const tick = (ms: number) => {
 			clock += ms * 6;
+			setState((current) => ({ ...current, now: clock }));
 		};
 		const message = (
 			key: SessionKey,
@@ -104,28 +102,24 @@ function useTeamPlayback(run: number): DemoState {
 			createdAt: clock,
 			...extra,
 		});
-		const update = (key: SessionKey, next: Partial<SessionState>) =>
+		const update = (
+			key: SessionKey,
+			next: (session: SessionState) => Partial<SessionState>,
+		) =>
 			setState((current) => ({
 				...current,
-				[key]: { ...current[key], ...next },
+				sessions: {
+					...current.sessions,
+					[key]: { ...current.sessions[key], ...next(current.sessions[key]) },
+				},
 			}));
 		const push = (key: SessionKey, next: ChatMessage) =>
-			setState((current) => ({
-				...current,
-				[key]: {
-					...current[key],
-					messages: [...current[key].messages, next],
-				},
-			}));
+			update(key, (session) => ({ messages: [...session.messages, next] }));
 		const replace = (key: SessionKey, next: ChatMessage) =>
-			setState((current) => ({
-				...current,
-				[key]: {
-					...current[key],
-					messages: current[key].messages.map((item) =>
-						item.id === next.id ? next : item,
-					),
-				},
+			update(key, (session) => ({
+				messages: session.messages.map((item) =>
+					item.id === next.id ? next : item,
+				),
 			}));
 		const toolMessage = (
 			key: SessionKey,
@@ -149,31 +143,36 @@ function useTeamPlayback(run: number): DemoState {
 			);
 
 		void (async () => {
-			const entries = await Promise.all(
-				SCREENSHOTS.map(
-					async (shot) => [shot.id, await toBase64(shot.src)] as const,
-				),
-			);
-			if (cancelled) return;
-			const images = Object.fromEntries(entries);
-			const fresh = initialState();
-			fresh[LEAD].messages = [message(LEAD, "prompt", "user", PROMPT)];
+			const fresh = initialState(clock);
+			fresh.sessions[LEAD].messages = [message(LEAD, "prompt", "user", PROMPT)];
 			setState(fresh);
 
 			const open = new Map<string, { key: SessionKey; message: ChatMessage }>();
 			let index = 0;
-			for (const beat of buildBeats(images)) {
+			for (const beat of buildBeats()) {
 				await sleep(beat.wait);
 				if (cancelled) return;
 				tick(beat.wait);
 				const key = beat.in;
 				const id = `${key}-${index++}`;
+				if (beat.phase || beat.step) {
+					update(key, (session) => ({
+						phase: beat.phase ?? session.phase,
+						step: beat.step ?? session.step,
+					}));
+				}
+				if ("note" in beat) continue;
 				if ("status" in beat) {
-					update(key, { status: beat.status });
+					update(key, () => ({
+						status: beat.status,
+						...(beat.status === "completed"
+							? { phase: "done" as const, endedAt: clock }
+							: {}),
+					}));
 				} else if ("start" in beat) {
 					const teammate = TEAMMATES[key as TeammateId];
 					push(key, message(key, id, "user", teammate.task));
-					update(key, { status: "running", startedAt: clock });
+					update(key, () => ({ status: "running", startedAt: clock }));
 				} else if ("say" in beat) {
 					if (beat.thinkMs) clock += beat.thinkMs;
 					const reasoning = beat.reasoning
@@ -185,7 +184,7 @@ function useTeamPlayback(run: number): DemoState {
 					}
 					const words = beat.say.split(/(?<=\s)/);
 					push(key, message(key, id, "assistant", "", reasoning));
-					update(key, { streamingMessageId: id });
+					update(key, () => ({ streamingMessageId: id }));
 					for (let count = 4; count < words.length + 4; count += 4) {
 						await sleep(40);
 						if (cancelled) return;
@@ -200,7 +199,7 @@ function useTeamPlayback(run: number): DemoState {
 							),
 						);
 					}
-					update(key, { streamingMessageId: null });
+					update(key, () => ({ streamingMessageId: null }));
 				} else if ("tool" in beat) {
 					const started = toolMessage(key, id, beat.tool, beat.input, null);
 					push(key, started);
@@ -244,24 +243,9 @@ function useTeamPlayback(run: number): DemoState {
 	return state;
 }
 
-/** Mirrors the sidecar's `deriveLastAction`: the latest assistant text, or the tool it ran. */
-function lastActionOf(messages: ChatMessage[]): string | undefined {
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const message = messages[index];
-		if (message?.role === "tool" && message.meta?.toolName) {
-			return `Running ${message.meta.toolName}`;
-		}
-		if (message?.role === "assistant") {
-			const text = message.content.replace(/\s+/g, " ").trim();
-			if (text) return text.length > 140 ? `${text.slice(0, 139)}…` : text;
-		}
-	}
-	return undefined;
-}
-
 function rosterOf(state: DemoState): SessionAgentEntry[] {
 	return TEAMMATE_IDS.flatMap((id) => {
-		const session = state[id];
+		const session = state.sessions[id];
 		if (!session.startedAt) return [];
 		const teammate = TEAMMATES[id];
 		return [
@@ -271,10 +255,27 @@ function rosterOf(state: DemoState): SessionAgentEntry[] {
 				kind: "teamtask" as const,
 				status: session.status === "completed" ? "completed" : "running",
 				prompt: teammate.title,
-				lastAction: lastActionOf(session.messages),
+				lastAction: session.step,
 				teamName: TEAM_NAME,
 				startedAt: new Date(session.startedAt).toISOString(),
 				hasMessages: session.messages.length > 0,
+			},
+		];
+	});
+}
+
+function panelMembersOf(state: DemoState): TeamPanelMember[] {
+	return TEAMMATE_IDS.flatMap((id) => {
+		const session = state.sessions[id];
+		if (!session.startedAt) return [];
+		return [
+			{
+				id,
+				title: TEAMMATES[id].title,
+				phase: session.phase ?? "planning",
+				step: session.step,
+				startedAt: session.startedAt,
+				endedAt: session.endedAt,
 			},
 		];
 	});
@@ -287,11 +288,12 @@ export function TeamDemo({ onExit }: { onExit: () => void }) {
 	const [run, setRun] = useState(0);
 	const [view, setView] = useState<SessionKey>(LEAD);
 	const state = useTeamPlayback(run);
-	const lead = state[LEAD];
-	const session = state[view];
+	const lead = state.sessions[LEAD];
+	const session = state.sessions[view];
 	const leadCompleted = lead.status === "completed";
 
 	const agents = useMemo(() => rosterOf(state), [state]);
+	const members = useMemo(() => panelMembersOf(state), [state]);
 	const agentActivity = useMemo(
 		() =>
 			mergeAgentActivity(
@@ -348,25 +350,23 @@ export function TeamDemo({ onExit }: { onExit: () => void }) {
 						sessionId={sessionIdFor(view)}
 						status={session.status}
 						streamingMessageId={session.streamingMessageId}
-						verification={
-							view === LEAD && leadCompleted
-								? {
-										screenshots: SCREENSHOTS,
-										title: "Verified in browser",
-										subtitle: "Captured by qa-engineer · Chrome 1280×800",
-									}
-								: undefined
-						}
 					/>
 				}
 				bodyClassName="cline-view-enter"
 				composer={
 					<AgentComposer>
+						<TeamPanel
+							activeId={view === LEAD ? undefined : view}
+							members={members}
+							name={TEAM_NAME}
+							now={state.now}
+							onOpen={(id) => setView(id as TeammateId)}
+						/>
 						<AgentComposerBody className="flex items-center gap-3">
 							<Users className="size-4 shrink-0 text-primary" />
 							<p className="min-w-0 flex-1 text-sm text-muted-foreground">
-								Scripted preview of an agent team. Open the agents menu in the
-								header to look inside a teammate's session.
+								Scripted preview of an agent team. Select a teammate to open its
+								session.
 							</p>
 							<Button
 								onClick={() => {
