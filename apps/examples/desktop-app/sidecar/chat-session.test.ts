@@ -2252,6 +2252,12 @@ describe("runtime slash command expansion on send", () => {
 		tempRoots.length = 0;
 	});
 
+	function goalCatalog(workspacePath: string) {
+		return {
+			catalog: { workspacePath, status: "ready", commands: [{ name: "goal" }] },
+		};
+	}
+
 	function createWorkspaceWithSkill(): string {
 		const workspace = mkdtempSync(join(tmpdir(), "desktop-slash-send-"));
 		tempRoots.push(workspace);
@@ -2351,15 +2357,18 @@ Follow the desktop send workflow instructions.`,
 		const liveSession = ctx.liveSessions.get(sessionId);
 		if (liveSession) liveSession.config.apiKey = "test-key";
 		binding.sessionManager.updateSessionConnection = vi.fn(async () => {});
-		const command = vi.fn(async () => ({
+		const command = vi.fn(async (name: string) => ({
 			version: "v1" as const,
 			ok: true,
-			payload: {
-				result: {
-					reply: "Goal set",
-					submitPrompt: "expanded  goal\nnext line",
-				},
-			},
+			payload:
+				name === "plugins.commands.list"
+					? goalCatalog(workspace)
+					: {
+							result: {
+								reply: "Goal set",
+								submitPrompt: "expanded  goal\nnext line",
+							},
+						},
 		}));
 		binding.hubClient.command = command;
 		const result = await handleChatSessionCommand(ctx, {
@@ -2394,10 +2403,13 @@ Follow the desktop send workflow instructions.`,
 		});
 		const binding = ctx.runtimeBindings.get("local");
 		if (!binding) throw new Error("Missing test binding");
-		const command = vi.fn(async () => ({
+		const command = vi.fn(async (name: string) => ({
 			version: "v1" as const,
 			ok: true,
-			payload: { result: { reply: "Goal set" } },
+			payload:
+				name === "plugins.commands.list"
+					? goalCatalog(workspace)
+					: { result: { reply: "Goal set" } },
 		}));
 		binding.hubClient.command = command;
 		await handleChatSessionCommand(ctx, {
@@ -2410,6 +2422,35 @@ Follow the desktop send workflow instructions.`,
 			expect.objectContaining({ workspacePath: workspace, sessionId }),
 			sessionId,
 			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+	});
+
+	it("still sends a skill command when the plugin catalog cannot be read", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+		const binding = ctx.runtimeBindings.get("local");
+		if (!binding) throw new Error("Missing test binding");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection closed");
+		});
+		binding.hubClient.command = command;
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		expect(command).not.toHaveBeenCalledWith(
+			"plugins.commands.run",
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+		);
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
 		);
 	});
 
