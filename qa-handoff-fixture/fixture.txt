@@ -1,0 +1,2 @@
+Synthetic handoff verification fixture.
+staged-marker: QA_BASE_JZCV9T
