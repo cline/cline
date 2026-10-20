@@ -349,28 +349,32 @@ describe("ensureDetachedHubServer", () => {
 	});
 
 	it("clears stale discovery when prewarm finds an unreachable discovered hub", async () => {
-		readHubDiscovery.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "old-token",
-		});
-		probeHubServer
-			.mockResolvedValueOnce(undefined)
-			.mockResolvedValueOnce(undefined);
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+			});
+			probeHubServer
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined);
 
-		const { prewarmDetachedHubServer } = await import(".");
-		prewarmDetachedHubServer("/workspace");
-		await vi.waitFor(() => {
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
-		});
 
-		expect(withHubStartupLock).toHaveBeenCalledWith(
-			"/tmp/hub-discovery.json",
-			expect.any(Function),
-		);
-		expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
-			probeHubServer.mock.invocationCallOrder[0],
-		);
-		expect(spawn).toHaveBeenCalledOnce();
+			expect(withHubStartupLock).toHaveBeenCalledWith(
+				"/tmp/hub-discovery.json",
+				expect.any(Function),
+			);
+			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
+				probeHubServer.mock.invocationCallOrder[0],
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("retries a transient ETXTBSY spawn failure while prewarming the detached daemon", async () => {
