@@ -29,7 +29,15 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
@@ -352,6 +360,9 @@ type ChatInputBarProps = {
 		cacheReadTokens?: number;
 		totalCostUsd?: number;
 	};
+	/** Session status strips stacked above the input, before the pull request bar. */
+	aboveInput?: ReactNode;
+	placeholder?: string;
 };
 
 function ChatInputBarImpl({
@@ -390,6 +401,8 @@ function ChatInputBarImpl({
 	onRemovePromptInQueue,
 	onOpenModelSettings,
 	summary,
+	aboveInput,
+	placeholder,
 }: ChatInputBarProps) {
 	const {
 		workspaceRoot,
@@ -1109,6 +1122,7 @@ function ChatInputBarImpl({
 	return (
 		<AgentComposer variant={variant}>
 			{/* Input area */}
+			{aboveInput}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
@@ -1362,7 +1376,8 @@ function ChatInputBarImpl({
 								)
 							}
 							placeholder={
-								speechInputProcessing
+								placeholder ??
+								(speechInputProcessing
 									? "Transcribing voice input…"
 									: needsCloudRepository
 										? "Choose a repository"
@@ -1374,7 +1389,7 @@ function ChatInputBarImpl({
 												? "Describe what Cline should do in this repository."
 												: variant === "welcome"
 													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+													: "Enter your question or type / for commands or @ for context")
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}

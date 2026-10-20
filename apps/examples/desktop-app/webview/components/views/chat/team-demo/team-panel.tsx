@@ -12,7 +12,7 @@ import {
 	Pencil,
 	Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { TeammatePhase } from "./team-script";
 
@@ -68,10 +68,11 @@ function summarize(members: TeamPanelMember[]): string {
 }
 
 /**
- * Live view of a running team, pinned above the composer in the slot the pull
- * request bar uses. One row per teammate says what it is doing right now, so
- * planning, building, and reviewing are visible at a glance, and selecting a
- * row opens that teammate's session.
+ * Live view of a running team, attached to the top of the chat input in the
+ * slot the pull request bar uses. One row per teammate says what it is doing
+ * right now, so planning, building, and reviewing are visible at a glance, and
+ * selecting a row opens that teammate's session. Once every teammate is done it
+ * folds to a one-line summary.
  */
 export function TeamPanel({
 	name,
@@ -86,8 +87,17 @@ export function TeamPanel({
 	activeId?: string;
 	onOpen: (id: string) => void;
 }) {
+	const finished =
+		members.length > 0 && members.every((member) => member.phase === "done");
 	const [open, setOpen] = useState(true);
+	useEffect(() => {
+		if (finished) setOpen(false);
+	}, [finished]);
 	if (members.length === 0) return null;
+	const startedAt = Math.min(...members.map((member) => member.startedAt));
+	const endedAt = finished
+		? Math.max(...members.map((member) => member.endedAt ?? now))
+		: now;
 
 	return (
 		<section
@@ -111,6 +121,9 @@ export function TeamPanel({
 				</span>
 				<span className="ml-auto shrink-0 text-muted-foreground">
 					{summarize(members)}
+				</span>
+				<span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/80">
+					{formatElapsed(endedAt - startedAt)}
 				</span>
 				<ChevronDown
 					aria-hidden="true"
