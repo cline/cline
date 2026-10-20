@@ -262,6 +262,16 @@ function isPluginEnabledByPolicy(
 	return policy["*"]?.enabled ?? true;
 }
 
+const pluginCommands = new WeakSet<AgentExtensionCommand>();
+
+/**
+ * Whether a registered command came from a loaded plugin. Session registries
+ * also hold built-in skill and workflow commands, which are not plugin commands.
+ */
+export function isPluginCommand(command: AgentExtensionCommand): boolean {
+	return pluginCommands.has(command);
+}
+
 function newInstance(importId: number): PluginInstance {
 	return {
 		// Assigned as soon as the worker reports its import; never read before.
@@ -1024,7 +1034,7 @@ export class PluginRegistry {
 	): AgentExtensionCommand {
 		const handler = command.handler;
 		if (typeof handler !== "function") return command;
-		return {
+		const wrapped: AgentExtensionCommand = {
 			...command,
 			handler: async (commandInput: string) => {
 				this.assertUsable(entry, instance, `command "/${command.name}"`);
@@ -1038,6 +1048,8 @@ export class PluginRegistry {
 				);
 			},
 		};
+		pluginCommands.add(wrapped);
+		return wrapped;
 	}
 
 	/** A failing rule contributes no text rather than breaking the prompt. */

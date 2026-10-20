@@ -352,6 +352,35 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 			session.sessionId,
 		);
 	});
+	it("does not expose session skills as plugin commands", async () => {
+		const skill = join(root, ".cline", "skills", "hello-skill");
+		await mkdir(skill, { recursive: true });
+		await writeFile(
+			join(skill, "SKILL.md"),
+			"---\nname: hello-skill\ndescription: Says hello\n---\nGreet the user.\n",
+		);
+		const session = await runtime.startSession({
+			...splitCoreSessionConfig({
+				cwd: root,
+				workspaceRoot: root,
+				providerId: "openai-native",
+				modelId: "gpt-4o-mini",
+				apiKey: "test",
+				systemPrompt: "test",
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			interactive: true,
+		});
+		const target = { workspacePath: root, sessionId: session.sessionId };
+		expect((await runtime.pluginCommands.list(target)).commands).toEqual([
+			{ name: "counter" },
+		]);
+		expect(
+			await runtime.pluginCommands.run({ ...target, prompt: "/hello-skill x" }),
+		).toBeUndefined();
+	});
 	it("rejects a workspace outside the authenticated connection scope", async () => {
 		await expect(
 			transport.handleCommand(
