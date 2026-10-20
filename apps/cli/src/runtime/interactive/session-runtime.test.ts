@@ -578,6 +578,7 @@ describe("createInteractiveSessionRuntime", () => {
 			getAccumulatedUsage: vi.fn(),
 		};
 		createCliCoreMock.mockResolvedValue(manager);
+		const onActiveSessionChange = vi.fn();
 		const { createInteractiveSessionRuntime } = await importRuntime();
 		const runtime = createInteractiveSessionRuntime({
 			config: createConfig(),
@@ -592,11 +593,13 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onActiveSessionChange,
 		});
 
 		await runtime.ensureReady();
 		expect(manager.start).toHaveBeenCalledOnce();
 		expect(runtime.getActiveSessionId()).toBe("session-1");
+		expect(onActiveSessionChange).toHaveBeenCalledTimes(1);
 
 		await runtime.resetForNewSession();
 
@@ -604,11 +607,13 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(manager.start).toHaveBeenCalledOnce();
 		expect(runtime.getActiveSessionId()).toBe("");
 		expect(setActiveCliSessionMock).toHaveBeenLastCalledWith(undefined);
+		expect(onActiveSessionChange).toHaveBeenCalledTimes(2);
 
 		await runtime.ensureReady();
 
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+		expect(onActiveSessionChange).toHaveBeenCalledTimes(3);
 	});
 
 	it("holds concurrent ensureReady during a restart instead of booting an empty session", async () => {

@@ -229,8 +229,17 @@ export async function runInteractive(
 			instructions: "",
 		}));
 	};
-	const subscribeAdditionalSlashCommands = async (listener: () => void) =>
-		(await ensurePluginHost()).subscribe(listener);
+	// Session commands come from the active session's plugins, so a session
+	// change can change the catalog without any workspace catalog event.
+	const activeSessionListeners = new Set<() => void>();
+	const subscribeAdditionalSlashCommands = async (listener: () => void) => {
+		const stop = (await ensurePluginHost()).subscribe(listener);
+		activeSessionListeners.add(listener);
+		return () => {
+			stop();
+			activeSessionListeners.delete(listener);
+		};
+	};
 
 	const enableChatCommands = true;
 	const {
@@ -294,6 +303,9 @@ export async function runInteractive(
 		},
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
+		},
+		onActiveSessionChange: () => {
+			for (const listener of activeSessionListeners) listener();
 		},
 	});
 	const configDataLoader = createInteractiveConfigDataLoader({
