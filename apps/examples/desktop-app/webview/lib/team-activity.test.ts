@@ -93,6 +93,17 @@ describe("buildTeamMembers", () => {
 		});
 	});
 
+	it("names the task by the first line of a multi-line brief", () => {
+		const [member] = buildTeamMembers([
+			entry({
+				agentId: "search-dev",
+				prompt:
+					"Make the search box filter cards by title\n\nCURRENT STATE:\n- ...",
+			}),
+		]);
+		expect(member?.task).toBe("Make the search box filter cards by title");
+	});
+
 	it("prefers narration over a tool name for the step", () => {
 		const [member] = buildTeamMembers([
 			entry({

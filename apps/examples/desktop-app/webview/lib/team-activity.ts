@@ -151,6 +151,15 @@ export function phaseFromLiveActivity(
 	}
 }
 
+/** Team task prompts are often multi-line briefs; the first line is the task. */
+function firstLine(value?: string): string | undefined {
+	const line = value
+		?.split("\n")
+		.map((part) => part.trim())
+		.find(Boolean);
+	return line || undefined;
+}
+
 function parseTime(value?: string): number | undefined {
 	if (!value) return undefined;
 	const time = Date.parse(value);
@@ -218,7 +227,7 @@ export function buildTeamMembers(
 		members.push({
 			agentId,
 			sessionId: latest.sessionId,
-			task: latest.prompt?.trim() || undefined,
+			task: firstLine(latest.prompt),
 			phase,
 			step: phase === "done" ? undefined : step,
 			startedAt,

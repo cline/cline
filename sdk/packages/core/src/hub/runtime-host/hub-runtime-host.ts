@@ -11,6 +11,7 @@ import type {
 	ITelemetryService,
 	JsonValue,
 	SessionPluginIssue,
+	TeamProgressProjectionEvent,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -1999,6 +2000,26 @@ export class HubRuntimeHost implements RuntimeHost {
 						payload: { sessionId, status },
 					});
 				}
+				return;
+			}
+			case "team.progress": {
+				// The hub projects core `team_progress` events for transport; turn
+				// them back so hub-backed hosts see the same event as local ones.
+				const projection = event.payload as
+					| Partial<TeamProgressProjectionEvent>
+					| undefined;
+				if (!projection?.summary || !projection.lastEvent) {
+					return;
+				}
+				this.events.emit({
+					type: "team_progress",
+					payload: {
+						sessionId: projection.sessionId ?? sessionId,
+						teamName: projection.summary.teamName,
+						lifecycle: projection.lastEvent,
+						summary: projection.summary,
+					},
+				});
 				return;
 			}
 			case "session.pending_prompts": {

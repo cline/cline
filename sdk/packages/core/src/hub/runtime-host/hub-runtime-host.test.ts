@@ -1344,6 +1344,76 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("maps hub team progress projections back to team_progress events", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "team.progress";
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		const summary = { teamName: "team-1", updatedAt: "2026-10-20T00:00:00Z" };
+		const lastEvent = {
+			teamName: "team-1",
+			sessionId: "sess-1",
+			eventType: "run_progress",
+			ts: "2026-10-20T00:00:00Z",
+			agentId: "reviewer",
+			message: "running_tool_read_files",
+		};
+		onEvent?.({
+			version: 1,
+			event: "team.progress",
+			sessionId: "sess-1",
+			payload: {
+				type: "team_progress_projection",
+				version: 1,
+				sessionId: "sess-1",
+				summary,
+				lastEvent,
+			},
+		});
+
+		expect(events).toContainEqual({
+			type: "team_progress",
+			payload: {
+				sessionId: "sess-1",
+				teamName: "team-1",
+				lifecycle: lastEvent,
+				summary,
+			},
+		});
+	});
+
 	it("maps hub aborted runs back to aborted agent events", async () => {
 		let onEvent:
 			| ((event: {
