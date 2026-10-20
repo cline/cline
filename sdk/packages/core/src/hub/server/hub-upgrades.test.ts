@@ -109,7 +109,7 @@ function createStartedTransportOptions() {
 				readSessionMessages: vi.fn(async () => []),
 				dispatchHookEvent: vi.fn(async () => {}),
 				restoreSession: vi.fn(),
-			} as never,
+			},
 		},
 	};
 }
@@ -128,6 +128,48 @@ async function waitFor(
 }
 
 describe("Hub app-server upgrades", () => {
+	it("omits activity for hosts without current execution observations", async () => {
+		const { options } = createStartedTransportOptions();
+		const transport = new HubServerTransport(options as never);
+		try {
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).not.toHaveProperty("activity");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("forwards runtime activity independently of RPC idle", async () => {
+		const { options } = createStartedTransportOptions();
+		const lastActivityAt = 1_000;
+		const activity = { busy: true, lastActivityAt };
+		const transport = new HubServerTransport({
+			...options,
+			sessionHost: { ...options.sessionHost, getActivity: () => activity },
+		} as never);
+		try {
+			const status = await transport.handleCommand({
+				version: "v1",
+				command: "hub.status",
+			});
+			expect(status.payload).toMatchObject({ idle: true, activity });
+			activity.busy = false;
+			const drained = await transport.handleCommand({
+				version: "v1",
+				command: "hub.drain",
+			});
+			expect(drained.payload?.activity).toEqual({
+				busy: false,
+				lastActivityAt,
+			});
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("stamps published events with durable sequences and replays from a cursor", async () => {
 		const { options } = createStartedTransportOptions();
 		const transport = new HubServerTransport(options as never);

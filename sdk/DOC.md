@@ -1,3 +1,12 @@
+## Hub activity
+
+`hub.status` and `hub.drain` include optional `activity: { busy: boolean, lastActivityAt: number }` when the runtime host supports current execution observations. An absent field means unknown activity. The existing `idle` field retains its RPC and durable-queue meaning.
+
+`busy` covers in-process starts and turns, quiet provider and tool waits, runtime-managed prompt and teammate work, and approval waits within live runs across all resident roots. Hub forwards this runtime observation unchanged; its separate `pendingRuns` field reports durable Hub queue entries. Old persisted session status does not establish live work. For resident roots, cancellation remains busy until execution settles.
+
+Queued prompts and unconsumed teammate updates held only in memory also keep `busy` true until consumed or cleared. After a provider failure, this pending state can keep an otherwise idle runtime busy indefinitely. The observation adds neither a deadline for paused work nor durable recovery of that state. A tool that ignores cancellation can also remain busy indefinitely: `busy` reports outstanding work, not progress. Tool executors own their deadlines and resource cleanup. Detached and shell-backgrounded processes are not tracked after their tool call returns.
+
+`lastActivityAt` is a Unix-millisecond timestamp initialized when the runtime starts. Accepted work, model and tool output, and settlement advance it. Status reads, metadata changes, connections, read-only hydration, and team heartbeats do not. Read-only hydration still reports busy while setup runs. The observation is in memory and does not prevent new work from arriving after a caller reads it.
 
 ## Oversized tool result recovery
 

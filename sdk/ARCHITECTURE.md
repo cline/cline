@@ -187,6 +187,8 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs. Node clients register their version and PID together with caller metadata on every connection; `HubSessionClient` passes metadata through at registration so client events, refreshed lists, and reconnects retain the same details.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+`LocalRuntimeHost.getActivity()` observes live execution and accepted work across resident roots. Hub status forwards this optional observation unchanged alongside its existing queue and RPC fields. The observation excludes persisted session status and heartbeat traffic. It adds no persistence writes or suspension fence. See [Hub activity](./DOC.md#hub-activity) for the response contract.
+
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
 NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.

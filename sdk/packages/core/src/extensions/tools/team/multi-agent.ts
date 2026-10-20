@@ -735,6 +735,20 @@ export class AgentTeamsRuntime {
 		return selected.map((message) => ({ ...message }));
 	}
 
+	/** Live execution or queued work with a restored execution owner. */
+	hasPendingWork(): boolean {
+		return (
+			[...this.members.values()].some((member) => member.runningCount > 0) ||
+			this.runQueue.some((runId) => {
+				const run = this.runs.get(runId);
+				return (
+					run?.status === "queued" &&
+					Boolean(this.members.get(run.agentId)?.agent)
+				);
+			})
+		);
+	}
+
 	getSnapshot(): TeamRuntimeSnapshot {
 		const taskCounts: Record<TeamTaskStatus, number> = {
 			pending: 0,

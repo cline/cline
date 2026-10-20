@@ -39,6 +39,7 @@ import type { SessionManifest } from "../../session/models/session-manifest";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
+import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { type StartSessionInput, splitCoreSessionConfig } from "./runtime-host";
 
@@ -219,6 +220,246 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("observes startup, quiet turns, and non-RPC queued turns across resident roots", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		let finishRun: (result: AgentResult) => void = () => {};
+		let finishQueuedRun: (result: AgentResult) => void = () => {};
+		const runResult = new Promise<AgentResult>((resolve) => {
+			finishRun = resolve;
+		});
+		const queuedResult = new Promise<AgentResult>((resolve) => {
+			finishQueuedRun = resolve;
+		});
+		let agent: SessionRuntime | undefined;
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: async () => {} }),
+			},
+			createAgent: (config) => {
+				agent = new SessionRuntime(config);
+				let running = false;
+				vi.spyOn(agent, "canStartRun").mockImplementation(() => !running);
+				vi.spyOn(agent, "run").mockImplementation(async () => {
+					running = true;
+					try {
+						return await runResult;
+					} finally {
+						running = false;
+					}
+				});
+				vi.spyOn(agent, "continue").mockReturnValue(queuedResult);
+				return agent;
+			},
+		});
+		const config = createConfig({
+			cwd: isolatedHomeDir,
+			enableAgentTeams: false,
+		});
+		try {
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: expect.any(Number),
+			});
+			const starting = manager.startSession({ config, interactive: true });
+			expect(manager.getActivity().busy).toBe(true);
+			const first = await starting;
+			expect(manager.getActivity().busy).toBe(false);
+			const second = await manager.startSession({ config, interactive: true });
+			const sending = manager.runTurn({
+				sessionId: second.sessionId,
+				prompt: "first turn",
+			});
+			await vi.waitFor(() => expect(agent?.run).toHaveBeenCalledOnce());
+			expect(manager.getActivity().busy).toBe(true);
+			await manager.runTurn({
+				sessionId: second.sessionId,
+				prompt: "queued turn",
+				delivery: "queue",
+			});
+			finishRun(createResult());
+			await sending;
+			await vi.waitFor(() => expect(agent?.continue).toHaveBeenCalledOnce());
+			expect(
+				await manager.pendingPrompts.list({ sessionId: second.sessionId }),
+			).toEqual([]);
+			expect(manager.getActivity().busy).toBe(true);
+			clock.mockReturnValue(10_000);
+			finishQueuedRun(createResult());
+			await vi.waitFor(() => expect(manager.getActivity().busy).toBe(false));
+			expect(manager.getActivity().lastActivityAt).toBe(10_000);
+			expect((await manager.getSession(first.sessionId))?.status).toBe("idle");
+		} finally {
+			finishRun(createResult());
+			finishQueuedRun(createResult());
+			await manager.dispose();
+			clock.mockRestore();
+		}
+	});
+
+	it("renews activity for accepted queue mutations, not missing prompts or sessions", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: async () => {} }),
+			},
+			createAgent: (config) => {
+				const agent = new SessionRuntime(config);
+				vi.spyOn(agent, "canStartRun").mockReturnValue(false);
+				return agent;
+			},
+		});
+		try {
+			const { sessionId } = await manager.startSession({
+				config: createConfig({ cwd: isolatedHomeDir, enableAgentTeams: false }),
+				interactive: true,
+			});
+			clock.mockReturnValue(2_000);
+			await expect(
+				manager.runTurn({ sessionId: "missing", prompt: "hello" }),
+			).rejects.toThrow();
+			const snapshots = vi.fn();
+			manager.subscribe((event) => {
+				if (event.type === "pending_prompts") snapshots(event.payload);
+			});
+			expect(
+				await manager.pendingPrompts.delete({ sessionId, promptId: "missing" }),
+			).toMatchObject({ removed: false });
+			expect(
+				await manager.pendingPrompts.update({
+					sessionId,
+					promptId: "missing",
+					prompt: "edit",
+				}),
+			).toMatchObject({ updated: false });
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 1_000,
+			});
+			expect(snapshots.mock.calls).toEqual([
+				[{ sessionId, prompts: [] }],
+				[{ sessionId, prompts: [] }],
+			]);
+
+			await manager.runTurn({ sessionId, prompt: "queued", delivery: "queue" });
+			expect(manager.getActivity()).toEqual({
+				busy: true,
+				lastActivityAt: 2_000,
+			});
+			const [prompt] = await manager.pendingPrompts.list({ sessionId });
+			if (!prompt) throw new Error("Expected queued prompt");
+			clock.mockReturnValue(3_000);
+			expect(
+				await manager.pendingPrompts.update({
+					sessionId,
+					promptId: prompt.id,
+					prompt: "edited",
+				}),
+			).toMatchObject({ updated: true });
+			expect(manager.getActivity().lastActivityAt).toBe(3_000);
+			clock.mockReturnValue(4_000);
+			expect(
+				await manager.pendingPrompts.delete({ sessionId, promptId: prompt.id }),
+			).toMatchObject({ removed: true });
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 4_000,
+			});
+		} finally {
+			await manager.dispose();
+			clock.mockRestore();
+		}
+	});
+
+	it("ignores persisted running status, metadata, and team heartbeats but observes output", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const sessionId = "saved-running-session";
+		const manifest = createManifest(sessionId);
+		let onTeamEvent: ((event: TeamEvent) => void) | undefined;
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: () => isolatedHomeDir,
+				readSessionManifest: () => manifest,
+				listSessions: async () => [],
+				updateSession: async () => ({ updated: true }),
+				writeSessionManifest: () => {},
+			} as never,
+			runtimeBuilder: {
+				build: (input) => {
+					onTeamEvent = input.onTeamEvent;
+					return { tools: [], shutdown: async () => {} };
+				},
+			},
+		});
+		try {
+			clock.mockReturnValue(1_500);
+			await manager.startSession({
+				config: createConfig({ sessionId, cwd: isolatedHomeDir }),
+				interactive: true,
+				initialMessages: [{ role: "user", content: "saved prompt" }],
+			});
+			expect((await manager.getSession(sessionId))?.status).toBe("running");
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 1_000,
+			});
+			clock.mockReturnValue(2_000);
+			await manager.updateSession(sessionId, { title: "new title" });
+			const run: TeamRunRecord = {
+				id: "team-run",
+				agentId: "worker",
+				status: "running",
+				message: "work",
+				priority: 0,
+				retryCount: 0,
+				maxRetries: 0,
+				continueConversation: false,
+				startedAt: new Date(),
+			};
+			onTeamEvent?.({
+				type: TeamMessageType.RunProgress,
+				run,
+				message: "heartbeat",
+			});
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 1_000,
+			});
+			onTeamEvent?.({
+				type: TeamMessageType.AgentEvent,
+				agentId: "worker",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolName: "run_commands",
+					update: "output",
+				},
+			});
+			expect(manager.getActivity()).toEqual({
+				busy: false,
+				lastActivityAt: 2_000,
+			});
+			clock.mockReturnValue(3_000);
+			onTeamEvent?.({ type: TeamMessageType.RunQueued, run });
+			expect(manager.getActivity()).toEqual({
+				busy: true,
+				lastActivityAt: 3_000,
+			});
+			onTeamEvent?.({
+				type: TeamMessageType.RunCompleted,
+				run: { ...run, status: "completed" },
+			});
+			expect(manager.getActivity().busy).toBe(true);
+		} finally {
+			await manager.dispose();
+			clock.mockRestore();
 		}
 	});
 
@@ -1015,6 +1256,7 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 		await pendingStatus;
+		expect(manager.getActivity().busy).toBe(true);
 
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
