@@ -470,4 +470,18 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 			),
 		).rejects.toThrow("authority");
 	});
+	it("rejects a remote connection that has not registered", async () => {
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					clientId: "unregistered",
+					command: "plugins.commands.run",
+					payload: { workspacePath: root, prompt: "/counter" },
+				},
+				null,
+			),
+		).rejects.toThrow("registered Hub client");
+		await expect(readFile(join(root, "setups.txt"), "utf8")).rejects.toThrow();
+	});
 });
