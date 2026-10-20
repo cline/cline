@@ -324,20 +324,32 @@ export {
 	createDefaultMcpServerClientFactory,
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
+	createMcpAppsClientCapabilities,
 	createMcpTools,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	type DefaultMcpServerClientFactoryOptions,
+	getMcpAppToolMeta,
 	getMcpServerOAuthState,
 	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
 	type LoadMcpSettingsOptions,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	MCP_APP_MIME_TYPE,
+	MCP_APPS_EXTENSION_ID,
+	type McpAppToolMeta,
+	type McpAppToolVisibility,
 	type McpConnectionStatus,
 	type McpManager,
 	type McpManagerOptions,
 	McpOAuthClientChangedError,
+	type McpResourceContents,
+	type McpResourceReadRequest,
+	type McpResourceReadResult,
 	type McpServerClient,
 	type McpServerClientFactory,
 	type McpServerOAuthClientConfig,
@@ -969,6 +981,11 @@ export {
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
 export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+	setPluginSandboxLauncher,
+} from "./extensions/plugin/plugin-runtime";
+export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
 	type ApplyPatchInput,
@@ -1109,6 +1126,7 @@ export type {
 	RegisterModelInput,
 	RegisterProviderInput,
 } from "./services/llms/runtime-types";
+export { SKILLS_CLI_PACKAGE, SKILLS_CLI_VERSION } from "./services/skills-cli";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

@@ -21,7 +21,6 @@ sidecar/
 ├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
 ├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
 ├── cline-auth.ts         # Refresh-aware Cline auth token resolution
-├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
 ├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
@@ -87,6 +86,11 @@ The packaged backend runs on the bundled Cline CLI and has it start the Hub:
 Hub daemon is that same CLI binary. Any Hub the backend itself has to start
 later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
 and locking ensure concurrent clients converge on one Hub.
+
+The backend ships Core’s complete `plugin-runtime` artifact beside its script.
+The standalone CLI embeds the same artifact in its read-only Bun filesystem.
+The script runner does not mount that filesystem, so Desktop uses its packaged
+copy without extracting resources at startup.
 
 Every create, restart, fork, and restore also attaches the serializable Desktop
 `ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
@@ -212,9 +216,7 @@ Supported commands:
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
-| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
-| `get_desktop_settings` | `readDesktopSettings()` |
-| `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
+| `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
 | `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |

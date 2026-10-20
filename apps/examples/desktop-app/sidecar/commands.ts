@@ -126,22 +126,17 @@ import {
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
-import {
-	readDesktopSettings,
-	setCloudSessionsEnabled,
-} from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
+import {
+	identifyDesktopFeatureFlagsAccount,
+	isCloudAgentsEnabled,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
 import {
 	readKeybindings,
 	resolveKeybindingsPath,
 	writeKeybindings,
 } from "./keybindings";
-import {
-	identifyDesktopFeatureFlagsAccount,
-	isCloudAgentsAvailable,
-	isCloudAgentsEnabled,
-	refreshDesktopFeatureFlags,
-} from "./feature-flags";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
@@ -2212,8 +2207,6 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// Resolve flags in the sidecar: available shows the opt-in;
-		// enabled requires both the rollout flag and the user's opt-in.
 		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
@@ -2221,10 +2214,6 @@ export async function handleCommand(
 		return {
 			...snapshot,
 			cloudAgents: isCloudAgentsEnabled({
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			}),
-			cloudAgentsAvailable: isCloudAgentsAvailable({
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
@@ -3226,9 +3215,6 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
-	if (command === "get_desktop_settings") {
-		return readDesktopSettings();
-	}
 	if (command === "get_keybindings") {
 		return readKeybindings();
 	}
@@ -3257,18 +3243,6 @@ export async function handleCommand(
 		const result = writeDiagnosticsReport(sessionIds);
 		openFileInEditor(dirname(result.path));
 		return result;
-	}
-	if (command === "set_cloud_sessions_enabled") {
-		if (typeof args?.cloud_sessions_enabled !== "boolean") {
-			throw new Error("cloud_sessions_enabled must be a boolean");
-		}
-		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		broadcastEvent(ctx, "cloud_sessions_changed", {});
-		broadcastEvent(ctx, "feature_flags_changed", {
-			cloudAgents: isCloudAgentsEnabled(),
-			cloudAgentsAvailable: isCloudAgentsAvailable(),
-		});
-		return settings;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
