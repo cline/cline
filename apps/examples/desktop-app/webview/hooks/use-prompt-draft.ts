@@ -10,8 +10,6 @@ export type PromptDraft = {
 	text: string;
 	attachments: File[];
 	revision: number;
-	handoffFollowUpId?: string;
-	lastRestoredFollowUpId?: string;
 };
 
 /**
@@ -83,8 +81,6 @@ export function usePromptDraft(
 			) {
 				return false;
 			}
-			// Once sending settles, a later open can consult the durable recovery copy.
-			draftRef.current.lastRestoredFollowUpId = undefined;
 			if (rejectedPrompt === undefined || !mountedRef.current) return false;
 			setPromptInput(rejectedPrompt);
 			return true;

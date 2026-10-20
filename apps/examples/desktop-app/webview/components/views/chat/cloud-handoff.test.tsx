@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cloudHandoffUiReducer } from "@/lib/cloud-handoff-ui-state";
 import {
 	CloudHandoffGitConfirmation,
-	CloudHandoffRecoveryNotice,
 	CloudHandoffStatus,
 } from "./cloud-handoff";
 
@@ -29,6 +28,51 @@ function render(node: React.ReactNode) {
 }
 
 describe("CloudHandoffStatus", () => {
+	it("offers explicit draft restoration once and keeps the task link", () => {
+		const draft = {
+			text: "Summary and follow-up",
+			attachments: [new File(["image"], "test.png")],
+		};
+		let state = cloudHandoffUiReducer(
+			{},
+			{
+				type: "complete",
+				sourceSessionId: "local",
+				sessionId: "cloud",
+				dashboardUrl: "https://app.cline.bot/agents/cloud",
+				message: "Not sent",
+				unsentDraft: draft,
+			},
+		);
+		const restore = vi.fn(() => {
+			state = cloudHandoffUiReducer(state, {
+				type: "cloud_draft_restored",
+				sourceSessionId: "local",
+				draft,
+			});
+			root?.render(status());
+		});
+		const open = vi.fn();
+		const status = () => (
+			<CloudHandoffStatus
+				state={state.local}
+				onOpenCloud={open}
+				onRestoreDraft={restore}
+				onDismiss={vi.fn()}
+			/>
+		);
+		const view = render(status());
+		expect(restore).not.toHaveBeenCalled();
+		act(() =>
+			Array.from(view.querySelectorAll("button"))
+				.find((button) => button.textContent === "Open cloud task with draft")
+				?.click(),
+		);
+		expect(restore).toHaveBeenCalledOnce();
+		expect(open).not.toHaveBeenCalled();
+		expect(view.textContent).not.toContain("with draft");
+		expect(view.textContent).toContain("Open cloud task");
+	});
 	it.each([
 		"sending",
 		"complete",
@@ -69,6 +113,7 @@ describe("CloudHandoffStatus", () => {
 		);
 		if (phase === "warning") {
 			expect(view.textContent).toContain("Check delivery before resending.");
+			expect(view.textContent).not.toContain("with draft");
 		}
 		expect(onOpenCloud).not.toHaveBeenCalled();
 		const button = Array.from(view.querySelectorAll("button")).find((item) =>
@@ -202,34 +247,5 @@ describe("CloudHandoffGitConfirmation", () => {
 			"abc local commit",
 		);
 		expect(dialog?.textContent).toContain("Push and continue");
-	});
-});
-
-describe("CloudHandoffRecoveryNotice", () => {
-	it("requires an explicit restore or dismiss for uncertain delivery", () => {
-		const onRestoreDraft = vi.fn();
-		const onDismiss = vi.fn();
-		const view = render(
-			<CloudHandoffRecoveryNotice
-				onRestoreDraft={onRestoreDraft}
-				onDismiss={onDismiss}
-			/>,
-		);
-		expect(view.textContent).toContain("Check this conversation");
-		expect(onRestoreDraft).not.toHaveBeenCalled();
-		act(() =>
-			Array.from(view.querySelectorAll("button"))
-				.find((button) => button.textContent?.includes("Restore saved draft"))
-				?.click(),
-		);
-		expect(onRestoreDraft).toHaveBeenCalledOnce();
-		act(() =>
-			view
-				.querySelector<HTMLButtonElement>(
-					'[aria-label="Dismiss handoff recovery"]',
-				)
-				?.click(),
-		);
-		expect(onDismiss).toHaveBeenCalledOnce();
 	});
 });

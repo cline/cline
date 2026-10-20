@@ -10,10 +10,6 @@ import {
 	validateAndReserveImageMedia,
 } from "@cline/shared";
 import {
-	saveCloudHandoffFollowUp,
-	sendWithCloudHandoffFollowUp,
-} from "./cloud-handoff-follow-up";
-import {
 	applyHandoffGit,
 	type HandoffGitPlan,
 	type HandoffGitPreview,
@@ -298,57 +294,46 @@ async function handleHandoffOnce(
 		getClineEnvironmentConfig().appBaseUrl,
 		sessionId,
 	);
-	try {
-		saveCloudHandoffFollowUp(sessionId, {
-			sourceSessionId,
-			command,
-			userImages: images,
-			initialTask,
-		});
-	} catch {
-		throw new Error(
-			`The cloud task was created, but its draft could not be saved. Nothing was sent. Your instruction and images remain local. Open the task before trying again: ${dashboardUrl}`,
-		);
-	}
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	let dispatched = false;
 	try {
 		emitProgress("provisioning", "Preparing the cloud workspace.", sessionId);
-		const result = await sendWithCloudHandoffFollowUp(
+		const result = await cloud.send(
 			sessionId,
 			command,
+			undefined,
+			modelId,
 			images,
-			(lifecycle) =>
-				cloud.send(sessionId, command, undefined, modelId, images, {
-					beforeDispatch: () => {
-						lifecycle?.beforeDispatch?.();
-						dispatched = true;
-						emitProgress(
-							"sending",
-							"Sending the summary and your instruction.",
-							sessionId,
-						);
-					},
-				}),
+			{
+				beforeDispatch: () => {
+					dispatched = true;
+					emitProgress(
+						"sending",
+						"Sending the summary and your instruction.",
+						sessionId,
+					);
+				},
+			},
 		);
 		if (result.recoveredAfterDisconnect) {
 			warningKind = "unconfirmed";
 			warning =
-				"The cloud connection was interrupted. Check the conversation before resending the saved prompt.";
+				"The cloud connection was interrupted. Check the conversation before resending.";
 		}
 	} catch {
 		warningKind = dispatched ? "unconfirmed" : "unqueued";
 		warning =
 			warningKind === "unconfirmed"
 				? "The cloud session was created, but delivery is unconfirmed. Check the conversation before resending."
-				: "The cloud session was created, but the prepared prompt could not be sent. Open it to recover the saved draft.";
+				: "The cloud session was created, but the prepared prompt could not be sent. Open it to continue.";
 	}
 	const result = {
 		sourceSessionId,
 		sessionId,
 		dashboardUrl,
 		...(warning ? { warning, warningKind } : {}),
+		...(warningKind === "unqueued" ? { unsentPrompt: command } : {}),
 	};
 	sendEvent(ctx, "cloud_handoff_progress", {
 		...result,

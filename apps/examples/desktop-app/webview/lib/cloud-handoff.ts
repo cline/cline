@@ -13,6 +13,7 @@ export type HandoffResult = {
 	dashboardUrl: string;
 	warning?: string;
 	warningKind?: "unqueued" | "unconfirmed";
+	unsentPrompt?: string;
 };
 
 export type HandoffProgressPhase =
@@ -81,10 +82,7 @@ export function buildHandoffWarningToast(fields: {
 	const unconfirmed = fields.warningKind === "unconfirmed";
 	return {
 		title: "Handoff completed with a warning",
-		description:
-			fields.warningKind === "unqueued"
-				? `${warning} The prepared prompt was kept in the cloud session.`
-				: warning,
+		description: warning,
 		...(unconfirmed ? { variant: "destructive" as const } : {}),
 	};
 }

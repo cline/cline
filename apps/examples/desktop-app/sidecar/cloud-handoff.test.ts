@@ -3,8 +3,6 @@ import { loadCloudModels } from "@cline/core/cloud";
 import { DEFAULT_MAX_IMAGE_DECODED_BYTES } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleHandoff, handlePrepareHandoff } from "./cloud-handoff";
-import * as followUpStorage from "./cloud-handoff-follow-up";
-import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import * as gitPreparation from "./cloud-handoff-git";
 import {
 	CloudCreationUnconfirmedError,
@@ -280,7 +278,6 @@ describe("summary cloud handoff", () => {
 
 	it("publishes a dedicated branch, sends one combined prompt with invocation images, and leaves source history alone", async () => {
 		const f = fixture();
-		const seen: unknown[] = [];
 		const preparationProgress: unknown[] = [];
 		f.ctx.wsClients.add({
 			data: { canApproveTools: true },
@@ -291,11 +288,6 @@ describe("summary cloud handoff", () => {
 					["summarizing", "checking"].includes(event.payload.phase)
 				)
 					preparationProgress.push(event.payload);
-				if (
-					event?.name === "cloud_handoff_progress" &&
-					event.payload.phase === "sending"
-				)
-					seen.push(readCloudHandoffFollowUp("ses-target"));
 			},
 		} as unknown as SidecarWebSocketClient);
 		await f.prepare();
@@ -339,14 +331,7 @@ describe("summary cloud handoff", () => {
 			[image],
 			expect.any(Object),
 		);
-		expect(seen).toEqual([
-			expect.objectContaining({
-				command: prompt,
-				userImages: [image],
-				unconfirmed: true,
-			}),
-		]);
-		expect(readCloudHandoffFollowUp("ses-target")).toBeNull();
+		expect(result).not.toHaveProperty("unsentPrompt");
 		expect(result).toMatchObject({
 			sessionId: "ses-target",
 			sourceSessionId: f.sourceSessionId,
@@ -488,8 +473,20 @@ describe("summary cloud handoff", () => {
 	it.each([
 		false,
 		true,
-	])("retains full draft after send failure (dispatched: %s)", async (dispatched) => {
+	])("returns the prepared prompt only for a definitely unsent failure (dispatched: %s)", async (dispatched) => {
 		const f = fixture();
+		const completed: unknown[] = [];
+		f.ctx.wsClients.add({
+			data: { canApproveTools: true },
+			send: (raw: string) => {
+				const event = JSON.parse(raw).event;
+				if (
+					event?.name === "cloud_handoff_progress" &&
+					event.payload.phase === "complete"
+				)
+					completed.push(event.payload);
+			},
+		} as unknown as SidecarWebSocketClient);
 		await f.prepare();
 		f.send.mockImplementation(async (...args) => {
 			if (dispatched) args[5]?.beforeDispatch?.();
@@ -500,18 +497,17 @@ describe("summary cloud handoff", () => {
 			nextCommand: "Add tests",
 			attachments: { userImages: [image] },
 		});
-		const saved = readCloudHandoffFollowUp("ses-target");
-		expect(saved).toMatchObject({
-			command: expect.stringContaining(
-				"Next instruction from the user:\nAdd tests",
-			),
-			userImages: [image],
-		});
-		expect(Boolean(saved?.unconfirmed)).toBe(dispatched);
+		if (dispatched) expect(result).not.toHaveProperty("unsentPrompt");
+		else
+			expect(result).toHaveProperty(
+				"unsentPrompt",
+				"Search form: implemented. Next: add tests.\n\nNext instruction from the user:\nAdd tests",
+			);
 		expect(result).toMatchObject({
 			sessionId: "ses-target",
 			warningKind: dispatched ? "unconfirmed" : "unqueued",
 		});
+		expect(completed).toEqual([expect.objectContaining(result)]);
 	});
 
 	it("does not automatically retry unconfirmed creation", async () => {
@@ -521,20 +517,6 @@ describe("summary cloud handoff", () => {
 			new CloudCreationUnconfirmedError(new Error("Connection lost")),
 		);
 		await expect(f.handoff(f.request)).rejects.toThrow("ambiguous");
-		expect(f.create).toHaveBeenCalledTimes(1);
-		expect(f.send).not.toHaveBeenCalled();
-		expect(f.update).not.toHaveBeenCalled();
-	});
-
-	it("does not dispatch if saving the prepared prompt fails", async () => {
-		const f = fixture();
-		await f.prepare();
-		vi.spyOn(followUpStorage, "saveCloudHandoffFollowUp").mockImplementation(
-			() => {
-				throw new Error("Disk full");
-			},
-		);
-		await expect(f.handoff(f.request)).rejects.toThrow("Nothing was sent");
 		expect(f.create).toHaveBeenCalledTimes(1);
 		expect(f.send).not.toHaveBeenCalled();
 		expect(f.update).not.toHaveBeenCalled();

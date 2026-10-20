@@ -1,7 +1,6 @@
 "use client";
 
 import { Cloud, ExternalLink, Loader2, X } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -122,6 +121,9 @@ export function CloudHandoffStatus({
 	onDismiss: () => void;
 }) {
 	const pending = state.status === "progress";
+	const canRestoreDraft =
+		state.status === "failed" ||
+		(state.status === "complete" && Boolean(state.unsentDraft));
 	const dashboardUrl = "dashboardUrl" in state ? state.dashboardUrl : undefined;
 	const label = pending
 		? state.message?.trim() || HANDOFF_PROGRESS_LABELS[state.phase]
@@ -170,67 +172,27 @@ export function CloudHandoffStatus({
 					</Button>
 				)}
 			</div>
-			{!pending && (state.message || state.status === "failed") && (
+			{!pending && (state.message || canRestoreDraft) && (
 				<div className="space-y-2 pb-3">
 					{state.message && (
 						<p className="break-words text-xs text-muted-foreground">
 							{state.message}
 						</p>
 					)}
-					{state.status === "failed" && (
+					{canRestoreDraft && (
 						<Button
 							className="h-7 px-2 text-xs"
 							onClick={onRestoreDraft}
 							size="sm"
 							variant="outline"
 						>
-							Restore /cloud draft
+							{state.status === "complete"
+								? "Open cloud task with draft"
+								: "Restore /cloud draft"}
 						</Button>
 					)}
 				</div>
 			)}
 		</output>
-	);
-}
-
-export function CloudHandoffRecoveryNotice({
-	onDismiss,
-	onRestoreDraft,
-	disabled = false,
-}: {
-	onDismiss: () => void;
-	onRestoreDraft: () => void;
-	disabled?: boolean;
-}) {
-	return (
-		<Alert className="mx-auto mb-2 w-full max-w-xl pr-10">
-			<Cloud />
-			<AlertTitle>Prompt delivery is unconfirmed</AlertTitle>
-			<AlertDescription>
-				<p>
-					Check this conversation before restoring the saved draft; it may
-					already have been sent.
-				</p>
-				<Button
-					className="mt-2 h-7 px-2 text-xs"
-					onClick={onRestoreDraft}
-					disabled={disabled}
-					size="sm"
-					variant="outline"
-				>
-					Restore saved draft
-				</Button>
-			</AlertDescription>
-			<Button
-				aria-label="Dismiss handoff recovery"
-				className="absolute right-2 top-2 size-7 text-muted-foreground"
-				onClick={onDismiss}
-				disabled={disabled}
-				size="icon"
-				variant="ghost"
-			>
-				<X className="size-4" />
-			</Button>
-		</Alert>
 	);
 }

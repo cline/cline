@@ -93,11 +93,6 @@ import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
-	clearCloudHandoffFollowUp,
-	getRecoverableCloudHandoffFollowUp,
-	updateCloudHandoffFollowUp,
-} from "./cloud-handoff-follow-up";
-import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
@@ -2474,21 +2469,6 @@ export async function handleCommand(
 		}
 		return hits.slice(0, limit);
 	}
-	if (
-		command === "get_cloud_handoff_follow_up" ||
-		command === "restore_cloud_handoff_follow_up" ||
-		command === "dismiss_cloud_handoff_follow_up"
-	) {
-		const sessionId = String(args?.sessionId ?? "").trim();
-		if (!sessionId) throw new Error("session id is required");
-		if (command === "get_cloud_handoff_follow_up")
-			return getRecoverableCloudHandoffFollowUp(sessionId);
-		return updateCloudHandoffFollowUp(
-			sessionId,
-			args?.expected as Parameters<typeof updateCloudHandoffFollowUp>[1],
-			command === "restore_cloud_handoff_follow_up" ? "restore" : "dismiss",
-		);
-	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
@@ -2640,14 +2620,6 @@ export async function handleCommand(
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
 			await cloud.delete(sessionId);
-			try {
-				clearCloudHandoffFollowUp(sessionId);
-			} catch (error) {
-				ctx.logger?.error?.(
-					"Failed to clear the deleted session's handoff follow-up",
-					{ error },
-				);
-			}
 			return true;
 		}
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });

@@ -10,7 +10,6 @@ import {
 } from "@cline/core/cloud";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { resolveFreshClineAuthToken } from "./cline-auth";
-import { readCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
 	getEnvironmentContext,
 	getSidecarContextOwner,
@@ -34,7 +33,6 @@ export class CloudSessionManager extends CloudSessionController {
 	private readonly ownedIds = new Set<string>();
 	private readonly approvalSnapshots = new Map<string, string>();
 	private readonly ctx: SidecarContext;
-	private readonly initialTaskOptions: Map<string, CloudCreationOptions>;
 	constructor(ctx: SidecarContext, options: CloudSessionControllerOptions) {
 		const owner = getSidecarContextOwner(ctx);
 		let pendingInitialTasks = pendingInitialTasksByContext.get(owner);
@@ -54,7 +52,6 @@ export class CloudSessionManager extends CloudSessionController {
 				source: "desktop",
 			},
 		});
-		this.initialTaskOptions = pendingInitialTasks;
 		this.ctx = getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID);
 		for (const [id, state] of ctx.liveSessions)
 			if (state.config.executionTarget === "cloud")
@@ -66,20 +63,6 @@ export class CloudSessionManager extends CloudSessionController {
 			...input,
 			sandboxType: input.sandboxType ?? "resumable",
 		});
-	}
-	private restorePendingInitialTask(
-		id: string,
-	): CloudCreationOptions | undefined {
-		const saved = readCloudHandoffFollowUp(id);
-		if (!saved?.initialTask || saved.unconfirmed) return undefined;
-		this.initialTaskOptions.set(id, saved.initialTask);
-		return saved.initialTask;
-	}
-	override async attach(id: string, creationOptions?: CloudCreationOptions) {
-		return await super.attach(
-			id,
-			this.restorePendingInitialTask(id) ?? creationOptions,
-		);
 	}
 	override async listForDiscovery(
 		options: { timeoutMs?: number } = {},
@@ -198,11 +181,8 @@ export class CloudSessionManager extends CloudSessionController {
 		images?: string[],
 		lifecycle?: CloudSendLifecycle,
 	) {
-		// A saved initial task owns its settings even if the viewer has stale defaults.
-		const initialTask = this.restorePendingInitialTask(id);
 		const config = this.ctx.liveSessions.get(id)?.config;
-		if (initialTask) this.restoreCreationOptions(id, initialTask);
-		else if (config)
+		if (config)
 			this.restoreCreationOptions(id, {
 				...(typeof config.autoApproveTools === "boolean"
 					? { autoApproveTools: config.autoApproveTools }
@@ -220,7 +200,6 @@ export class CloudSessionManager extends CloudSessionController {
 		try {
 			return await super.send(id, prompt, delivery, modelId, images, lifecycle);
 		} finally {
-			if (initialTask) this.initialTaskOptions.delete(id);
 			const snapshot = this.getSnapshot(id);
 			if (snapshot)
 				this.project({

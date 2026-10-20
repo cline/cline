@@ -3,7 +3,6 @@
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { shouldPreserveCloudComposer } from "../lib/cloud-handoff-follow-up";
 import {
 	createDesktopAppState,
 	type DesktopAppAction,
@@ -305,14 +304,12 @@ describe("usePromptDraft", () => {
 		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
-	it("keeps edited cloud follow-up identity and images through a pane remount", async () => {
+	it("keeps edited cloud text and images through a pane remount", async () => {
 		await openSession();
 		const image = new File(["synthetic"], "test.png", { type: "image/png" });
 		act(() => {
 			current.setPromptInput("Original follow-up");
 			current.setPendingAttachments([image]);
-			current.draftRef.current.handoffFollowUpId = "draft-1";
-			current.draftRef.current.lastRestoredFollowUpId = "draft-1";
 			current.handlePromptInputChange("Edited follow-up");
 		});
 		await navigate({
@@ -322,21 +319,12 @@ describe("usePromptDraft", () => {
 		await openSession();
 		expect(current.promptInputRef.current).toBe("Edited follow-up");
 		expect(current.pendingAttachments).toEqual([image]);
-		expect(current.draftRef.current.handoffFollowUpId).toBe("draft-1");
 		act(() => {
 			current.handlePromptInputChange("");
 			current.setPendingAttachments([]);
 		});
 		await navigate({ type: "back" });
 		await openSession();
-		expect(
-			shouldPreserveCloudComposer(
-				current.promptInputRef.current,
-				current.pendingAttachments.length,
-				current.draftRef.current.lastRestoredFollowUpId,
-				"draft-1",
-			),
-		).toBe(true);
 		expect(current.promptInputRef.current).toBe("");
 		expect(current.pendingAttachments).toEqual([]);
 	});
@@ -368,37 +356,5 @@ describe("usePromptDraft", () => {
 			update((files) => [...files, added]);
 		});
 		expect(current.pendingAttachments).toEqual([original, added]);
-	});
-
-	it.each([
-		false,
-		true,
-	])("allows saved recovery after an offscreen send settles without overwriting newer edits (%s)", async (editAfterRemount) => {
-		await openSession();
-		let finish!: ReturnType<typeof current.clearPromptForSend>;
-		act(() => {
-			current.setPromptInput("Saved follow-up");
-			current.draftRef.current.lastRestoredFollowUpId = "draft-1";
-			finish = current.clearPromptForSend();
-		});
-		await navigate({
-			type: "navigate",
-			destination: { ...appState.navigation.current, view: "sessions" },
-		});
-		await openSession();
-		if (editAfterRemount)
-			act(() => {
-				current.handlePromptInputChange("A different draft");
-				current.handlePromptInputChange("");
-			});
-		act(() => expect(finish("Saved follow-up")).toBe(false));
-		expect(
-			shouldPreserveCloudComposer(
-				current.promptInputRef.current,
-				current.pendingAttachments.length,
-				current.draftRef.current.lastRestoredFollowUpId,
-				"draft-1",
-			),
-		).toBe(editAfterRemount);
 	});
 });

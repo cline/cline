@@ -1,5 +1,7 @@
 import type { HandoffProgressPhase } from "./cloud-handoff";
 
+export type HandoffDraft = { text: string; attachments: File[] };
+
 export type CloudHandoffUiEntry =
 	| {
 			status: "progress";
@@ -13,6 +15,7 @@ export type CloudHandoffUiEntry =
 			sessionId: string;
 			dashboardUrl: string;
 			message?: string;
+			unsentDraft?: HandoffDraft;
 	  }
 	| {
 			status: "failed" | "retry_restored";
@@ -29,11 +32,17 @@ export type CloudHandoffUiAction =
 			sourceSessionId: string;
 	  }
 	| {
+			type: "cloud_draft_restored";
+			sourceSessionId: string;
+			draft: HandoffDraft;
+	  }
+	| {
 			type: "complete";
 			sourceSessionId: string;
 			sessionId: string;
 			dashboardUrl: string;
 			message?: string;
+			unsentDraft?: HandoffDraft;
 	  }
 	| {
 			type: "progress";
@@ -91,6 +100,14 @@ export function cloudHandoffUiReducer(
 						[action.sourceSessionId]: { ...current, status: "retry_restored" },
 					}
 				: state;
+		case "cloud_draft_restored":
+			return current?.status === "complete" &&
+				current.unsentDraft === action.draft
+				? {
+						...state,
+						[action.sourceSessionId]: { ...current, unsentDraft: undefined },
+					}
+				: state;
 		case "complete":
 			return {
 				...state,
@@ -99,6 +116,7 @@ export function cloudHandoffUiReducer(
 					sessionId: action.sessionId,
 					dashboardUrl: action.dashboardUrl,
 					message: action.message,
+					unsentDraft: action.unsentDraft,
 				},
 			};
 		case "local_prompt_delivered":

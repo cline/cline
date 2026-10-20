@@ -2483,17 +2483,12 @@ describe("useChatSession", () => {
 				repoUrl: "https://github.com/cline/test",
 			}),
 		);
-		await act(async () =>
-			current.sendPrompt("Keep working", [], {
-				handoffFollowUpId: "restored-draft",
-			}),
-		);
+		await act(async () => current.sendPrompt("Keep working"));
 		expect(invokeMock).toHaveBeenCalledWith(
 			"chat_session_command",
 			{
 				request: expect.objectContaining({
 					action: "send",
-					handoffFollowUpId: "restored-draft",
 				}),
 			},
 			{ timeoutMs: null },
@@ -3255,9 +3250,7 @@ describe("useChatSession", () => {
 
 		let taken: boolean | undefined;
 		await act(async () => {
-			taken = await current.sendPrompt("Rebase the branch", [], {
-				handoffFollowUpId: "restored-draft",
-			});
+			taken = await current.sendPrompt("Rebase the branch");
 		});
 
 		expect(taken).toBe(expectedTaken);
@@ -3268,11 +3261,6 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.findLast((message) => message.role === "error")?.content,
 		).toContain("Token refresh failed: 401");
-		const sendCall = invokeMock.mock.calls.find(
-			([command, args]) =>
-				command === "chat_session_command" && args?.request?.action === "send",
-		);
-		expect(sendCall?.[1]?.request?.handoffFollowUpId).toBe("restored-draft");
 	});
 
 	it("publishes the first user message before cold session startup resolves", async () => {

@@ -17,7 +17,6 @@ export type DesktopThread = {
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
 	initialAttachments?: File[];
-	initialHandoffFollowUpId?: string;
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -48,7 +47,6 @@ export type DesktopAppAction<SettingsSection extends string> =
 			environmentId: string;
 			initialPromptDraft?: string;
 			initialAttachments?: File[];
-			initialHandoffFollowUpId?: string;
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
 	| {
@@ -202,7 +200,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 										},
 										initialPromptDraft: action.initialPromptDraft,
 										initialAttachments: action.initialAttachments,
-										initialHandoffFollowUpId: action.initialHandoffFollowUpId,
 									}
 								: thread,
 						)
@@ -218,7 +215,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 								},
 								initialPromptDraft: action.initialPromptDraft,
 								initialAttachments: action.initialAttachments,
-								initialHandoffFollowUpId: action.initialHandoffFollowUpId,
 							},
 						];
 			return {
@@ -248,7 +244,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 								...thread,
 								initialPromptDraft: undefined,
 								initialAttachments: undefined,
-								initialHandoffFollowUpId: undefined,
 							}
 						: thread,
 				),

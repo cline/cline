@@ -21,8 +21,8 @@ function harness() {
 		dispatch,
 		toast,
 	});
-	const start = () => {
-		const id = lifecycle.onRpcStarted("local");
+	const start = (attachments: File[] = []) => {
+		const id = lifecycle.onRpcStarted("local", attachments);
 		dispatch({ type: "start", sourceSessionId: "local" });
 		return id;
 	};
@@ -35,6 +35,35 @@ function harness() {
 }
 
 describe("summary handoff lifecycle", () => {
+	it("keeps an unsent prepared prompt and images when completion arrives before the RPC", async () => {
+		const h = harness();
+		const attachments = [
+			new File(["image"], "image.png", { type: "image/png" }),
+		];
+		const handoffAttemptId = h.start(attachments);
+		const failed = {
+			...result,
+			warningKind: "unqueued" as const,
+			warning: "Not sent",
+			unsentPrompt: "Summary and instruction",
+		};
+		await h.lifecycle.onEvent({
+			...failed,
+			handoffAttemptId,
+			phase: "complete",
+		});
+		const completed = h.state();
+		expect(completed.local).toMatchObject({
+			status: "complete",
+			unsentDraft: { text: failed.unsentPrompt, attachments },
+		});
+		await h.lifecycle.onRpcResolved("local", {
+			handoffAttemptId,
+			result: failed,
+		});
+		expect(h.state()).toBe(completed);
+		expect(h.toast).toHaveBeenCalledOnce();
+	});
 	it("retains the target link and ignores repeated completion", async () => {
 		const h = harness();
 		const handoffAttemptId = h.start();
@@ -141,6 +170,7 @@ describe("summary handoff lifecycle", () => {
 			status: "complete",
 			sessionId: "cloud",
 			message: "Check the task before resending.",
+			unsentDraft: undefined,
 		});
 	});
 });

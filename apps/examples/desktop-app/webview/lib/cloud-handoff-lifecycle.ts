@@ -31,6 +31,7 @@ type HandoffProgressEventPayload = {
 	sessionId?: string;
 	warning?: string;
 	warningKind?: "unqueued" | "unconfirmed";
+	unsentPrompt?: string;
 };
 
 type RpcContext = {
@@ -44,6 +45,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		id: string;
 		target?: { sessionId: string; dashboardUrl: string };
 		completed: boolean;
+		attachments: File[];
 	};
 	const attempts = new Map<string, Attempt>();
 	const current = (source: string, id?: string) => {
@@ -63,16 +65,22 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			sessionId: result.sessionId,
 			dashboardUrl: result.dashboardUrl,
 			message: result.warning,
+			unsentDraft:
+				result.warningKind === "unqueued" && result.unsentPrompt
+					? { text: result.unsentPrompt, attachments: attempt.attachments }
+					: undefined,
 		});
+		attempt.attachments = [];
 		const warning = buildHandoffWarningToast(result);
 		if (warning) effects.toast(warning);
 	};
 	return {
-		onRpcStarted(sourceSessionId: string): string {
+		onRpcStarted(sourceSessionId: string, attachments: File[]): string {
 			const id = crypto.randomUUID();
 			attempts.set(sourceSessionId, {
 				id,
 				completed: false,
+				attachments,
 			});
 			return id;
 		},

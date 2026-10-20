@@ -51,10 +51,7 @@ describe("handoff completion warnings", () => {
 			buildHandoffWarningToast({ warning: "Could not send.", warningKind }),
 		).toEqual({
 			title: "Handoff completed with a warning",
-			description:
-				warningKind === "unqueued"
-					? "Could not send. The prepared prompt was kept in the cloud session."
-					: "Could not send.",
+			description: "Could not send.",
 			...(warningKind === "unconfirmed" ? { variant: "destructive" } : {}),
 		});
 	});

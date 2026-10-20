@@ -2769,7 +2769,6 @@ export function useChatSession(environmentId: string) {
 			options?: {
 				/** Start the session in a fresh git worktree of the current workspace. */
 				inNewWorktree?: boolean;
-				handoffFollowUpId?: string;
 			},
 		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
@@ -3106,7 +3105,6 @@ export function useChatSession(environmentId: string) {
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
-					handoffFollowUpId: options?.handoffFollowUpId,
 					prompt: trimmed,
 					delivery: shouldQueue ? "queue" : undefined,
 					config: parsed,

@@ -53,7 +53,6 @@ import {
 	handleHandoff,
 	handlePrepareHandoff,
 } from "./cloud-handoff";
-import { sendWithCloudHandoffFollowUp } from "./cloud-handoff-follow-up";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -2628,20 +2627,12 @@ export async function handleChatSessionCommand(
 				const modelId = String(
 					request.config?.model ?? request.config?.modelId ?? "",
 				).trim();
-				return await sendWithCloudHandoffFollowUp(
+				return await cloud.send(
 					sessionId,
 					prompt,
-					request.attachments?.userImages ?? [],
-					(lifecycle) =>
-						cloud.send(
-							sessionId,
-							prompt,
-							request.delivery,
-							modelId || undefined,
-							request.attachments?.userImages,
-							lifecycle,
-						),
-					request.handoffFollowUpId,
+					request.delivery,
+					modelId || undefined,
+					request.attachments?.userImages,
 				);
 			}
 			case "stop":

@@ -41,7 +41,6 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import {
 	CloudHandoffGitConfirmation,
-	CloudHandoffRecoveryNotice,
 	CloudHandoffStatus,
 } from "@/components/views/chat/cloud-handoff";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
@@ -84,11 +83,6 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
-	openWithCloudHandoffFollowUp,
-	restoreCloudHandoffFollowUp,
-	shouldPreserveCloudComposer,
-} from "@/lib/cloud-handoff-follow-up";
-import {
 	createHandoffLifecycle,
 	type HandoffLifecycle,
 	type HandoffOpenResult,
@@ -97,6 +91,7 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	type HandoffDraft,
 } from "@/lib/cloud-handoff-ui-state";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import {
@@ -187,7 +182,6 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
-import type { CloudHandoffFollowUp } from "../../sidecar/cloud-handoff-follow-up";
 import type { HandoffGitPreview } from "../../sidecar/cloud-handoff-git";
 
 // Lazily loaded views: none of these are needed for the first paint of the
@@ -312,6 +306,7 @@ function useCloudProvisioningPhase(
 }
 
 type OpenSessionOptions = {
+	draft?: HandoffDraft;
 	environmentId?: string;
 	silent?: boolean;
 	expectedActiveThreadId?: string;
@@ -720,53 +715,39 @@ export default function Home() {
 		setShowOnboarding(true);
 	}, []);
 
-	const sessionOpenRevision = useRef(0);
 	const handleOpenSession = useCallback(
 		async (
 			session: SessionHistoryItem,
 			initialPromptDraft?: string,
-			expectedActiveThreadId?: string,
-		): Promise<HandoffOpenResult | undefined> => {
-			const revision = ++sessionOpenRevision.current;
-			const location = activeLocationRef.current;
-			const open = (draft?: string, attachments?: File[], draftId?: string) => {
-				dispatchApp({
-					type: "open-session",
-					session,
-					environmentId: session.environmentId,
-					initialPromptDraft: draft,
-					initialAttachments: attachments,
-					initialHandoffFollowUpId: draftId,
-				});
-			};
-			if (session.origin !== "cloud") {
-				open(initialPromptDraft);
-				return { opened: true };
+			initialAttachments?: File[],
+		): Promise<HandoffOpenResult> => {
+			if (initialAttachments) {
+				const thread = threads.find(
+					(item) =>
+						item.environmentId === session.environmentId &&
+						(item.sessionId === session.sessionId ||
+							item.historySession?.sessionId === session.sessionId),
+				);
+				const draft = thread && promptDrafts.get(thread.id);
+				if (draft && (draft.text.trim() || draft.attachments.length)) {
+					toast({
+						title: "Your cloud draft is unchanged",
+						description:
+							"Send or clear it before restoring the handoff prompt.",
+					});
+					return { opened: false };
+				}
 			}
-			try {
-				const opened = await openWithCloudHandoffFollowUp({
-					targetSessionId: session.sessionId,
-					canOpen: () =>
-						revision === sessionOpenRevision.current &&
-						location === activeLocationRef.current &&
-						isExpectedHandoffSourceActive(
-							expectedActiveThreadId,
-							activeLocationRef.current.activeThreadId,
-							activeLocationRef.current.view,
-						),
-					open,
-				});
-				return opened ? { opened } : undefined;
-			} catch (error) {
-				toast({
-					title: "Unable to restore cloud follow-up",
-					description: error instanceof Error ? error.message : String(error),
-					variant: "destructive",
-				});
-				return { opened: false };
-			}
+			dispatchApp({
+				type: "open-session",
+				session,
+				environmentId: session.environmentId,
+				initialPromptDraft,
+				initialAttachments,
+			});
+			return { opened: true };
 		},
-		[],
+		[promptDrafts, threads],
 	);
 
 	const handleDeleteSession = useCallback(
@@ -934,8 +915,8 @@ export default function Home() {
 			if (cachedSession) {
 				return await handleOpenSession(
 					cachedSession,
-					undefined,
-					options.expectedActiveThreadId,
+					options.draft?.text,
+					options.draft?.attachments,
 				);
 			}
 			try {
@@ -968,8 +949,8 @@ export default function Home() {
 				}
 				return await handleOpenSession(
 					session,
-					undefined,
-					options.expectedActiveThreadId,
+					options.draft?.text,
+					options.draft?.attachments,
 				);
 			} catch (error) {
 				if (!options.silent) {
@@ -1024,6 +1005,7 @@ export default function Home() {
 					sessionId?: string;
 					warning?: string;
 					warningKind?: "unqueued" | "unconfirmed";
+					unsentPrompt?: string;
 				};
 				if (
 					!progress.sourceSessionId?.trim() ||
@@ -1041,6 +1023,7 @@ export default function Home() {
 					sessionId: progress.sessionId,
 					warning: progress.warning,
 					warningKind: progress.warningKind,
+					unsentPrompt: progress.unsentPrompt,
 				});
 			}),
 		[handoffLifecycle],
@@ -1189,9 +1172,6 @@ export default function Home() {
 											}
 											initialAttachments={activeThread.initialAttachments}
 											initialPromptDraft={activeThread.initialPromptDraft}
-											initialHandoffFollowUpId={
-												activeThread.initialHandoffFollowUpId
-											}
 											handoffLifecycle={handoffLifecycle}
 											confirmHandoffGit={confirmHandoffGit}
 											promptDrafts={promptDrafts}
@@ -1207,11 +1187,6 @@ export default function Home() {
 												)
 											}
 											threadId={activeThread.id}
-											isThreadActive={() =>
-												activeLocationRef.current.activeThreadId ===
-													activeThread.id &&
-												activeLocationRef.current.view === "chat"
-											}
 											onDeleteSession={(sessionId, threadId) =>
 												handleDeleteSession(
 													sessionId,
@@ -1332,7 +1307,6 @@ function ChatThreadPane({
 	liveHistorySession,
 	initialAttachments,
 	initialPromptDraft,
-	initialHandoffFollowUpId,
 	handoffLifecycle,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -1350,7 +1324,6 @@ function ChatThreadPane({
 	parentSession,
 	remoteEnvironment,
 	onThreadStarted,
-	isThreadActive,
 	handoffUiState,
 	onHandoffUiAction,
 }: {
@@ -1363,7 +1336,6 @@ function ChatThreadPane({
 	liveHistorySession?: SessionHistoryItem;
 	initialAttachments?: File[];
 	initialPromptDraft?: string;
-	initialHandoffFollowUpId?: string;
 	handoffLifecycle: Pick<
 		HandoffLifecycle,
 		"onRpcStarted" | "onRpcResolved" | "onRpcRejected"
@@ -1395,7 +1367,6 @@ function ChatThreadPane({
 	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	onThreadStarted?: (threadId: string, sessionId?: string) => void;
-	isThreadActive?: () => boolean;
 	handoffUiState: CloudHandoffUiState;
 	onHandoffUiAction: (action: CloudHandoffUiAction) => void;
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
@@ -1583,103 +1554,6 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
-	const [uncertainFollowUp, setUncertainFollowUp] =
-		useState<CloudHandoffFollowUp | null>(null);
-	const [updatingFollowUp, setUpdatingFollowUp] = useState(false);
-	const followUpSessionRef = useRef(sessionId);
-	followUpSessionRef.current = sessionId;
-	const followUpReadRef = useRef(0);
-	const refreshFollowUp = useCallback(async () => {
-		if (!isCloudSession || !sessionId) return null;
-		const request = ++followUpReadRef.current;
-		const saved = await desktopClient.invoke<CloudHandoffFollowUp | null>(
-			"get_cloud_handoff_follow_up",
-			{ sessionId },
-		);
-		if (
-			followUpSessionRef.current === sessionId &&
-			followUpReadRef.current === request
-		)
-			setUncertainFollowUp(saved?.unconfirmed ? saved : null);
-		return saved;
-	}, [isCloudSession, sessionId]);
-	useEffect(() => {
-		followUpSessionRef.current = sessionId;
-		setUncertainFollowUp(null);
-		void refreshFollowUp().catch(() => {});
-		return () => {
-			followUpSessionRef.current = null;
-		};
-	}, [refreshFollowUp, sessionId]);
-	useEffect(
-		() =>
-			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
-				if (
-					payload &&
-					typeof payload === "object" &&
-					"phase" in payload &&
-					payload.phase === "complete" &&
-					"sessionId" in payload &&
-					payload.sessionId === sessionId
-				) {
-					void refreshFollowUp().catch(() => {});
-				}
-			}),
-		[refreshFollowUp, sessionId],
-	);
-	const updateFollowUp = useCallback(
-		async (action: "restore" | "dismiss") => {
-			if (!sessionId || !uncertainFollowUp || updatingFollowUp) return;
-			const canRestore = () =>
-				followUpSessionRef.current === sessionId &&
-				(isThreadActive?.() ?? true) &&
-				!promptInputRef.current.trim() &&
-				draftRef.current.attachments.length === 0;
-			setUpdatingFollowUp(true);
-			try {
-				if (action === "restore")
-					await restoreCloudHandoffFollowUp({
-						targetSessionId: sessionId,
-						expected: uncertainFollowUp,
-						canRestore,
-						restore: (draft, attachments, draftId) => {
-							draftRef.current.handoffFollowUpId = draftId;
-							draftRef.current.lastRestoredFollowUpId = draftId;
-							setPromptInput(draft);
-							setPendingAttachments(attachments);
-						},
-					});
-				else
-					await desktopClient.invoke("dismiss_cloud_handoff_follow_up", {
-						sessionId,
-						expected: uncertainFollowUp,
-					});
-				await refreshFollowUp();
-			} catch (error) {
-				toast({
-					title: "Could not update the saved follow-up",
-					description:
-						error instanceof Error
-							? error.message
-							: "The recovery copy has not been cleared.",
-					variant: "destructive",
-				});
-			} finally {
-				setUpdatingFollowUp(false);
-			}
-		},
-		[
-			sessionId,
-			uncertainFollowUp,
-			draftRef,
-			updatingFollowUp,
-			isThreadActive,
-			promptInputRef,
-			refreshFollowUp,
-			setPendingAttachments,
-			setPromptInput,
-		],
-	);
 	const liveHistoryStatus = historySession
 		? (liveHistorySession?.status ?? historySession.status)
 		: undefined;
@@ -2180,15 +2054,10 @@ function ChatThreadPane({
 		if (hasInitialComposerState) {
 			const preserveComposer =
 				historySession.origin === "cloud" &&
-				shouldPreserveCloudComposer(
-					promptInputRef.current,
-					draftRef.current.attachments.length,
-					draftRef.current.lastRestoredFollowUpId,
-					initialHandoffFollowUpId,
+				Boolean(
+					promptInputRef.current.trim() || draftRef.current.attachments.length,
 				);
 			if (!preserveComposer) {
-				draftRef.current.handoffFollowUpId = initialHandoffFollowUpId;
-				draftRef.current.lastRestoredFollowUpId = initialHandoffFollowUpId;
 				setPromptInput(initialPromptDraft ?? "");
 				setPendingAttachments(
 					initialAttachments ? [...initialAttachments] : [],
@@ -2213,7 +2082,6 @@ function ChatThreadPane({
 		draftRef,
 		initialAttachments,
 		initialPromptDraft,
-		initialHandoffFollowUpId,
 		onInitialPromptDraftConsumed,
 		promptInputRef,
 		sessionId,
@@ -2266,8 +2134,23 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
-	const handleRestoreHandoffDraft = useCallback(() => {
-		if (!sourceSessionId || handoffUi?.status !== "failed") return;
+	const handleRestoreHandoffDraft = useCallback(async () => {
+		if (!sourceSessionId) return;
+		if (handoffUi?.status === "complete" && handoffUi.unsentDraft) {
+			const opened = await onOpenSessionById?.(handoffUi.sessionId, {
+				draft: handoffUi.unsentDraft,
+				expectedActiveThreadId: threadId,
+			});
+			if (opened?.opened) {
+				onHandoffUiAction({
+					type: "cloud_draft_restored",
+					sourceSessionId,
+					draft: handoffUi.unsentDraft,
+				});
+			}
+			return;
+		}
+		if (handoffUi?.status !== "failed") return;
 		if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
 			toast({
 				title: "Your current draft is unchanged",
@@ -2284,6 +2167,8 @@ function ChatThreadPane({
 		draftRef,
 		handoffUi,
 		onHandoffUiAction,
+		onOpenSessionById,
+		threadId,
 		setPromptInput,
 		setPendingAttachments,
 		sourceSessionId,
@@ -2343,7 +2228,10 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
-			const handoffAttemptId = handoffLifecycle.onRpcStarted(sourceSessionId);
+			const handoffAttemptId = handoffLifecycle.onRpcStarted(
+				sourceSessionId,
+				sourceAttachments,
+			);
 			setPendingAttachments([]);
 			try {
 				setPromptInput("");
@@ -2451,40 +2339,21 @@ function ChatThreadPane({
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			const finishPromptSend = clearPromptForSend();
-			const restoredFollowUpId = draftRef.current.handoffFollowUpId;
-			draftRef.current.handoffFollowUpId = undefined;
 			const promptTaken = await sendPrompt(trimmed, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
-				handoffFollowUpId: restoredFollowUpId,
 			});
-			const savedFollowUp = await refreshFollowUp().catch(() => undefined);
 			if (promptTaken && !isCloudSession && sourceSessionId) {
 				onHandoffUiAction({ type: "local_prompt_delivered", sourceSessionId });
 			}
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping, but only if this pane still owns the unchanged draft.
-			const followUpNotDispatched =
-				savedFollowUp?.draftId === restoredFollowUpId &&
-				Boolean(savedFollowUp && !savedFollowUp.unconfirmed);
-			if (
-				finishPromptSend(
-					!promptTaken || followUpNotDispatched ? trimmed : undefined,
-				)
-			) {
-				if (
-					savedFollowUp === undefined ||
-					savedFollowUp?.draftId === restoredFollowUpId
-				) {
-					draftRef.current.handoffFollowUpId = restoredFollowUpId;
-					draftRef.current.lastRestoredFollowUpId = restoredFollowUpId;
-				}
+			if (finishPromptSend(!promptTaken ? trimmed : undefined)) {
 				handleAttachFiles(toSend);
 			}
 		},
 		[
 			clearPromptForSend,
-			draftRef,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
@@ -2494,7 +2363,6 @@ function ChatThreadPane({
 			pendingAttachments,
 			prepareHandoff,
 			sendPrompt,
-			refreshFollowUp,
 			sessionId,
 			setPendingAttachments,
 			sourceSessionId,
@@ -3144,13 +3012,6 @@ function ChatThreadPane({
 					onDismiss={() =>
 						onHandoffUiAction({ type: "dismiss", sourceSessionId })
 					}
-				/>
-			)}
-			{uncertainFollowUp && (
-				<CloudHandoffRecoveryNotice
-					disabled={updatingFollowUp}
-					onDismiss={() => void updateFollowUp("dismiss")}
-					onRestoreDraft={() => void updateFollowUp("restore")}
 				/>
 			)}
 			{chatComposer}

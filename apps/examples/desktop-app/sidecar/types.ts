@@ -47,7 +47,6 @@ export type ChatSessionCommandRequest = {
 	attachments?: ChatTurnAttachments;
 	/** Opaque webview correlation token echoed on handoff progress events. */
 	handoffAttemptId?: string;
-	handoffFollowUpId?: string;
 	gitPreparationId?: string;
 	/** Optional instruction appended to the locally generated summary. */
 	nextCommand?: string;
