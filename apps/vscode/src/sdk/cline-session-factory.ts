@@ -322,6 +322,12 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		// silently disabling tool calling at the runtime gate (#13463).
 		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
 		setCapability("tools", supportsTools !== false)
+		// Same for reasoning: a rebuilt list that says nothing about it must
+		// not read as "cannot reason", or the SDK gateway drops an explicit
+		// reasoning disable and a default-on reasoning model keeps thinking
+		// (and rejects tool calls). An explicit supportsReasoning: false above
+		// is the only way to deny it.
+		if (modelInfo.supportsReasoning === undefined) setCapability("reasoning", true)
 	}
 
 	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)

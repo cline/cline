@@ -373,22 +373,32 @@ function toStoredModelInfo(
 		else capabilities.delete("reasoning");
 	}
 	// An unspecified capability list fails open for tool calling
-	// (modelSupportsToolCalling), but any populated list is treated as
+	// (modelSupportsToolCalling) and for reasoning (the gateway's portable
+	// reasoning disable), but any populated list is treated as
 	// authoritative — a partial one without "tools" silently revokes every
-	// tool definition (#13463). Stored entries and user-authored provider
-	// metadata cannot declare "cannot call tools" (there is no supportsTools
-	// field, and no writer intentionally omits "tools"): their lists are
-	// partial overlays, not authoritative catalogs. Seed "tools" into any
-	// non-empty list for a language model unless the list is anchored on
-	// generated catalog metadata, which IS authoritative (a genuine no-tools
-	// catalog model must stay that way). An empty set stays absent so every
-	// gate keeps its own fail-open default.
+	// tool definition (#13463), and one without "reasoning" drops the user's
+	// explicit reasoning disable, so a default-on reasoning model keeps
+	// thinking and rejects tool calls. Stored entries and user-authored
+	// provider metadata cannot declare "cannot call tools" (there is no
+	// supportsTools field, and no writer intentionally omits "tools"), and a
+	// stored entry that says nothing about reasoning (no supportsReasoning;
+	// a settings UI's Supports Images tick writes exactly this shape) does
+	// not deny it either: their lists are partial overlays, not
+	// authoritative catalogs. Seed "tools", and "reasoning" unless the entry
+	// explicitly turns reasoning off, into any non-empty list for a language
+	// model unless the list is anchored on generated catalog metadata, which
+	// IS authoritative (a genuine no-tools or no-reasoning catalog model must
+	// stay that way). An empty set stays absent so every gate keeps its own
+	// fail-open default.
 	if (
 		!capabilitiesAreAuthoritative &&
 		capabilities.size > 0 &&
 		(model?.operation === undefined || model.operation === "language")
 	) {
 		capabilities.add("tools");
+		if (model?.supportsReasoning === undefined) {
+			capabilities.add("reasoning");
+		}
 	}
 
 	const apiFormat = model?.apiFormat;
