@@ -1,6 +1,6 @@
 /**
  * Builds the `--telemetry-selfcheck` report (see index.ts). CI runs the
- * packaged sidecar with that flag and fails the publish unless the report
+ * packaged CLI and desktop backend with that flag and fails the publish unless the report
  * shows telemetry enabled with a usable OTLP endpoint, so the checks here
  * define what a release-grade build must prove.
  */
@@ -10,6 +10,7 @@ export type TelemetrySelfcheckConfig = {
 	otlpEndpoint?: string;
 	logsExporter?: string;
 	metricsExporter?: string;
+	tracesExporter?: string;
 };
 
 export type TelemetrySelfcheckReport = {
@@ -24,6 +25,12 @@ export type TelemetrySelfcheckReport = {
 	otlp_endpoint_host: string;
 	logs_exporter: string;
 	metrics_exporter: string;
+	/**
+	 * `""` when no traces exporter was inlined. Without one the host never
+	 * registers a tracer provider, so cline-provider spans (the Langfuse
+	 * relay) are silently never emitted; release gates require `"otlp"`.
+	 */
+	traces_exporter: string;
 };
 
 // The SDK's OTLP exporters are the http/json ones
@@ -54,5 +61,6 @@ export function buildTelemetrySelfcheckReport(
 		otlp_endpoint_host: otlpEndpointHost(config.otlpEndpoint),
 		logs_exporter: config.logsExporter ?? "",
 		metrics_exporter: config.metricsExporter ?? "",
+		traces_exporter: config.tracesExporter ?? "",
 	};
 }

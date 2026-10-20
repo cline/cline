@@ -9,6 +9,7 @@ import type {
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	WorkspaceInfo,
@@ -288,6 +289,8 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultFetch?: typeof fetch;
 	connectorsRequest?: ConnectorsRequest;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
+	/** A plugin this session uses became degraded or failed after start. */
+	onPluginIssue?: (issue: SessionPluginIssue) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
 		onSubAgentEvent?: (event: AgentEvent) => void;
@@ -316,6 +319,8 @@ export interface LocalRuntimeBootstrap {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	pluginSandboxShutdown?: () => Promise<void>;
+	/** Plugins the session asked for but does not have (failed or disabled). */
+	pluginIssues: SessionPluginIssue[];
 	runtimeBuilderInput: RuntimeBuilderInput;
 }
 
@@ -334,6 +339,7 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultFetch,
 		connectorsRequest,
 		onPluginEvent,
+		onPluginIssue,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
@@ -450,6 +456,7 @@ export async function prepareLocalRuntimeBootstrap(
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
+	const pluginIssues: SessionPluginIssue[] = [];
 	if (hasConfigExtension(configExtensions, "plugins")) {
 		try {
 			loadedPlugins = await resolveAndLoadAgentPlugins({
@@ -466,17 +473,39 @@ export async function prepareLocalRuntimeBootstrap(
 				logger: extensionContext.logger,
 				telemetry: extensionContext.telemetry,
 				automation: extensionContext.automation,
+				policy: input.plugins,
+				hookErrorMode: input.config.hookErrorMode,
+				onIssue: onPluginIssue,
 			});
+			pluginIssues.push(...(loadedPlugins.issues ?? []));
 			logPluginDiagnostics(
 				loadedPlugins.failures,
 				loadedPlugins.warnings,
-				localConfig?.logger,
+				localConfig?.logger ?? extensionContext.logger,
 			);
 		} catch (error) {
+			// The registry reports per-plugin failures itself; reaching this
+			// means discovery as a whole broke. Surface it like a plugin issue
+			// so the client can show it instead of silently dropping plugins.
 			const message = error instanceof Error ? error.message : String(error);
-			localConfig?.logger?.log?.(
-				`plugin loading failed; continuing without plugins (${message})`,
+			(localConfig?.logger ?? extensionContext.logger)?.log(
+				`Plugin loading failed; the session has no plugins: ${message}`,
+				{ severity: "error", sessionId },
 			);
+			pluginIssues.push({
+				name: "plugins",
+				pluginPath: workspacePath,
+				state: "failed",
+				reason: "error",
+				lastError: {
+					phase: "discover",
+					message,
+					stack: error instanceof Error ? error.stack : undefined,
+					pluginPath: workspacePath,
+					timestamp: Date.now(),
+					sessionId,
+				},
+			});
 		}
 	}
 
@@ -597,6 +626,7 @@ export async function prepareLocalRuntimeBootstrap(
 		toolPolicies,
 		requestToolApproval,
 		pluginSandboxShutdown: loadedPlugins?.shutdown,
+		pluginIssues,
 		runtimeBuilderInput: {
 			config,
 			hooks,

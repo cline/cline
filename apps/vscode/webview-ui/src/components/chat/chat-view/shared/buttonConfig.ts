@@ -1,5 +1,7 @@
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, ClineSayTool, TurnState } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
+import { ClineError } from "../../../../../../src/services/error/ClineError"
 
 /**
  * Button action types that determine the behavior
@@ -32,6 +34,12 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		secondaryText: "Start New Task",
 		primaryAction: "retry",
 		secondaryAction: "new_task",
+	},
+	cloud_creation_unconfirmed: {
+		sendingDisabled: true,
+		enableButtons: true,
+		primaryText: "Start New Task",
+		primaryAction: "new_task",
 	},
 	mistake_limit_reached: {
 		sendingDisabled: false,
@@ -243,7 +251,9 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 		switch (message.ask) {
 			// Error recovery states
 			case "api_req_failed":
-				return BUTTON_CONFIGS.api_req_failed
+				return ClineError.parse(message.text)?._error.code === CLOUD_CREATION_UNCONFIRMED_ERROR_CODE
+					? BUTTON_CONFIGS.cloud_creation_unconfirmed
+					: BUTTON_CONFIGS.api_req_failed
 			case "mistake_limit_reached":
 				return BUTTON_CONFIGS.mistake_limit_reached
 
@@ -376,10 +386,11 @@ export function buttonsForPhase(
 		case "resumable":
 			return BUTTON_CONFIGS.resume_task
 		case "error":
-			// The anchored message distinguishes mistake_limit (Proceed/New Task) from a failed
-			// API request (Retry/New Task). Default to the retry config.
-			if (anchoredMessage?.type === "ask" && anchoredMessage.ask === "mistake_limit_reached") {
-				return BUTTON_CONFIGS.mistake_limit_reached
+			if (
+				anchoredMessage?.type === "ask" &&
+				(anchoredMessage.ask === "mistake_limit_reached" || anchoredMessage.ask === "api_req_failed")
+			) {
+				return getButtonConfig(anchoredMessage)
 			}
 			return BUTTON_CONFIGS.api_req_failed
 		case "awaiting_followup":

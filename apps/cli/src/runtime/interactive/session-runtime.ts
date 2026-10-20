@@ -28,6 +28,7 @@ import type {
 } from "../../utils/chat-commands";
 import { createRuntimeHooks } from "../../utils/hooks";
 import { setActiveCliSession } from "../../utils/output";
+import { formatPluginIssueWarnings } from "../../utils/plugin-issues";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
@@ -140,6 +141,14 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		for (const message of formatPluginIssueWarnings(started.pluginIssues)) {
+			input.onAgentEvent({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message,
+			});
+		}
 	};
 
 	const ensureSessionManager = async (): Promise<CliCore> => {

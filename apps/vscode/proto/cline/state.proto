@@ -287,6 +287,8 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional bool cloud_sessions_enabled = 188;
+  optional string open_telemetry_traces_exporter = 189;
 }
 
 message State {
@@ -431,6 +433,7 @@ message UpdateSettingsRequest {
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;
   optional bool web_search_enabled = 45;
+  optional bool cloud_sessions_enabled = 46;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

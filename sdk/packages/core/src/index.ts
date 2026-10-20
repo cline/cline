@@ -241,22 +241,34 @@ export type {
 	LoadAgentPluginPackagesOptions,
 	LoadedAgentPluginPackage,
 	ParsedAgentSkill,
+	PluginExecutionMode,
+	PluginHookErrorMode,
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 	PluginLoadDiagnostics,
+	PluginRegistryOptions,
+	PluginSessionLoadInput,
+	PluginSessionLoadResult,
+	PluginStatusListener,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
 	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
 	AGENT_PLUGINS_V1_MCP_SCHEMA,
+	CLINE_PLUGIN_BOOTSTRAP_PATH_ENV,
 	discoverPluginModulePaths,
+	formatSessionPluginIssue,
 	getPluginDisplayName,
+	getProcessPluginRegistry,
 	loadAgentPluginFromPath,
 	loadAgentPluginPackages,
 	loadAgentPluginsFromPaths,
 	loadAgentPluginsFromPathsWithDiagnostics,
+	PluginCallTimeoutError,
+	PluginRegistry,
 	parseAgentSkillMarkdown,
 	resolveAgentPluginPaths,
+	resolveAgentPluginPathsWithDiagnostics,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -312,20 +324,32 @@ export {
 	createDefaultMcpServerClientFactory,
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
+	createMcpAppsClientCapabilities,
 	createMcpTools,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	type DefaultMcpServerClientFactoryOptions,
+	getMcpAppToolMeta,
 	getMcpServerOAuthState,
 	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
 	type LoadMcpSettingsOptions,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	MCP_APP_MIME_TYPE,
+	MCP_APPS_EXTENSION_ID,
+	type McpAppToolMeta,
+	type McpAppToolVisibility,
 	type McpConnectionStatus,
 	type McpManager,
 	type McpManagerOptions,
 	McpOAuthClientChangedError,
+	type McpResourceContents,
+	type McpResourceReadRequest,
+	type McpResourceReadResult,
 	type McpServerClient,
 	type McpServerClientFactory,
 	type McpServerOAuthClientConfig,
@@ -535,6 +559,10 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	WorkerSandbox,
+	type WorkerSandboxOptions,
+} from "./runtime/tools/worker-sandbox";
 export * from "./services/cloud-handoff";
 export { listActiveConnectors } from "./services/connectors/active-connectors";
 export {
@@ -953,6 +981,11 @@ export {
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
 export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+	setPluginSandboxLauncher,
+} from "./extensions/plugin/plugin-runtime";
+export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
 	type ApplyPatchInput,
@@ -1093,6 +1126,7 @@ export type {
 	RegisterModelInput,
 	RegisterProviderInput,
 } from "./services/llms/runtime-types";
+export { SKILLS_CLI_PACKAGE, SKILLS_CLI_VERSION } from "./services/skills-cli";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

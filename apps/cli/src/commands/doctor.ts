@@ -259,10 +259,13 @@ function listStaleSidecarPids(): number[] {
 	const patterns = [
 		"/apps/examples/desktop-app/sidecar/index.ts",
 		"/apps/examples/desktop-app/dist/sidecar/index.js",
+		// The packaged desktop backend runs on the bundled Cline CLI.
+		"/bin/desktop-backend/index.js",
 		// Keep the pre-example-reorg paths so `doctor --fix` can still clean up
 		// stale sidecars that were launched from older checkouts.
 		"/apps/code/sidecar/index.ts",
 		"/apps/code/dist/sidecar/index.js",
+		// Backend executable of earlier desktop releases.
 		"/src-tauri/bin/code-sidecar",
 		"/Resources/code-sidecar",
 		" code-sidecar",

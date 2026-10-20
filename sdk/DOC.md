@@ -49,6 +49,10 @@ session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
+could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
+hosts should direct users to their session list instead of offering a blind retry.
+
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
@@ -159,15 +163,20 @@ configuration variables are `CLINE_REMOTE_HELPER_BINARY`,
 `CLINE_REMOTE_HELPER_DIRECTORY`, `CLINE_SSH_PATH`, and
 `CLINE_SSH_KNOWN_HOSTS_FILE`.
 
-Clients package a matching self-contained helper using the
-`@cline/core/remote/helper-entry` executable entrypoint, compiled with Bun for the remote OS and
-architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
-filename (`cline-remote-helper-<target-triple>`). Linux and macOS on x64/arm64
-are supported. Helpers must include the same SDK build as the client; missing
-helpers produce an explicit error, without installing a runtime from the network.
-The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
-and the core detached-daemon sentinel. Agent tools and persistence run remotely;
-the host only manages SSH and forwards the authenticated hub connection.
+Remote Hubs are CLI-managed. Clients package the self-contained Cline CLI
+binary (`apps/cli`, compiled with Bun) for each remote OS and architecture; the
+service stages it on the host and runs `cline hub ensure --json --discovery-path
+<path> ...` to start or reuse a loopback Hub, and `cline hub stop
+--discovery-path <path>` to stop it. Use `remoteHelperBinaryFilename({ platform,
+arch })` for the bundled filename (`cline-<target-triple>`). Linux and macOS on
+x64/arm64 are supported. The CLI must be built from the same SDK build as the
+client; missing binaries produce an explicit error, without installing a
+runtime from the network. Agent tools and persistence run remotely; the host
+only manages SSH and forwards the authenticated hub connection.
+
+Clients whose own process cannot host the Hub daemon can call
+`setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
+start are launched through the Cline CLI.
 
 ### Provider authentication metadata for host UIs
 
@@ -370,6 +379,33 @@ and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
 Paths start with `/api/v1/connectors`; the host supplies the API origin and
 authentication. Omit it to retain local account authentication and rollout checks.
 
+## MCP Apps (experimental)
+
+MCP Apps support is off by default.
+`createDefaultMcpServerClientFactory({ mcpApps: true })` turns it on by
+advertising the `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`)
+with the `text/html;profile=mcp-app` MIME type during `initialize`, for stdio
+and URL servers alike.
+
+`createMcpTools` always leaves out tools whose `_meta.ui.visibility` does not
+include `"model"`, whether or not the client advertised the extension.
+
+Tool descriptors keep the server's `_meta`. `getMcpAppToolMeta` reads
+`_meta.ui`: `resourceUri` is kept only for `ui://` URIs, and `visibility`
+defaults to `["model", "app"]` when it is not an array. An explicit array is
+used as given after dropping unknown entries, so `[]` makes the tool visible to
+neither. `isMcpToolVisibleToModel` and `isMcpToolVisibleToApp` check those
+lists; a host must reject app-initiated tool calls when
+`isMcpToolVisibleToApp` is false.
+
+`McpManager.readResource({ serverName, uri, context })` sends `resources/read`
+and returns `{ contents, _meta? }`, validated against the MCP SDK schema;
+malformed replies throw. It is optional on `McpManager` and
+`McpServerClient`. `InMemoryMcpManager` reads without waiting for in-flight
+tool calls on an already connected server. A read that starts while the server
+is being disconnected or re-registered can fail with a disconnect error; retry
+it.
+
 ## Privacy settings link
 
 `GET /users/me` returns `dataPrivacyPath`, the Cline web app path where users
@@ -383,3 +419,4 @@ base URL and adds `client=<cli|desktop|jetbrains|vscode>`. It returns `undefined
 when the path is missing, the base URL is unusable, or the result would leave the
 app's origin, such as an absolute, protocol-relative, `javascript:`, `file:` or
 editor-scheme value. Hosts render no link in those cases.
+

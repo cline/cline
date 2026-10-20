@@ -377,11 +377,15 @@ export class HubSessionClient {
 				apiKey: request.apiKey,
 			},
 			toolPolicies: request.toolPolicies,
+			...(request.plugins ? { plugins: request.plugins } : {}),
 		});
 		const row = extractSessionRow(reply.payload);
 		if (!row?.sessionId) {
 			throw new Error("hub session create returned no session id");
 		}
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as ChatStartSessionResponse["pluginIssues"])
+			: undefined;
 		return {
 			sessionId: row.sessionId,
 			startResult: {
@@ -389,6 +393,7 @@ export class HubSessionClient {
 				manifestPath: "",
 				messagesPath: row.messagesPath ?? "",
 			},
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -544,6 +549,7 @@ export class HubSessionClient {
 								apiKey: request.apiKey,
 							},
 							toolPolicies: request.toolPolicies,
+							...(request.plugins ? { plugins: request.plugins } : {}),
 						}
 					: {}),
 			},

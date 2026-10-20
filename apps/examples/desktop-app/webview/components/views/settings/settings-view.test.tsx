@@ -120,55 +120,6 @@ describe("SettingsView font size", () => {
 	});
 });
 
-describe("SettingsView cloud sessions rollout", () => {
-	it.each([
-		{
-			caseName: "the rollout explicitly enables it",
-			featureFlags: { cloudAgents: false, cloudAgentsAvailable: true },
-			visible: true,
-		},
-		{
-			caseName: "feature flags are unavailable",
-			featureFlags: new Error("feature flags unavailable"),
-			visible: false,
-		},
-	])("shows the preview setting only when $caseName", async ({
-		featureFlags,
-		visible,
-	}) => {
-		invoke.mockImplementation(async (command: string) => {
-			if (command === "get_feature_flags") {
-				if (featureFlags instanceof Error) throw featureFlags;
-				return featureFlags;
-			}
-			if (command === "get_desktop_settings") {
-				return { cloudSessionsEnabled: false };
-			}
-			return {
-				telemetryOptOut: false,
-				autoUpdateEnabled: true,
-			};
-		});
-
-		await act(async () => {
-			root.render(
-				<SettingsView
-					onExportDiagnostics={vi.fn()}
-					onNavigateSection={vi.fn()}
-					section="General"
-				/>,
-			);
-		});
-		await vi.waitFor(() =>
-			expect(
-				container.querySelector(
-					'[role="switch"][aria-label="Cloud sessions"]',
-				) !== null,
-			).toBe(visible),
-		);
-	});
-});
-
 describe("SettingsView privacy settings link", () => {
 	async function renderGeneralSettingsWithPrivacyLink(
 		privacySettingsUrl?: string,
