@@ -297,6 +297,28 @@ api.registerCommand({name:'recovered',handler:()=> 'ready'});
 			"workspace",
 		);
 	});
+	it("runs workspace commands for a session the runtime does not have", async () => {
+		const target = { workspacePath: root, sessionId: "sess_missing" };
+		expect((await runtime.pluginCommands.list(target)).commands).toEqual([
+			{ name: "counter" },
+		]);
+		expect(
+			await runtime.pluginCommands.run({ ...target, prompt: "/counter x" }),
+		).toMatchObject({ reply: "workspace:1:x" });
+		expect(
+			await command(
+				"plugins.commands.run",
+				{ ...target, prompt: "/counter rpc" },
+				target.sessionId,
+			),
+		).toMatchObject({
+			ok: true,
+			payload: { result: { reply: "workspace:2:rpc" } },
+		});
+		expect(
+			await runtime.pluginCommands.run({ ...target, prompt: "/unknown" }),
+		).toBeUndefined();
+	});
 	it("executes against the existing session plugin instance and retains its setup context", async () => {
 		const session = await runtime.startSession({
 			...splitCoreSessionConfig({

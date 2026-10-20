@@ -369,7 +369,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			run: async (input) => {
 				if (!input.sessionId) return this.pluginCommandManager.run(input);
-				const session = this.getSessionOrThrow(input.sessionId);
+				const session = this.sessions.get(input.sessionId);
+				if (!session) return this.pluginCommandManager.run(input);
 				if (
 					resolve(input.workspacePath) !==
 					resolve(resolveWorkspacePath(session.config))
