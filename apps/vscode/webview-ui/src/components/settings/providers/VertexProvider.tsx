@@ -13,7 +13,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "../utils/reasoningEffort"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 /**
@@ -51,7 +51,7 @@ function withCustomModelDefaults(overrides?: ProviderModelOverrides): ProviderMo
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { models: allVertexModels, defaultModelId, isLoading, isStale, error } = useProviderModels("vertex")
-	const { config, write, commitSelection } = useProviderConfig("vertex")
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig("vertex")
 	const { selectedModel, selectedModelId, selectedModelInfo } = useProviderModelSelection("vertex", currentMode, {
 		models: allVertexModels,
 		defaultModelId,
@@ -320,14 +320,14 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					) : null}
 

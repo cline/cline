@@ -15,7 +15,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { getModeSpecificFields } from "./utils/providerUtils"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "./utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface RequestyModelPickerProps {
@@ -26,7 +26,7 @@ interface RequestyModelPickerProps {
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
-	const { config, write } = useProviderConfig("requesty")
+	const { write, reasoningEffort } = useProviderConfig("requesty")
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
@@ -261,7 +261,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 							currentMode={currentMode}
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />

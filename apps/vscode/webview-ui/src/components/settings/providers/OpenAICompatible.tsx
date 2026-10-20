@@ -17,7 +17,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
@@ -42,7 +42,7 @@ export const OpenAICompatibleProvider = ({
 }: OpenAICompatibleProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-	const { config, write, commitSelection } = useProviderConfig(providerId)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(providerId)
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isCustomOpenAiModelEntryVisible, setIsCustomOpenAiModelEntryVisible] = useState(false)
@@ -643,7 +643,7 @@ export const OpenAICompatibleProvider = ({
 								console.error("Failed to update OpenAI Compatible reasoning effort:", err),
 							)
 						}}
-						value={savedReasoningEffort(config)}
+						value={reasoningEffort}
 					/>
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>

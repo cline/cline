@@ -273,4 +273,97 @@ describe("useProviderConfig", () => {
 		})
 		expect(result.current.config?.baseUrl).toBe("https://new.example/v1")
 	})
+
+	it("exposes nothing while a switched-to provider's config is still loading", async () => {
+		// Settings components stay mounted across a provider switch, so the
+		// hook would otherwise keep showing provider A's state (and let the
+		// user edit against it) until provider B's read lands.
+		let resolveSecondRead: (value: ProviderConfigResponse) => void = () => {}
+		vi.mocked(ModelsServiceClient.readProviderConfig)
+			.mockResolvedValueOnce(ProviderConfigResponse.create({ ...config("deepseek"), reasoningEffort: "high" }))
+			.mockReturnValueOnce(
+				new Promise<ProviderConfigResponse>((resolve) => {
+					resolveSecondRead = resolve
+				}),
+			)
+
+		const { result, rerender } = renderHook(({ providerId }) => useProviderConfig(providerId), {
+			initialProps: { providerId: "deepseek" as const },
+		})
+		await waitFor(() => expect(result.current.reasoningEffort).toBe("high"))
+
+		rerender({ providerId: "groq" as never })
+
+		expect(result.current.config).toBeUndefined()
+		expect(result.current.reasoningEffort).toBeNull()
+
+		await act(async () => {
+			resolveSecondRead(config("groq"))
+		})
+		expect(result.current.config?.providerId).toBe("groq")
+		expect(result.current.reasoningEffort).toBe("default")
+	})
+
+	it("matches the host's normalized provider id when scoping the config", async () => {
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config("nousresearch"))
+
+		const { result } = renderHook(() => useProviderConfig("nousResearch" as never))
+
+		await waitFor(() => expect(result.current.config?.providerId).toBe("nousresearch"))
+	})
+
+	it("reports the reasoning effort as unknown while a reasoning write is pending", async () => {
+		// A selector still showing the pre-write value would treat a pick of
+		// that value as no change and never save it.
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config())
+		let resolveWrite: (value: ProviderConfigResponse) => void = () => {}
+		vi.mocked(ModelsServiceClient.writeProviderConfig).mockReturnValue(
+			new Promise<ProviderConfigResponse>((resolve) => {
+				resolveWrite = resolve
+			}),
+		)
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+		await waitFor(() => expect(result.current.reasoningEffort).toBe("default"))
+
+		let writePromise: Promise<unknown> = Promise.resolve()
+		act(() => {
+			writePromise = result.current.write({ reasoning: { enabled: false, effort: "none" } })
+		})
+		expect(result.current.reasoningEffort).toBeNull()
+
+		await act(async () => {
+			resolveWrite(ProviderConfigResponse.create({ ...config(), reasoningEffort: "none" }))
+			await writePromise
+		})
+		expect(result.current.reasoningEffort).toBe("none")
+	})
+
+	it("keeps the reasoning effort known while an unrelated write is pending", async () => {
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(
+			ProviderConfigResponse.create({ ...config(), reasoningEffort: "low" }),
+		)
+		vi.mocked(ModelsServiceClient.writeProviderConfig).mockReturnValue(new Promise<ProviderConfigResponse>(() => {}))
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+		await waitFor(() => expect(result.current.reasoningEffort).toBe("low"))
+
+		act(() => {
+			void result.current.write({ apiKey: "new-key" })
+		})
+		expect(result.current.reasoningEffort).toBe("low")
+	})
+
+	it("clears the pending reasoning state when the write fails", async () => {
+		vi.mocked(ModelsServiceClient.readProviderConfig).mockResolvedValue(config())
+		vi.mocked(ModelsServiceClient.writeProviderConfig).mockRejectedValue(new Error("write failed"))
+
+		const { result } = renderHook(() => useProviderConfig("deepseek"))
+		await waitFor(() => expect(result.current.reasoningEffort).toBe("default"))
+
+		await act(async () => {
+			await result.current.write({ clearReasoning: true }).catch(() => {})
+		})
+		await waitFor(() => expect(result.current.reasoningEffort).toBe("default"))
+	})
 })

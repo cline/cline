@@ -11,7 +11,9 @@ import {
 	type ProviderModelOverrides,
 	toProtobufModelOverrides as toProtobufProviderModelOverrides,
 } from "@shared/proto-conversions/models/modelOverrides"
+import { isOpenaiReasoningEffort } from "@shared/storage/types"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { DEFAULT_REASONING_EFFORT_OPTION, type ReasoningEffortSelection } from "@/components/settings/utils/reasoningEffort"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
@@ -51,8 +53,25 @@ function toWriteProviderConfigPatch(patch: ProviderConfigWritePatch): WriteProvi
 	})
 }
 
+/** The host echoes the requested id normalized (trimmed, lowercased). */
+function isConfigFor(config: ProviderConfigResponse, providerId: ProviderId): boolean {
+	return config.providerId.trim().toLowerCase() === providerId.trim().toLowerCase()
+}
+
+function touchesReasoning(patch: ProviderConfigWritePatch): boolean {
+	return "reasoning" in patch || patch.clearReasoning === true
+}
+
 export function useProviderConfig(providerId: ProviderId) {
-	const [config, setConfig] = useState<ProviderConfigResponse | undefined>(undefined)
+	const [storedConfig, setConfig] = useState<ProviderConfigResponse | undefined>(undefined)
+	// Writes that change the saved reasoning setting, still waiting for the
+	// host. A selector showing the pre-write value meanwhile would treat a
+	// pick of that value as no change and never save it.
+	const [pendingReasoningWrites, setPendingReasoningWrites] = useState(0)
+	// A component that stays mounted across a provider switch keeps the
+	// previous provider's response until the new read lands. Expose nothing
+	// in between, so no field is edited against another provider's state.
+	const config = storedConfig && isConfigFor(storedConfig, providerId) ? storedConfig : undefined
 
 	// Reads and writes resolve asynchronously and can complete out of order
 	// (e.g. a slow initial read landing after a user-triggered write). Only
@@ -80,6 +99,10 @@ export function useProviderConfig(providerId: ProviderId) {
 	const write = useCallback(
 		async (patch: ProviderConfigWritePatch) => {
 			const seq = ++requestSeqRef.current
+			const reasoningWrite = touchesReasoning(patch)
+			if (reasoningWrite) {
+				setPendingReasoningWrites((count) => count + 1)
+			}
 			try {
 				const response = await ModelsServiceClient.writeProviderConfig(
 					WriteProviderConfigRequest.create({
@@ -103,6 +126,10 @@ export function useProviderConfig(providerId: ProviderId) {
 					void read().catch(() => {})
 				}
 				throw error
+			} finally {
+				if (reasoningWrite) {
+					setPendingReasoningWrites((count) => count - 1)
+				}
 			}
 		},
 		[providerId, applyConfig, read],
@@ -128,5 +155,17 @@ export function useProviderConfig(providerId: ProviderId) {
 		[providerId, read],
 	)
 
-	return { config, write, commitSelection }
+	/**
+	 * The provider's saved reasoning effort as `ReasoningEffortSelector` shows
+	 * it: `null` while it is unknown (the config is loading or a reasoning
+	 * write is pending), otherwise the saved level or Default for nothing saved.
+	 */
+	const reasoningEffort: ReasoningEffortSelection | null =
+		config === undefined || pendingReasoningWrites > 0
+			? null
+			: isOpenaiReasoningEffort(config.reasoningEffort)
+				? config.reasoningEffort
+				: DEFAULT_REASONING_EFFORT_OPTION
+
+	return { config, reasoningEffort, write, commitSelection }
 }

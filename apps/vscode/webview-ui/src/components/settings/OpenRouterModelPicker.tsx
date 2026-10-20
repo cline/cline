@@ -16,7 +16,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "./utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -48,7 +48,7 @@ interface OpenRouterModelPickerProps {
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { commitSelection, config, write } = useProviderConfig("openrouter")
+	const { commitSelection, config, write, reasoningEffort } = useProviderConfig("openrouter")
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -339,7 +339,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 

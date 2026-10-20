@@ -11,7 +11,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "anthropic"
@@ -30,7 +30,7 @@ interface AnthropicProviderProps {
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(PROVIDER_ID)
 
 	// Get the normalized configuration
 	const {
@@ -122,14 +122,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					) : null}
 

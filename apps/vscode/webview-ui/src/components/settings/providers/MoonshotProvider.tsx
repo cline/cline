@@ -9,7 +9,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 
 /**
  * Props for the MoonshotProvider component
@@ -25,7 +25,7 @@ interface MoonshotProviderProps {
  */
 export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: MoonshotProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { config, write } = useProviderConfig("moonshot")
+	const { config, write, reasoningEffort } = useProviderConfig("moonshot")
 
 	// Get the normalized configuration
 	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
@@ -121,7 +121,7 @@ export const MoonshotProvider = ({ showModelOptions, isPopup, currentMode }: Moo
 									console.error("Failed to update Moonshot reasoning effort:", err),
 								)
 							}}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 

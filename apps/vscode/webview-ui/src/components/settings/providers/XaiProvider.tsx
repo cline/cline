@@ -8,7 +8,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "xai"
@@ -35,7 +35,7 @@ interface XaiProviderProps {
 
 export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(PROVIDER_ID)
 
 	// Get the normalized configuration
 	const {
@@ -112,7 +112,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 

@@ -16,7 +16,7 @@ import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import { ModelInfoView } from "../common/ModelInfoView"
 import FeaturedModelCard from "../FeaturedModelCard"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 interface ClinePassProviderProps {
@@ -88,7 +88,7 @@ function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "descrip
  */
 export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: ClinePassProviderProps) => {
 	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(CLINE_PASS_PROVIDER_ID)
-	const { config, write, commitSelection } = useProviderConfig(CLINE_PASS_PROVIDER_ID)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(CLINE_PASS_PROVIDER_ID)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection(CLINE_PASS_PROVIDER_ID, currentMode, {
 		models,
 		defaultModelId,
@@ -221,7 +221,7 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 									console.error("Failed to update ClinePass reasoning effort:", err),
 								)
 							}}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 

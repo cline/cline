@@ -24,7 +24,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const AWS_REGIONS = BedrockData.regions
@@ -41,7 +41,7 @@ interface BedrockProviderProps {
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { models: bedrockModels, defaultModelId: bedrockDefaultModelId } = useProviderModels("bedrock")
-	const { config, write, commitSelection } = useProviderConfig("bedrock")
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig("bedrock")
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection("bedrock", currentMode, {
 		models: bedrockModels,
 		defaultModelId: bedrockDefaultModelId,
@@ -592,7 +592,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ||
 						(isCustomModelSelected &&
@@ -602,7 +602,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							currentMode={currentMode}
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					) : null}
 

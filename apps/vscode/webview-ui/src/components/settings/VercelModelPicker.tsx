@@ -13,7 +13,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { getModeSpecificFields } from "./utils/providerUtils"
-import { type ReasoningEffortSelection, reasoningEffortPatch, savedReasoningEffort } from "./utils/reasoningEffort"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface VercelModelPickerProps {
@@ -23,7 +23,7 @@ interface VercelModelPickerProps {
 
 const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const { config, write } = useProviderConfig("vercel-ai-gateway")
+	const { write, reasoningEffort } = useProviderConfig("vercel-ai-gateway")
 	const { apiConfiguration, vercelAiGatewayModels, refreshVercelAiGatewayModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	// Vercel AI Gateway uses its own model fields
@@ -274,7 +274,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
 							onEffortChange={handleReasoningEffortChange}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 

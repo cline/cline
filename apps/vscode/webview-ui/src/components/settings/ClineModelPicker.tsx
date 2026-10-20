@@ -20,7 +20,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
-import { reasoningEffortPatch, savedReasoningEffort } from "./utils/reasoningEffort"
+import { reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -99,7 +99,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
-	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
+	const { config, write: writeProviderConfig, commitSelection, reasoningEffort } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const effectiveClineModels = catalogClineModels
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
@@ -571,7 +571,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 							onEffortChange={(effort) => {
 								writeProviderConfig(reasoningEffortPatch(effort))
 							}}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 

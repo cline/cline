@@ -9,7 +9,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { reasoningEffortPatch, savedReasoningEffort } from "../utils/reasoningEffort"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -40,7 +40,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 		apiConfiguration,
 		currentMode,
 	)
-	const { config, write } = useProviderConfig("qwen")
+	const { config, write, reasoningEffort } = useProviderConfig("qwen")
 	// The SDK provider config (providers.json) is the source of truth shared
 	// with other hosts (CLI, desktop app); the legacy state field keeps the
 	// dropdown accurate before the async config read completes.
@@ -115,7 +115,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 									console.error("Failed to update Qwen reasoning effort:", err),
 								)
 							}}
-							value={savedReasoningEffort(config)}
+							value={reasoningEffort}
 						/>
 					)}
 
