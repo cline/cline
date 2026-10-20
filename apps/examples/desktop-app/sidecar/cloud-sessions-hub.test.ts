@@ -13,7 +13,6 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { createSidecarContext } from "./context";
-import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -365,7 +364,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		"session.get",
 		"session.messages",
 		"session.pending_prompts",
-		"message conversion",
 	])("stops hydration disposed during %s without later commands or events", async (stage) => {
 		const { manager, hub, events } = createFixture();
 		await manager.attach("ses-outer");
@@ -384,15 +382,6 @@ describe("CloudSessionManager Hub runtime", () => {
 				},
 			});
 		}
-		const conversion =
-			stage === "message conversion"
-				? vi
-						.spyOn(sessionMessages, "readSessionMessages")
-						.mockImplementationOnce(async () => {
-							await block();
-							return [];
-						})
-				: undefined;
 		hub.commandHook = (command) => (command === stage ? block() : undefined);
 		const reading = manager
 			.readMessages("ses-outer")
@@ -408,8 +397,17 @@ describe("CloudSessionManager Hub runtime", () => {
 			expect(events).toEqual([]);
 		} finally {
 			blocked.resolve();
-			conversion?.mockRestore();
 		}
+	});
+
+	it("stops hydration when disposed by a snapshot subscriber", async () => {
+		const { manager } = createFixture();
+		await manager.attach("ses-outer");
+		const unsubscribe = manager.subscribe((event) => {
+			if (event.type === "snapshot" && event.replace) void manager.dispose();
+		});
+		await expect(manager.readMessages("ses-outer")).rejects.toThrow(/disposed/);
+		unsubscribe();
 	});
 
 	it.each([

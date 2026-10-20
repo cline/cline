@@ -67,7 +67,6 @@ export interface SdkModeCoordinatorOptions {
 }
 
 export class SdkModeCoordinator {
-	private rebuildInFlight: Promise<void> | undefined
 	/**
 	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
 	 * next outbound message by SdkSessionLifecycle.fireAndForgetSend. Shares the
@@ -111,30 +110,30 @@ export class SdkModeCoordinator {
 		this.modeSwitchNoticeTracker.record(from, to)
 	}
 
-	/**
-	 * Resolves once no mode rebuild is in flight. While a rebuild runs, the
-	 * active session is torn down and replaced (and only marked running after
-	 * the continuation send), so concurrent message paths must wait on this
-	 * instead of treating the gap as "no session" and resuming a parallel
-	 * session that the rebuild would then kill.
-	 */
-	async waitForPendingRebuild(): Promise<void> {
-		while (this.rebuildInFlight) {
-			const current = this.rebuildInFlight
-			await current
-			if (this.rebuildInFlight === current) {
-				this.rebuildInFlight = undefined
-			}
-		}
+	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+		// Decide under the rebuild lock, after any session start in flight has
+		// settled. Starts and rebuilds detach the outgoing session before the
+		// replacement is active, so a toggle that looked during that window
+		// would see no session, flip only the setting, and leave the session
+		// that finishes starting on the other mode's tools.
+		return this.options.rebuilds.runExclusive(async () => {
+			await this.options.sessions.waitForSessionStarts()
+			return this.performTogglePlanActMode(modeToSwitchTo, chatContent)
+		})
 	}
 
-	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+	private async performTogglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
-		if (currentMode === modeToSwitchTo) {
+		const activeSession = this.options.sessions.getActiveSession()
+		// Cloud sessions are Act-only; the webview disables the toggle, this
+		// guards the keyboard shortcut and any other caller.
+		if (activeSession?.sdkHost && "isCloud" in activeSession.sdkHost) {
+			return false
+		}
+		if (currentMode === modeToSwitchTo && (activeSession?.mode ?? modeToSwitchTo) === modeToSwitchTo) {
 			return false
 		}
 
-		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the
@@ -163,7 +162,7 @@ export class SdkModeCoordinator {
 			const userImages = chatContent?.images?.length ? chatContent.images : undefined
 			const userFiles = chatContent?.files?.length ? chatContent.files : undefined
 			const hasUserContent = !!(userPrompt || userImages || userFiles)
-			const continuationSent = await this.rebuildSessionForMode(modeToSwitchTo, {
+			const continuationSent = await this.performRebuildSessionForMode(modeToSwitchTo, {
 				autoContinue,
 				userContinuationPrompt: autoContinue ? userPrompt : undefined,
 				userImages: autoContinue ? userImages : undefined,
@@ -192,15 +191,7 @@ export class SdkModeCoordinator {
 			userFiles?: string[]
 		} = {},
 	): Promise<boolean> {
-		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
-		// Expose the full rebuild (teardown, replacement, continuation send) to
-		// waitForPendingRebuild. Errors are handled inside; the barrier only
-		// tracks completion.
-		this.rebuildInFlight = operation.then(
-			() => undefined,
-			() => undefined,
-		)
-		return operation
+		return this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
 	}
 
 	private async performRebuildSessionForMode(
@@ -212,11 +203,19 @@ export class SdkModeCoordinator {
 			userFiles?: string[]
 		},
 	): Promise<boolean> {
-		const previousMode = this.options.stateManager.getGlobalSettingsKey("mode")
+		const activeSession = this.options.sessions.getActiveSession()
+		// The mode the model is actually running under. Rolling back to it keeps
+		// the toggle coherent with the session's tools, and it is the "from" side
+		// of the mode notice.
+		const previousMode = activeSession?.mode ?? this.options.stateManager.getGlobalSettingsKey("mode")
 		this.options.stateManager.setGlobalState("mode", newMode)
 
-		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
+			await this.options.postStateToWebview()
+			return false
+		}
+		if (activeSession.mode === newMode) {
+			// Only the setting had drifted; the session already has this mode's tools.
 			await this.options.postStateToWebview()
 			return false
 		}

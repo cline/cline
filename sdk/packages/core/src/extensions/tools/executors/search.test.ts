@@ -13,6 +13,66 @@ const ctx: AgentToolContext = {
 };
 
 describe("createSearchExecutor", () => {
+	it("finds PHP source and template files in the fallback scan", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		const files = [
+			"User.php",
+			"Model.phtml",
+			"include.inc",
+			"view.twig",
+			"index.blade.php",
+			"Uppercase.PHP",
+			"README.md",
+		];
+
+		try {
+			await Promise.all(
+				files.map((file) =>
+					fs.writeFile(path.join(dir, file), "getFullNameAttribute", "utf-8"),
+				),
+			);
+			// Lookahead is unsupported by ripgrep, forcing the fallback scan.
+			const result = await createSearchExecutor()(
+				"(?=getFullNameAttribute)getFullNameAttribute",
+				dir,
+				ctx,
+			);
+			expect(result).toContain(`Found ${files.length} results for pattern`);
+			for (const file of files) {
+				expect(result).toContain(`${file}:1:1`);
+			}
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("excludes the Composer vendor directory from the fallback scan", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		try {
+			await fs.writeFile(
+				path.join(dir, "User.php"),
+				"getFullNameAttribute",
+				"utf-8",
+			);
+			await fs.mkdir(path.join(dir, "vendor"));
+			await fs.writeFile(
+				path.join(dir, "vendor", "Package.php"),
+				"getFullNameAttribute",
+				"utf-8",
+			);
+			const result = await createSearchExecutor()(
+				"(?=getFullNameAttribute)getFullNameAttribute",
+				dir,
+				ctx,
+			);
+			expect(result).toContain("Found 1 result for pattern");
+			expect(result).toContain("User.php:1:1");
+			expect(result).not.toContain("Package.php");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("middle-truncates oversized search output with recovery guidance", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
 		const filePath = path.join(dir, "large.ts");

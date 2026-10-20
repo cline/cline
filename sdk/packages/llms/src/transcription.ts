@@ -1,6 +1,14 @@
+import { createGateway } from "@ai-sdk/gateway";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { GatewayProviderMetadata } from "@cline/shared";
-import { experimental_transcribe as transcribe } from "ai";
+import { detectMediaType } from "@ai-sdk/provider-utils";
+import type {
+	GatewayProviderMetadata,
+	StreamingAudioTranscriptionSession,
+} from "@cline/shared";
+
+export type { StreamingAudioTranscriptionSession } from "@cline/shared";
+
+import { type TranscriptionResult, transcribe } from "ai";
 import { BUILTIN_PROVIDER_MANIFESTS_BY_ID } from "./providers/builtins";
 import {
 	type ProviderConfig,
@@ -15,14 +23,14 @@ export const DEFAULT_TRANSCRIPTION_TIMEOUT_MS = 120_000;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 const DEFAULT_VERCEL_AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v4/ai";
-const VERCEL_AI_GATEWAY_PROTOCOL_VERSION = "0.0.1";
-const VERCEL_AI_GATEWAY_TRANSCRIPTION_SPECIFICATION_VERSION = "4";
 
 export interface AudioTranscriptionRequest {
 	providerConfig: ProviderConfig;
 	modelId: string;
+	/** Encoded audio file; the format is detected from its bytes. */
 	audio: Uint8Array;
-	mediaType?: string;
+	/** Provider options for AI SDK transports (Gateway and OpenAI-compatible). */
+	providerOptions?: Parameters<typeof transcribe>[0]["providerOptions"];
 	abortSignal?: AbortSignal;
 	maxRetries?: number;
 }
@@ -31,6 +39,8 @@ export interface AudioTranscriptionResult {
 	text: string;
 	language?: string;
 	durationInSeconds?: number;
+	segments?: TranscriptionResult["segments"];
+	warnings?: TranscriptionResult["warnings"];
 }
 
 export interface StreamingAudioTranscriptionSessionRequest {
@@ -38,12 +48,6 @@ export interface StreamingAudioTranscriptionSessionRequest {
 	modelId: string;
 	expiresAfterSeconds?: number;
 	abortSignal?: AbortSignal;
-}
-
-export interface StreamingAudioTranscriptionSession {
-	token: string;
-	url: string;
-	expiresAt?: number;
 }
 
 export interface AudioTranscriptionRoute {
@@ -134,6 +138,10 @@ function resolveAudioFileExtension(mediaType: string | undefined): string {
 		case "audio/m4a":
 		case "audio/x-m4a":
 			return "m4a";
+		case "audio/flac":
+			return "flac";
+		case "audio/aac":
+			return "aac";
 		case "audio/ogg":
 			return "ogg";
 		case "audio/wav":
@@ -174,64 +182,6 @@ async function readErrorBody(response: Response): Promise<string> {
 	return body;
 }
 
-async function transcribeVercelAIGatewayAudio(
-	request: AudioTranscriptionRequest,
-	apiKey: string,
-	route: AudioTranscriptionRoute,
-): Promise<AudioTranscriptionResult> {
-	const headers = new Headers(request.providerConfig.headers);
-	if (!headers.has("authorization")) {
-		headers.set("authorization", `Bearer ${apiKey}`);
-	}
-	headers.set(
-		"ai-gateway-protocol-version",
-		VERCEL_AI_GATEWAY_PROTOCOL_VERSION,
-	);
-	headers.set("ai-gateway-auth-method", "api-key");
-	headers.set(
-		"ai-transcription-model-specification-version",
-		VERCEL_AI_GATEWAY_TRANSCRIPTION_SPECIFICATION_VERSION,
-	);
-	headers.set("ai-model-id", request.modelId.trim());
-	headers.set("content-type", "application/json");
-
-	const mediaType =
-		request.mediaType?.split(";", 1)[0]?.trim().toLowerCase() || "audio/webm";
-	const fetchImpl = request.providerConfig.fetch ?? fetch;
-	const response = await fetchImpl(route.endpoint, {
-		method: "POST",
-		headers,
-		body: JSON.stringify({
-			audio: Buffer.from(request.audio).toString("base64"),
-			mediaType,
-		}),
-		signal: resolveAbortSignal(request.providerConfig, request.abortSignal),
-	});
-	if (!response.ok) {
-		const detail = await readErrorBody(response);
-		throw new Error(
-			`Vercel AI Gateway transcription failed (${response.status})${detail ? `: ${detail}` : ""}`,
-		);
-	}
-
-	const result = (await response.json()) as {
-		text?: unknown;
-		language?: unknown;
-		durationInSeconds?: unknown;
-	};
-	if (typeof result.text !== "string" || !result.text.trim()) {
-		throw new Error("Vercel AI Gateway transcription returned no text");
-	}
-	return {
-		text: result.text,
-		language: typeof result.language === "string" ? result.language : undefined,
-		durationInSeconds:
-			typeof result.durationInSeconds === "number"
-				? result.durationInSeconds
-				: undefined,
-	};
-}
-
 /**
  * Mint a short-lived credential for a browser transcription WebSocket.
  *
@@ -246,12 +196,17 @@ export async function createStreamingAudioTranscriptionSession(
 		throw new Error("A streaming transcription model is required");
 	}
 	const route = resolveAudioTranscriptionRoute(request.providerConfig);
+	if (route.transport === "elevenlabs") {
+		return createElevenLabsStreamingSession(request, route);
+	}
+	if (route.transport === "openai-native")
+		return createOpenAIStreamingSession(request, route);
 	if (route.transport !== "vercel-ai-gateway") {
 		throw new Error(
 			`Provider "${request.providerConfig.providerId}" does not support browser streaming transcription`,
 		);
 	}
-	const expiresAfterSeconds = request.expiresAfterSeconds ?? 300;
+	const expiresAfterSeconds = request.expiresAfterSeconds ?? 60;
 	if (
 		!Number.isInteger(expiresAfterSeconds) ||
 		expiresAfterSeconds < 1 ||
@@ -268,56 +223,156 @@ export async function createStreamingAudioTranscriptionSession(
 		);
 	}
 
-	const mintEndpoint = new URL(
-		"/v1/realtime/client-secrets",
-		route.baseUrl,
-	).toString();
-	const headers = new Headers(request.providerConfig.headers);
-	if (!headers.has("authorization")) {
-		headers.set("authorization", `Bearer ${apiKey}`);
-	}
-	headers.set(
-		"ai-gateway-protocol-version",
-		VERCEL_AI_GATEWAY_PROTOCOL_VERSION,
+	const signal = resolveAbortSignal(
+		request.providerConfig,
+		request.abortSignal,
 	);
-	headers.set("ai-gateway-auth-method", "api-key");
-	headers.set("content-type", "application/json");
-
 	const fetchImpl = request.providerConfig.fetch ?? fetch;
-	const response = await fetchImpl(mintEndpoint, {
-		method: "POST",
-		headers,
-		body: JSON.stringify({
-			model: modelId,
-			routeKind: "transcription",
-			expiresIn: expiresAfterSeconds,
-		}),
-		signal: resolveAbortSignal(request.providerConfig, request.abortSignal),
+	const gateway = createGateway({
+		apiKey,
+		baseURL: route.baseUrl,
+		headers: request.providerConfig.headers,
+		fetch: Object.assign(
+			(
+				input: Parameters<typeof fetch>[0],
+				init?: Parameters<typeof fetch>[1],
+			) =>
+				fetchImpl(input, {
+					...init,
+					signal: init?.signal
+						? AbortSignal.any([signal, init.signal])
+						: signal,
+				}),
+			fetchImpl,
+		),
 	});
+	signal.throwIfAborted();
+	const result = await gateway.experimental_transcription.getToken({
+		model: modelId,
+		expiresAfterSeconds,
+	});
+	return {
+		transport: "vercel-ai-gateway",
+		modelId,
+		baseUrl: route.baseUrl,
+		token: result.token,
+		url: result.url,
+		// Gemini Live accepts 16 kHz PCM input. Gateway forwards the declared
+		// format; it does not resample audio to the upstream provider's rate.
+		sampleRate: modelId.startsWith("google/") ? 16_000 : 24_000,
+		expiresAt:
+			typeof result.expiresAt === "number" ? result.expiresAt : undefined,
+	};
+}
+
+async function createOpenAIStreamingSession(
+	request: StreamingAudioTranscriptionSessionRequest,
+	route: AudioTranscriptionRoute,
+): Promise<StreamingAudioTranscriptionSession> {
+	const apiKey = resolveApiKey(request.providerConfig);
+	if (!apiKey)
+		throw new Error(
+			`Provider "${request.providerConfig.providerId}" is missing credentials`,
+		);
+	const expiresAfterSeconds = request.expiresAfterSeconds ?? 60;
+	if (
+		!Number.isInteger(expiresAfterSeconds) ||
+		expiresAfterSeconds < 1 ||
+		expiresAfterSeconds > 300
+	)
+		throw new Error(
+			"Streaming transcription session lifetime must be between 1 and 300 seconds",
+		);
+	const headers = new Headers(request.providerConfig.headers);
+	headers.set("Authorization", `Bearer ${apiKey}`);
+	headers.set("Content-Type", "application/json");
+	const modelId = request.modelId.trim();
+	const response = await (request.providerConfig.fetch ?? fetch)(
+		`${route.baseUrl}/realtime/client_secrets`,
+		{
+			method: "POST",
+			headers,
+			signal: resolveAbortSignal(request.providerConfig, request.abortSignal),
+			body: JSON.stringify({
+				expires_after: { anchor: "created_at", seconds: expiresAfterSeconds },
+				session: {
+					type: "transcription",
+					audio: {
+						input: {
+							format: { type: "audio/pcm", rate: 24000 },
+							transcription: { model: modelId },
+							turn_detection: null,
+						},
+					},
+				},
+			}),
+		},
+	);
+	if (!response.ok)
+		throw new Error(
+			`OpenAI streaming transcription setup failed (${response.status}): ${await readErrorBody(response)}`,
+		);
+	const result = (await response.json()) as {
+		value?: unknown;
+		expires_at?: unknown;
+	};
+	if (typeof result.value !== "string" || !result.value.trim())
+		throw new Error("OpenAI streaming transcription setup returned no token");
+	const url = new URL(`${route.baseUrl}/realtime?intent=transcription`);
+	url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+	return {
+		transport: "openai-native",
+		token: result.value,
+		url: url.toString(),
+		baseUrl: route.baseUrl,
+		modelId,
+		sampleRate: 24000,
+		expiresAt:
+			typeof result.expires_at === "number" ? result.expires_at : undefined,
+	};
+}
+
+async function createElevenLabsStreamingSession(
+	request: StreamingAudioTranscriptionSessionRequest,
+	route: AudioTranscriptionRoute,
+): Promise<StreamingAudioTranscriptionSession> {
+	const apiKey = resolveApiKey(request.providerConfig);
+	if (!apiKey)
+		throw new Error(
+			`Provider "${request.providerConfig.providerId}" is missing credentials`,
+		);
+	const headers = new Headers(request.providerConfig.headers);
+	headers.set("xi-api-key", apiKey);
+	const response = await (request.providerConfig.fetch ?? fetch)(
+		`${route.baseUrl}/single-use-token/realtime_scribe`,
+		{
+			method: "POST",
+			headers,
+			signal: resolveAbortSignal(request.providerConfig, request.abortSignal),
+		},
+	);
 	if (!response.ok) {
 		const detail = await readErrorBody(response);
 		throw new Error(
-			`Vercel AI Gateway streaming transcription setup failed (${response.status})${detail ? `: ${detail}` : ""}`,
+			`ElevenLabs streaming transcription setup failed (${response.status})${detail ? `: ${detail}` : ""}`,
 		);
 	}
-
-	const result = (await response.json()) as {
-		token?: unknown;
-		expiresAt?: unknown;
-	};
-	if (typeof result.token !== "string" || !result.token.trim()) {
+	const result = (await response.json()) as { token?: unknown };
+	if (typeof result.token !== "string" || !result.token.trim())
 		throw new Error(
-			"Vercel AI Gateway streaming transcription setup returned no token",
+			"ElevenLabs streaming transcription setup returned no token",
 		);
-	}
-	const url = new URL(route.endpoint);
+	const url = new URL(`${route.endpoint}/realtime`);
 	url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
-	url.searchParams.set("ai-model-id", modelId);
+	url.searchParams.set("model_id", request.modelId.trim());
+	url.searchParams.set("audio_format", "pcm_24000");
+	// Partials arrive continuously; Stop commits the final transcript.
+	url.searchParams.set("commit_strategy", "manual");
 	return {
+		transport: "elevenlabs",
 		token: result.token,
 		url: url.toString(),
-		expiresAt:
-			typeof result.expiresAt === "number" ? result.expiresAt : undefined,
+		sampleRate: 24_000,
 	};
 }
 
@@ -330,8 +385,11 @@ async function transcribeElevenLabsAudio(
 	headers.delete("content-type");
 	headers.set("xi-api-key", apiKey);
 
-	const mediaType =
-		request.mediaType?.split(";", 1)[0]?.trim().toLowerCase() || "audio/webm";
+	const mediaType = detectMediaType({
+		data: request.audio,
+		topLevelType: "audio",
+	});
+	if (!mediaType) throw new Error("Unrecognized audio format");
 	const formData = new FormData();
 	formData.append("model_id", request.modelId.trim());
 	formData.append(
@@ -398,18 +456,19 @@ export async function transcribeAudio(
 		return transcribeElevenLabsAudio(request, apiKey, route);
 	}
 
-	if (route.transport === "vercel-ai-gateway") {
-		return transcribeVercelAIGatewayAudio(request, apiKey, route);
-	}
-
-	const provider = createOpenAI({
+	const settings = {
 		apiKey,
 		baseURL: route.baseUrl,
 		fetch: request.providerConfig.fetch,
 		headers: request.providerConfig.headers,
-	});
+	};
+	const model =
+		route.transport === "vercel-ai-gateway"
+			? createGateway(settings).transcriptionModel(modelId)
+			: createOpenAI(settings).transcription(modelId);
 	const result = await transcribe({
-		model: provider.transcription(modelId),
+		model,
+		providerOptions: request.providerOptions,
 		audio: request.audio,
 		abortSignal: resolveAbortSignal(
 			request.providerConfig,
@@ -422,5 +481,7 @@ export async function transcribeAudio(
 		text: result.text,
 		language: result.language,
 		durationInSeconds: result.durationInSeconds,
+		segments: result.segments,
+		warnings: result.warnings,
 	};
 }

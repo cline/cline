@@ -193,6 +193,82 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("preserves row context-menu rename focus, Escape, and Enter through the shared row", async () => {
+		const thread = makeThread("alpha", 1);
+		const history = makeSessionHistory([thread], vi.fn());
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={thread.id}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={history}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+		const startRename = async () => {
+			await act(async () => {
+				buttonWithText(thread.title).dispatchEvent(
+					new MouseEvent("contextmenu", {
+						bubbles: true,
+						cancelable: true,
+						button: 2,
+					}),
+				);
+			});
+			const rename = [...document.querySelectorAll('[role="menuitem"]')].find(
+				(element) => element.textContent?.includes("Rename"),
+			);
+			if (!rename) throw new Error("Missing Rename menu item");
+			await click(rename);
+			const input = container.querySelector<HTMLInputElement>("input");
+			if (!input) throw new Error("Missing rename input");
+			expect(document.activeElement).toBe(input);
+			expect(input.selectionStart).toBe(0);
+			expect(input.selectionEnd).toBe(0);
+			return input;
+		};
+		let input = await startRename();
+		await act(async () =>
+			input.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Escape",
+					bubbles: true,
+					cancelable: true,
+				}),
+			),
+		);
+		expect(container.querySelector("input")).toBeNull();
+		expect(history.renameThread).not.toHaveBeenCalled();
+		input = await startRename();
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(input, "Renamed session");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await act(async () =>
+			input.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					bubbles: true,
+					cancelable: true,
+				}),
+			),
+		);
+		expect(history.renameThread).toHaveBeenCalledWith(
+			thread.id,
+			"Renamed session",
+		);
+	});
+
 	it("marks scheduled sessions with a clock icon in the row", async () => {
 		const scheduled = {
 			...makeThread("alpha", 1),

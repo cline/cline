@@ -16,6 +16,8 @@ import {
 	ListToolsResultSchema,
 	McpError,
 	PromptListChangedNotificationSchema,
+	type ReadResourceResult,
+	ReadResourceResultSchema,
 	ResourceListChangedNotificationSchema,
 	ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
@@ -1751,6 +1753,29 @@ export class McpHub {
 		}
 	}
 
+	async readResource(serverName: string, uri: string, signal?: AbortSignal): Promise<ReadResourceResult> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
+		}
+		if (!connection.client) {
+			throw new Error(`Server "${serverName}" is not connected and cannot be used.`)
+		}
+
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+		try {
+			return await connection.client.request({ method: "resources/read", params: { uri } }, ReadResourceResultSchema, {
+				timeout,
+				signal,
+			})
+		} catch (error) {
+			throw augmentMcpTimeoutError(error, serverName, timeout)
+		}
+	}
+
 	/**
 	 * RPC variant of toggleToolAutoApprove that returns the updated servers instead of notifying the webview
 	 * @param serverName The name of the MCP server
@@ -1870,7 +1895,9 @@ export class McpHub {
 
 				const urlValidation = z.string().url().safeParse(expandedConfig.url)
 				if (!urlValidation.success) {
-					throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+					// Do not echo the URL: whether as entered or with environment variables
+					// expanded, it can carry credentials, and this error is logged.
+					throw new Error("Invalid server URL. Enter a full URL such as https://example.com/mcp.")
 				}
 
 				const parsedConfig = ServerConfigSchema.parse(expandedConfig)

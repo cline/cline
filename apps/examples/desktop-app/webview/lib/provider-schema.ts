@@ -2,6 +2,8 @@ import type {
 	ModelModality,
 	ModelOperation,
 	ModelOperationMode,
+	ModelToolName,
+	ProviderAuthInfo,
 } from "@cline/shared/browser";
 
 /** Which tier of the Cline recommended-models feed featured a model. */
@@ -61,6 +63,8 @@ export interface ProviderConfigField {
 }
 
 export interface Provider {
+	modelTools?: ModelToolName[];
+	auth?: ProviderAuthInfo;
 	id: string;
 	name: string;
 	models: number | null;

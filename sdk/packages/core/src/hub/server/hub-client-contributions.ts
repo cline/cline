@@ -54,7 +54,7 @@ import type {
 	LocalRuntimeStartOptions,
 	RuntimeSessionConfig,
 } from "../../runtime/host/runtime-host";
-import { formatRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { loadRulesForSystemPromptFromRecords } from "../../runtime/safety/rules";
 import type { CoreSessionConfig } from "../../types/config";
 
 type RequestCapability = (
@@ -402,11 +402,7 @@ function createUserInstructionServiceProxy(
 						id: "cline-hub-user-instructions:rules",
 						source: "hub-user-instructions",
 						content: () =>
-							formatRulesForSystemPrompt(
-								snapshot.records.rule
-									.map((record) => record.item)
-									.filter((rule) => rule.disabled !== true),
-							),
+							loadRulesForSystemPromptFromRecords(snapshot.records.rule),
 					});
 				}
 				if (options.registerSkillsTool) {

@@ -1,3 +1,4 @@
+import { desktopClient } from "@/lib/desktop-client";
 import type { Provider } from "@/lib/provider-schema";
 
 /**
@@ -17,6 +18,45 @@ export const OAUTH_PROVIDER_IDS = new Set([
 ]);
 
 export type ProviderAuthKind = "oauth" | "local" | "api-key";
+
+/**
+ * Client-side deadline for `run_provider_oauth_login` invokes. The browser
+ * round-trip legitimately takes minutes — the user may still be choosing a
+ * browser or confirming a device code, and Cline device codes stay valid for
+ * many minutes — so the transport's default 120s command deadline would fail
+ * a sign-in that is still perfectly viable (observed while verifying
+ * cline/cline#14201). The sidecar already bounds the flow by the device-code
+ * expiry; this is only a backstop against a wedged command.
+ */
+export const OAUTH_LOGIN_TIMEOUT_MS = 15 * 60_000;
+
+// Cancellation targets the provider, so it must finish before another screen signs in.
+let pendingClineCancellation: Promise<unknown> | null = null;
+
+export function cancelClineOAuthLogin(): Promise<unknown> {
+	if (!pendingClineCancellation) {
+		pendingClineCancellation = desktopClient
+			.invoke("cancel_provider_oauth_login", { provider: "cline" })
+			.finally(() => {
+				pendingClineCancellation = null;
+			});
+	}
+	return pendingClineCancellation;
+}
+
+export async function runProviderOAuthLogin(
+	provider: string,
+	signal?: AbortSignal,
+): Promise<{ provider: string; accessToken: string }> {
+	if (provider === "cline" && pendingClineCancellation) {
+		await pendingClineCancellation.catch(() => undefined);
+	}
+	return desktopClient.invoke(
+		"run_provider_oauth_login",
+		{ provider },
+		{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS, signal },
+	);
+}
 
 /**
  * How a provider expects to be authenticated, which drives which connect UI

@@ -4,7 +4,8 @@ import {
 	CLINE_ENVIRONMENTS,
 	type GatewayProviderContext,
 } from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import {
 	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
 	BUILTIN_SPECS,
@@ -63,8 +64,41 @@ describe("cline builtin spec defaults.baseUrl", () => {
 });
 
 describe("cline builtin models", () => {
-	it("exposes its canonical default model ID", () => {
-		expect(findClineSpec().defaultModelId).toBe(CLINE_DEFAULT_MODEL_ID);
+	it("defaults to the first recommended model, falling back to the canonical id", () => {
+		expect(findClineSpec().defaultModelId).toBe(
+			GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+				CLINE_DEFAULT_MODEL_ID,
+		);
+	});
+
+	// The generated list currently starts with the fallback id, so the check
+	// above cannot tell the two branches apart; drive each one explicitly.
+	async function clineDefaultWithRecommended(
+		recommended: { id: string }[],
+	): Promise<string | undefined> {
+		vi.resetModules();
+		vi.doMock("../catalog/cline-recommended.generated", () => ({
+			GENERATED_CLINE_RECOMMENDED_MODELS: { recommended },
+		}));
+		try {
+			const { BUILTIN_SPECS: specs } = await import("./builtins");
+			return specs.find((s) => s.id === "cline")?.defaultModelId;
+		} finally {
+			vi.doUnmock("../catalog/cline-recommended.generated");
+			vi.resetModules();
+		}
+	}
+
+	it("tracks the first recommended model when it differs from the fallback", async () => {
+		await expect(
+			clineDefaultWithRecommended([{ id: "vendor/recommended-first" }]),
+		).resolves.toBe("vendor/recommended-first");
+	});
+
+	it("falls back to the canonical id when the recommended list is empty", async () => {
+		await expect(clineDefaultWithRecommended([])).resolves.toBe(
+			CLINE_DEFAULT_MODEL_ID,
+		);
 	});
 
 	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {
@@ -302,7 +336,7 @@ describe("built-in provider metadata", () => {
 			modelOperationCapabilities: [
 				{
 					operation: "transcription",
-					modes: ["batch"],
+					modes: ["batch", "streaming"],
 				},
 			],
 			metadata: { transcriptionTransport: "elevenlabs" },
@@ -408,6 +442,19 @@ describe("built-in provider metadata", () => {
 		await expect(getProvider("huggingface")).resolves.toMatchObject({
 			baseUrl: "https://router.huggingface.co/v1",
 		});
+	});
+
+	it("serves the ai& default model from the catalog instead of the stub fallback", async () => {
+		const provider = await getProvider("aiand");
+		const models = await getModelsForProvider("aiand");
+		const defaultModel = models[provider?.defaultModelId ?? ""];
+
+		expect(provider?.defaultModelId).toBe("zai-org/glm-5.3");
+		// Carries the catalog record rather than the 128k stub fallbackModelInfo
+		// synthesizes for a default missing from the catalog. Bounds instead of
+		// exact values: the numbers rotate with models.dev.
+		expect(defaultModel?.contextWindow).toBeGreaterThan(128_000);
+		expect(defaultModel?.pricing).toBeDefined();
 	});
 
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {

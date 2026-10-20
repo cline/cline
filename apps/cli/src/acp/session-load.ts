@@ -2,7 +2,10 @@ import type {
 	AgentSideConnection,
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
-import { projectSessionMessagesForDisplay } from "@cline/core";
+import {
+	projectSessionMessagesForDisplay,
+	resolveMessageDisplayRole,
+} from "@cline/core";
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
@@ -50,6 +53,9 @@ export function translateHistoricalMessage(
 function translateProjectedHistoricalMessage(
 	message: MessageWithMetadata,
 ): SessionUpdate[] {
+	// ACP has no history error update; match its live error handling and do
+	// not present display-only failures as assistant responses.
+	if (resolveMessageDisplayRole(message) === "error") return [];
 	const blocks: ContentBlock[] =
 		typeof message.content === "string"
 			? [{ type: "text", text: message.content }]

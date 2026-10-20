@@ -1482,6 +1482,27 @@ describe("translateSessionEvent — agent_event error", () => {
 		const result = translateSessionEvent(event, state)
 		expect(result.turnComplete).toBe(true)
 		expect(state.wasErrorSeen()).toBe(true)
+		expect(result.messages.map((message) => message.ask ?? message.say)).toEqual(["api_req_started", "api_req_failed"])
+		expect(result.messages[1].text).toBe("stream failed before assistant output")
+	})
+
+	it("renders a failure carried only by done(reason:'error') once, as a credit error when it is one", () => {
+		const state = new MessageTranslatorState()
+		const done = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: { type: "done", reason: "error", text, iterations: 1 } as AgentEvent,
+			},
+		})
+
+		const first = translateSessionEvent(done("Not enough credits available"), state)
+		const failed = first.messages.filter((message) => message.ask === "api_req_failed")
+		expect(failed).toHaveLength(1)
+		expect(JSON.parse(failed[0].text ?? "{}")).toMatchObject({ code: "insufficient_credits" })
+
+		// An "error" event already rendered this turn's failure.
+		expect(translateSessionEvent(done("Not enough credits available"), state).messages).toEqual([])
 	})
 
 	it("does not record an error outcome for a successful done event", () => {
@@ -2532,6 +2553,24 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		expect(end.messages[0].ts).toBe(streamingTs)
 	})
 
+	it("accumulates text chunks that carry no running total, as a cloud session sends them", () => {
+		const state = new MessageTranslatorState()
+		const chunk = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_start", contentType: "text", text } as AgentEvent },
+		})
+		const end = (text: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: { sessionId: "s1", event: { type: "content_end", contentType: "text", text } as AgentEvent },
+		})
+
+		expect(translateSessionEvent(chunk("Hello "), state).messages[0].text).toBe("Hello ")
+		expect(translateSessionEvent(chunk("world"), state).messages[0].text).toBe("Hello world")
+		translateSessionEvent(end("Hello world"), state)
+		// The next text block starts from nothing.
+		expect(translateSessionEvent(chunk("Next"), state).messages[0].text).toBe("Next")
+	})
+
 	it("accumulates reasoning deltas into text for webview rendering", () => {
 		const state = new MessageTranslatorState()
 
@@ -2713,6 +2752,16 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 				{ query: "echo hi", result: "hi", success: true },
 			]
 			expect(extractToolOutputText(output)).toBe("hi")
+		})
+
+		it("returns empty string for a silent command instead of the JSON envelope", () => {
+			const output = [{ query: "git add -A", result: "", success: true }]
+			expect(extractToolOutputText(output)).toBe("")
+		})
+
+		it("preserves an untyped result object with an empty result", () => {
+			const output = [{ result: "", details: "done" }]
+			expect(extractToolOutputText(output)).toBe('[{"result":"","details":"done"}]')
 		})
 	})
 
@@ -3924,6 +3973,47 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(result.messages[1].text).toBe("User: Max (self)")
 	})
 
+	it("content_end for MCP tool preserves an untyped object with an empty result", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "example__status",
+						toolCallId: "c-empty-result",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "example__status",
+						toolCallId: "c-empty-result",
+						output: [{ result: "", details: "done" }],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe('[{"result":"","details":"done"}]')
+	})
+
 	it("content_end for MCP tool with error shows error in response", () => {
 		const state = new MessageTranslatorState()
 		translateSessionEvent(
@@ -4345,5 +4435,18 @@ describe("tool display paths are relativized to the cwd", () => {
 				text: "Bun 1.3.14 is current.",
 			}),
 		)
+	})
+})
+
+describe("persisted display-only errors", () => {
+	it("restores a failed task with error recovery UI, not completion UI", () => {
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "hi" },
+			{ role: "assistant", content: "API key expired.", metadata: { displayOnly: true, displayRole: "error" } },
+		]
+		const rendered = sdkMessagesToClineMessages(messages)
+		expect(rendered.at(-1)).toMatchObject({ type: "ask", ask: "api_req_failed" })
+		expect(rendered.at(-1)?.text).toContain("API key expired")
+		expect(rendered.some((message) => message.say === "completion_result" || message.ask === "completion_result")).toBe(false)
 	})
 })

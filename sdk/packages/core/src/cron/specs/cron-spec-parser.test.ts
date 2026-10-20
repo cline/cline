@@ -34,6 +34,13 @@ describe("splitFrontmatter", () => {
 		expect(frontmatter).toContain("id: x");
 		expect(body).toBe("Body here");
 	});
+	it("ignores a leading UTF-8 BOM", () => {
+		const { frontmatter, body } = splitFrontmatter(
+			`\uFEFF---\r\nid: x\r\n---\r\nBody here`,
+		);
+		expect(frontmatter).toContain("id: x");
+		expect(body).toBe("Body here");
+	});
 });
 
 describe("computeContentHash", () => {
@@ -53,6 +60,14 @@ describe("computeContentHash", () => {
 			expect(r.spec?.title).toBe("Clean");
 			expect(r.spec?.prompt).toBe("Remove stale files.");
 			expect(r.spec?.mode).toBe("act");
+		});
+
+		it("parses a spec saved with a UTF-8 BOM", () => {
+			const raw = `\uFEFF---\nid: cleanup\nworkspaceRoot: /ws\n---\nRemove stale files.`;
+			const r = parseCronSpecFile({ relativePath: "cleanup.md", raw });
+			expect(r.error).toBeUndefined();
+			expect(r.spec?.workspaceRoot).toBe("/ws");
+			expect(r.spec?.prompt).toBe("Remove stale files.");
 		});
 
 		it("defaults to yolo and parses cron runtime fields", () => {

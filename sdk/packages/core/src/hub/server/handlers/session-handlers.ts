@@ -4,6 +4,7 @@ import type {
 	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
+	PluginPolicies,
 	ToolApprovalRequest,
 	UserContext,
 } from "@cline/shared";
@@ -203,6 +204,11 @@ function getCapabilityOwnerClientId(
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
+/** `null` is meaningful for prompt/title updates (it clears the field). */
+function asNullableString(value: unknown): string | null | undefined {
+	return typeof value === "string" || value === null ? value : undefined;
+}
+
 function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
@@ -255,6 +261,20 @@ function authorizeSessionCompactionAccess(input: {
 		);
 	}
 	return undefined;
+}
+
+/** Accepts `{ "*"?: { enabled?: boolean }, [plugin]: { enabled?: boolean } }`. */
+export function parsePluginPolicies(
+	value: unknown,
+): PluginPolicies | undefined {
+	const record = asPlainRecord(value);
+	if (!record) return undefined;
+	const policies: PluginPolicies = {};
+	for (const [name, policy] of Object.entries(record)) {
+		const enabled = asPlainRecord(policy)?.enabled;
+		policies[name] = typeof enabled === "boolean" ? { enabled } : {};
+	}
+	return Object.keys(policies).length > 0 ? policies : undefined;
 }
 
 export async function handleSessionCreate(
@@ -487,7 +507,22 @@ export async function handleSessionCreate(
 				: runtimeOptions.autoApproveTools === true
 					? { "*": { autoApprove: true } }
 					: undefined,
+		plugins: parsePluginPolicies(payload.plugins),
 	});
+	const pluginIssues = started.pluginIssues ?? [];
+	if (pluginIssues.length > 0) {
+		logHubMessage("warn", "session.create.plugin_issues", {
+			...baseLogContext,
+			sessionId: started.sessionId,
+			plugins: pluginIssues.map((issue) => ({
+				name: issue.name,
+				state: issue.state,
+				reason: issue.reason,
+				phase: issue.lastError?.phase,
+				message: issue.lastError?.message,
+			})),
+		});
+	}
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
 		sessionId: started.sessionId,
@@ -512,11 +547,19 @@ export async function handleSessionCreate(
 		hasSnapshot: !!snapshot,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
+	const pluginIssuePayload =
+		pluginIssues.length > 0
+			? { pluginIssues: JSON.parse(JSON.stringify(pluginIssues)) }
+			: {};
 	if (session) {
 		ctx.publish(
 			ctx.buildEvent(
 				"session.created",
-				{ session, ...(snapshot ? { snapshot } : {}) },
+				{
+					session,
+					...(snapshot ? { snapshot } : {}),
+					...pluginIssuePayload,
+				},
 				started.sessionId,
 			),
 		);
@@ -526,7 +569,11 @@ export async function handleSessionCreate(
 		sessionId: started.sessionId,
 		elapsedMs: Math.round(performance.now() - startedAt),
 	});
-	return okReply(envelope, { session, ...(snapshot ? { snapshot } : {}) });
+	return okReply(envelope, {
+		session,
+		...(snapshot ? { snapshot } : {}),
+		...pluginIssuePayload,
+	});
 }
 
 export async function handleSessionRestore(
@@ -778,6 +825,7 @@ export async function handleSessionRestore(
 							: runtimeOptions.autoApproveTools === true
 								? { "*": { autoApprove: true } }
 								: undefined,
+					plugins: parsePluginPolicies(payload.plugins),
 				};
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
@@ -1052,7 +1100,13 @@ export async function handleSessionUpdate(
 	const metadata = stripServerOwnedSessionMetadata(
 		asPlainRecord(envelope.payload?.metadata),
 	);
-	const updated = await ctx.sessionHost.updateSession(sessionId, { metadata });
+	const prompt = asNullableString(envelope.payload?.prompt);
+	const title = asNullableString(envelope.payload?.title);
+	const updated = await ctx.sessionHost.updateSession(sessionId, {
+		metadata,
+		...(prompt !== undefined ? { prompt } : {}),
+		...(title !== undefined ? { title } : {}),
+	});
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),
 		readCoreSessionSnapshot(ctx, sessionId),

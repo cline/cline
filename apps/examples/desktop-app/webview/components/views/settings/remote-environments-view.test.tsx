@@ -69,6 +69,17 @@ async function click(element: Element): Promise<void> {
 	});
 }
 
+async function type(input: HTMLInputElement, value: string): Promise<void> {
+	await act(async () => {
+		const setter = Object.getOwnPropertyDescriptor(
+			HTMLInputElement.prototype,
+			"value",
+		)?.set;
+		setter?.call(input, value);
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+	});
+}
+
 describe("RemoteEnvironmentsContent", () => {
 	it("locks a saved profile destination while leaving editable metadata available", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
@@ -104,6 +115,38 @@ describe("RemoteEnvironmentsContent", () => {
 		);
 	});
 
+	it("only enables Save once an existing host has unsaved changes", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_remote_environments") {
+				return { profiles: [profile], activeProfileId: null };
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+
+		await act(async () => {
+			root.render(<RemoteEnvironmentsContent />);
+		});
+		await vi.waitFor(() => {
+			expect(inputById("remote-name").value).toBe("Build box");
+		});
+
+		expect(buttonWithText("Save").disabled).toBe(true);
+
+		await type(inputById("remote-name"), "Build box 2");
+		expect(buttonWithText("Save").disabled).toBe(false);
+
+		await type(inputById("remote-name"), "Build box");
+		expect(buttonWithText("Save").disabled).toBe(true);
+
+		await click(buttonWithText("New Host"));
+		expect(
+			[...container.querySelectorAll("button")].some((button) =>
+				button.textContent?.includes("Save"),
+			),
+		).toBe(false);
+		expect(buttonWithText("Add").disabled).toBe(false);
+	});
+
 	it("keeps settings limited to saving and testing SSH hosts", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
 			switch (command) {
@@ -121,7 +164,7 @@ describe("RemoteEnvironmentsContent", () => {
 		});
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("Build box");
-			expect(buttonWithText("Save").disabled).toBe(false);
+			expect(buttonWithText("Test Connection").disabled).toBe(false);
 		});
 		expect(container.querySelector("#remote-workspace")).toBeNull();
 		expect(container.textContent).not.toContain("Connect & Open");
@@ -133,13 +176,14 @@ describe("RemoteEnvironmentsContent", () => {
 			"Password sign-in is not supported.",
 		);
 
+		await type(inputById("remote-name"), "Build box 2");
 		await click(buttonWithText("Save"));
 
 		await vi.waitFor(() => {
 			expect(invokeMock).toHaveBeenCalledTimes(2);
 		});
 		expect(invokeMock).toHaveBeenNthCalledWith(2, "upsert_remote_environment", {
-			profile,
+			profile: { ...profile, name: "Build box 2" },
 		});
 		expect(container.textContent).toContain("Connected");
 		expect(container.textContent).toContain("Ready");

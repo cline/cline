@@ -6,6 +6,7 @@ import * as LlmsModels from "@cline/llms"
 import { ApiFormat } from "@shared/proto/cline/models"
 import { Logger } from "@shared/services/Logger"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import * as netModule from "@/shared/net"
 import {
 	buildResumeSessionInput,
 	buildSessionConfig,
@@ -17,6 +18,7 @@ import {
 	normalizeSdkBaseUrl,
 	resolveApiKey,
 	resolveAzureProviderConfig,
+	resolveProviderFetch,
 	updateHistoryItem,
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -269,11 +271,66 @@ describe("normalizeSdkBaseUrl", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
 
+	it("does not append a default path to OpenAI Compatible base URLs", () => {
+		expect(normalizeSdkBaseUrl("openai", "https://example.com")).toBe("https://example.com")
+		expect(normalizeSdkBaseUrl("openai", "http://localhost:8000/")).toBe("http://localhost:8000/")
+		expect(normalizeSdkBaseUrl("openai-compatible", "https://example.com")).toBe("https://example.com")
+		expect(normalizeSdkBaseUrl("openai", "https://example.com/v1")).toBe("https://example.com/v1")
+	})
+
 	it("inherits the AskSage default /server path when the custom URL has no path", () => {
 		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example")).toBe("https://asksage.internal.example/server")
 		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
 			"https://asksage.internal.example/custom",
 		)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// resolveProviderFetch
+// ---------------------------------------------------------------------------
+
+describe("resolveProviderFetch", () => {
+	it("gives local model servers the idle-timeout-free fetch", () => {
+		for (const providerId of ["lmstudio", "ollama", "openai-compatible", "litellm"]) {
+			expect(resolveProviderFetch(providerId, undefined)).toBe(netModule.fetchWithoutIdleTimeouts)
+		}
+		for (const baseUrl of [
+			"http://localhost:1234/v1",
+			"http://127.0.0.1:4000",
+			"http://0.0.0.0:11434",
+			"http://[::1]:8000/v1",
+			"http://[::ffff:127.0.0.1]:1234/v1",
+			"http://[::ffff:192.168.1.20]:8000/v1",
+			"http://192.168.1.20:8000/v1",
+			"http://10.0.0.5:11434",
+			"http://172.20.0.3:8000",
+			"http://100.101.102.103:8000",
+			"http://[fd12::1]:8000",
+			"http://gpu-box:8000/v1",
+			"http://host.docker.internal:1234/v1",
+			"http://studio.local:1234/v1",
+		]) {
+			expect(resolveProviderFetch("openai-compatible", baseUrl)).toBe(netModule.fetchWithoutIdleTimeouts)
+		}
+	})
+
+	it("keeps the proxy-aware fetch for remote gateways", () => {
+		for (const baseUrl of [
+			"https://litellm.corp.example.com/v1",
+			"https://8.8.8.8/v1",
+			"http://172.32.0.1:8000",
+			"https://[2001:db8::1]/v1",
+			"not a url",
+		]) {
+			expect(resolveProviderFetch("litellm", baseUrl)).toBe(netModule.fetch)
+		}
+	})
+
+	it("keeps the proxy-aware fetch for everything else", () => {
+		for (const providerId of ["anthropic", "cline", "openrouter", "bedrock"]) {
+			expect(resolveProviderFetch(providerId, undefined)).toBe(netModule.fetch)
+		}
 	})
 })
 
@@ -715,6 +772,29 @@ describe("buildSessionConfig", () => {
 			providerId: "moonshot",
 			apiLine: "china",
 		})
+	})
+
+	// Regression test for cline/cline#13464: undici's default 5-minute
+	// idle-body timeout (UND_ERR_BODY_TIMEOUT) killed LM Studio requests
+	// mid-stream even while the local server was actively generating tokens.
+	it("gives LM Studio the fetch that ignores undici's idle timeouts", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "lmstudio",
+			actModeApiModelId: "qwen3-coder-30b",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		expect((config.providerConfig as { fetch?: typeof fetch }).fetch).toBe(netModule.fetchWithoutIdleTimeouts)
+	})
+
+	it("keeps the idle timeouts for hosted providers", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "moonshot",
+			actModeApiModelId: "kimi-k3",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		expect((config.providerConfig as { fetch?: typeof fetch }).fetch).toBe(netModule.fetch)
 	})
 
 	it("inherits the base provider's legacy apiLine for coding variants", async () => {
@@ -1469,6 +1549,39 @@ describe("buildSessionConfig", () => {
 		// instead of a tool it does not have.
 		expect(planConfig.systemPrompt).not.toContain("switch_to_act_mode")
 		expect(planConfig.systemPrompt).toContain("Plan/Act toggle")
+	})
+
+	it("builds a coherent remote runtime model and platform snapshot", async () => {
+		const config = await buildSessionConfig({
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			runtime: {
+				modelSelection: { providerId: "cline", modelId: "fixture-cloud-model" },
+				platform: "linux",
+			},
+		})
+
+		expect(config).toMatchObject({
+			providerId: "cline",
+			modelId: "fixture-cloud-model",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "fixture-cloud-model",
+			},
+			extensionContext: {
+				workspace: {
+					rootPath: "/workspace",
+					cwd: "/workspace",
+					platform: "linux",
+					mode: "act",
+				},
+			},
+		})
+		expect(config.systemPrompt).toContain("# Plan / Act Modes")
 	})
 })
 

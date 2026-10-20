@@ -57,6 +57,11 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
+export {
+	parseRuleConfigFromMarkdown,
+	parseSkillConfigFromMarkdown,
+} from "../../../../sdk/packages/core/src/extensions/config/user-instruction-config-loader"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -66,6 +71,7 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
@@ -112,15 +118,11 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
-	}
-}
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""
@@ -143,7 +145,14 @@ export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/sr
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+// Real rule selection re-exported from SDK source so standalone callers are
+// tested against the same pipeline a session's system prompt uses.
+export { loadRulesForSystemPromptFromRecords } from "../../../../sdk/packages/core/src/runtime/safety/rules"
 export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
+// Real source-of-truth values re-exported so the extension is tested against the
+// same session-source tag and core version the SDK stamps on a session's requests.
+export { SessionSource } from "../../../../sdk/packages/core/src/types/common"
+export { CORE_BUILD_VERSION } from "../../../../sdk/packages/core/src/version"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.
@@ -186,6 +195,15 @@ export function readSessionCheckpointHistory(session: { metadata?: Record<string
 		const kind = record.kind === "stash" || record.kind === "commit" ? record.kind : undefined
 		return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }]
 	})
+}
+
+export function createRestoredCheckpointMetadata(
+	session: { metadata?: Record<string, unknown> } | undefined,
+	runCount: number,
+): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
+	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
+	const latest = history.at(-1)
+	return latest ? { latest, history } : undefined
 }
 
 export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
@@ -519,3 +537,5 @@ export async function loginOcaOAuth(): Promise<OAuthCredentials> {
 export async function loginOpenAICodex(): Promise<OAuthCredentials> {
 	return {}
 }
+
+export { resolveMessageDisplayRole } from "../../../../sdk/packages/core/src/session/user-run-messages"

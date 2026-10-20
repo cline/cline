@@ -6,10 +6,12 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
+import { featureSettingControlId, featureSettingElementId } from "../settingsTargets"
 import { updateSetting } from "../utils/settingsHandlers"
 
 // Reusable checkbox component for feature settings
 interface FeatureCheckboxProps {
+	id?: string
 	checked: boolean | undefined
 	onChange: (checked: boolean) => void
 	label: string
@@ -82,6 +84,7 @@ const advancedFeatures: FeatureToggle[] = [
 
 const FeatureRow = memo(
 	({
+		id,
 		checked = false,
 		onChange,
 		label,
@@ -94,16 +97,17 @@ const FeatureRow = memo(
 		if (!isVisible) {
 			return null
 		}
+		const switchId = id ? featureSettingControlId(id) : label
 
 		const checkbox = (
 			<div className="flex items-center justify-between w-full">
-				<div>{label}</div>
+				<label htmlFor={switchId}>{label}</label>
 				<div>
 					<Switch
 						checked={checked}
 						className="shrink-0"
 						disabled={disabled || isRemoteLocked}
-						id={label}
+						id={switchId}
 						onCheckedChange={onChange}
 						size="lg"
 					/>
@@ -113,7 +117,9 @@ const FeatureRow = memo(
 		)
 
 		return (
-			<div className="flex flex-col items-start justify-between gap-4 py-3 w-full">
+			<div
+				className="flex flex-col items-start justify-between gap-4 py-3 px-1 w-full rounded-xs border border-transparent"
+				id={id ? featureSettingElementId(id) : undefined}>
 				<div className="space-y-0.5 flex-1 w-full">
 					{isRemoteLocked ? (
 						<Tooltip>
@@ -148,6 +154,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled,
 		backgroundEditEnabled,
 		showFeatureTips,
+		cloudSessionsAvailable,
+		cloudSessionsEnabled,
 	} = useExtensionState()
 
 	// State lookup for mapped features
@@ -181,6 +189,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
+									id={feature.id}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
@@ -209,6 +218,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								label="Web Search"
 								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
 							/>
+							<FeatureRow
+								checked={cloudSessionsEnabled}
+								description="Run Cline on your GitHub repositories in secure cloud sandboxes. Adds a Cloud option to the new task composer. Requires a Cline account with GitHub connected."
+								id="cloud-sessions"
+								isVisible={!!cloudSessionsAvailable}
+								label="Cloud"
+								onChange={(checked) => updateSetting("cloudSessionsEnabled", checked)}
+							/>
 						</div>
 					</div>
 
@@ -222,6 +239,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
+									id={feature.id}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
@@ -241,6 +259,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
 									description={feature.description}
+									id={feature.id}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}

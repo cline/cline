@@ -736,6 +736,13 @@ describe("remote environment command routing", () => {
 			args: ["branch", "--show-current"],
 			cwd: "/srv/code/project",
 		});
+		// The polled branch label must not also list every branch over SSH.
+		expect(fake.run).not.toHaveBeenCalledWith(
+			profile.id,
+			expect.objectContaining({
+				args: expect.arrayContaining(["for-each-ref"]),
+			}),
+		);
 	});
 
 	it("bounds remote search output before transfer and drops a truncated filename", async () => {
@@ -834,6 +841,7 @@ describe("remote environment command routing", () => {
 			const record = {
 				id: "same-id",
 				sessionId: "same-id",
+				prompt: environmentId === profile.id ? "Explain this project" : "",
 				status: "idle",
 				createdAt: "2026-09-14T00:00:00Z",
 			};
@@ -842,6 +850,9 @@ describe("remote environment command routing", () => {
 				sessionManager: {
 					list: vi.fn(async () => [record]),
 					get: vi.fn(async () => record),
+					readMessages: vi.fn(async () => [
+						{ role: "user", content: [{ type: "image", data: "attachment" }] },
+					]),
 				} as unknown as SessionRuntimeBinding["sessionManager"],
 			});
 		}

@@ -42,8 +42,10 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
+	isModelToolEnabledGlobally,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
@@ -66,7 +68,6 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -85,7 +86,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -125,13 +126,9 @@ import {
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
-import {
-	readDesktopSettings,
-	setCloudSessionsEnabled,
-} from "./desktop-settings";
+import { writeDiagnosticsReport } from "./diagnostics";
 import {
 	identifyDesktopFeatureFlagsAccount,
-	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
@@ -160,11 +157,14 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import {
+	getPluginCommandService,
+	warmPluginCommandService,
+} from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -172,13 +172,17 @@ import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import {
 	compareSessionRecordsByStartedAtDesc,
+	derivePromptFromMessages,
 	normalizeSessionTitle,
 } from "./session-data/common";
 import {
 	discoverChatSessions,
 	mergeDiscoveredSessionLists,
 } from "./session-data/discovery";
-import { readSessionMessages } from "./session-data/messages";
+import {
+	readPersistedChatMessages,
+	readSessionMessages,
+} from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
 	ChatSessionCommandRequest,
@@ -643,6 +647,10 @@ async function getSessionFromSidecarManager(
 		: undefined;
 }
 
+function isSidebarSessionWithPrompt(session: JsonRecord): boolean {
+	return typeof session.prompt === "string" && Boolean(session.prompt.trim());
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -672,6 +680,17 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
+				if (!isSidebarSessionWithPrompt(merged)) {
+					// Attachment-only sessions may have no textual prompt metadata.
+					const messages =
+						binding.kind === "local"
+							? readPersistedChatMessages(sessionId)
+							: await binding.sessionManager
+									.readMessages(sessionId)
+									.catch(() => []);
+					merged.prompt = derivePromptFromMessages(messages ?? []);
+				}
+				if (!isSidebarSessionWithPrompt(merged)) continue;
 				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
@@ -692,6 +711,14 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
+			session.prompt =
+				session.prompt?.trim() ||
+				derivePromptFromMessages(
+					readPersistedChatMessages(session.sessionId) ?? [],
+				);
+			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
+				continue;
+			}
 			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
@@ -701,6 +728,10 @@ async function listSessionsFromSidecarManager(
 
 	for (const scoped of getEnvironmentContexts(ctx)) {
 		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			if (session.config.executionTarget === "cloud") continue;
+			const prompt =
+				session.prompt?.trim() || derivePromptFromMessages(session.messages);
+			if (!prompt) continue;
 			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
 			const existing = byId.get(key);
 			byId.set(key, {
@@ -716,7 +747,7 @@ async function listSessionsFromSidecarManager(
 					existing?.workspaceRoot ??
 					existing?.cwd ??
 					"",
-				prompt: session.prompt ?? existing?.prompt,
+				prompt,
 				startedAt:
 					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
 				endedAt:
@@ -813,58 +844,61 @@ function metadataSessionSearchHits(
 // Git helpers
 // ---------------------------------------------------------------------------
 
+// Resolves to git's stdout, or undefined when the command fails (e.g. the
+// workspace is not a repository). Over SSH each call is its own ssh session.
+async function runGit(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd: string,
+	args: string[],
+): Promise<string | undefined> {
+	if (binding.kind === "ssh") {
+		const remote = ctx.remoteEnvironments;
+		if (!remote) throw new Error("Remote environment service is unavailable");
+		const result = await remote
+			.run(binding.environmentId, { command: "git", args, cwd })
+			.catch(() => undefined);
+		return result?.stdout;
+	}
+	const result = await execFileAsync("git", args, {
+		cwd,
+		encoding: "utf8",
+	}).catch(() => undefined);
+	return result?.stdout;
+}
+
+async function currentGitBranch(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd?: string,
+): Promise<string | undefined> {
+	const targetCwd = cwd?.trim() || binding.workspaceRoot;
+	const current = await runGit(ctx, binding, targetCwd, [
+		"branch",
+		"--show-current",
+	]);
+	return current?.trim() || undefined;
+}
+
 async function listGitBranches(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
 	cwd?: string,
 ): Promise<{ current?: string; branches?: string[] }> {
 	const targetCwd = cwd?.trim() || binding.workspaceRoot;
-	if (binding.kind === "ssh") {
-		const remote = ctx.remoteEnvironments;
-		if (!remote) throw new Error("Remote environment service is unavailable");
-		const [currentResult, branchesResult] = await Promise.all([
-			remote
-				.run(binding.environmentId, {
-					command: "git",
-					args: ["branch", "--show-current"],
-					cwd: targetCwd,
-				})
-				.catch(() => undefined),
-			remote
-				.run(binding.environmentId, {
-					command: "git",
-					args: ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-					cwd: targetCwd,
-				})
-				.catch(() => undefined),
-		]);
-		const current = currentResult?.stdout.trim() ?? "";
-		const branches = (branchesResult?.stdout ?? "")
-			.split("\n")
-			.map((value) => value.trim())
-			.filter(Boolean);
-		return { current: current || undefined, branches };
-	}
-	const [currentResult, branchesResult] = await Promise.all([
-		execFileAsync("git", ["branch", "--show-current"], {
-			cwd: targetCwd,
-			encoding: "utf8",
-		}).catch(() => undefined),
-		execFileAsync(
-			"git",
-			["for-each-ref", "--format=%(refname:short)", "refs/heads"],
-			{
-				cwd: targetCwd,
-				encoding: "utf8",
-			},
-		).catch(() => undefined),
+	const [current, branchesOutput] = await Promise.all([
+		currentGitBranch(ctx, binding, targetCwd),
+		runGit(ctx, binding, targetCwd, [
+			"for-each-ref",
+			"--format=%(refname:short)",
+			"refs/heads",
+		]),
 	]);
-	const current = currentResult?.stdout.trim() ?? "";
-	const branches = (branchesResult?.stdout ?? "")
+	const branches = (branchesOutput ?? "")
 		.split("\n")
-		.map((v) => v.trim())
+		.map((value) => value.trim())
 		.filter(Boolean);
-	return { current: current || undefined, branches };
+	return { current, branches };
 }
 
 /** Where task worktrees live; honors `CLINE_DIR` like the rest of the Cline dir. */
@@ -1394,11 +1428,12 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 
 async function listHubSettings(
 	ctx: SidecarContext,
+	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<CoreSettingsSnapshot> {
 	const hubClient = await ensureSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.list", {
-		workspaceRoot: ctx.localWorkspaceRoot,
-		cwd: ctx.localWorkspaceRoot,
+		workspaceRoot,
+		cwd: workspaceRoot,
 	});
 	if (!reply.ok) {
 		throw new Error(
@@ -1434,9 +1469,10 @@ async function toggleHubSetting(
 async function listUserInstructionConfigs(
 	ctx: SidecarContext,
 	settingsSnapshot?: CoreSettingsSnapshot,
+	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<JsonRecord> {
-	const workspaceRoot = ctx.localWorkspaceRoot;
-	const hubSettings = settingsSnapshot ?? (await listHubSettings(ctx));
+	const hubSettings =
+		settingsSnapshot ?? (await listHubSettings(ctx, workspaceRoot));
 	const warnings: string[] = [];
 	const userInstructionService = createUserInstructionConfigService({
 		skills: { workspacePath: workspaceRoot },
@@ -1591,6 +1627,16 @@ async function listUserInstructionConfigs(
 			contributions: plugin.contributions,
 		})),
 		tools: [
+			// Not sourced from the core catalog: it only lists web_search for a
+			// specific provider/model, and this listing is session-agnostic.
+			{
+				id: "web_search",
+				name: "web_search",
+				description:
+					"Search the web during a task using the model provider's built-in web search. Requires a provider and model that support it; applies to new sessions.",
+				enabled: isModelToolEnabledGlobally("web_search"),
+				source: "builtin",
+			},
 			...builtinToolCatalog.map((tool) => ({
 				id: tool.id,
 				name: tool.id,
@@ -2156,8 +2202,6 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// Resolve flags in the sidecar: available shows the opt-in;
-		// enabled requires both the rollout flag and the user's opt-in.
 		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
@@ -2168,11 +2212,10 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
-			cloudAgentsAvailable: isCloudAgentsAvailable({
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			}),
 		};
+	}
+	if (command === "list_cloud_models") {
+		return await getCloudSessionManager(ctx).listModels();
 	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
@@ -2303,8 +2346,7 @@ export async function handleCommand(
 	if (command === "list_chat_sessions") {
 		const limit = typeof args?.limit === "number" ? args.limit : 300;
 		const local = discoverChatSessions(ctx, limit);
-		// Existing cloud sessions stay listed even when the flag is off — the
-		// flag gates NEW creation only, so a rollback never strands a session.
+		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch((error) => {
@@ -2313,7 +2355,11 @@ export async function handleCommand(
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];
 			});
-		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
+		);
 	}
 	if (command === "list_cli_sessions") {
 		return await listSessionsFromSidecarManager(
@@ -2327,13 +2373,18 @@ export async function handleCommand(
 			ctx,
 			limit,
 		)) as JsonRecord[];
+		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch((error) => {
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];
 			});
-		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
+		);
 	}
 	if (command === "search_sessions") {
 		const query = String(args?.query ?? "").trim();
@@ -2348,6 +2399,7 @@ export async function handleCommand(
 				: undefined;
 		// Start now so cloud latency does not add to the local fallback deadline.
 		const cloudDiscovery = (async () => {
+			if (!isCloudAgentsEnabled()) return undefined;
 			const manager = getCloudSessionManager(ctx);
 			const sessions = await manager.listForDiscovery({ timeoutMs: 750 });
 			return { manager, sessions };
@@ -2393,7 +2445,11 @@ export async function handleCommand(
 		);
 		const cloud = await cloudDiscovery;
 		// Account changes replace the manager; discard any in-flight old scope.
-		if (cloud && ctx.cloudSessionManager === cloud.manager) {
+		if (
+			cloud &&
+			isCloudAgentsEnabled() &&
+			ctx.cloudSessionManager === cloud.manager
+		) {
 			const seen = new Set(hits.map((hit) => hit.sessionId));
 			const cloudHits = metadataSessionSearchHits(cloud.sessions, query)
 				.filter((hit) => {
@@ -2832,6 +2888,14 @@ export async function handleCommand(
 		await ensureCustomProvidersLoaded(manager);
 		return await listLocalProviders(manager, { isClinePassEnabled: true });
 	}
+	if (command === "list_transcription_models") {
+		const manager = new ProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
+		return getLocalTranscriptionModels(
+			providerId,
+			manager.getProviderConfig(providerId, { includeKnownModels: false }),
+		);
+	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
@@ -2947,7 +3011,6 @@ export async function handleCommand(
 		try {
 			const result = await transcribeConfiguredVoiceInput(manager, {
 				audio: Buffer.from(audioBase64, "base64"),
-				mediaType,
 			});
 			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
 				...diagnostics,
@@ -2995,7 +3058,7 @@ export async function handleCommand(
 			storageProviderId === "cline"
 				? manager.getProviderSettings(storageProviderId)
 				: undefined;
-		const saved = saveLocalProviderSettings(manager, {
+		const saved = await saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -3006,7 +3069,7 @@ export async function handleCommand(
 			// Cline Pass keeps its credentials under "cline", so removing only
 			// its own entry would leave the account signed in.
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});
@@ -3147,26 +3210,15 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
-	if (command === "get_desktop_settings") {
-		return readDesktopSettings();
-	}
-	if (command === "set_cloud_sessions_enabled") {
-		if (typeof args?.cloud_sessions_enabled !== "boolean") {
-			throw new Error("cloud_sessions_enabled must be a boolean");
-		}
-		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		broadcastEvent(ctx, "feature_flags_changed", {
-			cloudAgents: isCloudAgentsEnabled(),
-			cloudAgentsAvailable: isCloudAgentsAvailable(),
-		});
-		return settings;
-	}
-	if (command === "set_web_search_enabled") {
-		if (typeof args?.web_search_enabled !== "boolean") {
-			throw new Error("web_search_enabled must be a boolean");
-		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
-		return readGlobalSettings();
+	if (command === "export_diagnostics") {
+		const sessionIds = Array.isArray(args?.sessionIds)
+			? args.sessionIds.filter(
+					(value): value is string => typeof value === "string",
+				)
+			: [];
+		const result = writeDiagnosticsReport(sessionIds);
+		openFileInEditor(dirname(result.path));
+		return result;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -3398,12 +3450,12 @@ export async function handleCommand(
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
 				: binding.workspaceRoot;
-		const branches = await listGitBranches(ctx, binding, cwd);
+		const branch = await currentGitBranch(ctx, binding, cwd);
 		if (binding.kind === "local") {
 			const { prewarmWorkspaceMetadata } = await import("./chat-session");
 			prewarmWorkspaceMetadata(cwd);
 		}
-		return { environmentId: binding.environmentId, branch: branches.current };
+		return { environmentId: binding.environmentId, branch };
 	}
 	if (command === "list_git_branches") {
 		const binding = getCommandRuntimeBinding(ctx, args);
@@ -3482,7 +3534,30 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
-		return await listUserInstructionConfigs(ctx);
+		// The composer passes the session's workspace so the slash menu lists
+		// the skills and workflows that will actually expand there.
+		return await listUserInstructionConfigs(
+			ctx,
+			undefined,
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
+		);
+	}
+	if (command === "warm_plugin_commands") {
+		// The webview reports whichever local workspace it has adopted so the
+		// plugin sandbox is loaded before the slash menu first needs it.
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const workspacePath = String(args?.workspacePath ?? "").trim();
+		if (binding.kind === "local" && workspacePath) {
+			warmPluginCommandService(ctx, workspacePath);
+		}
+		return { environmentId: binding.environmentId };
+	}
+	if (command === "list_plugin_commands") {
+		// Same workspace the session will execute in (handleSend), so the menu
+		// only offers commands that can actually run there.
+		const workspacePath =
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
+		return await getPluginCommandService(ctx, workspacePath).listCommands();
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
@@ -3524,7 +3599,7 @@ export async function handleCommand(
 			throw new Error("tool name is required");
 		}
 		let snapshot: CoreSettingsSnapshot | undefined;
-		for (const name of toolNames) {
+		for (const name of new Set(toolNames)) {
 			snapshot = await toggleHubSetting(ctx, {
 				type: "tools",
 				name,

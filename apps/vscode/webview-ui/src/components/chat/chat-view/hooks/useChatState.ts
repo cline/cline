@@ -1,6 +1,23 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ChatState, PendingResponse, PendingUserMessage } from "../types/chatTypes"
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ChatState, type DraftSnapshot, PendingResponse, PendingUserMessage } from "../types/chatTypes"
+
+const EMPTY_DRAFT: DraftSnapshot = {
+	revision: 0,
+	text: "",
+	activeQuote: null,
+	images: [],
+	files: [],
+}
+
+function applyDraftFieldUpdate<Key extends "text" | "activeQuote" | "images" | "files">(
+	draft: DraftSnapshot,
+	key: Key,
+	update: SetStateAction<DraftSnapshot[Key]>,
+): DraftSnapshot {
+	const value = typeof update === "function" ? update(draft[key]) : update
+	return { ...draft, revision: draft.revision + 1, [key]: value }
+}
 
 /**
  * Custom hook for managing chat state
@@ -8,11 +25,41 @@ import { ChatState, PendingResponse, PendingUserMessage } from "../types/chatTyp
  */
 export function useChatState(messages: ClineMessage[]): ChatState {
 	// Input and selection state
-	const [inputValue, setInputValue] = useState("")
-	const [activeQuote, setActiveQuote] = useState<string | null>(null)
+	const [draft, setDraft] = useState(EMPTY_DRAFT)
+	const draftRef = useRef(draft)
+	const updateDraft = useCallback((update: (current: DraftSnapshot) => DraftSnapshot) => {
+		const next = update(draftRef.current)
+		draftRef.current = next
+		setDraft(next)
+	}, [])
+	const setInputValue = useCallback<Dispatch<SetStateAction<string>>>(
+		(update) => updateDraft((current) => applyDraftFieldUpdate(current, "text", update)),
+		[updateDraft],
+	)
+	const setActiveQuote = useCallback<Dispatch<SetStateAction<string | null>>>(
+		(update) => updateDraft((current) => applyDraftFieldUpdate(current, "activeQuote", update)),
+		[updateDraft],
+	)
+	const setSelectedImages = useCallback<Dispatch<SetStateAction<string[]>>>(
+		(update) => updateDraft((current) => applyDraftFieldUpdate(current, "images", update)),
+		[updateDraft],
+	)
+	const setSelectedFiles = useCallback<Dispatch<SetStateAction<string[]>>>(
+		(update) => updateDraft((current) => applyDraftFieldUpdate(current, "files", update)),
+		[updateDraft],
+	)
 	const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
-	const [selectedImages, setSelectedImages] = useState<string[]>([])
-	const [selectedFiles, setSelectedFiles] = useState<string[]>([])
+	const getDraftSnapshot = useCallback((): DraftSnapshot => draftRef.current, [])
+	const consumeDraftSnapshot = useCallback(
+		(submitted: DraftSnapshot) => {
+			// A submission takes effect at acknowledgement. Clear the whole draft
+			// only if no draft mutation crossed that await boundary.
+			updateDraft((current) =>
+				current.revision === submitted.revision ? { ...EMPTY_DRAFT, revision: current.revision + 1 } : current,
+			)
+		},
+		[updateDraft],
+	)
 
 	// UI state
 	const [sendingDisabled, setSendingDisabled] = useState(false)
@@ -43,7 +90,7 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		setActiveQuote(null)
 		setSelectedImages([])
 		setSelectedFiles([])
-	}, [])
+	}, [setInputValue, setActiveQuote, setSelectedImages, setSelectedFiles])
 
 	// Handle focus change
 	const handleFocusChange = useCallback((isFocused: boolean) => {
@@ -57,16 +104,18 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 
 	return {
 		// State values
-		inputValue,
+		inputValue: draft.text,
 		setInputValue,
-		activeQuote,
+		activeQuote: draft.activeQuote,
 		setActiveQuote,
 		isTextAreaFocused,
 		setIsTextAreaFocused,
-		selectedImages,
+		selectedImages: draft.images,
 		setSelectedImages,
-		selectedFiles,
+		selectedFiles: draft.files,
 		setSelectedFiles,
+		getDraftSnapshot,
+		consumeDraftSnapshot,
 		sendingDisabled,
 		setSendingDisabled,
 		enableButtons,

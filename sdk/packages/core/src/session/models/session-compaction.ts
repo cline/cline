@@ -37,6 +37,12 @@ export type SessionCompactionState = z.infer<
 	typeof SessionCompactionStateSchema
 >;
 
+function canonicalSourceMessages(
+	messages: readonly MessageWithMetadata[],
+): MessageWithMetadata[] {
+	return messages.filter((message) => message.metadata?.displayOnly !== true);
+}
+
 function cloneMessages(
 	messages: readonly MessageWithMetadata[],
 ): MessageWithMetadata[] {
@@ -138,7 +144,8 @@ export function createSessionCompactionState(input: {
 	systemPrompt?: string;
 	updatedAt?: string;
 }): SessionCompactionState {
-	const lastSourceMessage = input.sourceMessages.at(-1);
+	const sourceMessages = canonicalSourceMessages(input.sourceMessages);
+	const lastSourceMessage = sourceMessages.at(-1);
 	const sourceLastMessageKey = messageBoundaryKey(lastSourceMessage);
 	return SessionCompactionStateSchema.parse({
 		version: 1,
@@ -146,8 +153,8 @@ export function createSessionCompactionState(input: {
 		...(input.conversationId?.trim()
 			? { conversation_id: input.conversationId.trim() }
 			: {}),
-		source_message_count: input.sourceMessages.length,
-		source_prefix_hash: sourcePrefixHash(input.sourceMessages),
+		source_message_count: sourceMessages.length,
+		source_prefix_hash: sourcePrefixHash(sourceMessages),
 		...(sourceLastMessageKey
 			? { source_last_message_key: sourceLastMessageKey }
 			: {}),
@@ -162,6 +169,7 @@ export function projectSessionCompactionState(
 	state: SessionCompactionState,
 	sourceMessages: readonly MessageWithMetadata[],
 ): MessageWithMetadata[] | undefined {
+	sourceMessages = canonicalSourceMessages(sourceMessages);
 	const hasEnoughSourceMessages =
 		state.source_message_count <= sourceMessages.length;
 	if (!hasEnoughSourceMessages) {

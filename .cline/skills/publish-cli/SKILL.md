@@ -143,6 +143,8 @@ Include user-facing features, fixes, behavior changes, compatibility changes, an
 
 Write a flat bullet list. Translate commit messages into user-facing language. If a commit is unclear, read the full commit before summarizing it.
 
+**Scope notes to the CLI.** Shared-code commits in the range are often for desktop or the extension. Keep a bullet only if the change reaches `apps/cli` (hub fixes do; desktop webview/sidecar/voice/packaging don't). Skip items already in the last CLI section, grep any quoted string, and leave out anything uncertain.
+
 Present the draft and wait for approval before editing files.
 
 4. Decide the version bump.

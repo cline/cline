@@ -10,6 +10,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	ITelemetryService,
 	JsonValue,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -529,6 +530,7 @@ function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 			cacheReadTokens: usageMetric(delta, "cacheReadTokens"),
 			cacheWriteTokens: usageMetric(delta, "cacheWriteTokens"),
 			cost: finiteNumber(delta?.totalCost),
+			reasoningTokenCount: finiteNumber(delta?.reasoningTokenCount),
 			totalInputTokens: usageMetric(totals, "inputTokens"),
 			totalOutputTokens: usageMetric(totals, "outputTokens"),
 			totalCacheReadTokens: usageMetric(totals, "cacheReadTokens"),
@@ -586,6 +588,8 @@ function hubReplyErrorMessage(
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
+	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
+	resolveConnectionHeaders?: HubClientOptions["resolveConnectionHeaders"];
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
@@ -787,6 +791,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveConnectionHeaders: options.resolveConnectionHeaders,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
@@ -899,6 +904,11 @@ export class HubRuntimeHost implements RuntimeHost {
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
+				...(input.plugins
+					? {
+							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
+						}
+					: {}),
 				initialMessages: input.initialMessages,
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
@@ -955,12 +965,16 @@ export class HubRuntimeHost implements RuntimeHost {
 			);
 		}
 
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as SessionPluginIssue[])
+			: undefined;
 		return {
 			sessionId,
 			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -1048,6 +1062,13 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.plugins
+									? {
+											plugins: toJsonRecord(
+												startConfig.plugins as Record<string, unknown>,
+											),
+										}
+									: {}),
 								...(startConfig.initialCompactionState
 									? {
 											initialCompactionState:
@@ -1410,18 +1431,18 @@ export class HubRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const metadata: Record<string, unknown> = {
-			...(updates.metadata ?? {}),
-		};
-		if (typeof updates.prompt === "string") {
-			metadata.prompt = updates.prompt;
-		}
-		if (typeof updates.title === "string") {
-			metadata.title = updates.title;
-		}
+		// Forward prompt/title as their own fields: the persistence layer only
+		// treats an explicit `title` as a rename and otherwise keeps the stored
+		// one, so folding it into `metadata.title` would silently drop renames.
+		// A `null` metadata clear is sent as `{}` because the daemon decodes
+		// non-record payload values as "omitted".
 		const reply = await this.client.command("session.update", {
 			sessionId,
-			metadata,
+			...(updates.prompt !== undefined ? { prompt: updates.prompt } : {}),
+			...(updates.metadata !== undefined
+				? { metadata: updates.metadata ?? {} }
+				: {}),
+			...(updates.title !== undefined ? { title: updates.title } : {}),
 		});
 		return { updated: reply.ok };
 	}

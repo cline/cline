@@ -6,6 +6,7 @@
 
 import {
 	type ApplyPatchExecutor,
+	type AskQuestionExecutor,
 	ClineCore,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
@@ -31,19 +32,15 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 	type ToolExecutors,
+	toClineCoreStartInput,
 } from "@cline/core"
-import {
-	type AgentToolContext,
-	RUNTIME_CONFIG_EXTENSION_KINDS,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-	type ToolPolicy,
-} from "@cline/shared"
+import { RUNTIME_CONFIG_EXTENSION_KINDS, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { type VscodeGitTelemetry, VscodeGitTelemetryManager } from "./git-telemetry"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
@@ -61,7 +58,7 @@ export interface VscodeSessionHostOptions {
 		policy: { enabled: boolean; autoApprove: boolean }
 	}) => Promise<{ approved: boolean; reason?: string }>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
-	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
+	askQuestion?: AskQuestionExecutor
 	/**
 	 * Custom `editor` tool executor (diff-view edit pipeline). Fully replaces the SDK's
 	 * default disk-writing executor.
@@ -98,15 +95,18 @@ export interface VscodeSessionHostOptions {
 export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
-	private readonly prepareStartSessionInput?: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>
+	private readonly prepareStartSessionInput: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>
+	private readonly gitTelemetry: VscodeGitTelemetryManager
 
 	private constructor(
 		inner: ClineCore,
-		prepareStartSessionInput?: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>,
+		prepareStartSessionInput: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>,
+		options: VscodeSessionHostOptions,
 	) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
 		this.prepareStartSessionInput = prepareStartSessionInput
+		this.gitTelemetry = new VscodeGitTelemetryManager(options.telemetry)
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
@@ -137,11 +137,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
-		// Single funnel for session-start preparation: waits on the remote-config
-		// readiness/policy gate, applies the remote-config integration, and adds
-		// the VSCode extra tools. Used by ClineCore's prepare hook for normal
-		// starts AND by restore() for checkpoint-restore replacement sessions,
-		// which ClineCore starts without running the prepare hook.
+		// Both start and checkpoint restore use the same input preparation.
 		const prepareStartSessionInput = async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
 			await options.beforeStartSession?.()
 			// Read only after the readiness gate: it may have atomically replaced
@@ -157,6 +153,11 @@ export class VscodeSessionHost implements SdkSessionHost {
 				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 				foregroundCommands: options.foregroundCommands,
 			})
+			const config: ClineCoreStartInput["config"] = {
+				...inputWithRemoteConfig.config,
+				telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
+				extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+			}
 			return {
 				...inputWithRemoteConfig,
 				source: inputWithRemoteConfig.source ?? "vscode",
@@ -166,15 +167,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 				// would execute twice per event.
 				localRuntime: {
 					...(inputWithRemoteConfig.localRuntime ?? {}),
+					hooks: config.hooks,
 					configExtensions: (
 						inputWithRemoteConfig.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
 					).filter((kind) => kind !== "hooks"),
 				},
-				config: {
-					...inputWithRemoteConfig.config,
-					telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-					extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
-				},
+				config,
 			}
 		}
 
@@ -189,22 +187,28 @@ export class VscodeSessionHost implements SdkSessionHost {
 			toolPolicies: options.toolPolicies,
 			telemetry: options.telemetry,
 			distinctId: getDistinctId() || undefined,
-			prepare: async () => ({
-				applyToStartSessionInput: prepareStartSessionInput,
-			}),
 		})
 
 		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}
-		return new VscodeSessionHost(inner, prepareStartSessionInput)
+		return new VscodeSessionHost(inner, prepareStartSessionInput, options)
 	}
 
 	async start(input: StartSessionInput): Promise<StartSessionResult>
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
-		return this.inner.start(input as ClineCoreStartInput)
+		const prepared = await this.prepareStartSessionInput(toClineCoreStartInput(input))
+		const observer = this.gitTelemetry.init(prepared)
+		try {
+			const result = await this.inner.start(prepared)
+			this.gitTelemetry.start(result.sessionId, observer)
+			return result
+		} catch (error) {
+			observer?.dispose()
+			throw error
+		}
 	}
 
 	async send(input: SendSessionInput) {
@@ -242,10 +246,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async stop(sessionId: string): Promise<void> {
+		this.gitTelemetry.stop(sessionId)
 		return this.inner.stop(sessionId)
 	}
 
 	async dispose(reason?: string): Promise<void> {
+		this.gitTelemetry.dispose()
 		return this.inner.dispose(reason)
 	}
 
@@ -278,13 +284,22 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
-		// ClineCore.restore starts the checkpoint-restore replacement session
-		// WITHOUT running the prepare hook, which would bypass the remote-config
-		// session gate and integration. Run the same preparation here.
-		if (input.start && this.prepareStartSessionInput) {
-			input = { ...input, start: await this.prepareStartSessionInput(input.start) }
+		// Apply the same preparation to checkpoint-restore replacement sessions.
+		let observer: VscodeGitTelemetry | undefined
+		if (input.start) {
+			const start = await this.prepareStartSessionInput(toClineCoreStartInput(input.start))
+			observer = this.gitTelemetry.init(start)
+			input = { ...input, start }
 		}
-		return this.inner.restore(input)
+		try {
+			const result = await this.inner.restore(input)
+			if (result.startResult && result.sessionId) this.gitTelemetry.start(result.sessionId, observer)
+			else observer?.dispose()
+			return result
+		} catch (error) {
+			observer?.dispose()
+			throw error
+		}
 	}
 
 	async compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult> {

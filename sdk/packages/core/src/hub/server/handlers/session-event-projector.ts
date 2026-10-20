@@ -327,6 +327,7 @@ async function projectAgentEvent(
 						outputTokens: agentEvent.outputTokens,
 						cacheReadTokens: agentEvent.cacheReadTokens ?? 0,
 						cacheWriteTokens: agentEvent.cacheWriteTokens ?? 0,
+						reasoningTokenCount: agentEvent.reasoningTokenCount,
 						totalCost: agentEvent.cost ?? 0,
 					},
 					totals: {

@@ -12,6 +12,8 @@ export type DesktopThread = {
 	id: string;
 	environmentId: string;
 	historySession?: SessionHistoryItem;
+	/** Live runtime session bound to the thread once a prompt has started it. */
+	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
 };
@@ -59,7 +61,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			sessionId: string;
 			metadata: SessionMetadata;
 	  }
-	| { type: "thread-started"; threadId: string };
+	| { type: "thread-started"; threadId: string; sessionId?: string };
 
 function areLocationsEqual<SettingsSection extends string>(
 	a: DesktopAppLocation<SettingsSection>,
@@ -171,10 +173,17 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		}
 		case "open-session": {
-			const threadId = `session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const existingIdx = state.threads.findIndex(
-				(thread) => thread.id === threadId,
+				(thread) =>
+					thread.environmentId === action.environmentId &&
+					(thread.sessionId === action.session.sessionId ||
+						thread.historySession?.sessionId === action.session.sessionId),
 			);
+			// A session started in this window already has a thread_* identity.
+			// Keep it when opening history so its pane and draft aren't replaced.
+			const threadId =
+				state.threads[existingIdx]?.id ??
+				`session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const threads =
 				existingIdx >= 0
 					? state.threads.map((thread, index) =>
@@ -234,7 +243,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 						(thread) =>
 							thread.id === action.deletedThreadId ||
 							thread.id === historyThreadId ||
-							(thread.historySession?.sessionId === action.deletedSessionId &&
+							((thread.historySession?.sessionId === action.deletedSessionId ||
+								thread.sessionId === action.deletedSessionId) &&
 								thread.environmentId === (action.environmentId ?? "local")),
 					)
 					.map((thread) => thread.id),
@@ -317,8 +327,15 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				...state,
 				threads: state.threads.map((thread) =>
-					thread.id === action.threadId && !thread.hasStarted
-						? { ...thread, hasStarted: true }
+					thread.id === action.threadId &&
+					(!thread.hasStarted ||
+						(action.sessionId !== undefined &&
+							thread.sessionId !== action.sessionId))
+						? {
+								...thread,
+								hasStarted: true,
+								sessionId: action.sessionId ?? thread.sessionId,
+							}
 						: thread,
 				),
 			};

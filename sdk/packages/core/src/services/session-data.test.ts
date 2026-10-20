@@ -170,6 +170,21 @@ describe("messages file provenance", () => {
 });
 
 describe("withLatestAssistantTurnMetadata", () => {
+	it("does not attach assistant usage to display-only errors", () => {
+		const persisted = withLatestAssistantTurnMetadata(
+			[
+				{ role: "assistant", content: "partial answer" },
+				{
+					role: "assistant",
+					content: "Provider unavailable",
+					metadata: { displayOnly: true, displayRole: "error" },
+				},
+			] as Parameters<typeof withLatestAssistantTurnMetadata>[0],
+			createResult(),
+		);
+		expect(persisted[0]?.metrics).toBeDefined();
+		expect(persisted[1]?.metrics).toBeUndefined();
+	});
 	it("normalizes legacy stored provider/model fields into modelInfo", () => {
 		const messages = [
 			{ role: "user", content: "hello" },

@@ -64,6 +64,23 @@ Inspect the CI checks and fix any regressions.
 		expect(result.spec.contentHash).toHaveLength(64);
 	});
 
+	it("parses a spec saved with a UTF-8 BOM", () => {
+		const result = parseAgendaTaskSpec({
+			specPath: join(WORKSPACE_ROOT, ".cline", "tasks", "bom.task.md"),
+			scope: "workspace",
+			workspaceRoot: WORKSPACE_ROOT,
+			raw: "\uFEFF---\r\ntype: todo\r\ntitle: Saved by Notepad\r\navailableAt: 2035-01-01T00:00:00.000Z\r\nexpiresAt: 2035-01-02T00:00:00.000Z\r\n---\r\n\r\nDo the thing.\r\n",
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.spec).toMatchObject({
+			type: "todo",
+			title: "Saved by Notepad",
+			instructions: "Do the thing.",
+		});
+	});
+
 	it("rejects manager-owned fields and invalid priorities", () => {
 		const reserved = parseAgendaTaskSpec({
 			specPath: "/tmp/task.task.md",

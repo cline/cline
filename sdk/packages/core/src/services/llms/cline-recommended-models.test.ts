@@ -10,6 +10,7 @@ import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	fetchClineRecommendedModels,
 	getCachedClineRecommendedModels,
+	idSlug,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./cline-recommended-models";
@@ -556,15 +557,19 @@ describe("generated offline featured models", () => {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
 					.sort((a, b) => a.featured!.rank - b.featured!.rank);
+				// The feed can spell a vendor differently from the catalog
+				// ("spacexai/grok-4.7" vs OpenRouter's "x-ai/grok-4.7"); the matcher
+				// then stamps the catalog's id via its slug fallback, so compare
+				// models by slug rather than verbatim id.
 				expect(
 					stamped.map((entry) => ({
-						id: entry.id,
+						slug: idSlug(entry.id),
 						description: entry.description ?? "",
 						featured: entry.featured,
 					})),
 				).toEqual(
 					entries.map((entry, rank) => ({
-						id: entry.id,
+						slug: idSlug(entry.id),
 						description: entry.description.trim(),
 						featured: { tier, rank, tags: entry.tags },
 					})),

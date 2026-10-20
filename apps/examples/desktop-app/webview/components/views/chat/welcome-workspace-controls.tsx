@@ -1,16 +1,16 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import {
 	Check,
 	FilePlus2,
 	Folder,
 	GitBranch,
 	Github,
+	Info,
 	LoaderCircle,
 	LogIn,
-	GitFork,
-	Laptop,
 	Plus,
 	RefreshCcw,
 	Search,
@@ -19,12 +19,18 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
@@ -61,27 +67,6 @@ function workspaceName(path: string): string {
 	const parts = trimmed.split(/[\\/]/);
 	return parts[parts.length - 1] || "workspace";
 }
-
-const WORK_IN_OPTIONS: Array<{
-	value: WorkIn;
-	label: string;
-	description: string;
-	Icon: typeof Laptop;
-}> = [
-	{
-		value: "local",
-		label: "Local",
-		description: "Edit the files in this folder directly.",
-		Icon: Laptop,
-	},
-	{
-		value: "worktree",
-		label: "Worktree",
-		description:
-			"Work on a separate copy of this folder on its own branch, so your files stay untouched until you merge.",
-		Icon: GitFork,
-	},
-];
 
 const TRIGGER_CLASS =
 	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -943,75 +928,45 @@ function BranchPicker({
 	);
 }
 
-function WorkInPicker({
-	open,
-	onToggle,
-	onClose,
+function WorktreeToggle({
 	value,
 	onChange,
 }: {
-	open: boolean;
-	onToggle: () => void;
-	onClose: () => void;
 	value: WorkIn;
 	onChange: (next: WorkIn) => void;
 }) {
-	const current =
-		WORK_IN_OPTIONS.find((o) => o.value === value) ?? WORK_IN_OPTIONS[0];
+	const switchId = useId();
 	return (
-		<div className="relative shrink-0">
-			<button
-				aria-expanded={open}
-				aria-haspopup="menu"
-				aria-label="Work in"
-				className={TRIGGER_CLASS}
-				onClick={onToggle}
-				title={`Work in: ${current.label}. ${current.description}`}
-				type="button"
+		<span className="inline-flex shrink-0 items-center gap-1.5 pl-1">
+			<label
+				className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"
+				htmlFor={switchId}
 			>
-				<current.Icon className="size-3.5 shrink-0 text-muted-foreground" />
-				<span className="text-sm">{current.label}</span>
-			</button>
-
-			{open && (
-				<div className={cn(PANEL_CLASS, "w-64")}>
-					<div className="p-1.5">
-						<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-							Work in
-						</div>
-						{WORK_IN_OPTIONS.map((option) => (
-							<Button
-								className={cn(
-									"flex h-auto w-full items-start gap-2 rounded-md px-2 py-2 text-left",
-									option.value === value
-										? "bg-(--accent-4) hover:bg-(--accent-4)"
-										: "hover:bg-surface-hover",
-								)}
-								key={option.value}
-								onClick={() => {
-									onChange(option.value);
-									onClose();
-								}}
-								variant="ghost"
-							>
-								<option.Icon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-								<span className="flex min-w-0 flex-1 flex-col gap-0.5">
-									<span className="text-xs font-medium text-foreground">
-										{option.label}
-									</span>
-									<span className="whitespace-normal text-[11px] leading-snug text-muted-foreground">
-										{option.description}
-									</span>
-								</span>
-								{option.value === value && (
-									<Check className="ml-auto mt-0.5 size-3 shrink-0 text-foreground" />
-								)}
-							</Button>
-						))}
-					</div>
-				</div>
-			)}
-		</div>
+				<Switch
+					checked={value === "worktree"}
+					id={switchId}
+					onCheckedChange={(checked) =>
+						onChange(checked ? "worktree" : "local")
+					}
+				/>
+				Worktree
+			</label>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label="About worktrees"
+						className="inline-flex rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						type="button"
+					>
+						<Info aria-hidden="true" className="size-3.5" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-64" side="top" sideOffset={6}>
+					Runs the task on a separate copy of this folder on its own branch, so
+					your files stay untouched until you merge.
+				</TooltipContent>
+			</Tooltip>
+		</span>
 	);
 }
 
@@ -1067,17 +1022,12 @@ export function WelcomeWorkspaceControls({
 	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
-	/** Where the next task runs; the picker is shown for git repos when provided. */
+	/** Where the next task runs; the worktree toggle is shown for git repos when provided. */
 	workIn?: WorkIn;
 	onWorkInChange?: (next: WorkIn) => void;
 }) {
 	const [openMenu, setOpenMenu] = useState<
-		| "workspace"
-		| "branch"
-		| "cloud-repository"
-		| "cloud-branch"
-		| "workIn"
-		| null
+		"workspace" | "branch" | "cloud-repository" | "cloud-branch" | null
 	>(null);
 	const [cloudRepositoryId, setCloudRepositoryId] = useState<number>();
 	const [cloudDefaultBranch, setCloudDefaultBranch] = useState("");
@@ -1231,17 +1181,7 @@ export function WelcomeWorkspaceControls({
 								open={openMenu === "branch"}
 							/>
 							{onWorkInChange ? (
-								<WorkInPicker
-									onChange={onWorkInChange}
-									onClose={() => setOpenMenu(null)}
-									onToggle={() =>
-										setOpenMenu((current) =>
-											current === "workIn" ? null : "workIn",
-										)
-									}
-									open={openMenu === "workIn"}
-									value={workIn}
-								/>
+								<WorktreeToggle onChange={onWorkInChange} value={workIn} />
 							) : null}
 						</>
 					) : null}

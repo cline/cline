@@ -60,6 +60,7 @@ export class SdkSessionEventCoordinator {
 		}
 
 		if (event.type === "pending_prompts") {
+			this.options.sessions.setQueuedPromptCount(event.payload.prompts.length)
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post pending-prompt state update:", err)
 			})

@@ -172,6 +172,8 @@ export interface AgentToolDefinition {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** Core may cache oversized output for bounded model recovery. Original output is retained. */
+	resultPolicy?: "cache-oversized";
 	lifecycle?: {
 		/**
 		 * Whether a successful call to this tool completes the current run.
@@ -197,6 +199,10 @@ export interface AgentToolContext {
 	metadata?: Record<string, unknown>;
 	snapshot?: AgentRuntimeStateSnapshot;
 	emitUpdate?: (update: unknown) => void;
+	/** Session working directory. Set by the host for plugin tools. */
+	cwd?: string;
+	/** Sends a plugin event to the calling session. Set by the host for plugin tools. */
+	emitEvent?: (name: string, payload?: unknown) => void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
@@ -264,10 +270,25 @@ export interface AgentRuntimePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+/**
+ * Why a model turn stopped producing output.
+ *
+ * `content-filter` is distinct from `stop` because the two need opposite
+ * handling when the turn produced nothing: a `stop` with no content is a
+ * transient upstream flake worth retrying, while a filtered turn will
+ * reproduce on every attempt. Collapsing them (as this union did before)
+ * left both surfacing as "Model returned empty response", which tells a
+ * user to retry something that cannot succeed.
+ *
+ * Missing or unrecognized provider finish reasons normalize to `unknown`: the
+ * response may be cut off and must not be treated as successful completion.
+ */
 export type AgentModelFinishReason =
+	| "unknown"
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"
+	| "content-filter"
 	| "aborted"
 	| "error";
 
@@ -322,6 +343,8 @@ export type AgentModelEvent =
 	| {
 			type: "finish";
 			reason: AgentModelFinishReason;
+			/** HTTP X-Request-ID of the surfaced response, not the provider's generation ID. */
+			requestId?: string;
 			error?: string;
 			errorClass?: ProviderErrorClass;
 			/**
@@ -363,6 +386,18 @@ export interface AgentStopControl {
 	reason?: string;
 }
 
+export interface AgentRunStartResult {
+	stop?: boolean;
+	reason?: string;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after the
+	 * run's input messages as a `<hook_context>` user message, so the model
+	 * sees it on the run's first request.
+	 */
+	appendContext?: string;
+}
+
 export interface AgentBeforeModelResult {
 	stop?: boolean;
 	reason?: string;
@@ -375,6 +410,8 @@ export interface AgentAfterModelContext {
 	snapshot: AgentRuntimeStateSnapshot;
 	assistantMessage: AgentMessage;
 	finishReason: AgentModelFinishReason;
+	/** HTTP X-Request-ID when exposed by the model adapter; hidden retry IDs are not included. */
+	requestId?: string;
 }
 
 export interface AgentBeforeToolContext {
@@ -437,7 +474,10 @@ export interface AgentRunLifecycleContext {
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentRunStartResult
+		| undefined
+		| Promise<AgentRunStartResult | undefined>;
 	afterRun?: (
 		context: AgentRunLifecycleContext & { result: AgentRunResult },
 	) => void | Promise<void>;

@@ -7,7 +7,7 @@ import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMessages } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { type CloudHistorySource, SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
@@ -564,6 +564,23 @@ describe("SdkTaskHistory", () => {
 		await expect(history.findHistoryItem("favorite-legacy-task")).resolves.toMatchObject({ id: "favorite-legacy-task" })
 	})
 
+	it("never deletes cloud sessions when deleting all history", async () => {
+		const cloudRecord = makeSessionRecord("ses-cloud", { metadata: { executionTarget: "cloud" } })
+		const cloud = {
+			isCloudSessionId: (id: string) => id.startsWith("ses-"),
+			list: vi.fn(async () => [cloudRecord]),
+			find: vi.fn(async (id: string) => (id === cloudRecord.sessionId ? cloudRecord : undefined)),
+			delete: vi.fn(async () => {}),
+		}
+		const { history, deleteSession } = makeHistory([makeSessionRecord("sdk-task")], undefined, undefined, cloud)
+
+		await expect(history.deleteAllTaskHistory()).resolves.toBe(1)
+		await expect(history.deleteAllTaskHistory({ preserveFavorites: true })).resolves.toBe(0)
+
+		expect(deleteSession).toHaveBeenCalledWith("sdk-task")
+		expect(cloud.delete).not.toHaveBeenCalled()
+	})
+
 	it("identifies legacy tasks without migrating them", async () => {
 		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
 		const telemetry = makeTelemetry()
@@ -926,7 +943,12 @@ function makeTelemetry(): TelemetryService {
 	} as unknown as TelemetryService
 }
 
-function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryService, legacyExtensionStorageDir?: string) {
+function makeHistory(
+	records: SessionHistoryRecord[],
+	telemetry?: TelemetryService,
+	legacyExtensionStorageDir?: string,
+	cloud?: CloudHistorySource,
+) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -980,6 +1002,7 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 		sessions,
 		telemetry,
 		legacyExtensionStorageDir,
+		cloud,
 	})
 
 	return {

@@ -16,7 +16,7 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { CommandExitError } from "./executors/bash";
+import { CommandExitError, CommandTerminationError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
@@ -232,7 +232,10 @@ async function executeShellCommands(
 							durationMs: Date.now() - startedAt,
 						});
 					}
-					if (error instanceof CommandExitError) {
+					if (
+						error instanceof CommandExitError ||
+						error instanceof CommandTerminationError
+					) {
 						return {
 							query,
 							result: error.output,
@@ -420,6 +423,18 @@ const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. ";
 
 /**
+ * PowerShell quoting guidance. Models default to bash/C escaping, but in
+ * PowerShell a backslash is an ordinary character: `"a \"b\" c"` ends the
+ * string at the first `\"`, and the rest becomes separate arguments. Through
+ * `cmd /c` that can hand `rmdir /s /q` a bare `\`, which is the root of the
+ * current drive.
+ */
+const POWERSHELL_QUOTING_INSTRUCTIONS =
+	'PowerShell escapes with a backtick (`), not a backslash: inside double quotes, \\" ends the string. Put literal paths in single quotes. ' +
+	"Use cmdlets such as Remove-Item -LiteralPath instead of cmd /c; cmd re-parses the quotes, and a mis-quoted path can become extra targets such as the drive root. " +
+	"Before a recursive or forced delete, confirm the exact target, for example with -WhatIf. ";
+
+/**
  * Build the run_commands tool description for the shell that will actually
  * execute the commands. Derive the edition and wrapper guidance from the
  * same executable, without probing a version or adding volatile prompt text.
@@ -454,6 +469,7 @@ export function buildRunCommandsDescription(
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
 			`Commands run through ${shellName}; quote paths and arguments for ${executable} and use ${sequencingOperator} to sequence commands. ` +
 			`Write commands directly; do not wrap them in another ${wrapper} invocation. ` +
+			(shellKind === "powershell" ? POWERSHELL_QUOTING_INSTRUCTIONS : "") +
 			"Only start another shell when you intentionally need a different shell or a separate process. " +
 			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 		);
@@ -814,7 +830,7 @@ export function createSkillsTool(
  */
 export function createAskQuestionTool(
 	executor: AskQuestionExecutor,
-): AgentTool<AskQuestionInput, string> {
+): AgentTool<AskQuestionInput, Awaited<ReturnType<AskQuestionExecutor>>> {
 	return {
 		name: "ask_question",
 		description:

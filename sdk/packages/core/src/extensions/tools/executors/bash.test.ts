@@ -16,6 +16,7 @@ import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	CommandExitError,
+	CommandSpawnError,
 	cleanupStaleDetachedCommandLogs,
 	createShellExecutor,
 } from "./bash";
@@ -639,6 +640,41 @@ describe("createShellExecutor", () => {
 		await expect(shell("exit 1", process.cwd(), ctx)).rejects.toThrow();
 	});
 
+	it.skipIf(process.platform === "win32").each([false, true])(
+		"preserves signal termination without an exit code (inherited pipes: %s)",
+		async (inheritedPipes) => {
+			const shell = createShellExecutor({ timeoutMs: 5_000 });
+			const script = [
+				inheritedPipes
+					? `require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 2_000)'], { stdio: ['ignore', 1, 2] }).unref();`
+					: "",
+				"process.stdout.write('before signal', () => process.kill(process.pid, 'SIGTERM'));",
+			].join("\n");
+			const error = await shell(
+				{ command: process.execPath, args: ["-e", script] },
+				process.cwd(),
+				ctx,
+			).catch((caught: unknown) => caught);
+
+			expect(error).toMatchObject({
+				name: "CommandTerminationError",
+				signal: "SIGTERM",
+				output: expect.stringContaining("before signal"),
+			});
+			expect(error).not.toHaveProperty("exitCode");
+			expect(error).toHaveProperty(
+				"output",
+				expect.stringContaining("[Command terminated by signal SIGTERM]"),
+			);
+			if (inheritedPipes) {
+				expect(error).toHaveProperty(
+					"output",
+					expect.stringContaining("background processes still running"),
+				);
+			}
+		},
+	);
+
 	it("includes stdout and exit code on non-zero exit", async () => {
 		const shell = createShellExecutor();
 		let error: unknown;
@@ -1119,9 +1155,13 @@ describe("createShellExecutor with inherited stdio", () => {
 	// shell exits while the backgrounded sleep holds the pipes, so 'close'
 	// never arrives - the exit-grace path must write the exit record and
 	// complete the log instead of leaving it in the active state.
-	it.runIf(hasBashShell)(
-		"finalizes a detached log when the shell exits while a background child holds the pipes",
-		async () => {
+	// Git Bash emulates SIGTERM on Windows, where Node observes a numeric
+	// exit code rather than a POSIX signal. Keep the numeric-exit case there.
+	it
+		.runIf(hasBashShell)
+		.each(process.platform === "win32" ? [false] : [false, true])(
+		"finalizes a detached log when the shell exits while a background child holds the pipes (signal: %s)",
+		async (terminateBySignal) => {
 			const controller = new RunCommandExecutionController();
 			let commandStarted = false;
 			let detachReady = false;
@@ -1149,7 +1189,10 @@ describe("createShellExecutor with inherited stdio", () => {
 			const execution = executor(
 				{
 					command: bashShell,
-					args: ["-c", "sleep 30 & echo started; sleep 1"],
+					args: [
+						"-c",
+						`sleep 30 & echo started; sleep 1; ${terminateBySignal ? "kill -TERM $$" : "exit 0"}`,
+					],
 				},
 				process.cwd(),
 				{
@@ -1186,8 +1229,54 @@ describe("createShellExecutor with inherited stdio", () => {
 				await new Promise((resolve) => setTimeout(resolve, 100));
 			}
 			const logText = await readFile(logPath as string, "utf8");
-			expect(logText).toContain("[Command exited with code 0]");
+			expect(logText).toContain(
+				terminateBySignal
+					? "[Command terminated by signal SIGTERM]"
+					: "[Command exited with code 0]",
+			);
 			expect(await fileExists(completedAtPath)).toBe(true);
 		},
 	);
+});
+
+describe("CommandSpawnError", () => {
+	const context: AgentToolContext = {
+		agentId: "agent-1",
+		conversationId: "conversation-1",
+		iteration: 1,
+	};
+
+	it("reports a shell that cannot be started with the operating system error code", async () => {
+		const executor = createShellExecutor({
+			shell: "cline-definitely-missing-shell",
+		});
+		let error: unknown;
+		try {
+			await executor("echo hi", process.cwd(), context);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandSpawnError);
+		expect((error as CommandSpawnError).code).toBe("ENOENT");
+		expect((error as CommandSpawnError).missing).toBe("executable");
+		// The message is what hosts and users saw before; only the class and
+		// code are new.
+		expect((error as Error).message).toContain("Failed to execute command");
+	});
+
+	it("tells a vanished working directory apart from a missing shell", async () => {
+		// spawn reports ENOENT with the same message in both cases; the class
+		// checks the directory so telemetry does not count one as the other.
+		const gone = join(tmpdir(), `cline-gone-${process.pid}-${Date.now()}`);
+		const executor = createShellExecutor();
+		let error: unknown;
+		try {
+			await executor("echo hi", gone, context);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandSpawnError);
+		expect((error as CommandSpawnError).code).toBe("ENOENT");
+		expect((error as CommandSpawnError).missing).toBe("cwd");
+	});
 });

@@ -7,7 +7,11 @@ import {
 	appendCappedCommandOutput,
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
-import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import {
+	MODEL_SELECTION_STORAGE_KEY,
+	writeExecutionTargetToWindow,
+	writeModelSelectionStorageToWindow,
+} from "@/lib/model-selection";
 import { startsNewThread } from "@/lib/work-in-selection";
 import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
@@ -16,6 +20,7 @@ import {
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
+import { usePromptDraft } from "./use-prompt-draft";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -428,6 +433,70 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
+		const drafts = new Map<string, string>();
+		let draft!: ReturnType<typeof usePromptDraft>;
+		function DraftHarness({ threadId }: { threadId: string }) {
+			current = useChatSession("local");
+			draft = usePromptDraft(drafts, threadId);
+			return null;
+		}
+		const show = (threadId: string) =>
+			act(async () => {
+				root.render(<DraftHarness key={threadId} threadId={threadId} />);
+			});
+		const started = deferred<void>();
+		let rejectStart!: (error: Error) => void;
+		const startResult = new Promise<never>((_resolve, reject) => {
+			rejectStart = reject;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request;
+					if (
+						request &&
+						typeof request === "object" &&
+						"action" in request &&
+						request.action === "start"
+					) {
+						started.resolve();
+						return await startResult;
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		await show("A");
+		let restore!: (value: string) => boolean;
+		let send!: Promise<boolean>;
+		await act(async () => {
+			restore = draft.clearPromptForSend();
+			send = current.sendPrompt("Original submitted prompt");
+			await started.promise;
+		});
+		await show("B");
+		await show("A");
+		act(() => draft.handlePromptInputChange("Newer unsent prompt"));
+		await act(async () => {
+			rejectStart(new Error("Provider connection failed"));
+			const accepted = await send;
+			expect(accepted).toBe(false);
+			expect(restore("Original submitted prompt")).toBe(false);
+		});
+		await show("B");
+		await show("A");
+		expect(draft.promptDraft.value).toBe("Newer unsent prompt");
+	});
+
 	const cloudSessionConfig = {
 		provider: "cline",
 		model: "test-model",
@@ -4965,6 +5034,137 @@ describe("useChatSession", () => {
 		expect(userMessages[0]?.content).toBe("First prompt");
 	});
 
+	it("shows plugin failures from session start and later notices in the chat", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "info",
+					message:
+						'Plugin "broken-setup" failed during setup: boom (/p/setup.ts). Its tools and hooks are unavailable.',
+					metadata: { pluginIssue: { name: "broken-setup", state: "failed" } },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			// Ordinary core logs stay out of the transcript.
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({ level: "info", message: "compacting" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const pluginMessages = current.messages.filter(
+			(message) => message.meta?.messageKind === "plugin_issue",
+		);
+		expect(pluginMessages.map((message) => message.role)).toEqual([
+			"status",
+			"status",
+		]);
+		expect(pluginMessages[0]?.content).toContain('Plugin "broken-import"');
+		expect(pluginMessages[1]?.content).toContain('Plugin "broken-setup"');
+		expect(
+			current.messages.some((message) => message.content === "compacting"),
+		).toBe(false);
+	});
+
+	it("re-keys the optimistic bubble past a start-time plugin warning", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true, result: {} };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("hi there");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// The warning row now sits after the optimistic bubble; the queued
+		// start for the same prompt must still find and re-key that bubble.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "hi there",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user" && message.content === "hi there",
+		);
+		expect(userMessages).toHaveLength(1);
+		expect(userMessages[0]?.id).toBe("queued_user_queued-prompt-1");
+		expect(
+			current.messages.filter(
+				(message) => message.meta?.messageKind === "plugin_issue",
+			),
+		).toHaveLength(1);
+	});
+
 	it("explains a failed turn with the latest core error log", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -5238,7 +5438,10 @@ describe("useChatSession", () => {
 		expect(errorMessage?.content).not.toContain("Unauthorized");
 	});
 
-	it("keeps the failure message when post-send hydration replaces the transcript", async () => {
+	it.each([
+		false,
+		true,
+	])("keeps one failure after hydration (persisted: %s)", async (persistedError) => {
 		// Real race: the runtime queues the first prompt of a fresh session, the
 		// turn fails fast (chat_done error appends the failure bubble), and only
 		// then the send RPC resolves — whose canonical-history hydration used to
@@ -5258,6 +5461,17 @@ describe("useChatSession", () => {
 							content: "First prompt",
 							createdAt: Date.now(),
 						},
+						...(persistedError
+							? [
+									{
+										id: "hist_error_1",
+										sessionId: args?.sessionId,
+										role: "error",
+										content: "API key expired.",
+										createdAt: Date.now() + 1,
+									},
+								]
+							: []),
 					];
 				}
 				if (command === "chat_session_command") {
@@ -5310,7 +5524,7 @@ describe("useChatSession", () => {
 		});
 
 		// Canonical hydration replaced the transcript with persisted messages,
-		// which never contain UI-only error bubbles — the failure explanation
+		// which may already contain the saved error — the failure explanation
 		// must survive.
 		const userMessages = current.messages.filter(
 			(message) => message.role === "user",
@@ -5320,7 +5534,35 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		expect(errorMessages).toHaveLength(1);
-		expect(errorMessages[0]?.content).toContain("The run failed");
+		expect(errorMessages[0]?.content).toContain(
+			persistedError ? "API key expired" : "The run failed",
+		);
+		if (persistedError) {
+			const failedSessionId = current.sessionId!;
+			const history = (sessionId: string) => ({
+				sessionId,
+				status: "idle" as const,
+				provider: "openrouter",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-10T00:00:00.000Z",
+			});
+			await act(async () => {
+				await current.hydrateSession(history("another-session"));
+			});
+			await act(async () => {
+				await current.hydrateSession(history(failedSessionId));
+			});
+			expect(
+				current.messages.filter((message) => message.role === "error"),
+			).toEqual([
+				expect.objectContaining({
+					content: "API key expired.",
+					sessionId: failedSessionId,
+				}),
+			]);
+		}
 	});
 
 	it("shows one failure bubble when chat_done lands without detail before the send RPC reports the error", async () => {
@@ -5703,7 +5945,7 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		// "tokens" here is a context-window problem, not a credential problem;
-		// pointing users at Settings → API Providers would be misleading.
+		// pointing users at Settings → Providers would be misleading.
 		expect(errorMessage?.content).toContain("maximum context tokens");
 		expect(errorMessage?.content).not.toContain("Check your model connection");
 	});
@@ -5733,6 +5975,11 @@ describe("useChatSession", () => {
 			current.setConfig((previous) => ({
 				...previous,
 				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
 				model: "sonnet",
 			}));
 		});
@@ -5756,13 +6003,88 @@ describe("useChatSession", () => {
 		const errorMessage = current.messages.find(
 			(message) => message.role === "error",
 		);
-		// Claude Code's login lives in the `claude` CLI; Settings → API Providers has
+		// Claude Code's login lives in the `claude` CLI; Settings → Providers has
 		// nothing that could fix an expired session there.
 		expect(errorMessage?.content).toContain("OAuth session expired");
 		expect(errorMessage?.content).toContain(
 			"Sign in again with the `claude` CLI",
 		);
-		expect(errorMessage?.content).not.toContain("Settings → API Providers");
+		expect(errorMessage?.content).not.toContain("Settings → Providers");
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
+	});
+
+	it("keeps the submitted provider's auth guidance after the selection changes", async () => {
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
+				model: "sonnet",
+			}));
+		});
+		let sendPromise: Promise<unknown> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "anthropic",
+				providerAuth: { providerId: "anthropic", capabilities: [] },
+				model: "claude-sonnet",
+			}));
+		});
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "Failed to authenticate: OAuth session expired.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain(
+			"Sign in again with the `claude` CLI",
+		);
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
@@ -6075,6 +6397,134 @@ describe("useChatSession", () => {
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
 			environmentId: "local",
 			path: "/workspace/deleted",
+		});
+	});
+
+	it.each([
+		"local",
+		"cloud",
+	] as const)("restores the Cloud target and model after viewing a %s session", async (target) => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "openrouter",
+				lastModelByProvider: {
+					openrouter: "local-model",
+					cline: "cline-local",
+				},
+			}),
+		);
+		writeExecutionTargetToWindow("cloud");
+		writeModelSelectionStorageToWindow(
+			{ lastProvider: "cline", lastModelByProvider: { cline: "cloud-model" } },
+			"cloud",
+		);
+		const hydratedSessionId = "session-local-history";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "openrouter",
+							model: "local-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+
+		expect(current.config).toMatchObject({
+			executionTarget: "cloud",
+			provider: "cline",
+			model: "cloud-model",
+			repoUrl: undefined,
+		});
+
+		// History must not replace the defaults for the next new chat.
+		await act(async () => {
+			await current.hydrateSession({
+				environmentId: "local",
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "openrouter",
+				model: "local-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-01T00:00:00Z",
+				...(target === "cloud"
+					? {
+							origin: "cloud",
+							repoUrl: "https://github.com/cline/other",
+							metadata: { gitBranch: "feature" },
+							...cloudSessionConfig,
+						}
+					: {}),
+			});
+		});
+		expect(current.config).toMatchObject({
+			executionTarget: target,
+		});
+		await act(async () => {
+			await current.reset();
+		});
+		expect(current.config).toMatchObject({
+			sessionId: undefined,
+			executionTarget: "cloud",
+			provider: "cline",
+			model: "cloud-model",
+			repoUrl: undefined,
+			branch: undefined,
+		});
+	});
+
+	it("keeps remote environments on Local even when Cloud is remembered", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "openrouter",
+				lastModelByProvider: { openrouter: "local-model" },
+			}),
+		);
+		writeExecutionTargetToWindow("cloud");
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return {
+					environmentId: "pi-server",
+					cwd: "/home/pi/app",
+					workspaceRoot: "/home/pi/app",
+				};
+			}
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () =>
+			root.render(<HookHarness environmentId="pi-server" />),
+		);
+
+		expect(current.config).toMatchObject({
+			executionTarget: "local",
+			provider: "openrouter",
+			model: "local-model",
 		});
 	});
 

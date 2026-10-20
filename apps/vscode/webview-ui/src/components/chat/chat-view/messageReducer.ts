@@ -33,6 +33,11 @@ export interface ReplicaState {
 	 * phase (e.g. "streaming"). `undefined` for classic/legacy state with no turnState.
 	 */
 	turnState?: TurnState
+	/**
+	 * Set when a lone newer-epoch message advanced `epoch` while the transcript still holds
+	 * the previous epoch's rows. The first snapshot at `epoch` replaces them.
+	 */
+	transcriptCarriedForward?: boolean
 }
 
 /** Create an empty replica. */
@@ -105,14 +110,15 @@ export function applyMessage(state: ReplicaState, incoming: ClineMessage): Repli
 
 	if (incomingEpoch > state.epoch) {
 		// Advance the fence without throwing away an existing transcript. Carry the prior
-		// messages forward at the new epoch and merge this one in; a subsequent newer-epoch
-		// snapshot performs the real wholesale replace when a genuine new task begins.
+		// messages forward at the new epoch and merge this one in; the first snapshot at this
+		// epoch (applyStateSnapshot) replaces the carried rows with the real transcript.
 		const advanced: ReplicaState = {
 			messages: [...state.messages],
 			epoch: incomingEpoch,
 			seqByTs: new Map(state.seqByTs),
 			stateVersion: state.stateVersion,
 			turnState: state.turnState,
+			transcriptCarriedForward: state.messages.length > 0,
 		}
 		return applyMessage(advanced, incoming)
 	}
@@ -145,6 +151,8 @@ export function applyMessage(state: ReplicaState, incoming: ClineMessage): Repli
  *
  *  - older epoch        -> drop entirely
  *  - newer epoch        -> replace the transcript wholesale (new task / history load)
+ *  - same epoch, reached by a partial before any snapshot
+ *                       -> replace the carried-forward transcript, keeping this epoch's partials
  *  - same epoch:
  *      - older/equal stateVersion -> ignore (a newer snapshot already applied)
  *      - newer stateVersion       -> MERGE each message by ts/seq (NEVER truncate). This is the
@@ -173,7 +181,19 @@ export function applyStateSnapshot(
 		return resetTo(snapshotEpoch, snapshotMessages, snapshotVersion, snapshotTurnState)
 	}
 
-	// Same epoch.
+	// Same epoch. When a partial reached this epoch first, the replica still shows the
+	// previous conversation's rows. This is the snapshot that would have replaced them had it
+	// arrived first, so apply it that way, then re-merge the partials already held for this
+	// epoch (they may be fresher than the snapshot's copies).
+	if (state.transcriptCarriedForward) {
+		let next = resetTo(snapshotEpoch, snapshotMessages, snapshotVersion, state.turnState)
+		for (const message of state.messages) {
+			if (epochOf(message) === snapshotEpoch) {
+				next = applyMessage(next, message)
+			}
+		}
+		return applyTurnState(next, snapshotTurnState)
+	}
 	if (snapshotVersion !== 0 && snapshotVersion <= state.stateVersion) {
 		// A newer (or equal) snapshot already applied for the transcript — but a turnState with a
 		// higher seq may still need to move the UI forward, so don't bail before the seq gate.

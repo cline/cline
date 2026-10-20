@@ -91,7 +91,7 @@ async function createFixture() {
 	return {
 		ctx,
 		manager,
-		live,
+		live: manager["sessions"].get("ses-outer")!,
 		connection,
 		command,
 		replies,
