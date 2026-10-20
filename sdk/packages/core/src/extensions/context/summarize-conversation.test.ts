@@ -185,31 +185,6 @@ describe("summarizeConversation", () => {
 		expect({ history, connection }).toEqual(original);
 	});
 
-	it("shortens an older pasted prompt and long history while retaining the latest instruction and result", async () => {
-		const latestResult = `${"Investigation detail. ".repeat(40)} Tests failed; do not release.`;
-		const history: MessageWithMetadata[] = [
-			{ role: "user", content: `Old context: ${"x".repeat(120_000)}` },
-			...Array.from({ length: 200 }, () => ({
-				role: "assistant" as const,
-				content: "Old investigation. ".repeat(60),
-			})),
-			{ role: "user", content: "Now fix empty input." },
-			{
-				role: "assistant",
-				content: latestResult,
-			},
-		];
-		const original = structuredClone(history);
-		await summarizeConversation({ messages: history, config });
-		const [systemPrompt, request] = createMessageMock.mock.calls[0];
-		expect(
-			estimateTokens(systemPrompt.length + request[0].content.length),
-		).toBeLessThanOrEqual(32_000);
-		expect(request[0].content).toContain("Now fix empty input");
-		expect(request[0].content).toContain(latestResult);
-		expect(history).toEqual(original);
-	});
-
 	it("preserves prior constraints when a large completed tool call must be dropped", async () => {
 		const prior = buildSummaryMessage({
 			summary: "Preserve the legacy delimiter.",
@@ -250,7 +225,11 @@ describe("summarizeConversation", () => {
 					userRunSpan: 1,
 				})
 			: messages[0];
-		const history: MessageWithMetadata[] = [start];
+		const history: MessageWithMetadata[] = [
+			{ role: "user", content: `Old context: ${"x".repeat(120_000)}` },
+			{ role: "assistant", content: "Old investigation. ".repeat(60) },
+			start,
+		];
 		for (let index = 0; index < 100; index += 1) {
 			history.push(
 				...toolExchange(
@@ -264,19 +243,20 @@ describe("summarizeConversation", () => {
 				),
 			);
 		}
+		const latestResult = `${"Investigation detail. ".repeat(40)} Unicode tests still fail.`;
 		history.push({
 			role: "assistant",
-			content: "Latest result: Unicode tests still fail.",
+			content: latestResult,
 		});
+		const original = structuredClone(history);
 		await summarizeConversation({ messages: history, config });
 		const [systemPrompt, request] = createMessageMock.mock.calls[0];
 		expect(
 			estimateTokens(systemPrompt.length + request[0].content.length),
 		).toBeLessThanOrEqual(32_000);
 		expect(request[0].content).toContain("Fix the parser");
-		expect(request[0].content).toContain(
-			"Latest result: Unicode tests still fail.",
-		);
+		expect(request[0].content).toContain(latestResult);
+		expect(history).toEqual(original);
 	});
 
 	it.each([
