@@ -12,6 +12,10 @@ backoff begins. A recovered request keeps a successful overall trace; exhausted
 retries mark the overall operation as failed. Span export follows the configured
 telemetry processor's flushing policy.
 
+Caller cancellation closes model-call spans without recording an exception or
+marking a provider failure, including cancellation before the response opens.
+Timeout cancellations remain failures.
+
 ## Oversized tool result recovery
 
 Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.

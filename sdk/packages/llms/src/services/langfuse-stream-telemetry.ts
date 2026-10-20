@@ -1,3 +1,4 @@
+import { isAbortError } from "@ai-sdk/provider-utils";
 import { LangfuseVercelAiSdkIntegration } from "@langfuse/vercel-ai-sdk";
 import { type Span, SpanStatusCode, type Tracer } from "@opentelemetry/api";
 import type {
@@ -5,7 +6,10 @@ import type {
 	LanguageModelCallStartEvent,
 	ToolSet,
 } from "ai";
-import type { StreamAttemptTelemetry } from "./stream-error-telemetry";
+import {
+	isTimeoutReason,
+	type StreamAttemptTelemetry,
+} from "./stream-error-telemetry";
 
 /** Owns the lifetime of model attempts that end without an AI SDK finish event. */
 export class LangfuseStreamTelemetry
@@ -90,6 +94,8 @@ export class LangfuseStreamTelemetry
 		callId: string;
 		error: unknown;
 	}): void {
+		// Intentional cancellation is not a provider failure; timeouts still are.
+		if (isAbortError(error) && !isTimeoutReason(error)) return;
 		const span = this.attempts.get(callId);
 		if (!span) return;
 		const message =
@@ -112,9 +118,14 @@ export class LangfuseStreamTelemetry
 			"callId" in error &&
 			typeof error.callId === "string"
 		) {
+			const cause = "error" in error ? error.error : error;
+			if (isAbortError(cause) && !isTimeoutReason(cause)) {
+				this.endAttempt(error.callId);
+				return;
+			}
 			this.onLanguageModelCallError({
 				callId: error.callId,
-				error: "error" in error ? error.error : error,
+				error: cause,
 			});
 			this.endAttempt(error.callId);
 		}

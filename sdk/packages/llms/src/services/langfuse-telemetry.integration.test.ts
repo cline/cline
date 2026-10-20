@@ -204,6 +204,74 @@ it.each([
 });
 
 it.each([
+	["relay", "AbortError"],
+	["direct", "AbortError"],
+	["relay", "TimeoutError"],
+	["direct", "TimeoutError"],
+] as const)("handles %s %s while the provider request is opening", async (route, name) => {
+	if (route === "direct") {
+		trace.disable();
+		context.disable();
+		vi.stubEnv("LANGFUSE_BASE_URL", "https://langfuse.example");
+		vi.stubEnv("LANGFUSE_PUBLIC_KEY", "public-key");
+		vi.stubEnv("LANGFUSE_SECRET_KEY", "secret-key");
+	}
+	const controller = new AbortController();
+	const reason = new DOMException("request stopped before response", name);
+	const { telemetry, recordError } = createStreamErrorTelemetry(
+		await resolveAiSdkTelemetry("cline", "opening-request"),
+	);
+	let calls = 0;
+	const result = streamText({
+		model: new MockLanguageModelV4({
+			provider: "cline",
+			modelId: "opening-request",
+			doStream: ({ abortSignal }) => {
+				calls++;
+				return new Promise((_, reject) => {
+					abortSignal?.addEventListener(
+						"abort",
+						() => reject(abortSignal.reason),
+						{ once: true },
+					);
+					queueMicrotask(() => controller.abort(reason));
+				});
+			},
+		}),
+		prompt: "test",
+		abortSignal: controller.signal,
+		maxRetries: 3,
+		telemetry,
+		onError: ({ error }) => recordError(error),
+	});
+	for (const promise of [
+		result.text,
+		result.usage,
+		result.totalUsage,
+		result.finishReason,
+		result.steps,
+		result.response,
+	])
+		promise.catch(() => {});
+	await result.consumeStream();
+	await provider.forceFlush();
+	expect(calls).toBe(1);
+	const spans = (
+		route === "direct" ? directExporters[0] : exporter
+	).getFinishedSpans();
+	expect(spans.some((span) => span.name === "chat opening-request")).toBe(true);
+	expect(spans.some((span) => !span.parentSpanContext)).toBe(true);
+	for (const span of spans) {
+		expect(span.status.code).toBe(
+			name === "AbortError" ? SpanStatusCode.UNSET : SpanStatusCode.ERROR,
+		);
+		expect(span.events.some((event) => event.name === "exception")).toBe(
+			name === "TimeoutError",
+		);
+	}
+});
+
+it.each([
 	["relay", 2, true],
 	["relay", 4, true],
 	["relay", 2, false],
