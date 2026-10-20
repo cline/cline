@@ -135,9 +135,35 @@ async function projectAgentEvent(
 	event: Extract<CoreSessionEvent, { type: "agent_event" }>,
 ): Promise<void> {
 	const { sessionId, event: agentEvent } = event.payload;
+	// Teammate and subagent events stream under the root session. Tag them with
+	// the agent that produced them so clients can keep them out of the lead's
+	// transcript; notices and usage already carry the full agent record.
+	const childAgent =
+		event.payload.teamRole === "teammate" || agentEvent.parentAgentId
+			? {
+					kind: event.payload.teamRole === "teammate" ? "teammate" : "subagent",
+					agentId: agentEvent.agentId,
+					conversationId: agentEvent.conversationId,
+					parentAgentId: agentEvent.parentAgentId,
+					teamAgentId: event.payload.teamAgentId,
+					teamRole: event.payload.teamRole,
+				}
+			: undefined;
+	const buildEvent: HubTransportContext["buildEvent"] = (
+		name,
+		payload,
+		eventSessionId,
+	) =>
+		ctx.buildEvent(
+			name,
+			childAgent && !payload?.agent
+				? { ...payload, agent: childAgent }
+				: payload,
+			eventSessionId,
+		);
 	if (agentEvent.type === "iteration_start") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildEvent(
 				"iteration.started",
 				{ iteration: agentEvent.iteration },
 				sessionId,
@@ -147,7 +173,7 @@ async function projectAgentEvent(
 	}
 	if (agentEvent.type === "iteration_end") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildEvent(
 				"iteration.finished",
 				{
 					iteration: agentEvent.iteration,
@@ -166,14 +192,14 @@ async function projectAgentEvent(
 			agentEvent.text.length > 0
 		) {
 			ctx.publish(
-				ctx.buildEvent("assistant.delta", { text: agentEvent.text }, sessionId),
+				buildEvent("assistant.delta", { text: agentEvent.text }, sessionId),
 			);
 			return;
 		}
 		if (agentEvent.contentType === "reasoning") {
 			if (agentEvent.redacted && !agentEvent.reasoning) {
 				ctx.publish(
-					ctx.buildEvent(
+					buildEvent(
 						"reasoning.delta",
 						{ text: "", redacted: true },
 						sessionId,
@@ -186,7 +212,7 @@ async function projectAgentEvent(
 				agentEvent.reasoning.length > 0
 			) {
 				ctx.publish(
-					ctx.buildEvent(
+					buildEvent(
 						"reasoning.delta",
 						{
 							text: agentEvent.reasoning,
@@ -200,7 +226,7 @@ async function projectAgentEvent(
 		}
 		if (agentEvent.contentType === "tool") {
 			ctx.publish(
-				ctx.buildEvent(
+				buildEvent(
 					"tool.started",
 					{
 						toolCallId: agentEvent.toolCallId,
@@ -218,7 +244,7 @@ async function projectAgentEvent(
 		agentEvent.contentType === "tool"
 	) {
 		ctx.publish(
-			ctx.buildEvent(
+			buildEvent(
 				"tool.updated",
 				{
 					toolCallId: agentEvent.toolCallId,
@@ -234,7 +260,7 @@ async function projectAgentEvent(
 		switch (agentEvent.contentType) {
 			case "text":
 				ctx.publish(
-					ctx.buildEvent(
+					buildEvent(
 						"assistant.finished",
 						{ text: agentEvent.text },
 						sessionId,
@@ -244,7 +270,7 @@ async function projectAgentEvent(
 			case "media":
 				if (agentEvent.media) {
 					ctx.publish(
-						ctx.buildEvent(
+						buildEvent(
 							"assistant.media",
 							{ media: agentEvent.media },
 							sessionId,
@@ -254,7 +280,7 @@ async function projectAgentEvent(
 				break;
 			case "reasoning":
 				ctx.publish(
-					ctx.buildEvent(
+					buildEvent(
 						"reasoning.finished",
 						{ reasoning: agentEvent.reasoning },
 						sessionId,
@@ -263,7 +289,7 @@ async function projectAgentEvent(
 				break;
 			case "tool":
 				ctx.publish(
-					ctx.buildEvent(
+					buildEvent(
 						"tool.finished",
 						{
 							toolCallId: agentEvent.toolCallId,
@@ -280,7 +306,7 @@ async function projectAgentEvent(
 	}
 	if (agentEvent.type === "notice") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildEvent(
 				"session.notice",
 				{
 					sessionId,
@@ -318,7 +344,7 @@ async function projectAgentEvent(
 			usageSummary = undefined;
 		}
 		ctx.publish(
-			ctx.buildEvent(
+			buildEvent(
 				"usage.updated",
 				{
 					sessionId,
@@ -360,7 +386,7 @@ async function projectAgentEvent(
 	}
 	if (agentEvent.type === "done") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildEvent(
 				"agent.done",
 				{
 					reason: agentEvent.reason,

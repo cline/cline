@@ -493,6 +493,30 @@ function usageMetric(
 	return finiteNumber(record?.[key]) ?? 0;
 }
 
+/**
+ * Team identity of a hub event streamed by a teammate or subagent under the root
+ * session, so hosts can tell its activity apart from the lead's own.
+ */
+function teamIdentityFromPayload(
+	payload: Record<string, unknown> | undefined,
+): {
+	teamRole?: "lead" | "teammate";
+	teamAgentId?: string;
+} {
+	const agent =
+		payload?.agent && typeof payload.agent === "object"
+			? (payload.agent as Record<string, unknown>)
+			: undefined;
+	return {
+		...(agent?.teamRole === "lead" || agent?.teamRole === "teammate"
+			? { teamRole: agent.teamRole }
+			: {}),
+		...(typeof agent?.teamAgentId === "string"
+			? { teamAgentId: agent.teamAgentId }
+			: {}),
+	};
+}
+
 function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 	event: Extract<AgentEvent, { type: "usage" }>;
 	teamAgentId?: string;
@@ -1607,11 +1631,13 @@ export class HubRuntimeHost implements RuntimeHost {
 		toolCallId?: string;
 		toolName?: string;
 		toolInput?: unknown;
+		team?: ReturnType<typeof teamIdentityFromPayload>;
 	}): void {
 		this.events.emit({
 			type: "agent_event",
 			payload: {
 				sessionId: input.sessionId,
+				...input.team,
 				event: {
 					type: "content_start",
 					contentType: "tool",
@@ -1672,6 +1698,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		if (!sessionId) {
 			return;
 		}
+		const team = teamIdentityFromPayload(event.payload);
 
 		switch (event.event) {
 			case "run.started": {
@@ -1698,6 +1725,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "iteration_start",
 							iteration:
@@ -1714,6 +1742,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "iteration_end",
 							iteration:
@@ -1796,6 +1825,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_start",
 							contentType: "text",
@@ -1819,6 +1849,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_end",
 							contentType: "media",
@@ -1833,6 +1864,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_end",
 							contentType: "text",
@@ -1856,6 +1888,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_start",
 							contentType: "reasoning",
@@ -1871,6 +1904,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_end",
 							contentType: "reasoning",
@@ -1884,6 +1918,19 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "agent.done": {
+				// A teammate finishing is not the lead's run finishing; marking it
+				// done would end the session's turn while the lead is still working.
+				if (team.teamRole === "teammate") {
+					this.events.emit({
+						type: "agent_event",
+						payload: {
+							sessionId,
+							...team,
+							event: doneEventFromPayload(event.payload),
+						},
+					});
+					return;
+				}
 				this.emitAgentDoneIfNeeded({
 					sessionId,
 					payload: event.payload,
@@ -1896,6 +1943,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: usage.event,
 						teamAgentId: usage.teamAgentId,
 						teamRole: usage.teamRole,
@@ -1913,6 +1961,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				}
 				this.emitToolCallContentStart({
 					sessionId,
+					team,
 					toolCallId,
 					toolName:
 						typeof event.payload?.toolName === "string"
@@ -1927,6 +1976,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_update",
 							contentType: "tool",
@@ -1956,6 +2006,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					type: "agent_event",
 					payload: {
 						sessionId,
+						...team,
 						event: {
 							type: "content_end",
 							contentType: "tool",

@@ -1414,6 +1414,87 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("keeps teammate identity on streamed events and does not end the lead run", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: string;
+					sessionId: string;
+					payload?: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		const agent = {
+			kind: "teammate",
+			teamRole: "teammate",
+			teamAgentId: "reviewer",
+		};
+		onEvent?.({
+			version: 1,
+			event: "assistant.delta",
+			sessionId: "sess-1",
+			payload: { text: "Reviewing", agent },
+		});
+		onEvent?.({
+			version: 1,
+			event: "agent.done",
+			sessionId: "sess-1",
+			payload: { reason: "completed", text: "Approved", agent },
+		});
+		onEvent?.({
+			version: 1,
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: { reason: "completed", result: { text: "Lead done" } },
+		});
+
+		expect(events).toContainEqual({
+			type: "agent_event",
+			payload: {
+				sessionId: "sess-1",
+				teamRole: "teammate",
+				teamAgentId: "reviewer",
+				event: {
+					type: "content_start",
+					contentType: "text",
+					text: "Reviewing",
+				},
+			},
+		});
+		const done = agentDoneEvents(events);
+		expect(done).toHaveLength(2);
+		expect(done[0]?.payload).toMatchObject({ teamRole: "teammate" });
+		expect(done[1]?.payload).not.toHaveProperty("teamRole");
+		expect(done[1]?.payload.event).toMatchObject({ text: "Lead done" });
+	});
+
 	it("maps hub aborted runs back to aborted agent events", async () => {
 		let onEvent:
 			| ((event: {
