@@ -400,4 +400,17 @@ describe("hub-owned plugin commands", () => {
 			),
 		).rejects.toThrow("authority");
 	});
+	it("rejects an unregistered remote connection regardless of workspace", async () => {
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					clientId: "unregistered",
+					command: "plugins.commands.run",
+					payload: { workspacePath: root, prompt: "/counter" },
+				},
+				null,
+			),
+		).rejects.toThrow("Hub-authorized workspace");
+	});
 });
