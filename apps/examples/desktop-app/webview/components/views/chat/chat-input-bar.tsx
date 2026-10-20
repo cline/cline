@@ -622,6 +622,7 @@ function ChatInputBarImpl({
 		() => getActiveMention(promptInput, cursorIndex),
 		[promptInput, cursorIndex],
 	);
+	const mentionQuery = activeMention?.query;
 	const [dismissedMentionKey, setDismissedMentionKey] = useState<string | null>(
 		null,
 	);
@@ -636,7 +637,6 @@ function ChatInputBarImpl({
 	const [mentionLoading, setMentionLoading] = useState(false);
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
-	const mentionLastRequestKeyRef = useRef<string | null>(null);
 
 	// ---- Slash command state ----
 	const activeSlash = useMemo(
@@ -890,7 +890,13 @@ function ChatInputBarImpl({
 	}, [promptInput.length]);
 
 	useEffect(() => {
-		if (!mentionOpen || !activeMention) {
+		if (mentionKey === null) {
+			setDismissedMentionKey(null);
+		}
+	}, [mentionKey]);
+
+	useEffect(() => {
+		if (!mentionOpen || mentionQuery === undefined) {
 			setMentionFiles([]);
 			setMentionLoading(false);
 			setMentionSelectedIndex(0);
@@ -900,12 +906,8 @@ function ChatInputBarImpl({
 		const requestKey = buildWorkspaceFileSearchKey(
 			environmentId,
 			workspaceRoot,
-			activeMention.query,
+			mentionQuery,
 		);
-		if (mentionLastRequestKeyRef.current === requestKey) {
-			return;
-		}
-		mentionLastRequestKeyRef.current = requestKey;
 		const cached = mentionResultsCacheRef.current.get(requestKey);
 		if (cached) {
 			setMentionFiles(cached);
@@ -914,18 +916,18 @@ function ChatInputBarImpl({
 			return;
 		}
 
+		setMentionFiles([]);
+		setMentionSelectedIndex(0);
+		setMentionLoading(true);
 		let cancelled = false;
 		const timeoutId = window.setTimeout(async () => {
-			if (mentionFiles.length === 0) {
-				setMentionLoading(true);
-			}
 			try {
 				const results = await desktopClient.invoke<string[]>(
 					"search_workspace_files",
 					{
 						environmentId,
 						workspaceRoot,
-						query: activeMention.query,
+						query: mentionQuery,
 						limit: 10,
 					},
 				);
@@ -940,9 +942,7 @@ function ChatInputBarImpl({
 				if (cancelled) {
 					return;
 				}
-				if (mentionFiles.length === 0) {
-					setMentionFiles([]);
-				}
+				setMentionFiles([]);
 			} finally {
 				if (!cancelled) {
 					setMentionLoading(false);
@@ -954,13 +954,7 @@ function ChatInputBarImpl({
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [
-		activeMention,
-		environmentId,
-		mentionOpen,
-		workspaceRoot,
-		mentionFiles.length,
-	]);
+	}, [mentionQuery, environmentId, mentionOpen, workspaceRoot]);
 
 	const insertMentionFile = useCallback(
 		(filePath: string) => {
