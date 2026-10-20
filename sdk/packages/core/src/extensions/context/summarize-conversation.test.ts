@@ -217,7 +217,10 @@ describe("summarizeConversation", () => {
 		);
 	});
 
-	it("uses the selected model's limits after switching models", async () => {
+	it.each([
+		"active",
+		"switched",
+	])("uses the %s model's input and output limits", async (source) => {
 		const current = {
 			id: "current-model",
 			contextWindow: 4096,
@@ -232,8 +235,12 @@ describe("summarizeConversation", () => {
 					providerConfig: {
 						...config,
 						maxOutputTokens: 8192,
-						modelInfo: { id: "old-model", contextWindow: 2048, maxTokens: 512 },
-						knownModels: { [current.id]: current },
+						modelInfo:
+							source === "active"
+								? current
+								: { id: "old-model", contextWindow: 2048, maxTokens: 512 },
+						knownModels:
+							source === "switched" ? { [current.id]: current } : undefined,
 					},
 				},
 			}),
