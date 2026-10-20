@@ -144,13 +144,10 @@ interface RoutineOverviewResponse {
 	lastExecutions: RoutineExecution[];
 }
 
-const ROUTINE_OVERVIEW_CACHE_TTL_MS = 30_000;
+const ROUTINE_OVERVIEW_POLL_INTERVAL_MS = 15_000;
 
-let routineOverviewCache:
-	| (RoutineOverviewResponse & {
-			fetchedAt: number;
-	  })
-	| null = null;
+// Preserve the last snapshot for navigation, but always revalidate on mount.
+let routineOverviewCache: RoutineOverviewResponse | null = null;
 
 async function fetchRoutineOverview(): Promise<RoutineOverviewResponse> {
 	const response = await desktopClient.invoke<RoutineOverviewResponse>(
@@ -517,6 +514,7 @@ export function RoutineSchedulesContent({
 	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const overviewRequestSequence = useRef(0);
 	// Sets rather than single ids: several rows can have in-flight actions at
 	// once, and one action finishing must not clear another row's busy state.
 	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
@@ -732,28 +730,19 @@ export function RoutineSchedulesContent({
 	]);
 
 	const refreshSchedules = useCallback(
-		async (options?: { force?: boolean; showLoading?: boolean }) => {
-			const now = Date.now();
-			if (
-				!options?.force &&
-				routineOverviewCache &&
-				now - routineOverviewCache.fetchedAt < ROUTINE_OVERVIEW_CACHE_TTL_MS
-			) {
-				setSchedules(routineOverviewCache.schedules);
-				setActiveExecutions(routineOverviewCache.activeExecutions);
-				setUpcomingRuns(routineOverviewCache.upcomingRuns);
-				setLastExecutions(routineOverviewCache.lastExecutions);
-				setErrorMessage(null);
-				setIsLoading(false);
-				return;
-			}
-
+		async (options?: { showLoading?: boolean }) => {
 			if (options?.showLoading !== false) {
 				setIsLoading(true);
 			}
+			const requestId = ++overviewRequestSequence.current;
 			setErrorMessage(null);
 			try {
 				const response = await fetchRoutineOverview();
+				if (
+					!mountedRef.current ||
+					requestId !== overviewRequestSequence.current
+				)
+					return;
 				const schedules = response.schedules;
 				const activeExecutions = response.activeExecutions;
 				const upcomingRuns = response.upcomingRuns;
@@ -767,24 +756,59 @@ export function RoutineSchedulesContent({
 					activeExecutions,
 					upcomingRuns,
 					lastExecutions,
-					fetchedAt: now,
 				};
 				return response;
 			} catch (error) {
+				if (
+					!mountedRef.current ||
+					requestId !== overviewRequestSequence.current
+				)
+					return;
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
 			} finally {
-				setIsLoading(false);
+				if (
+					mountedRef.current &&
+					requestId === overviewRequestSequence.current
+				) {
+					setIsLoading(false);
+				}
 			}
 		},
 		[],
 	);
 
 	useEffect(() => {
+		const refresh = () => {
+			void refreshSchedules({ showLoading: false });
+		};
+		const refreshVisible = () => {
+			if (document.visibilityState === "visible") refresh();
+		};
 		const timeoutId = window.setTimeout(() => {
-			void refreshSchedules();
+			refresh();
 		}, 0);
-		return () => window.clearTimeout(timeoutId);
+		// Completion events deliver errors promptly, including failures before
+		// session creation. Polling also picks up queued/running transitions
+		// and changes missed during a transport disconnect.
+		const unsubscribers = [
+			"schedule.execution_completed",
+			"schedule.execution_failed",
+		].map((event) => desktopClient.subscribe(event, refresh));
+		const intervalId = window.setInterval(
+			refreshVisible,
+			ROUTINE_OVERVIEW_POLL_INTERVAL_MS,
+		);
+		window.addEventListener("focus", refreshVisible);
+		document.addEventListener("visibilitychange", refreshVisible);
+		return () => {
+			overviewRequestSequence.current += 1;
+			window.clearTimeout(timeoutId);
+			window.clearInterval(intervalId);
+			for (const unsubscribe of unsubscribers) unsubscribe();
+			window.removeEventListener("focus", refreshVisible);
+			document.removeEventListener("visibilitychange", refreshVisible);
+		};
 	}, [refreshSchedules]);
 
 	const upsertScheduleEnabled = async (
@@ -805,7 +829,7 @@ export function RoutineSchedulesContent({
 					schedule_id: schedule.scheduleId,
 				});
 			}
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -835,7 +859,7 @@ export function RoutineSchedulesContent({
 					description: `"${schedule.name}" did not queue a run — the schedule may be disabled or deleted.`,
 					variant: "destructive",
 				});
-				await refreshSchedules({ force: true, showLoading: false });
+				await refreshSchedules({ showLoading: false });
 				return;
 			}
 			toast({
@@ -859,7 +883,6 @@ export function RoutineSchedulesContent({
 				Date.now() < deadline
 			) {
 				const overview = await refreshSchedules({
-					force: true,
 					showLoading: false,
 				});
 				const executions = [
@@ -901,7 +924,7 @@ export function RoutineSchedulesContent({
 				schedule_id: scheduleId,
 			});
 			setSchedulePendingDelete(null);
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -1093,7 +1116,7 @@ export function RoutineSchedulesContent({
 				enabled: createForm.enabled,
 				tags: tags ?? [],
 			});
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 			setIsCreateOpen(false);
 			setEditingSchedule(null);
 		} catch (error) {
@@ -1185,6 +1208,7 @@ export function RoutineSchedulesContent({
 						<Button
 							variant="outline"
 							size="sm"
+							aria-label="Refresh schedules"
 							onClick={() => void refreshSchedules()}
 							disabled={isLoading}
 						>
@@ -1409,7 +1433,7 @@ export function RoutineSchedulesContent({
 										</p>
 									)}
 									{lastExecution?.errorMessage && (
-										<p className="text-destructive">
+										<p className="whitespace-pre-wrap break-words text-destructive">
 											<span className="text-muted-foreground/70">
 												Last error:
 											</span>{" "}
@@ -1572,7 +1596,7 @@ export function RoutineSchedulesContent({
 														{execution.status || "Unknown result"}
 													</span>
 													{execution.errorMessage && (
-														<span className="block truncate text-xs text-destructive">
+														<span className="block whitespace-pre-wrap break-words text-xs text-destructive">
 															{execution.errorMessage}
 														</span>
 													)}
