@@ -45,22 +45,29 @@ import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
 import { buildUserInputMessage } from "./prompt";
 import { subscribeToAgentEvents } from "./session-events";
 
-function printModelProviderInfo(config: Config, sessionId: string): void {
+function emitRunStart(config: Config, sessionId: string): void {
 	const catalog = config.knownModels ? "live" : "bundled";
 	const thinking = config.thinking ? "on" : "off";
 	const { mode, providerId, modelId } = config;
-	if (config.outputMode === "json") {
-		emitJsonLine("stdout", {
-			type: "run_start",
-			providerId,
-			modelId,
-			catalog,
-			thinking,
-			mode,
-			sessionId,
-		});
-		return;
-	}
+
+	// The active session is only registered after sessionManager.start() resolves,
+	// so run_start must use the session ID planned for this invocation instead.
+	emitJsonLine("stdout", {
+		type: "run_start",
+		providerId,
+		modelId,
+		catalog,
+		thinking,
+		mode,
+		sessionId,
+	});
+}
+
+function printModelProviderInfo(config: Config): void {
+	const catalog = config.knownModels ? "live" : "bundled";
+	const thinking = config.thinking ? "on" : "off";
+	const { mode, providerId, modelId } = config;
+
 	writeln(
 		`${c.dim}[model] provider=${providerId} model=${modelId} catalog=${catalog} thinking=${thinking} mode=${mode}${c.reset}\n`,
 	);
@@ -271,8 +278,10 @@ export async function runAgent(
 
 	// --- Main execution ---
 	try {
-		if (config.verbose || config.outputMode === "json") {
-			printModelProviderInfo(config, plannedSessionId);
+		if (config.outputMode === "json") {
+			emitRunStart(config, plannedSessionId);
+		} else if (config.verbose) {
+			printModelProviderInfo(config);
 		}
 		const {
 			prompt: userInput,

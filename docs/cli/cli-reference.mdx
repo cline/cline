@@ -344,13 +344,14 @@ When you give Cline a task with `--json`, the CLI prints one JSON object per lin
 
 | `type` | Description |
 |--------|-------------|
+| `run_start` | The first line of a run. `sessionId` is the ID of the session created for this invocation, alongside `providerId`, `modelId`, `mode`, `catalog` and `thinking` |
 | `agent_event` | An event from the agent, in `event`. `event.type` is one of the [agent events](/sdk/reference/events#agentevent): `content_start`, `content_update`, `content_end`, `iteration_start`, `iteration_end`, `usage`, `notice`, `done` or `error` |
 | `hook_event` | A lifecycle hook ran (`hookEventName`, `agentId`, `taskId`) |
 | `team_event` | An event from an [agent team](/cli/agent-teams), in `event` |
 | `run_result` | The run finished: `finishReason`, `iterations`, `usage`, `durationMs`, `model` and the final `text`. A stopped run has `finishReason` `aborted` |
 | `run_aborted` | Follows `run_result` when you or another client stopped the run (`reason`, `message`) |
 
-Errors, including a `--timeout` that stops the run, are printed to stderr as `{"type":"error","message":...}`. Other line types can appear, such as `run_start` with `--verbose`, so have scripts skip types they don't use.
+Errors, including a `--timeout` that stops the run, are printed to stderr as `{"type":"error","message":...}`. Other line types can also appear, so have scripts skip types they don't use.
 
 To print only the final answer:
 
