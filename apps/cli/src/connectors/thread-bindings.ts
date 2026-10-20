@@ -24,6 +24,16 @@ export type ConnectorThreadBinding<TState extends ConnectorThreadState> = {
 	mutedParticipantLabel?: string;
 	participantMutedAt?: string;
 	serializedThread: string;
+	/**
+	 * Messages this connector posted about Kanban cards, so a reply to one can be routed back
+	 * into that card. On disk because a restart must not make an answer unrecognizable.
+	 */
+	cardMessages?: Array<{
+		messageId: string;
+		taskId: string;
+		projectPath: string;
+		options?: string[];
+	}>;
 	sessionId?: string;
 	state?: TState;
 	updatedAt: string;

@@ -4,7 +4,10 @@ import type { CliLoggerAdapter } from "../../logging/adapter";
 import type { ConnectorThreadState } from "../thread-bindings";
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
-const TELEGRAM_MESSAGE_LIMIT = 4096;
+export const TELEGRAM_MESSAGE_LIMIT = 4096;
+export const TELEGRAM_CAPTION_LIMIT = 1024;
+const TELEGRAM_DOCUMENT_NOTE = "… (resposta completa no arquivo)";
+const TELEGRAM_DOCUMENT_SLUG_LIMIT = 60;
 
 type TelegramMessageEntity = {
 	type: string;
@@ -180,29 +183,115 @@ function describeTelegramApiFailure(
 	response: Response,
 	body: string,
 	parsed: TelegramApiResponse | undefined,
+	method: string,
 ): string {
 	const detail = parsed?.description || body.trim().slice(0, 240);
 	return detail
-		? `Telegram sendMessage failed (${response.status} ${response.statusText}): ${detail}`
-		: `Telegram sendMessage failed (${response.status} ${response.statusText})`;
+		? `Telegram ${method} failed (${response.status} ${response.statusText}): ${detail}`
+		: `Telegram ${method} failed (${response.status} ${response.statusText})`;
 }
 
 async function readTelegramApiResponse(
 	response: Response,
+	method = "sendMessage",
 ): Promise<TelegramApiResponse | undefined> {
 	const text = await response.text();
 	try {
 		const parsed = JSON.parse(text) as TelegramApiResponse;
 		if (!response.ok || parsed.ok !== true) {
-			throw new Error(describeTelegramApiFailure(response, text, parsed));
+			throw new Error(
+				describeTelegramApiFailure(response, text, parsed, method),
+			);
 		}
 		return parsed;
 	} catch (error) {
 		if (error instanceof SyntaxError) {
-			throw new Error(describeTelegramApiFailure(response, text, undefined));
+			throw new Error(
+				describeTelegramApiFailure(response, text, undefined, method),
+			);
 		}
 		throw error;
 	}
+}
+
+/**
+ * The file a long reply arrives as is named after what it is about: its first heading.
+ * A `# comment` in a shell block is not a heading, so fenced code is skipped first.
+ */
+export function buildTelegramDocumentName(text: string, now: Date): string {
+	const withoutCode = text.replace(/^```[\s\S]*?^```/gm, "");
+	const heading = withoutCode.match(/^#{1,6}[ \t]+(.+?)[ \t#]*$/m)?.[1] ?? "";
+	const slug = heading
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, TELEGRAM_DOCUMENT_SLUG_LIMIT)
+		.replace(/-+$/, "");
+	if (slug) {
+		return `${slug}.md`;
+	}
+	const pad = (value: number) => String(value).padStart(2, "0");
+	return `resposta-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.md`;
+}
+
+/**
+ * The opening of a long text as plain text, cut at a word and closed with `note`, so the
+ * conversation still reads without opening the file that carries the rest.
+ */
+export function buildTelegramPreview(
+	text: string,
+	limit: number,
+	note: string,
+): string {
+	const plain = markdownToFormattable(normalizeTelegramText(text))
+		.text.replace(/[ \t]+/g, " ")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+	const room = limit - note.length;
+	let cut = plain.slice(0, room);
+	const lastBreak = Math.max(cut.lastIndexOf(" "), cut.lastIndexOf("\n"));
+	if (plain.length > room && lastBreak > room / 2) {
+		cut = cut.slice(0, lastBreak);
+	}
+	return `${cut.trimEnd()}${note}`;
+}
+
+/** What shows under the file in the chat: the reply's opening. */
+export function buildTelegramDocumentCaption(text: string): string {
+	return buildTelegramPreview(
+		text,
+		TELEGRAM_CAPTION_LIMIT,
+		TELEGRAM_DOCUMENT_NOTE,
+	);
+}
+
+async function sendTelegramDocument(input: {
+	apiBaseUrl: string;
+	botToken: string;
+	threadId: string;
+	text: string;
+	now: Date;
+	fetchImpl: FetchLike;
+}): Promise<void> {
+	const parsedThread = parseTelegramThreadId(input.threadId);
+	const form = new FormData();
+	form.append("chat_id", parsedThread.chatId);
+	if (parsedThread.messageThreadId !== undefined) {
+		form.append("message_thread_id", String(parsedThread.messageThreadId));
+	}
+	form.append("caption", buildTelegramDocumentCaption(input.text));
+	form.append(
+		"document",
+		new Blob([input.text], { type: "text/markdown;charset=utf-8" }),
+		buildTelegramDocumentName(input.text, input.now),
+	);
+	const response = await input.fetchImpl(
+		`${input.apiBaseUrl}/bot${input.botToken}/sendDocument`,
+		{ method: "POST", body: form },
+	);
+	await readTelegramApiResponse(response, "sendDocument");
 }
 
 export async function postTelegramFormattedReply<
@@ -214,15 +303,42 @@ export async function postTelegramFormattedReply<
 	logger: CliLoggerAdapter;
 	apiBaseUrl?: string;
 	fetchImpl?: FetchLike;
+	now?: () => Date;
 }): Promise<void> {
 	const fetchImpl = input.fetchImpl ?? fetch;
+	const apiBaseUrl = trimTrailingSlashes(
+		input.apiBaseUrl?.trim() || TELEGRAM_API_BASE,
+	);
 	let payloads: TelegramSendMessagePayload[] = [];
 	let sentPayloadCount = 0;
 	try {
 		payloads = buildTelegramFormattedPayloads(input.thread.id, input.text);
-		const apiBaseUrl = trimTrailingSlashes(
-			input.apiBaseUrl?.trim() || TELEGRAM_API_BASE,
-		);
+		// More than one message means Telegram would get the reply in slices cut every 4096
+		// characters, mid-word or mid-code-block. One file reads better; the slices stay as
+		// the way out when Telegram refuses the file.
+		if (payloads.length > 1) {
+			try {
+				await sendTelegramDocument({
+					apiBaseUrl,
+					botToken: input.botToken,
+					threadId: input.thread.id,
+					text: input.text,
+					now: input.now?.() ?? new Date(),
+					fetchImpl,
+				});
+				return;
+			} catch (error) {
+				input.logger.core.log(
+					"Telegram document reply failed; sending as messages",
+					{
+						severity: "warn",
+						transport: "telegram",
+						threadId: input.thread.id,
+						error: error instanceof Error ? error.message : String(error),
+					},
+				);
+			}
+		}
 		for (const payload of payloads) {
 			const response = await fetchImpl(
 				`${apiBaseUrl}/bot${input.botToken}/sendMessage`,
