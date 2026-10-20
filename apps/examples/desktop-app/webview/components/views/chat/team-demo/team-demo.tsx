@@ -5,7 +5,7 @@ import {
 	AgentComposerBody,
 	AgentConversationLayout,
 } from "@cline/ui";
-import { RotateCcw, Users, X } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { Button } from "@/components/ui/button";
@@ -362,12 +362,7 @@ export function TeamDemo({ onExit }: { onExit: () => void }) {
 							now={state.now}
 							onOpen={(id) => setView(id as TeammateId)}
 						/>
-						<AgentComposerBody className="flex items-center gap-3">
-							<Users className="size-4 shrink-0 text-primary" />
-							<p className="min-w-0 flex-1 text-sm text-muted-foreground">
-								Scripted preview of an agent team. Select a teammate to open its
-								session.
-							</p>
+						<AgentComposerBody className="flex items-center justify-end gap-3">
 							<Button
 								onClick={() => {
 									setView(LEAD);
