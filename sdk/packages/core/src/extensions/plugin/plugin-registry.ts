@@ -19,12 +19,16 @@ import type {
 	SessionPluginIssue,
 } from "@cline/shared";
 import { getPluginDisplayName } from "@cline/shared/storage";
+import { markPluginCommand } from "./plugin-command-origin";
 import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "./plugin-load-report";
 import { fingerprintPluginSources } from "./plugin-module-import";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
+
+export { isPluginCommand } from "./plugin-command-origin";
+
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS = 4_000;
@@ -260,16 +264,6 @@ function isPluginEnabledByPolicy(
 		if (typeof enabled === "boolean") return enabled;
 	}
 	return policy["*"]?.enabled ?? true;
-}
-
-const pluginCommands = new WeakSet<AgentExtensionCommand>();
-
-/**
- * Whether a registered command came from a loaded plugin. Session registries
- * also hold built-in skill and workflow commands, which are not plugin commands.
- */
-export function isPluginCommand(command: AgentExtensionCommand): boolean {
-	return pluginCommands.has(command);
 }
 
 function newInstance(importId: number): PluginInstance {
@@ -1048,8 +1042,7 @@ export class PluginRegistry {
 				);
 			},
 		};
-		pluginCommands.add(wrapped);
-		return wrapped;
+		return markPluginCommand(wrapped);
 	}
 
 	/** A failing rule contributes no text rather than breaking the prompt. */
