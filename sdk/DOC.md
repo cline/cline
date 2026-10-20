@@ -20,8 +20,8 @@ const result = await core.pluginCommands.run({ ...target, prompt: "/upload-histo
 ```
 
 Omit `sessionId`, or pass one the runtime does not have, to use the workspace
-catalog. Every call checks plugin sources and settings and reloads the catalog
-when they change, so call `list` again whenever the command menu needs to be
+catalog. Every call checks plugin sources and which plugins are enabled, and
+reloads the catalog when they change, so call `list` again whenever the command menu needs to be
 current. A failed load lists healthy commands with `status: "error"` and is
 retried after 30 seconds. Workspace catalogs idle for 10 minutes release their
 plugin workers.

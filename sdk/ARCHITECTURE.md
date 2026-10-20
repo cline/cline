@@ -809,10 +809,10 @@ dispatched action whose reply was lost.
 A resident session lists and executes commands from its own contribution
 registry, retaining the plugin instance and context shared with its hooks.
 Session registrations keep their session lifetime. Without a resident session,
-the runtime uses a per-workspace catalog. Each request fingerprints discoverable
-plugin entries, their imported source graph, and plugin settings, and reloads
-the catalog when that changes; setup logs and state files beside a plugin do
-not. A failed load keeps healthy commands, reports `status: "error"`, and is
+the runtime uses a per-workspace catalog. Each request fingerprints enabled
+plugin entries and their imported source graph, and reloads the catalog when
+that changes; unrelated settings, setup logs, and state files beside a plugin
+do not. A failed load keeps healthy commands, reports `status: "error"`, and is
 retried by a request after 30 seconds. Catalogs idle for 10 minutes release
 their workers. Reload, eviction, and disposal wait for running handlers. Clients
 re-list to stay current (for example when a slash menu opens or the active

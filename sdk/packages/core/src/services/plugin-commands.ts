@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
 	type AgentExtensionCommand,
@@ -9,7 +8,6 @@ import {
 	type ITelemetryService,
 	type Message,
 } from "@cline/shared";
-import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
@@ -115,9 +113,11 @@ export class PluginCommandManager {
 		await shutdown?.().catch(() => {});
 	}
 
-	/** Fingerprint discoverable entries, their import graphs, and plugin settings.
-	 * Runtime output beside a plugin is not source and must not reset its state. */
-	private async fingerprint(workspacePath: string): Promise<string> {
+	/** Fingerprint enabled plugin entries and their import graphs. The resolved
+	 * paths already exclude plugins disabled in settings, so unrelated settings
+	 * changes do not reset plugin state. Runtime output beside a plugin is not
+	 * source and must not reset its state either. */
+	private fingerprint(workspacePath: string): string {
 		const hash = createHash("sha256");
 		try {
 			const paths = resolveAgentPluginPaths({
@@ -129,18 +129,11 @@ export class PluginCommandManager {
 		} catch (error) {
 			hash.update(`discovery:${String(error)}`);
 		}
-		try {
-			hash.update(await readFile(resolveGlobalSettingsPath()));
-		} catch (error) {
-			hash.update(
-				`settings:${(error as NodeJS.ErrnoException).code ?? "unknown"}`,
-			);
-		}
 		return hash.digest("hex");
 	}
 
 	private async refresh(entry: Entry): Promise<void> {
-		const key = await this.fingerprint(entry.workspacePath);
+		const key = this.fingerprint(entry.workspacePath);
 		if (
 			key === entry.key &&
 			(entry.failedAt === undefined ||

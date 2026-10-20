@@ -9,6 +9,8 @@ import type {
 } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
+import { writeGlobalSettings } from "./global-settings";
 import { executePluginCommand, parsePluginCommand } from "./plugin-command-api";
 import { PluginCommandManager } from "./plugin-commands";
 
@@ -186,6 +188,26 @@ export default {name:'logging',manifest:{capabilities:['commands']},setup(api){a
 		expect(await readFile(join(directory, "setup.log"), "utf8")).toBe(
 			"setup\n",
 		);
+	});
+
+	it("reloads for plugin toggles but not unrelated settings changes", async () => {
+		const workspacePath = await workspace();
+		const directory = join(workspacePath, ".cline", "plugins");
+		await mkdir(directory, { recursive: true });
+		await writeFile(join(directory, "echo.js"), "export default {};");
+		const load = vi.fn(async () => loaded());
+		const manager = new PluginCommandManager({ load });
+		managers.push(manager);
+		await manager.list({ workspacePath });
+		writeGlobalSettings({ tuiTheme: "light" });
+		await manager.list({ workspacePath });
+		expect(load).toHaveBeenCalledTimes(1);
+		writeGlobalSettings({
+			tuiTheme: "light",
+			disabledPlugins: resolveAgentPluginPaths({ workspacePath }),
+		});
+		await manager.list({ workspacePath });
+		expect(load).toHaveBeenCalledTimes(2);
 	});
 
 	it("releases idle workspace catalogs and reloads them on demand", async () => {
