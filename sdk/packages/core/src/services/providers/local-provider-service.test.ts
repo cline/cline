@@ -336,14 +336,11 @@ describe("models registry parsing", () => {
 							capabilities: ["images"],
 						},
 						// Only a vision flag (what a settings UI's Supports Images
-						// tick writes): the synthesized list must not read as "this
-						// model cannot reason", or the gateway drops an explicit
-						// reasoning disable and a default-on reasoning model keeps
-						// thinking (and rejects tool calls).
+						// tick writes) must not read as a reasoning denial.
 						"vision-only": {
 							supportsVision: true,
 						},
-						// An explicit reasoning denial must survive the seeding.
+						// An explicit denial survives the seeding.
 						"no-reasoning": {
 							supportsVision: true,
 							supportsReasoning: false,

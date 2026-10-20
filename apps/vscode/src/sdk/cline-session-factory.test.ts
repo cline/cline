@@ -714,11 +714,10 @@ describe("buildSessionConfig", () => {
 
 	it("keeps an OpenAI Compatible model with saved overrides able to reason, so a disable reaches the wire", async () => {
 		// A Model Configuration edit (e.g. the Supports Images tick) writes a
-		// stored entry that says nothing about reasoning. The registry used
-		// to turn that into a capability list without "reasoning", and the
-		// gateway then dropped the user's "None": the model applied its
-		// default effort and rejected tool calls. Goes through the real
-		// ProviderSettingsManager and the real registry, like production.
+		// stored entry that says nothing about reasoning; the gateway skips a
+		// reasoning disable for a model whose capability list lacks it. Goes
+		// through the real ProviderSettingsManager and registry, like
+		// production.
 		const { ProviderSettingsManager } = await import("../../node_modules/@cline/core/dist/index.js")
 		const realManager = new ProviderSettingsManager({
 			filePath: path.join(tempDir, "settings", "providers.json"),
@@ -1202,10 +1201,8 @@ describe("buildSessionConfig", () => {
 			actModeApiProvider: "openrouter",
 			actModeOpenRouterModelId: "mock/custom-model",
 			openRouterApiKey: "openrouter-key",
-			// Legacy boolean snapshot with no SDK capability list. The
-			// rebuilt list must not deny reasoning the snapshot never
-			// mentioned: the gateway would then drop an explicit reasoning
-			// disable, and a default-on reasoning model keeps thinking.
+			// Legacy boolean snapshot with no SDK capability list: the rebuilt
+			// list must not deny reasoning the snapshot never mentioned.
 			actModeOpenRouterModelInfo: {
 				name: "Mock Custom Model",
 				contextWindow: 16_000,
