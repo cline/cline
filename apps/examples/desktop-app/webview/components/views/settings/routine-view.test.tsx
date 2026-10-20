@@ -152,6 +152,55 @@ describe("schedule execution updates", () => {
 		);
 	});
 
+	it("allows consistently slow overview requests to finish between polls", async () => {
+		invoke.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					setTimeout(
+						() => resolve(overview("failed", "Cannot connect to API")),
+						20_000,
+					);
+				}),
+		);
+		await mount();
+		await act(async () => vi.advanceTimersByTimeAsync(15_000));
+		expect(invoke).toHaveBeenCalledTimes(1);
+		await act(async () => window.dispatchEvent(new Event("focus")));
+		expect(invoke).toHaveBeenCalledTimes(1);
+		await act(async () => vi.advanceTimersByTimeAsync(5_000));
+		expect(container.textContent).toContain("Cannot connect to API");
+		await act(async () => vi.advanceTimersByTimeAsync(30_000));
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(container.textContent).toContain("Cannot connect to API");
+	});
+
+	it("shows a slow request's timeout and resumes polling afterward", async () => {
+		let rejectRequest!: (error: Error) => void;
+		invoke.mockImplementationOnce(
+			() =>
+				new Promise((_resolve, reject) => {
+					rejectRequest = reject;
+				}),
+		);
+		await mount();
+		await act(async () => vi.advanceTimersByTimeAsync(119_000));
+		expect(invoke).toHaveBeenCalledTimes(1);
+		await act(async () =>
+			rejectRequest(new Error("Overview request timed out")),
+		);
+		expect(container.textContent).toContain("Overview request timed out");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'button[aria-label="Refresh schedules"]',
+			)?.disabled,
+		).toBe(false);
+		invoke.mockResolvedValue(overview("success"));
+		await act(async () => vi.advanceTimersByTimeAsync(1_000));
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(container.textContent).toContain("success");
+		expect(container.textContent).not.toContain("Overview request timed out");
+	});
+
 	it("does not let an older response overwrite a completed execution", async () => {
 		await mount();
 		let resolveOld!: (response: ReturnType<typeof overview>) => void;

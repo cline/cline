@@ -515,6 +515,7 @@ export function RoutineSchedulesContent({
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const overviewRequestSequence = useRef(0);
+	const overviewRefreshPending = useRef(false);
 	// Sets rather than single ids: several rows can have in-flight actions at
 	// once, and one action finishing must not clear another row's busy state.
 	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
@@ -735,6 +736,7 @@ export function RoutineSchedulesContent({
 				setIsLoading(true);
 			}
 			const requestId = ++overviewRequestSequence.current;
+			overviewRefreshPending.current = true;
 			setErrorMessage(null);
 			try {
 				const response = await fetchRoutineOverview();
@@ -771,6 +773,7 @@ export function RoutineSchedulesContent({
 					mountedRef.current &&
 					requestId === overviewRequestSequence.current
 				) {
+					overviewRefreshPending.current = false;
 					setIsLoading(false);
 				}
 			}
@@ -783,7 +786,14 @@ export function RoutineSchedulesContent({
 			void refreshSchedules({ showLoading: false });
 		};
 		const refreshVisible = () => {
-			if (document.visibilityState === "visible") refresh();
+			// Background refreshes must not supersede a slow request on every
+			// poll, otherwise neither its response nor its error can be shown.
+			if (
+				document.visibilityState === "visible" &&
+				!overviewRefreshPending.current
+			) {
+				refresh();
+			}
 		};
 		const timeoutId = window.setTimeout(() => {
 			refresh();
