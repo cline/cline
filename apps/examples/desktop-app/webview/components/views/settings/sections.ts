@@ -15,6 +15,7 @@ const ALL_SETTINGS_SECTIONS = [
 	"Import",
 	"Remote",
 	"Account",
+	"Debug",
 	"About",
 ] as const;
 

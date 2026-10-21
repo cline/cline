@@ -4600,6 +4600,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact: undefined,
 			getState: () => existingState,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
@@ -4631,6 +4632,66 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(saveState).not.toHaveBeenCalled();
 	});
 
+	it("runs the projected transcript through prepareApiMessages before re-compaction estimates it", async () => {
+		const originalMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original request" },
+			{ role: "assistant", content: "original answer" },
+		];
+		const existingState = createSessionCompactionState({
+			sourceMessages: originalMessages,
+			compactedMessages: [{ role: "user", content: "summary" }],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const compact = vi.fn().mockResolvedValue(undefined);
+		const prepareApiMessages = vi.fn(
+			async (messages: LlmsProviders.Message[]) =>
+				messages.map((message) =>
+					typeof message.content === "string"
+						? { ...message, content: message.content.slice(0, 8_000) }
+						: message,
+				),
+		);
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => existingState,
+			prepareApiMessages,
+		});
+		const tail: LlmsProviders.Message[] = [
+			{ role: "user", content: "x".repeat(50_000) },
+		];
+		const currentMessages: LlmsProviders.Message[] = [
+			...originalMessages,
+			...tail,
+		];
+
+		await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: await prepareApiMessages(currentMessages),
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		const projected = [{ role: "user", content: "summary" }, ...tail];
+		expect(prepareApiMessages).toHaveBeenLastCalledWith(projected);
+		expect(compact).toHaveBeenCalledTimes(1);
+		const compactContext = compact.mock.calls[0][0];
+		expect(compactContext.messages).toEqual(projected);
+		expect(compactContext.apiMessages).toEqual([
+			{ role: "user", content: "summary" },
+			{ role: "user", content: "x".repeat(8_000) },
+		]);
+	});
+
 	it("keeps stale sidecar state when replacement compaction returns no result", async () => {
 		const originalMessages: LlmsProviders.Message[] = [
 			{ role: "user", content: "original" },
@@ -4645,6 +4706,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => existingState,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
@@ -4689,6 +4751,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => undefined,
+			prepareApiMessages: async (messages) => messages,
 			saveState,
 		});
 		const currentMessages: LlmsProviders.Message[] = [
