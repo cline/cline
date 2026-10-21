@@ -18,6 +18,7 @@ import {
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { QuitHoldHandler } from "@/components/quit-hold-handler";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
@@ -63,12 +64,6 @@ import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
-import {
-	areShortcutsSuspended,
-	matchesAccelerator,
-	useKeybindings,
-} from "@/lib/keybindings";
-import { QuitHoldHandler } from "@/components/quit-hold-handler";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
@@ -96,6 +91,11 @@ import {
 	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "@/lib/image-attachments";
+import {
+	areShortcutsSuspended,
+	matchesAccelerator,
+	useKeybindings,
+} from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
 import {
@@ -773,17 +773,22 @@ export default function Home() {
 			}
 			if (matchesAccelerator(event, keybindings["new-session"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleNewThread();
 			} else if (matchesAccelerator(event, keybindings["command-bar"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				setCommandBarOpen((current) => !current);
 			} else if (matchesAccelerator(event, keybindings["open-settings"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleViewChange("settings");
 			}
 		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
+		// Consume app shortcuts before React's local input handlers can act on
+		// the same event (for example, Mod+Enter submitting a prompt).
+		window.addEventListener("keydown", handleKeyDown, true);
+		return () => window.removeEventListener("keydown", handleKeyDown, true);
 	}, [handleNewThread, handleViewChange, keybindings, showOnboarding]);
 	const handleThreadStarted = useCallback(
 		(threadId: string, sessionId?: string) => {
