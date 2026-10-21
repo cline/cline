@@ -12,6 +12,7 @@ import {
 	checkpointScratchDir,
 	createCheckpointHooks,
 	deleteCheckpointRefs,
+	readCheckpointSkips,
 } from "./checkpoint-hooks";
 
 const execFile = promisify(execFileCallback);
@@ -594,6 +595,58 @@ describe("createCheckpointHooks", () => {
 		expect(
 			createCheckpoint.mock.calls.map(([input]) => input.runCount),
 		).toEqual([1, 2]);
+	});
+
+	it("records a no_git_repository skip when the workspace is not a git repository", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "core-checkpoint-nogit-"));
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_nogit",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await runCheckpointHooks(hooks);
+
+			expect(metadata?.checkpoint).toBeUndefined();
+			expect(metadata?.checkpointSkips).toEqual([
+				expect.objectContaining({ reason: "no_git_repository", runCount: 1 }),
+			]);
+			expect(readCheckpointSkips(metadata)).toEqual([
+				expect.objectContaining({ reason: "no_git_repository", runCount: 1 }),
+			]);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("records a checkpoint_failed skip when a custom checkpoint returns nothing", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_custom_skip",
+				createCheckpoint: () => undefined,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await runCheckpointHooks(hooks);
+
+			expect(readCheckpointSkips(metadata)).toEqual([
+				expect.objectContaining({ reason: "checkpoint_failed", runCount: 1 }),
+			]);
+		} finally {
+			await deleteCheckpointRefs(cwd, "sess_custom_skip");
+			await rm(cwd, { recursive: true, force: true });
+		}
 	});
 
 	it("emits one checkpoint.snapshot event per snapshot attempt without file paths", async () => {

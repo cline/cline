@@ -84,6 +84,21 @@ export interface CheckpointEntry {
 	kind?: "stash" | "commit";
 }
 
+/**
+ * Why a user turn ended without a workspace checkpoint. Persisted in session
+ * metadata so the missing-checkpoint explanation still names the cause after
+ * a window reload, instead of collapsing every failure into "no checkpoint".
+ * `createdAt` orders records; reasons carry a run count when the turn that
+ * skipped is known (custom checkpoint implementations may skip without one).
+ */
+export type CheckpointSkipReason = "no_git_repository" | "checkpoint_failed";
+
+export interface CheckpointSkip {
+	reason: CheckpointSkipReason;
+	runCount?: number;
+	createdAt: number;
+}
+
 export interface CheckpointMetadata {
 	latest: CheckpointEntry;
 	history: CheckpointEntry[];
@@ -118,6 +133,45 @@ type CreateCheckpointHooksOptions = {
 
 function warn(logger: BasicLogger | undefined, message: string): void {
 	logger?.log(message, { severity: "warn" });
+}
+
+/**
+ * Reads persisted checkpoint skips. Tolerant of malformed entries (the
+ * metadata is plain JSON that older builds also write): unknown reasons and
+ * non-positive run counts are dropped rather than failing the whole lookup.
+ */
+export function readCheckpointSkips(
+	metadata: Record<string, unknown> | undefined,
+): CheckpointSkip[] {
+	const candidate = metadata?.checkpointSkips;
+	if (!Array.isArray(candidate)) {
+		return [];
+	}
+	return candidate.flatMap((entry): CheckpointSkip[] => {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+			return [];
+		}
+		const record = entry as Partial<CheckpointSkip>;
+		if (
+			record.reason !== "no_git_repository" &&
+			record.reason !== "checkpoint_failed"
+		) {
+			return [];
+		}
+		const createdAt = Number(record.createdAt ?? 0);
+		if (!Number.isFinite(createdAt)) {
+			return [];
+		}
+		const runCount =
+			typeof record.runCount === "number" &&
+			Number.isInteger(record.runCount) &&
+			record.runCount >= 1
+				? record.runCount
+				: undefined;
+		return [
+			{ reason: record.reason, createdAt, ...(runCount ? { runCount } : {}) },
+		];
+	});
 }
 
 function readCheckpointMetadata(
@@ -479,6 +533,22 @@ export async function retainCheckpointRefs(
 	);
 }
 
+function upsertCheckpointSkip(
+	skips: readonly CheckpointSkip[],
+	skip: CheckpointSkip,
+): CheckpointSkip[] {
+	const existingIndex =
+		skip.runCount === undefined
+			? -1
+			: skips.findIndex((candidate) => candidate.runCount === skip.runCount);
+	if (existingIndex < 0) {
+		return [...skips, skip];
+	}
+	return skips.map((candidate, index) =>
+		index === existingIndex ? skip : candidate,
+	);
+}
+
 function upsertCheckpointHistory(
 	history: readonly CheckpointEntry[],
 	entry: CheckpointEntry,
@@ -534,17 +604,24 @@ export function createCheckpointHooks(
 
 	const createCheckpoint = async (
 		runCount: number,
-	): Promise<CheckpointEntry | undefined> => {
+	): Promise<
+		| { entry: CheckpointEntry }
+		| { skipReason: CheckpointSkipReason }
+		| undefined
+	> => {
 		if (options.createCheckpoint) {
-			return await options.createCheckpoint({
+			const entry = await options.createCheckpoint({
 				cwd: options.cwd,
 				sessionId: options.sessionId,
 				runCount,
 			});
+			// A custom implementation owns its outcome; record it as a failure
+			// rather than guessing (it may not be git-backed at all).
+			return entry ? { entry } : { skipReason: "checkpoint_failed" };
 		}
 
 		if (!(await ensureGitRepository())) {
-			return undefined;
+			return { skipReason: "no_git_repository" };
 		}
 
 		const startedAt = Date.now();
@@ -609,7 +686,9 @@ export function createCheckpointHooks(
 				"Checkpoint HEAD fallback failed",
 			);
 			captureSnapshot(fallback ? "head_fallback" : "skipped");
-			return fallback;
+			return fallback
+				? { entry: fallback }
+				: { skipReason: "checkpoint_failed" as const };
 		}
 		if (!ref) {
 			// A clean worktree with no untracked files — the HEAD entry is the
@@ -618,7 +697,9 @@ export function createCheckpointHooks(
 				"Checkpoint HEAD fallback failed",
 			);
 			captureSnapshot(fallback ? "head_clean" : "skipped");
-			return fallback;
+			return fallback
+				? { entry: fallback }
+				: { skipReason: "checkpoint_failed" as const };
 		}
 
 		// Store the stash commit under a private ref namespace so it is
@@ -636,15 +717,17 @@ export function createCheckpointHooks(
 				`Checkpoint store failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
 			captureSnapshot("skipped");
-			return undefined;
+			return { skipReason: "checkpoint_failed" as const };
 		}
 
 		captureSnapshot("stash");
 		return {
-			ref,
-			createdAt: Date.now(),
-			runCount,
-			kind: "stash",
+			entry: {
+				ref,
+				createdAt: Date.now(),
+				runCount,
+				kind: "stash",
+			},
 		};
 	};
 
@@ -689,16 +772,44 @@ export function createCheckpointHooks(
 			if (!introducedUserRun && alreadyCheckpointed) {
 				return undefined;
 			}
-			const entry = await createCheckpoint(runCount);
-			if (!entry) {
+			const result = await createCheckpoint(runCount);
+			if (!result) {
 				return undefined;
 			}
+			if ("skipReason" in result) {
+				// Record why this turn has no checkpoint so the restore UI can
+				// name the cause later (including after a reload). Best effort:
+				// a failed metadata write must not fail the turn.
+				try {
+					await options.writeSessionMetadata({
+						...(metadata ?? {}),
+						checkpointSkips: upsertCheckpointSkip(
+							readCheckpointSkips(metadata),
+							{
+								reason: result.skipReason,
+								runCount,
+								createdAt: Date.now(),
+							},
+						),
+					});
+				} catch {
+					// The turn proceeds without a checkpoint either way.
+				}
+				return undefined;
+			}
+			const entry = result.entry;
+			// Preserve any recorded skips; a successful checkpoint for this run
+			// supersedes a skip recorded for the same run.
+			const checkpointSkips = readCheckpointSkips(metadata).filter(
+				(skip) => skip.runCount !== runCount,
+			);
 			if (existing?.latest.ref === entry.ref) {
 				return undefined;
 			}
 			const history = upsertCheckpointHistory(existing?.history ?? [], entry);
 			await options.writeSessionMetadata({
 				...(metadata ?? {}),
+				checkpointSkips,
 				checkpoint: {
 					latest: entry,
 					history,

@@ -460,7 +460,10 @@ export {
 export type {
 	CheckpointEntry,
 	CheckpointMetadata,
+	CheckpointSkip,
+	CheckpointSkipReason,
 } from "./hooks/checkpoint-hooks";
+export { readCheckpointSkips } from "./hooks/checkpoint-hooks";
 export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";

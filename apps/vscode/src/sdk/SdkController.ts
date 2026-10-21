@@ -4,8 +4,10 @@
 // Controller but delegates session lifecycle (initTask, askResponse,
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
+import { execFile } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
+import { promisify } from "node:util"
 import {
 	type CompareCheckpointResult,
 	createRestoredCheckpointMetadata,
@@ -16,6 +18,7 @@ import {
 	loadRulesForSystemPromptFromRecords,
 	type PreparedRemoteConfigCoreIntegration,
 	type RuleConfig,
+	readCheckpointSkips,
 	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
@@ -118,6 +121,8 @@ import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
+
+const execFileAsync = promisify(execFile)
 
 /**
  * Log a stub warning and return undefined.
@@ -2084,16 +2089,24 @@ export class Controller {
 	 * live session; then, as in editMessageAndRegenerate, a temporary host is
 	 * created for the read and disposed afterwards.
 	 */
-	async hasWorkspaceCheckpointForMessage(messageTs: number): Promise<boolean> {
+	async hasWorkspaceCheckpointForMessage(
+		messageTs: number,
+	): Promise<
+		| { exists: true }
+		| { exists: false; reason: "checkpoints_disabled" | "no_git_repository" | "checkpoint_failed" | "checkpoint_unavailable" }
+	> {
+		if (this.stateManager?.getGlobalSettingsKey?.("enableCheckpointsSetting") === false) {
+			return { exists: false, reason: "checkpoints_disabled" }
+		}
 		const activeSession = this.sessions.getActiveSession()
 		const currentTask = this.task
 		if (!currentTask) {
-			return false
+			return { exists: false, reason: "checkpoint_unavailable" }
 		}
 		const clineMessages = currentTask.messageStateHandler.getClineMessages()
 		const targetIndex = clineMessages.findIndex((message) => message.ts === messageTs)
 		if (targetIndex === -1 || getCheckpointRunCountForMessage(clineMessages, targetIndex) === undefined) {
-			return false
+			return { exists: false, reason: "checkpoint_unavailable" }
 		}
 		const userOrdinal = clineMessages.slice(0, targetIndex + 1).filter(isVisibleCheckpointUserMessage).length
 		const sessionId = activeSession?.sessionId ?? currentTask.taskId
@@ -2104,18 +2117,33 @@ export class Controller {
 				sessionHost.get(sessionId),
 				readCurrentMessages(sessionHost, sessionId) as Promise<SdkUserMessage[]>,
 			])
+			const metadata = sessionRecord?.metadata as Record<string, unknown> | undefined
 			const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 			if (sdkIndex === -1) {
-				return false
+				return {
+					exists: false,
+					reason: await this.resolveCheckpointUnavailableReason(metadata, undefined, sessionRecord, () =>
+						this.getWorkspaceRoot(),
+					),
+				}
 			}
 			const runCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
-			return (
+			if (
 				runCount !== undefined &&
 				findCheckpointForRun(readSessionCheckpointHistory(sessionRecord), runCount) !== undefined
+			) {
+				return { exists: true }
+			}
+			const resolvedReason = await this.resolveCheckpointUnavailableReason(metadata, runCount, sessionRecord, () =>
+				this.getWorkspaceRoot(),
 			)
+			return {
+				exists: false,
+				reason: resolvedReason,
+			}
 		} catch (error) {
 			Logger.debug(`[SdkController] Failed to resolve workspace checkpoint for message ${messageTs}: ${error}`)
-			return false
+			return { exists: false, reason: "checkpoint_unavailable" }
 		} finally {
 			try {
 				await tempHost?.dispose("workspaceCheckpointForMessage")
@@ -2123,6 +2151,40 @@ export class Controller {
 				Logger.debug(`[SdkController] Failed to dispose workspace checkpoint host: ${error}`)
 			}
 		}
+	}
+
+	/**
+	 * Names why a turn has no checkpoint. A skip recorded for the exact run
+	 * wins; failing that, the latest recorded skip explains sessions whose
+	 * older turns all skipped (e.g. every turn ran outside a git repo). With
+	 * no record — turns from before reasons were recorded, or a transcript
+	 * that no longer maps to the session — a live probe distinguishes a
+	 * non-git workspace right now from the generic leftover case.
+	 */
+	async resolveCheckpointUnavailableReason(
+		metadata: Record<string, unknown> | undefined,
+		runCount: number | undefined,
+		sessionRecord: { cwd?: string; workspaceRoot?: string } | undefined,
+		fallbackCwd?: () => Promise<string>,
+	): Promise<"no_git_repository" | "checkpoint_failed" | "checkpoint_unavailable"> {
+		const skips = readCheckpointSkips(metadata)
+		const exact = runCount === undefined ? undefined : skips.find((skip) => skip.runCount === runCount)
+		const recorded = exact ?? skips.at(-1)
+		if (recorded) {
+			return recorded.reason
+		}
+		const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (fallbackCwd ? await fallbackCwd() : "")
+		try {
+			const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--is-inside-work-tree"], {
+				windowsHide: true,
+			})
+			if (stdout.trim() !== "true") {
+				return "no_git_repository"
+			}
+		} catch {
+			return "no_git_repository"
+		}
+		return "checkpoint_unavailable"
 	}
 
 	/**

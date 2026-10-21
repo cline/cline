@@ -47,7 +47,7 @@ describe("UserMessage – IME composition handling", () => {
 			},
 		)
 		vi.mocked(TaskServiceClient.editMessageAndRegenerate).mockResolvedValue({})
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ value: true })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: true, reason: 0 })
 	})
 
 	it("does NOT send when IME composition Enter is pressed while editing", () => {
@@ -136,7 +136,7 @@ describe("UserMessage – IME composition handling", () => {
 
 	it("shows Reset Code as busy and does not restore until the checkpoint lookup answers", async () => {
 		const user = userEvent.setup()
-		let answer: (result: { value: boolean }) => void = () => {}
+		let answer: (result: { exists: boolean; reason: number }) => void = () => {}
 		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockReturnValue(
 			new Promise((resolve) => {
 				answer = resolve
@@ -153,7 +153,7 @@ describe("UserMessage – IME composition handling", () => {
 		await user.click(resetCode)
 		expect(TaskServiceClient.editMessageAndRegenerate).not.toHaveBeenCalled()
 
-		act(() => answer({ value: true }))
+		act(() => answer({ exists: true, reason: 0 }))
 		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
 		expect(resetCode).not.toHaveAttribute("aria-disabled")
 		await user.click(resetCode)
@@ -166,7 +166,7 @@ describe("UserMessage – IME composition handling", () => {
 	it("keeps Reset Chat enabled and disables Reset Code when checkpoints were off", async () => {
 		const user = userEvent.setup()
 		enableCheckpointsSetting = false
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ value: false })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 1 })
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -184,7 +184,7 @@ describe("UserMessage – IME composition handling", () => {
 	it("opens the disabled Reset Code explanation from the keyboard", async () => {
 		const user = userEvent.setup()
 		enableCheckpointsSetting = false
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ value: false })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 1 })
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -202,7 +202,8 @@ describe("UserMessage – IME composition handling", () => {
 
 	it("explains when checkpoint creation was enabled but no checkpoint exists", async () => {
 		const user = userEvent.setup()
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ value: false })
+		// CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINT_UNAVAILABLE
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 4 })
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -211,6 +212,34 @@ describe("UserMessage – IME composition handling", () => {
 		expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await user.hover(resetCode)
 		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()
+	})
+
+	it("names a non-git workspace as the reason no checkpoint exists", async () => {
+		const user = userEvent.setup()
+		// CHECKPOINT_UNAVAILABLE_REASON_NO_GIT_REPOSITORY
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 2 })
+		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.hover(resetCode)
+		expect(await screen.findByText(/not a git repository/)).toBeInTheDocument()
+	})
+
+	it("names a failed checkpoint creation as the reason no checkpoint exists", async () => {
+		const user = userEvent.setup()
+		// CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINT_FAILED
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 3 })
+		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
+		expect(resetCode).toHaveAttribute("aria-disabled", "true")
+		await user.hover(resetCode)
+		expect(await screen.findByText(/checkpoint creation failed/)).toBeInTheDocument()
 	})
 
 	it("hides Reset Code for messages that did not start a run", async () => {

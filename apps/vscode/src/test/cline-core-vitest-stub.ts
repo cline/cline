@@ -173,6 +173,39 @@ export interface CheckpointEntry {
 	kind?: "stash" | "commit"
 }
 
+export type CheckpointSkipReason = "no_git_repository" | "checkpoint_failed"
+
+export interface CheckpointSkip {
+	reason: CheckpointSkipReason
+	runCount?: number
+	createdAt: number
+}
+
+export function readCheckpointSkips(metadata: Record<string, unknown> | undefined): CheckpointSkip[] {
+	const candidate = metadata?.checkpointSkips
+	if (!Array.isArray(candidate)) {
+		return []
+	}
+	return candidate.flatMap((entry): CheckpointSkip[] => {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+			return []
+		}
+		const record = entry as Partial<CheckpointSkip>
+		if (record.reason !== "no_git_repository" && record.reason !== "checkpoint_failed") {
+			return []
+		}
+		const createdAt = Number(record.createdAt ?? 0)
+		if (!Number.isFinite(createdAt)) {
+			return []
+		}
+		const runCount =
+			typeof record.runCount === "number" && Number.isInteger(record.runCount) && record.runCount >= 1
+				? record.runCount
+				: undefined
+		return [{ reason: record.reason, createdAt, ...(runCount ? { runCount } : {}) }]
+	})
+}
+
 export function readSessionCheckpointHistory(session: { metadata?: Record<string, unknown> } | undefined): CheckpointEntry[] {
 	const checkpoint =
 		session?.metadata?.checkpoint &&
