@@ -1,13 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	acceleratorFromEvent,
+	acceleratorKeys,
 	areShortcutsSuspended,
 	canonicalAccelerator,
 	formatAccelerator,
+	isAppShortcut,
 	matchesAccelerator,
 	resolveKeybindings,
 	suspendShortcuts,
 } from "./keybindings";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const event = (init: Partial<KeyboardEvent> & { key: string }) => ({
 	metaKey: false,
@@ -18,6 +22,66 @@ const event = (init: Partial<KeyboardEvent> & { key: string }) => ({
 });
 
 describe("keybindings", () => {
+	it.each([
+		"N",
+		"Tab",
+		"Enter",
+		"Space",
+		"Shift+N",
+		"Shift+Tab",
+		"F25",
+		"Mod+",
+	])("rejects unsafe or malformed app shortcut %s, including in JSON", (key) => {
+		expect(isAppShortcut(key)).toBe(false);
+		expect(
+			resolveKeybindings({ version: 1, bindings: { "new-session": { key } } })[
+				"new-session"
+			].key,
+		).toBe("Mod+N");
+		expect(matchesAccelerator(event({ key: "n" }), key)).toBe(false);
+	});
+
+	it.each([
+		false,
+		true,
+	])("rejects plain typing and shift-only recording (mac=%s)", (mac) => {
+		for (const key of ["n", "Tab", "Enter", " "]) {
+			expect(acceleratorFromEvent(event({ key }), mac)).toBeNull();
+			expect(
+				acceleratorFromEvent(event({ key, shiftKey: true }), mac),
+			).toBeNull();
+		}
+		for (const key of ["F1", "F12", "F24"]) {
+			expect(acceleratorFromEvent(event({ key }), mac)).toBe(key);
+			expect(matchesAccelerator(event({ key }), key, mac)).toBe(true);
+		}
+		for (const modifier of ["ctrlKey", "altKey", ...(mac ? ["metaKey"] : [])]) {
+			const input = event({ key: "n", [modifier]: true });
+			const recorded = acceleratorFromEvent(input, mac);
+			expect(recorded).not.toBeNull();
+			expect(matchesAccelerator(input, recorded as string, mac)).toBe(true);
+		}
+	});
+
+	it.each([
+		["MacIntel", "⇧⌘K", ["⇧", "⌘", "K"]],
+		["Win32", "Ctrl+Shift+K", ["Ctrl", "Shift", "K"]],
+		["Linux x86_64", "Ctrl+Shift+K", ["Ctrl", "Shift", "K"]],
+	])("displays shortcuts for the user's OS (%s)", (platform, label, keys) => {
+		vi.stubGlobal("navigator", { platform });
+		expect(formatAccelerator("Mod+Shift+K")).toBe(label);
+		expect(acceleratorKeys("Mod+Shift+K")).toEqual(keys);
+	});
+
+	it("preserves explicitly unbound shortcuts", () => {
+		expect(
+			resolveKeybindings({
+				version: 1,
+				bindings: { "new-session": { key: "" } },
+			})["new-session"].key,
+		).toBe("");
+	});
+
 	it("matches Mod as Cmd on macOS and Ctrl elsewhere", () => {
 		expect(
 			matchesAccelerator(event({ key: "n", metaKey: true }), "Mod+N", true),

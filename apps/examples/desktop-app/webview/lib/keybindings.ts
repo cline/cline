@@ -95,7 +95,10 @@ export function resolveKeybindings(
 	for (const { id } of KEYBINDING_DEFINITIONS) {
 		const override = file?.bindings?.[id];
 		if (!override || typeof override.key !== "string") continue;
-		const next: KeybindingEntry = { key: override.key };
+		const key = override.key.trim();
+		// Invalid hand-edited shortcuts fall back to the action's default.
+		if (key && !isAppShortcut(key)) continue;
+		const next: KeybindingEntry = { key };
 		if (typeof override.holdMs === "number" && override.holdMs > 0) {
 			next.holdMs = Math.min(override.holdMs, MAX_HOLD_MS);
 		}
@@ -182,6 +185,18 @@ export function parseAccelerator(value: string): Accelerator | null {
 	return accelerator.key ? accelerator : null;
 }
 
+/** App-wide shortcuts must not intercept plain typing or focus navigation. */
+export function isAppShortcut(value: string): boolean {
+	const parsed = parseAccelerator(value);
+	return (
+		parsed !== null &&
+		(parsed.mod ||
+			parsed.ctrl ||
+			parsed.alt ||
+			/^f([1-9]|1\d|2[0-4])$/.test(parsed.key))
+	);
+}
+
 type KeyEventLike = Pick<
 	KeyboardEvent,
 	"key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey"
@@ -193,7 +208,7 @@ export function matchesAccelerator(
 	mac: boolean = isMacPlatform(),
 ): boolean {
 	const parsed = parseAccelerator(accelerator);
-	if (!parsed) return false;
+	if (!parsed || !isAppShortcut(accelerator)) return false;
 	// "Mod" is Cmd on macOS and Ctrl elsewhere; "Ctrl" is always Ctrl.
 	const wantMeta = mac && parsed.mod;
 	const wantCtrl = parsed.ctrl || (!mac && parsed.mod);
@@ -258,7 +273,7 @@ export function suspendShortcuts(): () => void {
 	};
 }
 
-/** Builds an accelerator string from a keydown, or null for a bare modifier. */
+/** Builds an app shortcut, or null for bare modifiers or unsafe typing keys. */
 export function acceleratorFromEvent(
 	event: KeyEventLike,
 	mac: boolean = isMacPlatform(),
@@ -275,7 +290,8 @@ export function acceleratorFromEvent(
 	if (event.altKey) parts.push("Alt");
 	if (event.shiftKey) parts.push("Shift");
 	parts.push(key.length === 1 ? key.toUpperCase() : titleCase(key));
-	return parts.join("+");
+	const accelerator = parts.join("+");
+	return isAppShortcut(accelerator) ? accelerator : null;
 }
 
 function titleCase(value: string): string {
@@ -317,21 +333,8 @@ export function formatAccelerator(
 	accelerator: string,
 	mac: boolean = isMacPlatform(),
 ): string {
-	const parsed = parseAccelerator(accelerator);
-	if (!parsed) return "Unbound";
-	const key =
-		parsed.key.length === 1 ? parsed.key.toUpperCase() : titleCase(parsed.key);
-	if (mac) {
-		return `${parsed.ctrl ? MAC_SYMBOLS.ctrl : ""}${parsed.alt ? MAC_SYMBOLS.alt : ""}${
-			parsed.shift ? MAC_SYMBOLS.shift : ""
-		}${parsed.mod ? MAC_SYMBOLS.mod : ""}${key}`;
-	}
-	const parts: string[] = [];
-	if (parsed.mod || parsed.ctrl) parts.push("Ctrl");
-	if (parsed.alt) parts.push("Alt");
-	if (parsed.shift) parts.push("Shift");
-	parts.push(key);
-	return parts.join("+");
+	const keys = acceleratorKeys(accelerator, mac);
+	return keys.length ? keys.join(mac ? "" : "+") : "Unbound";
 }
 
 // --- Loading -----------------------------------------------------------------

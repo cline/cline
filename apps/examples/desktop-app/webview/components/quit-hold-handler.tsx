@@ -40,10 +40,10 @@ function isNativeQuitAccelerator(accelerator: string): boolean {
 }
 
 /**
- * Handles the quit keybinding. The native ⌘Q menu accelerator is kept only
- * when the binding is exactly ⌘Q with no hold time; any other binding (a
- * different shortcut, a hold time, or unbound) releases it via
- * `set_quit_shortcut_native` and is handled here instead.
+ * Handles the quit keybinding while the webview has focus. Native ⌘Q is
+ * restored on blur so hidden or minimized windows can still quit immediately.
+ * While focused, only an immediate ⌘Q binding uses the native accelerator;
+ * all other bindings release it and are handled here instead.
  */
 export function QuitHoldHandler({
 	bindings,
@@ -61,9 +61,21 @@ export function QuitHoldHandler({
 		bound && holdMs === 0 && isNativeQuitAccelerator(accelerator);
 	useEffect(() => {
 		if (!isTauriAvailable()) return;
-		void desktopClient
-			.invoke("set_quit_shortcut_native", { enabled: nativeQuit })
-			.catch(() => {});
+		const setNativeQuit = (enabled: boolean) => {
+			void desktopClient
+				.invoke("set_quit_shortcut_native", { enabled })
+				.catch(() => {});
+		};
+		const onFocus = () => setNativeQuit(nativeQuit);
+		const onBlur = () => setNativeQuit(true);
+		window.addEventListener("focus", onFocus);
+		window.addEventListener("blur", onBlur);
+		setNativeQuit(nativeQuit || !document.hasFocus());
+		return () => {
+			window.removeEventListener("focus", onFocus);
+			window.removeEventListener("blur", onBlur);
+			setNativeQuit(true);
+		};
 	}, [nativeQuit]);
 
 	useEffect(() => {

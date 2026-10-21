@@ -12,6 +12,7 @@ import {
 	canonicalAccelerator,
 	DEFAULT_QUIT_HOLD_MS,
 	defaultKeybindings,
+	isMacPlatform,
 	KEYBINDING_DEFINITIONS,
 	type KeybindingActionId,
 	type KeybindingEntry,
@@ -31,6 +32,8 @@ function ShortcutRecorder({
 	onChange: (key: string) => void;
 }) {
 	const [recording, setRecording] = useState(false);
+	const [invalidShortcut, setInvalidShortcut] = useState(false);
+	const modifierHint = isMacPlatform() ? "⌘, ⌃, or ⌥" : "Ctrl or Alt";
 
 	useEffect(() => {
 		if (!recording) return;
@@ -50,7 +53,10 @@ function ShortcutRecorder({
 				return;
 			}
 			const accelerator = acceleratorFromEvent(event);
-			if (!accelerator) return; // wait for a non-modifier key
+			if (!accelerator) {
+				setInvalidShortcut(true);
+				return;
+			}
 			onChange(accelerator);
 			setRecording(false);
 		};
@@ -65,14 +71,21 @@ function ShortcutRecorder({
 		<Button
 			className={cn("min-w-32", recording && "ring-2 ring-primary")}
 			onBlur={() => setRecording(false)}
-			onClick={() => setRecording((current) => !current)}
+			onClick={() => {
+				setInvalidShortcut(false);
+				setRecording((current) => !current);
+			}}
 			size="sm"
-			title="Click, then press the new shortcut. Esc cancels, Backspace unbinds."
+			title={`Click, then press a shortcut with ${modifierHint}, or F1–F24. Esc cancels, Backspace unbinds.`}
 			type="button"
 			variant="outline"
 		>
 			{recording ? (
-				"Press shortcut…"
+				invalidShortcut ? (
+					`Use ${modifierHint}, or F1–F24`
+				) : (
+					"Press shortcut…"
+				)
 			) : value ? (
 				<KbdGroup>
 					{acceleratorKeys(value).map((part) => (
