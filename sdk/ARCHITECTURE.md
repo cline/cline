@@ -138,7 +138,6 @@ Design rules:
 - `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
 - `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
-- Cloud sends expose `beforeDispatch` so hosts can distinguish unsent input from uncertain delivery. Run-start events and reconnect text evidence do not acknowledge a send.
 - The cloud controller resumes suspended sessions and restores saved tasks.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
@@ -799,6 +798,35 @@ which lazily imports the embedded bootstrap with bunfs mounted and compiled
 runtime flags (including system CA trust) intact. Generic script sandboxes
 still use plain Bun mode when reusing a compiled runtime.
 
+
+`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution,
+exposed to clients through Hub RPC (`plugins.commands.list` /
+`plugins.commands.run`). The desktop sidecar, CLI, and connectors reuse their
+existing runtime connections and do not load plugins themselves. Plugin command
+execution can recover a connection before dispatch, but never resends a
+dispatched action whose reply was lost.
+
+A resident session lists and executes commands from its own contribution
+registry, retaining the plugin instance and context shared with its hooks.
+Session registrations keep their session lifetime. Without a resident session,
+the runtime uses a per-workspace catalog. Each request fingerprints the enabled
+discoverable plugin entries and their imported source graph, and reloads the
+catalog when that changes; other settings, setup logs, and state files beside a
+plugin do not. Each load uses its own `PluginRegistry`, so a catalog import
+failure cannot block a resident session's copy of the same plugin, and the
+retry re-imports it. A failed load keeps healthy commands, reports
+`status: "error"`, and is retried by a request after 30 seconds. Catalogs idle for 10 minutes release
+their workers. Reload, eviction, and disposal wait for running handlers. Clients
+re-list to stay current (for example when a slash menu opens or the active
+session changes); there is no catalog push event.
+
+The shared command executor records `task.tool_used` once per matched handler,
+including failures, for both direct runtime and Hub calls. Telemetry failures
+cannot replace a command's result or original error. Hub status and replacement
+checks count active command requests even without a chat participant; draining
+refuses new catalog and command requests. CLI and desktop fallbacks treat a
+failed catalog read as "not a plugin command" so skills and workflows still
+work, while errors from a listed plugin's handler remain visible.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable

@@ -181,6 +181,7 @@ export class CloudSessionManager extends CloudSessionController {
 		images?: string[],
 		lifecycle?: CloudSendLifecycle,
 	) {
+		// Existing desktop commands update this local preference before lazy inner creation.
 		const config = this.ctx.liveSessions.get(id)?.config;
 		if (config)
 			this.restoreCreationOptions(id, {

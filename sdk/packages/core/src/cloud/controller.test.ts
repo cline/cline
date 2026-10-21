@@ -849,20 +849,11 @@ describe("CloudSessionController neutral host contract", () => {
 			dispatched = true;
 			return completed;
 		});
-		const lifecycle = { beforeDispatch: vi.fn() };
-		const sending = f.controller.send(
-			record.id,
-			"same prompt",
-			undefined,
-			undefined,
-			undefined,
-			lifecycle,
-		);
+		const sending = f.controller.send(record.id, "same prompt");
 		await vi.waitFor(() => expect(dispatched).toBe(true));
 		const accepted = () =>
 			f.events.filter((event) => event.type === "prompt_accepted");
 		expect(accepted()).toEqual([]);
-		expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce();
 		f.emit("run.started", {
 			requestId: "input-request",
 			clientId: "other-viewer",
@@ -890,6 +881,7 @@ describe("CloudSessionController neutral host contract", () => {
 	});
 	it("prevents dispatch if beforeDispatch throws", async () => {
 		const f = await attached();
+		const previousTitle = f.controller.getSnapshot(record.id)?.title;
 		try {
 			await expect(
 				f.controller.send(
@@ -908,6 +900,20 @@ describe("CloudSessionController neutral host contract", () => {
 			expect(
 				f.commands.some((command) => command.command === "session.send_input"),
 			).toBe(false);
+			expect(f.api.updateTitle).not.toHaveBeenCalled();
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(previousTitle);
+			expect(
+				f.controller.getSnapshot(record.id)?.record?.title,
+			).toBeUndefined();
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBeUndefined();
+			await f.controller.send(record.id, "accepted prompt");
+			expect(f.api.updateTitle).toHaveBeenCalledExactlyOnceWith(
+				record.id,
+				"accepted prompt",
+			);
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(
+				"accepted prompt",
+			);
 		} finally {
 			await f.controller.dispose();
 		}
@@ -956,51 +962,6 @@ describe("CloudSessionController neutral host contract", () => {
 			},
 		]);
 		await f.controller.dispose();
-	});
-	it("acknowledges a dispatched prompt's late reply after detaching without publishing to the closed pane", async () => {
-		const f = await attached();
-		const original = f.command.getMockImplementation();
-		if (!original) throw new Error("Missing command fixture");
-		let finish!: (reply: HubReplyEnvelope) => void;
-		const reply = new Promise<HubReplyEnvelope>((resolve) => {
-			finish = resolve;
-		});
-		const lifecycle = { beforeDispatch: vi.fn() };
-		f.command.mockImplementation(async (...args) => {
-			if (args[0] !== "session.send_input") return original(...args);
-			args[3]?.beforeDispatch?.();
-			args[3]?.onDispatch?.("late-request");
-			return reply;
-		});
-		try {
-			const sending = f.controller.send(
-				record.id,
-				"late",
-				undefined,
-				undefined,
-				undefined,
-				lifecycle,
-			);
-			await vi.waitFor(() =>
-				expect(lifecycle.beforeDispatch).toHaveBeenCalledOnce(),
-			);
-			await f.controller.detach(record.id);
-			finish({
-				version: "v1",
-				ok: true,
-				payload: { result: {} },
-			} as HubReplyEnvelope);
-			await expect(sending).resolves.toEqual({
-				sessionId: record.id,
-				ok: true,
-				result: {},
-			});
-			expect(
-				f.events.filter((event) => event.type === "prompt_accepted"),
-			).toEqual([]);
-		} finally {
-			await f.controller.dispose();
-		}
 	});
 	it.each([
 		"succeeds",

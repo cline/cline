@@ -23,7 +23,7 @@ export function localRuntimeContext(
 						...sessionManager,
 					},
 					hubClient: {
-						command: vi.fn(async () => ({ version: "v1", ok: true })),
+						command: vi.fn(async () => ({ ok: true, payload: {} })),
 					},
 					unsubscribeSessionEvents: () => {},
 				},
