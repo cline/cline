@@ -6,8 +6,8 @@ import { writeDiagnostic } from "../utils/output";
 /**
  * Supported ACP OAuth provider IDs.
  *
- * This list doubles as the set of selectable providers (see
- * `setSessionConfigOption`)
+ * Returned from `initialize` as the client's sign-in options. The selectable
+ * providers are a superset of this list (see `selectableAcpProviders`).
  */
 export const ACP_AUTH_METHODS = [
 	{ id: "cline", name: "Sign in with Cline" },
