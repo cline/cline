@@ -4105,13 +4105,22 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 		let endedEvents = 0;
+		const submitted: string[] = [];
+		const discarded: string[] = [];
 		manager.subscribe((event) => {
 			if (event.type === "ended") endedEvents += 1;
+			if (event.type === "pending_prompt_submitted") {
+				submitted.push(event.payload.prompt);
+			}
+			if (event.type === "pending_prompts" && event.payload.discarded) {
+				discarded.push(...event.payload.discarded.map((p) => p.prompt));
+			}
 		});
+		const capture = vi.fn();
 
 		await manager.startSession(
 			normalizeStartInput({
-				config: createConfig({ sessionId }),
+				config: createConfig({ sessionId, telemetry: { capture } as never }),
 				interactive: true,
 			}),
 		);
@@ -4145,6 +4154,19 @@ describe("LocalRuntimeHost", () => {
 		expect(sentPrompts).toHaveLength(1);
 		expect(endedEvents).toBe(1);
 		expect(statuses()).toEqual(["running", "idle", "running", "cancelled"]);
+		// The drain had already announced the prompt as submitted; the client
+		// must learn that it never reached the agent.
+		expect(submitted).toEqual(["drained before stop"]);
+		expect(discarded).toEqual(["drained before stop"]);
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: CORE_TELEMETRY_EVENTS.SESSION.PENDING_PROMPTS_DISCARDED,
+				properties: expect.objectContaining({
+					count: 1,
+					reason: "session_teardown",
+				}),
+			}),
+		);
 	});
 
 	function createOneShotStopFixture(

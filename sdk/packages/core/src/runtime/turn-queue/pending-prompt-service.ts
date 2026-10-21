@@ -35,6 +35,8 @@ export interface PendingPromptsControllerDeps {
 		mode?: AgentMode;
 		userImages?: string[];
 		userFiles?: string[];
+		/** The dequeued entry, so a turn stopped before it reaches the agent can report it as discarded. */
+		pendingPrompt: PendingPromptEntry;
 	}): Promise<unknown>;
 }
 
@@ -305,6 +307,16 @@ export class PendingPromptsController {
 		return discarded;
 	}
 
+	/** Reports entries that left the queue but were never sent to the agent. */
+	emitDiscarded(
+		session: ActiveSession,
+		entries: PendingPromptEntry[],
+	): SessionPendingPrompt[] {
+		const discarded = entries.map(snapshotPrompt);
+		this.emitPrompts(session, discarded);
+		return discarded;
+	}
+
 	emitPrompts(
 		session: ActiveSession,
 		discarded?: SessionPendingPrompt[],
@@ -361,6 +373,7 @@ export class PendingPromptsController {
 				...(next.mode ? { mode: next.mode } : {}),
 				userImages: next.userImages,
 				userFiles: next.userFiles,
+				pendingPrompt: next,
 			});
 			// A turn that resolves with an error finish ran (the prompt is in
 			// the conversation and the error is surfaced), so the entry is not
