@@ -322,6 +322,7 @@ export class PendingPromptsController {
 	scheduleDrain(sessionId: string, session: ActiveSession): void {
 		if (
 			session.pendingPrompts.length === 0 ||
+			session.shuttingDown ||
 			session.aborting ||
 			session.drainingPendingPrompts ||
 			!session.agent.canStartRun()
@@ -336,7 +337,11 @@ export class PendingPromptsController {
 	async drain(sessionId: string): Promise<void> {
 		const session = this.deps.getSession(sessionId);
 		if (!session) return;
-		if (session.aborting || session.drainingPendingPrompts) {
+		if (
+			session.shuttingDown ||
+			session.aborting ||
+			session.drainingPendingPrompts
+		) {
 			return;
 		}
 		if (!session.agent.canStartRun()) {
@@ -367,8 +372,12 @@ export class PendingPromptsController {
 			}
 		} catch {
 			continueDrain = false;
-			this.service.requeueFront(session, next);
-			this.emitPrompts(session);
+			// Teardown emptied the queue while this entry was out; putting it
+			// back would resurrect a queue on a session that is going away.
+			if (!session.shuttingDown) {
+				this.service.requeueFront(session, next);
+				this.emitPrompts(session);
+			}
 		} finally {
 			session.drainingPendingPrompts = false;
 			if (
