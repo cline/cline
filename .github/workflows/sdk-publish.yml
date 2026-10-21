@@ -1,6 +1,18 @@
 name: sdk-publish
 
 on:
+  workflow_call:
+    inputs:
+      channel:
+        type: string
+        required: true
+      confirm_publish:
+        type: string
+        required: true
+      release_sha:
+        description: Exact merged commit supplied by publish-new-version
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       channel:
@@ -33,6 +45,8 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/sdk-test.yml
+    with:
+      ref: ${{ inputs.release_sha || github.sha }}
 
   publish-sdk:
     needs: test
@@ -44,18 +58,32 @@ jobs:
       github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
       (
-        github.event_name != 'workflow_dispatch' ||
-        inputs.channel != 'latest' ||
-        (
-          inputs.confirm_publish == 'publish' &&
-          !endsWith(github.actor, '[bot]')
-        )
+        github.event_name == 'schedule' ||
+        (github.event_name == 'workflow_dispatch' &&
+          (inputs.channel == 'nightly' || (inputs.confirm_publish == 'publish' && !endsWith(github.actor, '[bot]')))) ||
+        (inputs.channel == 'latest' && inputs.confirm_publish == 'publish' && (
+          github.event_name == 'push' &&
+          inputs.release_sha != '' &&
+          inputs.release_sha == github.sha
+        ))
       )
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate coordinated release commit
+        if: inputs.release_sha != ''
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch origin +main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
 
       - name: Determine publish channel
         id: channel
@@ -162,8 +190,8 @@ jobs:
           echo "Publish version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update all package versions and lockfile
-        if: steps.check_commits.outputs.skip != 'true'
+      - name: Update nightly package versions and lockfile
+        if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'nightly'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: bun sdk/scripts/version.ts "$VERSION"
@@ -172,72 +200,16 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         run: bun sdk/scripts/check-publish.ts
 
-      - name: Prepare package tarball directory
-        if: steps.check_commits.outputs.skip != 'true'
-        run: mkdir -p "$RUNNER_TEMP/sdk-npm-packs"
-
       # Pack with Bun so workspace/catalog protocols are resolved in the tarball,
       # then publish that tarball with npm so npm trusted publishing can use GitHub OIDC.
       # Publish sequentially in dependency order: shared → llms → agents → core → sdk
-      - name: Publish @cline/shared
+      - name: Publish SDK packages in dependency order
         if: steps.check_commits.outputs.skip != 'true'
         env:
           NPM_CONFIG_PROVENANCE: "true"
           CHANNEL: ${{ steps.channel.outputs.channel }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Publishing @cline/shared@${VERSION} with tag '${CHANNEL}'..."
-          cd sdk/packages/shared
-          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
-          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
-
-      - name: Publish @cline/llms
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-          CHANNEL: ${{ steps.channel.outputs.channel }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Publishing @cline/llms@${VERSION} with tag '${CHANNEL}'..."
-          cd sdk/packages/llms
-          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
-          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
-
-      - name: Publish @cline/agents
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-          CHANNEL: ${{ steps.channel.outputs.channel }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Publishing @cline/agents@${VERSION} with tag '${CHANNEL}'..."
-          cd sdk/packages/agents
-          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
-          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
-
-      - name: Publish @cline/core
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-          CHANNEL: ${{ steps.channel.outputs.channel }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Publishing @cline/core@${VERSION} with tag '${CHANNEL}'..."
-          cd sdk/packages/core
-          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
-          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
-
-      - name: Publish @cline/sdk
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-          CHANNEL: ${{ steps.channel.outputs.channel }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Publishing @cline/sdk@${VERSION} with tag '${CHANNEL}'..."
-          cd sdk/packages/sdk
-          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
-          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
+        run: bun .github/scripts/release/publish-sdk.ts
 
       - name: Create package tags for production publish
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
@@ -250,7 +222,11 @@ jobs:
           for PKG in shared llms agents core sdk; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-              echo "Tag already exists locally: ${TAG}"
+              test "$(git rev-parse "${TAG}^{commit}")" = "$(git rev-parse HEAD)" || {
+                echo "Existing ${TAG} points at another commit"
+                exit 1
+              }
+              echo "Tag already exists at this commit: ${TAG}"
             else
               git tag -a "${TAG}" -m "@cline/${PKG}@${VERSION}"
               echo "Created tag: ${TAG}"
@@ -266,7 +242,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # The checkout is shallow and tagless, so fetch the release tags explicitly.
+          # Refresh release tags for the changelog comparison.
           git fetch origin "+refs/tags/sdk/sdk/v*:refs/tags/sdk/sdk/v*"
           PREV_TAG=$(git tag -l 'sdk/sdk/v*' | grep -vx "sdk/sdk/v${VERSION}" | sort -V | tail -1 || echo "")
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
@@ -311,7 +287,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: sdk/sdk/v${{ steps.version.outputs.version }}
           name: "SDK v${{ steps.version.outputs.version }}"
