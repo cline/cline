@@ -1,7 +1,7 @@
 import { agentEntryState, type SessionAgentEntry } from "@/lib/session-agents";
 
 /**
- * What a teammate is doing right now, for the team panel above the composer.
+ * What a teammate is doing right now, for the team panel on the chat input.
  *
  * Two sources feed it. The persisted roster (`list_session_agents`) knows each
  * teammate's runs, their real status, and the last thing each transcript did,

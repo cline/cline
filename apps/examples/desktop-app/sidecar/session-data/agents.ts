@@ -191,6 +191,17 @@ const teammateSessionCache = new Map<
 	{ sessionId?: string; checkedAt: number }
 >();
 
+type ChildSessionSource = Pick<SqliteSessionStore, "listChildren">;
+
+// One connection for the lifetime of the sidecar: this runs every couple of
+// seconds per active teammate, and each store opens its own database handle.
+let sharedSessionStore: SqliteSessionStore | undefined;
+
+function sessionStore(): ChildSessionSource {
+	sharedSessionStore ??= new SqliteSessionStore();
+	return sharedSessionStore;
+}
+
 /**
  * The child session of the teammate run `agentId` is working in under
  * `rootSessionId`: its latest team-task run. Teammate events stream under the
@@ -201,8 +212,9 @@ const teammateSessionCache = new Map<
 export function resolveTeammateSessionId(
 	rootSessionId: string,
 	agentId: string,
-	now = Date.now(),
+	options: { now?: number; store?: ChildSessionSource } = {},
 ): string | undefined {
+	const now = options.now ?? Date.now();
 	const key = `${rootSessionId}\u0000${agentId}`;
 	const cached = teammateSessionCache.get(key);
 	if (cached && now - cached.checkedAt < TEAMMATE_SESSION_TTL_MS) {
@@ -210,10 +222,8 @@ export function resolveTeammateSessionId(
 	}
 	let latest: { sessionId: string; startedAt: string } | undefined;
 	try {
-		for (const record of new SqliteSessionStore().listChildren(
-			rootSessionId,
-			200,
-		)) {
+		const store = options.store ?? sessionStore();
+		for (const record of store.listChildren(rootSessionId, 200)) {
 			if (
 				record.agentId?.trim() !== agentId ||
 				!record.sessionId.includes(TEAM_TASK_MARKER)

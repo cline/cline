@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+
 vi.mock("@cline/core", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@cline/core")>()),
 	SqliteSessionStore: class {
@@ -12,7 +13,9 @@ vi.mock("../paths", () => ({
 	readSessionManifest: () => undefined,
 }));
 vi.mock("./messages", () => ({ readPersistedChatMessages: () => [] }));
+
 import { discoverChatSessions } from "./discovery";
+
 describe("desktop session discovery", () => {
 	it.each([
 		"idle",
@@ -85,6 +88,7 @@ describe("desktop session discovery", () => {
 
 // These are the same prompt derivation rules used by restore and fork.
 import { derivePromptFromMessages } from "./common";
+
 describe("restored session prompts", () => {
 	it.each([
 		"recovery_notice",

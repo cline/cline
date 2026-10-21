@@ -39,7 +39,11 @@ vi.mock("@cline/core", async () => {
 	};
 });
 
-import { listSessionAgents, readChildSessionMessages } from "./agents";
+import {
+	listSessionAgents,
+	readChildSessionMessages,
+	resolveTeammateSessionId,
+} from "./agents";
 
 let dir: string;
 
@@ -294,5 +298,72 @@ describe("listSessionAgents last action", () => {
 			record({ sessionId: "root1__a", agentId: "a", status: "running" }),
 		);
 		expect(listSessionAgents(ROOT)[0]?.lastAction).toBeUndefined();
+	});
+});
+
+describe("resolveTeammateSessionId", () => {
+	it("routes to the teammate's latest team-task run", () => {
+		const root = "root-routing";
+		for (const row of [
+			record({
+				sessionId: `${root}__teamtask__reviewer__a`,
+				parentSessionId: root,
+				agentId: "reviewer",
+				startedAt: "2026-10-20T20:00:00.000Z",
+			}),
+			record({
+				sessionId: `${root}__teamtask__reviewer__b`,
+				parentSessionId: root,
+				agentId: "reviewer",
+				startedAt: "2026-10-20T20:05:00.000Z",
+			}),
+			record({
+				sessionId: `${root}__subagent__reviewer`,
+				parentSessionId: root,
+				agentId: "reviewer",
+				startedAt: "2026-10-20T20:09:00.000Z",
+			}),
+			record({
+				sessionId: `${root}__teamtask__ui-dev__a`,
+				parentSessionId: root,
+				agentId: "ui-dev",
+				startedAt: "2026-10-20T20:10:00.000Z",
+			}),
+		]) {
+			records.set(row.sessionId, row);
+		}
+
+		expect(resolveTeammateSessionId(root, "reviewer", { now: 0 })).toBe(
+			`${root}__teamtask__reviewer__b`,
+		);
+		expect(resolveTeammateSessionId(root, "ghost", { now: 0 })).toBeUndefined();
+	});
+
+	it("caches briefly, then picks up the teammate's next run", () => {
+		const root = "root-cache";
+		const first = record({
+			sessionId: `${root}__teamtask__qa__a`,
+			parentSessionId: root,
+			agentId: "qa",
+			startedAt: "2026-10-20T20:00:00.000Z",
+		});
+		records.set(first.sessionId, first);
+		expect(resolveTeammateSessionId(root, "qa", { now: 1_000 })).toBe(
+			first.sessionId,
+		);
+
+		const next = record({
+			sessionId: `${root}__teamtask__qa__b`,
+			parentSessionId: root,
+			agentId: "qa",
+			startedAt: "2026-10-20T20:03:00.000Z",
+		});
+		records.set(next.sessionId, next);
+		expect(resolveTeammateSessionId(root, "qa", { now: 2_000 })).toBe(
+			first.sessionId,
+		);
+		expect(resolveTeammateSessionId(root, "qa", { now: 3_500 })).toBe(
+			next.sessionId,
+		);
 	});
 });
