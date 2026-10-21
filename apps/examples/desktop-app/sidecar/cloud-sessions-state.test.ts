@@ -1,4 +1,8 @@
-import { HubCommandError, HubTransportError } from "@cline/core";
+import {
+	HubCommandError,
+	HubTransportError,
+	type NodeHubClient,
+} from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -55,8 +59,11 @@ async function createFixture() {
 			name: string,
 			_payload?: unknown,
 			_sessionId?: string,
-			_options?: unknown,
-		) => reply(name),
+			options?: Parameters<NodeHubClient["command"]>[3],
+		) => {
+			options?.beforeDispatch?.();
+			return reply(name);
+		},
 	);
 	const connection: Awaited<
 		ReturnType<CloudSessionManager["ensureConnection"]>
@@ -106,6 +113,51 @@ const transportError = () =>
 	new HubTransportError("hub_connection_closed", "socket closed");
 
 describe("CloudSessionManager state", () => {
+	it("honors the dispatch hook before sending through the desktop adapter", async () => {
+		const { manager, command, reply, updateTitle, live } =
+			await createFixture();
+		const dispatch = vi.fn();
+		command.mockImplementation(async (name, _payload, _sessionId, options) => {
+			options?.beforeDispatch?.();
+			if (name === "session.send_input") dispatch();
+			return reply(name);
+		});
+		const beforeDispatch = vi.fn<() => void>(() => {
+			throw new Error("Could not save continuation");
+		});
+
+		await expect(
+			manager.send(
+				"ses-outer",
+				"Continue the task",
+				undefined,
+				undefined,
+				undefined,
+				{
+					beforeDispatch,
+				},
+			),
+		).rejects.toThrow("Could not save continuation");
+		expect(beforeDispatch).toHaveBeenCalledOnce();
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(updateTitle).not.toHaveBeenCalled();
+		expect(live.messages).toEqual([]);
+
+		beforeDispatch.mockImplementation(() => {});
+		await manager.send(
+			"ses-outer",
+			"Continue the task",
+			undefined,
+			undefined,
+			undefined,
+			{
+				beforeDispatch,
+			},
+		);
+		expect(beforeDispatch).toHaveBeenCalledTimes(2);
+		expect(dispatch).toHaveBeenCalledOnce();
+	});
+
 	it("keeps a pending send cancelled when deletion clears its abort token", async () => {
 		const { manager, connection, ensureAttached, command } =
 			await createFixture();

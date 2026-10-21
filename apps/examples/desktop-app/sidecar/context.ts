@@ -30,6 +30,7 @@ import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
+import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import { resolveTeammateSessionId } from "./session-data/agents";
 import type {
@@ -956,6 +957,12 @@ export function handleHubLiveEvent(
 		});
 		return;
 	}
+	// Schedules can fail before creating a session. Relay their lifecycle
+	// events independently of the live-chat/session projection as well.
+	if (event.event.startsWith("schedule.")) {
+		sendEvent(ctx, event.event, event.payload ?? {});
+		return;
+	}
 	if (event.event === "settings.changed") {
 		sendEvent(ctx, event.event, event.payload ?? {});
 		return;
@@ -1553,6 +1560,7 @@ export async function ensureSharedHubClient(
 		try {
 			await client.connect();
 			client.subscribe((event) => {
+				recordHubActivity(getSidecarContextOwner(ctx), event);
 				handleHubLiveEvent(
 					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
 					event,
