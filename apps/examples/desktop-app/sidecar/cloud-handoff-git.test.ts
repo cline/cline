@@ -97,6 +97,15 @@ beforeEach(() => {
 afterEach(() => rmSync(temporary, { recursive: true, force: true }));
 
 describe("cloud handoff Git preparation", () => {
+	it.each([
+		["outside a repository", "Open a Git repository"],
+		["detached HEAD", "Check out a Git branch"],
+	])("explains preparation %s", async (state, guidance) => {
+		if (state === "detached HEAD") git("checkout", "--detach", "HEAD");
+		await expect(
+			inspectHandoffGit(state === "detached HEAD" ? repo : temporary),
+		).rejects.toThrow(guidance);
+	});
 	it("keeps a symlinked workspace relative to the repository", async () => {
 		mkdirSync(join(repo, "packages", "app"), { recursive: true });
 		const linked = join(temporary, "linked");

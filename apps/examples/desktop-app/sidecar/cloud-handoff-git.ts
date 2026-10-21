@@ -92,7 +92,11 @@ export async function inspectHandoffGit(
 	cwd: string,
 	onCaptured?: () => void,
 ): Promise<HandoffGitPlan> {
-	const root = await git(cwd, ["rev-parse", "--show-toplevel"]);
+	const root = await git(cwd, ["rev-parse", "--show-toplevel"]).catch(() => {
+		throw new Error(
+			"Could not read the Git repository. Open a Git repository and check access before using /cloud.",
+		);
+	});
 	const workspaceRelativePath = (
 		await git(cwd, ["rev-parse", "--show-prefix"])
 	).replace(/\/$/, "");
@@ -105,7 +109,15 @@ export async function inspectHandoffGit(
 			"Cloud preparation cannot include files marked skip-worktree or assume-unchanged. Review these flags and local changes before retrying /cloud.",
 		);
 	}
-	const sourceBranch = await git(root, ["symbolic-ref", "--short", "HEAD"]);
+	const sourceBranch = await git(root, [
+		"symbolic-ref",
+		"--short",
+		"HEAD",
+	]).catch(() => {
+		throw new Error(
+			"Could not read the current branch. Check out a Git branch before using /cloud.",
+		);
+	});
 	const headSha = await git(root, ["rev-parse", "HEAD"]);
 	const status = await git(root, [
 		"status",
