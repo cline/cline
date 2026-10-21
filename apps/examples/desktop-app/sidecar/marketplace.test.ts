@@ -145,6 +145,7 @@ describe("official plugin install detection", () => {
 		expect(result).toMatchObject({
 			status: "installed",
 			message: "Goal is already installed.",
+			details: { method: "already-installed" },
 		});
 		expect(installPluginMock).not.toHaveBeenCalled();
 	});

@@ -958,6 +958,7 @@ async function installPlugin(
 			type: entry.type,
 			status: "installed",
 			message: `${entry.name ?? entry.id} is already installed.`,
+			details: { method: "already-installed" },
 		};
 	}
 	// Install in-process instead of shelling out to a `cline` binary: the

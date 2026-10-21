@@ -291,6 +291,27 @@ describe("installGitHubSkill", () => {
 		expect(result.skippedPaths).toEqual(["skills/data/skills/chdb-sql"]);
 	});
 
+	it("accepts a SKILL.md that is a link to a file in the repository", async () => {
+		const archive = githubTarball([
+			{ path: "skills/linked/instructions.md", content: skillMd("linked") },
+			{ path: "skills/linked/SKILL.md", link: "instructions.md" },
+		]);
+
+		const result = await installGitHubSkill(
+			{ owner: "o", repo: "r", skill: "linked" },
+			{ skillsDir, fetch: fetchReturning(archive) },
+		);
+
+		expect(result.name).toBe("linked");
+		expect(listFiles(result.installPath)).toEqual([
+			"SKILL.md",
+			"instructions.md",
+		]);
+		expect(readFileSync(join(result.installPath, "SKILL.md"), "utf8")).toBe(
+			skillMd("linked"),
+		);
+	});
+
 	it("skips links that loop back into a directory being copied", async () => {
 		// Twenty links to "." would otherwise re-expand the skill directory for
 		// each of them; a link to ".." would copy the whole repository into it.

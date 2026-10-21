@@ -435,7 +435,11 @@ function selectSkill(
 	const searchRoot = source.subpath ?? "";
 	const candidates: SkillCandidate[] = [];
 	for (const [path, entry] of tree) {
-		if (entry.type !== "file" || posix.basename(path) !== "SKILL.md") continue;
+		if (posix.basename(path) !== "SKILL.md") continue;
+		// Cline's loader reads a linked SKILL.md through the filesystem, so a
+		// link to a file inside the archive counts too.
+		const file = resolveFileEntry(tree, path, entry);
+		if (!file) continue;
 		const dir = posix.dirname(path) === "." ? "" : posix.dirname(path);
 		if (searchRoot && dir !== searchRoot && !dir.startsWith(`${searchRoot}/`)) {
 			continue;
@@ -447,7 +451,7 @@ function selectSkill(
 		// name as the fallback), so the installer accepts exactly the skills Cline
 		// can load and skips the ones it would reject.
 		const name = readSkillName(
-			entry.data.toString("utf8"),
+			file.data.toString("utf8"),
 			dir ? posix.basename(dir) : source.repo,
 		);
 		if (name) candidates.push({ dir, name });
@@ -480,6 +484,27 @@ function selectSkill(
 			.map((c) => c.name)
 			.join(", ")}`,
 	);
+}
+
+function resolveFileEntry(
+	tree: RepoTree,
+	path: string,
+	entry: TarEntry,
+): (TarEntry & { type: "file" }) | undefined {
+	let current = entry;
+	let at = path;
+	for (let hops = 0; current.type === "symlink"; hops++) {
+		if (hops >= MAX_LINK_DEPTH) return undefined;
+		const resolved = normalizeRelativePath(
+			posix.join(posix.dirname(at), current.target),
+		);
+		if (resolved === undefined) return undefined;
+		const next = tree.get(resolved);
+		if (!next) return undefined;
+		at = resolved;
+		current = next;
+	}
+	return current;
 }
 
 function readSkillName(
