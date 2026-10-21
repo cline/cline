@@ -10,6 +10,7 @@ export const ProviderAuthInfoSchema = z.object({
 	localCli: z
 		.object({ command: z.string(), docsUrl: z.string().optional() })
 		.optional(),
+	apiKeyOptional: z.boolean().optional(),
 }) satisfies z.ZodType<ProviderAuthInfo>;
 
 export const ChatSessionConfigSchema = z.object({

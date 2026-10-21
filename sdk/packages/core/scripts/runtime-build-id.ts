@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 
-const RUNTIME_PACKAGE_NAMES = ["shared", "llms", "agents", "core"] as const;
+const RUNTIME_PACKAGE_NAMES = [
+	"shared",
+	"llms",
+	"agents",
+	"core",
+	"sdk",
+] as const;
 const TEST_DIRECTORY_NAMES = new Set(["__tests__", "fixtures", "tests"]);
 
 function collectRuntimeSourceFiles(directory: string): string[] {
@@ -34,7 +40,10 @@ function collectRuntimeSourceFiles(directory: string): string[] {
  */
 export function resolveSdkRuntimeBuildId(repoRoot: string): string {
 	const packagesRoot = join(repoRoot, "sdk", "packages");
-	const inputs = [join(repoRoot, "bun.lock")];
+	const inputs = [
+		join(repoRoot, "bun.lock"),
+		join(packagesRoot, "core", "build-plugin-runtime.mts"),
+	];
 
 	for (const packageName of RUNTIME_PACKAGE_NAMES) {
 		const packageRoot = join(packagesRoot, packageName);

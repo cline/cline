@@ -20,7 +20,12 @@ mock.module("@/sdk/sdk-api-handler", () => ({
 	buildApiHandlerWithHostContext: buildApiHandlerWithHostContextStub,
 }))
 
-import { abortCommitGeneration, getGitDiffStagedFirst, performCommitMsgGeneration } from "../commit-message-generator"
+import {
+	abortCommitGeneration,
+	buildCommitMessageSystemPrompt,
+	getGitDiffStagedFirst,
+	performCommitMsgGeneration,
+} from "../commit-message-generator"
 
 function deferred<T>() {
 	let resolve!: (value: T) => void
@@ -34,7 +39,9 @@ async function* textStream(text: string) {
 	yield { type: "text", text }
 }
 
-const fakeController = { stateManager: { getApiConfiguration: () => ({}) } } as never
+function fakeController(getRulesForSystemPrompt: () => Promise<string> = async () => "") {
+	return { stateManager: { getApiConfiguration: () => ({}) }, getRulesForSystemPrompt } as never
+}
 
 describe("commit-message-generator", () => {
 	describe("performCommitMsgGeneration cancellation", () => {
@@ -48,13 +55,55 @@ describe("commit-message-generator", () => {
 			buildApiHandlerWithHostContextStub.returns(handler.promise)
 			const inputBox = { value: "" }
 
-			const generation = performCommitMsgGeneration(fakeController, "diff", inputBox)
+			const generation = performCommitMsgGeneration(fakeController(), "diff", inputBox)
 			abortCommitGeneration()
 			handler.resolve({ createMessage })
 			await generation
 
 			createMessage.called.should.be.false()
 			inputBox.value.should.equal("")
+		})
+
+		it("sends no request when cancelled while the rules are loading", async () => {
+			const rules = deferred<string>()
+			const createMessage = sinon.stub().callsFake(() => textStream("feat: x"))
+			buildApiHandlerWithHostContextStub.resolves({ createMessage })
+			const inputBox = { value: "" }
+
+			const generation = performCommitMsgGeneration(
+				fakeController(() => rules.promise),
+				"diff",
+				inputBox,
+			)
+			abortCommitGeneration()
+			rules.resolve("")
+			await generation
+
+			createMessage.called.should.be.false()
+			inputBox.value.should.equal("")
+		})
+
+		it("Stop ends a generation without waiting for the rules to finish loading", async () => {
+			const rules = deferred<string>()
+			const createMessage = sinon.stub().callsFake(() => textStream("feat: x"))
+			buildApiHandlerWithHostContextStub.resolves({ createMessage })
+			const inputBox = { value: "" }
+
+			const generation = performCommitMsgGeneration(
+				fakeController(() => rules.promise),
+				"diff",
+				inputBox,
+			)
+			abortCommitGeneration()
+			const settled = await Promise.race([
+				generation.then(() => "settled"),
+				new Promise<string>((res) => setTimeout(() => res("still waiting"), 200)),
+			])
+			rules.resolve("")
+			await generation
+
+			settled.should.equal("settled")
+			createMessage.called.should.be.false()
 		})
 
 		it("Stop cancels every running generation", async () => {
@@ -68,8 +117,8 @@ describe("commit-message-generator", () => {
 			const secondBox = { value: "" }
 
 			const generations = [
-				performCommitMsgGeneration(fakeController, "diff", firstBox),
-				performCommitMsgGeneration(fakeController, "diff", secondBox),
+				performCommitMsgGeneration(fakeController(), "diff", firstBox),
+				performCommitMsgGeneration(fakeController(), "diff", secondBox),
 			]
 			abortCommitGeneration()
 			first.resolve({ createMessage: firstCreateMessage })
@@ -89,8 +138,8 @@ describe("commit-message-generator", () => {
 			const firstBox = { value: "" }
 			const secondBox = { value: "" }
 
-			const running = performCommitMsgGeneration(fakeController, "diff", firstBox)
-			await performCommitMsgGeneration(fakeController, "diff", secondBox)
+			const running = performCommitMsgGeneration(fakeController(), "diff", firstBox)
+			await performCommitMsgGeneration(fakeController(), "diff", secondBox)
 			first.resolve({ createMessage: firstCreateMessage })
 			await running
 
@@ -103,10 +152,31 @@ describe("commit-message-generator", () => {
 			buildApiHandlerWithHostContextStub.resolves({ createMessage })
 			const inputBox = { value: "" }
 
-			await performCommitMsgGeneration(fakeController, "diff", inputBox)
+			await performCommitMsgGeneration(fakeController(), "diff", inputBox)
 
 			createMessage.calledOnce.should.be.true()
 			inputBox.value.should.equal("feat: x")
+		})
+	})
+
+	describe("buildCommitMessageSystemPrompt", () => {
+		it("returns the base prompt alone when there are no rules", () => {
+			const prompt = buildCommitMessageSystemPrompt("")
+			prompt.should.startWith("You are a helpful assistant that generates informative git commit messages")
+			prompt.should.not.containEql("# Rules")
+		})
+
+		it("treats a whitespace-only rules section as no rules", () => {
+			buildCommitMessageSystemPrompt("  \n\n ").should.equal(buildCommitMessageSystemPrompt(""))
+		})
+
+		it("appends the user's rules after the base prompt", () => {
+			const rules = "\n\n# Rules\n## commits\nUse conventional commits, imperative mood."
+			const prompt = buildCommitMessageSystemPrompt(rules)
+			prompt.should.startWith("You are a helpful assistant")
+			prompt.should.containEql("The user's rules follow.")
+			prompt.should.endWith(rules)
+			prompt.indexOf("# Rules").should.be.above(prompt.indexOf("The user's rules follow."))
 		})
 	})
 

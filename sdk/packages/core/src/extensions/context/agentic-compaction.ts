@@ -1,4 +1,3 @@
-import { createHandlerAsync } from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
 import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
@@ -21,10 +20,11 @@ import {
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
-	resolveEffectiveMaxInputTokens,
+	resolveProviderMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
 } from "./compaction-shared";
+import { generateSummary } from "./summary-generation";
 
 const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
 
@@ -63,24 +63,6 @@ function logTruncatedSummary(options: {
 	);
 }
 
-function resolveProviderMaxInputTokens(
-	providerConfig: ProviderConfig,
-): number | undefined {
-	const modelInfoLimit = resolveEffectiveMaxInputTokens({
-		maxInputTokens:
-			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
-		contextWindow: providerConfig.modelInfo?.contextWindow,
-	});
-	if (modelInfoLimit !== undefined) {
-		return modelInfoLimit;
-	}
-	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
-	return resolveEffectiveMaxInputTokens({
-		maxInputTokens: knownModelInfo?.maxInputTokens,
-		contextWindow: knownModelInfo?.contextWindow,
-	});
-}
-
 export function buildAgenticSummaryInputBudget(options: {
 	messages: CoreCompactionContext["messages"];
 	targetTokens: number;
@@ -92,52 +74,6 @@ export function buildAgenticSummaryInputBudget(options: {
 		policyIntent: "agentic_summary",
 		estimateMessageTokens: options.estimateMessageTokens,
 	});
-}
-
-interface SummaryGenerationResult {
-	text: string;
-	/** Reasoning/thinking output length; discarded from the summary itself. */
-	reasoningChars: number;
-	/** Provider-reported reason the response is incomplete (e.g. "max_output_tokens"). */
-	incompleteReason?: string;
-}
-
-async function generateSummary(options: {
-	providerConfig: ProviderConfig;
-	request: string;
-	logger?: BasicLogger;
-}): Promise<SummaryGenerationResult> {
-	const handler = await createHandlerAsync(options.providerConfig);
-	let text = "";
-	let reasoningChars = 0;
-	let incompleteReason: string | undefined;
-	for await (const chunk of handler.createMessage(
-		"Summarize the provided coding session into a concise continuation note with detailed next steps.",
-		[{ role: "user", content: options.request }],
-	)) {
-		if (chunk.type === "text") {
-			text += chunk.text;
-			continue;
-		}
-		if (chunk.type === "reasoning") {
-			reasoningChars += chunk.reasoning?.length ?? 0;
-			continue;
-		}
-		if (chunk.type === "done") {
-			if (!chunk.success && chunk.error) {
-				throw new Error(chunk.error);
-			}
-			incompleteReason = chunk.incompleteReason ?? incompleteReason;
-		}
-	}
-	options.logger?.debug("Generated compaction summary", {
-		outputChars: text.length,
-		reasoningChars,
-		incompleteReason,
-		modelId: options.providerConfig.modelId,
-		providerId: options.providerConfig.providerId,
-	});
-	return { text: text.trim(), reasoningChars, incompleteReason };
 }
 
 function safeJsonSize(value: unknown): number {
@@ -302,8 +238,16 @@ export async function runAgenticCompaction(options: {
 	});
 	let summaryResult = await generateSummary({
 		providerConfig: summarizerProviderConfig,
+		systemPrompt:
+			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
 		request: summaryRequest,
-		logger: options.logger,
+	});
+	options.logger?.debug("Generated compaction summary", {
+		outputChars: summaryResult.text.length,
+		reasoningChars: summaryResult.reasoningChars,
+		incompleteReason: summaryResult.incompleteReason,
+		modelId: summarizerProviderConfig.modelId,
+		providerId: summarizerProviderConfig.providerId,
 	});
 	// A summary the provider reports as incomplete was cut off mid-sentence. It is
 	// still usable text, but installing it silently is what makes the truncation
@@ -339,6 +283,8 @@ export async function runAgenticCompaction(options: {
 			summaryRequest = retry.request;
 			summaryResult = await generateSummary({
 				providerConfig: summarizerProviderConfig,
+				systemPrompt:
+					"Summarize the provided coding session into a concise continuation note with detailed next steps.",
 				request: summaryRequest,
 				logger: options.logger,
 			});
@@ -357,7 +303,7 @@ export async function runAgenticCompaction(options: {
 			}
 		}
 	}
-	const rawSummary = summaryResult.text;
+	const rawSummary = summaryResult.text.trim();
 	if (!rawSummary) {
 		options.logger?.log(
 			"Skipped agentic compaction: summarizer returned no summary text",

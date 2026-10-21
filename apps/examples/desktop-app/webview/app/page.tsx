@@ -206,6 +206,9 @@ function makeThreadId(): string {
 }
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
+// Over SSH every refresh is a fresh ssh login on the remote host; branch
+// switches made through the picker refresh immediately regardless.
+const REMOTE_GIT_BRANCH_REFRESH_INTERVAL_MS = 30_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
@@ -714,14 +717,19 @@ export default function Home() {
 		});
 	}, [handleDeleteSession]);
 
-	const activeHistorySession = threads.find(
-		(thread) => thread.id === activeThreadId,
-	)?.historySession;
-	const activeHistorySessionId = activeHistorySession
-		? sessionKey(activeHistorySession)
-		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	// A thread opened from history carries its session record; one started
+	// fresh in the app only has the runtime session id bound by thread-started.
+	// Both must resolve so the sidebar highlights a session begun in the app.
+	const activeHistorySessionId = activeThread?.historySession
+		? sessionKey(activeThread.historySession)
+		: activeThread?.sessionId
+			? sessionKey({
+					sessionId: activeThread.sessionId,
+					environmentId: activeThread.environmentId,
+				})
+			: null;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			selectEnvironmentDraft(activeEnvironmentId);
@@ -971,15 +979,12 @@ export default function Home() {
 													: null
 											}
 											historySession={activeThread.historySession}
-											liveHistoryStatus={
-												sessionHistory.sessions.find(
-													(session) =>
-														session.sessionId ===
-															activeThread.historySession?.sessionId &&
-														(session.environmentId ??
-															LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
-															activeThread.environmentId,
-												)?.status ?? activeThread.historySession?.status
+											liveHistorySession={
+												activeHistorySessionId
+													? sessionHistory.sessionById.get(
+															activeHistorySessionId,
+														)
+													: undefined
 											}
 											initialPromptDraft={activeThread.initialPromptDraft}
 											promptDrafts={promptDrafts}
@@ -1064,6 +1069,11 @@ export default function Home() {
 						setWhatsNew(null);
 						handleSettingsSectionChange("About");
 					}}
+					onOpenConnectors={() => {
+						markWhatsNewSeen(whatsNew.id);
+						setWhatsNew(null);
+						handleSettingsSectionChange("Customize");
+					}}
 					open={!showOnboarding}
 					release={whatsNew}
 				/>
@@ -1100,7 +1110,7 @@ function ChatThreadPane({
 	environmentProfiles,
 	environmentProfilesLoading,
 	historySession,
-	liveHistoryStatus,
+	liveHistorySession,
 	initialPromptDraft,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
@@ -1125,7 +1135,7 @@ function ChatThreadPane({
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
 	historySession?: SessionHistoryItem;
-	liveHistoryStatus?: SessionHistoryItem["status"];
+	liveHistorySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
@@ -1266,20 +1276,8 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
-		// Reflect Settings changes without restarting or switching accounts.
-		const unsubscribe = desktopClient.subscribe(
-			"feature_flags_changed",
-			(payload) => {
-				if (!cancelled) {
-					setCloudAgentsFlagEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			},
-		);
 		return () => {
 			cancelled = true;
-			unsubscribe();
 			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
 		};
 	}, [accountUserId]);
@@ -1340,6 +1338,9 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const liveHistoryStatus = historySession
+		? (liveHistorySession?.status ?? historySession.status)
+		: undefined;
 	const headerStatus = resolveSessionHeaderStatus({
 		chatStatus: status,
 		isCloudSession,
@@ -1755,22 +1756,6 @@ function ChatThreadPane({
 		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
 
-	// Let the sidecar load the workspace's plugin sandbox now so the slash
-	// menu lists plugin commands without paying the cold spawn on first open.
-	useEffect(() => {
-		if (!activeWorkspaceCwd) {
-			return;
-		}
-		void desktopClient
-			.invoke("warm_plugin_commands", {
-				workspacePath: activeWorkspaceCwd,
-				environmentId,
-			})
-			.catch(() => {
-				// Best effort; the menu falls back to loading on open.
-			});
-	}, [activeWorkspaceCwd, environmentId]);
-
 	useEffect(() => {
 		void refreshGitBranch();
 		if (!activeWorkspaceCwd) {
@@ -1784,7 +1769,9 @@ function ChatThreadPane({
 		};
 		const intervalId = window.setInterval(
 			refreshVisibleBranch,
-			GIT_BRANCH_REFRESH_INTERVAL_MS,
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID
+				? GIT_BRANCH_REFRESH_INTERVAL_MS
+				: REMOTE_GIT_BRANCH_REFRESH_INTERVAL_MS,
 		);
 		window.addEventListener("focus", refreshVisibleBranch);
 		document.addEventListener("visibilitychange", refreshVisibleBranch);
@@ -1793,7 +1780,7 @@ function ChatThreadPane({
 			window.removeEventListener("focus", refreshVisibleBranch);
 			document.removeEventListener("visibilitychange", refreshVisibleBranch);
 		};
-	}, [activeWorkspaceCwd, refreshGitBranch]);
+	}, [activeWorkspaceCwd, environmentId, refreshGitBranch]);
 
 	useEffect(() => {
 		setDismissedHistorySessionId(null);
@@ -2329,7 +2316,9 @@ function ChatThreadPane({
 		(message) => message.role === "user",
 	)?.content;
 	const metadataTitle =
-		manualTitle || getSessionMetadataTitle(visibleHistorySession?.metadata);
+		(isCloudSession && getSessionMetadataTitle(liveHistorySession?.metadata)) ||
+		manualTitle ||
+		getSessionMetadataTitle(visibleHistorySession?.metadata);
 	const threadTitle = toThreadTitle({
 		title: hideDeletedSessionUi ? undefined : metadataTitle,
 		prompt: hideDeletedSessionUi
@@ -2516,6 +2505,7 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			sessionId={sessionId}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}
@@ -2566,7 +2556,7 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				disabled={isCloudSessionExpired}
 				description={

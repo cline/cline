@@ -103,6 +103,8 @@ type EventHandler = (payload: unknown) => void;
 type TransportStateHandler = (state: DesktopTransportState) => void;
 
 export type DesktopInvokeOptions = {
+	/** Prevent sending a queued command after cancellation. Does not cancel a sent command. */
+	signal?: AbortSignal;
 	/**
 	 * Override the default command deadline. Use `null` for commands whose
 	 * response represents completion of a legitimately long-running operation.
@@ -644,10 +646,12 @@ class DesktopClient {
 			}
 		}
 
+		options?.signal?.throwIfAborted();
 		await this.connectForCommand(
 			command,
 			options?.connectTimeoutMs ?? CONNECT_WAIT_TIMEOUT_MS,
 		);
+		options?.signal?.throwIfAborted();
 		const socket = this.socket;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
 			// connectForCommand only returns with an open socket; this covers

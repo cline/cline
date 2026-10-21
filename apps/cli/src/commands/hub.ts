@@ -1,7 +1,9 @@
 import {
 	clearHubDiscovery,
 	ensureDetachedHubServer,
+	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
+	NodeHubClient,
 	probeHubServer,
 	readHubDiscovery,
 	requestHubDrain,
@@ -9,32 +11,71 @@ import {
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
+import {
+	formatUptime,
+	type PluginStatusRecord,
+	resolveClineBuildEnv,
+} from "@cline/shared";
 import { Command, InvalidArgumentError } from "commander";
 import { version as cliVersion } from "../../package.json";
+import { createDashboardCommand } from "./dashboard-command";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 }
 
-async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
+interface HubOptions {
+	cwd: string;
+	host?: string;
+	port?: number;
+	pathname?: string;
+	discoveryPath?: string;
+}
+
+interface HubEnsureCommandOptions extends Partial<HubOptions> {
+	json?: boolean;
+	allowPortFallback?: boolean;
+	connectors?: boolean;
+	loginShellPath?: boolean;
+}
+
+const HUB_DISCOVERY_PATH_ENV = "CLINE_HUB_DISCOVERY_PATH";
+
+function addHubOptions(command: Command, defaultCwd?: string): Command {
+	return command
+		.option("--cwd <path>", "Workspace root", defaultCwd)
+		.option("--host <host>", "Hub host")
+		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
+		.option("--pathname <path>", "Hub websocket path")
+		.option(
+			"--discovery-path <path>",
+			"Use a dedicated hub discovery record instead of the default one",
+		);
+}
+
+async function stopHubServer(): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath);
-	if (await stopLocalHubServerGracefully(owner)) {
-		await clearHubDiscovery(owner.discoveryPath);
-		return true;
+	const discovery = await readHubDiscovery(owner.discoveryPath, {
+		onError: "throw",
+	});
+	if (!discovery) {
+		return true; // Already stopped: cleanup is idempotent.
 	}
-	const pid = discovery?.pid;
-	if (pid) {
+	if (!(await stopLocalHubServerGracefully(owner))) {
+		// A stale PID must never receive a termination signal. A zero-signal
+		// existence check can only establish that the recorded process exited;
+		// a live/reused PID or a permission error cannot prove shutdown.
+		if (!discovery.pid) return false;
 		try {
-			process.kill(pid, "SIGTERM");
-		} catch {
-			// best effort
+			process.kill(discovery.pid, 0);
+			return false;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ESRCH") return false;
 		}
 	}
 	await clearHubDiscovery(owner.discoveryPath);
-	return !!pid;
+	return true;
 }
 
 function formatHubUptimeFromStartedAt(
@@ -88,47 +129,82 @@ export function createHubCommand(
 	const hub = new Command("hub")
 		.description("Manage the local hub daemon")
 		.exitOverride()
+		// Subcommands may use the same flag names for different services.
+		.enablePositionalOptions()
+		.hook("preAction", (_hub, actionCommand) => {
+			// Every subcommand resolves its owner record from this env var, so a
+			// dedicated record (SSH remote hubs) is honored by ensure, status,
+			// and stop alike, and by the daemon the ensure spawns. Accepted
+			// before or after the subcommand.
+			const discoveryPath = (
+				actionCommand.opts<{ discoveryPath?: string }>().discoveryPath ??
+				hub.opts<{ discoveryPath?: string }>().discoveryPath
+			)?.trim();
+			if (discoveryPath) {
+				process.env[HUB_DISCOVERY_PATH_ENV] = discoveryPath;
+			}
+		})
 		.hook("postAction", () => {
 			setExitCode(actionExitCode);
-		})
-		.option("--cwd <path>", "Workspace root", process.cwd())
-		.option("--host <host>", "Hub host")
-		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
-		.option("--pathname <path>", "Hub websocket path");
+		});
+	addHubOptions(hub, process.cwd());
+	const resolveOptions = (options: Partial<HubOptions>): HubOptions => ({
+		...hub.opts<HubOptions>(),
+		...options,
+	});
 
-	hub.command("ensure").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
-			const { url } = await ensureDetachedHubServer(opts.cwd, {
-				host: opts.host,
-				port: opts.port,
-				pathname: opts.pathname,
-			});
-			io.writeln(url);
-		}),
-	);
-
-	hub.command("start").action(
-		action(async () => {
-			const opts = hub.opts<{
-				cwd: string;
-				host?: string;
-				port?: number;
-				pathname?: string;
-			}>();
-			const { url } = await ensureDetachedHubServer(opts.cwd, {
-				host: opts.host,
-				port: opts.port,
-				pathname: opts.pathname,
-			});
-			io.writeln(url);
-		}),
-	);
+	const ensureAction = action(async (cmdOptions: HubEnsureCommandOptions) => {
+		const opts = resolveOptions(cmdOptions);
+		const result = await ensureDetachedHubServer(opts.cwd, {
+			host: opts.host,
+			port: opts.port,
+			pathname: opts.pathname,
+			...(cmdOptions.allowPortFallback ? { allowPortFallback: true } : {}),
+			...(cmdOptions.connectors === false ? { manageConnectors: false } : {}),
+			// Launchers without a login shell (GUI apps, non-interactive SSH)
+			// would otherwise hand the daemon a minimal PATH, so agent tools
+			// installed from shell profiles could not be found.
+			...(cmdOptions.loginShellPath
+				? {
+						beforeSpawn: async () => {
+							await ensureLoginShellPath();
+						},
+					}
+				: {}),
+		});
+		if (cmdOptions.json) {
+			io.writeln(
+				JSON.stringify({
+					url: result.url,
+					authToken: result.authToken,
+					cwd: opts.cwd,
+					platform: process.platform,
+					arch: process.arch,
+				}),
+			);
+			return;
+		}
+		io.writeln(result.url);
+	});
+	for (const name of ["ensure", "start"]) {
+		hub
+			.command(name)
+			.description("Start the hub daemon unless a compatible one is running")
+			.option(
+				"--json",
+				"Print the hub URL and auth token as JSON for programmatic clients",
+			)
+			.option(
+				"--allow-port-fallback",
+				"Use an OS-assigned port when the requested one is unavailable",
+			)
+			.option("--no-connectors", "Do not supervise account-wide connectors")
+			.option(
+				"--login-shell-path",
+				"Resolve PATH from the user's login shell before starting the hub",
+			)
+			.action(ensureAction);
+	}
 
 	hub.command("status").action(
 		action(async () => {
@@ -154,11 +230,60 @@ export function createHubCommand(
 		}),
 	);
 
+	hub
+		.command("plugins")
+		.description("Show the status and last error of each plugin the hub loaded")
+		.option(
+			"--reload <plugin>",
+			"Re-import one plugin (name or path) without restarting the hub",
+		)
+		.action(
+			action(async (cmdOptions: { reload?: string }) => {
+				const owner = resolveCliHubOwnerContext();
+				const discovery = await readHubDiscovery(owner.discoveryPath);
+				if (!discovery?.url) {
+					io.writeErr("No hub is running.");
+					fail();
+					return;
+				}
+				const client = new NodeHubClient({
+					url: discovery.url,
+					...(discovery.authToken ? { authToken: discovery.authToken } : {}),
+					clientType: "cli-hub-plugins",
+					displayName: "hub plugins",
+				});
+				try {
+					await client.connect();
+					const reply = cmdOptions.reload
+						? await client.command("plugins.reload", {
+								plugin: cmdOptions.reload,
+							})
+						: await client.command("plugins.status");
+					if (!reply.ok) {
+						io.writeErr(
+							reply.error?.message ?? "The hub rejected the plugins request.",
+						);
+						fail();
+						return;
+					}
+					const plugins = (reply.payload?.plugins ??
+						[]) as PluginStatusRecord[];
+					io.writeln(JSON.stringify({ plugins }));
+				} finally {
+					try {
+						client.close();
+					} catch {
+						// One-shot connection; a failed close changes nothing.
+					}
+				}
+			}),
+		);
+
 	hub.command("stop").action(
 		action(async () => {
-			const opts = hub.opts<{ cwd: string }>();
-			const stopped = await stopHubServer(opts.cwd);
+			const stopped = await stopHubServer();
 			io.writeln(JSON.stringify({ stopped }));
+			if (!stopped) fail();
 		}),
 	);
 
@@ -200,7 +325,7 @@ export function createHubCommand(
 	hub
 		.command("upgrade")
 		.description(
-			"Drain, wait for the hub to go idle, stop it, and start a fresh one",
+			"Drain the hub and restart it; does not wait for --zen or scheduled tasks",
 		)
 		.option(
 			"--wait <seconds>",
@@ -209,13 +334,8 @@ export function createHubCommand(
 			120,
 		)
 		.action(
-			action(async (cmdOptions: { wait: number }) => {
-				const opts = hub.opts<{
-					cwd: string;
-					host?: string;
-					port?: number;
-					pathname?: string;
-				}>();
+			action(async (cmdOptions: Partial<HubOptions> & { wait: number }) => {
+				const opts = resolveOptions(cmdOptions);
 				const owner = resolveCliHubOwnerContext();
 				const discovery = await readHubDiscovery(owner.discoveryPath);
 				if (discovery?.url) {
@@ -259,7 +379,9 @@ export function createHubCommand(
 							fail();
 							return;
 						}
-						await stopHubServer(opts.cwd);
+						if (!(await stopHubServer())) {
+							throw new Error("Hub shutdown failed; upgrade aborted.");
+						}
 					} catch (error) {
 						await undrain();
 						throw error;
@@ -273,6 +395,17 @@ export function createHubCommand(
 				io.writeln(JSON.stringify({ upgraded: true, url }));
 			}),
 		);
+
+	// Keep daemon options accepted before or after existing subcommands.
+	for (const command of hub.commands) {
+		addHubOptions(command);
+	}
+
+	hub.addCommand(
+		createDashboardCommand(io, (code) => {
+			actionExitCode = code;
+		}),
+	);
 
 	return hub;
 }

@@ -1,15 +1,16 @@
 "use client";
 
-import { AgentAskQuestion, AgentSessionContent } from "@cline/ui";
+import { AgentAskQuestion } from "@cline/ui";
 import {
-	Conversation,
-	ConversationContent,
-	ConversationScrollButton,
-	ConversationViewport,
-	useConversation,
-} from "@cline/ui/components/agent-chat";
+	MessageScroller,
+	MessageScrollerButton,
+	MessageScrollerContent,
+	MessageScrollerItem,
+	MessageScrollerProvider,
+	MessageScrollerViewport,
+} from "@cline/ui/components/message-scroller";
 import { Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -49,6 +50,7 @@ import {
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
 import { WorkBlock } from "./messages/work-block";
+import { TranscriptOutline } from "./transcript-outline";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -544,33 +546,29 @@ function ChatMessagesImpl({
 	);
 
 	return (
-		<Conversation
-			className="relative isolate h-full min-h-0 min-w-0 overflow-hidden"
+		<MessageScrollerProvider
 			key={sessionId ?? "new-chat"}
+			autoScroll
+			defaultScrollPosition="end"
+			scrollMargin={24}
 		>
-			<ConversationViewport
-				aria-label="Agent conversation"
-				className="h-full min-h-0 min-w-0"
-			>
-				<ConversationContent
-					className={cn(
-						"min-h-full w-full min-w-0",
-						showIdleDetails ? "p-0" : "px-6",
-					)}
+			<MessageScroller className="isolate h-full min-h-0 min-w-0">
+				<MessageScrollerViewport
+					aria-label="Agent conversation"
+					className="h-full min-h-0 min-w-0"
 				>
-					<AgentSessionContent
+					<MessageScrollerContent
 						className={cn(
-							"relative min-h-full",
-							// Bottom padding clears a pinned action pill (~40px with its
-							// offset) plus a comfortable gap before the composer, which
-							// sits below the scroller, not over it.
-							showIdleDetails ? "p-0" : "pt-6 pb-16",
+							"mx-auto w-full min-w-0 max-w-[calc(var(--breakpoint-lg)+3rem)] gap-4",
+							showIdleDetails ? "p-0" : "pt-6 pb-16 pl-12 pr-6",
 						)}
 					>
 						{showIdleDetails ? null : (
-							<div className="flex min-h-full w-full min-w-0 flex-col gap-4">
+							<>
 								{importedFromTool ? (
-									<ImportedSessionNotice tool={importedFromTool} />
+									<MessageScrollerItem messageId="imported-session">
+										<ImportedSessionNotice tool={importedFromTool} />
+									</MessageScrollerItem>
 								) : null}
 								{renderItems.map((item, itemIndex) => {
 									// Working rows — live (`run`) or folded (`work`) — render
@@ -614,27 +612,40 @@ function ChatMessagesImpl({
 										);
 									};
 									if (item.type === "tools") {
-										return renderWorkingRow(item);
+										return (
+											<MessageScrollerItem
+												key={`tools_${item.messages[0]?.id ?? "empty"}`}
+												messageId={`tools_${item.messages[0]?.id ?? "empty"}`}
+											>
+												{renderWorkingRow(item)}
+											</MessageScrollerItem>
+										);
 									}
 									if (item.type === "run") {
 										return (
-											<div
+											<MessageScrollerItem
 												className="flex flex-col gap-1"
-												key={`run_${item.id}`}
+												messageId={`work_${item.id}`}
+												key={`work_${item.id}`}
 											>
 												{item.items.map(renderWorkingRow)}
-											</div>
+											</MessageScrollerItem>
 										);
 									}
 									if (item.type === "work") {
 										return (
-											<WorkBlock
-												durationMilliseconds={item.durationMilliseconds}
+											<MessageScrollerItem
 												key={`work_${item.id}`}
-												toolCallCount={item.toolCallCount}
+												messageId={`work_${item.id}`}
 											>
-												{item.items.map(renderWorkingRow)}
-											</WorkBlock>
+												<WorkBlock
+													durationMilliseconds={item.durationMilliseconds}
+													key={`work_${item.id}`}
+													toolCallCount={item.toolCallCount}
+												>
+													{item.items.map(renderWorkingRow)}
+												</WorkBlock>
+											</MessageScrollerItem>
 										);
 									}
 									const { agentRole, message, reasoningMessages } = item;
@@ -646,65 +657,74 @@ function ChatMessagesImpl({
 										previousItem !== undefined &&
 										previousItem.type !== "message";
 									return (
-										<MessageBubble
-											agentRole={agentRole}
-											followsWorkingRows={followsWorkingRows}
-											isLastAssistantMessage={
-												message.role === "assistant" &&
-												lastConversationMessage === message
-											}
-											isStreaming={streamingMessageId === message.id}
+										<MessageScrollerItem
 											key={message.id}
-											message={message}
-											runCount={userRunCountByMessage.get(message)}
-											onExpandImage={handleExpandImage}
-											onCopyMessage={handleCopyMessage}
-											onEditMessage={
-												onEditMessage ? requestEditMessage : undefined
+											messageId={message.id}
+											scrollAnchor={
+												message.role === "user" &&
+												!isSystemSteeringMessage(message)
 											}
-											editDisabled={
-												!onEditMessage ||
-												status === "starting" ||
-												status === "running" ||
-												status === "stopping" ||
-												isSessionSwitching ||
-												sessionVersioningPending
-											}
-											editError={editErrors[message.id]}
-											editPending={editingMessageId === message.id}
-											onRestoreCheckpoint={
-												onRestoreCheckpoint
-													? requestRestoreCheckpoint
-													: undefined
-											}
-											restoreDisabled={
-												!onRestoreCheckpoint ||
-												status === "starting" ||
-												status === "running" ||
-												status === "stopping" ||
-												isSessionSwitching ||
-												sessionVersioningPending
-											}
-											restoreError={checkpointErrors[message.id]}
-											restorePending={
-												checkpointActions[message.id] === "undoing"
-											}
-											wasCopied={copiedMessageId === message.id}
-											onForkSession={
-												onForkSession ? handleForkSession : undefined
-											}
-											forkDisabled={
-												status === "starting" ||
-												status === "running" ||
-												status === "stopping" ||
-												isSessionSwitching ||
-												sessionVersioningPending
-											}
-											forkPending={forkingMessageId === message.id}
-											forkError={forkErrors[message.id]}
-											onFixCredentials={onFixCredentials}
-											{...getReasoningProps(reasoningMessages)}
-										/>
+										>
+											<MessageBubble
+												agentRole={agentRole}
+												followsWorkingRows={followsWorkingRows}
+												isLastAssistantMessage={
+													message.role === "assistant" &&
+													lastConversationMessage === message
+												}
+												isStreaming={streamingMessageId === message.id}
+												key={message.id}
+												message={message}
+												runCount={userRunCountByMessage.get(message)}
+												onExpandImage={handleExpandImage}
+												onCopyMessage={handleCopyMessage}
+												onEditMessage={
+													onEditMessage ? requestEditMessage : undefined
+												}
+												editDisabled={
+													!onEditMessage ||
+													status === "starting" ||
+													status === "running" ||
+													status === "stopping" ||
+													isSessionSwitching ||
+													sessionVersioningPending
+												}
+												editError={editErrors[message.id]}
+												editPending={editingMessageId === message.id}
+												onRestoreCheckpoint={
+													onRestoreCheckpoint
+														? requestRestoreCheckpoint
+														: undefined
+												}
+												restoreDisabled={
+													!onRestoreCheckpoint ||
+													status === "starting" ||
+													status === "running" ||
+													status === "stopping" ||
+													isSessionSwitching ||
+													sessionVersioningPending
+												}
+												restoreError={checkpointErrors[message.id]}
+												restorePending={
+													checkpointActions[message.id] === "undoing"
+												}
+												wasCopied={copiedMessageId === message.id}
+												onForkSession={
+													onForkSession ? handleForkSession : undefined
+												}
+												forkDisabled={
+													status === "starting" ||
+													status === "running" ||
+													status === "stopping" ||
+													isSessionSwitching ||
+													sessionVersioningPending
+												}
+												forkPending={forkingMessageId === message.id}
+												forkError={forkErrors[message.id]}
+												onFixCredentials={onFixCredentials}
+												{...getReasoningProps(reasoningMessages)}
+											/>
+										</MessageScrollerItem>
 									);
 								})}
 								{/* Lives inside the transcript column and mirrors a
@@ -713,7 +733,8 @@ function ChatMessagesImpl({
 								    in place with no jump. */}
 								{(status === "starting" || isAwaitingFirstOutput) &&
 								!isSessionSwitching ? (
-									<div
+									<MessageScrollerItem
+										messageId="activity"
 										className={cn(
 											"flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground",
 											indicatorFollowsWorkingRows && "-mt-3",
@@ -723,202 +744,190 @@ function ChatMessagesImpl({
 										<span className={STREAMING_TITLE_CLASS}>
 											{startingLabel ?? activityLabel ?? "Thinking..."}
 										</span>
-									</div>
+									</MessageScrollerItem>
 								) : null}
 								{pendingToolApprovals.length > 0 ? (
-									<ToolApprovalPanel
-										items={pendingToolApprovals}
-										onApprove={(requestId) =>
-											handleToolApprovalDecision(
-												requestId,
-												"approving",
-												onApproveToolApproval,
-											)
-										}
-										onReject={(requestId) =>
-											handleToolApprovalDecision(
-												requestId,
-												"rejecting",
-												onRejectToolApproval,
-											)
-										}
-										pendingActions={toolApprovalActions}
-										requestErrors={toolApprovalErrors}
-									/>
+									<MessageScrollerItem messageId="tool-approvals">
+										<ToolApprovalPanel
+											items={pendingToolApprovals}
+											onApprove={(requestId) =>
+												handleToolApprovalDecision(
+													requestId,
+													"approving",
+													onApproveToolApproval,
+												)
+											}
+											onReject={(requestId) =>
+												handleToolApprovalDecision(
+													requestId,
+													"rejecting",
+													onRejectToolApproval,
+												)
+											}
+											pendingActions={toolApprovalActions}
+											requestErrors={toolApprovalErrors}
+										/>
+									</MessageScrollerItem>
 								) : null}
 								{askQuestionItems.length > 0 ? (
-									<AgentAskQuestion
-										errors={askQuestionErrors}
-										items={askQuestionItems}
-										onAnswer={handleAskQuestionAnswer}
-										pendingAnswers={askQuestionActions}
-									/>
+									<MessageScrollerItem messageId="ask-questions">
+										<AgentAskQuestion
+											errors={askQuestionErrors}
+											items={askQuestionItems}
+											onAnswer={handleAskQuestionAnswer}
+											pendingAnswers={askQuestionActions}
+										/>
+									</MessageScrollerItem>
 								) : null}
-							</div>
+							</>
 						)}
-						{showSwitchTransition ? (
-							hasMessages ? (
-								<div className="pointer-events-none absolute right-6 top-6 z-20 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur-[1px]">
-									<div className="flex items-center gap-1.5">
-										<Loader2 className="h-3.5 w-3.5 animate-spin" />
-										Switching session...
-									</div>
-								</div>
-							) : (
-								<div className="rounded-xl border border-border/70 bg-card p-4">
-									<div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-										<Loader2 className="h-4 w-4 animate-spin" />
-										Loading session...
-									</div>
-									<div className="space-y-3">
-										<div className="h-4 w-2/5 animate-pulse rounded bg-muted/70" />
-										<div className="h-4 w-4/5 animate-pulse rounded bg-muted/70" />
-										<div className="h-4 w-3/5 animate-pulse rounded bg-muted/70" />
-									</div>
-								</div>
-							)
-						) : null}
-						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
-							<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
-								{chatTransportState === "reconnecting"
-									? "Reconnecting chat..."
-									: chatTransportState === "unavailable"
-										? "Chat backend unavailable"
-										: "Connecting chat..."}
-							</div>
-						) : null}
-						{shouldShowErrorBanner ? (
-							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								{lastErrorMessage?.content !== error ? <p>{error}</p> : null}
-								{errorAction ? (
-									<Button
-										className="mt-2"
-										onClick={() => void errorAction.onClick()}
-										size="sm"
-										variant="outline"
-									>
-										{errorAction.label}
-									</Button>
+						{showSwitchTransition ||
+						chatTransportState !== "connected" ||
+						shouldShowErrorBanner ? (
+							<MessageScrollerItem messageId="session-notices">
+								{showSwitchTransition ? (
+									hasMessages ? (
+										<div className="pointer-events-none absolute right-6 top-6 z-20 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur-[1px]">
+											<div className="flex items-center gap-1.5">
+												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+												Switching session...
+											</div>
+										</div>
+									) : (
+										<div className="rounded-xl border border-border/70 bg-card p-4">
+											<div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+												<Loader2 className="h-4 w-4 animate-spin" />
+												Loading session...
+											</div>
+											<div className="space-y-3">
+												<div className="h-4 w-2/5 animate-pulse rounded bg-muted/70" />
+												<div className="h-4 w-4/5 animate-pulse rounded bg-muted/70" />
+												<div className="h-4 w-3/5 animate-pulse rounded bg-muted/70" />
+											</div>
+										</div>
+									)
 								) : null}
-							</div>
+								{chatTransportState !== "connected" &&
+								!shouldShowErrorBanner ? (
+									<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+										<Loader2 className="h-3.5 w-3.5 animate-spin" />
+										{chatTransportState === "reconnecting"
+											? "Reconnecting chat..."
+											: chatTransportState === "unavailable"
+												? "Chat backend unavailable"
+												: "Connecting chat..."}
+									</div>
+								) : null}
+								{shouldShowErrorBanner ? (
+									<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+										{lastErrorMessage?.content !== error ? (
+											<p>{error}</p>
+										) : null}
+										{errorAction ? (
+											<Button
+												className="mt-2"
+												onClick={() => void errorAction.onClick()}
+												size="sm"
+												variant="outline"
+											>
+												{errorAction.label}
+											</Button>
+										) : null}
+									</div>
+								) : null}
+							</MessageScrollerItem>
 						) : null}
-					</AgentSessionContent>
-				</ConversationContent>
-			</ConversationViewport>
-			<ConversationScrollButton />
-			<AutoScrollOnSend messages={messages} />
-			{visibleExpandedImage ? (
-				<ChatImageLightbox
-					image={visibleExpandedImage}
-					onClose={() => setExpandedImage(null)}
-				/>
-			) : null}
-			<AlertDialog
-				open={checkpointConfirmation !== null}
-				onOpenChange={(open) => {
-					if (!open) {
-						setCheckpointConfirmation(null);
-					}
-				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Revert to this checkpoint?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Workspace files and conversation history after this point will be
-							discarded. This cannot be undone.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() => {
-								const confirmation = checkpointConfirmation;
-								setCheckpointConfirmation(null);
-								if (confirmation) {
-									void handleRestoreCheckpoint(
-										confirmation.messageId,
-										confirmation.runCount,
-									);
-								}
-							}}
-						>
-							Revert
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-			<AlertDialog
-				open={editConfirmation !== null}
-				onOpenChange={(open) => {
-					if (!open) {
-						setEditConfirmation(null);
-					}
-				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This creates a new session and restores the workspace to its
-							checkpoint before placing this message in the composer. Workspace
-							and conversation changes after this point will be discarded.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							onClick={() => {
-								const confirmation = editConfirmation;
-								setEditConfirmation(null);
-								if (confirmation) {
-									void handleEditMessage(
-										confirmation.messageId,
-										confirmation.content,
-										confirmation.runCount,
-									);
-								}
-							}}
-						>
-							Continue
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-		</Conversation>
+					</MessageScrollerContent>
+				</MessageScrollerViewport>
+				<MessageScrollerButton />
+				<TranscriptOutline messages={messages} />
+				{visibleExpandedImage ? (
+					<ChatImageLightbox
+						image={visibleExpandedImage}
+						onClose={() => setExpandedImage(null)}
+					/>
+				) : null}
+				<AlertDialog
+					open={checkpointConfirmation !== null}
+					onOpenChange={(open) => {
+						if (!open) {
+							setCheckpointConfirmation(null);
+						}
+					}}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Revert to this checkpoint?</AlertDialogTitle>
+							<AlertDialogDescription>
+								Workspace files and conversation history after this point will
+								be discarded. This cannot be undone.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								onClick={() => {
+									const confirmation = checkpointConfirmation;
+									setCheckpointConfirmation(null);
+									if (confirmation) {
+										void handleRestoreCheckpoint(
+											confirmation.messageId,
+											confirmation.runCount,
+										);
+									}
+								}}
+							>
+								Revert
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+				<AlertDialog
+					open={editConfirmation !== null}
+					onOpenChange={(open) => {
+						if (!open) {
+							setEditConfirmation(null);
+						}
+					}}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+							<AlertDialogDescription>
+								This creates a new session and restores the workspace to its
+								checkpoint before placing this message in the composer.
+								Workspace and conversation changes after this point will be
+								discarded.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								onClick={() => {
+									const confirmation = editConfirmation;
+									setEditConfirmation(null);
+									if (confirmation) {
+										void handleEditMessage(
+											confirmation.messageId,
+											confirmation.content,
+											confirmation.runCount,
+										);
+									}
+								}}
+							>
+								Continue
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			</MessageScroller>
+		</MessageScrollerProvider>
 	);
 }
 
 export const ChatMessages = memo(ChatMessagesImpl);
-
-/**
- * Sending a message returns the reader to the newest content: whenever a new
- * user message lands in the transcript, scroll to the bottom even if the user
- * had scrolled up. Keyed off the count (not the id) because optimistic user
- * bubbles are re-keyed to their runtime id, which must not re-trigger.
- */
-function AutoScrollOnSend({ messages }: { messages: ChatMessage[] }) {
-	const { scrollToBottom } = useConversation();
-	const userMessageCount = useMemo(
-		() =>
-			messages.reduce(
-				(count, message) => (message.role === "user" ? count + 1 : count),
-				0,
-			),
-		[messages],
-	);
-	const previousCount = useRef(userMessageCount);
-	useEffect(() => {
-		if (userMessageCount > previousCount.current) {
-			scrollToBottom();
-		}
-		previousCount.current = userMessageCount;
-	}, [scrollToBottom, userMessageCount]);
-	return null;
-}
 
 function pruneRequestMap<T extends string>(
 	prev: Record<string, T>,

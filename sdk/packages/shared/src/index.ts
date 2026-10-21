@@ -263,6 +263,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,
@@ -346,6 +348,7 @@ export {
 export {
 	type ProviderAuthInfo,
 	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
@@ -514,20 +517,27 @@ export {
 export type {
 	ConnectorCliLaunchSpec,
 	ConnectorInstanceRef,
+	HubLauncherIdentity,
 } from "./runtime/hub-daemon-env";
 export {
 	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
 	CLINE_CONNECTOR_SUPERVISED_ENV,
+	CLINE_HUB_LAUNCHER_CLIENT_ENV,
+	CLINE_HUB_LAUNCHER_TRANSPORT_ENV,
+	CLINE_HUB_LAUNCHER_VERSION_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	claimHubDaemonProcess,
+	claimHubLauncherIdentity,
 	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
 	isSupervisedConnectorProcess,
 	readConnectorCliLaunchSpec,
+	readHubLauncherIdentity,
 	readStartingConnectorInstance,
 	setConnectorCliLaunchSpec,
 	setStartingConnectorInstance,
+	withHubLauncherIdentity,
 } from "./runtime/hub-daemon-env";
 export {
 	ensureLoopbackProxyBypass,
@@ -578,6 +588,11 @@ export {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 } from "./services/telemetry-config";
+export type {
+	TelemetrySelfcheckConfig,
+	TelemetrySelfcheckReport,
+} from "./services/telemetry-selfcheck";
+export { buildTelemetrySelfcheckReport } from "./services/telemetry-selfcheck";
 export type {
 	HookSessionContext,
 	HookSessionContextLookup,

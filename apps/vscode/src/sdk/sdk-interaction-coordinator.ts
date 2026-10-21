@@ -1,6 +1,8 @@
-import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision } from "@cline/shared"
+import type { AskQuestionExecutor } from "@cline/core"
+import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision, ImageContent, TextContent } from "@cline/shared"
 import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
+import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
@@ -8,6 +10,24 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
 const TOOL_APPROVAL_DELIVERY_FAILED_REASON = "The tool approval request could not be displayed, so the tool was not executed."
+
+type AskQuestionAnswer = Awaited<ReturnType<AskQuestionExecutor>>
+
+async function buildAnswerWithAttachments(
+	text: string,
+	images: string[] = [],
+	files: string[] = [],
+): Promise<Array<TextContent | ImageContent>> {
+	const filesText = files.length > 0 ? await processFilesIntoText(files) : ""
+	return [
+		...(text ? [{ type: "text" as const, text }] : []),
+		...images.map((dataUrl): ImageContent => {
+			const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/)
+			return { type: "image", mediaType: match?.[1] ?? "image/png", data: match?.[2] ?? dataUrl }
+		}),
+		...(filesText ? [{ type: "text" as const, text: filesText }] : []),
+	]
+}
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -52,7 +72,9 @@ export interface SdkInteractionCoordinatorOptions {
 }
 
 export class SdkInteractionCoordinator {
-	private pendingAskResolve: ((answer: string) => void) | undefined
+	private pendingAskResolve: ((answer: AskQuestionAnswer) => void) | undefined
+	// An answered question whose attachments are still loading; cancellation must still settle it.
+	private loadingAskResolve: ((answer: AskQuestionAnswer) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
@@ -152,7 +174,7 @@ export class SdkInteractionCoordinator {
 		return approval
 	}
 
-	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<AskQuestionAnswer> {
 		const askData: ClineAskQuestion = {
 			question,
 			options: options?.length ? options : undefined,
@@ -165,16 +187,36 @@ export class SdkInteractionCoordinator {
 			partial: false,
 		}
 
+		// Install before emitting the ask so responses and task teardown can settle it
+		// even while the full webview state is still being built.
+		let resolveAnswer!: (answer: AskQuestionAnswer) => void
+		let rejectAnswer!: (reason: unknown) => void
+		const answer = new Promise<AskQuestionAnswer>((resolve, reject) => {
+			resolveAnswer = resolve
+			rejectAnswer = reject
+		})
+		this.pendingAskResolve = resolveAnswer
+		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
+
 		this.options.messages.appendAndEmit([askMessage], {
 			type: "status",
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
-		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
-		await this.options.postStateToWebview()
 
-		return new Promise<string>((resolve) => {
-			this.pendingAskResolve = resolve
-		})
+		void Promise.resolve()
+			.then(() => this.options.postStateToWebview())
+			.catch((error) => {
+				Logger.warn(`[SdkController] Failed to display question: ${error}`)
+				// A cleared/answered ask may already have been replaced by a new one.
+				if (this.pendingAskResolve !== resolveAnswer) {
+					return
+				}
+				this.pendingAskResolve = undefined
+				this.options.setTurnPhase?.("streaming")
+				rejectAnswer(error)
+			})
+
+		return answer
 	}
 
 	resolvePendingToolApproval(
@@ -237,7 +279,7 @@ export class SdkInteractionCoordinator {
 		return true
 	}
 
-	resolvePendingAskQuestion(prompt: string | undefined): boolean {
+	resolvePendingAskQuestion(prompt: string | undefined, images?: string[], files?: string[]): boolean {
 		if (!this.pendingAskResolve) {
 			return false
 		}
@@ -245,14 +287,17 @@ export class SdkInteractionCoordinator {
 		const resolve = this.pendingAskResolve
 		this.pendingAskResolve = undefined
 		const responseText = prompt ?? ""
+		const hasAttachments = !!(images?.length || files?.length)
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
-		if (responseText) {
+		if (responseText || hasAttachments) {
 			const userMessage: ClineMessage = {
 				ts: this.nextMessageTs(),
 				type: "say",
 				say: "user_feedback",
 				text: responseText,
+				images,
+				files,
 				partial: false,
 			}
 			this.options.messages.appendAndEmit([userMessage], {
@@ -263,17 +308,37 @@ export class SdkInteractionCoordinator {
 
 		// User answered the follow-up — the agent resumes its turn.
 		this.options.setTurnPhase?.("streaming")
-		resolve(responseText)
+		if (!hasAttachments) {
+			resolve(responseText)
+			return true
+		}
+
+		this.loadingAskResolve = resolve
+		void buildAnswerWithAttachments(responseText, images, files)
+			.catch((error) => {
+				Logger.error(`[SdkController] Failed to load ask_question attachments: ${error}`)
+				return responseText
+			})
+			.then((answer) => {
+				if (this.loadingAskResolve === resolve) {
+					this.loadingAskResolve = undefined
+				}
+				// No-op if clearPending already settled this question.
+				resolve(answer)
+			})
 		return true
 	}
 
 	clearPending(reason: string): void {
 		const resolveAsk = this.pendingAskResolve
+		const resolveLoadingAsk = this.loadingAskResolve
 		this.pendingAskResolve = undefined
+		this.loadingAskResolve = undefined
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
 		// before session teardown so the run can unwind instead of remaining suspended;
 		// use an empty answer so the lifecycle reason is not presented as user input.
 		resolveAsk?.("")
+		resolveLoadingAsk?.("")
 
 		this.denyPendingToolApproval(reason)
 	}

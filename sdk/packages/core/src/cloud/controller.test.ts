@@ -210,6 +210,47 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("refreshes an attached session title after an external rename", async () => {
+		const f = await attached();
+		await f.controller.updateTitle(record.id, "Desktop title");
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.title).toBe("Web title");
+		await f.controller.dispose();
+	});
+
+	it.each([
+		false,
+		true,
+	])("preserves a rename across a timed-out discovery request (attached: %s)", async (isAttached) => {
+		const f = isAttached ? await attached() : fixture();
+		await f.controller.listForDiscovery();
+		let resolveListing!: (records: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveListing = resolve;
+				}),
+		);
+		await f.controller.listForDiscovery({ timeoutMs: 0 });
+		await f.controller.updateTitle(record.id, "Desktop title");
+		const refreshing = f.controller.listForDiscovery();
+		resolveListing([{ ...record, title: "Old title" }]);
+		expect((await refreshing)[0]?.metadata).toMatchObject({
+			title: "Desktop title",
+		});
+		expect(f.controller.getSnapshot(record.id)?.record?.title).toBe(
+			"Desktop title",
+		);
+		f.api.list.mockResolvedValue([{ ...record, title: "Web title" }]);
+		expect((await f.controller.listForDiscovery())[0]?.metadata).toMatchObject({
+			title: "Web title",
+		});
+		await f.controller.dispose();
+	});
+
 	it.each([
 		"suspended",
 		"ready",
@@ -838,6 +879,45 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(accepted()).toHaveLength(1);
 		await f.controller.dispose();
 	});
+	it("prevents dispatch if beforeDispatch throws", async () => {
+		const f = await attached();
+		const previousTitle = f.controller.getSnapshot(record.id)?.title;
+		try {
+			await expect(
+				f.controller.send(
+					record.id,
+					"unsent",
+					undefined,
+					undefined,
+					undefined,
+					{
+						beforeDispatch: () => {
+							throw new Error("disk full");
+						},
+					},
+				),
+			).rejects.toThrow("disk full");
+			expect(
+				f.commands.some((command) => command.command === "session.send_input"),
+			).toBe(false);
+			expect(f.api.updateTitle).not.toHaveBeenCalled();
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(previousTitle);
+			expect(
+				f.controller.getSnapshot(record.id)?.record?.title,
+			).toBeUndefined();
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBeUndefined();
+			await f.controller.send(record.id, "accepted prompt");
+			expect(f.api.updateTitle).toHaveBeenCalledExactlyOnceWith(
+				record.id,
+				"accepted prompt",
+			);
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(
+				"accepted prompt",
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("does not confirm a prompt cancelled before dispatch", async () => {
 		const f = await attached();
 		const original = f.command.getMockImplementation()!;
@@ -1047,6 +1127,8 @@ describe("CloudSessionController neutral host contract", () => {
 			autoApproveTools: false,
 			thinking: false,
 			reasoningEffort: "high" as const,
+			mode: "plan" as const,
+			workspaceRelativePath: "packages/app",
 		};
 		try {
 			await f.controller.create({
@@ -1062,7 +1144,13 @@ describe("CloudSessionController neutral host contract", () => {
 					f.commands.find((c) => c.command === "session.create")?.payload,
 				).toMatchObject({
 					metadata: { thinking: false, reasoningEffort: null },
-					sessionConfig: { thinking: false, reasoningEffort: "high" },
+					sessionConfig: {
+						thinking: false,
+						reasoningEffort: "high",
+						mode: "plan",
+						cwd: "/workspace/packages/app",
+					},
+					runtimeOptions: { mode: "plan" },
 				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);

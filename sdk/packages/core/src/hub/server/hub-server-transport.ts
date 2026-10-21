@@ -20,12 +20,17 @@ import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import {
+	getProcessPluginRegistry,
+	type PluginRegistry,
+} from "../../extensions/plugin/plugin-registry";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import type { PluginCommandsRuntimeService } from "../../services/plugin-command-api";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
@@ -68,6 +73,7 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	errorReply,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
@@ -101,9 +107,9 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionSearch,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
-	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -232,6 +238,22 @@ function parseSettingsToggleInput(payload: unknown): CoreSettingsToggleInput {
 	};
 }
 
+/** Routes plugin registry logs into the Hub's structured log stream. */
+const hubPluginLogger = {
+	debug: (message: string, metadata?: Record<string, unknown>) =>
+		logHubMessage("debug", message, metadata),
+	log: (message: string, metadata?: Record<string, unknown>) =>
+		logHubMessage(
+			metadata?.severity === "warn" || metadata?.severity === "error"
+				? "warn"
+				: "info",
+			message,
+			metadata,
+		),
+	error: (message: string, metadata?: Record<string, unknown>) =>
+		logHubMessage("error", message, metadata),
+};
+
 /** @internal Exported for unit testing fetch/runtime wiring. */
 export class HubServerTransport implements NativeHubTransport {
 	private readonly clients = new Map<string, HubClientRecord>();
@@ -270,8 +292,19 @@ export class HubServerTransport implements NativeHubTransport {
 	private runQueue?: HubRunQueue;
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
+	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
+	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
+	private unsubscribePluginStatus?: () => void;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		this.plugins.setLogger(hubPluginLogger);
+		this.unsubscribePluginStatus = this.plugins.subscribe((status) => {
+			this.publish(
+				buildHubEvent("plugin.status_changed", {
+					plugin: JSON.parse(JSON.stringify(status)),
+				}),
+			);
+		});
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
@@ -710,6 +743,10 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async stop(): Promise<void> {
+		this.draining = true;
+		await Promise.allSettled(this.pendingPluginCommands);
+		this.unsubscribePluginStatus?.();
+		this.unsubscribePluginStatus = undefined;
 		if (this.eventLogPruneTimer) {
 			clearInterval(this.eventLogPruneTimer);
 			this.eventLogPruneTimer = undefined;
@@ -835,8 +872,16 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionMessages(this.ctx, envelope);
 			case "session.compaction.get":
 				return await handleSessionCompactionGet(this.ctx, envelope);
-			case "session.list":
-				return await handleSessionList(this.ctx, envelope);
+			case "session.list": {
+				const reply = await handleSessionList(this.ctx, envelope);
+				return {
+					...reply,
+					payload: {
+						...reply.payload,
+						activePluginRequests: this.pendingPluginCommands.size,
+					},
+				};
+			}
 			case "session.search":
 				return await handleSessionSearch(this.ctx, envelope);
 			case "session.update":
@@ -890,6 +935,11 @@ export class HubServerTransport implements NativeHubTransport {
 				return this.handleHubDrain(envelope);
 			case "hub.status":
 				return this.handleHubStatus(envelope);
+			case "plugins.list":
+			case "plugins.status":
+				return okReply(envelope, { plugins: this.plugins.list() });
+			case "plugins.reload":
+				return await this.handlePluginsReload(envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
 			case "run.proceed_while_running":
@@ -908,6 +958,63 @@ export class HubServerTransport implements NativeHubTransport {
 			case "ui.show_window":
 				this.publish(buildHubEvent("ui.show_window", envelope.payload ?? {}));
 				return okReply(envelope);
+			case "plugins.commands.list":
+			case "plugins.commands.run": {
+				const service = (
+					this.sessionHost as RuntimeHost &
+						Partial<PluginCommandsRuntimeService>
+				).pluginCommands;
+				if (!service)
+					return {
+						version: envelope.version,
+						requestId: envelope.requestId,
+						ok: false,
+						error: {
+							code: "plugin_commands_unavailable",
+							message: "This runtime does not support plugin commands",
+						},
+					};
+				// An unregistered connection has no workspace scope to check the
+				// caller-chosen path against, so it cannot run commands anywhere.
+				if (!authority)
+					throw new Error("Plugin commands require a Hub-authorized workspace");
+				const workspacePath =
+					typeof envelope.payload?.workspacePath === "string"
+						? envelope.payload.workspacePath
+						: authority.workspaceContext?.workspaceRoot;
+				if (!workspacePath) throw new Error("workspacePath is required");
+				if (
+					!authority.crossWorkspace &&
+					resolve(workspacePath) !==
+						resolve(authority.workspaceContext?.workspaceRoot ?? "")
+				)
+					throw new Error(
+						"Plugin workspace is outside the connection's authority",
+					);
+				const sessionId = envelope.sessionId;
+				const target = { workspacePath, ...(sessionId ? { sessionId } : {}) };
+				const request = Promise.resolve().then(async () =>
+					envelope.command === "plugins.commands.list"
+						? { catalog: await service.list(target) }
+						: {
+								result: await service.run({
+									...target,
+									prompt: String(envelope.payload?.prompt ?? ""),
+								}),
+							},
+				);
+				this.pendingPluginCommands.add(request);
+				try {
+					return {
+						version: envelope.version,
+						requestId: envelope.requestId,
+						ok: true,
+						payload: await request,
+					};
+				} finally {
+					this.pendingPluginCommands.delete(request);
+				}
+			}
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":
@@ -1070,6 +1177,31 @@ export class HubServerTransport implements NativeHubTransport {
 		return okReply(envelope, this.describeStatus());
 	}
 
+	private async handlePluginsReload(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const plugin =
+			typeof envelope.payload?.plugin === "string"
+				? envelope.payload.plugin.trim()
+				: "";
+		if (!plugin) {
+			return errorReply(
+				envelope,
+				"invalid_plugin",
+				"plugins.reload requires a plugin name or path",
+			);
+		}
+		const plugins = await this.plugins.reload(plugin);
+		if (plugins.length === 0) {
+			return errorReply(
+				envelope,
+				"plugin_not_found",
+				`No loaded plugin matches "${plugin}"`,
+			);
+		}
+		return okReply(envelope, { plugins });
+	}
+
 	private handleHubStatus(envelope: HubCommandEnvelope): HubReplyEnvelope {
 		return okReply(envelope, this.describeStatus());
 	}
@@ -1083,12 +1215,16 @@ export class HubServerTransport implements NativeHubTransport {
 			hubId: this.hubId,
 			draining: this.draining,
 			activeRpcTurns,
+			activePluginRequests: this.pendingPluginCommands.size,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
 				: undefined,
 			// Idle = safe to stop: nothing executing and nothing accepted-but-unstarted.
-			idle: activeRpcTurns === 0 && (this.runQueue?.countPending() ?? 0) === 0,
+			idle:
+				activeRpcTurns === 0 &&
+				this.pendingPluginCommands.size === 0 &&
+				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}
 

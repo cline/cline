@@ -9,6 +9,15 @@ export interface ProviderAuthInfo {
 	providerId: string;
 	capabilities?: string[];
 	localCli?: ProviderLocalCli;
+	/** The provider accepts a missing API key (`metadata.apiKeyOptional`). */
+	apiKeyOptional?: boolean;
+}
+
+/** Whether the provider declares its API key optional; callers own provider lookup. */
+export function resolveProviderApiKeyOptional(
+	provider: { metadata?: Record<string, unknown> } | undefined,
+): boolean {
+	return provider?.metadata?.apiKeyOptional === true;
 }
 
 /** Extract declared CLI metadata; callers own provider lookup. */

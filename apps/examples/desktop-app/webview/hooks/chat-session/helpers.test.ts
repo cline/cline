@@ -106,6 +106,23 @@ describe("resolveCredentialError", () => {
 		).toMatch(/Missing API key/);
 	});
 
+	it("allows a provider whose metadata declares the API key optional", () => {
+		// Local OpenAI-compatible endpoints (LM Studio, vLLM, ...) and Ollama
+		// have no key; the catalog carries the declaration from `@cline/llms`.
+		expect(
+			resolveCredentialError(
+				makeConfig({
+					provider: "openai-compatible",
+					providerAuth: {
+						providerId: "openai-compatible",
+						capabilities: ["tools"],
+						apiKeyOptional: true,
+					},
+				}),
+			),
+		).toBeNull();
+	});
+
 	it("allows API-key providers with a key", () => {
 		expect(
 			resolveCredentialError(

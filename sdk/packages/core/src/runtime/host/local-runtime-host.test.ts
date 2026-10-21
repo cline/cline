@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import {
@@ -218,6 +219,62 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("uses host connector authentication on startup and resume", async () => {
+		const settings = vi
+			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue(undefined);
+		const request = vi.fn(async () =>
+			Response.json({
+				data: {
+					sessionId: "meta-session",
+					tools: [
+						"COMPOSIO_SEARCH_TOOLS",
+						"COMPOSIO_MANAGE_CONNECTIONS",
+						"COMPOSIO_WAIT_FOR_CONNECTIONS",
+						"COMPOSIO_MULTI_EXECUTE_TOOL",
+					].map((slug) => ({
+						slug,
+						input_parameters: { type: "object", properties: {} },
+					})),
+				},
+			}),
+		);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			connectorsRequest: request,
+		});
+		const start: StartSessionInput = {
+			config: createConfig({
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [] },
+			interactive: true,
+			initialMessages: [{ role: "user", content: "saved conversation" }],
+		};
+		try {
+			const first = await manager.startSession(start);
+			expect(request).toHaveBeenCalledTimes(1);
+			await manager.stopSession(first.sessionId);
+			await manager.startSession({
+				...start,
+				config: { ...start.config, sessionId: first.sessionId },
+			});
+			expect(request).toHaveBeenCalledTimes(2);
+			expect(
+				settings.mock.calls.every(([provider]) => provider !== "cline"),
+			).toBe(true);
+		} finally {
+			await manager.dispose();
+			settings.mockRestore();
 		}
 	});
 
@@ -6473,6 +6530,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(initialMessages),
 				messages: initialMessages,
+				prepareProviderMessagesForApi: vi.fn(
+					async (messages: MessageWithMetadata[]) => messages,
+				),
 			});
 			const compact = vi.fn(
 				options.compact ??
@@ -6701,6 +6761,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(liveMessages),
 				messages: liveMessages,
+				prepareProviderMessagesForApi: vi.fn(
+					async (messages: MessageWithMetadata[]) => messages,
+				),
 			});
 			const manager = new RuntimeHostUnderTest({
 				distinctId,
@@ -6769,6 +6832,12 @@ describe("LocalRuntimeHost", () => {
 					{ role: "user", content: "next" },
 				],
 			});
+			expect(
+				createAgent.mock.results[0]?.value.prepareProviderMessagesForApi,
+			).toHaveBeenCalledWith([
+				{ role: "user", content: "summary" },
+				{ role: "user", content: "next" },
+			]);
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}
