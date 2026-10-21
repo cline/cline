@@ -36,6 +36,44 @@ function harness() {
 
 describe("summary handoff lifecycle", () => {
 	it.each([
+		false,
+		true,
+	])("recovers A without substituting B's files (reload=%s)", async (reload) => {
+		const h = harness();
+		const aFiles = [new File(["a"], "a.png")];
+		const bFiles = [new File(["b"], "b.png")];
+		const id = reload ? "previous-window" : h.start(aFiles);
+		if (!reload)
+			await h.lifecycle.onRpcRejected("local", {
+				handoffAttemptId: id,
+				error: new Error("Connection closed"),
+				nextCommand: "A",
+				sourceAttachments: aFiles,
+			});
+		expect(h.lifecycle.getCompletedAttemptId("local")).toBeUndefined();
+		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		h.lifecycle.onPreparationRejected("local", {
+			error: new Error("Check the existing task"),
+			nextCommand: "B",
+			sourceAttachments: bFiles,
+			silent: true,
+		});
+		h.lifecycle.onRecovered("local", {
+			handoffAttemptId: id,
+			result: { ...result, warningKind: "unqueued", unsentPrompt: "Summary A" },
+		});
+		expect(h.state().local).toMatchObject({
+			status: "complete",
+			sessionId: "cloud",
+			unsentDraft: { text: "Summary A", attachments: reload ? [] : aFiles },
+			preparationFailure: { draft: { text: "B", attachments: bFiles } },
+		});
+		if (reload)
+			expect(h.state().local.message).toContain("Reattach any images");
+		expect(h.lifecycle.getCompletedAttemptId("local")).toBe(id);
+		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+	});
+	it.each([
 		"before",
 		"after",
 	])("keeps A's completion when B's preview fails %s it", async (order) => {

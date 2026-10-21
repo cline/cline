@@ -2,11 +2,17 @@ import { summarizeConversation } from "@cline/core";
 import { loadCloudModels } from "@cline/core/cloud";
 import { DEFAULT_MAX_IMAGE_DECODED_BYTES } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleHandoff, handlePrepareHandoff } from "./cloud-handoff";
+import {
+	beginActiveSessionSend,
+	handleDiscardHandoff,
+	handleHandoff,
+	handlePrepareHandoff,
+} from "./cloud-handoff";
 import * as gitPreparation from "./cloud-handoff-git";
 import {
 	CloudCreationUnconfirmedError,
 	type CloudSessionApi,
+	CloudSessionError,
 	CloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
@@ -145,12 +151,13 @@ function fixture() {
 		handoffAttemptId: "attempt-1",
 		gitPreparationId: plan.id,
 	};
-	const prepare = async () => {
+	const prepare = async (completedHandoffAttemptId?: string) => {
 		const preview = await handlePrepareHandoff(ctx, {
 			...request,
 			action: "prepare_handoff",
+			completedHandoffAttemptId,
 		});
-		expect(preview.gitPreparation.id).toBe(plan.id);
+		expect(preview).toMatchObject({ gitPreparation: { id: plan.id } });
 	};
 	return {
 		ctx,
@@ -174,6 +181,105 @@ function fixture() {
 }
 
 describe("summary cloud handoff", () => {
+	it("returns a missed completion before preparing another cloud task", async () => {
+		const f = fixture();
+		await f.prepare();
+		const result = await f.handoff();
+		const retry = await handlePrepareHandoff(f.ctx, f.request);
+		expect(retry).toEqual({
+			previousHandoff: { handoffAttemptId: "attempt-1", result },
+		});
+		expect(f.create).toHaveBeenCalledTimes(1);
+		expect(f.send).toHaveBeenCalledTimes(1);
+		const acknowledged = {
+			...f.request,
+			completedHandoffAttemptId: "attempt-1",
+		};
+		await expect(
+			handlePrepareHandoff(f.ctx, acknowledged),
+		).resolves.toMatchObject({ gitPreparation: { id: "plan" } });
+		await handleDiscardHandoff(f.ctx, acknowledged);
+		await expect(handlePrepareHandoff(f.ctx, f.request)).resolves.toEqual(
+			retry,
+		);
+		await f.prepare("attempt-1");
+		f.summarize.mockRejectedValueOnce(new Error("Summary unavailable"));
+		await expect(
+			f.handoff({ ...f.request, handoffAttemptId: "attempt-2" }),
+		).rejects.toThrow("Summary unavailable");
+		await f.prepare();
+	});
+	it("does not return another account's completed handoff", async () => {
+		const f = fixture();
+		await f.prepare();
+		await f.handoff();
+		f.ctx.cloudSessionManager = fixture().ctx.cloudSessionManager;
+		await f.prepare();
+	});
+	it("discards only the canceled preview, not a newer preview", async () => {
+		const f = fixture();
+		await f.prepare();
+		await handleDiscardHandoff(f.ctx, {
+			...f.request,
+			gitPreparationId: "older-plan",
+		});
+		await expect(f.handoff()).resolves.toMatchObject({
+			sessionId: "ses-target",
+		});
+		await expect(
+			handlePrepareHandoff(f.ctx, {
+				...f.request,
+				completedHandoffAttemptId: "attempt-1",
+			}),
+		).resolves.toMatchObject({ gitPreparation: { id: "plan" } });
+		await handleDiscardHandoff(f.ctx, f.request);
+		await expect(f.handoff()).rejects.toThrow("review the preparation plan");
+	});
+	it.each([
+		false,
+		true,
+	])("invalidates only turns overlapping capture (captured=%s)", async (captured) => {
+		const f = fixture();
+		const ctx = getEnvironmentContext(f.ctx, "local");
+		vi.mocked(gitPreparation.inspectHandoffGit).mockImplementation(
+			async (_cwd, onCaptured?: () => void) => {
+				if (captured) onCaptured?.();
+				const release = beginActiveSessionSend(ctx, f.sourceSessionId);
+				f.messages.push({ role: "user", content: "Keep this turn local." });
+				release();
+				if (!captured) onCaptured?.();
+				return f.plan;
+			},
+		);
+		if (!captured) {
+			await expect(handlePrepareHandoff(ctx, f.request)).rejects.toThrow(
+				"conversation changed",
+			);
+			await expect(handleHandoff(ctx, f.request, f.summarize)).rejects.toThrow(
+				"review the preparation plan",
+			);
+		} else {
+			await handlePrepareHandoff(ctx, f.request);
+			await expect(
+				handleHandoff(ctx, f.request, f.summarize),
+			).resolves.toMatchObject({
+				sessionId: "ses-target",
+			});
+			expect(f.summarize.mock.calls[0]?.[0]).toHaveLength(2);
+		}
+	});
+	it("shows a provisioning failure reason without losing the unsent draft", async () => {
+		const f = fixture();
+		await f.prepare();
+		f.send.mockRejectedValue(
+			new CloudSessionError("session_failed", "Repository clone failed."),
+		);
+		await expect(f.handoff()).resolves.toMatchObject({
+			warning: expect.stringContaining("Repository clone failed."),
+			warningKind: "unqueued",
+			unsentPrompt: expect.stringContaining("Search form: implemented."),
+		});
+	});
 	it.each([
 		"preview",
 		"summary",
@@ -356,7 +462,7 @@ describe("summary cloud handoff", () => {
 			"If no next action is clear, ask",
 		);
 		expect(f.send.mock.calls[0]?.[4]).toEqual([image]);
-		await f.prepare();
+		await f.prepare("attempt-1");
 		await f.handoff({ ...f.request, handoffAttemptId: "attempt-2" });
 		expect(f.create.mock.calls.map(([input]) => input.requestId)).toEqual([
 			"attempt-1",

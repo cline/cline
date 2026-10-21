@@ -88,7 +88,10 @@ function isSensitivePath(path: string): boolean {
 	);
 }
 
-export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
+export async function inspectHandoffGit(
+	cwd: string,
+	onCaptured?: () => void,
+): Promise<HandoffGitPlan> {
 	const root = await git(cwd, ["rev-parse", "--show-toplevel"]);
 	const workspaceRelativePath = (
 		await git(cwd, ["rev-parse", "--show-prefix"])
@@ -174,6 +177,7 @@ export async function inspectHandoffGit(cwd: string): Promise<HandoffGitPlan> {
 			"The repository changed while preparing the preview. Run /cloud again.",
 		);
 	}
+	onCaptured?.();
 	const remote =
 		(await optionalConfig(root, `branch.${sourceBranch}.remote`)) || "origin";
 	if (remote === "." || remote.startsWith("-"))

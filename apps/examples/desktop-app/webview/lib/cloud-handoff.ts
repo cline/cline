@@ -7,14 +7,7 @@ type ParsedHandoffCommand = {
 	nextCommand: string;
 };
 
-export type HandoffResult = {
-	sourceSessionId: string;
-	sessionId: string;
-	dashboardUrl: string;
-	warning?: string;
-	warningKind?: "unqueued" | "unconfirmed";
-	unsentPrompt?: string;
-};
+export type { HandoffResult } from "../../sidecar/cloud-handoff";
 
 export type HandoffProgressPhase =
 	| "checking"

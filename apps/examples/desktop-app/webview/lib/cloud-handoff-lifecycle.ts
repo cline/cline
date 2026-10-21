@@ -84,6 +84,32 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		if (warning) effects.toast(warning);
 	};
 	return {
+		getCompletedAttemptId(sourceSessionId: string): string | undefined {
+			const attempt = sources.get(sourceSessionId)?.attempt;
+			return attempt?.completed ? attempt.id : undefined;
+		},
+		onRecovered(
+			sourceSessionId: string,
+			recovered: { handoffAttemptId: string; result: HandoffResult },
+		): void {
+			let attempt = current(sourceSessionId, recovered.handoffAttemptId);
+			let result = recovered.result;
+			if (!attempt) {
+				attempt = {
+					id: recovered.handoffAttemptId,
+					completed: false,
+					attachments: [],
+				};
+				sources.set(sourceSessionId, { attempt, preparing: false });
+				if (result.unsentPrompt)
+					result = {
+						...result,
+						warning:
+							`${result.warning ?? ""} Reattach any images from the previous window before sending.`.trim(),
+					};
+			}
+			complete(sourceSessionId, attempt, result);
+		},
 		onPreparationStarted(sourceSessionId: string): boolean {
 			const source = sources.get(sourceSessionId);
 			if (source?.preparing) return false;

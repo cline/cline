@@ -314,10 +314,12 @@ describe("cloud handoff Git preparation", () => {
 
 	it("captures file contents before remote inspection while local edits continue", async () => {
 		writeFileSync(join(repo, "tracked.txt"), "captured with conversation\n");
+		const captured = vi.fn();
 		transport.beforeFetch = () => {
+			expect(captured).toHaveBeenCalledOnce();
 			writeFileSync(join(repo, "tracked.txt"), "later local turn\n");
 		};
-		const plan = await inspectHandoffGit(repo);
+		const plan = await inspectHandoffGit(repo, captured);
 		await applyHandoffGit(plan);
 		expect(
 			git("--git-dir", transport.remote, "show", `${plan.branch}:tracked.txt`),

@@ -179,6 +179,7 @@ import {
 	workspacePathsFromSessions,
 	writeWorkspaceSelectionToWindow,
 } from "@/lib/workspace-paths";
+import type { PrepareHandoffResult } from "../../sidecar/cloud-handoff";
 import type { HandoffGitPreview } from "../../sidecar/cloud-handoff-git";
 
 // Lazily loaded views: none of these are needed for the first paint of the
@@ -2234,20 +2235,43 @@ function ChatThreadPane({
 					sourceSessionId,
 				});
 				const attachments = await serializeAttachments(sourceAttachments);
-				const { gitPreparation } = await desktopClient.invoke<{
-					gitPreparation: HandoffGitPreview;
-				}>(
+				const preparation = await desktopClient.invoke<PrepareHandoffResult>(
 					"chat_session_command",
 					{
 						request: {
 							action: "prepare_handoff",
 							sessionId: sourceSessionId,
+							completedHandoffAttemptId:
+								handoffLifecycle.getCompletedAttemptId(sourceSessionId),
 							config,
 						},
 					},
 					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS },
 				);
+				if ("previousHandoff" in preparation) {
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error: new Error(
+							"Your earlier cloud task completed. Check it before starting another task.",
+						),
+						nextCommand,
+						sourceAttachments,
+						silent: true,
+					});
+					handoffLifecycle.onRecovered(
+						sourceSessionId,
+						preparation.previousHandoff,
+					);
+					return;
+				}
+				const { gitPreparation } = preparation;
 				if (!(await confirmHandoffGit(gitPreparation))) {
+					await desktopClient.invoke("chat_session_command", {
+						request: {
+							action: "discard_handoff",
+							sessionId: sourceSessionId,
+							gitPreparationId: gitPreparation.id,
+						},
+					});
 					handoffLifecycle.onPreparationRejected(sourceSessionId, {
 						error: new Error("Cloud preparation cancelled."),
 						nextCommand,

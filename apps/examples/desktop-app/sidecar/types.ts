@@ -27,6 +27,7 @@ export type ChatSessionCommandRequest = {
 		| "attach"
 		| "send"
 		| "prepare_handoff"
+		| "discard_handoff"
 		| "handoff"
 		| "stop"
 		| "abort"
@@ -47,6 +48,7 @@ export type ChatSessionCommandRequest = {
 	attachments?: ChatTurnAttachments;
 	/** Opaque webview correlation token echoed on handoff progress events. */
 	handoffAttemptId?: string;
+	completedHandoffAttemptId?: string;
 	gitPreparationId?: string;
 	/** Optional instruction appended to the locally generated summary. */
 	nextCommand?: string;
