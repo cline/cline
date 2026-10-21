@@ -45,7 +45,7 @@ describe("SdkSessionEventCoordinator", () => {
 			isSelectionForActiveModeProvider: () => true,
 			sessions: { updateActiveSessionModel: vi.fn().mockResolvedValue(undefined) },
 		})
-		Controller.prototype["handleProviderConfigChange"].call(controller, {
+		controller.handleProviderConfigChange({
 			kind,
 			providerId: kind === "fields" ? "anthropic" : "openai-codex",
 			selection: { modelId: "new-model" },
