@@ -53,15 +53,6 @@ describe("computeIsWaitingForResponse (turnState path)", () => {
 		// phase to "completed"; the loader must not flash during that gap.
 		expect(computeIsWaitingForResponse(inputsFor([say(1, "completion_result", false)], streaming()))).toBe(false)
 	})
-
-	it("does not wait while a cloud sandbox is provisioning, which shows its own progress", () => {
-		expect(computeIsWaitingForResponse(inputsFor([say(1, "cloud_provisioning", false)], streaming()))).toBe(false)
-		expect(
-			computeIsWaitingForResponse(
-				inputsFor([say(1, "cloud_provisioning", false), say(2, "api_req_started", false)], streaming()),
-			),
-		).toBe(true)
-	})
 })
 
 describe("computeIsWaitingForResponse (legacy path)", () => {
@@ -184,6 +175,16 @@ describe("useThinkingLoaderRow anti-flash debounce", () => {
 
 		// The group's tail finalizing must not blink the visible loader off for the grace period.
 		rerender(toolGroupInputs(toolAsk(false)))
+		expect(result.current).toBe(true)
+	})
+
+	it("stays hidden while a cloud sandbox provisions, even before the optimistic send is acknowledged", () => {
+		const provisioning = say(1, "cloud_provisioning", false, JSON.stringify({ phase: "starting" }))
+		const idle: TurnState = { phase: "idle", seq: 1 }
+		const { result, rerender } = renderLoader({ ...inputsFor([provisioning], idle), forceShow: true })
+		expect(result.current).toBe(false)
+
+		rerender({ ...inputsFor([provisioning, say(2, "api_req_started", false)], idle), forceShow: true })
 		expect(result.current).toBe(true)
 	})
 

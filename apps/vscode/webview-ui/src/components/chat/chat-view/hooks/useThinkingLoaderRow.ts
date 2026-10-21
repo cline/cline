@@ -52,11 +52,6 @@ export function computeIsWaitingForResponse({
 }: ThinkingLoaderInputs): boolean {
 	const lastMsg = modifiedMessages[modifiedMessages.length - 1]
 
-	// A provisioning cloud sandbox shows its own progress card.
-	if (lastRawMessage?.type === "say" && lastRawMessage.say === "cloud_provisioning") {
-		return false
-	}
-
 	// AUTHORITATIVE PATH: when the backend provides a TurnState, the agent is only "thinking"
 	// while phase === "streaming". Any other phase (awaiting_approval/followup, completed,
 	// error, resumable, idle) is never a thinking state — this is what makes the footer
@@ -252,8 +247,11 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 	// started, unless a visible content row is already streaming.
 	const optimisticShow = forceShow === true && lastVisibleMessage?.partial !== true
 
+	// A provisioning cloud sandbox shows its own progress card.
+	const cloudProvisioning = lastRawMessage?.type === "say" && lastRawMessage.say === "cloud_provisioning"
+
 	return useDebouncedLoaderVisibility(
-		optimisticShow || isWaitingForResponse || handoffToReasoningPending,
+		!cloudProvisioning && (optimisticShow || isWaitingForResponse || handoffToReasoningPending),
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
 		// A reasoning tail finishing never ends the turn (the model always emits content after
