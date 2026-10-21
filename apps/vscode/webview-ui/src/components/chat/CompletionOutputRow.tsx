@@ -40,12 +40,12 @@ export const CompletionOutputRow = memo(
 			<div>
 				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 p-2 pt-3">
 					{/* Title */}
-					<div className={cn(headClassNames, "justify-between px-1")}>
+					<div className={cn(headClassNames, "justify-between px-1 sticky top-0 z-[3] bg-code rounded-sm")}>
 						<div className="flex gap-2 items-center">
 							<CheckIcon className="size-3 text-success" />
 							<span className="text-success font-bold">Task Completed</span>
 						</div>
-						<CopyButton className="text-success" textToCopy={text} />
+						<CopyButton ariaLabel="Copy response" className="text-success" textToCopy={text} />
 					</div>
 					{/* Content */}
 					<div className="w-full relative border-t-1 border-description/20 rounded-b-sm">

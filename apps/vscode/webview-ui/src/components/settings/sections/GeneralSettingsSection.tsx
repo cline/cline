@@ -10,13 +10,18 @@ interface GeneralSettingsSectionProps {
 }
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
-	const { telemetrySetting, remoteConfigSettings } = useExtensionState()
+	const { telemetrySetting, remoteConfigSettings, showUserMessageTimestamps } = useExtensionState()
 
 	return (
 		<div>
 			{renderSectionHeader("general")}
 			<Section>
 				<PreferredLanguageSetting />
+				<VSCodeCheckbox
+					checked={showUserMessageTimestamps !== false}
+					onChange={(e: any) => updateSetting("showUserMessageTimestamps", e.target.checked === true)}>
+					Show timestamp below my messages
+				</VSCodeCheckbox>
 
 				<div className="mb-[5px]">
 					<Tooltip>

@@ -12,6 +12,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import { responseCompletion } from "@/shared/response-timing"
 import { TaskState } from "./TaskState"
 
 // Event types for clineMessages changes
@@ -203,6 +204,9 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			// it's important that apiConversationHistory is initialized before we add cline messages
 			message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
 			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			if (this.clineMessages.length > 0 && message.partial !== true) {
+				Object.assign(message, responseCompletion(message, message.ts))
+			}
 			const index = this.clineMessages.length
 			this.clineMessages.push(message)
 			this.emitClineMessagesChanged({

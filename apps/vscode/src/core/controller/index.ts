@@ -1067,6 +1067,7 @@ export class Controller {
 			doubleCheckCompletionEnabled,
 			lazyTeammateModeEnabled,
 			showFeatureTips,
+			showUserMessageTimestamps: this.stateManager.getGlobalSettingsKey("showUserMessageTimestamps"),
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,

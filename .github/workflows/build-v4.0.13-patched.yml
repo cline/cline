@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PATCH_VERSION: 4.0.13-patched-v21
+  PATCH_VERSION: 4.0.13-patched-v22
 jobs:
   build-vsix:
     runs-on: ubuntu-latest
@@ -38,7 +38,12 @@ jobs:
         run: npm run test:webview
       - name: Run hook, prompt, Bedrock and marketplace regressions
         working-directory: apps/vscode
-        run: npx cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha --no-config --require ts-node/register --require tsconfig-paths/register --require ./src/test/requires.ts --timeout 20000 --exit src/test/hook-executor.test.ts 'src/core/hooks/__tests__/*.test.ts' 'src/core/prompts/system-prompt/__tests__/*.test.ts' src/core/api/providers/__tests__/bedrock.test.ts src/utils/__tests__/model-utils.test.ts src/test/core/controller/marketplace-filtering.test.ts
+        run: npx cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha --no-config --require ts-node/register --require tsconfig-paths/register --require ./src/test/requires.ts --timeout 20000 --exit src/test/chat-usability.test.ts src/test/hook-executor.test.ts 'src/core/hooks/__tests__/*.test.ts' 'src/core/prompts/system-prompt/__tests__/*.test.ts' src/core/api/providers/__tests__/bedrock.test.ts src/utils/__tests__/model-utils.test.ts src/test/core/controller/marketplace-filtering.test.ts
+      - name: Check chat scrolling in Chromium
+        working-directory: apps/vscode
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test -c chat-usability.playwright.config.ts
       - name: Build and test on VS Code 1.98.2
         working-directory: apps/vscode
         env:
@@ -62,3 +67,4 @@ jobs:
           path: |
             apps/vscode/cline-${{ env.PATCH_VERSION }}.vsix
             apps/vscode/cline-${{ env.PATCH_VERSION }}.vsix.sha256
+            apps/vscode/test-results/

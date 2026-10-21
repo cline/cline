@@ -1,3 +1,4 @@
+import { MessageTimestamp } from "../MessageTimestamp"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
@@ -47,6 +48,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onSendMessage,
 }) => {
 	const {
+		showUserMessageTimestamps,
 		apiConfiguration,
 		currentTaskItem,
 		checkpointManagerErrorMessage,
@@ -180,6 +182,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				</div>
 
+				{showUserMessageTimestamps !== false && <MessageTimestamp label="Submitted" timestamp={task.ts} />}
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
