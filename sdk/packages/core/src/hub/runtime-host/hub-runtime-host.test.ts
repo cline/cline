@@ -187,6 +187,81 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("carries discarded pending prompts across the hub boundary", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+		const ctx = {
+			sessionHost: {
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+			},
+			buildEvent: vi.fn<HubTransportContext["buildEvent"]>(
+				(event, payload, sessionId) => ({
+					version: "v1",
+					event,
+					payload,
+					sessionId,
+				}),
+			),
+			publish: (event: HubEventEnvelope) => {
+				onEvent?.(JSON.parse(JSON.stringify(event)));
+			},
+		} as unknown as HubTransportContext;
+		const discarded = [
+			{
+				id: "pending-1",
+				prompt: "typed before the task was closed",
+				delivery: "queue" as const,
+				attachmentCount: 0,
+			},
+		];
+		// The snapshot that empties the queue on teardown must still tell a
+		// hub client what was removed, or it cannot offer the text back.
+		await projectSessionEvent(ctx, {
+			type: "pending_prompts",
+			payload: { sessionId: "sess-1", prompts: [], discarded },
+		});
+		await projectSessionEvent(ctx, {
+			type: "pending_prompts",
+			payload: { sessionId: "sess-1", prompts: [] },
+		});
+		expect(events).toEqual(
+			expect.arrayContaining([
+				{
+					type: "pending_prompts",
+					payload: { sessionId: "sess-1", prompts: [], discarded },
+				},
+				{
+					type: "pending_prompts",
+					payload: { sessionId: "sess-1", prompts: [] },
+				},
+			]),
+		);
+	});
+
 	it("reconstructs tool content updates from hub events", async () => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
