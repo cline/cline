@@ -20,7 +20,11 @@ const { invoke, openExternalUrl } = vi.hoisted(() => ({
 	openExternalUrl: vi.fn(),
 }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
+	desktopClient: {
+		invoke,
+		subscribe: vi.fn(() => () => {}),
+		subscribeTransportState: vi.fn(() => () => {}),
+	},
 	openExternalUrl,
 }));
 

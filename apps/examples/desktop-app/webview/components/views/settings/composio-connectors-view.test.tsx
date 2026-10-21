@@ -21,7 +21,11 @@ vi.mock("@/lib/composio", () => ({
 	fetchComposioToolkitCatalog: mocks.catalog,
 }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke: mocks.invoke, subscribe: () => () => {} },
+	desktopClient: {
+		invoke: mocks.invoke,
+		subscribe: () => () => {},
+		subscribeTransportState: () => () => {},
+	},
 	openExternalUrl: mocks.openExternalUrl,
 }));
 vi.mock("@/lib/provider-model-catalog", () => ({
