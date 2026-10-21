@@ -2,7 +2,7 @@ import type { HandoffProgressPhase } from "./cloud-handoff";
 
 export type HandoffDraft = { text: string; attachments: File[] };
 
-export type CloudHandoffUiEntry =
+type HandoffStatus =
 	| {
 			status: "progress";
 			phase: Exclude<HandoffProgressPhase, "complete">;
@@ -24,11 +24,15 @@ export type CloudHandoffUiEntry =
 			retryAttachments: File[];
 	  };
 
+export type CloudHandoffUiEntry = HandoffStatus & {
+	preparationFailure?: { message: string; draft: HandoffDraft };
+};
+
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
 export type CloudHandoffUiAction =
 	| {
-			type: "start" | "dismiss";
+			type: "prepare" | "start" | "dismiss" | "preparation_draft_restored";
 			sourceSessionId: string;
 	  }
 	| {
@@ -53,7 +57,7 @@ export type CloudHandoffUiAction =
 			sessionId?: string;
 	  }
 	| {
-			type: "failed";
+			type: "failed" | "preparation_failed";
 			sourceSessionId: string;
 			retryDraft: string;
 			retryAttachments: File[];
@@ -66,7 +70,19 @@ export function cloudHandoffUiReducer(
 ): CloudHandoffUiState {
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
+		case "preparation_draft_restored":
+			return current
+				? {
+						...state,
+						[action.sourceSessionId]: {
+							...current,
+							preparationFailure: undefined,
+						},
+					}
+				: state;
+		case "prepare":
 		case "start":
+			if (action.type === "prepare" && current) return state;
 			return {
 				...state,
 				[action.sourceSessionId]: { status: "progress", phase: "checking" },
@@ -77,22 +93,42 @@ export function cloudHandoffUiReducer(
 				...state,
 				[action.sourceSessionId]: {
 					status: "progress",
+					preparationFailure: current.preparationFailure,
 					phase: action.phase,
 					message: action.message,
 					dashboardUrl: action.dashboardUrl ?? current.dashboardUrl,
 					sessionId: action.sessionId ?? current.sessionId,
 				},
 			};
-		case "failed":
+		case "preparation_failed":
+		case "failed": {
+			const preparationFailure =
+				action.type === "preparation_failed"
+					? {
+							message: action.message,
+							draft: {
+								text: action.retryDraft,
+								attachments: action.retryAttachments,
+							},
+						}
+					: current?.preparationFailure;
 			return {
 				...state,
 				[action.sourceSessionId]: {
-					status: "failed",
-					message: action.message,
-					retryDraft: action.retryDraft,
-					retryAttachments: action.retryAttachments,
+					...(action.type === "preparation_failed" &&
+					(current?.status === "complete" ||
+						(current?.status === "progress" && current.sessionId))
+						? current
+						: {
+								status: "failed",
+								message: action.message,
+								retryDraft: action.retryDraft,
+								retryAttachments: action.retryAttachments,
+							}),
+					preparationFailure,
 				},
 			};
+		}
 		case "cloud_draft_restored":
 			return current?.status === "complete" &&
 				current.unsentDraft === action.draft
@@ -110,6 +146,7 @@ export function cloudHandoffUiReducer(
 					dashboardUrl: action.dashboardUrl,
 					message: action.message,
 					unsentDraft: action.unsentDraft,
+					preparationFailure: current?.preparationFailure,
 				},
 			};
 		case "dismiss": {

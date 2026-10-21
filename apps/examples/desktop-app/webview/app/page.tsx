@@ -1329,10 +1329,7 @@ function ChatThreadPane({
 	liveHistorySession?: SessionHistoryItem;
 	initialAttachments?: File[];
 	initialPromptDraft?: string;
-	handoffLifecycle: Pick<
-		HandoffLifecycle,
-		"onRpcStarted" | "onRpcResolved" | "onRpcRejected"
-	>;
+	handoffLifecycle: Omit<HandoffLifecycle, "onEvent">;
 	confirmHandoffGit: (plan: HandoffGitPreview) => Promise<boolean>;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
@@ -1438,7 +1435,6 @@ function ChatThreadPane({
 	const cloudAgentsEnabled =
 		cloudAgentsFlagEnabled === true &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
-	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	// Handoff state is keyed by local session id; another environment may reuse the id.
 	const handoffUi =
@@ -2114,45 +2110,64 @@ function ChatThreadPane({
 		[isCloudSession, setPendingAttachments],
 	);
 
-	const handleRestoreHandoffDraft = useCallback(async () => {
-		if (!sourceSessionId) return;
-		if (handoffUi?.status === "complete" && handoffUi.unsentDraft) {
-			const opened = await onOpenSessionById?.(handoffUi.sessionId, {
-				draft: handoffUi.unsentDraft,
-				expectedActiveThreadId: threadId,
-			});
-			if (opened?.opened) {
-				onHandoffUiAction({
-					type: "cloud_draft_restored",
-					sourceSessionId,
+	const handleRestoreHandoffDraft = useCallback(
+		async (destination: "local" | "cloud") => {
+			if (!sourceSessionId) return;
+			if (
+				destination === "cloud" &&
+				handoffUi?.status === "complete" &&
+				handoffUi.unsentDraft
+			) {
+				const opened = await onOpenSessionById?.(handoffUi.sessionId, {
 					draft: handoffUi.unsentDraft,
+					expectedActiveThreadId: threadId,
 				});
+				if (opened?.opened) {
+					onHandoffUiAction({
+						type: "cloud_draft_restored",
+						sourceSessionId,
+						draft: handoffUi.unsentDraft,
+					});
+				}
+				return;
 			}
-			return;
-		}
-		if (handoffUi?.status !== "failed") return;
-		if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
-			toast({
-				title: "Your current draft is unchanged",
-				description: "Send or clear it before restoring the /cloud draft.",
+			const draft =
+				handoffUi?.preparationFailure?.draft ??
+				(handoffUi?.status === "failed"
+					? {
+							text: handoffUi.retryDraft,
+							attachments: handoffUi.retryAttachments,
+						}
+					: undefined);
+			if (!draft) return;
+			if (draftRef.current.text.trim() || draftRef.current.attachments.length) {
+				toast({
+					title: "Your current draft is unchanged",
+					description: "Send or clear it before restoring the /cloud draft.",
+				});
+				return;
+			}
+			setPromptInput(draft.text ? `/cloud ${draft.text}` : "/cloud");
+			setPendingAttachments([...draft.attachments]);
+			onHandoffUiAction({
+				type:
+					handoffUi?.status === "failed"
+						? "dismiss"
+						: "preparation_draft_restored",
+				sourceSessionId,
 			});
-			return;
-		}
-		setPromptInput(
-			handoffUi.retryDraft ? `/cloud ${handoffUi.retryDraft}` : "/cloud",
-		);
-		setPendingAttachments([...handoffUi.retryAttachments]);
-		onHandoffUiAction({ type: "dismiss", sourceSessionId });
-	}, [
-		draftRef,
-		handoffUi,
-		onHandoffUiAction,
-		onOpenSessionById,
-		threadId,
-		setPromptInput,
-		setPendingAttachments,
-		sourceSessionId,
-	]);
+		},
+		[
+			draftRef,
+			setPromptInput,
+			setPendingAttachments,
+			handoffUi,
+			onHandoffUiAction,
+			onOpenSessionById,
+			threadId,
+			sourceSessionId,
+		],
+	);
 
 	const prepareHandoff = useCallback(
 		async (nextCommand: string) => {
@@ -2198,7 +2213,10 @@ function ChatThreadPane({
 				return;
 			}
 
-			if (handoffStartingRef.current || handoffUi?.status === "progress") {
+			if (
+				handoffUi?.status === "progress" ||
+				!handoffLifecycle.onPreparationStarted(sourceSessionId)
+			) {
 				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Handoff is already starting",
@@ -2206,17 +2224,13 @@ function ChatThreadPane({
 				});
 				return;
 			}
-			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
-			const handoffAttemptId = handoffLifecycle.onRpcStarted(
-				sourceSessionId,
-				sourceAttachments,
-			);
+			let handoffAttemptId: string | undefined;
 			setPendingAttachments([]);
 			try {
 				setPromptInput("");
 				onHandoffUiAction({
-					type: "start",
+					type: "prepare",
 					sourceSessionId,
 				});
 				const attachments = await serializeAttachments(sourceAttachments);
@@ -2234,8 +2248,7 @@ function ChatThreadPane({
 					{ timeoutMs: HANDOFF_STAGE_TIMEOUT_MS },
 				);
 				if (!(await confirmHandoffGit(gitPreparation))) {
-					await handoffLifecycle.onRpcRejected(sourceSessionId, {
-						handoffAttemptId,
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
 						error: new Error("Cloud preparation cancelled."),
 						nextCommand,
 						sourceAttachments,
@@ -2243,6 +2256,11 @@ function ChatThreadPane({
 					});
 					return;
 				}
+				handoffAttemptId = handoffLifecycle.onRpcStarted(
+					sourceSessionId,
+					sourceAttachments,
+				);
+				onHandoffUiAction({ type: "start", sourceSessionId });
 				onHandoffUiAction({
 					type: "progress",
 					sourceSessionId,
@@ -2270,14 +2288,20 @@ function ChatThreadPane({
 					result,
 				});
 			} catch (error) {
-				await handoffLifecycle.onRpcRejected(sourceSessionId, {
-					handoffAttemptId,
-					error,
-					nextCommand,
-					sourceAttachments,
-				});
-			} finally {
-				handoffStartingRef.current = false;
+				if (handoffAttemptId) {
+					await handoffLifecycle.onRpcRejected(sourceSessionId, {
+						handoffAttemptId,
+						error,
+						nextCommand,
+						sourceAttachments,
+					});
+				} else {
+					handoffLifecycle.onPreparationRejected(sourceSessionId, {
+						error,
+						nextCommand,
+						sourceAttachments,
+					});
+				}
 			}
 		},
 		[

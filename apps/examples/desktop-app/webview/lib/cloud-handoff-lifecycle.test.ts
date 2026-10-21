@@ -35,6 +35,60 @@ function harness() {
 }
 
 describe("summary handoff lifecycle", () => {
+	it.each([
+		"before",
+		"after",
+	])("keeps A's completion when B's preview fails %s it", async (order) => {
+		const h = harness();
+		const aFiles = [new File(["a"], "a.png")];
+		const bFiles = [new File(["b"], "b.png")];
+		const handoffAttemptId = h.start(aFiles);
+		await h.lifecycle.onRpcRejected("local", {
+			handoffAttemptId,
+			error: new Error("Connection lost"),
+			nextCommand: "A",
+			sourceAttachments: aFiles,
+		});
+		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		const complete = () =>
+			h.lifecycle.onEvent({
+				...result,
+				handoffAttemptId,
+				phase: "complete",
+				warningKind: "unqueued",
+				unsentPrompt: "Summary A",
+			});
+		if (order === "after") await complete();
+		expect(h.lifecycle.onPreparationStarted("local")).toBe(false);
+		h.lifecycle.onPreparationRejected("local", {
+			error: new Error("Preparation already in progress"),
+			nextCommand: "Edited B",
+			sourceAttachments: bFiles,
+		});
+		if (order === "before") await complete();
+		expect(h.state().local).toMatchObject({
+			status: "complete",
+			sessionId: "cloud",
+			unsentDraft: { text: "Summary A", attachments: aFiles },
+			preparationFailure: { draft: { text: "Edited B", attachments: bFiles } },
+		});
+		expect(h.lifecycle.onPreparationStarted("local")).toBe(true);
+		const newer = h.start(bFiles);
+		const pending = h.state();
+		await complete();
+		expect(h.state()).toBe(pending);
+		await h.lifecycle.onEvent({
+			...result,
+			handoffAttemptId: newer,
+			phase: "complete",
+			warningKind: "unqueued",
+			unsentPrompt: "Summary B",
+		});
+		expect(h.state().local).toMatchObject({
+			unsentDraft: { text: "Summary B", attachments: bFiles },
+		});
+		expect(h.state().local.preparationFailure).toBeUndefined();
+	});
 	it("keeps an unsent prepared prompt and images when completion arrives before the RPC", async () => {
 		const h = harness();
 		const attachments = [
@@ -126,32 +180,6 @@ describe("summary handoff lifecycle", () => {
 		expect(h.toast).toHaveBeenLastCalledWith(
 			expect.objectContaining({ title: "Check the cloud task" }),
 		);
-	});
-	it("ignores stale completion and allows another deliberate cloud task", async () => {
-		const h = harness();
-		const old = h.start();
-		const newer = h.start();
-		await h.lifecycle.onEvent({
-			...result,
-			handoffAttemptId: old,
-			phase: "complete",
-		});
-		expect(h.state().local).toEqual({ status: "progress", phase: "checking" });
-		await h.lifecycle.onEvent({
-			...result,
-			handoffAttemptId: newer,
-			phase: "complete",
-		});
-		await h.lifecycle.onEvent({
-			...result,
-			sessionId: "cloud-2",
-			handoffAttemptId: h.start(),
-			phase: "complete",
-		});
-		expect(h.state().local).toMatchObject({
-			status: "complete",
-			sessionId: "cloud-2",
-		});
 	});
 	it("shows delivery uncertainty with the cloud link", async () => {
 		const h = harness();

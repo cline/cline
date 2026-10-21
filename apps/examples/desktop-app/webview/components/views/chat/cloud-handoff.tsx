@@ -117,7 +117,7 @@ export function CloudHandoffStatus({
 }: {
 	state: CloudHandoffUiEntry;
 	onOpenCloud: () => void;
-	onRestoreDraft: () => void;
+	onRestoreDraft: (destination: "local" | "cloud") => void;
 	onDismiss: () => void;
 }) {
 	const pending = state.status === "progress";
@@ -182,7 +182,9 @@ export function CloudHandoffStatus({
 					{canRestoreDraft && (
 						<Button
 							className="h-7 px-2 text-xs"
-							onClick={onRestoreDraft}
+							onClick={() =>
+								onRestoreDraft(state.status === "complete" ? "cloud" : "local")
+							}
 							size="sm"
 							variant="outline"
 						>
@@ -191,6 +193,21 @@ export function CloudHandoffStatus({
 								: "Restore /cloud draft"}
 						</Button>
 					)}
+				</div>
+			)}
+			{state.status !== "failed" && state.preparationFailure && (
+				<div className="space-y-2 pb-3">
+					<p className="break-words text-xs text-muted-foreground">
+						{state.preparationFailure.message}
+					</p>
+					<Button
+						className="h-7 px-2 text-xs"
+						onClick={() => onRestoreDraft("local")}
+						size="sm"
+						variant="outline"
+					>
+						Restore /cloud draft
+					</Button>
 				</div>
 			)}
 		</output>

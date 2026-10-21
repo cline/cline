@@ -40,6 +40,15 @@ type RpcContext = {
 	sourceAttachments: File[];
 };
 
+function handoffError(error: unknown) {
+	const raw = error instanceof Error ? error.message : String(error);
+	const parsed = parseCloudSessionError(raw);
+	return {
+		message: humanizeCloudHandoffError(parsed?.message ?? raw),
+		connectUrl: parsed?.connectUrl,
+	};
+}
+
 export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 	type Attempt = {
 		id: string;
@@ -47,9 +56,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		completed: boolean;
 		attachments: File[];
 	};
-	const attempts = new Map<string, Attempt>();
+	const sources = new Map<string, { attempt?: Attempt; preparing: boolean }>();
 	const current = (source: string, id?: string) => {
-		const attempt = attempts.get(source);
+		const attempt = sources.get(source)?.attempt;
 		return attempt && attempt.id === id ? attempt : undefined;
 	};
 	const complete = (
@@ -75,12 +84,42 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		if (warning) effects.toast(warning);
 	};
 	return {
+		onPreparationStarted(sourceSessionId: string): boolean {
+			const source = sources.get(sourceSessionId);
+			if (source?.preparing) return false;
+			sources.set(sourceSessionId, { ...source, preparing: true });
+			return true;
+		},
+		onPreparationRejected(
+			sourceSessionId: string,
+			ctx: Omit<RpcContext, "handoffAttemptId"> & {
+				error: unknown;
+				silent?: boolean;
+			},
+		): void {
+			const source = sources.get(sourceSessionId);
+			if (source) source.preparing = false;
+			const { message, connectUrl } = handoffError(ctx.error);
+			effects.dispatch({
+				type: "preparation_failed",
+				sourceSessionId,
+				message,
+				retryDraft: ctx.nextCommand,
+				retryAttachments: ctx.sourceAttachments,
+			});
+			if (!ctx.silent)
+				effects.toast({
+					title: "Cloud preparation failed",
+					description: message,
+					variant: "destructive",
+					connectUrl,
+				});
+		},
 		onRpcStarted(sourceSessionId: string, attachments: File[]): string {
 			const id = crypto.randomUUID();
-			attempts.set(sourceSessionId, {
-				id,
-				completed: false,
-				attachments,
+			sources.set(sourceSessionId, {
+				preparing: false,
+				attempt: { id, completed: false, attachments },
 			});
 			return id;
 		},
@@ -141,10 +180,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				});
 				return;
 			}
-			const raw =
-				ctx.error instanceof Error ? ctx.error.message : String(ctx.error);
-			const error = parseCloudSessionError(raw);
-			const message = humanizeCloudHandoffError(error?.message ?? raw);
+			const { message, connectUrl } = handoffError(ctx.error);
 			effects.dispatch({
 				type: "failed",
 				sourceSessionId,
@@ -157,7 +193,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					title: "Handoff failed",
 					description: message,
 					variant: "destructive",
-					...(error?.connectUrl ? { connectUrl: error.connectUrl } : {}),
+					connectUrl,
 				});
 			}
 		},

@@ -53,15 +53,42 @@ describe("CloudHandoffStatus", () => {
 			root?.render(status());
 		});
 		const open = vi.fn();
+		state = cloudHandoffUiReducer(state, {
+			type: "preparation_failed",
+			sourceSessionId: "local",
+			message: "Retry preview failed",
+			retryDraft: "Edited retry",
+			retryAttachments: [],
+		});
+		const restorePreparation = vi.fn(() => {
+			state = cloudHandoffUiReducer(state, {
+				type: "preparation_draft_restored",
+				sourceSessionId: "local",
+			});
+			root?.render(status());
+		});
 		const status = () => (
 			<CloudHandoffStatus
 				state={state.local}
 				onOpenCloud={open}
-				onRestoreDraft={restore}
+				onRestoreDraft={(destination) =>
+					destination === "cloud" ? restore() : restorePreparation()
+				}
 				onDismiss={vi.fn()}
 			/>
 		);
 		const view = render(status());
+		act(() =>
+			Array.from(view.querySelectorAll("button"))
+				.find((button) => button.textContent === "Restore /cloud draft")
+				?.click(),
+		);
+		expect(restorePreparation).toHaveBeenCalledOnce();
+		expect(state.local).toMatchObject({
+			status: "complete",
+			unsentDraft: draft,
+		});
+		expect(view.textContent).not.toContain("Retry preview failed");
 		expect(restore).not.toHaveBeenCalled();
 		act(() =>
 			Array.from(view.querySelectorAll("button"))
