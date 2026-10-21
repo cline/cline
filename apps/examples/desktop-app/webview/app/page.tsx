@@ -2401,6 +2401,7 @@ function ChatThreadPane({
 		agents,
 		loading: agentsLoading,
 		error: agentsError,
+		refresh: refreshAgents,
 	} = useSessionAgents({
 		environmentId,
 		sessionId: isCloudSession ? null : displayedSessionId,
@@ -2424,15 +2425,32 @@ function ChatThreadPane({
 	);
 	// A teammate's own session shows its parent's team, so moving between
 	// teammates never requires going back to the main session first.
-	const { agents: parentAgents } = useSessionAgents({
-		environmentId,
-		sessionId: isCloudSession ? null : (parentSession?.sessionId ?? null),
-		sessionActive: false,
-	});
+	const { agents: parentAgents, refresh: refreshParentAgents } =
+		useSessionAgents({
+			environmentId,
+			sessionId: isCloudSession ? null : (parentSession?.sessionId ?? null),
+			sessionActive: false,
+		});
 	const teamAgents = parentSession ? parentAgents : agents;
-	const teamProgress = useTeamProgress(
-		isCloudSession ? null : (parentSession?.sessionId ?? displayedSessionId),
-	);
+	const teamRootSessionId = isCloudSession
+		? null
+		: (parentSession?.sessionId ?? displayedSessionId);
+	const { activity: teamProgress, rosterRevision } =
+		useTeamProgress(teamRootSessionId);
+	// A run the lead starts while its own turn is idle never triggers the
+	// roster's busy-session polling, so re-read it whenever the team reports a
+	// teammate joining or a run starting or ending.
+	useEffect(() => {
+		if (!teamRootSessionId || rosterRevision === 0) return;
+		const refresh = parentSession ? refreshParentAgents : refreshAgents;
+		void refresh(teamRootSessionId, { quiet: true });
+	}, [
+		parentSession,
+		refreshAgents,
+		refreshParentAgents,
+		rosterRevision,
+		teamRootSessionId,
+	]);
 	const teamMembers = useMemo(
 		() => buildTeamMembers(teamAgents, teamProgress),
 		[teamAgents, teamProgress],

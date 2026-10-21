@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SessionAgentEntry } from "@/lib/session-agents";
 import {
 	buildTeamMembers,
+	changesTeamRoster,
 	isTeamSettled,
 	phaseForTool,
 	phaseFromLiveActivity,
@@ -64,6 +65,16 @@ describe("phaseFromLiveActivity", () => {
 			undefined,
 		);
 		expect(phaseFromLiveActivity(live("outcome_created"))).toBe(undefined);
+	});
+});
+
+describe("changesTeamRoster", () => {
+	it("flags joins and run starts and ends, not activity", () => {
+		expect(changesTeamRoster("teammate_spawned")).toBe(true);
+		expect(changesTeamRoster("run_started")).toBe(true);
+		expect(changesTeamRoster("run_completed")).toBe(true);
+		expect(changesTeamRoster("run_progress")).toBe(false);
+		expect(changesTeamRoster("agent_event")).toBe(false);
 	});
 });
 

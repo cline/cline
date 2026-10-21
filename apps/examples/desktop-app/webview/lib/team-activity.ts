@@ -154,6 +154,27 @@ export function phaseFromLiveActivity(
 	}
 }
 
+const ROSTER_EVENTS = new Set([
+	"teammate_spawned",
+	"teammate_shutdown",
+	"run_queued",
+	"run_started",
+	"run_completed",
+	"run_failed",
+	"run_cancelled",
+	"run_interrupted",
+]);
+
+/**
+ * Whether a live event means the persisted roster changed: a teammate joined or
+ * left, or one of its runs started or ended. The roster is otherwise only
+ * polled while the lead looks busy, which misses runs a lead starts while its
+ * own turn is idle.
+ */
+export function changesTeamRoster(eventType: string): boolean {
+	return ROSTER_EVENTS.has(eventType);
+}
+
 /**
  * Whether a new live event should replace the one kept for an agent. Model turns
  * take seconds while tools take milliseconds, so every tool's activity is
