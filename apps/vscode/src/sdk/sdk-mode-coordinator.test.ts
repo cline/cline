@@ -84,6 +84,28 @@ describe("SdkModeCoordinator", () => {
 			expect(coordinator.consumeModeSwitchNotice("new-session")).toEqual({ from: "plan", to: "act" })
 		})
 
+		it("seeds the replacement with the first prompt once the aborted turn has added it", async () => {
+			const planSession = makeActiveSession({ mode: "plan", isRunning: true })
+			const { coordinator, options } = makeCoordinator({
+				activeSession: planSession,
+				mode: "plan",
+				task: makeTask("new-task"),
+			})
+			const messages: unknown[] = []
+			options.loadInitialMessages.mockImplementation(async () => [...messages])
+			options.sessions.waitForTurnSend.mockImplementationOnce(async () => {
+				// Core adds the just-sent prompt only as the aborted turn ends.
+				messages.push({ role: "user", content: "first prompt" })
+			})
+
+			await coordinator.togglePlanActMode("act")
+
+			expect(options.sessions.waitForTurnSend).toHaveBeenCalledWith(planSession)
+			expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith(
+				expect.objectContaining({ initialMessages: [{ role: "user", content: "first prompt" }] }),
+			)
+		})
+
 		it("rebuilds when the setting already matches but the session was built for the other mode", async () => {
 			const planSession = makeActiveSession({ mode: "plan" })
 			const { coordinator, options, state } = makeCoordinator({
@@ -896,6 +918,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			fireAndForgetSend: vi.fn(),
 			setRunning: vi.fn(),
 			waitForSessionStarts: vi.fn().mockResolvedValue(undefined),
+			waitForTurnSend: vi.fn().mockResolvedValue(undefined),
 		},
 		interactions: {
 			clearPending: vi.fn(),
@@ -935,6 +958,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			replaceActiveSession: ReturnType<typeof vi.fn>
 			setRunning: ReturnType<typeof vi.fn>
 			waitForSessionStarts: ReturnType<typeof vi.fn>
+			waitForTurnSend: ReturnType<typeof vi.fn>
 		}
 		interactions: SdkModeCoordinatorOptions["interactions"] & {
 			clearPending: ReturnType<typeof vi.fn>

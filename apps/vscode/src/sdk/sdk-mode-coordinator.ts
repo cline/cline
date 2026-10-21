@@ -5,6 +5,7 @@ import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import type { ActiveSession } from "./cline-session-factory"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -238,7 +239,7 @@ export class SdkModeCoordinator {
 		}
 
 		if (wasRunning) {
-			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
+			await this.cancelRunningTurnForModeChange(activeSession, oldManager, oldSessionId)
 		}
 
 		let autoContinueStarted = false
@@ -389,7 +390,11 @@ export class SdkModeCoordinator {
 		return continuationSent
 	}
 
-	private async cancelRunningTurnForModeChange(oldManager: SdkSessionHost, oldSessionId: string): Promise<void> {
+	private async cancelRunningTurnForModeChange(
+		activeSession: ActiveSession,
+		oldManager: SdkSessionHost,
+		oldSessionId: string,
+	): Promise<void> {
 		this.options.interactions.clearPending("Mode changed")
 		this.options.messages.cancelPendingSave()
 		try {
@@ -399,6 +404,10 @@ export class SdkModeCoordinator {
 				Logger.error("[SdkController] Failed to abort old session during mode change:", error)
 			}
 		}
+		// The rebuild seeds the replacement from the session's messages. A toggle
+		// right after a send (one made while the task was starting) aborts before
+		// Core has added that prompt to them, and the turn ending adds it.
+		await this.options.sessions.waitForTurnSend(activeSession)
 		this.options.sessions.setRunning(false)
 
 		const task = this.options.getTask()

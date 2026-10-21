@@ -89,6 +89,13 @@ export class SdkSessionLifecycle {
 	 * of mistaking "no active session" for "nothing to rebuild".
 	 */
 	private readonly pendingStarts = new Set<Promise<void>>()
+	/**
+	 * Settles with each session's latest turn send. Core adds the prompt to the
+	 * conversation only when its agent loop picks the turn up, so a turn
+	 * aborted right after its send is missing from the session's messages
+	 * until the send settles.
+	 */
+	private readonly turnSends = new WeakMap<ActiveSession, Promise<void>>()
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -114,6 +121,14 @@ export class SdkSessionLifecycle {
 	async waitForSessionStarts(): Promise<void> {
 		while (this.pendingStarts.size > 0) {
 			await Promise.all(this.pendingStarts)
+		}
+	}
+
+	/** Resolves once `session`'s latest turn send has settled, or after `timeoutMs`. */
+	async waitForTurnSend(session: ActiveSession, timeoutMs = 3000): Promise<void> {
+		const send = this.turnSends.get(session)
+		if (send && !(await this.waitForStop(send, timeoutMs))) {
+			Logger.warn(`[SdkController] Timed out after ${timeoutMs}ms waiting for the turn of ${session.sessionId} to settle`)
 		}
 	}
 
@@ -521,38 +536,45 @@ export class SdkSessionLifecycle {
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
 		this.options.onSendStart?.(sessionId)
-		sdkHost
-			.send({
-				sessionId,
-				prompt: noticedPrompt,
-				userImages: images,
-				userFiles: files,
-				delivery,
-			})
-			.then(async () => {
-				if (delivery === "queue" || delivery === "steer") {
-					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
-					return
-				}
-				if (isSuperseded("completion")) {
-					return
-				}
-				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
-				this.setRunning(false)
-				await this.options.onSendComplete(sessionId)
-			})
-			.catch(async (error: unknown) => {
-				if (isAbortError(error)) {
-					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
-					return
-				}
-				if (isSuperseded("failure")) {
-					return
-				}
-				Logger.error("[SdkController] Agent turn failed:", error)
-				this.setRunning(false)
-				await this.options.onSendError(error, sessionId)
-			})
+		const send = sdkHost.send({
+			sessionId,
+			prompt: noticedPrompt,
+			userImages: images,
+			userFiles: files,
+			delivery,
+		})
+		if (sessionAtSend && delivery !== "queue" && delivery !== "steer") {
+			this.turnSends.set(
+				sessionAtSend,
+				send.then(
+					() => undefined,
+					() => undefined,
+				),
+			)
+		}
+		send.then(async () => {
+			if (delivery === "queue" || delivery === "steer") {
+				Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
+				return
+			}
+			if (isSuperseded("completion")) {
+				return
+			}
+			Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
+			this.setRunning(false)
+			await this.options.onSendComplete(sessionId)
+		}).catch(async (error: unknown) => {
+			if (isAbortError(error)) {
+				Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+				return
+			}
+			if (isSuperseded("failure")) {
+				return
+			}
+			Logger.error("[SdkController] Agent turn failed:", error)
+			this.setRunning(false)
+			await this.options.onSendError(error, sessionId)
+		})
 	}
 }
 
