@@ -11,6 +11,9 @@ import {
 
 const execFile = promisify(execFileCallback);
 const MAX_GIT_OUTPUT = 50 * 1024 * 1024;
+// Each changed path spawns up to two `git show` processes; large changesets
+// (e.g. build output) would otherwise fork thousands of git processes at once.
+export const CHECKPOINT_DIFF_GIT_CONCURRENCY = 8;
 
 export interface CheckpointContentDiff {
 	filePath: string;
@@ -147,13 +150,34 @@ export function createCheckpointComparePlan(input: {
 	return { checkpoint, cwd };
 }
 
+async function mapWithConcurrency<T, R>(
+	items: readonly T[],
+	limit: number,
+	mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results = new Array<R>(items.length);
+	let nextIndex = 0;
+	const worker = async () => {
+		while (nextIndex < items.length) {
+			const index = nextIndex++;
+			results[index] = await mapper(items[index] as T);
+		}
+	};
+	await Promise.all(
+		Array.from({ length: Math.min(limit, items.length) }, worker),
+	);
+	return results;
+}
+
 export async function buildCheckpointWorkspaceDiff(
 	cwd: string,
 	checkpoint: CheckpointEntry,
 ): Promise<CheckpointContentDiff[]> {
 	const changedPaths = await listChangedPaths(cwd, checkpoint);
-	const diffs = await Promise.all(
-		changedPaths.map(async (relativePath) => {
+	const diffs = await mapWithConcurrency(
+		changedPaths,
+		CHECKPOINT_DIFF_GIT_CONCURRENCY,
+		async (relativePath) => {
 			const [leftContent, rightContent] = await Promise.all([
 				readCheckpointFile(cwd, checkpoint.ref, relativePath),
 				readWorktreeFile(cwd, relativePath),
@@ -163,7 +187,7 @@ export async function buildCheckpointWorkspaceDiff(
 				leftContent,
 				rightContent,
 			};
-		}),
+		},
 	);
 	return diffs.filter((diff) => diff.leftContent !== diff.rightContent);
 }

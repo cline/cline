@@ -2,12 +2,36 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildCheckpointWorkspaceDiff,
+	CHECKPOINT_DIFF_GIT_CONCURRENCY,
 	compareCheckpointToWorkspace,
 	createCheckpointComparePlan,
 } from "./checkpoint-diff";
+
+const gitProcesses = vi.hoisted(() => ({ active: 0, peak: 0 }));
+
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>();
+	const { promisify } = await import("node:util");
+	const execFileAsync = promisify(actual.execFile);
+	const execFile = Object.assign(
+		(...args: Parameters<typeof actual.execFile>) => actual.execFile(...args),
+		{
+			[promisify.custom]: async (...args: Parameters<typeof execFileAsync>) => {
+				gitProcesses.active += 1;
+				gitProcesses.peak = Math.max(gitProcesses.peak, gitProcesses.active);
+				try {
+					return await execFileAsync(...args);
+				} finally {
+					gitProcesses.active -= 1;
+				}
+			},
+		},
+	);
+	return { ...actual, execFile };
+});
 
 function git(cwd: string, args: string[]): string {
 	return execFileSync("git", ["-C", cwd, ...args], {
@@ -72,6 +96,41 @@ describe("checkpoint workspace comparison", () => {
 			leftContent: "",
 			rightContent: "new file\n",
 		});
+	});
+
+	it("bounds concurrent git processes when many paths changed", async () => {
+		const fileCount = 240;
+		mkdirSync(join(dir, "generated"));
+		for (let index = 0; index < fileCount; index += 1) {
+			writeFileSync(
+				join(dir, "generated", `file-${String(index).padStart(3, "0")}.txt`),
+				`content ${index}\n`,
+				"utf8",
+			);
+		}
+		gitProcesses.active = 0;
+		gitProcesses.peak = 0;
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "commit",
+		});
+
+		expect(diffs).toHaveLength(fileCount);
+		expect(diffs[0]).toMatchObject({
+			filePath: join(dir, "generated", "file-000.txt"),
+			leftContent: "",
+			rightContent: "content 0\n",
+		});
+		expect(diffs.at(-1)?.filePath).toBe(
+			join(dir, "generated", `file-${fileCount - 1}.txt`),
+		);
+		expect(gitProcesses.peak).toBeGreaterThan(0);
+		expect(gitProcesses.peak).toBeLessThanOrEqual(
+			CHECKPOINT_DIFF_GIT_CONCURRENCY,
+		);
 	});
 
 	it("uses the worktree snapshot stored in SDK stash checkpoints", async () => {
