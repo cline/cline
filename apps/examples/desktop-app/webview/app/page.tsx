@@ -404,6 +404,8 @@ export default function Home() {
 	>(null);
 	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const { navigation, threads } = appState;
+	const threadsRef = useRef(threads);
+	threadsRef.current = threads;
 	useEffect(() => {
 		const threadIds = new Set(threads.map((thread) => thread.id));
 		for (const threadId of promptDrafts.keys()) {
@@ -720,7 +722,7 @@ export default function Home() {
 			initialAttachments?: File[],
 		): Promise<HandoffOpenResult> => {
 			if (initialAttachments) {
-				const thread = threads.find(
+				const thread = threadsRef.current.find(
 					(item) =>
 						item.environmentId === session.environmentId &&
 						(item.sessionId === session.sessionId ||
@@ -745,7 +747,7 @@ export default function Home() {
 			});
 			return { opened: true };
 		},
-		[promptDrafts, threads],
+		[promptDrafts],
 	);
 
 	const handleDeleteSession = useCallback(
