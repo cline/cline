@@ -26,7 +26,6 @@ import {
 	initializeSessionManager,
 } from "./context";
 import { createDesktopObservability } from "./observability";
-import { configurePluginBootstrap } from "./plugin-bootstrap";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
@@ -255,8 +254,6 @@ async function runEntrypoint(): Promise<void> {
 	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 
 	disableCurrentDirectoryExecutableSearch();
-	// Before the bundled CLI starts the Hub daemon and loads any plugin.
-	configurePluginBootstrap();
 	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
 	await main(cliPath);

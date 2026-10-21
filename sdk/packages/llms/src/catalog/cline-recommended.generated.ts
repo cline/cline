@@ -5,16 +5,16 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "anthropic/claude-sonnet-5.5",
+				name: "claude-sonnet-5.5",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "google/gemini-4-argon",
 				name: "Gemini 4 Argon",
 				description:
 					"Frontier model for real-world coding, enterprise knowledge work, and cyber defense",
-				tags: ["NEW"],
-			},
-			{
-				id: "anthropic/claude-sonnet-5.5",
-				name: "claude-sonnet-5.5",
-				description: "",
 				tags: ["NEW"],
 			},
 			{
@@ -128,15 +128,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
-				tags: [],
-			},
-			{
 				id: "cline-pass/minimax-m3",
 				name: "cline-pass/minimax-m3",
 				description: "Frontier coding and agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.7-plus",
+				name: "cline-pass/qwen3.7-plus",
+				description: "Fast multimodal agent model with vision and video input",
 				tags: [],
 			},
 			{

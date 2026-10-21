@@ -24,7 +24,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "302ai",
-		defaultModelId: "claude-haiku-5-5",
+		defaultModelId: "gemini-4-argon",
 		apiKeyEnv: ["302AI_API_KEY"],
 		docsUrl: "https://doc.302.ai",
 		defaults: {
@@ -605,6 +605,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
+		id: "commandcode",
+		name: "CommandCode",
+		description: "CommandCode model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "commandcode",
+		defaultModelId: "google/gemini-4-argon",
+		apiKeyEnv: ["CMD_API_KEY"],
+		docsUrl: "https://commandcode.ai/docs/provider",
+		defaults: {
+			baseUrl: "https://api.commandcode.ai/provider/v1",
+		},
+	},
+	{
 		id: "coralbricks",
 		name: "CoralBricks",
 		description: "CoralBricks model provider from models.dev",
@@ -795,7 +809,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "edenai",
-		defaultModelId: "google/gemini-4-argon",
+		defaultModelId: "fireworks_ai/accounts/fireworks/models/muse-spark-open",
 		apiKeyEnv: ["EDENAI_API_KEY"],
 		docsUrl: "https://docs.edenai.co",
 		defaults: {
@@ -1260,7 +1274,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "meta/muse-spark-open",
+		defaultModelId: "reflection/beam-1.0-501b-a23b",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1749,7 +1763,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "nvidia/nemotron-3.5-super-vl",
+		defaultModelId: "heabsy/qwen3.8-27b-uncensored-fast",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1934,7 +1948,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/v2/docs/console/models/",
 		defaults: {
-			baseUrl: "https://opencode.ai/inference/v1",
+			baseUrl: "https://opencode.ai/inference/openai/v1",
 		},
 	},
 	{
@@ -1948,7 +1962,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/v2/docs/console/go/",
 		defaults: {
-			baseUrl: "https://opencode.ai/inference/go/v1",
+			baseUrl: "https://opencode.ai/inference/go/openai/v1",
 		},
 	},
 	{
@@ -1972,7 +1986,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "meta/muse-spark-open",
+		defaultModelId: "reflection/beam-1.0-501b-a23b",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2070,7 +2084,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "pioneer",
-		defaultModelId: "fastino/GLiNER-2.5-Decide",
+		defaultModelId: "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4",
 		apiKeyEnv: ["PIONEER_API_KEY"],
 		docsUrl: "https://agent.pioneer.ai/llms.txt",
 		defaults: {
@@ -2113,7 +2127,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "prime",
-		defaultModelId: "google/gemini-4-argon",
+		defaultModelId: "meta/muse-spark-open",
 		apiKeyEnv: ["PRIME_API_KEY"],
 		docsUrl: "https://docs.primeintellect.ai/inference/overview",
 		defaults: {
@@ -2160,6 +2174,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://developer.qiniu.com/aitokenapi",
 		defaults: {
 			baseUrl: "https://api.qnaigc.com/v1",
+		},
+	},
+	{
+		id: "reflection",
+		name: "Reflection",
+		description: "Reflection model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		modelsProviderId: "reflection",
+		defaultModelId: "Beam-1.0-501B-A23B",
+		apiKeyEnv: ["REFLECTION_API_KEY"],
+		docsUrl: "https://developers.reflection.ai/models",
+		defaults: {
+			baseUrl: "https://api.reflection.ai/openai/v1",
 		},
 	},
 	{
@@ -2279,7 +2307,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "scaleway",
-		defaultModelId: "glm-5.3",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["SCALEWAY_API_KEY"],
 		docsUrl: "https://www.scaleway.com/en/docs/generative-apis/",
 		defaults: {
@@ -2747,7 +2775,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "meta/muse-spark-open",
+		defaultModelId: "reflection/beam",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
@@ -2872,7 +2900,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "wandb",
-		defaultModelId: "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B",
+		defaultModelId: "reflection/Beam-1.0-501B-A23B",
 		apiKeyEnv: ["WANDB_API_KEY"],
 		docsUrl: "https://docs.wandb.ai/inference",
 		defaults: {

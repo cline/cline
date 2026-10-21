@@ -242,6 +242,33 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
+	it("records only local observer events, excluding cloud events projected through a local context", async () => {
+		const { createSidecarContext, ensureSharedHubClient, handleHubLiveEvent } =
+			await import("./context");
+		const { getHubStatus } = await import("./hub-admin");
+		const ctx = createSidecarContext("/workspace/project");
+		const client = await ensureSharedHubClient(ctx);
+		const observer = subscribeMock.mock.calls[0][0];
+		observer({
+			event: "hub.client.registered",
+			payload: { displayName: "Local client" },
+		});
+		// CloudSessionManager projects cloud hub events through this same handler
+		// with a local environment context; context identity is not event origin.
+		for (let i = 0; i < 105; i++) {
+			handleHubLiveEvent(ctx, {
+				event: "ui.notify",
+				payload: { title: "Cloud run", body: "Cloud content" },
+			});
+		}
+		const status = await getHubStatus(ctx, client);
+		expect(status.events).toHaveLength(1);
+		expect(status.events[0]).toMatchObject({
+			title: "Client connected",
+			detail: "Local client",
+		});
+	});
+
 	it("returns indexed search results without listing every session", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
