@@ -982,6 +982,7 @@ export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
+export { summarizeConversation } from "./extensions/context/summarize-conversation";
 export {
 	CLINE_PLUGIN_RUNTIME_DIR_ENV,
 	resolvePluginRuntimeDirectory,

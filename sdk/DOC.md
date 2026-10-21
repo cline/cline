@@ -94,6 +94,15 @@ host presentation.
 
 ## Cloud sessions (experimental)
 
+`summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
+a continuation note without changing session history or compaction state.
+Top-level credentials in `config` override those in `providerConfig`.
+The request retains the prior summary, latest instruction, and its most recent
+response. It shortens older context to fit the model's input limit and rejects
+requests if the retained context cannot fit. It also rejects
+empty, incomplete, failed, or cancelled output. Claude Code, Codex CLI, OpenCode,
+and Dify are unsupported because they may execute their own tools.
+
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
 The API handles REST requests; the controller handles remote Hub connections,
 session lifecycle, transcript reconciliation, and approvals. Hosts provide API
@@ -108,6 +117,10 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+The optional sixth argument to `send` accepts a `beforeDispatch` callback.
+The callback runs before submission and can throw to prevent it. A successful
+return without `recoveredAfterDisconnect` confirms acknowledgement.
+The callback does not confirm acceptance.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
