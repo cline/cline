@@ -88,6 +88,16 @@ describe.each([
 		}
 	});
 
+	it("does not repeat reserved categories in the assembled list", () => {
+		const categories = options
+			.map((option) => option.category)
+			.filter(
+				(category) => category && ACP_RESERVED_CATEGORIES.includes(category),
+			);
+
+		expect(new Set(categories).size).toBe(categories.length);
+	});
+
 	it("preserves the option order", () => {
 		expect(options.map((option) => option.id)).toEqual([
 			"provider",
