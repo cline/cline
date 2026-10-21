@@ -61,6 +61,13 @@ export interface HubTransportContext {
 	readonly sessionState: Map<string, HubSessionState>;
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
+	/**
+	 * Per session and capability, every client that registered it, in order.
+	 * A running task keeps the callbacks it was built with; this lets a request
+	 * fall over to another connected client (one that joined the task) when the
+	 * original owner is gone.
+	 */
+	readonly capabilityClientsBySession?: Map<string, Map<string, string[]>>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
 	/**
 	 * Count of RPC-driven turns (`run.start` / session input commands)

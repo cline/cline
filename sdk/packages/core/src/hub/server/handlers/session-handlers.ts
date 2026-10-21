@@ -34,7 +34,11 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
-import { cancelPendingCapabilityRequests } from "./capability-handlers";
+import {
+	CAPABILITY_OWNER_GONE_MESSAGE,
+	cancelPendingCapabilityRequests,
+	recordCapabilityClients,
+} from "./capability-handlers";
 import {
 	asPlainRecord,
 	ensureSessionParticipant,
@@ -368,6 +372,7 @@ export async function handleSessionCreate(
 		sessionId,
 		configExtensionCount: configExtensions?.length ?? 0,
 	});
+	recordCapabilityClients(ctx, sessionId, clientId, clientContributions);
 	const clientContributionRuntime = createHubClientContributionRuntime({
 		sessionId,
 		targetClientId: clientId,
@@ -675,6 +680,7 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
+		recordCapabilityClients(ctx, sessionId, clientId, clientContributions);
 		const clientContributionRuntime = createHubClientContributionRuntime({
 			sessionId,
 			targetClientId: clientId,
@@ -956,7 +962,7 @@ export async function handleSessionDetach(
 		ctx,
 		(request) =>
 			request.sessionId === sessionId && request.targetClientId === clientId,
-		`Capability owner client ${clientId} detached before request was resolved.`,
+		CAPABILITY_OWNER_GONE_MESSAGE,
 	);
 	const [session, snapshot] = await Promise.all([
 		readHubSessionRecord(ctx, sessionId),

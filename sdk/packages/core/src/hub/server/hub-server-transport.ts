@@ -58,6 +58,7 @@ import {
 	resolvePendingApproval,
 } from "./handlers/approval-handlers";
 import {
+	CAPABILITY_OWNER_GONE_MESSAGE,
 	cancelPendingCapabilityRequests,
 	handleCapabilityProgress,
 	handleCapabilityRequest,
@@ -333,6 +334,7 @@ export class HubServerTransport implements NativeHubTransport {
 			sessionState: this.sessionState,
 			pendingApprovals: this.pendingApprovals,
 			pendingCapabilityRequests: this.pendingCapabilityRequests,
+			capabilityClientsBySession: new Map(),
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
 			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
@@ -1307,7 +1309,7 @@ export class HubServerTransport implements NativeHubTransport {
 		cancelPendingCapabilityRequests(
 			this.ctx,
 			(request) => request.targetClientId === clientId,
-			`Capability owner client ${clientId} disconnected before request was resolved.`,
+			CAPABILITY_OWNER_GONE_MESSAGE,
 		);
 	}
 

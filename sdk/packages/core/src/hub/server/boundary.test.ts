@@ -17,6 +17,10 @@ import {
 	requestToolApproval,
 } from "./handlers/approval-handlers";
 import {
+	recordCapabilityClients,
+	requestCapability,
+} from "./handlers/capability-handlers";
+import {
 	ensureSessionParticipant,
 	ensureSessionState,
 	type HubTransportContext,
@@ -1039,6 +1043,12 @@ describe("HubServerTransport boundaries", () => {
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("client-1", (event) => events.push(event));
 
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-register",
+			command: "client.register",
+			clientId: "client-1",
+		});
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
@@ -1171,6 +1181,12 @@ describe("HubServerTransport boundaries", () => {
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("owner-client", (event) => events.push(event));
 
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-register",
+			command: "client.register",
+			clientId: "owner-client",
+		});
 		await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
@@ -1729,6 +1745,120 @@ describe("HubServerTransport boundaries", () => {
 		expect(events).not.toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ event: "session.updated" }),
+			]),
+		);
+	});
+
+	it("fails capability requests to a client that already unregistered", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		const register = (clientId: string) =>
+			transport.handleCommand({
+				version: "v1",
+				requestId: `req-register-${clientId}`,
+				command: "client.register",
+				clientId,
+				payload: { clientId, clientType: "desktop" },
+			});
+		await register("owner-client");
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-unregister",
+			command: "client.unregister",
+			clientId: "owner-client",
+		});
+
+		// A run still in flight after its client restarted raises its next hook:
+		// it must fail instead of waiting on a client that can never answer.
+		await expect(
+			requestCapability(
+				ctx,
+				"session-1",
+				"hook.beforeTool",
+				{},
+				"owner-client",
+			),
+		).rejects.toThrow(/disconnected before it could respond/);
+		expect(ctx.pendingCapabilityRequests.size).toBe(0);
+
+		await register("live-client");
+		void requestCapability(
+			ctx,
+			"session-1",
+			"hook.beforeTool",
+			{},
+			"live-client",
+		);
+		expect(ctx.pendingCapabilityRequests.size).toBe(1);
+	});
+
+	it("sends a capability request to a client that joined the task when the owner is gone", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		// Registered in this order; "left-client" detaches from the task later.
+		for (const clientId of ["owner-client", "left-client", "joined-client"]) {
+			await transport.handleCommand({
+				version: "v1",
+				requestId: `req-register-${clientId}`,
+				command: "client.register",
+				clientId,
+				payload: { clientId, clientType: "desktop" },
+			});
+			ensureSessionParticipant(ctx, "session-1", clientId, "observer");
+			recordCapabilityClients(ctx, "session-1", clientId, [
+				{ capabilityName: "hook.beforeTool" },
+			]);
+		}
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-detach",
+			command: "session.detach",
+			clientId: "left-client",
+			sessionId: "session-1",
+		});
+		const joinedEvents: HubEventEnvelope[] = [];
+		transport.subscribe("joined-client", (event) => joinedEvents.push(event));
+
+		// While the owner is connected it keeps the request; unregistering
+		// cancels it.
+		const ownerRequest = requestCapability(
+			ctx,
+			"session-1",
+			"hook.beforeTool",
+			{},
+			"owner-client",
+		);
+		const ownerRequestCancelled = expect(ownerRequest).rejects.toThrow(
+			/disconnected before it could respond/,
+		);
+		expect([...ctx.pendingCapabilityRequests.values()][0]?.targetClientId).toBe(
+			"owner-client",
+		);
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-unregister",
+			command: "client.unregister",
+			clientId: "owner-client",
+		});
+		await ownerRequestCancelled;
+
+		// The client that detached is skipped even though it is still connected.
+		void requestCapability(
+			ctx,
+			"session-1",
+			"hook.beforeTool",
+			{},
+			"owner-client",
+		);
+		expect(
+			[...ctx.pendingCapabilityRequests.values()].map((r) => r.targetClientId),
+		).toEqual(["joined-client"]);
+		expect(joinedEvents).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					event: "capability.requested",
+					payload: expect.objectContaining({ targetClientId: "joined-client" }),
+				}),
 			]),
 		);
 	});

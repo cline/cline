@@ -3,14 +3,66 @@ import { createSessionId } from "@cline/shared";
 import { logHubMessage } from "../hub-server-logging";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
+/**
+ * Shown to the user when a run fails because the client that owned one of its
+ * capabilities (hooks, client tools) went away mid-request. Client ids stay in
+ * the hub log (targetClientId), not in this text.
+ */
+export const CAPABILITY_OWNER_GONE_MESSAGE =
+	"The app running this task disconnected before it could respond. Send a message to continue.";
+
+export function recordCapabilityClients(
+	ctx: HubTransportContext,
+	sessionId: string,
+	clientId: string,
+	contributions: readonly { capabilityName: string }[],
+): void {
+	if (!ctx.capabilityClientsBySession || contributions.length === 0) return;
+	// ponytail: entries live as long as the hub process; prune on session delete if it grows.
+	let byCapability = ctx.capabilityClientsBySession.get(sessionId);
+	if (!byCapability) {
+		byCapability = new Map();
+		ctx.capabilityClientsBySession.set(sessionId, byCapability);
+	}
+	for (const { capabilityName } of contributions) {
+		const clients = byCapability.get(capabilityName) ?? [];
+		if (!clients.includes(clientId)) clients.push(clientId);
+		byCapability.set(capabilityName, clients);
+	}
+}
+
+/**
+ * The requested owner if connected, else another client that registered the
+ * capability and is still connected and attached to the session (a client
+ * that detached no longer receives the session's requests).
+ */
+function resolveCapabilityOwner(
+	ctx: HubTransportContext,
+	sessionId: string,
+	capabilityName: string,
+	targetClientId: string,
+): string | undefined {
+	if (ctx.clients.has(targetClientId)) return targetClientId;
+	const participants = ctx.sessionState.get(sessionId)?.participants;
+	return ctx.capabilityClientsBySession
+		?.get(sessionId)
+		?.get(capabilityName)
+		?.find(
+			(clientId) => ctx.clients.has(clientId) && participants?.has(clientId),
+		);
+}
+
 export async function requestCapability(
 	ctx: HubTransportContext,
 	sessionId: string,
 	capabilityName: string,
 	payload: Record<string, unknown>,
-	targetClientId: string,
+	requestedClientId: string,
 	onProgress?: (payload: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown> | undefined> {
+	const targetClientId =
+		resolveCapabilityOwner(ctx, sessionId, capabilityName, requestedClientId) ??
+		requestedClientId;
 	const requestId = createSessionId("capreq_");
 	const startedAt = performance.now();
 	logHubMessage("info", "capability.request.start", {
@@ -19,6 +71,21 @@ export async function requestCapability(
 		capabilityName,
 		targetClientId,
 	});
+	// Unregistering cancels the owner's pending requests, but a request raised
+	// after that (a run still in flight when its client restarted) would wait
+	// forever: nobody can answer it and nothing times it out.
+	if (!ctx.clients.has(targetClientId)) {
+		logHubMessage("warn", "capability.request.end", {
+			requestId,
+			sessionId,
+			capabilityName,
+			targetClientId,
+			ok: false,
+			error: "target_client_not_connected",
+			durationMs: 0,
+		});
+		throw new Error(CAPABILITY_OWNER_GONE_MESSAGE);
+	}
 	return await new Promise((resolve, reject) => {
 		ctx.pendingCapabilityRequests.set(requestId, {
 			sessionId,

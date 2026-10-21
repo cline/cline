@@ -3517,6 +3517,109 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("reattaches instead of replacing a session that is mid-run", async () => {
+		const sessionId = "sess-live-takeover";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const createAgentStub = (onRun: () => Promise<void>) => {
+			let activeRun = false;
+			let rejectRun: ((error: Error) => void) | undefined;
+			return {
+				run: vi.fn(() => {
+					activeRun = true;
+					return new Promise<AgentResult>((_resolve, reject) => {
+						rejectRun = (error) => {
+							activeRun = false;
+							reject(error);
+						};
+						void onRun();
+					});
+				}),
+				continue: vi.fn(),
+				abort: vi.fn(() => rejectRun?.(new Error("aborted by user"))),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				getMessages: vi.fn().mockReturnValue([]),
+				canStartRun: vi.fn(() => !activeRun),
+			};
+		};
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const agents = [
+			createAgentStub(async () => markRunStarted?.()),
+			createAgentStub(async () => {}),
+		];
+		const createAgent = vi.fn(() => agents[createAgent.mock.calls.length - 1]);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: createAgent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+
+		// A second client (desktop reload, CLI resume) starts the same session
+		// with its on-disk snapshot while the run is still in flight.
+		const reattached = await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				initialMessages: [
+					{ role: "user", content: [{ type: "text", text: "slow" }] },
+				] as never,
+			}),
+		);
+		expect(reattached).toMatchObject({
+			sessionId,
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+		});
+		expect(createAgent).toHaveBeenCalledTimes(1);
+		await expect(
+			manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+					prompt: "hello",
+				}),
+			),
+		).rejects.toThrow(/already has a run in progress/);
+
+		// Stop still reaches the original run instead of an idle replacement.
+		await manager.abort(sessionId);
+		expect(agents[0].abort).toHaveBeenCalled();
+		await expect(firstTurn).resolves.toMatchObject({ finishReason: "aborted" });
+	});
+
 	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
 		const sessionId = "sess-second-abort-clears-queue";
 		const manifest = createManifest(sessionId);
