@@ -58,12 +58,14 @@ describe("SDK remote-config coordination", () => {
 			ensureWorkspaceManager: async () => undefined,
 			taskHistory: { listHistory: async () => [] },
 			sessions: { getActiveSession: () => undefined },
+			sessionEvents: { getSubscriptionUsage: () => undefined },
 			cloud: { getCurrentTaskInfo: () => undefined },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
 		}
 
-		await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+		const state = await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+		expect(JSON.parse(JSON.stringify(state)).subscriptionUsage).toBeNull()
 
 		expect(buildBaseStateMock).toHaveBeenCalledWith(
 			expect.objectContaining({ isRemoteConfigAvailable: true, currentRemoteConfigRevision: 7 }),
@@ -95,6 +97,7 @@ describe("SDK remote-config coordination", () => {
 				},
 			},
 			sessions: { getActiveSession: () => undefined },
+			sessionEvents: { getSubscriptionUsage: () => undefined },
 			cloud: { getCurrentTaskInfo: () => undefined, getCloudModelId: () => "cloud-model" },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => minter },

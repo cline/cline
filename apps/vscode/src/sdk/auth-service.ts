@@ -240,6 +240,12 @@ function clearClineCredentials(): void {
 export class AuthService {
 	private static instance: AuthService | null = null
 
+	private _codexCredentialsVersion = 0
+	codexCredentialsChangedAt = 0
+	get codexCredentialsVersion(): number {
+		return this._codexCredentialsVersion
+	}
+
 	private _authenticated = false
 	private _clineAuthInfo: ClineAuthInfo | null = null
 	private _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
@@ -796,6 +802,8 @@ export class AuthService {
 	 * Save Codex OAuth credentials to provider settings.
 	 */
 	private async saveCodexCredentials(credentials: OAuthCredentials): Promise<void> {
+		this._codexCredentialsVersion++
+		this.codexCredentialsChangedAt = Date.now()
 		try {
 			const manager = getProviderSettingsManager()
 			const existing = manager.getProviderSettings("openai-codex")
@@ -821,6 +829,8 @@ export class AuthService {
 	 * Clear Codex credentials from provider settings.
 	 */
 	async clearCodexCredentials(): Promise<void> {
+		this._codexCredentialsVersion++
+		this.codexCredentialsChangedAt = Date.now()
 		try {
 			await openAiCodexOAuthManager.clearCredentials()
 
