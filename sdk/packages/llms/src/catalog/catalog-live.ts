@@ -360,23 +360,8 @@ const MODEL_API_PROTOCOLS: Record<
 	"@ai-sdk/google": "gemini",
 };
 
-// models.dev marks models deprecated while providers still serve them. Bedrock
-// resolves inference-profile ids from catalog entries, so dropping a served
-// Claude model sends its bare id, which AWS rejects. Remove an entry once AWS
-// retires the model.
-const RETAINED_DEPRECATED_MODEL_IDS: Readonly<Record<string, RegExp>> = {
-	bedrock: /^(?:[a-z-]+\.)?anthropic\.claude-sonnet-4-5-20250929-v1:0$/,
-};
-
-function isDeprecatedModel(
-	providerId: string,
-	modelId: string,
-	model: ModelsDevModel,
-): boolean {
-	return (
-		model.status === "deprecated" &&
-		!RETAINED_DEPRECATED_MODEL_IDS[providerId]?.test(modelId)
-	);
+function isDeprecatedModel(model: ModelsDevModel): boolean {
+	return model.status === "deprecated";
 }
 
 export function normalizeModelsDevProviderModels(
@@ -419,7 +404,7 @@ export function normalizeModelsDevProviderModels(
 			};
 			if (
 				(model.tool_call !== true && !isSpecializedOperationModel(info)) ||
-				isDeprecatedModel(targetProviderId, modelId, model) ||
+				isDeprecatedModel(model) ||
 				!builtinProviderSupportsModelOperation({
 					providerId: targetProviderId,
 					modelId,
