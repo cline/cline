@@ -117,7 +117,10 @@ import {
 	type SessionStatus,
 } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
-import type { CoreSessionEvent } from "../../types/events";
+import type {
+	CoreSessionEvent,
+	SessionPendingPrompt,
+} from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
@@ -131,7 +134,10 @@ import {
 } from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
-import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
+import {
+	type PendingPromptEntry,
+	PendingPromptsController,
+} from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
 import {
@@ -291,6 +297,15 @@ function isSessionDirectedPluginEvent(name: string): boolean {
 	);
 }
 
+interface TurnInput {
+	prompt: string;
+	mode?: SendSessionInput["mode"];
+	userImages?: string[];
+	userFiles?: string[];
+	/** Set when the prompt was dequeued by the drain. */
+	drained?: PendingPromptEntry;
+}
+
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
@@ -421,7 +436,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
 			emit: (event) => this.emit(event),
-			send: (input) => this.runTurn(input),
+			send: ({ pendingPrompt, ...input }) =>
+				this.runTurnWithOrigin(input, pendingPrompt),
 		});
 		this.pendingPrompts = {
 			steerFirst: async (input) =>
@@ -1273,6 +1289,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
+		return this.runTurnWithOrigin(input);
+	}
+
+	/**
+	 * `drained` is the queue entry this turn was dequeued from, when it was.
+	 * The drain has already announced it as submitted, so a teardown that
+	 * stops the turn before the agent sees it must report it as discarded.
+	 */
+	private async runTurnWithOrigin(
+		input: SendSessionInput,
+		drained?: PendingPromptEntry,
+	): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
 		// Only the input the queue drain replays carries this marker; any
 		// other input during a queued run is fresh user input.
@@ -1326,6 +1354,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				mode: input.mode,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
+				drained,
 			});
 			if (!session.interactive) {
 				await this.finalizeSingleRun(session, result.finishReason);
@@ -2015,12 +2044,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	private async executeTurn(
 		session: ActiveSession,
-		input: {
-			prompt: string;
-			mode?: SendSessionInput["mode"];
-			userImages?: string[];
-			userFiles?: string[];
-		},
+		input: TurnInput,
 	): Promise<AgentResult> {
 		// The agent only knows about a run once executeAgentTurn starts it;
 		// the flag covers the preparation before that, so teardown treats a
@@ -2040,12 +2064,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	private async prepareAndRunTurn(
 		session: ActiveSession,
-		input: {
-			prompt: string;
-			mode?: SendSessionInput["mode"];
-			userImages?: string[];
-			userFiles?: string[];
-		},
+		input: TurnInput,
 	): Promise<AgentResult> {
 		// An abort that arrived between turns targeted a run that had already
 		// ended; only aborts issued from here on belong to this turn.
@@ -2062,11 +2081,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// A session torn down before its first turn persisted must not be
 		// materialized on disk by that turn afterwards.
 		if (session.shuttingDown) {
-			return this.abortedTurnResult(session, {
-				messages: session.agent.getMessages(),
-				usage: createInitialAccumulatedUsage(),
-				endedAt: new Date(),
-			});
+			return this.skipTurnForTeardown(session, input);
 		}
 		await this.ensureSessionPersisted(session);
 		// A seeded session (fork, checkpoint restore, missing-session
@@ -2095,11 +2110,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// Teardown may have started during the awaits above. It only aborts a
 		// run that is already in progress, so this turn has to stop itself.
 		if (session.shuttingDown) {
-			return this.abortedTurnResult(session, {
-				messages: session.agent.getMessages(),
-				usage: createInitialAccumulatedUsage(),
-				endedAt: new Date(),
-			});
+			return this.skipTurnForTeardown(session, input);
 		}
 
 		try {
@@ -2218,6 +2229,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 			void this.pendingPromptsController.drain(session.sessionId);
 		});
 		return this.abortedTurnResult(session, { messages, usage, endedAt });
+	}
+
+	private skipTurnForTeardown(
+		session: ActiveSession,
+		input: TurnInput,
+	): AgentResult {
+		if (input.drained) {
+			this.recordDiscardedPrompts(
+				session,
+				this.pendingPromptsController.emitDiscarded(session, [input.drained]),
+				"session_teardown",
+			);
+		}
+		return this.abortedTurnResult(session, {
+			messages: session.agent.getMessages(),
+			usage: createInitialAccumulatedUsage(),
+			endedAt: new Date(),
+		});
 	}
 
 	private abortedTurnResult(
@@ -2785,7 +2814,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		reason: "queue_abort" | "session_teardown",
 	): void {
-		const discarded = this.pendingPromptsController.discardQueue(session);
+		this.recordDiscardedPrompts(
+			session,
+			this.pendingPromptsController.discardQueue(session),
+			reason,
+		);
+	}
+
+	private recordDiscardedPrompts(
+		session: ActiveSession,
+		discarded: SessionPendingPrompt[],
+		reason: "queue_abort" | "session_teardown",
+	): void {
 		if (discarded.length === 0) return;
 		capturePendingPromptsDiscarded(session.config.telemetry, {
 			sessionId: session.sessionId,
