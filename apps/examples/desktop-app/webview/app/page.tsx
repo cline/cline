@@ -56,12 +56,12 @@ import {
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -144,10 +144,7 @@ import {
 	type WorkIn,
 	writeWorkInToWindow,
 } from "@/lib/work-in-selection";
-import {
-	type RemoteWorkspaceEnvironment,
-	remoteWorkspaceEnvironmentFromContext,
-} from "@/lib/workspace-environment";
+import type { RemoteWorkspaceEnvironment } from "@/lib/workspace-environment";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -434,32 +431,27 @@ function App() {
 		void syncDesktopWindowTitle();
 	}, []);
 
-	useEffect(() => {
-		let cancelled = false;
-		const revision = environmentSelectionRevision.current;
-		desktopClient
-			.invoke<ProcessContext>("get_process_context")
-			.then((context) => {
-				if (!cancelled && revision === environmentSelectionRevision.current) {
-					const remoteEnvironment =
-						remoteWorkspaceEnvironmentFromContext(context);
-					setActiveRemoteEnvironment(remoteEnvironment);
-					if (remoteEnvironment) {
-						dispatchApp({
-							type: "select-environment-draft",
-							threadId: makeThreadId(),
-							environmentId: remoteEnvironment.id,
-						});
-					}
+	useRemoteEnvironmentBootstrap(
+		environmentSelectionRevision,
+		useCallback(
+			(
+				remoteEnvironment: RemoteWorkspaceEnvironment | null,
+				isFirstLoad: boolean,
+			) => {
+				setActiveRemoteEnvironment(remoteEnvironment);
+				// Later loads follow a reconnect; a new draft would replace the
+				// conversation that is still open.
+				if (isFirstLoad && remoteEnvironment) {
+					dispatchApp({
+						type: "select-environment-draft",
+						threadId: makeThreadId(),
+						environmentId: remoteEnvironment.id,
+					});
 				}
-			})
-			.catch(() => {
-				// The chat bootstrap reports backend availability separately.
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
+			},
+			[],
+		),
+	);
 
 	useEffect(() => {
 		if (view !== "chat") return;
