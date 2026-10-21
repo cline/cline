@@ -188,7 +188,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		},
 		async onRpcRejected(
 			sourceSessionId: string,
-			ctx: RpcContext & { error: unknown; silent?: boolean },
+			ctx: RpcContext & { error: unknown },
 		): Promise<void> {
 			const attempt = current(sourceSessionId, ctx.handoffAttemptId);
 			if (!attempt || attempt.completed) return;
@@ -214,14 +214,12 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				retryDraft: ctx.nextCommand,
 				retryAttachments: ctx.sourceAttachments,
 			});
-			if (!ctx.silent) {
-				effects.toast({
-					title: "Handoff failed",
-					description: message,
-					variant: "destructive",
-					connectUrl,
-				});
-			}
+			effects.toast({
+				title: "Handoff failed",
+				description: message,
+				variant: "destructive",
+				connectUrl,
+			});
 		},
 	};
 }

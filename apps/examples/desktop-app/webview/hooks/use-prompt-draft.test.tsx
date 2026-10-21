@@ -110,7 +110,7 @@ describe("usePromptDraft", () => {
 			send.resolve(false);
 			await send.finished;
 		});
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 		expect(drafts.get("new-session")?.text).toBe("");
 	});
 
@@ -137,12 +137,12 @@ describe("usePromptDraft", () => {
 			first.resolve(false);
 			await first.finished;
 		});
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 		await act(async () => {
 			second.resolve(false);
 			await second.finished;
 		});
-		expect(current.promptInputRef.current).toBe("Submitted prompt");
+		expect(current.draftRef.current.text).toBe("Submitted prompt");
 	});
 
 	it("does not let a retired pane's failed send overwrite a newer draft", async () => {
@@ -182,7 +182,7 @@ describe("usePromptDraft", () => {
 			await send.finished;
 		});
 		expect(drafts.has("new-session")).toBe(false);
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 	});
 
 	it("preserves a newly started session's follow-up when reopened through history", async () => {
@@ -195,7 +195,7 @@ describe("usePromptDraft", () => {
 		act(() => current.handlePromptInputChange("Follow-up to my new session"));
 		// The same session ID on a different host must not reuse the local thread.
 		await openSession("remote");
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 		act(() => current.handlePromptInputChange("Remote follow-up"));
 		await openSession("local");
 		expect(appState.navigation.current.activeThreadId).toBe("new-session");
@@ -212,10 +212,10 @@ describe("usePromptDraft", () => {
 			sessionId: "existing-session",
 		});
 		act(() => current.handlePromptInputChange("Unsent follow-up"));
-		const inputRef = current.promptInputRef;
+		const draftRef = current.draftRef;
 		await openSession();
-		expect(current.promptInputRef).toBe(inputRef);
-		expect(current.promptInputRef.current).toBe("Unsent follow-up");
+		expect(current.draftRef).toBe(draftRef);
+		expect(current.draftRef.current.text).toBe("Unsent follow-up");
 		expect(appState.threads).toHaveLength(1);
 	});
 
@@ -233,7 +233,7 @@ describe("usePromptDraft", () => {
 
 		await navigate({ type: "back" });
 		expect(current.promptDraft.value).toBe("Unsent prompt\nwith more detail");
-		expect(current.promptInputRef.current).toBe(current.promptDraft.value);
+		expect(current.draftRef.current.text).toBe(current.promptDraft.value);
 		await navigate({ type: "forward" });
 		expect(current.promptDraft.value).toBe("Follow-up draft");
 	});
@@ -317,7 +317,7 @@ describe("usePromptDraft", () => {
 			destination: { ...appState.navigation.current, view: "sessions" },
 		});
 		await openSession();
-		expect(current.promptInputRef.current).toBe("Edited follow-up");
+		expect(current.draftRef.current.text).toBe("Edited follow-up");
 		expect(current.pendingAttachments).toEqual([image]);
 		act(() => {
 			current.handlePromptInputChange("");
@@ -325,7 +325,7 @@ describe("usePromptDraft", () => {
 		});
 		await navigate({ type: "back" });
 		await openSession();
-		expect(current.promptInputRef.current).toBe("");
+		expect(current.draftRef.current.text).toBe("");
 		expect(current.pendingAttachments).toEqual([]);
 	});
 

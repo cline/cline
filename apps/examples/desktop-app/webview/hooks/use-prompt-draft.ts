@@ -23,7 +23,6 @@ export function usePromptDraft(
 	const draftRef = useRef<PromptDraft>(
 		drafts.get(threadId) ?? { text: "", attachments: [] },
 	);
-	const promptInputRef = useRef(draftRef.current.text);
 	const [pendingAttachments, setAttachments] = useState(
 		draftRef.current.attachments,
 	);
@@ -51,14 +50,13 @@ export function usePromptDraft(
 	);
 	const [promptDraft, setPromptDraft] = useState(() => ({
 		version: 0,
-		value: promptInputRef.current,
+		value: draftRef.current.text,
 	}));
 	const handlePromptInputChange = useCallback((value: string) => {
 		if (!mountedRef.current) return;
 		// The composer echoes external replacements. Those acknowledgements
 		// aren't new edits and must not invalidate a pending send's recovery.
-		if (promptInputRef.current !== value) revisionRef.current += 1;
-		promptInputRef.current = value;
+		if (draftRef.current.text !== value) revisionRef.current += 1;
 		draftRef.current.text = value;
 	}, []);
 	const setPromptInput = useCallback(
@@ -91,7 +89,6 @@ export function usePromptDraft(
 		draftRef,
 		pendingAttachments,
 		setPendingAttachments,
-		promptInputRef,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,

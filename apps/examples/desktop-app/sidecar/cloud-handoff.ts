@@ -130,7 +130,7 @@ async function prepareCloudHandoff(
 	};
 	const cwd = readWorkspacePath(config) ?? readWorkspacePath(persisted);
 	if (!cwd) throw new Error("Cloud handoff requires a workspace path.");
-	return { sessionId, manager, config, cwd };
+	return { manager, config, cwd };
 }
 
 function assertHandoffAccount(

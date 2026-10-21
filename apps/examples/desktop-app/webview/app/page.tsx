@@ -1410,7 +1410,6 @@ function ChatThreadPane({
 		setPendingAttachments,
 		clearPromptForSend,
 		promptDraft,
-		promptInputRef,
 		setPromptInput,
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
@@ -2034,7 +2033,7 @@ function ChatThreadPane({
 			const preserveComposer =
 				historySession.origin === "cloud" &&
 				Boolean(
-					promptInputRef.current.trim() || draftRef.current.attachments.length,
+					draftRef.current.text.trim() || draftRef.current.attachments.length,
 				);
 			if (!preserveComposer) {
 				setPromptInput(initialPromptDraft ?? "");
@@ -2062,7 +2061,6 @@ function ChatThreadPane({
 		initialAttachments,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
-		promptInputRef,
 		sessionId,
 		setPendingAttachments,
 		setPromptInput,
