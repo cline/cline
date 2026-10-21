@@ -88,11 +88,25 @@ describe("Chat usability lifecycle and persistence", () => {
 
 	it("interruption never receives successful completion during later cleanup", async () => {
 		await task.say("text", "Interrupted", undefined, undefined, true)
-		await handler.updateClineMessage(1, { partial: false, interruptedAt: 200 })
+		task.shouldRunTaskCancelHook = async () => false
+		task.getActiveHookExecution = async () => undefined
+		task.commandExecutor = { hasActiveBackgroundCommand: () => false }
+		task.terminalManager = { disposeAll() {} }
+		task.urlContentFetcher = { closeBrowser() {} }
+		task.browserSession = { async dispose() {} }
+		task.clineIgnoreController = { dispose() {} }
+		task.fileContextTracker = { dispose() {} }
+		task.diffViewProvider = { async revertChanges() {} }
+		task.mcpHub = { clearNotificationCallback() {} }
+		task.presentationScheduler = { async dispose() {} }
+		await task.abortTask()
+		// Stream cleanup may clear partial later; it must not turn interruption into success.
+		await handler.updateClineMessage(1, { partial: false })
 		const message = handler.getClineMessages()[1]
 		assert.equal(message.completedAt, undefined)
-		assert.deepEqual(responseCompletion(message, 300), {})
-		assert.equal((await getSavedClineMessages("synthetic"))[1].interruptedAt, 200)
+		assert.ok(message.interruptedAt! >= message.ts)
+		assert.deepEqual(responseCompletion(message, message.interruptedAt! + 100), {})
+		assert.equal((await getSavedClineMessages("synthetic"))[1].interruptedAt, message.interruptedAt)
 	})
 
 	it("disk and binary protobuf round-trip optional timing, including legacy absence", async () => {
