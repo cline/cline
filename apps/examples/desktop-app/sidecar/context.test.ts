@@ -1576,6 +1576,31 @@ describe("Code sidecar runtime capabilities", () => {
 		]);
 	});
 
+	it.each([
+		"schedule.execution_failed",
+		"schedule.execution_completed",
+	])("forwards %s without requiring an attached session", async (event) => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+		const payload = {
+			scheduleId: "schedule-1",
+			executionId: "execution-1",
+			errorMessage: "getaddrinfo ENOTFOUND api.cline.bot",
+		};
+
+		handleHubLiveEvent(ctx, { event, payload });
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: { name: event, payload: { environmentId: "local", ...payload } },
+			},
+		]);
+	});
+
 	it("forwards Hub settings changes so open desktop views can refresh", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
