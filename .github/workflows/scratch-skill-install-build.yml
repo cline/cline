@@ -1,0 +1,80 @@
+name: scratch-skill-install-build
+
+# Throwaway: unsigned Windows installer + targeted tests for manual verification
+# of in-process marketplace skill installs. Delete this branch afterwards.
+on:
+  push:
+    branches:
+      - mk/scratch/skill-install-build
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Marketplace tests (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+          no-cache: true
+      - run: bun install
+      - run: bun run build:sdk
+      - name: Core skill install + marketplace
+        working-directory: sdk/packages/core
+        run: bunx vitest run --config vitest.config.ts src/services/skill-install.test.ts src/services/marketplace.test.ts
+      - name: Desktop sidecar marketplace
+        working-directory: apps/examples/desktop-app
+        run: bunx vitest run --config vitest.config.ts sidecar/marketplace.test.ts
+      - name: Hub marketplace
+        working-directory: apps/cline-hub
+        run: bunx vitest run src/server/marketplace.test.ts
+
+  build-windows:
+    name: Build unsigned Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+          no-cache: true
+      - name: Seed Bun cache with Linux remote-helper runtimes
+        shell: bash
+        run: |
+          BUN_VERSION="$(bun --version)"
+          CACHE_DIR="${RUNNER_TEMP//\//}/bun-install-cache"
+          mkdir -p "$CACHE_DIR"
+          for target in linux-x64-baseline linux-aarch64; do
+            dest="$CACHE_DIR/bun-$target-v$BUN_VERSION"
+            work="$(mktemp -d)"
+            (cd "$work" && npm pack "@oven/bun-$target@$BUN_VERSION" --silent >/dev/null && tar -xzf ./*.tgz package/bin/bun)
+            mv "$work/package/bin/bun" "$dest"
+            if [ "$(head -c 4 "$dest" | od -An -c | tr -d ' ')" != "177ELF" ]; then
+              echo "$dest is not an ELF executable; refusing to seed a bad runtime"
+              exit 1
+            fi
+            echo "seeded $dest ($(stat -c %s "$dest") bytes)"
+          done
+          echo "BUN_INSTALL_CACHE_DIR=${CACHE_DIR}" >> "$GITHUB_ENV"
+      - name: Install UPX
+        run: choco install upx --no-progress -y
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bun install
+      - run: bun run build:sdk
+      - name: Build desktop bundle (unsigned, no updater artifacts)
+        shell: bash
+        working-directory: apps/examples/desktop-app
+        run: bunx tauri build --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cline-desktop-skill-install-windows
+          path: apps/examples/desktop-app/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
