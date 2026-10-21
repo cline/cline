@@ -880,6 +880,7 @@ export class HubServerTransport implements NativeHubTransport {
 				const result = await this.cloud.command(
 					String(envelope.payload?.operation ?? ""),
 					envelope.payload?.args,
+					envelope.payload?.scope,
 				);
 				return okReply(envelope, result);
 			} catch (error) {
@@ -1330,34 +1331,23 @@ export class HubServerTransport implements NativeHubTransport {
 		// request raised while it was away instead of leaving the turn parked.
 		const cloud = this.cloud.snapshot();
 		queueMicrotask(() => {
-			if (
-				!this.listeners.get(clientId)?.has(entry) ||
-				(!cloud.snapshots.length && cloud.scopeGeneration === 0)
-			)
-				return;
+			if (!this.listeners.get(clientId)?.has(entry)) return;
 			try {
-				const { snapshots, ...version } = cloud;
-				entry.listener(buildHubEvent("cloud.event", version));
-				for (const snapshot of snapshots) {
-					if (entry.sessionId && entry.sessionId !== snapshot.sessionId)
-						continue;
-					entry.listener(
-						buildHubEvent(
-							"cloud.event",
-							{
-								...cloud,
-								snapshots: undefined,
-								event: {
-									type: "snapshot",
-									sessionId: snapshot.sessionId,
-									snapshot,
-									replace: true,
-								},
-							},
-							snapshot.sessionId,
-						),
-					);
-				}
+				entry.listener(
+					buildHubEvent(
+						"cloud.event",
+						{
+							...cloud,
+							snapshots: entry.sessionId
+								? cloud.snapshots.filter(
+										(snapshot) => snapshot.sessionId === entry.sessionId,
+									)
+								: cloud.snapshots,
+							...(entry.sessionId ? { sessionId: entry.sessionId } : {}),
+						},
+						entry.sessionId,
+					),
+				);
 			} catch (error) {
 				logHubBoundaryError(
 					"listener threw while recovering cloud state",

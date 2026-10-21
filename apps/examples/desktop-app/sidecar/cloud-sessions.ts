@@ -109,6 +109,7 @@ export class CloudSessionManager extends HubCloudSessionClient {
 		else this.ctx.liveSessions.set(id, state);
 		const approvalsJson = JSON.stringify(snapshot.approvals);
 		if (
+			event.replace ||
 			event.cause === "approvals" ||
 			(this.approvalSnapshots.get(id) !== approvalsJson &&
 				snapshot.approvals.length > 0)

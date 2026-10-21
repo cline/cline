@@ -35,31 +35,12 @@ export class HubCloudSessionClient {
 			const connecting = this.getConnection().then(async (client) => {
 				if (this.disposed) throw new Error("Cloud viewer is disposed");
 				this.unsubscribe = client.subscribe((envelope: HubEventEnvelope) => {
-					if (
-						envelope.event === "cloud.event" &&
-						this.acceptVersion(envelope.payload)
-					)
-						this.receive(
-							envelope.payload?.event as CloudSessionEvent,
-							Number(envelope.payload?.revision),
-						);
+					if (envelope.event === "cloud.event") this.recover(envelope.payload);
 				});
 				try {
 					const reply = await client.command("cloud.watch");
 					this.checkReply(reply);
-					if (!this.disposed && this.acceptVersion(reply.payload))
-						for (const snapshot of (reply.payload?.snapshots ??
-							[]) as CloudSessionSnapshot[]) {
-							this.receive(
-								{
-									type: "snapshot",
-									sessionId: snapshot.sessionId,
-									snapshot,
-									replace: true,
-								},
-								Number(reply.payload?.revision),
-							);
-						}
+					this.recover(reply.payload);
 					return client;
 				} catch (error) {
 					this.unsubscribe?.();
@@ -76,6 +57,31 @@ export class HubCloudSessionClient {
 	}
 	async connect(): Promise<void> {
 		await this.ready();
+	}
+	private recover(payload: Record<string, unknown> | undefined): void {
+		if (this.disposed || !this.acceptVersion(payload)) return;
+		const revision = Number(payload?.revision);
+		if (Array.isArray(payload?.snapshots)) {
+			const snapshots = payload.snapshots as CloudSessionSnapshot[];
+			const present = new Set(snapshots.map((snapshot) => snapshot.sessionId));
+			for (const sessionId of this.snapshots.keys()) {
+				if (
+					(!payload.sessionId || payload.sessionId === sessionId) &&
+					!present.has(sessionId)
+				)
+					this.receive({ type: "removed", sessionId }, revision);
+			}
+			for (const snapshot of snapshots)
+				this.receive(
+					{
+						type: "snapshot",
+						sessionId: snapshot.sessionId,
+						snapshot,
+						replace: true,
+					},
+					revision,
+				);
+		} else this.receive(payload?.event as CloudSessionEvent, revision);
 	}
 	private acceptVersion(payload: Record<string, unknown> | undefined): boolean {
 		if (
@@ -128,12 +134,26 @@ export class HubCloudSessionClient {
 		operation: K,
 		args: CloudHubArgs<K>,
 	): Promise<CloudHubResult<K>> {
+		// Capture an established viewer's scope before yielding to connection recovery.
+		const preparedScope = this.serviceId
+			? {
+					serviceId: this.serviceId,
+					scopeGeneration: this.scopeGeneration,
+				}
+			: undefined;
 		const client = await this.ready();
 		if (this.disposed) throw new Error("Cloud viewer is disposed");
+		const scope = preparedScope ?? {
+			serviceId: this.serviceId,
+			scopeGeneration: this.scopeGeneration,
+		};
+		const isCurrentScope = () =>
+			scope.serviceId === this.serviceId &&
+			scope.scopeGeneration === this.scopeGeneration;
 		let dispatched = false;
 		const reply = await client.command(
 			"cloud.command",
-			{ operation, args },
+			{ operation, args, scope },
 			undefined,
 			{
 				timeoutMs: ["create", "send", "attach"].includes(operation)
@@ -141,6 +161,8 @@ export class HubCloudSessionClient {
 					: undefined,
 				beforeDispatch: () => {
 					if (this.disposed) throw new Error("Cloud viewer is disposed");
+					if (!isCurrentScope())
+						throw new Error("Cloud account changed before request");
 					if (dispatched)
 						throw new Error(
 							"Cloud request outcome is unknown; reconnect before retrying",
@@ -152,7 +174,12 @@ export class HubCloudSessionClient {
 			},
 		);
 		this.checkReply(reply);
-		if (!this.acceptVersion(reply.payload))
+		if (
+			!isCurrentScope() ||
+			reply.payload?.serviceId !== scope.serviceId ||
+			reply.payload?.scopeGeneration !== scope.scopeGeneration ||
+			!this.acceptVersion(reply.payload)
+		)
 			throw new Error("Cloud account changed during request");
 		if (this.disposed) throw new Error("Cloud viewer is disposed");
 		return reply.payload?.result as CloudHubResult<K>;
@@ -165,6 +192,9 @@ export class HubCloudSessionClient {
 	}
 	send(...args: CloudHubArgs<"send">): Promise<CloudHubResult<"send">> {
 		return this.call("send", args);
+	}
+	refreshOrganization(): Promise<void> {
+		return this.call("refreshOrganization", []);
 	}
 	abort(...args: CloudHubArgs<"abort">): Promise<CloudHubResult<"abort">> {
 		return this.call("abort", args);

@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ClineAccountService } from "../../account";
+import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import type { CloudSessionController } from "../../cloud/controller";
 import {
 	type CloudHubConnection,
@@ -17,6 +19,10 @@ import {
 	RuntimeOAuthTokenManager,
 } from "../../runtime/orchestration/runtime-oauth-token-manager";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import {
+	emptyStoredProviderSettings,
+	ProviderSettingsSchemaTyped,
+} from "../../types/provider-settings";
 import { NodeHubClient } from "../client";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { createInMemoryHubOwnerContext } from "../discovery";
@@ -29,6 +35,13 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 	await Promise.all(services.splice(0).map((service) => service.dispose()));
 });
+function command(
+	service: HubCloudSessionService,
+	operation: string,
+	args: unknown,
+) {
+	return service.command(operation, args, service.snapshot());
+}
 function deferred<T>() {
 	let resolve: (value: T | PromiseLike<T>) => void = () => {
 		throw new Error("Deferred not initialized");
@@ -74,6 +87,7 @@ function fixture() {
 				return { sessionId, status: "running" };
 			}),
 			send: vi.fn(async () => ({ sessionId: "ses-one", ok: true })),
+			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
 			dispose: vi.fn(async () => {}),
 		};
@@ -112,7 +126,7 @@ function fixture() {
 		const result =
 			name === "cloud.watch"
 				? service.watch()
-				: await service.command(body.operation, body.args);
+				: await service.command(body.operation, body.args, body.scope);
 		return JSON.parse(
 			JSON.stringify({ version: "v1", ok: true, payload: result }),
 		);
@@ -133,6 +147,10 @@ function fixture() {
 		controllers,
 		connection,
 		viewer,
+		emitRecovery: (payload: Record<string, unknown>) => {
+			for (const listener of listeners)
+				listener({ version: "v1", event: "cloud.event", payload });
+		},
 		changeScope: (value: string) => {
 			scope = value;
 		},
@@ -140,6 +158,92 @@ function fixture() {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		const creating = viewer.create({ modelId: "model", repoUrl: "repo" });
+		f.changeScope("account-two");
+		f.service.watch();
+		await expect(creating).rejects.toThrow("account changed");
+		for (const { controller } of f.controllers)
+			expect(controller.create).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"account",
+		"daemon",
+	])("rejects a delayed create after the %s changes before admission", async (change) => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.connect();
+		const original = f.connection.command;
+		f.connection.command = async (name, payload, ...rest) => {
+			if (name === "cloud.command") {
+				if (change === "account") f.changeScope("account-two");
+				else
+					payload = {
+						...payload,
+						scope: { ...(payload?.scope as object), serviceId: "old-daemon" },
+					};
+			}
+			return original(name, payload, ...rest);
+		};
+		await expect(
+			viewer.create({ modelId: "model", repoUrl: "repo" }),
+		).rejects.toThrow("account changed");
+		expect(f.controllers).toHaveLength(1);
+		expect(f.controllers[0]?.controller.create).not.toHaveBeenCalled();
+	});
+	it.each([
+		"plan",
+		"zen",
+	] as const)("preserves %s mode and workspace paths at the RPC boundary", async (mode) => {
+		const f = fixture();
+		const viewer = f.viewer();
+		const options = {
+			mode,
+			workspaceRelativePath: "packages/app",
+			thinking: true,
+			autoApproveTools: false,
+			reasoningEffort: "high" as const,
+		};
+		await viewer.create({ modelId: "model", repoUrl: "repo", ...options });
+		await viewer.attach("ses-one", options);
+		await viewer.restoreCreationOptions("ses-one", options);
+		expect(f.controllers[0]?.controller.create).toHaveBeenCalledWith(
+			expect.objectContaining(options),
+		);
+		expect(f.controllers[0]?.controller.attach).toHaveBeenCalledWith(
+			"ses-one",
+			options,
+		);
+		expect(
+			f.controllers[0]?.controller.restoreCreationOptions,
+		).toHaveBeenCalledWith("ses-one", options);
+	});
+	it.each([
+		"same",
+		"new",
+	])("clears missed deletions on recovery from the %s daemon, including an empty set", async (daemon) => {
+		const f = fixture();
+		const viewer = f.viewer();
+		await viewer.attach("ses-one");
+		const removed = vi.fn();
+		viewer.subscribe(removed);
+		const state = f.service.snapshot();
+		f.emitRecovery({
+			...state,
+			serviceId: daemon === "new" ? "new-daemon" : state.serviceId,
+			snapshots: [],
+		});
+		expect(viewer.getSnapshot("ses-one")).toBeUndefined();
+		expect(removed).toHaveBeenCalledWith({
+			type: "removed",
+			sessionId: "ses-one",
+		});
+	});
+
 	it("shares a controller across viewers and retains work after viewer disposal", async () => {
 		const f = fixture();
 		const first = f.viewer();
@@ -189,7 +293,7 @@ describe("hub-owned cloud sessions", () => {
 			.catch((error: unknown) => error);
 		await vi.waitFor(() => expect(old.controller.send).toHaveBeenCalledOnce());
 		f.changeScope("account-two");
-		await f.service.command("listForDiscovery", []);
+		await command(f.service, "listForDiscovery", []);
 		expect(viewer.getSnapshot("ses-one")).toBeUndefined();
 		expect(old.controller.dispose).toHaveBeenCalledOnce();
 		old.emit({
@@ -214,26 +318,26 @@ describe("hub-owned cloud sessions", () => {
 	});
 	it("validates operations and provisioning payloads before invoking the controller", async () => {
 		const f = fixture();
-		await expect(f.service.command("dispose", [])).rejects.toThrow(
+		await expect(command(f.service, "dispose", [])).rejects.toThrow(
 			"Unknown cloud operation",
 		);
-		await expect(f.service.command("__proto__", [])).rejects.toThrow(
+		await expect(command(f.service, "__proto__", [])).rejects.toThrow(
 			"Unknown cloud operation",
 		);
 		await expect(
-			f.service.command("create", [
+			command(f.service, "create", [
 				{ modelId: "model", repoUrl: "repo", handoff: {} },
 			]),
 		).rejects.toThrow();
 		await expect(
-			f.service.command("respondApproval", [
+			command(f.service, "respondApproval", [
 				"ses-one",
 				"approval",
 				{ approved: "yes" },
 			]),
 		).rejects.toThrow();
 		expect(f.controllers).toHaveLength(0);
-		await f.service.command("create", [{ modelId: "model", repoUrl: "repo" }]);
+		await command(f.service, "create", [{ modelId: "model", repoUrl: "repo" }]);
 		expect(f.controllers[0]!.controller.create).toHaveBeenCalledWith({
 			modelId: "model",
 			repoUrl: "repo",
@@ -256,7 +360,7 @@ describe("hub-owned cloud sessions", () => {
 	});
 	it("ignores a hydration reply older than a live snapshot", async () => {
 		const f = fixture();
-		await f.service.command("attach", ["ses-one"]);
+		await command(f.service, "attach", ["ses-one"]);
 		const ready = deferred<void>();
 		const original = f.connection.command;
 		f.connection.command = async (name, ...args) => {
@@ -280,7 +384,7 @@ describe("hub-owned cloud sessions", () => {
 	});
 	it("hydrates untouched sessions when another session receives a newer live event", async () => {
 		const f = fixture();
-		await f.service.command("attach", ["ses-one"]);
+		await command(f.service, "attach", ["ses-one"]);
 		const ready = deferred<void>();
 		const original = f.connection.command;
 		let watching = false;
@@ -418,6 +522,106 @@ describe("cloud RPC over a shared hub socket", () => {
 });
 
 describe("hub cloud credentials", () => {
+	it("refreshes the daemon organization cache through RPC without disposing cloud work", async () => {
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue({ provider: "cline", apiKey: "key" });
+		vi.spyOn(
+			RuntimeOAuthTokenManager.prototype,
+			"resolveProviderApiKey",
+		).mockResolvedValue(null);
+		const fetch = vi
+			.spyOn(ClineAccountService.prototype, "fetchUserOrganizations")
+			.mockResolvedValueOnce([
+				{ organizationId: "org-one", active: true },
+			] as never)
+			.mockResolvedValueOnce([
+				{ organizationId: "org-two", active: true },
+			] as never);
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		service.watch();
+		const controller = service["controller"]!;
+		const getOrganization = controller["options"].getActiveOrganizationId!;
+		expect(await getOrganization()).toBe("org-one");
+		expect(await getOrganization()).toBe("org-one");
+		expect(fetch).toHaveBeenCalledOnce();
+		await command(service, "refreshOrganization", []);
+		expect(await getOrganization()).toBe("org-two");
+		expect(service["controller"]).toBe(controller);
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("retains the controller when its OAuth refresh rotates tokens without an account id", async () => {
+		let settings: NonNullable<
+			ReturnType<ProviderSettingsManager["getProviderSettings"]>
+		> = {
+			provider: "cline",
+			auth: {
+				accessToken: "old-access",
+				refreshToken: "old-refresh",
+				expiresAt: 1,
+			},
+		};
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockImplementation(() => settings);
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"saveProviderSettings",
+		).mockImplementation((next) => {
+			settings = ProviderSettingsSchemaTyped.parse(next);
+			return emptyStoredProviderSettings();
+		});
+		const handler = getProviderAuthHandler("cline");
+		if (!handler) throw new Error("Missing Cline auth handler");
+		vi.spyOn(handler, "refresh").mockResolvedValue({
+			access: "new-access",
+			refresh: "new-refresh",
+			expires: Date.now() + 3600000,
+		});
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		service.watch();
+		const controller = service["controller"]!;
+		const dispose = vi.spyOn(controller, "dispose");
+		expect(await controller["options"].getAuthToken()).toContain("new-access");
+		service.watch();
+		expect(service["controller"]).toBe(controller);
+		expect(dispose).not.toHaveBeenCalled();
+	});
+	it("does not read provider settings for every streamed event", () => {
+		const reads = vi
+			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue({ provider: "cline", apiKey: "key" });
+		let emit: (event: CloudSessionEvent) => void = () => {};
+		const publish = vi.fn();
+		const service = new HubCloudSessionService({
+			publish,
+			createController: () =>
+				({
+					subscribe: (listener: typeof emit) => {
+						emit = listener;
+					},
+					dispose: async () => {},
+				}) as unknown as CloudSessionController,
+		});
+		services.push(service);
+		service.watch();
+		reads.mockClear();
+		for (let i = 0; i < 100; i++)
+			emit({
+				type: "snapshot",
+				sessionId: "ses-one",
+				snapshot: snapshot(),
+				replace: false,
+			});
+		expect(reads).not.toHaveBeenCalled();
+		expect(publish).toHaveBeenCalledTimes(100);
+	});
+
 	it.each([
 		"manual",
 		"refresh",

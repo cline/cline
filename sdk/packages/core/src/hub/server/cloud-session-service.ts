@@ -6,7 +6,10 @@ import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { CloudSessionApi } from "../../cloud/api";
 import { CloudSessionController } from "../../cloud/controller";
-import type { CloudHubOperation } from "../../cloud/hub-protocol";
+import type {
+	CloudHubOperation,
+	CloudHubScope,
+} from "../../cloud/hub-protocol";
 import type {
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -21,6 +24,8 @@ import { captureAuthRefreshSoftFailure } from "../../services/telemetry/core-eve
 const id = z.string().trim().min(1);
 const optionalString = z.string().nullish();
 const creationOptions = z.object({
+	mode: z.enum(["act", "plan", "yolo", "zen"]).optional(),
+	workspaceRelativePath: z.string().optional(),
 	autoApproveTools: z.boolean().optional(),
 	thinking: z.boolean().optional(),
 	reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
@@ -35,8 +40,6 @@ const schemas = {
 				repoUrl: id,
 				initialPrompt: z.string().optional(),
 				branch: id.optional(),
-				mode: z.enum(["act", "plan", "yolo"]).optional(),
-				workspaceRelativePath: id.optional(),
 				organizationId: id.nullable().optional(),
 			})
 			.strict(),
@@ -85,6 +88,7 @@ const schemas = {
 		id,
 		z.object({ approved: z.boolean(), reason: z.string().optional() }).strict(),
 	]),
+	refreshOrganization: z.tuple([]),
 	restoreCreationOptions: z.tuple([id, creationOptions.strict()]),
 } satisfies Record<CloudHubOperation, z.ZodType>;
 
@@ -125,6 +129,26 @@ export class HubCloudSessionService {
 		this.tokenManager = new RuntimeOAuthTokenManager({
 			providerSettingsManager: this.settings,
 			telemetry: options.telemetry,
+			onCredentialsRefreshed: (previous, next) => {
+				const scope = this.scope;
+				// A refresh rotates credentials without changing this controller's account.
+				if (
+					previous.provider !== "cline" ||
+					!scope ||
+					scope.kind !== "credential" ||
+					scope.identity !== (previous.auth?.accessToken || previous.apiKey) ||
+					scope.apiBaseUrl !== previous.baseUrl
+				)
+					return;
+				const identity =
+					next.auth?.accountId || next.auth?.accessToken || next.apiKey;
+				if (identity)
+					Object.assign(scope, {
+						kind: next.auth?.accountId ? "account" : "credential",
+						identity,
+						apiBaseUrl: next.baseUrl,
+					});
+			},
 		});
 		this.scopeTimer = setInterval(() => this.checkScope(), 1000);
 		this.scopeTimer.unref?.();
@@ -187,7 +211,7 @@ export class HubCloudSessionService {
 			this.options.createController?.() ?? this.createController();
 		this.controller = controller;
 		controller.subscribe((event) => {
-			this.checkScope();
+			// Scope changes are checked periodically and at command/auth boundaries.
 			if (this.controller !== controller || this.closed) return;
 			if (event.type === "snapshot")
 				this.snapshots.set(event.sessionId, event.snapshot);
@@ -292,6 +316,7 @@ export class HubCloudSessionService {
 	async command(
 		operation: string,
 		rawArgs: unknown,
+		expectedScope: unknown,
 	): Promise<Record<string, unknown>> {
 		if (!Object.hasOwn(schemas, operation))
 			throw new Error(`Unknown cloud operation: ${operation}`);
@@ -305,6 +330,15 @@ export class HubCloudSessionService {
 			const input = normalized[0] as { sandboxType?: string };
 			input.sandboxType ??= "resumable";
 		}
+		this.checkScope();
+		const expected = z
+			.object({ serviceId: z.string(), scopeGeneration: z.number().int() })
+			.parse(expectedScope) satisfies CloudHubScope;
+		if (
+			expected.serviceId !== this.serviceId ||
+			expected.scopeGeneration !== this.scopeGeneration
+		)
+			throw new Error("Cloud account changed before request");
 		const controller = this.getController();
 		this.activeCommands++;
 		try {

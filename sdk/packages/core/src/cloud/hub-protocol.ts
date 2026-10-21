@@ -21,7 +21,10 @@ export const CLOUD_HUB_OPERATIONS = [
 	"listBranches",
 	"respondApproval",
 	"restoreCreationOptions",
+	"refreshOrganization",
 ] as const;
+export type CloudHubScope = { serviceId: string; scopeGeneration: number };
+
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"

@@ -8,7 +8,7 @@ import {
 import {
 	type CloudSessionApi,
 	CloudSessionError,
-	type CloudSessionManager,
+	CloudSessionManager,
 	type CloudSessionRecord,
 	getCloudSessionManager,
 	resetCloudSessionManager,
@@ -162,6 +162,50 @@ afterAll(() => {
 });
 
 describe("Cloud sessions sidecar wiring", () => {
+	it("clears resolved approvals when a replacement snapshot has an empty approval list", async () => {
+		const { ctx, events } = createContext();
+		const viewer = new CloudSessionManager(ctx);
+		const approval = {
+			requestId: "request",
+			sessionId: "ses-one",
+			approvalId: "approval",
+			createdAt: "2026-10-20",
+			toolCallId: "tool",
+			toolName: "bash",
+		};
+		const snapshot = {
+			sessionId: "ses-one",
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			approvals: [approval],
+			busy: true,
+			status: "running",
+			startedAt: 1,
+			connectionState: "connected" as const,
+			transcriptKnown: true,
+		};
+		viewer["project"]({
+			type: "snapshot",
+			sessionId: "ses-one",
+			snapshot,
+			replace: true,
+		});
+		expect(ctx.pendingApprovals.has("request")).toBe(true);
+		viewer["project"]({
+			type: "snapshot",
+			sessionId: "ses-one",
+			snapshot: { ...snapshot, approvals: [] },
+			replace: true,
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toEqual([]);
+		await viewer.dispose();
+	});
+
 	it.each([
 		"local",
 		"ssh-remote",

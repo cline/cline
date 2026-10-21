@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { HubCloudSessionClient } from "@cline/core/cloud";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isClineAccountNotAuthenticatedResult } from "../webview/lib/cline-account-state";
 import type { SidecarContext } from "./types";
@@ -70,6 +71,10 @@ async function runClineAccountCommand(ctx: SidecarContext) {
 }
 
 beforeEach(() => {
+	vi.spyOn(
+		HubCloudSessionClient.prototype,
+		"refreshOrganization",
+	).mockResolvedValue(undefined);
 	// Account context is persisted across launches; never hydrate the developer's
 	// signed-in identity when a test expects an anonymous device identity.
 	testDataDir = mkdtempSync(join(tmpdir(), "commands-account-test-"));
@@ -194,6 +199,7 @@ describe("provider settings cloud session lifecycle", () => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	vi.unstubAllEnvs();
 	rmSync(testDataDir, { recursive: true, force: true });
 });
@@ -426,6 +432,9 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		});
 
 		await runOperation(ctx, "switchAccount");
+		expect(
+			HubCloudSessionClient.prototype.refreshOrganization,
+		).toHaveBeenCalledOnce();
 
 		expect(await currentFlagsUserId()).toBe("acct-1");
 	});

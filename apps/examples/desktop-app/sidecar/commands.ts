@@ -2812,6 +2812,7 @@ export async function handleCommand(
 			accountService,
 		);
 		if (operation === "switchAccount") {
+			await getCloudSessionManager(ctx).refreshOrganization();
 			await resetCloudSessionManager(ctx);
 			// The sidebar must re-scope immediately (personal ⇄ org), not on
 			// the next 12s poll.

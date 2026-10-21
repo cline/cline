@@ -838,6 +838,10 @@ export class CloudSessionController {
 		};
 	}
 
+	async refreshOrganization(): Promise<void> {
+		await this.resolveActiveOrganizationId({ fresh: true });
+	}
+
 	private async resolveActiveOrganizationId(options?: {
 		fresh?: boolean;
 	}): Promise<string | undefined> {

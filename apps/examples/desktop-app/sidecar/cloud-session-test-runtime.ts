@@ -76,7 +76,11 @@ export async function createCloudSessionTestRuntime(
 				payload:
 					command === "cloud.watch"
 						? service.watch()
-						: await service.command(String(payload?.operation), payload?.args),
+						: await service.command(
+								String(payload?.operation),
+								payload?.args,
+								payload?.scope,
+							),
 			}),
 		}));
 		ctx.cloudSessionManager = projection;
