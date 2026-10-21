@@ -12,8 +12,6 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	TASK_RUN_HEALTH_EVENT,
-	TASK_RUN_IDLE_EVENT,
 	type TelemetryProperties,
 } from "@cline/shared";
 import type {
@@ -87,8 +85,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
 		MAX_TOKENS_RECOVERY: TASK_MAX_TOKENS_RECOVERY_EVENT,
 		CANCELLED: TASK_CANCELLED_EVENT,
-		RUN_HEALTH: TASK_RUN_HEALTH_EVENT,
-		RUN_IDLE: TASK_RUN_IDLE_EVENT,
+		RUN_IDLE: "task.run_idle",
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
 		MENTION_SEARCH_RESULTS: "task.mention_search_results",
@@ -647,6 +644,30 @@ export function captureMistakeLimitReached(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/**
+ * At most once per agent run, while it is still running and has emitted no
+ * runtime event (stream deltas included) for `idleMs`. Sent while stuck so
+ * hangs the user escapes by quitting the app are still counted.
+ */
+export function captureRunIdle(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid?: string;
+		agentId: string;
+		runId: string;
+		idleMs: number;
+		/** Runtime event type that preceded the silence. */
+		lastEventType: string;
+		isSubagent: boolean;
+	},
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.TASK.RUN_IDLE,
+		stripUndefinedProperties(properties),
+	);
 }
 
 export function captureRunCommandsTimeout(

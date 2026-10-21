@@ -86,6 +86,7 @@ import {
 } from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
+import { RunHealthObserver } from "../../services/telemetry/run-health";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
 
 export const SESSION_RUN_IN_PROGRESS_ERROR_CODE = "session_run_in_progress";
@@ -1004,6 +1005,12 @@ export class SessionRuntime {
 				.filter((tool) => tool.resultPolicy === "cache-oversized")
 				.map((tool) => tool.name.toLowerCase()),
 		);
+		const runHealth =
+			this.telemetry &&
+			new RunHealthObserver(this.telemetry, {
+				sessionId: this.config.sessionId,
+				isSubagent: Boolean(this.parentAgentId),
+			});
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
 			sessionId: this.config.sessionId,
@@ -1013,6 +1020,9 @@ export class SessionRuntime {
 			model: agentModel,
 			logger: this.logger,
 			telemetry: this.telemetry,
+			runEndTelemetryProperties: runHealth
+				? () => runHealth.endProperties()
+				: undefined,
 			tools,
 			toolContextMetadata: {
 				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
@@ -1037,6 +1047,7 @@ export class SessionRuntime {
 			if (event.type === "run-started" && this.abortRequested) {
 				runtime.abort(this.abortReason);
 			}
+			runHealth?.observe(event);
 			this.handleRuntimeEvent(event);
 		});
 		if (this.config.abortSignal) {
@@ -1067,6 +1078,7 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			runHealth?.dispose();
 			this.config.abortSignal?.removeEventListener(
 				"abort",
 				this.handleExternalAbort,

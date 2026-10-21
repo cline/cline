@@ -8,7 +8,6 @@ import {
 	type AgentResult,
 	type BasicLogger,
 	captureSdkError,
-	classifyBumpText,
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
@@ -53,6 +52,7 @@ import {
 	captureTaskCompleted,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
+import { classifyBumpText } from "../../services/telemetry/stall-signals";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,

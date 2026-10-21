@@ -547,12 +547,6 @@ export {
 	disableCurrentDirectoryExecutableSearch,
 	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,
 } from "./runtime/windows-exe-path";
-export {
-	classifyBumpText,
-	classifyFinalTurnText,
-	type StallBumpKind,
-	type StallTextSignature,
-} from "./services/stall-signals";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
@@ -588,8 +582,6 @@ export {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	TASK_RUN_HEALTH_EVENT,
-	TASK_RUN_IDLE_EVENT,
 } from "./services/telemetry";
 export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
 export {

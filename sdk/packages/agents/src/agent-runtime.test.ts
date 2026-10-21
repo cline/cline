@@ -18,8 +18,6 @@ import {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	TASK_RUN_HEALTH_EVENT,
-	TASK_RUN_IDLE_EVENT,
 	TOOL_REJECTION_SUFFIX,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -3323,49 +3321,46 @@ describe("AgentRuntime", () => {
 		}
 	});
 
-	it("reports a silent stream once while stuck and summarizes the run", async () => {
-		vi.useFakeTimers();
-		try {
-			const { capture, telemetry } = createTelemetryMock();
-			const model = new ScriptedModel([
-				async function* () {
-					yield { type: "text-delta", text: "Let me check the file:" };
-					await new Promise((resolve) => setTimeout(resolve, 150_000));
-					yield { type: "finish", reason: "stop" };
+	it("reports tool-argument streaming as progress and merges host run-end properties", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const tool = createEchoTool();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call-1",
+					toolName: "echo",
+					inputText: '{"text":',
 				},
-			]);
-			const runtime = new AgentRuntime({ model, telemetry });
-			const running = runtime.run("Hi");
-			await vi.advanceTimersByTimeAsync(150_000);
-			await running;
-			const events = (name: string) =>
-				capture.mock.calls
-					.map(([call]) => call)
-					.filter((call) => call.event === name);
-			expect(events(TASK_RUN_IDLE_EVENT)).toEqual([
-				expect.objectContaining({
-					properties: expect.objectContaining({
-						idleMs: 60_000,
-						lastEventType: "assistant-text-delta",
-					}),
-				}),
-			]);
-			expect(events(TASK_RUN_HEALTH_EVENT)).toEqual([
-				expect.objectContaining({
-					properties: expect.objectContaining({
-						status: "completed",
-						finishReason: "stop",
-						maxIdleMs: 150_000,
-						maxIdleAfter: "assistant-text-delta",
-						idleReported: true,
-						endedOn: "assistant_text",
-						textSignature: "intent_without_action",
-					}),
-				}),
-			]);
-		} finally {
-			vi.useRealTimers();
-		}
+				{ type: "tool-call-delta", toolCallId: "call-1", inputText: '"hi"}' },
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [tool],
+			telemetry,
+			runEndTelemetryProperties: () => ({ maxIdleMs: 42 }),
+		});
+		const eventTypes: string[] = [];
+		runtime.subscribe((event) => eventTypes.push(event.type));
+
+		await runtime.run("Hi");
+
+		expect(eventTypes.filter((type) => type === "tool-call-delta")).toHaveLength(
+			2,
+		);
+		const events = capture.mock.calls.map(([input]) => input);
+		expect(events.some((input) => input.event === "agent.tool-call-delta")).toBe(
+			false,
+		);
+		expect(
+			events.find((input) => input.event === "agent.run-finished")?.properties,
+		).toEqual(expect.objectContaining({ maxIdleMs: 42, status: "completed" }));
 	});
 
 	it("captures task lifecycle telemetry around a successful model stream", async () => {
@@ -3398,7 +3393,6 @@ describe("AgentRuntime", () => {
 			TASK_PROVIDER_REQUEST_STARTED_EVENT,
 			TASK_PROVIDER_STREAM_STARTED_EVENT,
 			TASK_FIRST_CHUNK_RECEIVED_EVENT,
-			TASK_RUN_HEALTH_EVENT,
 		]);
 		expect(taskEvents[0]).toEqual(
 			expect.objectContaining({
@@ -3448,7 +3442,6 @@ describe("AgentRuntime", () => {
 		expect(taskEvents.map((input) => input.event)).toEqual([
 			TASK_PROVIDER_REQUEST_STARTED_EVENT,
 			TASK_PROVIDER_STREAM_FAILED_EVENT,
-			TASK_RUN_HEALTH_EVENT,
 		]);
 		expect(taskEvents[1]?.properties).toEqual(
 			expect.objectContaining({
@@ -3503,7 +3496,6 @@ describe("AgentRuntime", () => {
 			TASK_PROVIDER_REQUEST_STARTED_EVENT,
 			TASK_PROVIDER_STREAM_STARTED_EVENT,
 			TASK_CANCELLED_EVENT,
-			TASK_RUN_HEALTH_EVENT,
 		]);
 		expect(taskEvents[2]?.properties).toEqual(
 			expect.objectContaining({
@@ -3553,7 +3545,6 @@ describe("AgentRuntime", () => {
 		expect(taskEvents.map((input) => input.event)).toEqual([
 			TASK_PROVIDER_REQUEST_STARTED_EVENT,
 			TASK_CANCELLED_EVENT,
-			TASK_RUN_HEALTH_EVENT,
 		]);
 	});
 
@@ -3598,7 +3589,6 @@ describe("AgentRuntime", () => {
 			.filter((input) => input.event.startsWith("task."));
 		expect(taskEvents.map((input) => input.event)).toEqual([
 			TASK_CANCELLED_EVENT,
-			TASK_RUN_HEALTH_EVENT,
 		]);
 	});
 
