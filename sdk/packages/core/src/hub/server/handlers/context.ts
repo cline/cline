@@ -62,12 +62,11 @@ export interface HubTransportContext {
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	/**
-	 * Per session and capability, every client that registered it, in order.
-	 * A running task keeps the callbacks it was built with; this lets a request
-	 * fall over to another connected client (one that joined the task) when the
-	 * original owner is gone.
+	 * Clients that explicitly detached from a session while staying connected.
+	 * Capability requests aimed at them fail fast instead of waiting; attaching
+	 * again clears the entry.
 	 */
-	readonly capabilityClientsBySession?: Map<string, Map<string, string[]>>;
+	readonly detachedClientsBySession?: Map<string, Set<string>>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
 	/**
 	 * Count of RPC-driven turns (`run.start` / session input commands)
@@ -226,6 +225,7 @@ export function ensureSessionState(
 	role: SessionParticipant["role"],
 	options: { interactive?: boolean } = {},
 ): HubSessionState {
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const existing = ctx.sessionState.get(sessionId);
 	if (existing) {
 		if (options.interactive !== undefined) {
@@ -268,6 +268,7 @@ export function ensureSessionParticipant(
 	role: SessionParticipant["role"],
 	options: { interactive?: boolean } = {},
 ): HubSessionState {
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const existing = ctx.sessionState.get(sessionId);
 	if (existing) {
 		if (options.interactive !== undefined) {

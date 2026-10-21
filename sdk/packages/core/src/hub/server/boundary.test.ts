@@ -16,10 +16,7 @@ import {
 	handleApprovalRespond,
 	requestToolApproval,
 } from "./handlers/approval-handlers";
-import {
-	recordCapabilityClients,
-	requestCapability,
-} from "./handlers/capability-handlers";
+import { requestCapability } from "./handlers/capability-handlers";
 import {
 	ensureSessionParticipant,
 	ensureSessionState,
@@ -1792,11 +1789,11 @@ describe("HubServerTransport boundaries", () => {
 		expect(ctx.pendingCapabilityRequests.size).toBe(1);
 	});
 
-	it("sends a capability request to a client that joined the task when the owner is gone", async () => {
-		const transport = createTransport();
+	it("fails capability requests to an owner that left the task but stays connected", async () => {
+		const capture = vi.fn();
+		const transport = createTransport({ telemetry: { capture } as never });
 		const ctx = getContext(transport);
-		// Registered in this order; "left-client" detaches from the task later.
-		for (const clientId of ["owner-client", "left-client", "joined-client"]) {
+		for (const clientId of ["owner-client", "joined-client"]) {
 			await transport.handleCommand({
 				version: "v1",
 				requestId: `req-register-${clientId}`,
@@ -1805,44 +1802,51 @@ describe("HubServerTransport boundaries", () => {
 				payload: { clientId, clientType: "desktop" },
 			});
 			ensureSessionParticipant(ctx, "session-1", clientId, "observer");
-			recordCapabilityClients(ctx, "session-1", clientId, [
-				{ capabilityName: "hook.beforeTool" },
-			]);
 		}
-		await transport.handleCommand({
-			version: "v1",
-			requestId: "req-detach",
-			command: "session.detach",
-			clientId: "left-client",
-			sessionId: "session-1",
-		});
-		const joinedEvents: HubEventEnvelope[] = [];
-		transport.subscribe("joined-client", (event) => joinedEvents.push(event));
+		const detach = () =>
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-detach",
+				command: "session.detach",
+				clientId: "owner-client",
+				sessionId: "session-1",
+			});
 
-		// While the owner is connected it keeps the request; unregistering
-		// cancels it.
-		const ownerRequest = requestCapability(
+		// A request already waiting is cancelled when the owner leaves.
+		const pending = requestCapability(
 			ctx,
 			"session-1",
 			"hook.beforeTool",
 			{},
 			"owner-client",
 		);
-		const ownerRequestCancelled = expect(ownerRequest).rejects.toThrow(
+		const cancelled = expect(pending).rejects.toThrow(
 			/disconnected before it could respond/,
 		);
-		expect([...ctx.pendingCapabilityRequests.values()][0]?.targetClientId).toBe(
-			"owner-client",
-		);
-		await transport.handleCommand({
-			version: "v1",
-			requestId: "req-unregister",
-			command: "client.unregister",
-			clientId: "owner-client",
-		});
-		await ownerRequestCancelled;
+		await detach();
+		await cancelled;
 
-		// The client that detached is skipped even though it is still connected.
+		// Later requests fail at once and are not handed to the client that
+		// joined: it may enforce a different hook under the same name.
+		await expect(
+			requestCapability(
+				ctx,
+				"session-1",
+				"hook.beforeTool",
+				{},
+				"owner-client",
+			),
+		).rejects.toThrow(/disconnected before it could respond/);
+		expect(ctx.pendingCapabilityRequests.size).toBe(0);
+		expect(
+			capture.mock.calls.map(([e]) => [e.event, e.properties.reason]),
+		).toEqual([
+			["task.capability_owner_gone", "cancelled_while_waiting"],
+			["task.capability_owner_gone", "detached"],
+		]);
+
+		// Attaching again makes it the owner again.
+		ensureSessionParticipant(ctx, "session-1", "owner-client", "observer");
 		void requestCapability(
 			ctx,
 			"session-1",
@@ -1852,15 +1856,7 @@ describe("HubServerTransport boundaries", () => {
 		);
 		expect(
 			[...ctx.pendingCapabilityRequests.values()].map((r) => r.targetClientId),
-		).toEqual(["joined-client"]);
-		expect(joinedEvents).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					event: "capability.requested",
-					payload: expect.objectContaining({ targetClientId: "joined-client" }),
-				}),
-			]),
-		);
+		).toEqual(["owner-client"]);
 	});
 
 	it("cancels pending capability requests when a run is aborted", async () => {

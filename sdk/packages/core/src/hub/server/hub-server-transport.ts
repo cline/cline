@@ -334,7 +334,7 @@ export class HubServerTransport implements NativeHubTransport {
 			sessionState: this.sessionState,
 			pendingApprovals: this.pendingApprovals,
 			pendingCapabilityRequests: this.pendingCapabilityRequests,
-			capabilityClientsBySession: new Map(),
+			detachedClientsBySession: new Map(),
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
 			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,

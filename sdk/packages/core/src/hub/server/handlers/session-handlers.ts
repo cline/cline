@@ -37,7 +37,6 @@ import { toHubSessionRecord } from "../hub-session-records";
 import {
 	CAPABILITY_OWNER_GONE_MESSAGE,
 	cancelPendingCapabilityRequests,
-	recordCapabilityClients,
 } from "./capability-handlers";
 import {
 	asPlainRecord,
@@ -372,7 +371,9 @@ export async function handleSessionCreate(
 		sessionId,
 		configExtensionCount: configExtensions?.length ?? 0,
 	});
-	recordCapabilityClients(ctx, sessionId, clientId, clientContributions);
+	// Re-creating after a detach makes this client the owner again, including
+	// for callbacks raised while the session starts.
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const clientContributionRuntime = createHubClientContributionRuntime({
 		sessionId,
 		targetClientId: clientId,
@@ -680,7 +681,7 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
-		recordCapabilityClients(ctx, sessionId, clientId, clientContributions);
+		ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 		const clientContributionRuntime = createHubClientContributionRuntime({
 			sessionId,
 			targetClientId: clientId,
@@ -948,6 +949,13 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
+	// ponytail: entries live as long as the hub process; prune on session delete if it grows.
+	let detached = ctx.detachedClientsBySession?.get(sessionId);
+	if (!detached && ctx.detachedClientsBySession) {
+		detached = new Set();
+		ctx.detachedClientsBySession.set(sessionId, detached);
+	}
+	detached?.add(clientId);
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);

@@ -1,5 +1,6 @@
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
+import { captureCapabilityOwnerGone } from "../../../services/telemetry/core-events";
 import { logHubMessage } from "../hub-server-logging";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
@@ -11,58 +12,14 @@ import { errorReply, type HubTransportContext, okReply } from "./context";
 export const CAPABILITY_OWNER_GONE_MESSAGE =
 	"The app running this task disconnected before it could respond. Send a message to continue.";
 
-export function recordCapabilityClients(
-	ctx: HubTransportContext,
-	sessionId: string,
-	clientId: string,
-	contributions: readonly { capabilityName: string }[],
-): void {
-	if (!ctx.capabilityClientsBySession || contributions.length === 0) return;
-	// ponytail: entries live as long as the hub process; prune on session delete if it grows.
-	let byCapability = ctx.capabilityClientsBySession.get(sessionId);
-	if (!byCapability) {
-		byCapability = new Map();
-		ctx.capabilityClientsBySession.set(sessionId, byCapability);
-	}
-	for (const { capabilityName } of contributions) {
-		const clients = byCapability.get(capabilityName) ?? [];
-		if (!clients.includes(clientId)) clients.push(clientId);
-		byCapability.set(capabilityName, clients);
-	}
-}
-
-/**
- * The requested owner if connected, else another client that registered the
- * capability and is still connected and attached to the session (a client
- * that detached no longer receives the session's requests).
- */
-function resolveCapabilityOwner(
-	ctx: HubTransportContext,
-	sessionId: string,
-	capabilityName: string,
-	targetClientId: string,
-): string | undefined {
-	if (ctx.clients.has(targetClientId)) return targetClientId;
-	const participants = ctx.sessionState.get(sessionId)?.participants;
-	return ctx.capabilityClientsBySession
-		?.get(sessionId)
-		?.get(capabilityName)
-		?.find(
-			(clientId) => ctx.clients.has(clientId) && participants?.has(clientId),
-		);
-}
-
 export async function requestCapability(
 	ctx: HubTransportContext,
 	sessionId: string,
 	capabilityName: string,
 	payload: Record<string, unknown>,
-	requestedClientId: string,
+	targetClientId: string,
 	onProgress?: (payload: Record<string, unknown>) => void,
 ): Promise<Record<string, unknown> | undefined> {
-	const targetClientId =
-		resolveCapabilityOwner(ctx, sessionId, capabilityName, requestedClientId) ??
-		requestedClientId;
 	const requestId = createSessionId("capreq_");
 	const startedAt = performance.now();
 	logHubMessage("info", "capability.request.start", {
@@ -71,18 +28,30 @@ export async function requestCapability(
 		capabilityName,
 		targetClientId,
 	});
-	// Unregistering cancels the owner's pending requests, but a request raised
-	// after that (a run still in flight when its client restarted) would wait
-	// forever: nobody can answer it and nothing times it out.
-	if (!ctx.clients.has(targetClientId)) {
+	// Unregistering or detaching cancels the owner's pending requests, but a
+	// request raised after that (a run still in flight when its client
+	// restarted) would wait forever: nobody answers it and nothing times it
+	// out. Requests are never handed to another client: a client that joined
+	// later may enforce different hooks or tools under the same name.
+	const goneReason = !ctx.clients.has(targetClientId)
+		? "disconnected"
+		: ctx.detachedClientsBySession?.get(sessionId)?.has(targetClientId)
+			? "detached"
+			: undefined;
+	if (goneReason) {
 		logHubMessage("warn", "capability.request.end", {
 			requestId,
 			sessionId,
 			capabilityName,
 			targetClientId,
 			ok: false,
-			error: "target_client_not_connected",
+			error: `target_client_${goneReason}`,
 			durationMs: 0,
+		});
+		captureCapabilityOwnerGone(ctx.telemetry, {
+			sessionId,
+			capabilityName,
+			reason: goneReason,
 		});
 		throw new Error(CAPABILITY_OWNER_GONE_MESSAGE);
 	}
@@ -103,6 +72,13 @@ export async function requestCapability(
 					durationMs: Math.round(performance.now() - startedAt),
 				});
 				if (!result.ok) {
+					if (result.error === CAPABILITY_OWNER_GONE_MESSAGE) {
+						captureCapabilityOwnerGone(ctx.telemetry, {
+							sessionId,
+							capabilityName,
+							reason: "cancelled_while_waiting",
+						});
+					}
 					reject(
 						new Error(
 							result.error ||

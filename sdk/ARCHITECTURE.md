@@ -213,14 +213,12 @@ Starting a session that already has a run in flight joins it rather than
 replacing it: `LocalRuntimeHost.startSession` returns the live session, and a
 start that also carries a prompt is rejected so the caller queues it instead.
 The running agent keeps the client-owned capabilities (hooks, tool executors,
-the mistake-limit prompt) it was built with, but the hub records every client
-that registers each capability for a session, joiners included, and
-`requestCapability` sends each request to the original owner while it is
-connected, otherwise to the first registered client that is still connected
-and attached to the session. A request with no such client fails immediately
-instead of waiting, so a run whose app has gone away ends with an error the
-user can continue from. Detaching or unregistering also cancels that client's
-pending requests.
+the mistake-limit prompt) it was built with and never hands them to a client
+that joined later, since a same-named hook or tool may follow different rules.
+If the owning client unregisters or detaches, its pending requests are
+cancelled and later requests fail immediately instead of waiting, so the run
+ends with an error the user can continue from
+(`task.capability_owner_gone` records each case).
 
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through
