@@ -174,6 +174,35 @@ teardown branch a stop routes through. Each session emits at most one
 `task.completed`. See `DOC.md` for the event payload and `source`
 field.
 
+Two kinds of stop reach the local runtime. `abort()` is the Stop/Cancel
+button: the session stays alive and goes `idle`, prompts queued behind
+the aborted turn are kept and drained once the abort settles, and a
+steer delivered to the idle session starts a turn. `stopSession()`,
+`deleteSession()` and `dispose()` are session teardown: the session is
+removed from the host and nothing can reach it afterwards. Teardown
+runs in this order: the session is flagged as shutting down and its
+queue is discarded before the first `await`, so the drain that the
+aborted turn schedules finds nothing to run and `runTurn` rejects new
+prompts for the session; the in-flight turn is aborted, where a turn
+that is still preparing (before `executeAgentTurn` hands the agent a
+run) counts as active and stops itself before reaching the agent; the
+terminal status is written after any status write already in flight,
+and if the first turn is still creating the session row, after that
+row exists; then the agent and runtime shut down and `ended` is
+emitted once. A one-shot session stopped mid-run does not run the
+single-run teardown a second time, and a turn that fails on its own
+during teardown still rejects to its caller without recording
+`failed` over the stop's `cancelled`.
+
+The discard contract: whenever queued prompts leave the queue without
+being sent, on teardown, when the user aborts a queue-initiated turn,
+or when a dequeued prompt is stopped before the agent accepts it, the
+`pending_prompts` event that empties the queue carries them in
+`discarded`, and `session.pending_prompts_discarded` telemetry counts
+them with the reason. The hub projector and `HubRuntimeHost` forward
+the field unchanged, so hub clients can offer the text back. The queue
+is not persisted across teardown; restoring it is a host concern.
+
 ### Hub-Backed Runtime
 
 The hub health endpoint includes its `hubId`. Restart callers compare this instance identity while waiting for shutdown, so a replacement started by reconnecting clients at the same address counts as retirement of the original hub. Desktop local activity is recorded only at its local hub observer subscription; cloud session projection does not write to that activity list.
