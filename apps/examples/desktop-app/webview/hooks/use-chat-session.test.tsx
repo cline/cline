@@ -433,6 +433,54 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it.each([
+		false,
+		true,
+	])("keeps manual compaction stoppable and settles its command reply (cancel=%s)", async (cancel) => {
+		const reply = deferred<{ ok: boolean; commandHandled: boolean }>();
+		const requested = deferred<void>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start") return { sessionId: "compact-ui" };
+					if (request.action === "send") {
+						requested.resolve();
+						return reply.promise;
+					}
+					if (request.action === "abort") return { ok: true };
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const previousStatus = current.status;
+		let pending!: Promise<boolean>;
+		await act(async () => {
+			pending = current.sendPrompt("/compact");
+			await requested.promise;
+		});
+		expect(current.status).toBe("running");
+		await act(async () => {
+			expect(await current.sendPrompt("follow-up while compacting")).toBe(
+				false,
+			);
+		});
+		expect(current.status).toBe("running");
+		if (cancel) await act(async () => current.abort());
+		await act(async () => {
+			reply.resolve({ ok: true, commandHandled: true });
+			await pending;
+		});
+		expect(current.status).toBe(cancel ? "cancelled" : previousStatus);
+		expect(
+			current.messages.some((message) => message.content === "/compact"),
+		).toBe(false);
+		await act(async () => {
+			expect(await current.sendPrompt("/compact")).toBe(true);
+		});
+	});
+
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
 		const drafts = new Map<string, string>();
 		let draft!: ReturnType<typeof usePromptDraft>;
