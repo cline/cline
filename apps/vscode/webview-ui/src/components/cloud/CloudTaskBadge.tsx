@@ -20,7 +20,7 @@ export function CloudTaskBadge({ cloudTask }: { cloudTask: CurrentCloudTaskInfo 
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<button
-					className="mx-1 inline-flex max-w-40 shrink-0 items-center gap-1 rounded-full border-0 bg-badge-background px-1.5 py-0.5 text-xs text-badge-foreground enabled:cursor-pointer enabled:hover:opacity-90"
+					className="mx-1 inline-flex max-w-40 min-w-0 items-center gap-1 rounded-full border-0 bg-badge-background px-1.5 py-0.5 text-xs text-badge-foreground enabled:cursor-pointer enabled:hover:opacity-90"
 					disabled={!canOpenDashboard}
 					onClick={(event) => {
 						event.stopPropagation()
