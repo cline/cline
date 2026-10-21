@@ -303,7 +303,21 @@ export type AgentModelFinishReason =
  */
 export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
 
+/** Passive provider-reported quota values; timestamps are Unix epoch milliseconds. */
+export interface SubscriptionUsageSnapshot {
+	providerId: string;
+	source: "codex-response-headers";
+	capturedAt: number;
+	windows: {
+		id: "primary" | "secondary";
+		usedPercent: number;
+		windowMinutes?: number;
+		resetsAt?: number;
+	}[];
+}
+
 export type AgentModelEvent =
+	| { type: "subscription-usage"; usage: SubscriptionUsageSnapshot }
 	| { type: "text-delta"; text: string }
 	| { type: "media"; media: GeneratedMedia }
 	| {
@@ -618,6 +632,12 @@ export interface AgentRuntimeConfig {
 // =============================================================================
 
 export type AgentRuntimeEvent =
+	| {
+			type: "subscription-usage";
+			snapshot: AgentRuntimeStateSnapshot;
+			usage: SubscriptionUsageSnapshot;
+			runStartedAt: number;
+	  }
 	| {
 			type: "run-started";
 			snapshot: AgentRuntimeStateSnapshot;

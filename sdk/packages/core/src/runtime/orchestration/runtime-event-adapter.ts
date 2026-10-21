@@ -1,7 +1,7 @@
 /**
  * Adapter from the new `AgentRuntimeEvent` union (defined
  * in `@cline/shared/src/agent.ts`) to the legacy `AgentEvent` union
- * (9 top-level types, defined in
+ * (10 top-level types, defined in
  * `@cline/shared/src/agents/types.ts`) consumed by today's
  * `Agent.subscribeEvents` callback.
  *
@@ -242,6 +242,17 @@ export class RuntimeEventAdapter {
 				];
 			case "tool-finished":
 				return this.translateToolFinished(event);
+			case "subscription-usage":
+				return [
+					{
+						type: "subscription_usage",
+						agentId: event.snapshot.agentId,
+						conversationId: event.snapshot.conversationId,
+						parentAgentId: event.snapshot.parentAgentId,
+						usage: event.usage,
+						runStartedAt: event.runStartedAt,
+					},
+				];
 			case "usage-updated":
 				return this.translateUsage(event.usage);
 			case "status-notice":
