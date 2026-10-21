@@ -1,12 +1,13 @@
 "use client";
 
+import {
+	type AgentTeamLiveActivity,
+	agentTeamLiveActivityFromLifecycle,
+	changesAgentTeamRoster,
+	shouldReplaceAgentTeamLiveActivity,
+} from "@cline/ui";
 import { useEffect, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
-import {
-	changesTeamRoster,
-	shouldReplaceLiveActivity,
-	type TeamLiveActivity,
-} from "@/lib/team-activity";
 
 type TeamProgressPayload = {
 	sessionId?: unknown;
@@ -19,11 +20,11 @@ type TeamProgressPayload = {
 
 type LiveState = {
 	rootSessionId: string | null;
-	byAgent: ReadonlyMap<string, TeamLiveActivity>;
+	byAgent: ReadonlyMap<string, AgentTeamLiveActivity>;
 	rosterRevision: number;
 };
 
-const EMPTY: ReadonlyMap<string, TeamLiveActivity> = new Map();
+const EMPTY: ReadonlyMap<string, AgentTeamLiveActivity> = new Map();
 
 /**
  * Live view of the team rooted at `rootSessionId`, from the `team_progress`
@@ -34,7 +35,7 @@ const EMPTY: ReadonlyMap<string, TeamLiveActivity> = new Map();
  * root session so another team's activity can never surface under this one.
  */
 export function useTeamProgress(rootSessionId: string | null): {
-	activity: ReadonlyMap<string, TeamLiveActivity>;
+	activity: ReadonlyMap<string, AgentTeamLiveActivity>;
 	rosterRevision: number;
 } {
 	const [state, setState] = useState<LiveState>({
@@ -48,20 +49,31 @@ export function useTeamProgress(rootSessionId: string | null): {
 		return desktopClient.subscribe("team_progress", (raw) => {
 			const payload = raw as TeamProgressPayload | null;
 			if (!payload || payload.sessionId !== rootSessionId) return;
-			const agentId = payload.lifecycle?.agentId;
-			const eventType = payload.lifecycle?.eventType;
-			if (typeof agentId !== "string" || typeof eventType !== "string") return;
-			const message =
-				typeof payload.lifecycle?.message === "string"
-					? payload.lifecycle.message
-					: undefined;
-			const next = { eventType, message, at: Date.now() };
+			const lifecycle = payload.lifecycle;
+			const activity = agentTeamLiveActivityFromLifecycle({
+				agentId:
+					typeof lifecycle?.agentId === "string"
+						? lifecycle.agentId
+						: undefined,
+				eventType:
+					typeof lifecycle?.eventType === "string" ? lifecycle.eventType : "",
+				message:
+					typeof lifecycle?.message === "string"
+						? lifecycle.message
+						: undefined,
+			});
+			if (!activity) return;
+			const { agentId, ...next } = activity;
+			const eventType = next.eventType;
 			setState((current) => {
 				const sameTeam = current.rootSessionId === rootSessionId;
 				const previous = sameTeam ? current.byAgent : EMPTY;
 				const revision = sameTeam ? current.rosterRevision : 0;
-				const replace = shouldReplaceLiveActivity(previous.get(agentId), next);
-				const rosterChanged = changesTeamRoster(eventType);
+				const replace = shouldReplaceAgentTeamLiveActivity(
+					previous.get(agentId),
+					next,
+				);
+				const rosterChanged = changesAgentTeamRoster(eventType);
 				if (!replace && !rosterChanged && sameTeam) {
 					return current;
 				}

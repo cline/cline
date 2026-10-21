@@ -4,7 +4,11 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	type ProviderAuthInfo,
 } from "@cline/shared/browser";
-import { AttachmentDropZone } from "@cline/ui";
+import {
+	AgentTeamPanel,
+	AttachmentDropZone,
+	buildAgentTeamMembers,
+} from "@cline/ui";
 import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
@@ -40,7 +44,6 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
-import { TeamPanel } from "@/components/views/chat/team-panel";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
@@ -129,7 +132,6 @@ import {
 import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
-import { buildTeamMembers } from "@/lib/team-activity";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	markCurrentWhatsNewSeen,
@@ -2436,7 +2438,7 @@ function ChatThreadPane({
 		teamRootSessionId,
 	]);
 	const teamMembers = useMemo(
-		() => buildTeamMembers(teamAgents, teamProgress),
+		() => buildAgentTeamMembers(teamAgents, teamProgress),
 		[teamAgents, teamProgress],
 	);
 	const teamName = useMemo(
@@ -2456,7 +2458,7 @@ function ChatThreadPane({
 	const teamPanel = useMemo(
 		() =>
 			teamMembers.length > 0 ? (
-				<TeamPanel
+				<AgentTeamPanel
 					activeSessionId={parentSession ? displayedSessionId : null}
 					members={teamMembers}
 					onOpenSession={openTeammateSession}
