@@ -1,3 +1,4 @@
+import { isProseResponse, responseCompletion } from "@/shared/response-timing";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import {
 	type ApiHandler,
@@ -874,6 +875,7 @@ export class Task {
 				await this.messageStateHandler.updateClineMessage(lastMessageIndex, {
 					text,
 					partial: false,
+					...responseCompletion(lastMessage),
 				});
 				// await this.postStateToWebview()
 				const protoMessage = convertClineMessageToProto(lastMessage);
@@ -1048,6 +1050,7 @@ export class Task {
 					images,
 					files,
 					partial: false,
+					...responseCompletion(lastMessage),
 				});
 
 				// await this.postStateToWebview()
@@ -1863,6 +1866,14 @@ export class Task {
 			// This must happen before canceling hooks so that hook catch blocks
 			// can properly detect the abort state
 			this.taskState.abort = true;
+			// Capture the active card before cancellation hooks append activity.
+			const messages = this.messageStateHandler.getClineMessages();
+			const pendingResponse = messages.at(-1);
+			if (pendingResponse?.partial && isProseResponse(pendingResponse) && pendingResponse.completedAt === undefined) {
+				await this.messageStateHandler.updateClineMessage(messages.length - 1, {
+					interruptedAt: pendingResponse.interruptedAt ?? Date.now(),
+				});
+			}
 
 			// PHASE 3: Cancel any running hook execution
 			const activeHook = await this.getActiveHookExecution();
@@ -3327,6 +3338,7 @@ export class Task {
 				if (lastMessage?.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false;
+					lastMessage.interruptedAt ??= Date.now();
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					Logger.log("updating partial message", lastMessage);
 					// await this.saveClineMessagesAndUpdateHistory()
@@ -4215,9 +4227,11 @@ export class Task {
 			lastMessage.type === "say" &&
 			lastMessage.say === "text"
 		) {
-			lastMessage.text = textContent;
-			lastMessage.partial = false;
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory();
+			await this.messageStateHandler.updateClineMessage(clineMessages.length - 1, {
+				text: textContent,
+				partial: false,
+				...responseCompletion(lastMessage),
+			});
 			const protoMessage = convertClineMessageToProto(lastMessage);
 			await sendPartialMessageEvent(protoMessage);
 		}

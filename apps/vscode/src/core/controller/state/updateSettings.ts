@@ -376,6 +376,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("showFeatureTips", request.showFeatureTips)
 		}
 
+		if (request.showUserMessageTimestamps !== undefined) {
+			controller.stateManager.setGlobalState("showUserMessageTimestamps", request.showUserMessageTimestamps)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

@@ -12,12 +12,12 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toHaveValue("Hello, Cline!")
 	await sidebar.getByTestId("send-button").click()
 	await expect(inputbox).toHaveValue("")
-	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
+	await expect(sidebar.getByText("Hello, Cline!", { exact: true }).last()).toBeVisible()
 
 	// Starting a new task should clear the current chat view and show the recent tasks
 	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
 	await expect(sidebar.getByText("Recent")).toBeVisible({ timeout: 20_000 })
-	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
+	await expect(sidebar.getByText("Hello, Cline!", { exact: true }).last()).toBeVisible()
 
 	// Makes sure the act and plan switches are working correctly
 	// Aria-checked state should be true for Act and false for Plan

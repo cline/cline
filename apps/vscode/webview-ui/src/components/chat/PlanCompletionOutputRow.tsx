@@ -18,12 +18,12 @@ const PlanCompletionOutputRow = memo(({ text, headClassNames }: PlanCompletionOu
 	return (
 		<div className="rounded-sm border border-description/50 overflow-visible bg-code p-2 pt-3">
 			{/* Header */}
-			<div className={cn(headClassNames, "justify-between px-1")}>
+			<div className={cn(headClassNames, "justify-between px-1 sticky top-0 z-[3] bg-code rounded-sm")}>
 				<div className="flex gap-2 items-center">
 					<NotepadTextIcon className="size-2" />
 					<span className="text-foreground font-bold">Plan Created</span>
 				</div>
-				<CopyButton textToCopy={text || ""} />
+				<CopyButton ariaLabel="Copy response" textToCopy={text || ""} />
 			</div>
 
 			{/* Content */}

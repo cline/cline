@@ -14,6 +14,8 @@ interface WithCopyButtonProps {
 	children: React.ReactNode
 	textToCopy?: string
 	onCopy?: () => string | undefined | null
+	sticky?: boolean
+	stickyTop?: number
 	position?: "top-right" | "bottom-right"
 	style?: React.CSSProperties
 	className?: string
@@ -72,6 +74,8 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 			textToCopy,
 			onCopy,
 			position = "top-right",
+			sticky = false,
+			stickyTop = 4,
 			style,
 			className,
 			copyButtonClassname,
@@ -84,18 +88,32 @@ export const WithCopyButton = forwardRef<HTMLDivElement, WithCopyButtonProps>(
 		const hasCopyFunctionality = !!(textToCopy || onCopy)
 
 		return (
-			<div className={cn("group relative w-full", className)} onMouseUp={onMouseUp} ref={ref} style={style} {...props}>
+			<div
+				className={cn("group relative w-full", sticky && "grid", className)}
+				onMouseUp={onMouseUp}
+				ref={ref}
+				style={style}
+				{...props}>
 				{hasCopyFunctionality && (
 					<div
 						className={cn(
-							"absolute opacity-0 group-hover:opacity-100 transition-opacity",
-							POSITION_CLASSES[position],
+							sticky
+								? "sticky z-[2] self-start justify-self-end bg-code rounded-sm"
+								: "absolute opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity",
+							!sticky && POSITION_CLASSES[position],
 							copyButtonClassname,
-						)}>
+						)}
+						style={sticky ? { gridArea: "1 / 1", top: stickyTop } : undefined}>
 						<CopyButton ariaLabel={ariaLabel} onCopy={onCopy} textToCopy={textToCopy} />
 					</div>
 				)}
-				{children}
+				{sticky ? (
+					<div className="min-w-0" style={{ gridArea: "1 / 1" }}>
+						{children}
+					</div>
+				) : (
+					children
+				)}
 			</div>
 		)
 	},

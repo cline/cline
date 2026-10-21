@@ -1,3 +1,4 @@
+import { isProseResponse } from "@shared/response-timing"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
@@ -64,6 +65,7 @@ import { RequestStartRow } from "./RequestStartRow"
 import SearchResultsDisplay from "./SearchResultsDisplay"
 import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
+import { MessageTimestamp, ResponseFinish } from "./MessageTimestamp"
 import UserMessage from "./UserMessage"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
@@ -106,7 +108,9 @@ const ChatRow = memo(
 
 		const [chatrow, { height }] = useSize(
 			<div className="relative pt-2.5 px-4">
+				{isProseResponse(message) && <MessageTimestamp label="Started" timestamp={message.ts} />}
 				<ChatRowContent {...props} />
+				{isProseResponse(message) && <ResponseFinish message={message} />}
 			</div>,
 		)
 
@@ -874,6 +878,8 @@ export const ChatRowContent = memo(
 					case "text": {
 						return (
 							<WithCopyButton
+								sticky
+								ariaLabel="Copy response"
 								onMouseUp={handleMouseUp}
 								position="bottom-right"
 								ref={contentRef}
@@ -1210,6 +1216,8 @@ export const ChatRowContent = memo(
 									</div>
 								)}
 								<WithCopyButton
+									sticky
+									ariaLabel="Copy response"
 									className="pt-1"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
