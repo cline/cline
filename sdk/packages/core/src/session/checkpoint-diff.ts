@@ -50,24 +50,61 @@ function resolveGitPath(cwd: string, relativePath: string): string {
 	return absolutePath;
 }
 
-async function readCheckpointFile(
+interface TreeBlob {
+	oid: string;
+	size: number;
+}
+
+async function listTreeBlobs(
 	cwd: string,
-	ref: string,
-	relativePath: string,
-): Promise<string> {
-	try {
-		return await runGit(cwd, ["show", `${ref}:${relativePath}`]);
-	} catch {
-		// Stash-shaped checkpoints keep files that were untracked at snapshot
-		// time in a third-parent commit (see createWorktreeStashCommit), not in
-		// the stash commit's own tree. Fall back to it so pre-existing
-		// untracked files don't falsely appear as newly added.
-		try {
-			return await runGit(cwd, ["show", `${ref}^3:${relativePath}`]);
-		} catch {
-			return "";
+	treeish: string,
+): Promise<Map<string, TreeBlob>> {
+	const blobs = new Map<string, TreeBlob>();
+	const output = await runGit(cwd, ["ls-tree", "-r", "-l", "-z", treeish]);
+	for (const entry of parseNulList(output)) {
+		const tab = entry.indexOf("\t");
+		const [, type, oid, size] = entry.slice(0, tab).split(/\s+/);
+		if (type === "blob") {
+			blobs.set(entry.slice(tab + 1), { oid, size: Number(size) });
 		}
 	}
+	return blobs;
+}
+
+// Reads all blobs through one `git cat-file --batch` process; spawning a git
+// process per file floods the host with processes in workspaces with many
+// untracked files (e.g. build output that is not gitignored).
+async function readBlobs(
+	cwd: string,
+	oids: Iterable<string>,
+): Promise<Map<string, string>> {
+	const contents = new Map<string, string>();
+	const input = [...new Set(oids)].join("\n");
+	if (!input) {
+		return contents;
+	}
+	const pending = execFile("git", ["-C", cwd, "cat-file", "--batch"], {
+		windowsHide: true,
+		maxBuffer: Number.POSITIVE_INFINITY,
+		encoding: "buffer",
+	});
+	pending.child.stdin?.end(`${input}\n`);
+	const { stdout } = await pending;
+	let offset = 0;
+	while (offset < stdout.length) {
+		const headerEnd = stdout.indexOf(0x0a, offset);
+		const [oid, type, size] = stdout
+			.toString("utf8", offset, headerEnd)
+			.split(" ");
+		offset = headerEnd + 1;
+		if (type === "missing") {
+			continue;
+		}
+		const end = offset + Number(size);
+		contents.set(oid, stdout.toString("utf8", offset, end));
+		offset = end + 1;
+	}
+	return contents;
 }
 
 async function readWorktreeFile(
@@ -81,39 +118,35 @@ async function readWorktreeFile(
 	}
 }
 
-async function listCheckpointUntrackedPaths(
+async function listCheckpointUntrackedBlobs(
 	cwd: string,
 	ref: string,
-): Promise<string[]> {
+): Promise<Map<string, TreeBlob>> {
 	// Untracked-at-snapshot files live in the stash commit's third parent.
 	// Plain commit checkpoints (and stashes without untracked files) have no
 	// third parent, so treat failure as "none".
 	try {
-		return parseNulList(
-			await runGit(cwd, ["ls-tree", "-r", "-z", "--name-only", `${ref}^3`]),
-		);
+		return await listTreeBlobs(cwd, `${ref}^3`);
 	} catch {
-		return [];
+		return new Map();
 	}
 }
 
 async function listChangedPaths(
 	cwd: string,
-	checkpoint: CheckpointEntry,
+	ref: string,
+	checkpointUntracked: Map<string, TreeBlob>,
 ): Promise<string[]> {
-	await runGit(cwd, ["cat-file", "-e", `${checkpoint.ref}^{tree}`]);
-	const [trackedOutput, untrackedOutput, checkpointUntracked] =
-		await Promise.all([
-			runGit(cwd, ["diff", "--name-only", "-z", checkpoint.ref, "--"]),
-			runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
-			listCheckpointUntrackedPaths(cwd, checkpoint.ref),
-		]);
+	const [trackedOutput, untrackedOutput] = await Promise.all([
+		runGit(cwd, ["diff", "--name-only", "-z", ref, "--"]),
+		runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
+	]);
 	const paths = new Set([
 		...parseNulList(trackedOutput),
 		...parseNulList(untrackedOutput),
 		// Include files untracked at snapshot time so ones deleted since then
 		// still show up; unchanged ones are filtered out by content equality.
-		...checkpointUntracked,
+		...checkpointUntracked.keys(),
 	]);
 	return [...paths].sort((a, b) => a.localeCompare(b));
 }
@@ -151,17 +184,34 @@ export async function buildCheckpointWorkspaceDiff(
 	cwd: string,
 	checkpoint: CheckpointEntry,
 ): Promise<CheckpointContentDiff[]> {
-	const changedPaths = await listChangedPaths(cwd, checkpoint);
+	const { ref } = checkpoint;
+	await runGit(cwd, ["cat-file", "-e", `${ref}^{tree}`]);
+	const [checkpointTracked, checkpointUntracked] = await Promise.all([
+		listTreeBlobs(cwd, ref),
+		listCheckpointUntrackedBlobs(cwd, ref),
+	]);
+	const changedPaths = await listChangedPaths(cwd, ref, checkpointUntracked);
+	const checkpointOids = new Map<string, string>();
+	for (const relativePath of changedPaths) {
+		// Stash-shaped checkpoints keep files that were untracked at snapshot
+		// time in a third-parent commit (see createWorktreeStashCommit), not in
+		// the stash commit's own tree. Fall back to it so pre-existing
+		// untracked files don't falsely appear as newly added.
+		const blob =
+			checkpointTracked.get(relativePath) ??
+			checkpointUntracked.get(relativePath);
+		if (blob && blob.size <= MAX_GIT_OUTPUT) {
+			checkpointOids.set(relativePath, blob.oid);
+		}
+	}
+	const checkpointContents = await readBlobs(cwd, checkpointOids.values());
 	const diffs = await Promise.all(
 		changedPaths.map(async (relativePath) => {
-			const [leftContent, rightContent] = await Promise.all([
-				readCheckpointFile(cwd, checkpoint.ref, relativePath),
-				readWorktreeFile(cwd, relativePath),
-			]);
+			const oid = checkpointOids.get(relativePath);
 			return {
 				filePath: resolveGitPath(cwd, relativePath),
-				leftContent,
-				rightContent,
+				leftContent: (oid && checkpointContents.get(oid)) ?? "",
+				rightContent: await readWorktreeFile(cwd, relativePath),
 			};
 		}),
 	);
