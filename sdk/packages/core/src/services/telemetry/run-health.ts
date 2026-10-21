@@ -51,7 +51,12 @@ export class RunHealthObserver {
 
 	constructor(
 		private readonly telemetry: ITelemetryService,
-		private readonly context: { sessionId?: string; isSubagent: boolean },
+		private readonly context: {
+			sessionId?: string;
+			isSubagent: boolean;
+			providerId?: string;
+			modelId?: string;
+		},
 	) {
 		this.scheduleIdleCheck();
 	}
@@ -95,7 +100,14 @@ export class RunHealthObserver {
 				: this.turnHadOutput
 					? "unfinished"
 					: "empty";
+		// agent.* events carry no session or model of their own; these let a
+		// run be grouped by model and paired with the user's next message.
+		const { sessionId, isSubagent, providerId, modelId } = this.context;
 		return {
+			...(sessionId ? { sessionId } : {}),
+			isSubagent,
+			...(providerId ? { providerId } : {}),
+			...(modelId ? { modelId } : {}),
 			maxIdleMs: this.maxIdleMs,
 			maxIdleAfter: this.maxIdleAfter,
 			idleReported: this.idleReported,

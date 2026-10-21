@@ -28,6 +28,8 @@ describe("RunHealthObserver", () => {
 		observer = new RunHealthObserver({ capture } as never, {
 			sessionId: "sess-1",
 			isSubagent: false,
+			providerId: "cline",
+			modelId: "deepseek-v4-flash",
 		});
 		observer.observe(event("run-started"));
 		observer.observe(event("turn-started"));
@@ -64,6 +66,10 @@ describe("RunHealthObserver", () => {
 			],
 		]);
 		expect(observer.endProperties()).toMatchObject({
+			sessionId: "sess-1",
+			isSubagent: false,
+			providerId: "cline",
+			modelId: "deepseek-v4-flash",
 			maxIdleMs: 150_000,
 			maxIdleAfter: "assistant-text-delta",
 			idleReported: true,

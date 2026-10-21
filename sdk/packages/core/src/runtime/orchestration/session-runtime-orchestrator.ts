@@ -62,6 +62,7 @@ import {
 	captureMistakeLimitReached,
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
+import { RunHealthObserver } from "../../services/telemetry/run-health";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -86,7 +87,6 @@ import {
 } from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
-import { RunHealthObserver } from "../../services/telemetry/run-health";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
 
 export const SESSION_RUN_IN_PROGRESS_ERROR_CODE = "session_run_in_progress";
@@ -1010,6 +1010,8 @@ export class SessionRuntime {
 			new RunHealthObserver(this.telemetry, {
 				sessionId: this.config.sessionId,
 				isSubagent: Boolean(this.parentAgentId),
+				providerId: this.config.providerId,
+				modelId: this.config.modelId,
 			});
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
