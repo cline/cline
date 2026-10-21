@@ -4335,6 +4335,205 @@ describe("LocalRuntimeHost", () => {
 		expect(agent.shutdown).toHaveBeenCalledTimes(1);
 	});
 
+	function createPreparingTurnFixture(
+		sessionId: string,
+		options: {
+			holdRowCreation?: boolean;
+			holdSecondRunningWrite?: boolean;
+		} = {},
+	) {
+		const manifest = createManifest(sessionId);
+		let releaseHold: (() => void) | undefined;
+		let markHeld: (() => void) | undefined;
+		const held = new Promise<void>((resolve) => {
+			markHeld = resolve;
+		});
+		const hold = () =>
+			new Promise<void>((resolve) => {
+				releaseHold = resolve;
+				markHeld?.();
+			});
+		let runningWrites = 0;
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn(async () => {
+				if (options.holdRowCreation) await hold();
+				return {
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				};
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn(async (_sessionId: string, status: string) => {
+				if (status === "running") {
+					runningWrites += 1;
+					if (options.holdSecondRunningWrite && runningWrites === 2) {
+						await hold();
+					}
+				}
+				return { updated: true, endedAt: "2026-01-01T00:00:05.000Z" };
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult({ text: "first reply" })),
+			continue: vi.fn().mockResolvedValue(createResult({ text: "reply" })),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => true),
+		};
+		const capture = vi.fn();
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+		const endReasons: string[] = [];
+		manager.subscribe((event) => {
+			if (event.type === "ended") endReasons.push(event.payload.reason);
+		});
+		const statuses = () =>
+			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
+		const telemetryEvents = () =>
+			capture.mock.calls.map((call) => (call[0] as { event: string }).event);
+		return {
+			manager,
+			agent,
+			sessionService,
+			capture,
+			held,
+			release: () => releaseHold?.(),
+			endReasons,
+			statuses,
+			telemetryEvents,
+		};
+	}
+
+	it("records cancelled when a session is stopped while its next turn is still preparing after a completed turn", async () => {
+		const sessionId = "sess-stop-while-next-turn-prepares";
+		const f = createPreparingTurnFixture(sessionId, {
+			holdSecondRunningWrite: true,
+		});
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					telemetry: { capture: f.capture } as never,
+				}),
+				interactive: true,
+			}),
+		);
+		await expect(
+			f.manager.runTurn({ sessionId, prompt: "first" }),
+		).resolves.toMatchObject({ finishReason: "completed" });
+
+		// The second turn is parked in its pre-run status write: the agent has
+		// no run yet, so canStartRun() is still true.
+		const second = f.manager.runTurn({ sessionId, prompt: "second" });
+		await f.held;
+		const stopping = f.manager.stopSession(sessionId);
+		f.release();
+		await stopping;
+		await expect(second).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(f.statuses()).toEqual(["running", "idle", "running", "cancelled"]);
+		expect(f.endReasons).toEqual(["stopped"]);
+		expect(f.telemetryEvents()).not.toContain("task.completed");
+		expect(f.agent.continue).not.toHaveBeenCalled();
+	});
+
+	it("records cancelled when the host is disposed while a session's next turn is still preparing", async () => {
+		const sessionId = "sess-dispose-while-next-turn-prepares";
+		const f = createPreparingTurnFixture(sessionId, {
+			holdSecondRunningWrite: true,
+		});
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					telemetry: { capture: f.capture } as never,
+				}),
+				interactive: true,
+			}),
+		);
+		await expect(
+			f.manager.runTurn({ sessionId, prompt: "first" }),
+		).resolves.toMatchObject({ finishReason: "completed" });
+
+		const second = f.manager.runTurn({ sessionId, prompt: "second" });
+		await f.held;
+		const disposing = f.manager.dispose();
+		f.release();
+		await disposing;
+		await expect(second).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(f.statuses()).toEqual(["running", "idle", "running", "cancelled"]);
+		expect(f.endReasons).toEqual(["disposed"]);
+		expect(f.telemetryEvents()).not.toContain("task.completed");
+		expect(f.agent.continue).not.toHaveBeenCalled();
+	});
+
+	it("does not materialize a session that was stopped before its first turn persisted", async () => {
+		const sessionId = "sess-stop-before-first-persist";
+		const f = createPreparingTurnFixture(sessionId);
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		expect(
+			f.sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+
+		// The turn has yielded inside prompt preparation when the stop lands.
+		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
+		await f.manager.stopSession(sessionId);
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(
+			f.sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(f.statuses()).toEqual([]);
+		expect(f.endReasons).toEqual(["stopped"]);
+		expect(f.agent.run).not.toHaveBeenCalled();
+	});
+
+	it("lands the stop status on a session row that was still being created", async () => {
+		const sessionId = "sess-stop-during-first-persist";
+		const f = createPreparingTurnFixture(sessionId, { holdRowCreation: true });
+		await f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const turn = f.manager.runTurn({ sessionId, prompt: "first" });
+		await f.held;
+		const stopping = f.manager.stopSession(sessionId);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		// Teardown must wait for the row rather than skip the status write.
+		expect(f.statuses()).toEqual([]);
+		f.release();
+		await stopping;
+		await expect(turn).resolves.toMatchObject({ finishReason: "aborted" });
+
+		expect(f.statuses()).toEqual(["cancelled"]);
+		expect(f.endReasons).toEqual(["stopped"]);
+		expect(f.agent.run).not.toHaveBeenCalled();
+	});
+
 	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
 		const sessionId = "sess-second-abort-clears-queue";
 		const manifest = createManifest(sessionId);

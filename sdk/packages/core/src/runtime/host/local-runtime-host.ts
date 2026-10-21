@@ -1092,6 +1092,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				(startsWithoutTurn ? "idle" : "running"),
 			aborting: false,
 			shuttingDown: false,
+			turnInFlight: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
 			compactionState: initialCompactionState,
@@ -1484,7 +1485,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await this.releaseSessionRuntime(session, "session_stop");
 			return;
 		}
-		if (session.interactive && session.agent.canStartRun()) {
+		if (session.interactive && !this.hasActiveTurn(session)) {
 			await this.shutdownSession(session, {
 				status: this.resolveInteractiveStopStatus(session),
 				exitCode: this.resolveInteractiveStopExitCode(session),
@@ -1512,7 +1513,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessions.map((session) =>
 				session.interactive && !isNonTerminalSessionStatus(session.status)
 					? this.releaseSessionRuntime(session, reason)
-					: session.interactive && session.agent.canStartRun()
+					: session.interactive && !this.hasActiveTurn(session)
 						? this.shutdownSession(session, {
 								status: this.resolveInteractiveStopStatus(session),
 								exitCode: this.resolveInteractiveStopExitCode(session),
@@ -2021,6 +2022,31 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<AgentResult> {
+		// The agent only knows about a run once executeAgentTurn starts it;
+		// the flag covers the preparation before that, so teardown treats a
+		// turn in that window as active instead of as an idle session.
+		session.turnInFlight = true;
+		try {
+			return await this.prepareAndRunTurn(session, input);
+		} finally {
+			session.turnInFlight = false;
+		}
+	}
+
+	/** True while a turn is being prepared or the agent has a run in progress. */
+	private hasActiveTurn(session: ActiveSession): boolean {
+		return session.turnInFlight || !session.agent.canStartRun();
+	}
+
+	private async prepareAndRunTurn(
+		session: ActiveSession,
+		input: {
+			prompt: string;
+			mode?: SendSessionInput["mode"];
+			userImages?: string[];
+			userFiles?: string[];
+		},
+	): Promise<AgentResult> {
 		// An abort that arrived between turns targeted a run that had already
 		// ended; only aborts issued from here on belong to this turn.
 		session.aborting = false;
@@ -2032,6 +2058,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;
+		}
+		// A session torn down before its first turn persisted must not be
+		// materialized on disk by that turn afterwards.
+		if (session.shuttingDown) {
+			return this.abortedTurnResult(session, {
+				messages: session.agent.getMessages(),
+				usage: createInitialAccumulatedUsage(),
+				endedAt: new Date(),
+			});
 		}
 		await this.ensureSessionPersisted(session);
 		// A seeded session (fork, checkpoint restore, missing-session
@@ -2413,7 +2448,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const completedCleanly = session.interactive
 			? session.lastInteractiveTurnFinishReason === "completed" &&
 				!session.aborting &&
-				session.agent.canStartRun()
+				!this.hasActiveTurn(session)
 			: finalStatus === "completed";
 		if (!completedCleanly) return;
 		session.taskCompletedEmitted = true;
@@ -2483,6 +2518,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	private async ensureSessionPersisted(session: ActiveSession): Promise<void> {
 		if (session.artifacts) return;
+		if (session.persistInFlight) return session.persistInFlight;
+		const persist = this.persistSessionRow(session);
+		session.persistInFlight = persist;
+		try {
+			await persist;
+		} finally {
+			session.persistInFlight = undefined;
+		}
+	}
+
+	private async persistSessionRow(session: ActiveSession): Promise<void> {
 		const workspacePath = resolveWorkspacePath(session.config);
 		session.artifacts = (await this.invoke("createRootSessionWithArtifacts", {
 			sessionId: session.sessionId,
@@ -2652,7 +2698,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// plugin sandbox is SIGTERMed with tool calls still pending, so those calls
 		// reject with "plugin-sandbox process exited". A connector turn awaiting the
 		// run sees whichever surfaced first instead of an answer.
-		if (!session.aborting && !session.agent.canStartRun()) {
+		if (!session.aborting && this.hasActiveTurn(session)) {
 			session.aborting = true;
 			session.agent.abort(new Error(input.shutdownReason));
 		}
@@ -2683,6 +2729,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		};
 
+		// A first turn may be creating the session row right now; wait for it
+		// so the terminal status lands on that row instead of being skipped.
+		await session.persistInFlight?.catch(() => undefined);
 		if (session.artifacts) {
 			await this.refreshActiveSessionGitMetadata(session);
 			try {
@@ -2791,7 +2840,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// still pending, so those calls reject with "plugin-sandbox process exited".
 		// A connector turn awaiting the run sees whichever surfaced first instead of
 		// an answer — which is what a hub restart looked like from Slack.
-		if (!session.aborting && !session.agent.canStartRun()) {
+		if (!session.aborting && this.hasActiveTurn(session)) {
 			session.aborting = true;
 			session.agent.abort(new Error(reason));
 		}
