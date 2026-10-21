@@ -66,6 +66,7 @@ export class RunHealthObserver {
 				this.turnStarted = true;
 				this.turnHadOutput = false;
 				this.turnMessage = undefined;
+				this.finishReason = undefined;
 				break;
 			case "assistant-text-delta":
 			case "assistant-reasoning-delta":
@@ -102,10 +103,9 @@ export class RunHealthObserver {
 			lastEventType: this.lastEventType,
 			finishReason: this.finishReason,
 			endedOn,
-			// Only a text-only final turn has a text signature (detector parity).
-			...(endedOn === "empty" ||
-			endedOn === "assistant_text" ||
-			endedOn === "assistant_other"
+			// Only a text or empty final turn has a text signature (detector
+			// parity); a media-only reply is not an empty one.
+			...(endedOn === "empty" || endedOn === "assistant_text"
 				? {
 						textSignature: classifyFinalTurnText(
 							this.turnMessage ? messageText(this.turnMessage) : "",

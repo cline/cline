@@ -113,6 +113,23 @@ describe("RunHealthObserver", () => {
 		expect(properties).not.toHaveProperty("textSignature");
 	});
 
+	it("does not sign a media-only reply or carry an earlier turn's finish reason", () => {
+		observer.observe(assistantText("Calling a tool."));
+		observer.observe(event("turn-started"));
+		observer.observe(
+			event("assistant-message", {
+				message: { role: "assistant", content: [{ type: "media" }] },
+				finishReason: "stop",
+			}),
+		);
+		const media = observer.endProperties();
+		expect(media.endedOn).toBe("assistant_other");
+		expect(media).not.toHaveProperty("textSignature");
+
+		observer.observe(event("turn-started"));
+		expect(observer.endProperties().finishReason).toBeUndefined();
+	});
+
 	it("stops checking once the run ends", () => {
 		observer.endProperties();
 		vi.advanceTimersByTime(5 * RUN_IDLE_REPORT_MS);

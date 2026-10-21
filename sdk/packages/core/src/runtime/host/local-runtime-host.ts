@@ -1155,12 +1155,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 				userFileCount: input.userFiles?.length ?? 0,
 				delivery: delivery ?? "immediate",
 				// A prompt sent into a busy run, or right after one ended, is how
-				// users react to a stall; task.run_health carries the run's side.
-				agentBusy: !canStartRun,
-				bumpKind: classifyBumpText(input.prompt),
-				...(session.lastTurnEndedAt === undefined
+				// users react to a stall; agent.run-finished carries the run's side.
+				// A queued prompt replayed by the drain was labelled when the user
+				// sent it, so its replay carries no stall fields.
+				...(session.drainingPendingPrompts
 					? {}
-					: { msSinceTurnEnd: Date.now() - session.lastTurnEndedAt }),
+					: {
+							agentBusy: !canStartRun,
+							bumpKind: classifyBumpText(input.prompt),
+							...(session.lastTurnEndedAt === undefined
+								? {}
+								: { msSinceTurnEnd: Date.now() - session.lastTurnEndedAt }),
+						}),
 			},
 		});
 		if (delivery === "queue" || delivery === "steer") {
