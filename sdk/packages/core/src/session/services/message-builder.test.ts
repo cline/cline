@@ -1620,7 +1620,10 @@ describe("MessageBuilder default-on truncation", () => {
 	});
 
 	it("preserves nested image data that the formatter hoists natively", () => {
-		const builder = new MessageBuilder({ maxToolResultChars: 100 });
+		const builder = new MessageBuilder({
+			maxToolResultChars: 100,
+			maxFileContentChars: 100,
+		});
 		const imageData = "i".repeat(5_000);
 		const messages: Message[] = [
 			{
@@ -1884,7 +1887,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		// First build: t1 is outdated (~8KB provider-bound reclaimable),
+		// First build: t1 is outdated (~50KB provider-bound reclaimable),
 		// so the rewrite commits immediately.
 		const reqA = builder.buildForApi(base);
 		expect(serializedBlockAt(reqA, 2)).toContain(
@@ -2019,7 +2022,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("uses provider-bound stale bytes after per-result truncation", () => {
-		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 20_000 });
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 60_000 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -2031,7 +2034,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const result = builder.buildForApi(messages);
 
 		// Raw t1 history is ~140KB, but the provider-bound stale entry is capped
-		// near 8KB before threshold accounting. A 20KB threshold must defer.
+		// near 50KB before threshold accounting. A 60KB threshold must defer.
 		expect(JSON.stringify(result[2])).not.toContain("outdated");
 		expect(JSON.stringify(result[2])).toContain("...[truncated");
 	});
@@ -2070,7 +2073,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2", "src/big.ts"),
 			readToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
 		];
-		// Request A: t1 (~8KB provider-bound stale) crosses the test threshold and commits.
+		// Request A: t1 (~50KB provider-bound stale) crosses the test threshold and commits.
 		const reqA = builder.buildForApi(codecRoundTrip(history));
 		expect(JSON.stringify(reqA[2])).toContain("outdated");
 
@@ -2249,5 +2252,113 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const result = builder.buildForApi(messages);
 		expect(serializedBlockAt(result, 2)).not.toContain("outdated");
 		expect(serializedBlockAt(result, 2)).toContain("export const x = 1;");
+	});
+});
+
+describe("MessageBuilder read-result cap", () => {
+	// The file-read executor bounds a window at 48k characters including
+	// line-number prefixes, then appends a paging footer.
+	const TOOL_CAPPED_READ = `${"r".repeat(47_900)}\n\n[Showing lines 1-900 of 2400. Use start_line/end_line to read other sections.]`;
+
+	function readMessages(
+		name: string,
+		content: ToolResultContent["content"],
+	): Message[] {
+		return [
+			{ role: "user", content: "task" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_read",
+						name,
+						input: { files: [{ path: "/repo/README.md" }] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "call_read", name, content },
+				],
+			},
+		];
+	}
+
+	function structuredRead(result: string): ToolResultContent["content"] {
+		return [
+			{ query: "/repo/README.md", result, success: true },
+		] as unknown as ToolResultContent["content"];
+	}
+
+	function sentResult(result: Message[]): string {
+		const block = (result[2].content as ToolResultContent[])[0];
+		if (typeof block.content === "string") {
+			return block.content;
+		}
+		return (block.content[0] as unknown as { result: string }).result;
+	}
+
+	it("sends a read_files window that the tool already capped without cutting it again", () => {
+		const builder = new MessageBuilder();
+		const result = builder.buildForApi(
+			readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
+		);
+
+		expect(sentResult(result)).toBe(TOOL_CAPPED_READ);
+	});
+
+	it("applies the same cap to string read results", () => {
+		const builder = new MessageBuilder();
+		const result = builder.buildForApi(readMessages("read", TOOL_CAPPED_READ));
+
+		expect(sentResult(result)).toBe(TOOL_CAPPED_READ);
+	});
+
+	it("still cuts read results that exceed the file-content cap", () => {
+		const builder = new MessageBuilder();
+		const oversized = `${"a".repeat(30_000)}__MIDDLE__${"b".repeat(30_000)}`;
+		const result = builder.buildForApi(
+			readMessages("read_files", structuredRead(oversized)),
+		);
+
+		const sent = sentResult(result);
+		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_FILE_CONTENT_CHARS);
+		expect(sent).toContain("...[truncated");
+		expect(sent).not.toContain("__MIDDLE__");
+	});
+
+	it("keeps the tool-result cap for tools that do not bound their own output", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{ role: "user", content: "task" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "call_cmd",
+						name: "run_commands",
+						input: { commands: ["cat big.log"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call_cmd",
+						name: "run_commands",
+						content: structuredRead(TOOL_CAPPED_READ),
+					},
+				],
+			},
+		];
+
+		const sent = sentResult(builder.buildForApi(messages));
+		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_TOOL_RESULT_CHARS);
+		expect(sent).toContain("...[truncated");
 	});
 });
