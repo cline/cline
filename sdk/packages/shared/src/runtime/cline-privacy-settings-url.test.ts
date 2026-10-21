@@ -9,6 +9,12 @@ describe("getClinePrivacySettingsUrl", () => {
 		expect(getClinePrivacySettingsUrl("", APP, "cli")).toBeUndefined();
 	});
 
+	it("returns undefined when the app base URL is unknown", () => {
+		expect(
+			getClinePrivacySettingsUrl("/dashboard/account", undefined, "cli"),
+		).toBeUndefined();
+	});
+
 	it("opens the path on the app, keeping its query string and tagging the client", () => {
 		expect(
 			getClinePrivacySettingsUrl(

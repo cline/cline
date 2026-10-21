@@ -6,10 +6,10 @@ export type ClinePrivacySettingsClient =
 
 export function getClinePrivacySettingsUrl(
 	dataPrivacyPath: string | undefined,
-	appBaseUrl: string,
+	appBaseUrl: string | undefined,
 	client: ClinePrivacySettingsClient,
 ): string | undefined {
-	if (!dataPrivacyPath) {
+	if (!dataPrivacyPath || !appBaseUrl) {
 		return undefined;
 	}
 	try {

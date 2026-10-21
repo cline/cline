@@ -289,6 +289,56 @@ describe("loadClineAccountSnapshot", () => {
 			`${appOrigin}/dashboard/account?tab=privacy&client=cli`,
 		);
 	});
+
+	it("links to the web app that matches a provider backend override", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+			baseUrl: "https://core-api.staging.int.cline.bot",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "harrison@cline.bot",
+			displayName: "Harrison",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(snapshot.privacySettingsUrl).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=cli",
+		);
+	});
+
+	it("hides the link when the provider backend has no matching web app", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+			baseUrl: "https://cline-proxy.example.com",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "harrison@cline.bot",
+			displayName: "Harrison",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(snapshot.privacySettingsUrl).toBeUndefined();
+	});
 });
 
 describe("loadIndividualSubscriptionPlans", () => {

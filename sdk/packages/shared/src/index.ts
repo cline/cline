@@ -512,6 +512,7 @@ export {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineAppBaseUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
 export type { ClinePrivacySettingsClient } from "./runtime/cline-privacy-settings-url";

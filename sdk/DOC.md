@@ -486,3 +486,11 @@ when the path is missing, the base URL is unusable, or the result would leave th
 app's origin, such as an absolute, protocol-relative, `javascript:`, `file:` or
 editor-scheme value. Hosts render no link in those cases.
 
+Account requests honour a provider `baseUrl` override, so the app URL has to be
+derived from the backend they actually hit rather than from `CLINE_ENVIRONMENT`
+alone. `resolveClineAppBaseUrl(apiBaseUrl)` from `@cline/shared` (also exported
+for browsers) returns the `appBaseUrl` of the environment whose `apiBaseUrl`
+matches, ignoring a trailing slash. It returns `undefined` for a backend no
+environment declares (a proxy or self-hosted host), which makes hosts hide the
+link instead of opening another environment's privacy settings.
+

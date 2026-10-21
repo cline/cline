@@ -19,6 +19,7 @@ import {
 import {
 	getClineEnvironmentConfig,
 	getClinePrivacySettingsUrl,
+	resolveClineAppBaseUrl,
 } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
@@ -85,6 +86,29 @@ function resolveAccountApiBaseUrl(input: {
 	return getClineEnvironmentConfig().apiBaseUrl;
 }
 
+function resolveClineAccountBackend(input: {
+	clineApiBaseUrl?: string;
+	clineProviderSettings?: ProviderSettings;
+	providerSettingsManager?: ProviderSettingsManager;
+}): {
+	apiBaseUrl: string;
+	manager: ProviderSettingsManager;
+	settings: ProviderSettings | undefined;
+} {
+	const manager =
+		input.providerSettingsManager ?? new ProviderSettingsManager();
+	const settings =
+		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
+	return {
+		apiBaseUrl: resolveAccountApiBaseUrl({
+			clineApiBaseUrl: input.clineApiBaseUrl,
+			clineProviderSettings: settings,
+		}),
+		manager,
+		settings,
+	};
+}
+
 function resolveClineAccountAuthToken(input: {
 	config: ClineAccountConfig;
 	clineProviderSettings?: ProviderSettings;
@@ -141,14 +165,7 @@ export async function createClineAccountService(input: {
 	clineProviderSettings?: ProviderSettings;
 	providerSettingsManager?: ProviderSettingsManager;
 }): Promise<ClineAccountService | undefined> {
-	const manager =
-		input.providerSettingsManager ?? new ProviderSettingsManager();
-	const settings =
-		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
-	const apiBaseUrl = resolveAccountApiBaseUrl({
-		clineApiBaseUrl: input.clineApiBaseUrl,
-		clineProviderSettings: settings,
-	});
+	const { apiBaseUrl, manager, settings } = resolveClineAccountBackend(input);
 	const authToken = await resolveValidClineAccountAuthToken({
 		config: input.config,
 		clineProviderSettings: settings,
@@ -169,7 +186,11 @@ export async function loadClineAccountSnapshot(input: {
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;
 }): Promise<ClineAccountSnapshot> {
-	const service = await createClineAccountService(input);
+	const { apiBaseUrl } = resolveClineAccountBackend(input);
+	const service = await createClineAccountService({
+		...input,
+		clineApiBaseUrl: apiBaseUrl,
+	});
 	if (!service) {
 		throw new Error("No Cline account auth token found");
 	}
@@ -203,7 +224,7 @@ export async function loadClineAccountSnapshot(input: {
 		displayedBalance,
 		privacySettingsUrl: getClinePrivacySettingsUrl(
 			user.dataPrivacyPath,
-			getClineEnvironmentConfig().appBaseUrl,
+			resolveClineAppBaseUrl(apiBaseUrl),
 			"cli",
 		),
 	};

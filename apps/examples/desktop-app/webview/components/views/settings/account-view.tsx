@@ -188,6 +188,7 @@ export function AccountView() {
 	>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
+	const overviewGenerationRef = useRef(0);
 	// Signed out is an expected state carried by a typed sidecar result (or a
 	// definitive auth error from older sidecars), tracked separately from
 	// failures so it renders the sign-in prompt instead of an error card.
@@ -230,6 +231,7 @@ export function AccountView() {
 
 	// -- Overview fetch --
 	const loadOverview = useCallback(async () => {
+		const generation = ++overviewGenerationRef.current;
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
@@ -237,6 +239,7 @@ export function AccountView() {
 			// remaining account commands would just fail the same way, so they
 			// are never fired.
 			const userData = await fetchAccountUser();
+			if (overviewGenerationRef.current !== generation) return;
 			if (isClineAccountNotAuthenticatedResult(userData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -246,6 +249,7 @@ export function AccountView() {
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),
 			]);
+			if (overviewGenerationRef.current !== generation) return;
 			if (
 				isClineAccountNotAuthenticatedResult(balanceData) ||
 				isClineAccountNotAuthenticatedResult(orgsData)
@@ -259,6 +263,7 @@ export function AccountView() {
 			const organizationBalanceData = nextActiveOrganization
 				? await fetchOrganizationBalance(nextActiveOrganization.organizationId)
 				: null;
+			if (overviewGenerationRef.current !== generation) return;
 			if (isClineAccountNotAuthenticatedResult(organizationBalanceData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -271,6 +276,7 @@ export function AccountView() {
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
+			if (overviewGenerationRef.current !== generation) return;
 			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
 			if (isAccountAuthError(message)) {
@@ -279,7 +285,9 @@ export function AccountView() {
 				setOverviewError(message);
 			}
 		} finally {
-			setOverviewLoading(false);
+			if (overviewGenerationRef.current === generation) {
+				setOverviewLoading(false);
+			}
 		}
 	}, [applyAccountUser, resetAccountData]);
 
@@ -306,6 +314,11 @@ export function AccountView() {
 	const deviceUserCode = useOAuthUserCode(signingIn);
 
 	const signOut = async () => {
+		// Sign Out stays clickable while an overview fetch is in flight, so
+		// discard whatever that fetch returns: otherwise it writes the old
+		// account back into the shared context and its saved cache.
+		overviewGenerationRef.current += 1;
+		setOverviewLoading(false);
 		setSigningOut(true);
 		try {
 			await desktopClient.invoke("save_provider_settings", {

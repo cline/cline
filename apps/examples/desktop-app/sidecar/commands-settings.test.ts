@@ -224,4 +224,32 @@ describe("get_cline_app_base_url", () => {
 			handleCommand(ctx, "get_cline_app_base_url", {}),
 		).resolves.toBe("https://staging-app.cline.bot");
 	});
+
+	it("follows a provider baseUrl override to the matching web app", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+		const { ctx } = createContext();
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "account-token",
+			base_url: "https://core-api.staging.int.cline.bot",
+		});
+
+		await expect(
+			handleCommand(ctx, "get_cline_app_base_url", {}),
+		).resolves.toBe("https://staging-app.cline.bot");
+	});
+
+	it("returns no web app URL for a backend it cannot match", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+		const { ctx } = createContext();
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "account-token",
+			base_url: "https://cline-proxy.example.com",
+		});
+
+		await expect(
+			handleCommand(ctx, "get_cline_app_base_url", {}),
+		).resolves.toBeUndefined();
+	});
 });

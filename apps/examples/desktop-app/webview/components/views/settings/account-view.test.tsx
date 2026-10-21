@@ -327,3 +327,73 @@ describe("AccountView privacy settings", () => {
 		);
 	});
 });
+
+describe("AccountView sign-out", () => {
+	const USER = {
+		id: "user-1",
+		email: "harrison@cline.bot",
+		displayName: "Harrison",
+		createdAt: "2024-01-01T00:00:00Z",
+		updatedAt: "2024-01-01T00:00:00Z",
+		organizations: [],
+		dataPrivacyPath: "/dashboard/account?tab=privacy",
+	};
+
+	it("drops an overview fetch that lands after sign-out", async () => {
+		let resolveSecondFetch: (value: unknown) => void = () => {};
+		let fetchMeCalls = 0;
+		invoke.mockImplementation(
+			async (_command: string, args?: Record<string, unknown>) => {
+				switch (args?.operation) {
+					case "fetchMe":
+						fetchMeCalls += 1;
+						return fetchMeCalls === 1
+							? USER
+							: new Promise((resolve) => {
+									resolveSecondFetch = resolve;
+								});
+					case "fetchBalance":
+						return { balance: 5_000_000 };
+					case "fetchUserOrganizations":
+						return [
+							{
+								organizationId: "org-1",
+								name: "Acme",
+								roles: ["member"],
+								memberId: "member-1",
+								active: false,
+							},
+						];
+					default:
+						return {};
+				}
+			},
+		);
+
+		await act(async () => {
+			root.render(<AccountView />);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Harrison");
+		});
+
+		const orgRow = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.includes("Acme"),
+		);
+		await act(async () => orgRow?.click());
+		expect(fetchMeCalls).toBe(2);
+
+		const signOutButton = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Sign Out",
+		);
+		expect(signOutButton).toBeDefined();
+		await act(async () => signOutButton?.click());
+		await act(async () => resolveSecondFetch(USER));
+
+		expect(applyAccountUser).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Sign in to Cline");
+		});
+		expect(container.textContent).not.toContain("Harrison");
+	});
+});

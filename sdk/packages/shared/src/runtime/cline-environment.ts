@@ -105,3 +105,20 @@ export function getClineEnvironmentConfig(
 
 	return applyConfigOverrides(config, readProcessEnv());
 }
+
+// Account calls honour a provider `baseUrl` override, so the web app a link
+// points at has to be resolved from the API host the calls actually hit.
+// Unknown hosts (proxies, self-hosted) have no matching web app: callers get
+// `undefined` and hide the link rather than sending the user to another
+// environment's account.
+export function resolveClineAppBaseUrl(
+	apiBaseUrl: string | undefined,
+): string | undefined {
+	const normalized = apiBaseUrl?.trim().replace(/\/+$/, "");
+	if (!normalized) {
+		return undefined;
+	}
+	return Object.values(CLINE_ENVIRONMENTS).find(
+		(environment) => environment.apiBaseUrl === normalized,
+	)?.appBaseUrl;
+}
