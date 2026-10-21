@@ -135,7 +135,16 @@ describe("resolveClineAppBaseUrl", () => {
 			resolveClineAppBaseUrl("https://cline-proxy.example.com"),
 		).toBeUndefined();
 		expect(resolveClineAppBaseUrl("")).toBeUndefined();
+		expect(resolveClineAppBaseUrl("not a url")).toBeUndefined();
 		expect(resolveClineAppBaseUrl(undefined)).toBeUndefined();
+	});
+
+	it("ignores a path after the backend host", () => {
+		expect(
+			resolveClineAppBaseUrl(
+				"https://core-api.staging.int.cline.bot/some/path",
+			),
+		).toBe("https://staging-app.cline.bot");
 	});
 });
 

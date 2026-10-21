@@ -114,11 +114,16 @@ export function getClineEnvironmentConfig(
 export function resolveClineAppBaseUrl(
 	apiBaseUrl: string | undefined,
 ): string | undefined {
-	const normalized = apiBaseUrl?.trim().replace(/\/+$/, "");
-	if (!normalized) {
+	if (!apiBaseUrl) {
+		return undefined;
+	}
+	let origin: string;
+	try {
+		origin = new URL(apiBaseUrl.trim()).origin;
+	} catch {
 		return undefined;
 	}
 	return Object.values(CLINE_ENVIRONMENTS).find(
-		(environment) => environment.apiBaseUrl === normalized,
+		(environment) => new URL(environment.apiBaseUrl).origin === origin,
 	)?.appBaseUrl;
 }
