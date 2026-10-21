@@ -124,12 +124,14 @@ export class SdkSessionLifecycle {
 		}
 	}
 
-	/** Resolves once `session`'s latest turn send has settled, or after `timeoutMs`. */
-	async waitForTurnSend(session: ActiveSession, timeoutMs = 3000): Promise<void> {
+	/** Waits for `session`'s latest turn send to settle; false if it is still in flight after `timeoutMs`. */
+	async waitForTurnSend(session: ActiveSession, timeoutMs = 3000): Promise<boolean> {
 		const send = this.turnSends.get(session)
 		if (send && !(await this.waitForStop(send, timeoutMs))) {
 			Logger.warn(`[SdkController] Timed out after ${timeoutMs}ms waiting for the turn of ${session.sessionId} to settle`)
+			return false
 		}
+		return true
 	}
 
 	getActiveSession(): ActiveSession | undefined {

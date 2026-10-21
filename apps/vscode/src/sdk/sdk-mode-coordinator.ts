@@ -238,8 +238,13 @@ export class SdkModeCoordinator {
 			Logger.warn("[SdkController] Failed to post mode state before session rebuild:", error)
 		}
 
-		if (wasRunning) {
-			await this.cancelRunningTurnForModeChange(activeSession, oldManager, oldSessionId)
+		if (wasRunning && !(await this.cancelRunningTurnForModeChange(activeSession, oldManager, oldSessionId))) {
+			// The aborted turn may not have added its prompt yet, so a replacement
+			// seeded now could lose it. Keep the session, which gets the prompt when
+			// the turn ends, and the mode it was built for.
+			this.options.stateManager.setGlobalState("mode", previousMode)
+			await this.options.postStateToWebview()
+			return false
 		}
 
 		let autoContinueStarted = false
@@ -394,7 +399,7 @@ export class SdkModeCoordinator {
 		activeSession: ActiveSession,
 		oldManager: SdkSessionHost,
 		oldSessionId: string,
-	): Promise<void> {
+	): Promise<boolean> {
 		this.options.interactions.clearPending("Mode changed")
 		this.options.messages.cancelPendingSave()
 		try {
@@ -407,7 +412,7 @@ export class SdkModeCoordinator {
 		// The rebuild seeds the replacement from the session's messages. A toggle
 		// right after a send (one made while the task was starting) aborts before
 		// Core has added that prompt to them, and the turn ending adds it.
-		await this.options.sessions.waitForTurnSend(activeSession)
+		const turnSettled = await this.options.sessions.waitForTurnSend(activeSession)
 		this.options.sessions.setRunning(false)
 
 		const task = this.options.getTask()
@@ -437,5 +442,6 @@ export class SdkModeCoordinator {
 			payload: { sessionId: oldSessionId, status: "cancelled" },
 		})
 		this.options.setTurnPhase("resumable", resumeMessage.ts)
+		return turnSettled
 	}
 }
