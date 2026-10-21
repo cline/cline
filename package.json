@@ -15,7 +15,7 @@
     "scripts": {
         "prepare": "husky",
         "build": "bun run clean && bun install && bun run build:sdk && bun -F @cline/cli build",
-        "build:sdk": "bun --production -F './sdk/packages/*' build",
+        "build:sdk": "bun --production -F './sdk/packages/*' build && bun sdk/packages/core/build-plugin-runtime.mts",
         "build:apps": "bun -F './apps/**' --production build",
         "build:models": "bun -F @cline/llms generate:models && bun format --write",
         "dev": "bun --conditions=development run build:sdk && bun run cli && bun run cli hub stop",
@@ -66,7 +66,7 @@
         "typescript": "^5.9.3"
     },
     "overrides": {
-        "axios": "1.18.0",
+        "axios": "1.20.0",
         "fast-uri": ">=3.1.4",
         "undici": ">=7.29.0 <8",
         "@opentui/core": "0.4.3",

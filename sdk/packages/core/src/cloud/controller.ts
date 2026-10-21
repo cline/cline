@@ -45,6 +45,7 @@ import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
 	CloudQueuedPrompt,
+	CloudSendLifecycle,
 	CloudSessionAttachment,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -1176,11 +1177,19 @@ export class CloudSessionController {
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, record);
 		// REST does not round-trip these client-side first-task preferences.
-		const { autoApproveTools, thinking, reasoningEffort } = input;
+		const {
+			autoApproveTools,
+			thinking,
+			reasoningEffort,
+			mode,
+			workspaceRelativePath,
+		} = input;
 		this.pendingInitialTasks.set(record.id, {
 			autoApproveTools,
 			thinking,
 			reasoningEffort,
+			mode: mode ?? "act",
+			workspaceRelativePath,
 		});
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1315,6 +1324,7 @@ export class CloudSessionController {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		lifecycle?: CloudSendLifecycle,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1390,32 +1400,7 @@ export class CloudSessionController {
 			const statusChanged = live.status !== "running";
 			live.busy = true;
 			live.status = "running";
-			live.prompt ||= prompt;
 			if (statusChanged) this.publishSnapshot(outerSessionId, false, "status");
-		}
-		const record = this.knownSessions.get(outerSessionId);
-		if (
-			record &&
-			!record.title?.trim() &&
-			!this.titleWrites.has(outerSessionId)
-		) {
-			const title = deriveCloudSessionTitle(prompt);
-			if (title) {
-				record.title = title;
-				if (live) {
-					live.title = title;
-				}
-				const write = this.options.api
-					.updateTitle?.(outerSessionId, title)
-					.then(() => {})
-					.catch(() => {})
-					.finally(() => {
-						if (this.titleWrites.get(outerSessionId) === write) {
-							this.titleWrites.delete(outerSessionId);
-						}
-					});
-				if (write) this.titleWrites.set(outerSessionId, write);
-			}
 		}
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
@@ -1455,6 +1440,32 @@ export class CloudSessionController {
 							throw new Error(
 								"The cloud session reconnected before the prompt could be sent. Please try again.",
 							);
+						}
+						lifecycle?.beforeDispatch?.();
+						if (live && ownsBusyState) live.prompt ||= prompt;
+						const record = this.knownSessions.get(outerSessionId);
+						if (
+							record &&
+							!record.title?.trim() &&
+							!this.titleWrites.has(outerSessionId)
+						) {
+							const title = deriveCloudSessionTitle(prompt);
+							if (title) {
+								record.title = title;
+								if (live) {
+									live.title = title;
+								}
+								const write = this.options.api
+									.updateTitle?.(outerSessionId, title)
+									.then(() => {})
+									.catch(() => {})
+									.finally(() => {
+										if (this.titleWrites.get(outerSessionId) === write) {
+											this.titleWrites.delete(outerSessionId);
+										}
+									});
+								if (write) this.titleWrites.set(outerSessionId, write);
+							}
 						}
 					},
 				},
@@ -2765,8 +2776,13 @@ export class CloudSessionController {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.sessions.get(connection.remote.id);
-		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
-		const mode = handoffSeed?.mode ?? "act";
+		const preferences =
+			this.pendingInitialTasks.get(connection.remote.id) ??
+			this.restoredOptions.get(connection.remote.id);
+		const cwd = cloudWorkspaceCwd(
+			handoffSeed?.workspaceRelativePath ?? preferences?.workspaceRelativePath,
+		);
+		const mode = handoffSeed?.mode ?? preferences?.mode ?? "act";
 		try {
 			await handoffSeed?.onSeeding?.();
 			this.assertSessionActive(connection.remote.id, connection);

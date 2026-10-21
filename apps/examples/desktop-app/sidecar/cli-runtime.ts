@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { setHubDaemonLauncher } from "@cline/core";
+import { setHubDaemonLauncher, setPluginSandboxLauncher } from "@cline/core";
+import { withHubLauncherIdentity } from "@cline/shared";
+import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 
 /** Absolute path of the Cline CLI binary the desktop shell bundles and launched us with. */
 export const DESKTOP_CLI_PATH_ENV = "CLINE_DESKTOP_CLI_PATH";
@@ -25,6 +27,7 @@ export function adoptDesktopCliRuntime(
 		env?: NodeJS.ProcessEnv;
 		chdir?: (directory: string) => void;
 		setLauncher?: typeof setHubDaemonLauncher;
+		setPluginLauncher?: typeof setPluginSandboxLauncher;
 	} = {},
 ): { cliPath?: string } {
 	const env = options.env ?? process.env;
@@ -41,6 +44,10 @@ export function adoptDesktopCliRuntime(
 	const cliPath = resolveDesktopCliPath(env);
 	if (cliPath) {
 		setLauncher({ command: cliPath });
+		(options.setPluginLauncher ?? setPluginSandboxLauncher)({
+			command: cliPath,
+			argsPrefix: ["--plugin-sandbox"],
+		});
 	}
 	return { cliPath };
 }
@@ -94,7 +101,16 @@ export async function ensureHubWithDesktopCli(
 		["hub", "ensure", "--json", "--cwd", workspaceRoot],
 		{
 			cwd: workspaceRoot,
-			env: { ...(options.env ?? process.env), CLINE_NO_AUTO_UPDATE: "1" },
+			// The CLI spawns the daemon, so stamp the desktop as its launcher
+			// here or the hub's telemetry would say the CLI started it.
+			env: withHubLauncherIdentity(
+				{ ...(options.env ?? process.env), CLINE_NO_AUTO_UPDATE: "1" },
+				{
+					client: DESKTOP_CLIENT_CONTEXT.name,
+					version: DESKTOP_CLIENT_CONTEXT.version,
+					transport: "local",
+				},
+			),
 			timeoutMs: HUB_ENSURE_TIMEOUT_MS,
 		},
 	);

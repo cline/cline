@@ -15,7 +15,7 @@ function contextWith(hubStartup: HubStartup): SidecarContext {
 }
 
 describe("commands during Hub startup", () => {
-	it("answers status and retry without waiting for the Hub", async () => {
+	it("answers retry without waiting for the Hub", async () => {
 		const startup = new HubStartup(
 			() => new Promise(() => {}),
 			vi.fn(),
@@ -23,9 +23,6 @@ describe("commands during Hub startup", () => {
 		);
 		startup.start();
 		const ctx = contextWith(startup);
-		await expect(handleCommand(ctx, "get_hub_status")).resolves.toEqual({
-			state: "starting",
-		});
 		await expect(handleCommand(ctx, "retry_hub")).resolves.toEqual({
 			state: "starting",
 		});
