@@ -6,7 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createReadFilesTool } from "../../extensions/tools/definitions";
 import { createFileReadExecutor } from "../../extensions/tools/executors/file-read";
 import type { ToolOperationResult } from "../../extensions/tools/types";
-import { MessageBuilder } from "./message-builder";
+import {
+	DEFAULT_MAX_TOOL_RESULT_CHARS,
+	MessageBuilder,
+} from "./message-builder";
 
 /**
  * Drives the real `read_files` tool through `MessageBuilder` so the two
@@ -94,5 +97,52 @@ describe("read_files results through MessageBuilder", () => {
 			end_line: 230,
 		});
 		expect(sent).toBe(returned);
+	});
+
+	it("sends every file of a batched read whole", async () => {
+		const second = path.join(dir, "IMPLEMENTATION.md");
+		await fs.writeFile(
+			second,
+			Array.from(
+				{ length: 600 },
+				(_, index) => `Step ${index + 1}: implementation notes for this step.`,
+			).join("\n"),
+		);
+		const input = { files: [{ path: file }, { path: second }] };
+		const output = (await tool.execute(
+			input as never,
+			context,
+		)) as ToolOperationResult[];
+		const messages: Message[] = [
+			{ role: "user", content: "read the docs" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "call_read", name: "read_files", input },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call_read",
+						name: "read_files",
+						content: output as unknown as ToolResultContent["content"],
+					},
+				],
+			},
+		];
+		const built = new MessageBuilder().buildForApi(messages);
+		const block = (built[2].content as ToolResultContent[])[0];
+		const sent = block.content as unknown as ToolOperationResult[];
+
+		expect(output).toHaveLength(2);
+		for (const [index, entry] of output.entries()) {
+			expect(String(entry.result).length).toBeGreaterThan(
+				DEFAULT_MAX_TOOL_RESULT_CHARS,
+			);
+			expect(sent[index].result).toBe(entry.result);
+		}
 	});
 });

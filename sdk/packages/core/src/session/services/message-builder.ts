@@ -138,6 +138,7 @@ export class MessageBuilder {
 	private readonly maxAssistantTextChars: number;
 	private readonly maxAssistantToolMarkupChars: number;
 	private readonly minOutdatedRewriteBytes: number;
+	private readonly maxReadResultChars: number;
 	// Sticky rewrite decisions. Kept across resetIndexes because production
 	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
@@ -169,6 +170,15 @@ export class MessageBuilder {
 			options.minOutdatedRewriteBytes,
 			DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
 		);
+		// Read tools bound their own output (line and character caps plus a
+		// paging footer), so by default their results get the file-content cap
+		// rather than the tool-result cap. A tool-result cap that was set
+		// explicitly keeps its documented meaning (every tool result) and so
+		// bounds reads too.
+		this.maxReadResultChars =
+			options.maxToolResultChars === undefined
+				? this.maxFileContentChars
+				: Math.min(this.maxFileContentChars, this.maxToolResultChars);
 	}
 
 	resetConversationState(): void {
@@ -478,7 +488,7 @@ export class MessageBuilder {
 				parsed = JSON.parse(text);
 			} catch {
 				return blockFullyOutdated || allLocators.length === 0
-					? utf8ByteLength(this.truncateMiddle(text, this.maxFileContentChars))
+					? utf8ByteLength(this.truncateMiddle(text, this.maxReadResultChars))
 					: 0;
 			}
 			const entries = Array.isArray(parsed) ? parsed : [parsed];
@@ -531,7 +541,7 @@ export class MessageBuilder {
 					)
 				) {
 					total += utf8ByteLength(
-						this.truncateMiddle(entry.content, this.maxFileContentChars),
+						this.truncateMiddle(entry.content, this.maxReadResultChars),
 					);
 				}
 			}
@@ -543,7 +553,7 @@ export class MessageBuilder {
 	private providerBoundEntryBytes(entry: unknown): number {
 		const providerBound = this.truncateNestedStrings(
 			entry,
-			this.maxFileContentChars,
+			this.maxReadResultChars,
 		);
 		return utf8ByteLength(JSON.stringify(providerBound));
 	}
@@ -1110,15 +1120,10 @@ export class MessageBuilder {
 			: undefined;
 	}
 
-	/**
-	 * Per-result cap for a tool's output. Read tools bound their own output
-	 * (line and character caps plus a paging footer), so their results use
-	 * the file-content cap, which only a read executor that ignores those
-	 * bounds can reach.
-	 */
+	/** Per-result cap for a tool's output; see `maxReadResultChars`. */
 	private resultCharLimit(toolName: string | undefined): number {
 		return this.isReadTool(toolName)
-			? this.maxFileContentChars
+			? this.maxReadResultChars
 			: this.maxToolResultChars;
 	}
 

@@ -2361,4 +2361,43 @@ describe("MessageBuilder read-result cap", () => {
 		expect(sent.length).toBeLessThanOrEqual(DEFAULT_MAX_TOOL_RESULT_CHARS);
 		expect(sent).toContain("...[truncated");
 	});
+
+	it("lets an explicitly configured tool-result cap bound reads too", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 4_000 });
+		const sent = sentResult(
+			builder.buildForApi(
+				readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
+			),
+		);
+
+		expect(sent.length).toBeLessThanOrEqual(4_000);
+		expect(sent).toContain("...[truncated");
+	});
+
+	it("honours the tool-result cap from the environment for reads", () => {
+		const builder = new MessageBuilder(
+			getMessageBuilderOptionsFromEnv({
+				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "4000",
+			}),
+		);
+		const sent = sentResult(
+			builder.buildForApi(
+				readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
+			),
+		);
+
+		expect(sent.length).toBeLessThanOrEqual(4_000);
+		expect(sent).toContain("...[truncated");
+	});
+
+	it("keeps the file-content cap for reads when the environment sets no override", () => {
+		const builder = new MessageBuilder(getMessageBuilderOptionsFromEnv({}));
+		const sent = sentResult(
+			builder.buildForApi(
+				readMessages("read_files", structuredRead(TOOL_CAPPED_READ)),
+			),
+		);
+
+		expect(sent).toBe(TOOL_CAPPED_READ);
+	});
 });
