@@ -25,11 +25,11 @@ export function useGitHubConnection(enabled: boolean) {
 	const inFlight = useRef<{ scope: object; promise: Promise<void> } | undefined>(undefined)
 
 	const load = useCallback(
-		async (refresh: boolean, background = false) => {
+		async ({ refresh = false, userInitiated = false }: { refresh?: boolean; userInitiated?: boolean } = {}) => {
 			if (!available) {
 				return
 			}
-			if (!background) {
+			if (userInitiated) {
 				setLoading(true)
 			}
 			if (inFlight.current?.scope === scope) {
@@ -74,12 +74,12 @@ export function useGitHubConnection(enabled: boolean) {
 	// not-yet-connected poll ask the control plane again.
 	useEffect(() => {
 		setLoading(false)
-		void load(false)
+		void load({ userInitiated: true })
 		return () => {
 			inFlight.current = undefined
 		}
 	}, [load])
-	const refresh = useCallback(() => load(true), [load])
+	const refresh = useCallback(() => load({ refresh: true, userInitiated: true }), [load])
 
 	const needsPolling =
 		available &&
@@ -91,8 +91,7 @@ export function useGitHubConnection(enabled: boolean) {
 		if (!needsPolling) {
 			return
 		}
-		// Background re-checks stay silent; only the user's own refresh shows a spinner.
-		const recheck = () => void load(true, true)
+		const recheck = () => void load({ refresh: true })
 		const timer = setInterval(recheck, DISCONNECTED_POLL_MS)
 		window.addEventListener("focus", recheck)
 		return () => {
