@@ -10,7 +10,26 @@ import { errorReply, type HubTransportContext, okReply } from "./context";
  * the hub log (targetClientId), not in this text.
  */
 export const CAPABILITY_OWNER_GONE_MESSAGE =
-	"The app running this task disconnected before it could respond. Send a message to continue.";
+	"The app running this task disconnected before it could respond. Reopen the task to continue.";
+
+/**
+ * How long a request waits for its owner to reconnect under the same client
+ * id before failing: a little over the client's 5s reconnect backoff, so a
+ * brief socket drop doesn't end the run.
+ */
+export const CAPABILITY_OWNER_RECONNECT_GRACE_MS = 7_000;
+
+async function waitForClient(
+	ctx: HubTransportContext,
+	clientId: string,
+): Promise<boolean> {
+	// ponytail: polls every 100ms; switch to a register listener if many requests wait at once.
+	const deadline = Date.now() + CAPABILITY_OWNER_RECONNECT_GRACE_MS;
+	while (!ctx.clients.has(clientId) && Date.now() < deadline) {
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	}
+	return ctx.clients.has(clientId);
+}
 
 export async function requestCapability(
 	ctx: HubTransportContext,
@@ -31,12 +50,16 @@ export async function requestCapability(
 	// Unregistering or detaching cancels the owner's pending requests, but a
 	// request raised after that (a run still in flight when its client
 	// restarted) would wait forever: nobody answers it and nothing times it
-	// out. Requests are never handed to another client: a client that joined
-	// later may enforce different hooks or tools under the same name.
-	const goneReason = !ctx.clients.has(targetClientId)
-		? "disconnected"
-		: ctx.detachedClientsBySession?.get(sessionId)?.has(targetClientId)
-			? "detached"
+	// out. A disconnected owner gets a short grace period to reconnect under
+	// the same id. Requests are never handed to another client: a client that
+	// joined later may enforce different hooks or tools under the same name.
+	const goneReason = ctx.detachedClientsBySession
+		?.get(sessionId)
+		?.has(targetClientId)
+		? "detached"
+		: !ctx.clients.has(targetClientId) &&
+				!(await waitForClient(ctx, targetClientId))
+			? "disconnected"
 			: undefined;
 	if (goneReason) {
 		logHubMessage("warn", "capability.request.end", {
@@ -46,7 +69,7 @@ export async function requestCapability(
 			targetClientId,
 			ok: false,
 			error: `target_client_${goneReason}`,
-			durationMs: 0,
+			durationMs: Math.round(performance.now() - startedAt),
 		});
 		captureCapabilityOwnerGone(ctx.telemetry, {
 			sessionId,

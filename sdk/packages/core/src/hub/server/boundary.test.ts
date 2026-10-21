@@ -16,7 +16,10 @@ import {
 	handleApprovalRespond,
 	requestToolApproval,
 } from "./handlers/approval-handlers";
-import { requestCapability } from "./handlers/capability-handlers";
+import {
+	CAPABILITY_OWNER_RECONNECT_GRACE_MS,
+	requestCapability,
+} from "./handlers/capability-handlers";
 import {
 	ensureSessionParticipant,
 	ensureSessionState,
@@ -1746,47 +1749,68 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("fails capability requests to a client that already unregistered", async () => {
-		const transport = createTransport();
-		const ctx = getContext(transport);
-		const register = (clientId: string) =>
-			transport.handleCommand({
-				version: "v1",
-				requestId: `req-register-${clientId}`,
-				command: "client.register",
-				clientId,
-				payload: { clientId, clientType: "desktop" },
-			});
-		await register("owner-client");
-		await transport.handleCommand({
-			version: "v1",
-			requestId: "req-unregister",
-			command: "client.unregister",
-			clientId: "owner-client",
-		});
+	it("fails capability requests to a client that unregistered and did not come back", async () => {
+		vi.useFakeTimers();
+		try {
+			const transport = createTransport();
+			const ctx = getContext(transport);
+			const register = (clientId: string) =>
+				transport.handleCommand({
+					version: "v1",
+					requestId: `req-register-${clientId}`,
+					command: "client.register",
+					clientId,
+					payload: { clientId, clientType: "desktop" },
+				});
+			const unregister = () =>
+				transport.handleCommand({
+					version: "v1",
+					requestId: "req-unregister",
+					command: "client.unregister",
+					clientId: "owner-client",
+				});
+			await register("owner-client");
+			await unregister();
 
-		// A run still in flight after its client restarted raises its next hook:
-		// it must fail instead of waiting on a client that can never answer.
-		await expect(
-			requestCapability(
+			// A brief socket drop: the same client reconnects within the grace
+			// period and gets the request.
+			void requestCapability(
+				ctx,
+				"session-1",
+				"hook.afterTool",
+				{},
+				"owner-client",
+			);
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(ctx.pendingCapabilityRequests.size).toBe(0);
+			await register("owner-client");
+			await vi.advanceTimersByTimeAsync(200);
+			expect(
+				[...ctx.pendingCapabilityRequests.values()].map(
+					(r) => r.targetClientId,
+				),
+			).toEqual(["owner-client"]);
+			ctx.pendingCapabilityRequests.clear();
+			await unregister();
+
+			// A run still in flight after its client quit raises its next hook:
+			// it fails once the grace period passes instead of waiting forever.
+			const request = requestCapability(
 				ctx,
 				"session-1",
 				"hook.beforeTool",
 				{},
 				"owner-client",
-			),
-		).rejects.toThrow(/disconnected before it could respond/);
-		expect(ctx.pendingCapabilityRequests.size).toBe(0);
-
-		await register("live-client");
-		void requestCapability(
-			ctx,
-			"session-1",
-			"hook.beforeTool",
-			{},
-			"live-client",
-		);
-		expect(ctx.pendingCapabilityRequests.size).toBe(1);
+			);
+			const failed = expect(request).rejects.toThrow(
+				/disconnected before it could respond/,
+			);
+			await vi.advanceTimersByTimeAsync(CAPABILITY_OWNER_RECONNECT_GRACE_MS);
+			await failed;
+			expect(ctx.pendingCapabilityRequests.size).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("fails capability requests to an owner that left the task but stays connected", async () => {
