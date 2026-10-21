@@ -5,7 +5,6 @@ import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
-import type { ActiveSession } from "./cline-session-factory"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -238,10 +237,16 @@ export class SdkModeCoordinator {
 			Logger.warn("[SdkController] Failed to post mode state before session rebuild:", error)
 		}
 
-		if (wasRunning && !(await this.cancelRunningTurnForModeChange(activeSession, oldManager, oldSessionId))) {
-			// The aborted turn may not have added its prompt yet, so a replacement
-			// seeded now could lose it. Keep the session, which gets the prompt when
-			// the turn ends, and the mode it was built for.
+		if (wasRunning) {
+			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
+		}
+
+		// The replacement is seeded from the session's messages, which miss a
+		// prompt until its turn ends: a toggle right after a send (one made while
+		// the task was starting) aborts before Core has added it. If the turn is
+		// still in flight, keep the session, which gets the prompt when the turn
+		// ends, and the mode it was built for.
+		if (!(await this.options.sessions.waitForTurnSend(activeSession))) {
 			this.options.stateManager.setGlobalState("mode", previousMode)
 			await this.options.postStateToWebview()
 			return false
@@ -395,11 +400,7 @@ export class SdkModeCoordinator {
 		return continuationSent
 	}
 
-	private async cancelRunningTurnForModeChange(
-		activeSession: ActiveSession,
-		oldManager: SdkSessionHost,
-		oldSessionId: string,
-	): Promise<boolean> {
+	private async cancelRunningTurnForModeChange(oldManager: SdkSessionHost, oldSessionId: string): Promise<void> {
 		this.options.interactions.clearPending("Mode changed")
 		this.options.messages.cancelPendingSave()
 		try {
@@ -409,10 +410,6 @@ export class SdkModeCoordinator {
 				Logger.error("[SdkController] Failed to abort old session during mode change:", error)
 			}
 		}
-		// The rebuild seeds the replacement from the session's messages. A toggle
-		// right after a send (one made while the task was starting) aborts before
-		// Core has added that prompt to them, and the turn ending adds it.
-		const turnSettled = await this.options.sessions.waitForTurnSend(activeSession)
 		this.options.sessions.setRunning(false)
 
 		const task = this.options.getTask()
@@ -442,6 +439,5 @@ export class SdkModeCoordinator {
 			payload: { sessionId: oldSessionId, status: "cancelled" },
 		})
 		this.options.setTurnPhase("resumable", resumeMessage.ts)
-		return turnSettled
 	}
 }

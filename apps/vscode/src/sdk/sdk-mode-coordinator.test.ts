@@ -126,6 +126,24 @@ describe("SdkModeCoordinator", () => {
 			expect(coordinator.consumeModeSwitchNotice("old-session")).toBeNull()
 		})
 
+		it("does not rebuild an idle session whose aborted turn is still in flight", async () => {
+			// A previous switch timed out waiting for the turn and marked it idle.
+			const planSession = makeActiveSession({ mode: "plan" })
+			const { coordinator, options, state } = makeCoordinator({
+				activeSession: planSession,
+				mode: "plan",
+				task: makeTask("new-task"),
+			})
+			options.sessions.waitForTurnSend.mockResolvedValueOnce(false)
+
+			await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+
+			expect(options.sessions.waitForTurnSend).toHaveBeenCalledWith(planSession)
+			expect(options.loadInitialMessages).not.toHaveBeenCalled()
+			expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+			expect(state.mode).toBe("plan")
+		})
+
 		it("rebuilds when the setting already matches but the session was built for the other mode", async () => {
 			const planSession = makeActiveSession({ mode: "plan" })
 			const { coordinator, options, state } = makeCoordinator({
