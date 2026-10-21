@@ -1502,6 +1502,71 @@ describe("handleConnectorUserTurn", () => {
 		).toBe(true);
 	});
 
+	it("rolls a Slack progress message onto a fresh message once it is too old to edit", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, messageOperations } = createThread({
+			sessionId: "session-1",
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+		});
+		const finalText = "**Final**\n\n## Story status";
+		const runtime = createRuntimeClient(finalText);
+		emitProgressThenReply(runtime, finalText);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			statusMessageMaxAgeMs: 0,
+		});
+
+		// With a zero max age every status render rolls over, so the progress is
+		// posted to fresh messages instead of edited in place after the first one.
+		const progressPosts = messageOperations.filter(
+			(operation) =>
+				operation.type === "post" &&
+				messageText(operation.message).includes("read_file"),
+		);
+		expect(progressPosts).toHaveLength(2);
+
+		const finalPosts = messageOperations.filter(
+			(operation) =>
+				operation.type === "post" &&
+				messageText(operation.message).includes(finalText),
+		);
+		expect(finalPosts).toHaveLength(1);
+		expect(finalPosts[0].message).toEqual({ markdown: finalText });
+
+		// The stale progress message is cleaned up once the final reply is posted.
+		expect(
+			messageOperations.some(
+				(operation) =>
+					operation.type === "delete" &&
+					operation.messageId === progressPosts[1].messageId,
+			),
+		).toBe(true);
+	});
+
 	it("suppresses connector /idle control replies", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
