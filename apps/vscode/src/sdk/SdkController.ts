@@ -4,23 +4,21 @@
 // Controller but delegates session lifecycle (initTask, askResponse,
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
-import { execFile } from "node:child_process"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
-import { promisify } from "node:util"
 import {
 	type CompareCheckpointResult,
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
-	findCheckpointForRun,
+	explainCheckpointUnsupported,
 	getProviderAuthStorageId,
 	loadRulesForSystemPromptFromRecords,
 	type PreparedRemoteConfigCoreIntegration,
 	type RuleConfig,
-	readCheckpointSkips,
 	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
+	resolveRunCheckpoint,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
@@ -34,6 +32,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import type { WorkspaceCheckpointAvailability } from "@shared/proto-conversions/checkpoints/workspace-checkpoint-availability"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -121,8 +120,6 @@ import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 import { resolveWorkspaceManagerPaths, resolveWorkspaceRootPath } from "./workspace-root"
-
-const execFileAsync = promisify(execFile)
 
 /**
  * Log a stub warning and return undefined.
@@ -1839,10 +1836,8 @@ export class Controller {
 				this.taskHistory.findHistoryItem(currentTask.taskId).catch(() => undefined),
 			])
 			const workspaceCheckpoint =
-				checkpointRunCount === undefined
-					? undefined
-					: findCheckpointForRun(readSessionCheckpointHistory(sessionRecord), checkpointRunCount)
-			if (input.restoreWorkspace && !workspaceCheckpoint) {
+				checkpointRunCount === undefined ? undefined : resolveRunCheckpoint(sessionRecord, checkpointRunCount)
+			if (input.restoreWorkspace && workspaceCheckpoint?.status !== "available") {
 				throw new Error("No workspace checkpoint is available for this message")
 			}
 			const cwd =
@@ -2080,33 +2075,27 @@ export class Controller {
 
 	/**
 	 * Whether Reset Code can restore the workspace from the user message with
-	 * the given ts. Answered when the user opens the message for editing, so
-	 * the checkpoint written for the latest turn is visible. The message is
-	 * mapped to its run the same way editMessageAndRegenerate maps it, so a
-	 * positive answer means that edit will find the checkpoint too.
+	 * the given ts, and if not, core's explanation of why. Answered when the
+	 * user opens the message for editing, so the checkpoint written for the
+	 * latest turn is visible. The message is mapped to its run, and the run to
+	 * its checkpoint, the same way editMessageAndRegenerate does, so a positive
+	 * answer means that edit will find the checkpoint too.
 	 *
 	 * After a window reload the latest task is shown from history without a
 	 * live session; then, as in editMessageAndRegenerate, a temporary host is
 	 * created for the read and disposed afterwards.
 	 */
-	async hasWorkspaceCheckpointForMessage(
-		messageTs: number,
-	): Promise<
-		| { exists: true }
-		| { exists: false; reason: "checkpoints_disabled" | "no_git_repository" | "checkpoint_failed" | "checkpoint_unavailable" }
-	> {
-		if (this.stateManager?.getGlobalSettingsKey?.("enableCheckpointsSetting") === false) {
-			return { exists: false, reason: "checkpoints_disabled" }
-		}
+	async getWorkspaceCheckpointAvailability(messageTs: number): Promise<WorkspaceCheckpointAvailability> {
+		const unknownCause = { exists: false, errorMessage: undefined } as const
 		const activeSession = this.sessions.getActiveSession()
 		const currentTask = this.task
 		if (!currentTask) {
-			return { exists: false, reason: "checkpoint_unavailable" }
+			return unknownCause
 		}
 		const clineMessages = currentTask.messageStateHandler.getClineMessages()
 		const targetIndex = clineMessages.findIndex((message) => message.ts === messageTs)
 		if (targetIndex === -1 || getCheckpointRunCountForMessage(clineMessages, targetIndex) === undefined) {
-			return { exists: false, reason: "checkpoint_unavailable" }
+			return unknownCause
 		}
 		const userOrdinal = clineMessages.slice(0, targetIndex + 1).filter(isVisibleCheckpointUserMessage).length
 		const sessionId = activeSession?.sessionId ?? currentTask.taskId
@@ -2117,33 +2106,25 @@ export class Controller {
 				sessionHost.get(sessionId),
 				readCurrentMessages(sessionHost, sessionId) as Promise<SdkUserMessage[]>,
 			])
-			const metadata = sessionRecord?.metadata as Record<string, unknown> | undefined
 			const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
-			if (sdkIndex === -1) {
-				return {
-					exists: false,
-					reason: await this.resolveCheckpointUnavailableReason(metadata, undefined, sessionRecord, () =>
-						this.getWorkspaceRoot(),
-					),
-				}
+			const runCount = sdkIndex === -1 ? undefined : getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
+			if (runCount === undefined) {
+				return unknownCause
 			}
-			const runCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
-			if (
-				runCount !== undefined &&
-				findCheckpointForRun(readSessionCheckpointHistory(sessionRecord), runCount) !== undefined
-			) {
+			const runCheckpoint = resolveRunCheckpoint(sessionRecord, runCount)
+			if (runCheckpoint.status === "available") {
 				return { exists: true }
 			}
-			const resolvedReason = await this.resolveCheckpointUnavailableReason(metadata, runCount, sessionRecord, () =>
-				this.getWorkspaceRoot(),
-			)
-			return {
-				exists: false,
-				reason: resolvedReason,
+			if (runCheckpoint.status === "failed") {
+				return { exists: false, errorMessage: runCheckpoint.errorMessage }
 			}
+			// Turns from before failures were recorded: the workspace as it is now
+			// is the best available explanation.
+			const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (await this.getWorkspaceRoot())
+			return { exists: false, errorMessage: await explainCheckpointUnsupported(cwd) }
 		} catch (error) {
 			Logger.debug(`[SdkController] Failed to resolve workspace checkpoint for message ${messageTs}: ${error}`)
-			return { exists: false, reason: "checkpoint_unavailable" }
+			return unknownCause
 		} finally {
 			try {
 				await tempHost?.dispose("workspaceCheckpointForMessage")
@@ -2151,40 +2132,6 @@ export class Controller {
 				Logger.debug(`[SdkController] Failed to dispose workspace checkpoint host: ${error}`)
 			}
 		}
-	}
-
-	/**
-	 * Names why a turn has no checkpoint. A skip recorded for the exact run
-	 * wins; failing that, the latest recorded skip explains sessions whose
-	 * older turns all skipped (e.g. every turn ran outside a git repo). With
-	 * no record — turns from before reasons were recorded, or a transcript
-	 * that no longer maps to the session — a live probe distinguishes a
-	 * non-git workspace right now from the generic leftover case.
-	 */
-	async resolveCheckpointUnavailableReason(
-		metadata: Record<string, unknown> | undefined,
-		runCount: number | undefined,
-		sessionRecord: { cwd?: string; workspaceRoot?: string } | undefined,
-		fallbackCwd?: () => Promise<string>,
-	): Promise<"no_git_repository" | "checkpoint_failed" | "checkpoint_unavailable"> {
-		const skips = readCheckpointSkips(metadata)
-		const exact = runCount === undefined ? undefined : skips.find((skip) => skip.runCount === runCount)
-		const recorded = exact ?? skips.at(-1)
-		if (recorded) {
-			return recorded.reason
-		}
-		const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (fallbackCwd ? await fallbackCwd() : "")
-		try {
-			const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--is-inside-work-tree"], {
-				windowsHide: true,
-			})
-			if (stdout.trim() !== "true") {
-				return "no_git_repository"
-			}
-		} catch {
-			return "no_git_repository"
-		}
-		return "checkpoint_unavailable"
 	}
 
 	/**

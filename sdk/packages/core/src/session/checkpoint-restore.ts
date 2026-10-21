@@ -2,12 +2,12 @@ import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
-import type {
-	CheckpointEntry,
-	CheckpointMetadata,
-} from "../hooks/checkpoint-hooks";
 import { isCheckpointStashMessage } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
+import {
+	type CheckpointEntry,
+	resolveRunCheckpoint,
+} from "./checkpoint-records";
 import { getUserRunSpan } from "./user-run-messages";
 
 const execFile = promisify(execFileCallback);
@@ -153,67 +153,6 @@ export async function beginWorktreeRestoreTransaction(
 	};
 }
 
-export function readSessionCheckpointHistory(
-	session: Pick<SessionRecord, "metadata"> | undefined,
-): CheckpointEntry[] {
-	const checkpoint =
-		session?.metadata?.checkpoint &&
-		typeof session.metadata.checkpoint === "object" &&
-		!Array.isArray(session.metadata.checkpoint)
-			? (session.metadata.checkpoint as Record<string, unknown>)
-			: undefined;
-	const history = Array.isArray(checkpoint?.history) ? checkpoint.history : [];
-	return history
-		.filter(
-			(entry): entry is Record<string, unknown> =>
-				!!entry && typeof entry === "object" && !Array.isArray(entry),
-		)
-		.flatMap((entry): CheckpointEntry[] => {
-			const ref = String(entry.ref ?? "").trim();
-			const createdAt = Number(entry.createdAt ?? 0);
-			const runCount = Number(entry.runCount ?? 0);
-			if (
-				ref.length === 0 ||
-				!Number.isFinite(createdAt) ||
-				!Number.isInteger(runCount) ||
-				runCount < 1
-			) {
-				return [];
-			}
-			const kind =
-				entry.kind === "stash" || entry.kind === "commit"
-					? entry.kind
-					: undefined;
-			return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }];
-		});
-}
-
-export function createRestoredCheckpointMetadata(
-	session: Pick<SessionRecord, "metadata"> | undefined,
-	runCount: number,
-): CheckpointMetadata | undefined {
-	const history = readSessionCheckpointHistory(session).filter(
-		(entry) => entry.runCount <= runCount,
-	);
-	const latest = history.at(-1);
-	return latest ? { latest, history } : undefined;
-}
-
-export function findCheckpointForRun(
-	history: readonly CheckpointEntry[],
-	runCount: number,
-): CheckpointEntry | undefined {
-	return history.reduce<CheckpointEntry | undefined>((best, entry) => {
-		if (entry.runCount > runCount) {
-			return best;
-		}
-		if (!best || entry.runCount > best.runCount) {
-			return entry;
-		}
-		return best;
-	}, undefined);
-}
-
 function findUserRunMessage(
 	messages: LlmsProviders.MessageWithMetadata[],
 	runCount: number,
@@ -274,15 +213,15 @@ export function createCheckpointRestorePlan(input: {
 	if (!Number.isInteger(runCount) || runCount < 1) {
 		throw new Error("checkpointRunCount must be a positive integer");
 	}
-	const checkpoint = findCheckpointForRun(
-		readSessionCheckpointHistory(input.session),
-		runCount,
-	);
-	if (!checkpoint) {
+	const resolved = resolveRunCheckpoint(input.session, runCount);
+	if (resolved.status !== "available") {
 		throw new Error(
-			`No checkpoint found at or before run ${runCount} in session ${input.session.sessionId}`,
+			resolved.status === "failed"
+				? `No checkpoint was taken for run ${runCount} in session ${input.session.sessionId}: ${resolved.errorMessage}`
+				: `No checkpoint found at or before run ${runCount} in session ${input.session.sessionId}`,
 		);
 	}
+	const { checkpoint } = resolved;
 	const cwd = (
 		input.cwd?.trim() ||
 		input.session.cwd ||

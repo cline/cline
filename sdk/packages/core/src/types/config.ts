@@ -214,8 +214,9 @@ export interface CoreCheckpointConfig {
 	 * the first agent iteration).
 	 *
 	 * Return an object with at least `ref`, `createdAt`, and `runCount` to have
-	 * the entry recorded in session metadata, or return `undefined` to skip
-	 * writing a checkpoint for that run.
+	 * the entry recorded in session metadata. Returning `undefined` (or
+	 * throwing) records the run as failed, so hosts can explain why it has no
+	 * checkpoint.
 	 */
 	createCheckpoint?: (context: CoreCheckpointContext) =>
 		| Promise<

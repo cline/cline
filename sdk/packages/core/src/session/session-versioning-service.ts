@@ -1,18 +1,18 @@
 import type * as LlmsProviders from "@cline/llms";
 import type { ITelemetryService } from "@cline/shared";
-import type {
-	CheckpointEntry,
-	CheckpointMetadata,
-} from "../hooks/checkpoint-hooks";
 import { retainCheckpointRefs as defaultRetainCheckpointRefs } from "../hooks/checkpoint-hooks";
 import type { RestoreSessionInput } from "../runtime/host/runtime-host";
 import type { SessionRecord } from "../types/sessions";
+import {
+	type CheckpointEntry,
+	type CheckpointMetadata,
+	createRestoredCheckpointMetadata,
+} from "./checkpoint-records";
 import {
 	applyCheckpointToWorktree,
 	beginWorktreeRestoreTransaction,
 	type CheckpointRestorePlan,
 	createCheckpointRestorePlan,
-	createRestoredCheckpointMetadata,
 	trimMessagesBeforeUserRun,
 	type WorktreeRestoreTransaction,
 } from "./checkpoint-restore";

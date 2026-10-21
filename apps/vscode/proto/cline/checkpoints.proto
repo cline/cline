@@ -25,26 +25,11 @@ service CheckpointsService {
   rpc checkpointExistsForMessage(Int64Request) returns (CheckpointExistsForMessageResponse);
 }
 
-// Why Reset Code cannot restore the workspace from a user message. Kept in
-// sync with the webview's WorkspaceRestoreAvailability reasons.
-enum CheckpointUnavailableReason {
-  CHECKPOINT_UNAVAILABLE_REASON_UNSPECIFIED = 0;
-  // Checkpoints are disabled in settings right now.
-  CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINTS_DISABLED = 1;
-  // The workspace was not a git repository when the turn ran, so no
-  // checkpoint could be taken. Initializing git enables future checkpoints.
-  CHECKPOINT_UNAVAILABLE_REASON_NO_GIT_REPOSITORY = 2;
-  // Checkpoint creation was attempted for the turn but failed.
-  CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINT_FAILED = 3;
-  // The turn's checkpoint could not be located (for example, the transcript
-  // no longer maps to it after a reload). No more specific cause is known.
-  CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINT_UNAVAILABLE = 4;
-}
-
 message CheckpointExistsForMessageResponse {
   bool exists = 1;
-  // Set only when exists is false.
-  CheckpointUnavailableReason reason = 2;
+  // When exists is false: a user-facing explanation to show as-is, or empty
+  // when the cause is unknown.
+  string error_message = 2;
 }
 
 message CheckpointRestoreRequest {

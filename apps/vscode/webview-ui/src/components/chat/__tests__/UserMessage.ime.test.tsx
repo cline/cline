@@ -47,7 +47,7 @@ describe("UserMessage – IME composition handling", () => {
 			},
 		)
 		vi.mocked(TaskServiceClient.editMessageAndRegenerate).mockResolvedValue({})
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: true, reason: 0 })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: true, errorMessage: "" })
 	})
 
 	it("does NOT send when IME composition Enter is pressed while editing", () => {
@@ -136,7 +136,7 @@ describe("UserMessage – IME composition handling", () => {
 
 	it("shows Reset Code as busy and does not restore until the checkpoint lookup answers", async () => {
 		const user = userEvent.setup()
-		let answer: (result: { exists: boolean; reason: number }) => void = () => {}
+		let answer: (result: { exists: boolean; errorMessage: string }) => void = () => {}
 		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockReturnValue(
 			new Promise((resolve) => {
 				answer = resolve
@@ -153,7 +153,7 @@ describe("UserMessage – IME composition handling", () => {
 		await user.click(resetCode)
 		expect(TaskServiceClient.editMessageAndRegenerate).not.toHaveBeenCalled()
 
-		act(() => answer({ exists: true, reason: 0 }))
+		act(() => answer({ exists: true, errorMessage: "" }))
 		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
 		expect(resetCode).not.toHaveAttribute("aria-disabled")
 		await user.click(resetCode)
@@ -166,7 +166,7 @@ describe("UserMessage – IME composition handling", () => {
 	it("keeps Reset Chat enabled and disables Reset Code when checkpoints were off", async () => {
 		const user = userEvent.setup()
 		enableCheckpointsSetting = false
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 1 })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, errorMessage: "" })
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -184,7 +184,7 @@ describe("UserMessage – IME composition handling", () => {
 	it("opens the disabled Reset Code explanation from the keyboard", async () => {
 		const user = userEvent.setup()
 		enableCheckpointsSetting = false
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 1 })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, errorMessage: "" })
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -202,8 +202,7 @@ describe("UserMessage – IME composition handling", () => {
 
 	it("explains when checkpoint creation was enabled but no checkpoint exists", async () => {
 		const user = userEvent.setup()
-		// CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINT_UNAVAILABLE
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 4 })
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, errorMessage: "" })
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -214,10 +213,13 @@ describe("UserMessage – IME composition handling", () => {
 		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()
 	})
 
-	it("names a non-git workspace as the reason no checkpoint exists", async () => {
+	it("shows the backend's explanation of why no checkpoint exists", async () => {
 		const user = userEvent.setup()
-		// CHECKPOINT_UNAVAILABLE_REASON_NO_GIT_REPOSITORY
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 2 })
+		const explanation = "This workspace is not a git repository, so no checkpoint was taken."
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({
+			exists: false,
+			errorMessage: explanation,
+		})
 		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
@@ -225,21 +227,30 @@ describe("UserMessage – IME composition handling", () => {
 		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
 		expect(resetCode).toHaveAttribute("aria-disabled", "true")
 		await user.hover(resetCode)
-		expect(await screen.findByText(/not a git repository/)).toBeInTheDocument()
+		expect(await screen.findByText(explanation)).toBeInTheDocument()
 	})
 
-	it("names a failed checkpoint creation as the reason no checkpoint exists", async () => {
+	it("switches from the Settings prompt to the backend's explanation once checkpoints are enabled", async () => {
 		const user = userEvent.setup()
-		// CHECKPOINT_UNAVAILABLE_REASON_CHECKPOINT_FAILED
-		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({ exists: false, reason: 3 })
-		render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
+		enableCheckpointsSetting = false
+		const explanation = "This git repository has no commits yet, so no checkpoint was taken."
+		vi.mocked(CheckpointsServiceClient.checkpointExistsForMessage).mockResolvedValue({
+			exists: false,
+			errorMessage: explanation,
+		})
+		const { rerender } = render(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
 
 		await user.click(screen.getByText("Update this"))
 		const resetCode = screen.getByRole("button", { name: "Reset Code" })
 		await waitFor(() => expect(resetCode).not.toHaveAttribute("aria-busy"))
-		expect(resetCode).toHaveAttribute("aria-disabled", "true")
-		await user.hover(resetCode)
-		expect(await screen.findByText(/checkpoint creation failed/)).toBeInTheDocument()
+		await user.click(resetCode)
+		expect(await screen.findByText(/Enable Checkpoints in/)).toBeInTheDocument()
+
+		enableCheckpointsSetting = true
+		rerender(<UserMessage canRestoreWorkspace messageTs={123} text="Update this" />)
+		await user.hover(screen.getByRole("button", { name: "Reset Code" }))
+		expect(await screen.findByText(explanation)).toBeInTheDocument()
+		expect(CheckpointsServiceClient.checkpointExistsForMessage).toHaveBeenCalledTimes(1)
 	})
 
 	it("hides Reset Code for messages that did not start a run", async () => {

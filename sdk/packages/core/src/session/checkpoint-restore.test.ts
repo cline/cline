@@ -14,11 +14,11 @@ import {
 	type CheckpointEntry,
 	createCheckpointHooks,
 } from "../hooks/checkpoint-hooks";
+import { createRestoredCheckpointMetadata } from "./checkpoint-records";
 import {
 	applyCheckpointToWorktree,
 	beginWorktreeRestoreTransaction,
 	createCheckpointRestorePlan,
-	createRestoredCheckpointMetadata,
 	trimMessagesBeforeUserRun,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
@@ -378,7 +378,7 @@ describe("applyCheckpointToWorktree", () => {
 			2,
 		);
 
-		expect(metadata?.latest.runCount).toBe(2);
+		expect(metadata?.latest?.runCount).toBe(2);
 		expect(metadata?.history.map((entry) => entry.runCount)).toEqual([1, 2]);
 	});
 });
@@ -493,5 +493,41 @@ describe("checkpoint message trimming", () => {
 			{ role: "assistant", content: "first response" },
 			{ role: "user", content: "second" },
 		]);
+	});
+
+	it("refuses to restore a run whose checkpoint failed rather than using an earlier one", () => {
+		expect(() =>
+			createCheckpointRestorePlan({
+				session: {
+					sessionId: "session-1",
+					source: "cli",
+					status: "running",
+					startedAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+					interactive: true,
+					provider: "mock",
+					model: "mock",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: true,
+					isSubagent: false,
+					metadata: {
+						checkpoint: {
+							latest: { ref: "aaaa", createdAt: 1, runCount: 1 },
+							history: [{ ref: "aaaa", createdAt: 1, runCount: 1 }],
+							failures: [
+								{ runCount: 2, createdAt: 2, errorMessage: "git broke" },
+							],
+						},
+					},
+				},
+				checkpointRunCount: 2,
+				restoreMessages: false,
+			}),
+		).toThrow(
+			"No checkpoint was taken for run 2 in session session-1: git broke",
+		);
 	});
 });

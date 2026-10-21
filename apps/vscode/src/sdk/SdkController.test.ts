@@ -519,7 +519,7 @@ describe("SDK remote-config coordination", () => {
 	})
 })
 
-describe("hasWorkspaceCheckpointForMessage", () => {
+describe("getWorkspaceCheckpointAvailability", () => {
 	const messages = [
 		{ ts: 1, type: "say", say: "task", text: "start" },
 		{ ts: 2, type: "say", say: "text", text: "done" },
@@ -530,72 +530,66 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		{ role: "assistant", content: "done" },
 		{ role: "user", content: "continue" },
 	]
-
-	it("names a recorded no-git skip for the exact run", async () => {
-		const controller = Object.assign(Object.create(SdkController.prototype), {
+	const controllerWithCheckpoints = (checkpoint: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+		Object.assign(Object.create(SdkController.prototype), {
 			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
 			sessions: {
+				trackSessionStart: (operation: () => Promise<unknown>) => operation(),
 				getActiveSession: () => ({
 					sessionId: "task-a",
+					isRunning: false,
 					sdkHost: {
-						get: async () => ({
-							cwd: "C:/work",
-							metadata: {
-								checkpointSkips: [{ reason: "no_git_repository", runCount: 1, createdAt: 1 }],
-							},
-						}),
+						get: async () => ({ cwd: "C:/work", metadata: { checkpoint } }),
 						readLiveMessages: vi.fn().mockResolvedValue(sdkMessages),
-						readMessages: vi.fn().mockResolvedValue([]),
+						readMessages: vi.fn().mockResolvedValue(sdkMessages),
+						restore: vi.fn().mockRejectedValue(new Error("stop at restore")),
 					},
 				}),
 			},
+			...extra,
 		})
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toEqual({
-			exists: false,
-			reason: "no_git_repository",
-		})
-	})
-
-	it("names a recorded failed skip for the exact run", async () => {
-		const controller = Object.assign(Object.create(SdkController.prototype), {
-			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
-			sessions: {
-				getActiveSession: () => ({
-					sessionId: "task-a",
-					sdkHost: {
-						get: async () => ({
-							cwd: "C:/work",
-							metadata: {
-								checkpointSkips: [{ reason: "checkpoint_failed", runCount: 1, createdAt: 1 }],
-							},
-						}),
-						readLiveMessages: vi.fn().mockResolvedValue(sdkMessages),
-						readMessages: vi.fn().mockResolvedValue([]),
-					},
-				}),
+	it("explains a run whose checkpoint failed, even when an earlier checkpoint exists", async () => {
+		const controller = controllerWithCheckpoints(
+			{
+				latest: { ref: "checkpoint-a", createdAt: 1, runCount: 1 },
+				history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }],
+				failures: [{ runCount: 2, createdAt: 2, errorMessage: "This workspace is not a git repository." }],
 			},
-		})
+			{
+				taskHistory: { findHistoryItem: async () => undefined },
+				getWorkspaceRoot: async () => "C:/work",
+				stateManager: { getGlobalSettingsKey: () => "act" },
+				sessionConfigBuilder: { build: async () => ({ providerId: "anthropic", apiKey: "key", modelId: "model" }) },
+			},
+		)
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller, 3)).resolves.toEqual({
 			exists: false,
-			reason: "checkpoint_failed",
+			errorMessage: "This workspace is not a git repository.",
 		})
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller, 1)).resolves.toEqual({
+			exists: true,
+		})
+		// Reset Code must not quietly restore the earlier snapshot instead.
+		await expect(
+			SdkController.prototype.editMessageAndRegenerate.call(controller, {
+				messageTs: 3,
+				text: "continue, edited",
+				restoreWorkspace: true,
+			}),
+		).rejects.toThrow("No workspace checkpoint is available for this message")
 	})
 
-	it("reports checkpoints_disabled from the current setting without a lookup", async () => {
-		const createRemoteConfigAwareSessionHost = vi.fn()
-		const controller = {
-			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
-			sessions: { getActiveSession: () => undefined, createRemoteConfigAwareSessionHost },
-			stateManager: { getGlobalSettingsKey: () => false },
-		}
+	it("keeps an existing checkpoint available while checkpoints are disabled", async () => {
+		const controller = controllerWithCheckpoints(
+			{ history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] },
+			{ stateManager: { getGlobalSettingsKey: (key: string) => (key === "enableCheckpointsSetting" ? false : undefined) } },
+		)
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toEqual({
-			exists: false,
-			reason: "checkpoints_disabled",
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller, 1)).resolves.toEqual({
+			exists: true,
 		})
-		expect(createRemoteConfigAwareSessionHost).not.toHaveBeenCalled()
 	})
 
 	it("reads the live conversation of the active session", async () => {
@@ -603,6 +597,7 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 		const readMessages = vi.fn().mockResolvedValue([])
 		const controller = {
 			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
+			getWorkspaceRoot: async () => "C:/work",
 			sessions: {
 				getActiveSession: () => ({
 					sessionId: "task-a",
@@ -617,12 +612,12 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			},
 		}
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller as never, 3)).resolves.toEqual({
 			exists: true,
 		})
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller as never, 1)).resolves.toEqual({
 			exists: false,
-			reason: "checkpoint_unavailable",
+			errorMessage: undefined,
 		})
 		expect(readLiveMessages).toHaveBeenCalledWith("task-a")
 		expect(readMessages).not.toHaveBeenCalled()
@@ -660,7 +655,7 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			resolveContextMentions: async (text: string) => text,
 		})
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller as never, 3)).resolves.toEqual({
 			exists: true,
 		})
 		await expect(
@@ -750,7 +745,7 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			createRemoteConfigAwareSessionHost: vi.fn().mockResolvedValue(tempHost),
 		}
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller as never, 1)).resolves.toEqual({
 			exists: true,
 		})
 		expect(tempHost.get).toHaveBeenCalledWith("task-a")
@@ -764,9 +759,9 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			createRemoteConfigAwareSessionHost: vi.fn().mockRejectedValue(new Error("host unavailable")),
 		}
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller as never, 1)).resolves.toEqual({
 			exists: false,
-			reason: "checkpoint_unavailable",
+			errorMessage: undefined,
 		})
 	})
 
@@ -783,9 +778,9 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 			createRemoteConfigAwareSessionHost,
 		}
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 3)).resolves.toEqual({
+		await expect(SdkController.prototype.getWorkspaceCheckpointAvailability.call(controller as never, 3)).resolves.toEqual({
 			exists: false,
-			reason: "checkpoint_unavailable",
+			errorMessage: undefined,
 		})
 		expect(createRemoteConfigAwareSessionHost).not.toHaveBeenCalled()
 	})

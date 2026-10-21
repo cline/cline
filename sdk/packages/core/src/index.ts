@@ -457,13 +457,7 @@ export {
 	type SubprocessHooksOptions,
 	toHookConfigFileName,
 } from "./hooks";
-export type {
-	CheckpointEntry,
-	CheckpointMetadata,
-	CheckpointSkip,
-	CheckpointSkipReason,
-} from "./hooks/checkpoint-hooks";
-export { readCheckpointSkips } from "./hooks/checkpoint-hooks";
+export { explainCheckpointUnsupported } from "./hooks/checkpoint-hooks";
 export * from "./hub";
 export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
 export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
@@ -888,11 +882,16 @@ export {
 	createCheckpointComparePlan,
 } from "./session/checkpoint-diff";
 export {
+	type CheckpointEntry,
+	type CheckpointFailure,
+	type CheckpointMetadata,
 	createRestoredCheckpointMetadata,
 	findCheckpointForRun,
 	readSessionCheckpointHistory,
-	trimMessagesBeforeUserRun,
-} from "./session/checkpoint-restore";
+	type RunCheckpoint,
+	resolveRunCheckpoint,
+} from "./session/checkpoint-records";
+export { trimMessagesBeforeUserRun } from "./session/checkpoint-restore";
 export {
 	projectSessionMessagesForDisplay,
 	type SessionDisplayMessage,

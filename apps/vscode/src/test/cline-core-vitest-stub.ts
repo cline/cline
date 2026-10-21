@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import type { CoreSpawnReason } from "@cline/shared"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
+import type { CheckpointEntry } from "../../../../sdk/packages/core/src/session/checkpoint-records"
 
 export interface OAuthCredentials {
 	accessToken?: string
@@ -166,89 +167,19 @@ export interface SessionHistoryRecord {
 	metadata?: Record<string, unknown>
 }
 
-export interface CheckpointEntry {
-	ref: string
-	createdAt: number
-	runCount: number
-	kind?: "stash" | "commit"
-}
+// Real checkpoint bookkeeping (pure data handling), so the controller is
+// tested against the same per-run rule core applies when restoring.
+export {
+	type CheckpointEntry,
+	createRestoredCheckpointMetadata,
+	findCheckpointForRun,
+	readSessionCheckpointHistory,
+	resolveRunCheckpoint,
+} from "../../../../sdk/packages/core/src/session/checkpoint-records"
 
-export type CheckpointSkipReason = "no_git_repository" | "checkpoint_failed"
-
-export interface CheckpointSkip {
-	reason: CheckpointSkipReason
-	runCount?: number
-	createdAt: number
-}
-
-export function readCheckpointSkips(metadata: Record<string, unknown> | undefined): CheckpointSkip[] {
-	const candidate = metadata?.checkpointSkips
-	if (!Array.isArray(candidate)) {
-		return []
-	}
-	return candidate.flatMap((entry): CheckpointSkip[] => {
-		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-			return []
-		}
-		const record = entry as Partial<CheckpointSkip>
-		if (record.reason !== "no_git_repository" && record.reason !== "checkpoint_failed") {
-			return []
-		}
-		const createdAt = Number(record.createdAt ?? 0)
-		if (!Number.isFinite(createdAt)) {
-			return []
-		}
-		const runCount =
-			typeof record.runCount === "number" && Number.isInteger(record.runCount) && record.runCount >= 1
-				? record.runCount
-				: undefined
-		return [{ reason: record.reason, createdAt, ...(runCount ? { runCount } : {}) }]
-	})
-}
-
-export function readSessionCheckpointHistory(session: { metadata?: Record<string, unknown> } | undefined): CheckpointEntry[] {
-	const checkpoint =
-		session?.metadata?.checkpoint &&
-		typeof session.metadata.checkpoint === "object" &&
-		!Array.isArray(session.metadata.checkpoint)
-			? (session.metadata.checkpoint as Record<string, unknown>)
-			: undefined
-	const history = Array.isArray(checkpoint?.history) ? checkpoint.history : []
-	return history.flatMap((entry): CheckpointEntry[] => {
-		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-			return []
-		}
-		const record = entry as Record<string, unknown>
-		const ref = typeof record.ref === "string" ? record.ref.trim() : ""
-		const createdAt = Number(record.createdAt ?? 0)
-		const runCount = Number(record.runCount ?? 0)
-		if (!ref || !Number.isFinite(createdAt) || !Number.isInteger(runCount) || runCount < 1) {
-			return []
-		}
-		const kind = record.kind === "stash" || record.kind === "commit" ? record.kind : undefined
-		return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }]
-	})
-}
-
-export function createRestoredCheckpointMetadata(
-	session: { metadata?: Record<string, unknown> } | undefined,
-	runCount: number,
-): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
-	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
-	const latest = history.at(-1)
-	return latest ? { latest, history } : undefined
-}
-
-export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
-	return history.reduce<CheckpointEntry | undefined>((best, entry) => {
-		if (entry.runCount > runCount) {
-			return best
-		}
-		if (!best || entry.runCount > best.runCount) {
-			return entry
-		}
-		return best
-	}, undefined)
+// The real probe shells out to git; tests treat every workspace as supported.
+export async function explainCheckpointUnsupported(_cwd: string): Promise<string | undefined> {
+	return undefined
 }
 
 export interface CheckpointContentDiff {
