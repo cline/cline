@@ -328,6 +328,44 @@ describe("cline_account command auth states", () => {
  * against a stale account (or the device).
  */
 describe("cline_account keeps feature-flag identity in sync", () => {
+	it.each([
+		"Hub unavailable",
+		"organization request failed",
+		"cloud disabled",
+	])("keeps a successful account switch and desktop cleanup when %s", async (failure) => {
+		vi.stubEnv(
+			"CLINE_CODE_CLOUD_AGENTS",
+			failure === "cloud disabled" ? "0" : "1",
+		);
+		const { getCloudSessionManager } = await import("./cloud-sessions");
+		const { ctx } = createContext();
+		const viewer = getCloudSessionManager(ctx);
+		const dispose = vi.spyOn(viewer, "dispose");
+		const send = vi.fn();
+		ctx.wsClients.add({ send } as never);
+		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
+		getProviderSettingsMock.mockReturnValue({});
+		const result = { switched: true };
+		executeClineAccountActionMock.mockResolvedValue(result);
+		vi.mocked(
+			HubCloudSessionClient.prototype.refreshOrganization,
+		).mockRejectedValue(new Error(failure));
+		await expect(runOperation(ctx, "switchAccount")).resolves.toBe(result);
+		expect(dispose).toHaveBeenCalledOnce();
+		expect(ctx.cloudSessionManager).toBeNull();
+		expect(
+			send.mock.calls.map(([message]) => JSON.parse(message).event.name),
+		).toContain("cloud_sessions_changed");
+		if (failure === "cloud disabled")
+			expect(
+				HubCloudSessionClient.prototype.refreshOrganization,
+			).not.toHaveBeenCalled();
+		else
+			expect(
+				HubCloudSessionClient.prototype.refreshOrganization,
+			).toHaveBeenCalledOnce();
+	});
+
 	async function currentFlagsUserId(): Promise<string | undefined> {
 		const { getDesktopFeatureFlagsContext } = await import("./feature-flags");
 		return getDesktopFeatureFlagsContext().userId ?? undefined;
@@ -419,6 +457,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 	});
 
 	it("leaves the signed-in identity intact across an organization switch", async () => {
+		vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
 		const { ctx } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});

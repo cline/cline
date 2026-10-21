@@ -116,6 +116,8 @@ export class HubCloudSessionService {
 	private readonly serviceId = randomUUID();
 	private scopeGeneration = 0;
 	private revision = 0;
+	private organization?: { id: string | undefined; at: number };
+	private organizationGeneration = 0;
 	private controller?: CloudSessionController;
 	private scope?: CloudAccountScope;
 	private closed = false;
@@ -206,6 +208,7 @@ export class HubCloudSessionService {
 		if (this.closed) throw new Error("Hub cloud service is closed");
 		this.checkScope();
 		if (this.controller) return this.controller;
+		this.invalidateOrganization();
 		this.scope = this.currentScope();
 		const controller =
 			this.options.createController?.() ?? this.createController();
@@ -256,7 +259,6 @@ export class HubCloudSessionService {
 			return token;
 		};
 		const account = new ClineAccountService({ apiBaseUrl, getAuthToken });
-		let organization: { id: string | undefined; at: number } | undefined;
 		return new CloudSessionController({
 			api: new CloudSessionApi({
 				apiBaseUrl,
@@ -274,16 +276,20 @@ export class HubCloudSessionService {
 			},
 			lateCreateDisposition: "preserve",
 			getActiveOrganizationId: async (options) => {
+				if (options?.fresh) this.invalidateOrganization();
+				const organization = this.organization;
 				if (
 					!options?.fresh &&
 					organization &&
 					Date.now() - organization.at < 60000
 				)
 					return organization.id;
+				const generation = this.organizationGeneration;
 				if (!(await getAuthToken())) return undefined;
 				const organizations = await account.fetchUserOrganizations();
 				const id = organizations?.find((org) => org.active)?.organizationId;
-				organization = { id, at: Date.now() };
+				if (generation === this.organizationGeneration)
+					this.organization = { id, at: Date.now() };
 				return id;
 			},
 		});
@@ -309,7 +315,13 @@ export class HubCloudSessionService {
 			snapshots: [...this.snapshots.values()],
 		};
 	}
+	private invalidateOrganization(): void {
+		this.organization = undefined;
+		this.organizationGeneration++;
+	}
 	watch(): ReturnType<HubCloudSessionService["snapshot"]> {
+		// A returning viewer may have switched organization while the Hub was unreachable.
+		this.invalidateOrganization();
 		this.getController();
 		return this.snapshot();
 	}

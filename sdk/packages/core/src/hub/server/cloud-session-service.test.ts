@@ -522,6 +522,42 @@ describe("cloud RPC over a shared hub socket", () => {
 });
 
 describe("hub cloud credentials", () => {
+	it.each([
+		"failed refresh",
+		"returning viewer",
+	])("discards the previous organization after a %s", async (reason) => {
+		vi.spyOn(
+			ProviderSettingsManager.prototype,
+			"getProviderSettings",
+		).mockReturnValue({ provider: "cline", apiKey: "key" });
+		vi.spyOn(
+			RuntimeOAuthTokenManager.prototype,
+			"resolveProviderApiKey",
+		).mockResolvedValue(null);
+		const fetch = vi
+			.spyOn(ClineAccountService.prototype, "fetchUserOrganizations")
+			.mockResolvedValueOnce([
+				{ organizationId: "org-one", active: true },
+			] as never);
+		const service = new HubCloudSessionService({ publish: () => {} });
+		services.push(service);
+		service.watch();
+		const controller = service["controller"]!;
+		const getOrganization = controller["options"].getActiveOrganizationId!;
+		expect(await getOrganization()).toBe("org-one");
+		if (reason === "failed refresh") {
+			fetch.mockRejectedValueOnce(new Error("organization request failed"));
+			await expect(command(service, "refreshOrganization", [])).rejects.toThrow(
+				"organization request failed",
+			);
+		} else service.watch();
+		fetch.mockResolvedValueOnce([
+			{ organizationId: "org-two", active: true },
+		] as never);
+		expect(await getOrganization()).toBe("org-two");
+		expect(service["controller"]).toBe(controller);
+	});
+
 	it("refreshes the daemon organization cache through RPC without disposing cloud work", async () => {
 		vi.spyOn(
 			ProviderSettingsManager.prototype,
