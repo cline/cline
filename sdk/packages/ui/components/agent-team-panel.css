@@ -1,0 +1,11 @@
+.cline-ui-agent-team-panel__header,
+.cline-ui-agent-team-panel__row {
+	font: inherit;
+	color: inherit;
+}
+
+.cline-ui-agent-team-panel__header:focus-visible,
+.cline-ui-agent-team-panel__row:focus-visible {
+	outline: 2px solid var(--cline-ui-ring);
+	outline-offset: -2px;
+}

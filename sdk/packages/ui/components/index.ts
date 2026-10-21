@@ -93,6 +93,28 @@ export {
 	type AgentSessionRowProps,
 } from "./agent-session-row.js";
 export {
+	type AgentTeamLiveActivity,
+	type AgentTeamMember,
+	type AgentTeamMemberPhase,
+	type AgentTeamPhaseBucket,
+	type AgentTeamRun,
+	agentTeamLiveActivityFromLifecycle,
+	agentTeamPhaseBucket,
+	agentTeamPhaseForTool,
+	agentTeamPhaseFromLiveActivity,
+	agentTeamStepForTool,
+	buildAgentTeamMembers,
+	changesAgentTeamRoster,
+	isAgentTeamSettled,
+	shouldReplaceAgentTeamLiveActivity,
+	summarizeAgentTeam,
+} from "./agent-team-activity.js";
+export {
+	AgentTeamPanel,
+	type AgentTeamPanelProps,
+	formatAgentTeamElapsed,
+} from "./agent-team-panel.js";
+export {
 	AgentWelcomeHero,
 	type AgentWelcomeHeroLayout,
 	type AgentWelcomeHeroProps,

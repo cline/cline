@@ -1,42 +1,45 @@
 import { describe, expect, it } from "vitest";
-import type { SessionAgentEntry } from "@/lib/session-agents";
 import {
-	buildTeamMembers,
-	changesTeamRoster,
-	isTeamSettled,
-	phaseForTool,
-	phaseFromLiveActivity,
-	shouldReplaceLiveActivity,
-	summarizeTeam,
-	type TeamLiveActivity,
-} from "@/lib/team-activity";
+	type AgentTeamLiveActivity,
+	type AgentTeamRun,
+	agentTeamLiveActivityFromLifecycle,
+	agentTeamPhaseForTool,
+	agentTeamPhaseFromLiveActivity,
+	buildAgentTeamMembers,
+	changesAgentTeamRoster,
+	isAgentTeamSettled,
+	shouldReplaceAgentTeamLiveActivity,
+	summarizeAgentTeam,
+} from "../components/agent-team-activity.js";
 
 function entry(
-	overrides: Partial<SessionAgentEntry> & { agentId: string },
-): SessionAgentEntry {
+	overrides: Partial<AgentTeamRun> & { agentId: string },
+): AgentTeamRun {
 	return {
 		sessionId: `root__teamtask__${overrides.agentId}_1`,
 		kind: "teamtask",
 		status: "running",
 		startedAt: "2026-10-20T20:00:00.000Z",
-		hasMessages: true,
 		...overrides,
 	};
 }
 
-describe("phaseForTool", () => {
+describe("agentTeamPhaseForTool", () => {
 	it("separates reading, editing, running, and coordinating", () => {
-		expect(phaseForTool("read_files")).toBe("reading");
-		expect(phaseForTool("search_codebase")).toBe("reading");
-		expect(phaseForTool("editor")).toBe("editing");
-		expect(phaseForTool("run_commands")).toBe("running");
-		expect(phaseForTool("team_send_message")).toBe("coordinating");
-		expect(phaseForTool("team_await_runs")).toBe("waiting");
+		expect(agentTeamPhaseForTool("read_files")).toBe("reading");
+		expect(agentTeamPhaseForTool("search_codebase")).toBe("reading");
+		expect(agentTeamPhaseForTool("editor")).toBe("editing");
+		expect(agentTeamPhaseForTool("run_commands")).toBe("running");
+		expect(agentTeamPhaseForTool("team_send_message")).toBe("coordinating");
+		expect(agentTeamPhaseForTool("team_await_runs")).toBe("waiting");
 	});
 });
 
-describe("phaseFromLiveActivity", () => {
-	const live = (eventType: string, message?: string): TeamLiveActivity => ({
+describe("agentTeamPhaseFromLiveActivity", () => {
+	const live = (
+		eventType: string,
+		message?: string,
+	): AgentTeamLiveActivity => ({
 		eventType,
 		message,
 		at: 0,
@@ -44,42 +47,53 @@ describe("phaseFromLiveActivity", () => {
 
 	it("reads the tool out of a run_progress activity", () => {
 		expect(
-			phaseFromLiveActivity(live("run_progress", "running_tool_editor")),
+			agentTeamPhaseFromLiveActivity(
+				live("run_progress", "running_tool_editor"),
+			),
 		).toEqual({ phase: "editing", step: "Editing files" });
 	});
 
 	it("reads the tool out of a finished-tool activity too", () => {
 		expect(
-			phaseFromLiveActivity(live("run_progress", "finished_tool_run_commands")),
+			agentTeamPhaseFromLiveActivity(
+				live("run_progress", "finished_tool_run_commands"),
+			),
 		).toEqual({ phase: "running", step: "Running commands" });
 	});
 
 	it("treats a new iteration as thinking", () => {
 		expect(
-			phaseFromLiveActivity(live("run_progress", "iteration_3_started")),
+			agentTeamPhaseFromLiveActivity(
+				live("run_progress", "iteration_3_started"),
+			),
 		).toEqual({ phase: "thinking" });
 	});
 
 	it("ignores activity it cannot interpret", () => {
-		expect(phaseFromLiveActivity(live("run_progress", "heartbeat"))).toBe(
+		expect(
+			agentTeamPhaseFromLiveActivity(live("run_progress", "heartbeat")),
+		).toBe(undefined);
+		expect(agentTeamPhaseFromLiveActivity(live("outcome_created"))).toBe(
 			undefined,
 		);
-		expect(phaseFromLiveActivity(live("outcome_created"))).toBe(undefined);
 	});
 });
 
-describe("changesTeamRoster", () => {
+describe("changesAgentTeamRoster", () => {
 	it("flags joins and run starts and ends, not activity", () => {
-		expect(changesTeamRoster("teammate_spawned")).toBe(true);
-		expect(changesTeamRoster("run_started")).toBe(true);
-		expect(changesTeamRoster("run_completed")).toBe(true);
-		expect(changesTeamRoster("run_progress")).toBe(false);
-		expect(changesTeamRoster("agent_event")).toBe(false);
+		expect(changesAgentTeamRoster("teammate_spawned")).toBe(true);
+		expect(changesAgentTeamRoster("run_started")).toBe(true);
+		expect(changesAgentTeamRoster("run_completed")).toBe(true);
+		expect(changesAgentTeamRoster("run_progress")).toBe(false);
+		expect(changesAgentTeamRoster("agent_event")).toBe(false);
 	});
 });
 
-describe("shouldReplaceLiveActivity", () => {
-	const live = (eventType: string, message?: string): TeamLiveActivity => ({
+describe("shouldReplaceAgentTeamLiveActivity", () => {
+	const live = (
+		eventType: string,
+		message?: string,
+	): AgentTeamLiveActivity => ({
 		eventType,
 		message,
 		at: 0,
@@ -87,7 +101,7 @@ describe("shouldReplaceLiveActivity", () => {
 
 	it("keeps the latest tool when the next iteration starts", () => {
 		expect(
-			shouldReplaceLiveActivity(
+			shouldReplaceAgentTeamLiveActivity(
 				live("run_progress", "finished_tool_editor"),
 				live("run_progress", "iteration_4_started"),
 			),
@@ -96,13 +110,13 @@ describe("shouldReplaceLiveActivity", () => {
 
 	it("lets a first iteration or a new tool through", () => {
 		expect(
-			shouldReplaceLiveActivity(
+			shouldReplaceAgentTeamLiveActivity(
 				live("run_started"),
 				live("run_progress", "iteration_1_started"),
 			),
 		).toBe(true);
 		expect(
-			shouldReplaceLiveActivity(
+			shouldReplaceAgentTeamLiveActivity(
 				live("run_progress", "finished_tool_editor"),
 				live("run_progress", "running_tool_run_commands"),
 			),
@@ -111,17 +125,20 @@ describe("shouldReplaceLiveActivity", () => {
 
 	it("ignores events it cannot interpret", () => {
 		expect(
-			shouldReplaceLiveActivity(undefined, live("run_progress", "heartbeat")),
+			shouldReplaceAgentTeamLiveActivity(
+				undefined,
+				live("run_progress", "heartbeat"),
+			),
 		).toBe(false);
-		expect(shouldReplaceLiveActivity(undefined, live("agent_event"))).toBe(
-			false,
-		);
+		expect(
+			shouldReplaceAgentTeamLiveActivity(undefined, live("agent_event")),
+		).toBe(false);
 	});
 });
 
-describe("buildTeamMembers", () => {
+describe("buildAgentTeamMembers", () => {
 	it("keeps team-task runs and drops subagents", () => {
-		const members = buildTeamMembers([
+		const members = buildAgentTeamMembers([
 			entry({ agentId: "architect" }),
 			entry({ agentId: "helper", kind: "subagent" }),
 		]);
@@ -129,7 +146,7 @@ describe("buildTeamMembers", () => {
 	});
 
 	it("shows a teammate by its latest run, timed from its first", () => {
-		const [member] = buildTeamMembers([
+		const [member] = buildAgentTeamMembers([
 			entry({
 				agentId: "server-dev",
 				sessionId: "run_a",
@@ -153,7 +170,7 @@ describe("buildTeamMembers", () => {
 	});
 
 	it("names the task by the first line of a multi-line brief", () => {
-		const [member] = buildTeamMembers([
+		const [member] = buildAgentTeamMembers([
 			entry({
 				agentId: "search-dev",
 				prompt:
@@ -164,7 +181,7 @@ describe("buildTeamMembers", () => {
 	});
 
 	it("prefers narration over a tool name for the step", () => {
-		const [member] = buildTeamMembers([
+		const [member] = buildAgentTeamMembers([
 			entry({
 				agentId: "architect",
 				lastAction: "Comparing ordering strategies before writing the doc.",
@@ -177,7 +194,7 @@ describe("buildTeamMembers", () => {
 	});
 
 	it("lets newer live activity decide the phase", () => {
-		const live = new Map<string, TeamLiveActivity>([
+		const live = new Map<string, AgentTeamLiveActivity>([
 			[
 				"client-dev",
 				{
@@ -187,7 +204,7 @@ describe("buildTeamMembers", () => {
 				},
 			],
 		]);
-		const [member] = buildTeamMembers(
+		const [member] = buildAgentTeamMembers(
 			[entry({ agentId: "client-dev", lastAction: "Running read_files" })],
 			live,
 		);
@@ -195,7 +212,7 @@ describe("buildTeamMembers", () => {
 	});
 
 	it("ignores live activity from before the latest run started", () => {
-		const live = new Map<string, TeamLiveActivity>([
+		const live = new Map<string, AgentTeamLiveActivity>([
 			[
 				"client-dev",
 				{
@@ -204,7 +221,7 @@ describe("buildTeamMembers", () => {
 				},
 			],
 		]);
-		const [member] = buildTeamMembers(
+		const [member] = buildAgentTeamMembers(
 			[entry({ agentId: "client-dev", lastAction: "Running editor" })],
 			live,
 		);
@@ -212,7 +229,7 @@ describe("buildTeamMembers", () => {
 	});
 
 	it("trusts a settled status over live activity", () => {
-		const live = new Map<string, TeamLiveActivity>([
+		const live = new Map<string, AgentTeamLiveActivity>([
 			[
 				"reviewer",
 				{
@@ -222,7 +239,7 @@ describe("buildTeamMembers", () => {
 				},
 			],
 		]);
-		const [member] = buildTeamMembers(
+		const [member] = buildAgentTeamMembers(
 			[
 				entry({
 					agentId: "reviewer",
@@ -240,7 +257,7 @@ describe("buildTeamMembers", () => {
 });
 
 describe("team summary", () => {
-	const members = buildTeamMembers([
+	const members = buildAgentTeamMembers([
 		entry({ agentId: "a", lastAction: "Running read_files" }),
 		entry({ agentId: "b", lastAction: "Running editor" }),
 		entry({ agentId: "c", lastAction: "Running run_commands" }),
@@ -248,18 +265,44 @@ describe("team summary", () => {
 	]);
 
 	it("counts planning, acting, and done teammates", () => {
-		expect(summarizeTeam(members)).toBe("1 planning · 2 acting · 1 done");
+		expect(summarizeAgentTeam(members)).toBe("1 planning · 2 acting · 1 done");
 	});
 
 	it("is settled only when every teammate has finished", () => {
-		expect(isTeamSettled(members)).toBe(false);
+		expect(isAgentTeamSettled(members)).toBe(false);
 		expect(
-			isTeamSettled(
-				buildTeamMembers([
+			isAgentTeamSettled(
+				buildAgentTeamMembers([
 					entry({ agentId: "a", status: "completed" }),
 					entry({ agentId: "b", status: "failed" }),
 				]),
 			),
 		).toBe(true);
+	});
+});
+
+describe("agentTeamLiveActivityFromLifecycle", () => {
+	it("keeps the agent, event, and message of a lifecycle event", () => {
+		expect(
+			agentTeamLiveActivityFromLifecycle(
+				{
+					agentId: "reviewer",
+					eventType: "run_progress",
+					message: "running_tool_editor",
+				},
+				42,
+			),
+		).toEqual({
+			agentId: "reviewer",
+			eventType: "run_progress",
+			message: "running_tool_editor",
+			at: 42,
+		});
+	});
+
+	it("drops events without an agent", () => {
+		expect(
+			agentTeamLiveActivityFromLifecycle({ eventType: "outcome_created" }, 0),
+		).toBeUndefined();
 	});
 });

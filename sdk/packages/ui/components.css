@@ -8,6 +8,7 @@
 @import "./components/agent-welcome-hero.css";
 @import "./components/agent-prompt-queue.css";
 @import "./components/agent-quick-actions.css";
+@import "./components/agent-team-panel.css";
 @import "./components/search-combobox.css";
 @import "./components/session-status.css";
 @import "./components/switch.css";
