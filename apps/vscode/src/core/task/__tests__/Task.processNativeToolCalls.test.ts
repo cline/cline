@@ -43,7 +43,8 @@ describe("Task.processNativeToolCalls", () => {
 		const fakeTask = {
 			messageStateHandler: {
 				getClineMessages: () => clineMessages,
-				saveClineMessagesAndUpdateHistory: async () => {
+				updateClineMessage: async (index: number, updates: Partial<ClineMessage>) => {
+					Object.assign(clineMessages[index], updates)
 					saveCalls += 1
 				},
 			},
