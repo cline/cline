@@ -5,11 +5,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountView } from "./account-view";
 
-const { invoke, openExternalUrl, useAccount } = vi.hoisted(() => ({
-	invoke: vi.fn(),
-	openExternalUrl: vi.fn(),
-	useAccount: vi.fn(),
-}));
+const { invoke, openExternalUrl, useAccount, applyAccountUser } = vi.hoisted(
+	() => ({
+		invoke: vi.fn(),
+		openExternalUrl: vi.fn(),
+		useAccount: vi.fn(),
+		applyAccountUser: vi.fn(),
+	}),
+);
 vi.mock("@/contexts/account-context", () => ({ useAccount }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
@@ -23,8 +26,10 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	invoke.mockReset();
 	openExternalUrl.mockReset();
+	applyAccountUser.mockReset();
 	useAccount.mockReturnValue({
 		clineAppBaseUrl: undefined,
+		applyAccountUser,
 		refreshAccount: vi.fn(),
 	});
 	container = document.createElement("div");
@@ -246,6 +251,7 @@ describe("AccountView privacy settings", () => {
 	async function renderSignedInWithPrivacyLink(dataPrivacyPath?: string) {
 		useAccount.mockReturnValue({
 			clineAppBaseUrl: "https://staging-app.cline.bot",
+			applyAccountUser,
 			refreshAccount: vi.fn(),
 		});
 		invoke.mockImplementation(
@@ -308,6 +314,16 @@ describe("AccountView privacy settings", () => {
 		expect(openExternalUrl).toHaveBeenNthCalledWith(
 			2,
 			"https://staging-app.cline.bot/dashboard",
+		);
+	});
+
+	it("publishes the user it loads so the shared link can follow it", async () => {
+		await renderSignedInWithPrivacyLink("/dashboard/account?tab=privacy");
+
+		expect(applyAccountUser).toHaveBeenCalledWith(
+			expect.objectContaining({
+				dataPrivacyPath: "/dashboard/account?tab=privacy",
+			}),
 		);
 	});
 });

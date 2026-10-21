@@ -166,7 +166,7 @@ export function AccountView() {
 	const [activeTab, setActiveTab] = useState<"overview" | "usage" | "billing">(
 		"overview",
 	);
-	const { clineAppBaseUrl, refreshAccount } = useAccount();
+	const { clineAppBaseUrl, applyAccountUser, refreshAccount } = useAccount();
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
@@ -266,6 +266,7 @@ export function AccountView() {
 			}
 			setSignedOut(false);
 			setUser(userData);
+			applyAccountUser(userData);
 			setBalance(balanceData);
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
@@ -280,7 +281,7 @@ export function AccountView() {
 		} finally {
 			setOverviewLoading(false);
 		}
-	}, [resetAccountData]);
+	}, [applyAccountUser, resetAccountData]);
 
 	useEffect(() => {
 		void loadOverview();

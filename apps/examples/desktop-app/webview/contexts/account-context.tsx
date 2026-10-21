@@ -29,6 +29,9 @@ type AccountContextValue = {
 	activeOrganization: ClineAccountOrganization | null;
 	clineAppBaseUrl: string | undefined;
 	privacySettingsUrl: string | undefined;
+	/** Publishes a user another view just fetched, so the values derived here
+	 * follow the freshest response instead of the mount-time fetch. */
+	applyAccountUser: (user: ClineAccountUser) => void;
 	refreshAccount: () => Promise<void>;
 };
 
@@ -39,6 +42,7 @@ const AccountContext = createContext<AccountContextValue>({
 	activeOrganization: null,
 	clineAppBaseUrl: undefined,
 	privacySettingsUrl: undefined,
+	applyAccountUser: () => undefined,
 	refreshAccount: async () => undefined,
 });
 
@@ -155,6 +159,11 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		[],
 	);
 
+	const applyAccountUser = useCallback((next: ClineAccountUser) => {
+		setUser(next);
+		writeCachedAccountUser(next);
+	}, []);
+
 	const value = useMemo<AccountContextValue>(() => {
 		const organizations = user?.organizations ?? [];
 		return {
@@ -171,9 +180,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 						"desktop",
 					)
 				: undefined,
+			applyAccountUser,
 			refreshAccount,
 		};
-	}, [accountReady, clineAppBaseUrl, refreshAccount, user]);
+	}, [accountReady, applyAccountUser, clineAppBaseUrl, refreshAccount, user]);
 
 	return (
 		<AccountContext.Provider value={value}>{children}</AccountContext.Provider>

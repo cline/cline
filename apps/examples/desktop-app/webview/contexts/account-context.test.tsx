@@ -210,6 +210,53 @@ describe("account context", () => {
 		});
 	});
 
+	it("adopts a user another view loads after the mount fetch failed", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "get_cline_app_base_url") {
+				return "https://staging-app.cline.bot";
+			}
+			throw new Error("fetch failed");
+		});
+
+		function ApplyUserProbe() {
+			const { applyAccountUser } = useAccount();
+			return (
+				<button
+					type="button"
+					onClick={() =>
+						applyAccountUser(
+							makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
+						)
+					}>
+					apply
+				</button>
+			);
+		}
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+					<ApplyUserProbe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("account-name")).toBe("none");
+		});
+		expect(probeText("privacy-settings-url")).toBe("none");
+
+		await act(async () => {
+			container.querySelector("button")?.click();
+		});
+
+		expect(probeText("account-name")).toBe("Beatrix");
+		expect(probeText("privacy-settings-url")).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
+	});
+
 	it("treats the typed not-authenticated result as signed out", async () => {
 		window.localStorage.setItem(
 			ACCOUNT_IDENTITY_STORAGE_KEY,
