@@ -92,6 +92,14 @@ const MONTH_NAMES = [
 
 const DOW_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
+/** crontab(5) accepts both 0 and 7 for Sunday. */
+function parseDayOfWeekField(token: string): number[] {
+	const values = parseCronField(token, 0, 7, DOW_NAMES).map(
+		(value) => value % 7,
+	);
+	return [...new Set(values)].sort((left, right) => left - right);
+}
+
 export interface ParsedCron {
 	minutes: number[];
 	hours: number[];
@@ -147,12 +155,7 @@ export function parseCron(pattern: string): ParsedCron {
 			12,
 			MONTH_NAMES,
 		),
-		daysOfWeek: parseCronField(
-			getRequiredField(fields, 4, pattern),
-			0,
-			6,
-			DOW_NAMES,
-		),
+		daysOfWeek: parseDayOfWeekField(getRequiredField(fields, 4, pattern)),
 	};
 }
 
