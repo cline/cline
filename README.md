@@ -4,6 +4,9 @@
 
 <h1 align="center">Cline</h1>
 
+<!-- Synthetic QA staged marker: amber-telescope-8oligk. -->
+<!-- Synthetic QA unstaged marker: violet-harbor-8oligk. -->
+
 <p align="center">
 The open source coding agent in your IDE, terminal, & desktop.
 </p>
