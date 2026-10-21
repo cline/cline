@@ -1101,6 +1101,36 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
+	it("keeps deprecated Bedrock models that inference-profile routing still needs", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			"amazon-bedrock": {
+				models: {
+					"anthropic.claude-sonnet-4-5-20250929-v1:0": {
+						tool_call: true,
+						status: "deprecated",
+					},
+					"eu.anthropic.claude-sonnet-4-5-20250929-v1:0": {
+						tool_call: true,
+						status: "deprecated",
+					},
+					"meta.llama3-1-8b-instruct-v1:0": {
+						tool_call: true,
+						status: "deprecated",
+					},
+				},
+			},
+		});
+
+		expect(Object.keys(providerModels.bedrock ?? {}).sort()).toEqual([
+			"anthropic.claude-sonnet-4-5-20250929-v1:0",
+			"eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+		]);
+		expect(
+			providerModels.bedrock?.["eu.anthropic.claude-sonnet-4-5-20250929-v1:0"]
+				?.status,
+		).toBe("deprecated");
+	});
+
 	it("regenerates Codex catalog entries with input request limits", () => {
 		expect(
 			getGeneratedModelsForProvider("openai-native")["gpt-5.3-codex"]
