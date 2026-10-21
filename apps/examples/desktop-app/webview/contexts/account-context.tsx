@@ -111,7 +111,21 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 	const [accountReady, setAccountReady] = useState(false);
 	const [clineAppBaseUrl, setClineAppBaseUrl] = useState<string>();
 
+	const loadAppBaseUrl = useCallback(async () => {
+		try {
+			setClineAppBaseUrl(
+				await desktopClient.invoke<string>("get_cline_app_base_url"),
+			);
+		} catch {
+			// The privacy links stay hidden until a later fetch succeeds.
+		}
+	}, []);
+
 	const refreshAccount = useCallback(async () => {
+		// The saved backend can change without the transport reconnecting
+		// (saving or clearing a `baseUrl` override), so the app a link points
+		// at is re-read wherever the account itself is refreshed.
+		void loadAppBaseUrl();
 		try {
 			const me = await desktopClient.invoke<ClineAccountUser>("cline_account", {
 				action: "clineAccount",
@@ -136,7 +150,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		} finally {
 			setAccountReady(true);
 		}
-	}, []);
+	}, [loadAppBaseUrl]);
 
 	useEffect(() => {
 		// Seed from the cached identity after mount so the signed-in name renders
@@ -152,11 +166,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		() =>
 			desktopClient.subscribeTransportState((state) => {
 				if (state !== "connected") return;
-				desktopClient
-					.invoke<string>("get_cline_app_base_url")
-					.then(setClineAppBaseUrl, () => undefined);
+				void loadAppBaseUrl();
 			}),
-		[],
+		[loadAppBaseUrl],
 	);
 
 	const applyAccountUser = useCallback((next: ClineAccountUser) => {

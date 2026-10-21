@@ -210,6 +210,52 @@ describe("account context", () => {
 		});
 	});
 
+	it("re-reads the Cline app when the saved backend changes", async () => {
+		let sidecarAppBaseUrl = "https://staging-app.cline.bot";
+		invoke.mockImplementation(async (command: string) =>
+			command === "get_cline_app_base_url"
+				? sidecarAppBaseUrl
+				: makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
+		);
+
+		function RefreshProbe() {
+			const { refreshAccount } = useAccount();
+			return (
+				<button type="button" onClick={() => void refreshAccount()}>
+					refresh
+				</button>
+			);
+		}
+
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<Probe />
+					<RefreshProbe />
+				</AccountProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("privacy-settings-url")).toBe(
+				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			);
+		});
+
+		// Saving or clearing a `baseUrl` override moves account calls to another
+		// backend without reconnecting the transport.
+		sidecarAppBaseUrl = "https://app.cline.bot";
+		await act(async () => {
+			container.querySelector("button")?.click();
+		});
+
+		await vi.waitFor(() => {
+			expect(probeText("privacy-settings-url")).toBe(
+				"https://app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			);
+		});
+	});
+
 	it("adopts a user another view loads after the mount fetch failed", async () => {
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "get_cline_app_base_url") {
@@ -227,7 +273,8 @@ describe("account context", () => {
 						applyAccountUser(
 							makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
 						)
-					}>
+					}
+				>
 					apply
 				</button>
 			);
