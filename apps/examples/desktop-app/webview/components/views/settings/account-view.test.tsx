@@ -24,7 +24,7 @@ beforeEach(() => {
 	invoke.mockReset();
 	openExternalUrl.mockReset();
 	useAccount.mockReturnValue({
-		privacySettingsUrl: undefined,
+		clineAppBaseUrl: undefined,
 		refreshAccount: vi.fn(),
 	});
 	container = document.createElement("div");
@@ -243,8 +243,11 @@ describe("AccountView signed-out state", () => {
 });
 
 describe("AccountView privacy settings", () => {
-	async function renderSignedInWithPrivacyLink(privacySettingsUrl?: string) {
-		useAccount.mockReturnValue({ privacySettingsUrl, refreshAccount: vi.fn() });
+	async function renderSignedInWithPrivacyLink(dataPrivacyPath?: string) {
+		useAccount.mockReturnValue({
+			clineAppBaseUrl: "https://staging-app.cline.bot",
+			refreshAccount: vi.fn(),
+		});
 		invoke.mockImplementation(
 			async (_command: string, args?: Record<string, unknown>) => {
 				switch (args?.operation) {
@@ -256,6 +259,7 @@ describe("AccountView privacy settings", () => {
 							createdAt: "2024-01-01T00:00:00Z",
 							updatedAt: "2024-01-01T00:00:00Z",
 							organizations: [],
+							dataPrivacyPath,
 						};
 					case "fetchBalance":
 						return { balance: 5_000_000 };
@@ -274,6 +278,11 @@ describe("AccountView privacy settings", () => {
 		});
 	}
 
+	const dashboardButton = () =>
+		container.querySelector<HTMLButtonElement>(
+			'button[title="Open dashboard"]',
+		);
+
 	const privacySettingsButton = () =>
 		container.querySelector<HTMLButtonElement>(
 			'button[title="Privacy settings"]',
@@ -282,21 +291,23 @@ describe("AccountView privacy settings", () => {
 	it("hides the action when there is no privacy settings link", async () => {
 		await renderSignedInWithPrivacyLink(undefined);
 
-		expect(
-			container.querySelector('button[title="Open dashboard"]'),
-		).not.toBeNull();
+		expect(dashboardButton()).not.toBeNull();
 		expect(privacySettingsButton()).toBeNull();
 	});
 
-	it("opens the privacy settings link from the account context", async () => {
-		await renderSignedInWithPrivacyLink(
-			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-		);
+	it("opens privacy settings and the dashboard on the sidecar's Cline app", async () => {
+		await renderSignedInWithPrivacyLink("/dashboard/account?tab=privacy");
 
 		await act(async () => privacySettingsButton()?.click());
+		await act(async () => dashboardButton()?.click());
 
-		expect(openExternalUrl).toHaveBeenCalledWith(
+		expect(openExternalUrl).toHaveBeenNthCalledWith(
+			1,
 			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+		);
+		expect(openExternalUrl).toHaveBeenNthCalledWith(
+			2,
+			"https://staging-app.cline.bot/dashboard",
 		);
 	});
 });

@@ -27,6 +27,7 @@ type AccountContextValue = {
 	accountReady: boolean;
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
+	clineAppBaseUrl: string | undefined;
 	privacySettingsUrl: string | undefined;
 	refreshAccount: () => Promise<void>;
 };
@@ -36,6 +37,7 @@ const AccountContext = createContext<AccountContextValue>({
 	accountReady: false,
 	organizations: [],
 	activeOrganization: null,
+	clineAppBaseUrl: undefined,
 	privacySettingsUrl: undefined,
 	refreshAccount: async () => undefined,
 });
@@ -161,6 +163,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 			organizations,
 			activeOrganization:
 				organizations.find((organization) => organization.active) ?? null,
+			clineAppBaseUrl,
 			privacySettingsUrl: clineAppBaseUrl
 				? getClinePrivacySettingsUrl(
 						user?.dataPrivacyPath,

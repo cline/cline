@@ -9,6 +9,7 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 } from "@cline/core";
+import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import {
 	AlertCircle,
 	Building,
@@ -165,10 +166,20 @@ export function AccountView() {
 	const [activeTab, setActiveTab] = useState<"overview" | "usage" | "billing">(
 		"overview",
 	);
-	const { privacySettingsUrl, refreshAccount } = useAccount();
+	const { clineAppBaseUrl, refreshAccount } = useAccount();
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
+	const dashboardUrl = clineAppBaseUrl
+		? `${clineAppBaseUrl}/dashboard`
+		: DASHBOARD_URL;
+	const privacySettingsUrl = clineAppBaseUrl
+		? getClinePrivacySettingsUrl(
+				user?.dataPrivacyPath,
+				clineAppBaseUrl,
+				"desktop",
+			)
+		: undefined;
 	const [balance, setBalance] = useState<ClineAccountBalance | null>(null);
 	const [organizationBalance, setOrganizationBalance] =
 		useState<ClineAccountOrganizationBalance | null>(null);
@@ -663,7 +674,7 @@ export function AccountView() {
 										<button
 											type="button"
 											title="Open dashboard"
-											onClick={() => void openExternalUrl(DASHBOARD_URL)}
+											onClick={() => void openExternalUrl(dashboardUrl)}
 											className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 										>
 											<ExternalLink className="h-4 w-4" />
