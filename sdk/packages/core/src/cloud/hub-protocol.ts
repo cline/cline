@@ -1,7 +1,7 @@
 import type { CreateCloudSessionInput } from "./api";
 import type { CloudSessionController } from "./controller";
 
-/** Operations available to cloud UI clients. Handoff callbacks remain host-local. */
+/** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
 export const CLOUD_HUB_OPERATIONS = [
 	"create",
 	"attach",
@@ -26,7 +26,15 @@ export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"
 	? [input: Omit<CreateCloudSessionInput, "handoff">]
-	: Parameters<CloudHubMethods[K]>;
+	: K extends "send"
+		? [
+				sessionId: string,
+				prompt: string,
+				delivery?: "queue" | "steer",
+				modelId?: string,
+				images?: string[],
+			]
+		: Parameters<CloudHubMethods[K]>;
 export type CloudHubResult<K extends CloudHubOperation> = Awaited<
 	ReturnType<CloudHubMethods[K]>
 >;

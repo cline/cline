@@ -30,6 +30,7 @@ import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
+import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -1528,6 +1529,7 @@ export async function ensureSharedHubClient(
 		try {
 			await client.connect();
 			client.subscribe((event) => {
+				recordHubActivity(getSidecarContextOwner(ctx), event);
 				handleHubLiveEvent(
 					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
 					event,

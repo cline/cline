@@ -19,12 +19,16 @@ import type {
 	SessionPluginIssue,
 } from "@cline/shared";
 import { getPluginDisplayName } from "@cline/shared/storage";
+import { markPluginCommand } from "./plugin-command-origin";
 import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "./plugin-load-report";
 import { fingerprintPluginSources } from "./plugin-module-import";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
+
+export { isPluginCommand } from "./plugin-command-origin";
+
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS = 4_000;
@@ -1024,7 +1028,7 @@ export class PluginRegistry {
 	): AgentExtensionCommand {
 		const handler = command.handler;
 		if (typeof handler !== "function") return command;
-		return {
+		const wrapped: AgentExtensionCommand = {
 			...command,
 			handler: async (commandInput: string) => {
 				this.assertUsable(entry, instance, `command "/${command.name}"`);
@@ -1038,6 +1042,7 @@ export class PluginRegistry {
 				);
 			},
 		};
+		return markPluginCommand(wrapped);
 	}
 
 	/** A failing rule contributes no text rather than breaking the prompt. */

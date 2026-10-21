@@ -18,6 +18,7 @@ import type {
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { WorkerSandbox } from "../../runtime/tools/worker-sandbox";
+import { markPluginCommand } from "./plugin-command-origin";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import {
 	getPluginSandboxLauncher,
@@ -847,37 +848,39 @@ function registerCommands(
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const cd of descriptor.contributions?.commands ?? []) {
-		api.registerCommand({
-			name: cd.name,
-			description: cd.description,
-			handler: async (input: string) => {
-				try {
-					return await sandbox.call<AgentExtensionCommandResult>(
-						"executeCommand",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: cd.id,
-							input,
-						},
-						{ timeoutMs },
-					);
-				} catch (error) {
-					if (!isUnknownPluginIdError(error)) {
-						throw error;
+		api.registerCommand(
+			markPluginCommand({
+				name: cd.name,
+				description: cd.description,
+				handler: async (input: string) => {
+					try {
+						return await sandbox.call<AgentExtensionCommandResult>(
+							"executeCommand",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: cd.id,
+								input,
+							},
+							{ timeoutMs },
+						);
+					} catch (error) {
+						if (!isUnknownPluginIdError(error)) {
+							throw error;
+						}
+						await reinitialize();
+						return await sandbox.call<AgentExtensionCommandResult>(
+							"executeCommand",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: cd.id,
+								input,
+							},
+							{ timeoutMs },
+						);
 					}
-					await reinitialize();
-					return await sandbox.call<AgentExtensionCommandResult>(
-						"executeCommand",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: cd.id,
-							input,
-						},
-						{ timeoutMs },
-					);
-				}
-			},
-		});
+				},
+			}),
+		);
 	}
 }
 

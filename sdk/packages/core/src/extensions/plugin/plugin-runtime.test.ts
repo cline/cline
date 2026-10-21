@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:fs", () => ({ existsSync: vi.fn() }));
@@ -22,12 +23,14 @@ describe("plugin runtime discovery", () => {
 		expect(existsSync).toHaveBeenCalledTimes(probes);
 	});
 
-	it("validates explicit configuration even after a cached discovery miss", async () => {
+	it("validates and resolves explicit configuration even after a cached discovery miss", async () => {
 		const { resolvePluginRuntimeDirectory } = await import("./plugin-runtime");
 		resolvePluginRuntimeDirectory();
-		vi.stubEnv("CLINE_PLUGIN_RUNTIME_DIR", "/configured-runtime");
+		vi.stubEnv("CLINE_PLUGIN_RUNTIME_DIR", "./configured-runtime");
 		vi.mocked(existsSync).mockReturnValue(true);
-		expect(resolvePluginRuntimeDirectory()).toBe("/configured-runtime");
+		expect(resolvePluginRuntimeDirectory()).toBe(
+			resolve("./configured-runtime"),
+		);
 		vi.mocked(existsSync).mockReturnValue(false);
 		expect(resolvePluginRuntimeDirectory).toThrow(
 			"does not contain a complete plugin runtime",

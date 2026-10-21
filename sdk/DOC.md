@@ -1,3 +1,54 @@
+## Plugin slash commands
+
+Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
+`client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
+`NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
+These APIs reuse the runtime and connection; clients do not load plugins or own
+a separate command sandbox. Pass the active `sessionId` so a command runs in
+that session's plugin instance and retains the state and context shared with
+its hooks.
+
+If a connection closes after a command is dispatched, execution rejects without
+automatically resending it: the command may already have changed external state.
+
+```ts
+const target = { workspacePath: workspaceRoot, sessionId };
+const catalog = await core.pluginCommands.list(target);
+const result = await core.pluginCommands.run({ ...target, prompt: "/upload-history" });
+// Display result?.reply; submit only result?.submitPrompt to the agent.
+// undefined means no registered command handled the input.
+```
+
+Omit `sessionId`, or pass one the runtime does not have, to use the workspace
+catalog. Every call checks the enabled plugins and their sources and reloads the
+catalog when they change, so call `list` again whenever the command menu needs to be
+current. A failed load lists healthy commands with `status: "error"` and is
+retried after 30 seconds. Workspace catalogs idle for 10 minutes release their
+plugin workers.
+
+For a resident session, listing and execution use its initialized contribution
+registry and existing plugin sandbox. Workspace file changes apply to new
+sessions, not an active session's commands. Built-in command precedence and
+rendering remain host responsibilities. Preserve the original arguments when
+dispatching.
+
+## Model request retries and Langfuse
+
+AI SDK text requests allow three retries after the initial request (four total
+attempts) for retryable request-start failures. Provider errors received after
+streaming starts have a separate budget of three stream retries. Exhausting
+either budget does not trigger another whole-turn retry.
+
+When Langfuse tracing is enabled, each failed request-start or stream attempt
+records its error on its model-call span, including attempts followed by a
+successful retry. Request-start failures close their attempt spans before retry
+backoff begins. A recovered request keeps a successful overall trace; exhausted
+retries mark the overall operation as failed. Span export follows the configured
+telemetry processor's flushing policy.
+
+Caller cancellation closes model-call spans without recording an exception or
+marking a provider failure, including cancellation before the response opens.
+Timeout cancellations remain failures.
 
 ## Oversized tool result recovery
 
@@ -43,6 +94,15 @@ host presentation.
 
 ## Cloud sessions (experimental)
 
+`summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
+a continuation note without changing session history or compaction state.
+Top-level credentials in `config` override those in `providerConfig`.
+The request retains the prior summary, latest instruction, and its most recent
+response. It shortens older context to fit the model's input limit and rejects
+requests if the retained context cannot fit. It also rejects
+empty, incomplete, failed, or cancelled output. Claude Code, Codex CLI, OpenCode,
+and Dify are unsupported because they may execute their own tools.
+
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
 The API handles REST requests; the controller handles remote Hub connections,
 session lifecycle, transcript reconciliation, and approvals. Hosts provide API
@@ -57,6 +117,10 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+The optional sixth argument to `send` accepts a `beforeDispatch` callback.
+The callback runs before submission and can throw to prevent it. A successful
+return without `recoveredAfterDisconnect` confirms acknowledgement.
+The callback does not confirm acceptance.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
@@ -177,6 +241,8 @@ only manages SSH and forwards the authenticated hub connection.
 Clients whose own process cannot host the Hub daemon can call
 `setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
 start are launched through the Cline CLI.
+
+The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
 
 ### Provider authentication metadata for host UIs
 
