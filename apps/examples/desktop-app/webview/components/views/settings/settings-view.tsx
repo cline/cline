@@ -991,7 +991,7 @@ function GeneralSettingsContent({
 						</p>
 						{privacySettingsUrl ? (
 							<p className="text-sm text-muted-foreground">
-								Data sharing and Cline Bench preferences live in your Cline
+								Your data sharing and Cline Bench preferences live in your Cline
 								account's{" "}
 								<button
 									type="button"
