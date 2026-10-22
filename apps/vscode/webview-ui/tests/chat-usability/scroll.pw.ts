@@ -51,9 +51,10 @@ test("long plan: bounded copy, readable latest prompt, code scroll, selection an
 		el.scrollTop = el.scrollHeight
 	})
 	await expect(copy).toBeInViewport()
+	await page.evaluate(() => navigator.clipboard.writeText(""))
 	await copy.focus()
 	await page.keyboard.press("Enter")
-	await expect(copy).toHaveAttribute("aria-label", "Copied")
+	await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("```text")
 	await page.getByRole("button", { name: "After plan", exact: true }).click()
 	await scroller.evaluate((el) => {
 		el.scrollTop = el.scrollHeight
