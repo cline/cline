@@ -162,11 +162,11 @@ describe("summary handoff lifecycle", () => {
 		await h.lifecycle.onEvent({
 			...result,
 			handoffAttemptId,
-			phase: "sending",
+			phase: "provisioning",
 		});
 		expect(h.state().local).toMatchObject({
 			status: "progress",
-			phase: "sending",
+			phase: "provisioning",
 			sessionId: "cloud",
 		});
 		await h.lifecycle.onEvent({

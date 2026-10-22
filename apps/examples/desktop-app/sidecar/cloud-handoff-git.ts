@@ -82,7 +82,7 @@ async function optionalConfig(cwd: string, key: string) {
 
 function isSensitivePath(path: string): boolean {
 	return (
-		/(^|\/)(\.env(?:\.[^/]*)?|\.npmrc|\.yarnrc\.yml|id_rsa|id_ed25519|credentials\.json)$|\.(pem|key|p12|pfx)$/i.test(
+		/(^|\/)(\.env(?:\.[^/]*)?|\.npmrc|\.yarnrc\.yml|\.netrc|\.pgpass|\.pypirc|\.aws\/credentials|id_rsa|id_ed25519|credentials\.json)$|\.(pem|key|p12|pfx|jks|keystore)$/i.test(
 			path,
 		) && !/\.(example|sample|template)$/i.test(path)
 	);

@@ -101,7 +101,7 @@ describe("CloudHandoffStatus", () => {
 		expect(view.textContent).toContain("Open cloud task");
 	});
 	it.each([
-		"sending",
+		"provisioning",
 		"complete",
 		"warning",
 	] as const)("offers a user-clicked cloud link during %s", (phase) => {
@@ -109,7 +109,7 @@ describe("CloudHandoffStatus", () => {
 		const view = render(
 			<CloudHandoffStatus
 				state={
-					phase !== "sending"
+					phase !== "provisioning"
 						? {
 								status: "complete",
 								sessionId: "cloud-1",
@@ -136,7 +136,7 @@ describe("CloudHandoffStatus", () => {
 				? "Cloud task ready"
 				: phase === "warning"
 					? "Check the cloud task"
-					: "Sending the cloud task",
+					: "Preparing the cloud workspace",
 		);
 		if (phase === "warning") {
 			expect(view.textContent).toContain("Check delivery before resending.");

@@ -8,7 +8,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	applyHandoffGit,
@@ -435,7 +435,14 @@ describe("cloud handoff Git preparation", () => {
 		"secret.key",
 		".npmrc",
 		".yarnrc.yml",
+		".netrc",
+		".pgpass",
+		".pypirc",
+		".aws/credentials",
+		"release.jks",
+		"release.keystore",
 	])("blocks potential secret %s without staging it", async (name) => {
+		mkdirSync(dirname(join(repo, name)), { recursive: true });
 		writeFileSync(join(repo, name), "private");
 		await expect(inspectHandoffGit(repo)).rejects.toThrow("sensitive files");
 		expect(git("diff", "--cached", "--name-only")).toBe("");
@@ -445,7 +452,9 @@ describe("cloud handoff Git preparation", () => {
 		[".env", false],
 		[".env", true],
 		[".npmrc", true],
+		[".aws/credentials", true],
 	] as const)("rejects sensitive unpublished %s history (deleted later: %s) without mutation", async (path, deleted) => {
+		mkdirSync(dirname(join(repo, path)), { recursive: true });
 		writeFileSync(join(repo, path), "SYNTHETIC_LOCAL_ONLY=value\n");
 		git("add", path);
 		git("commit", "-m", "local credentials");
@@ -464,6 +473,11 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("rev-parse", "HEAD")).toBe(head);
 		expect(readFileSync(join(repo, ".git/index"))).toEqual(index);
 		expect(git("ls-remote", "origin")).toBe(remoteRefs);
+	});
+	it("allows credential templates in the checkpoint", async () => {
+		writeFileSync(join(repo, ".netrc.example"), "machine example.com\n");
+		const plan = await inspectHandoffGit(repo);
+		expect(plan.files.map(({ path }) => path)).toContain(".netrc.example");
 	});
 
 	it("rejects different push repositories before any local mutation", async () => {

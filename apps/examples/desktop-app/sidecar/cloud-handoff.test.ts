@@ -1,5 +1,4 @@
 import { summarizeConversation } from "@cline/core";
-import { loadCloudModels } from "@cline/core/cloud";
 import { DEFAULT_MAX_IMAGE_DECODED_BYTES } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,11 +8,12 @@ import {
 	handlePrepareHandoff,
 } from "./cloud-handoff";
 import * as gitPreparation from "./cloud-handoff-git";
+import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
 import {
 	CloudCreationUnconfirmedError,
 	type CloudSessionApi,
 	CloudSessionError,
-	CloudSessionManager,
+	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { createSidecarContext, getEnvironmentContext } from "./context";
@@ -34,10 +34,6 @@ vi.mock("@cline/core", async (importOriginal) => {
 		summarizeConversation: vi.fn(),
 	};
 });
-vi.mock("@cline/core/cloud", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@cline/core/cloud")>();
-	return { ...actual, loadCloudModels: vi.fn() };
-});
 
 const image =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jT1sAAAAASUVORK5CYII=";
@@ -47,7 +43,7 @@ afterEach(() => {
 	cleanupCloudHandoffGates();
 });
 
-function fixture() {
+async function fixture() {
 	const sourceSessionId = "local-source";
 	const modelId = "test-model";
 	const git = {
@@ -56,9 +52,6 @@ function fixture() {
 		headSha: "a".repeat(40),
 		workspaceRelativePath: "packages/app",
 	};
-	vi.mocked(loadCloudModels).mockResolvedValue([
-		{ id: modelId, catalogId: "cline-cloud", name: "Test" },
-	]);
 	const plan: gitPreparation.HandoffGitPlan = {
 		id: "plan",
 		root: "/workspace/project",
@@ -118,11 +111,16 @@ function fixture() {
 		status: "idle",
 		startedAt: 1,
 	});
-	const cloud = new CloudSessionManager(ctx, {
+	const cloud = await createCloudSessionTestRuntime(ctx, {
 		api: {} as CloudSessionApi,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "synthetic",
 	});
+	const models = vi
+		.spyOn(cloud, "listModels")
+		.mockResolvedValue([
+			{ id: modelId, catalogId: "cline-cloud", name: "Test" },
+		]);
 	vi.spyOn(cloud, "prepareHandoffRepository").mockResolvedValue({});
 	const create = vi.spyOn(cloud, "create").mockResolvedValue({
 		sessionId: "ses-target",
@@ -140,7 +138,6 @@ function fixture() {
 		args[5]?.beforeDispatch?.();
 		return { sessionId: "ses-target", ok: true };
 	});
-	ctx.cloudSessionManager = cloud;
 	const summarize = vi
 		.fn()
 		.mockResolvedValue("Search form: implemented. Next: add tests.");
@@ -160,6 +157,9 @@ function fixture() {
 		expect(preview).toMatchObject({ gitPreparation: { id: plan.id } });
 	};
 	return {
+		cloud,
+		models,
+		viewer: getCloudSessionManager(ctx),
 		ctx,
 		sourceSessionId,
 		git,
@@ -182,7 +182,7 @@ function fixture() {
 
 describe("summary cloud handoff", () => {
 	it("returns a missed completion before preparing another cloud task", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		const result = await f.handoff();
 		const retry = await handlePrepareHandoff(f.ctx, f.request);
@@ -210,14 +210,14 @@ describe("summary cloud handoff", () => {
 		await f.prepare();
 	});
 	it("does not return another account's completed handoff", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		await f.handoff();
-		f.ctx.cloudSessionManager = fixture().ctx.cloudSessionManager;
+		f.ctx.cloudSessionManager = (await fixture()).ctx.cloudSessionManager;
 		await f.prepare();
 	});
 	it("discards only the canceled preview, not a newer preview", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		await handleDiscardHandoff(f.ctx, {
 			...f.request,
@@ -239,7 +239,7 @@ describe("summary cloud handoff", () => {
 		false,
 		true,
 	])("invalidates only turns overlapping capture (captured=%s)", async (captured) => {
-		const f = fixture();
+		const f = await fixture();
 		const ctx = getEnvironmentContext(f.ctx, "local");
 		vi.mocked(gitPreparation.inspectHandoffGit).mockImplementation(
 			async (_cwd, onCaptured?: () => void) => {
@@ -269,7 +269,7 @@ describe("summary cloud handoff", () => {
 		}
 	});
 	it("shows a provisioning failure reason without losing the unsent draft", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		f.send.mockRejectedValue(
 			new CloudSessionError("session_failed", "Repository clone failed."),
@@ -287,7 +287,7 @@ describe("summary cloud handoff", () => {
 		"verification",
 		"model",
 	] as const)("rejects an account reset during %s before further publication or creation", async (stage) => {
-		const f = fixture();
+		const f = await fixture();
 		await handlePrepareHandoff(f.ctx, f.request);
 		if (stage === "preview") await resetCloudSessionManager(f.ctx);
 		if (stage === "summary")
@@ -305,19 +305,53 @@ describe("summary cloud handoff", () => {
 				await resetCloudSessionManager(f.ctx);
 			});
 		if (stage === "model")
-			vi.mocked(loadCloudModels).mockImplementation(async () => {
+			f.models.mockImplementation(async () => {
 				await resetCloudSessionManager(f.ctx);
 				return [{ id: "test-model", catalogId: "cline-cloud", name: "Test" }];
 			});
-		await expect(f.handoff(f.request)).rejects.toThrow("account changed");
+		await expect(f.handoff(f.request)).rejects.toThrow(
+			/account changed|viewer is disposed/,
+		);
 		if (stage === "preview" || stage === "summary")
 			expect(f.apply).not.toHaveBeenCalled();
 		expect(f.ctx.cloudSessionManager).toBeNull();
 		expect(f.create).not.toHaveBeenCalled();
 		expect(f.send).not.toHaveBeenCalled();
 	});
+	it("invalidates a prepared handoff when the same viewer changes account and back", async () => {
+		const f = await fixture();
+		await f.prepare();
+		const scope = f.viewer.scope;
+		if (!scope) throw new Error("Missing connected test scope");
+		f.summarize.mockImplementation(async () => {
+			vi.spyOn(f.viewer, "scope", "get").mockReturnValue({
+				...scope,
+				scopeGeneration: scope.scopeGeneration + 2,
+			});
+			return "Captured summary";
+		});
+		await expect(f.handoff()).rejects.toThrow("account changed");
+		expect(f.apply).not.toHaveBeenCalled();
+		expect(f.create).not.toHaveBeenCalled();
+		expect(f.send).not.toHaveBeenCalled();
+	});
+	it("does not expose a completed handoff after the same viewer changes account", async () => {
+		const f = await fixture();
+		await f.prepare();
+		await f.handoff();
+		const scope = f.viewer.scope;
+		if (!scope) throw new Error("Missing connected test scope");
+		vi.spyOn(f.viewer, "scope", "get").mockReturnValue({
+			...scope,
+			scopeGeneration: scope.scopeGeneration + 1,
+		});
+		// The server still has the old scope, so a new preview must also be rejected.
+		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
+			"account changed",
+		);
+	});
 	it("uses the captured conversation and configuration while the source continues locally", async () => {
-		const f = fixture();
+		const f = await fixture();
 		const originalMessages = structuredClone(f.messages);
 		const originalConfig = structuredClone(f.request.config);
 		vi.mocked(gitPreparation.inspectHandoffGit).mockImplementation(async () => {
@@ -358,7 +392,7 @@ describe("summary cloud handoff", () => {
 	});
 
 	it("rejects competing previews and duplicate confirmed requests", async () => {
-		const f = fixture();
+		const f = await fixture();
 		const first = handlePrepareHandoff(f.ctx, f.request);
 		await expect(handlePrepareHandoff(f.ctx, f.request)).rejects.toThrow(
 			"already in progress",
@@ -385,7 +419,7 @@ describe("summary cloud handoff", () => {
 	});
 
 	it("publishes a dedicated branch, sends one combined prompt with invocation images, and leaves source history alone", async () => {
-		const f = fixture();
+		const f = await fixture();
 		const preparationProgress: unknown[] = [];
 		f.ctx.wsClients.add({
 			data: { canApproveTools: true },
@@ -452,7 +486,7 @@ describe("summary cloud handoff", () => {
 	});
 
 	it("allows bare /cloud with an image and a deliberate second handoff", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		await f.handoff({
 			...f.request,
@@ -471,7 +505,7 @@ describe("summary cloud handoff", () => {
 	});
 
 	it("uses the selected local connection to summarize through the command handler", async () => {
-		const f = fixture();
+		const f = await fixture();
 		const scoped = getEnvironmentContext(f.ctx, "local");
 		await handlePrepareHandoff(scoped, {
 			...f.request,
@@ -515,7 +549,7 @@ describe("summary cloud handoff", () => {
 		"running in Hub",
 		"queued",
 	] as const)("rejects a %s source before Git preparation", async (state) => {
-		const f = fixture();
+		const f = await fixture();
 		if (state === "busy") {
 			const source = f.ctx.liveSessions.get(f.sourceSessionId);
 			if (!source) throw new Error("Source fixture is missing");
@@ -538,7 +572,7 @@ describe("summary cloud handoff", () => {
 		"empty",
 		"empty context",
 	] as const)("does not publish Git or create a cloud task after summary %s", async (failure) => {
-		const f = fixture();
+		const f = await fixture();
 		if (failure === "failure")
 			f.summarize.mockRejectedValue(new Error("Summary failed"));
 		if (failure === "empty") f.summarize.mockResolvedValue(" ");
@@ -558,14 +592,14 @@ describe("summary cloud handoff", () => {
 		"git",
 		"model",
 	] as const)("rejects %s becoming unavailable after preview", async (changed) => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		if (changed === "git")
 			f.verifyPublished.mockRejectedValue(
 				new Error("Published branch changed"),
 			);
 		else
-			vi.mocked(loadCloudModels).mockResolvedValue([
+			f.models.mockResolvedValue([
 				{ id: "other-model", catalogId: "cline-cloud", name: "Other" },
 			]);
 		await expect(f.handoff()).rejects.toThrow(
@@ -580,8 +614,9 @@ describe("summary cloud handoff", () => {
 	it.each([
 		false,
 		true,
+		undefined,
 	])("returns the prepared prompt only for a definitely unsent failure (dispatched: %s)", async (dispatched) => {
-		const f = fixture();
+		const f = await fixture();
 		const completed: unknown[] = [];
 		f.ctx.wsClients.add({
 			data: { canApproveTools: true },
@@ -595,16 +630,24 @@ describe("summary cloud handoff", () => {
 			},
 		} as unknown as SidecarWebSocketClient);
 		await f.prepare();
-		f.send.mockImplementation(async (...args) => {
-			if (dispatched) args[5]?.beforeDispatch?.();
-			throw new Error("Connection failed");
-		});
+		if (dispatched === undefined) {
+			const send = f.viewer.send.bind(f.viewer);
+			vi.spyOn(f.viewer, "send").mockImplementation(async (...args) => {
+				await send(...args);
+				throw new Error("Reply lost after send");
+			});
+		} else {
+			f.send.mockImplementation(async (...args) => {
+				if (dispatched) args[5]?.beforeDispatch?.();
+				throw new Error("Connection failed");
+			});
+		}
 		const result = await f.handoff({
 			...f.request,
 			nextCommand: "Add tests",
 			attachments: { userImages: [image] },
 		});
-		if (dispatched) expect(result).not.toHaveProperty("unsentPrompt");
+		if (dispatched !== false) expect(result).not.toHaveProperty("unsentPrompt");
 		else
 			expect(result).toHaveProperty(
 				"unsentPrompt",
@@ -612,9 +655,9 @@ describe("summary cloud handoff", () => {
 			);
 		expect(result).toMatchObject({
 			sessionId: "ses-target",
-			warningKind: dispatched ? "unconfirmed" : "unqueued",
+			warningKind: dispatched !== false ? "unconfirmed" : "unqueued",
 			warning: expect.stringContaining(
-				dispatched
+				dispatched !== false
 					? "delivery is unconfirmed"
 					: "closing it loses the unsent draft",
 			),
@@ -623,7 +666,7 @@ describe("summary cloud handoff", () => {
 	});
 
 	it("does not automatically retry unconfirmed creation", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		f.create.mockRejectedValue(
 			new CloudCreationUnconfirmedError(new Error("Connection lost")),
@@ -638,7 +681,7 @@ describe("summary cloud handoff", () => {
 		"count",
 		"bytes",
 	] as const)("validates image %s limits before summarizing or publishing", async (limit) => {
-		const f = fixture();
+		const f = await fixture();
 		await f.prepare();
 		const images =
 			limit === "count"
@@ -658,7 +701,7 @@ describe("summary cloud handoff", () => {
 	});
 
 	it("rejects an unapproved Git preparation", async () => {
-		const f = fixture();
+		const f = await fixture();
 		await handlePrepareHandoff(f.ctx, f.request);
 		await expect(
 			f.handoff({ ...f.request, gitPreparationId: "stale" }),

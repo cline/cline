@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { buildCloudHandoffDashboardUrl, type ClineCore } from "@cline/core";
 import {
 	type CloudCreationOptions,
-	CloudSessionError,
-	loadCloudModels,
+	type CloudHubScope,
+	CloudSendError,
 } from "@cline/core/cloud";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
@@ -45,6 +45,7 @@ import type {
 
 type HandoffSnapshot = {
 	cloud: CloudSessionManager;
+	scope: CloudHubScope;
 	plan: HandoffGitPlan;
 	messages: MessageWithMetadata[];
 	config: JsonRecord;
@@ -58,6 +59,7 @@ const gitPreparations = new WeakMap<
 type HandoffRequest = {
 	id: string;
 	cloud: CloudSessionManager;
+	scope: CloudHubScope;
 } & ({ status: "running" } | { status: "complete"; result: HandoffResult });
 const handoffRequests = new WeakMap<
 	SidecarContext,
@@ -136,8 +138,13 @@ async function prepareCloudHandoff(
 function assertHandoffAccount(
 	ctx: SidecarContext,
 	cloud: CloudSessionManager,
+	scope: CloudHubScope,
 ): void {
-	if (getSidecarContextOwner(ctx).cloudSessionManager !== cloud)
+	if (
+		getSidecarContextOwner(ctx).cloudSessionManager !== cloud ||
+		cloud.scope?.serviceId !== scope.serviceId ||
+		cloud.scope?.scopeGeneration !== scope.scopeGeneration
+	)
 		throw new Error(
 			"The cloud account changed. Run /cloud again to review the preparation plan.",
 		);
@@ -146,17 +153,19 @@ function assertHandoffAccount(
 async function resolveCloudModel(
 	ctx: SidecarContext,
 	cloud: CloudSessionManager,
+	scope: CloudHubScope,
 	config: JsonRecord,
 	repoUrl: string,
 ) {
-	assertHandoffAccount(ctx, cloud);
-	const { organizationId } = await cloud.prepareHandoffRepository(repoUrl);
-	assertHandoffAccount(ctx, cloud);
+	assertHandoffAccount(ctx, cloud, scope);
+	const { organizationId } = await cloud.prepareHandoffRepository(
+		repoUrl,
+		scope,
+	);
+	assertHandoffAccount(ctx, cloud, scope);
 	const modelId = String(config.model ?? config.modelId ?? "").trim();
-	const models = await loadCloudModels(getClineEnvironmentConfig().apiBaseUrl, {
-		isOrganizationSession: Boolean(organizationId),
-	});
-	assertHandoffAccount(ctx, cloud);
+	const models = await cloud.listModels(scope);
+	assertHandoffAccount(ctx, cloud, scope);
 	if (!modelId || !models.some((model) => model.id === modelId))
 		throw new Error(
 			`The selected model ${modelId || "(none)"} is not available in Cline Cloud for this account. Select a supported model before continuing.`,
@@ -176,6 +185,8 @@ export async function handlePrepareHandoff(
 	if (
 		previous?.status === "complete" &&
 		previous.cloud === getSidecarContextOwner(ctx).cloudSessionManager &&
+		previous.scope.serviceId === previous.cloud.scope?.serviceId &&
+		previous.scope.scopeGeneration === previous.cloud.scope?.scopeGeneration &&
 		previous.id !== request.completedHandoffAttemptId
 	) {
 		return {
@@ -194,6 +205,9 @@ export async function handlePrepareHandoff(
 	try {
 		const cloud = getCloudSessionManager(ctx);
 		const source = await prepareCloudHandoff(ctx, request);
+		await cloud.connect();
+		const scope = cloud.scope;
+		if (!scope) throw new Error("Cloud account is unavailable.");
 		const config = structuredClone(source.config);
 		const messages = structuredClone(
 			await source.manager.readLiveMessages(sessionId),
@@ -207,14 +221,14 @@ export async function handlePrepareHandoff(
 				);
 			active.set(sessionId, "captured");
 		});
-		await resolveCloudModel(ctx, cloud, config, plan.repoUrl);
-		assertHandoffAccount(ctx, cloud);
+		await resolveCloudModel(ctx, cloud, scope, config, plan.repoUrl);
+		assertHandoffAccount(ctx, cloud, scope);
 		let plans = gitPlans.get(ctx);
 		if (!plans) {
 			plans = new Map();
 			gitPlans.set(ctx, plans);
 		}
-		plans.set(sessionId, { cloud, plan, messages, config });
+		plans.set(sessionId, { cloud, scope, plan, messages, config });
 		return { gitPreparation: previewHandoffGit(plan) };
 	} finally {
 		active.delete(sessionId);
@@ -260,8 +274,8 @@ async function handleHandoffOnce(
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
 	gitPlans.get(ctx)?.delete(sourceSessionId);
-	const { cloud, config, messages, plan } = approved;
-	assertHandoffAccount(ctx, cloud);
+	const { cloud, scope, config, messages, plan } = approved;
+	assertHandoffAccount(ctx, cloud, scope);
 	const emitProgress = (phase: string, message: string, sessionId?: string) =>
 		sendEvent(ctx, "cloud_handoff_progress", {
 			sourceSessionId,
@@ -281,23 +295,24 @@ async function handleHandoffOnce(
 	const { modelId, organizationId } = await resolveCloudModel(
 		ctx,
 		cloud,
+		scope,
 		config,
 		plan.repoUrl,
 	);
-	assertHandoffAccount(ctx, cloud);
+	assertHandoffAccount(ctx, cloud, scope);
 	emitProgress("summarizing", "Preparing a summary of this conversation.");
 	const summary = (await summarize(messages, config)).trim();
-	assertHandoffAccount(ctx, cloud);
+	assertHandoffAccount(ctx, cloud, scope);
 	if (!summary)
 		throw new Error(
 			"The conversation summary was empty. Nothing was published or started in cloud.",
 		);
 	emitProgress("checking", "Publishing the approved Git checkpoint.");
 	const headSha = await applyHandoffGit(plan);
-	assertHandoffAccount(ctx, cloud);
+	assertHandoffAccount(ctx, cloud, scope);
 	assertCloudHandoffAvailable();
 	await verifyPublishedHandoffGit(plan, headSha);
-	assertHandoffAccount(ctx, cloud);
+	assertHandoffAccount(ctx, cloud, scope);
 	const followUp = request.nextCommand?.trim();
 	const command = [
 		summary,
@@ -321,15 +336,18 @@ async function handleHandoffOnce(
 			: {}),
 		reasoningEffort: readReasoningEffort(config.reasoningEffort),
 	};
-	const target = await cloud.create({
-		requestId: request.handoffAttemptId?.trim() || randomUUID(),
-		repoUrl: plan.repoUrl,
-		branch: plan.branch,
-		modelId,
-		organizationId: organizationId ?? null,
-		...initialTask,
-		initialPrompt: command,
-	});
+	const target = await cloud.create(
+		{
+			requestId: request.handoffAttemptId?.trim() || randomUUID(),
+			repoUrl: plan.repoUrl,
+			branch: plan.branch,
+			modelId,
+			organizationId: organizationId ?? null,
+			...initialTask,
+			initialPrompt: command,
+		},
+		scope,
+	);
 	const sessionId = target.sessionId;
 	const dashboardUrl = buildCloudHandoffDashboardUrl(
 		getClineEnvironmentConfig().appBaseUrl,
@@ -337,7 +355,6 @@ async function handleHandoffOnce(
 	);
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
-	let dispatched = false;
 	try {
 		emitProgress("provisioning", "Preparing the cloud workspace.", sessionId);
 		const result = await cloud.send(
@@ -346,16 +363,7 @@ async function handleHandoffOnce(
 			undefined,
 			modelId,
 			images,
-			{
-				beforeDispatch: () => {
-					dispatched = true;
-					emitProgress(
-						"sending",
-						"Sending the summary and your instruction.",
-						sessionId,
-					);
-				},
-			},
+			scope,
 		);
 		if (result.recoveredAfterDisconnect) {
 			warningKind = "unconfirmed";
@@ -363,14 +371,18 @@ async function handleHandoffOnce(
 				"The cloud connection was interrupted. Check the conversation before resending.";
 		}
 	} catch (error) {
-		warningKind = dispatched ? "unconfirmed" : "unqueued";
+		warningKind =
+			error instanceof CloudSendError && !error.dispatched
+				? "unqueued"
+				: "unconfirmed";
 		warning =
 			warningKind === "unconfirmed"
 				? "The cloud session was created, but delivery is unconfirmed. Check the conversation before resending."
 				: "The cloud workspace was created, but the prompt was not sent. Keep Cline open to retry; closing it loses the unsent draft and may require a new cloud task.";
-		if (error instanceof CloudSessionError)
+		if (error instanceof CloudSendError && error.detail)
 			warning = `${error.detail} ${warning}`;
 	}
+	assertHandoffAccount(ctx, cloud, scope);
 	const result = {
 		sourceSessionId,
 		sessionId,
@@ -407,8 +419,8 @@ export async function handleHandoff(
 	if (!approved || approved.plan.id !== request.gitPreparationId)
 		throw new Error("Run /cloud again to review the preparation plan.");
 	const id = request.handoffAttemptId?.trim() || randomUUID();
-	const { cloud } = approved;
-	requests.set(sessionId, { id, cloud, status: "running" });
+	const { cloud, scope } = approved;
+	requests.set(sessionId, { id, cloud, scope, status: "running" });
 	try {
 		const result = await handleHandoffOnce(
 			ctx,
@@ -416,7 +428,7 @@ export async function handleHandoff(
 			summarize,
 			approved,
 		);
-		requests.set(sessionId, { id, cloud, status: "complete", result });
+		requests.set(sessionId, { id, cloud, scope, status: "complete", result });
 		return result;
 	} catch (error) {
 		requests.delete(sessionId);

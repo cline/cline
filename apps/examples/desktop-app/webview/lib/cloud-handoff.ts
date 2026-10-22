@@ -14,7 +14,6 @@ export type HandoffProgressPhase =
 	| "summarizing"
 	| "creating"
 	| "provisioning"
-	| "sending"
 	| "complete";
 
 export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
@@ -22,7 +21,6 @@ export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
 	creating: "Creating the cloud session...",
 	provisioning: "Preparing the cloud workspace...",
 	summarizing: "Summarizing the local conversation...",
-	sending: "Sending the cloud task...",
 	complete: "Cloud handoff complete.",
 };
 
