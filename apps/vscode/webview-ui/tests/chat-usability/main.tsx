@@ -82,6 +82,20 @@ function Fixture() {
 						}>
 						After plan
 					</button>
+					<button
+						onClick={() =>
+							setMessages([
+								task,
+								{
+									...response,
+									text: JSON.stringify({
+										response: "```sh\nprintf short\n```\n\n```sh\n" + "printf long; ".repeat(60) + "\n```",
+									}),
+								},
+							])
+						}>
+						Short code
+					</button>
 					<button onClick={() => setShowTimes(!showUserMessageTimestamps)}>User times</button>
 				</nav>
 				<MessagesArea

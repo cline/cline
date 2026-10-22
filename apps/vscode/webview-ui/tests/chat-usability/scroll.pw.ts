@@ -86,3 +86,37 @@ test("initial prompt, newest attachment-only submission, task switch and user-on
 	await expect(preview).toContainText("Other task")
 	await expect(preview).not.toContainText("Latest submitted prompt")
 })
+
+test("code copy stays visible in a left gutter without changing plan copy", async ({ page, context }, testInfo) => {
+	await context.grantPermissions(["clipboard-read", "clipboard-write"])
+	await page.goto("/tests/chat-usability/")
+	await page.getByRole("button", { name: "Short code", exact: true }).click()
+	const planCopy = page.getByRole("button", { name: "Copy response" })
+	await expect(planCopy).toBeVisible()
+	const originalPlanBox = (await planCopy.boundingBox())!
+	const pre = page.locator("pre")
+	await expect(pre).toHaveCount(2)
+	await page.mouse.move(0, 0)
+	const copies = page.getByRole("button", { name: "Copy code" })
+	for (let i = 0; i < 2; i++) {
+		const button = copies.nth(i)
+		await expect(button).toBeVisible()
+		expect(await button.evaluate((el) => getComputedStyle(el.parentElement!).opacity)).toBe("1")
+		const box = (await button.boundingBox())!
+		const textBox = (await pre.nth(i).boundingBox())!
+		expect(box.x + box.width).toBeLessThanOrEqual(textBox.x)
+		expect(Math.abs(box.y - textBox.y)).toBeLessThan(30)
+	}
+	await pre.nth(1).evaluate((el) => {
+		el.scrollLeft = 300
+	})
+	expect(await pre.nth(1).evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+	await copies.first().focus()
+	await page.keyboard.press("Enter")
+	await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("printf short\n")
+	await expect(planCopy).toHaveCount(1)
+	expect((await planCopy.boundingBox())!.x).toBe(originalPlanBox.x)
+	await planCopy.click()
+	await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("```sh")
+	await page.screenshot({ path: testInfo.outputPath("persistent-left-copy.png") })
+})
