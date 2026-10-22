@@ -445,3 +445,18 @@ describe("isClineAccountCreditsErrorMessage", () => {
 		).toBe(false);
 	});
 });
+
+describe("getClineCreditsDashboardUrl", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it("opens the credits tab on the configured Cline environment's app", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+		const { getClineCreditsDashboardUrl } = await import("./cline-account");
+
+		expect(getClineCreditsDashboardUrl()).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=credits&client=cline-cli",
+		);
+	});
+});

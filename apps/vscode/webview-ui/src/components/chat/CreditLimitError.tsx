@@ -1,5 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
+import { getClineUris } from "@/components/account/helpers"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { AccountServiceClient } from "@/services/grpc-client"
@@ -13,11 +14,6 @@ interface CreditLimitErrorProps {
 	retryFailedRequest?: () => Promise<boolean>
 }
 
-const DEFAULT_BUY_CREDITS_URL = {
-	USER: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
-	ORG: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true",
-}
-
 const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	message = "You have run out of credits.",
 	buyCreditsUrl,
@@ -26,14 +22,18 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	totalSpent,
 	retryFailedRequest,
 }) => {
-	const { activeOrganization } = useClineAuth()
+	const { clineUser, activeOrganization } = useClineAuth()
 	const [fullBuyCreditsUrl, setFullBuyCreditsUrl] = useState<string>("")
 
-	const dashboardUrl = useMemo(() => {
-		return buyCreditsUrl ?? (activeOrganization?.organizationId ? DEFAULT_BUY_CREDITS_URL.ORG : DEFAULT_BUY_CREDITS_URL.USER)
-	}, [buyCreditsUrl, activeOrganization?.organizationId])
+	const dashboardUrl = useMemo(
+		() =>
+			buyCreditsUrl ??
+			getClineUris(clineUser?.appBaseUrl, "credits", activeOrganization?.organizationId ? "organization" : "account"),
+		[buyCreditsUrl, clineUser?.appBaseUrl, activeOrganization?.organizationId],
+	)
 
 	useEffect(() => {
+		if (!dashboardUrl) return
 		const fetchCallbackUrl = async () => {
 			try {
 				const callbackUrl = (await AccountServiceClient.getRedirectUrl({})).value
@@ -67,10 +67,12 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 				</div>
 			</div>
 
-			<VSCodeButtonLink className="w-full mb-2" href={fullBuyCreditsUrl}>
-				<span className="codicon codicon-credit-card mr-[6px] text-[14px]" />
-				Buy Credits
-			</VSCodeButtonLink>
+			{dashboardUrl && (
+				<VSCodeButtonLink className="w-full mb-2" href={fullBuyCreditsUrl}>
+					<span className="codicon codicon-credit-card mr-[6px] text-[14px]" />
+					Buy Credits
+				</VSCodeButtonLink>
+			)}
 
 			<VSCodeButton
 				appearance="secondary"

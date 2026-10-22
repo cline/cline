@@ -5,7 +5,7 @@ import type { UsageTransaction as ProtoUsageTransaction, UserOrganization } from
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import type { ClineUser } from "@/context/ClineAuthContext"
 
-const getClineClientName = (): ClientName =>
+export const getClineClientName = (): ClientName =>
 	PLATFORM_CONFIG.type === PlatformType.STANDALONE ? "cline-jetbrains" : "cline-vscode"
 
 export const getMainRole = (roles?: string[]) => {

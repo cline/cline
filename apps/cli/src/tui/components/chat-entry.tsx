@@ -18,7 +18,7 @@ import {
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
 import {
-	CLINE_CREDITS_DASHBOARD_URL,
+	getClineCreditsDashboardUrl,
 	isClineAccountCreditsErrorMessage,
 } from "../cline-account";
 import { getUserMessageBackground } from "../palette";
@@ -278,6 +278,7 @@ function ClineCreditsClinePassErrorView(props: {
 }) {
 	const linkColor = props.theme.accents.act;
 	const subscriptionUrl = getCliSubscriptionUrl();
+	const creditsUrl = getClineCreditsDashboardUrl();
 	return (
 		<box flexDirection="row">
 			<text fg="red" content="* " />
@@ -296,14 +297,14 @@ function ClineCreditsClinePassErrorView(props: {
 						"You have run out of Cline credits. Add credits in the dashboard or purchase and switch to ClinePass to continue."
 					}
 				/>
-				<box flexDirection="row">
-					<text fg="gray">Purchase Credits: </text>
-					<text fg={linkColor} selectable>
-						<a href={CLINE_CREDITS_DASHBOARD_URL}>
-							{CLINE_CREDITS_DASHBOARD_URL}
-						</a>
-					</text>
-				</box>
+				{creditsUrl ? (
+					<box flexDirection="row">
+						<text fg="gray">Purchase Credits: </text>
+						<text fg={linkColor} selectable>
+							<a href={creditsUrl}>{creditsUrl}</a>
+						</text>
+					</box>
+				) : null}
 				<box flexDirection="row">
 					<text fg="gray">Purchase ClinePass: </text>
 					<text fg={linkColor} selectable>

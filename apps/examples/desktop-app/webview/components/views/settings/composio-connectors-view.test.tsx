@@ -24,7 +24,10 @@ vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
 		invoke: mocks.invoke,
 		subscribe: () => () => {},
-		subscribeTransportState: () => () => {},
+		subscribeTransportState: (handler: (state: string) => void) => {
+			handler("connected");
+			return () => {};
+		},
 	},
 	openExternalUrl: mocks.openExternalUrl,
 }));
@@ -425,10 +428,11 @@ describe("installed connectors", () => {
 
 	it("offers Cline sign-in when connectors are unavailable and the user is signed out", async () => {
 		mocks.configured = false;
-		mocks.invoke.mockResolvedValue({
-			signedIn: false,
-			code: "ACCOUNT_NOT_AUTHENTICATED",
-		});
+		mocks.invoke.mockImplementation(async (command: string) =>
+			command === "get_cline_app_base_url"
+				? "https://staging-app.cline.bot"
+				: { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" },
+		);
 		await act(async () =>
 			root.render(
 				<AccountProvider>
@@ -453,7 +457,9 @@ describe("installed connectors", () => {
 		);
 		expect(mocks.refresh).toHaveBeenCalled();
 		await act(async () => button("Create account")?.click());
-		expect(mocks.openExternalUrl).toHaveBeenCalledWith("https://app.cline.bot");
+		expect(mocks.openExternalUrl).toHaveBeenCalledWith(
+			"https://staging-app.cline.bot/?client=cline-desktop",
+		);
 	});
 
 	it("explains the beta rollout when signed in without connector access", async () => {

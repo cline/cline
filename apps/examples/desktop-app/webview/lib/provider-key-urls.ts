@@ -21,9 +21,6 @@ const PROVIDER_API_KEY_URLS: Record<string, string> = {
 	wandb: "https://wandb.ai/settings",
 };
 
-/** Cline account dashboard, where Cline API keys are created and managed. */
-export const CLINE_DASHBOARD_URL = "https://app.cline.bot";
-
 /**
  * Resolve the "get an API key" URL for a provider, preferring the catalog's
  * own `docUrl` and falling back to the curated map of popular providers.

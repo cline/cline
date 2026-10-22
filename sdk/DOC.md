@@ -484,9 +484,9 @@ the client explicitly: `getClineClientIdentity()` is process-local and holds
 display names for request headers (`"VSCode Extension"`), so webviews cannot
 read it.
 
-`client` is appended after the path is resolved. `new URL(path, base)` keeps the
-base's own query string for a relative path and replaces it for a path that has
-its own, so appending afterwards is the only ordering that holds for both.
+`new URL(path, base)` drops the base's own query string as soon as a non-empty
+path is supplied, so `client` is appended after the path is resolved; added to
+the base first, it would be lost.
 
 It returns `undefined` when the path or base URL is missing, the base URL is
 unusable, or the result would leave the app's origin, such as an absolute,

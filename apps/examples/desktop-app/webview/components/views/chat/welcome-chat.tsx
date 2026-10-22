@@ -1,7 +1,10 @@
 "use client";
 
 import type { AgendaTaskRecord } from "@cline/shared";
-import { getClineEnvironmentConfig } from "@cline/shared/browser";
+import {
+	getClineDashboardUrl,
+	getClineEnvironmentConfig,
+} from "@cline/shared/browser";
 import {
 	AgentConversationLayout,
 	type AgentQuickAction,
@@ -37,9 +40,6 @@ import {
 } from "./cloud-onboarding";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
-// Used only until the API's connectUrl arrives (or when it is blank), so a
-// staging/local build still points at its own dashboard.
-const FALLBACK_CONNECT_URL = `${getClineEnvironmentConfig().appBaseUrl}/dashboard/integrations`;
 const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;
 
 type CloudSetupState = {
@@ -51,7 +51,7 @@ type CloudSetupState = {
 		| "no_repositories"
 		| "restore_error"
 		| "error";
-	connectUrl: string;
+	connectUrl: string | undefined;
 	scope: string | null;
 	requestId: number;
 	repositories: CloudRepositoryOption[];
@@ -100,7 +100,9 @@ export function WelcomeScreen({
 	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
-	const { user, activeOrganization, refreshAccount } = useAccount();
+	const { user, activeOrganization, clineAppBaseUrl, refreshAccount } =
+		useAccount();
+	// A storage key, not a link: changing it would orphan saved selections.
 	const cloudScope = user
 		? JSON.stringify([
 				getClineEnvironmentConfig().appBaseUrl,
@@ -122,7 +124,7 @@ export function WelcomeScreen({
 	});
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
-		connectUrl: FALLBACK_CONNECT_URL,
+		connectUrl: undefined,
 		scope: null,
 		requestId: 0,
 		repositories: [],
@@ -150,7 +152,7 @@ export function WelcomeScreen({
 						: result.repositories.length === 0
 							? "no_repositories"
 							: "ready",
-				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
+				connectUrl: result.connectUrl?.trim() || undefined,
 				repositoryUrls: result.repositories.map((repository) =>
 					normalizeCloudRepositoryUrl(repository.url),
 				),
@@ -435,6 +437,14 @@ export function WelcomeScreen({
 		repoUrl,
 	]);
 
+	// The fallback covers the window before the API's connectUrl arrives, or a blank one.
+	const connectUrl =
+		cloudSetup.connectUrl ??
+		getClineDashboardUrl(
+			"dashboard/integrations",
+			clineAppBaseUrl,
+			"cline-desktop",
+		);
 	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
 		? null
 		: !signedIn
@@ -507,10 +517,13 @@ export function WelcomeScreen({
 							cancelling={cancelling}
 							onCancelSignIn={() => void cancelSignIn()}
 							checking={cloudSetupChecking}
-							onConnect={() =>
-								void (cloudOnboardingVariant === "not_connected"
-									? connectGitHub(cloudSetup.connectUrl)
-									: openExternalUrl(cloudSetup.connectUrl))
+							onConnect={
+								connectUrl
+									? () =>
+											void (cloudOnboardingVariant === "not_connected"
+												? connectGitHub(connectUrl)
+												: openExternalUrl(connectUrl))
+									: undefined
 							}
 							onRefresh={() => void checkCloudSetup()}
 							onSignIn={() => void signIn()}

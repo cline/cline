@@ -26,6 +26,7 @@ const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
 		accountRef: {
 			user: null as { id: string } | null,
 			activeOrganization: null as ClineAccountOrganization | null,
+			clineAppBaseUrl: undefined as string | undefined,
 		},
 	}));
 
@@ -54,6 +55,7 @@ vi.mock("@/contexts/account-context", () => ({
 	useAccount: () => ({
 		user: accountRef.user,
 		activeOrganization: accountRef.activeOrganization,
+		clineAppBaseUrl: accountRef.clineAppBaseUrl,
 		refreshAccount: vi.fn(async () => undefined),
 	}),
 }));
@@ -64,6 +66,7 @@ beforeEach(() => {
 	window.localStorage.clear();
 	accountRef.user = null;
 	accountRef.activeOrganization = null;
+	accountRef.clineAppBaseUrl = undefined;
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	window.matchMedia = vi.fn().mockReturnValue({
 		matches: true,
@@ -449,6 +452,35 @@ describe("WelcomeScreen", () => {
 			"https://github.com/apps/cline/installations/new",
 		);
 		accountRef.user = null;
+	});
+
+	it("falls back to the sidecar's Cline app when the API sends no connect URL", async () => {
+		accountRef.user = { id: "user-1" };
+		accountRef.activeOrganization = {
+			organizationId: "org-1",
+			memberId: "member-1",
+			name: "Acme",
+			roles: ["member"],
+			active: true,
+		};
+		accountRef.clineAppBaseUrl = "https://staging-app.cline.bot";
+		invokeMock.mockImplementation(async (command: string) =>
+			command === "list_cloud_repositories"
+				? { connected: false, connectUrl: " ", repositories: [] }
+				: {},
+		);
+
+		await renderWelcomeScreen({
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		await clickButton("Connect GitHub");
+
+		expect(invokeMock).toHaveBeenCalledWith("open_external_url", {
+			url: "https://staging-app.cline.bot/dashboard/integrations?client=cline-desktop",
+		});
 	});
 
 	it("places the environment selector before the workspace selector", async () => {

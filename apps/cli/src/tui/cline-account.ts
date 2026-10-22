@@ -25,8 +25,13 @@ import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
-export const CLINE_CREDITS_DASHBOARD_URL =
-	"https://app.cline.bot/dashboard/account?tab=credits";
+export function getClineCreditsDashboardUrl(): string | undefined {
+	return getClineDashboardUrl(
+		"dashboard/account?tab=credits",
+		getClineEnvironmentConfig().appBaseUrl,
+		"cline-cli",
+	);
+}
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "logger" | "providerId">;
 
