@@ -1236,8 +1236,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				// A prompt sent into a busy run, or right after one ended, is how
 				// users react to a stall; agent.run-finished carries the run's side.
 				// A queued prompt replayed by the drain was labelled when the user
-				// sent it, so its replay carries no stall fields.
-				...(session.drainingPendingPrompts
+				// sent it, so its replay (which starts the run) carries no stall
+				// fields; a new prompt sent while that run is busy still does.
+				...(session.drainingPendingPrompts && canStartRun
 					? {}
 					: {
 							agentBusy: !canStartRun,

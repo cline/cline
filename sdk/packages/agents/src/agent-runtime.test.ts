@@ -3351,8 +3351,9 @@ describe("AgentRuntime", () => {
 
 		await runtime.run("Hi");
 
+		// Two chunks within a second report progress once.
 		expect(eventTypes.filter((type) => type === "tool-call-delta")).toHaveLength(
-			2,
+			1,
 		);
 		const events = capture.mock.calls.map(([input]) => input);
 		expect(events.some((input) => input.event === "agent.tool-call-delta")).toBe(
