@@ -33,11 +33,28 @@ function editedPath(input: unknown): string | undefined {
 	return typeof path === "string" && path.length > 0 ? path : undefined;
 }
 
-/** Status and edits from the run result alone; a write counts once its result did not error. */
-export function factsOf(messages: readonly AgentMessage[], result: AgentRunResult): Facts {
+/**
+ * The run result carries the whole chat, so the finished turn is what follows
+ * the newest prompt. Core marks the user messages it adds mid-run (reminders,
+ * hook context, steering) with userRunSpan 0, and those stay inside the turn.
+ */
+function finishedTurn(
+	messages: readonly AgentMessage[],
+): readonly AgentMessage[] {
+	const prompt = messages.findLastIndex(
+		(message) => message.role === "user" && message.metadata?.userRunSpan !== 0,
+	);
+	return messages.slice(prompt + 1);
+}
+
+/** Status and edits from the finished turn; a write counts once its result did not error. */
+export function factsOf(
+	messages: readonly AgentMessage[],
+	result: AgentRunResult,
+): Facts {
 	const edits = new Map<string, string | undefined>();
 	let toolErrored = false;
-	for (const message of messages) {
+	for (const message of finishedTurn(messages)) {
 		for (const part of message.content) {
 			if (part.type === "tool-call" && WRITE_TOOLS.has(part.toolName))
 				edits.set(part.toolCallId, editedPath(part.input));
@@ -142,11 +159,16 @@ export function pool(facts: Facts): Row[] {
 	return rows;
 }
 
-const CUE: Record<Facts["status"], { text: string; tone: ComposerSuggestionItem["tone"] }> = {
+const CUE: Record<
+	Facts["status"],
+	{ text: string; tone: ComposerSuggestionItem["tone"] }
+> = {
 	completed: { text: "after the last turn", tone: "neutral" },
 	cancelled: { text: "after the turn you stopped", tone: "neutral" },
 	failed: { text: "after the turn that failed", tone: "repair" },
 };
+
+const rowId = (revision: string, kind: string) => `${revision}:${kind}`;
 
 /** One page of the pool as the slot's state. Core clamps every field, so this adds no text passes. */
 export function state(
@@ -155,15 +177,17 @@ export function state(
 	revision: string,
 	facts: Facts,
 ): ComposerSuggestionsState {
-	const items: ComposerSuggestionItem[] = rows.slice(cursor, cursor + SET_SIZE).map((row) => ({
-		id: `${revision}:${row.kind}`,
-		label: row.label,
-		tone: row.tone,
-		...(row.icon ? { icon: row.icon } : {}),
-		prompt: row.prompt,
-		detail: row.why,
-		sendable: true,
-	}));
+	const items: ComposerSuggestionItem[] = rows
+		.slice(cursor, cursor + SET_SIZE)
+		.map((row) => ({
+			id: rowId(revision, row.kind),
+			label: row.label,
+			tone: row.tone,
+			...(row.icon ? { icon: row.icon } : {}),
+			prompt: row.prompt,
+			detail: row.why,
+			sendable: true,
+		}));
 	return {
 		status: items.length > 0 ? "ready" : "empty",
 		title: TITLE,
@@ -175,33 +199,114 @@ export function state(
 	};
 }
 
+/** Off for this chat until `show`; `command` keeps `/next on` reachable. */
+function hiddenState(revision: string): ComposerSuggestionsState {
+	return {
+		status: "hidden",
+		hiddenReason: "user",
+		title: TITLE,
+		command: COMMAND,
+		revision,
+		items: [],
+		canRefresh: false,
+	};
+}
+
+type ItemRef = { revision: string; itemId: string };
+
 export function createNextTurnPlugin(): AgentPlugin {
 	let ui: PluginUiContext | undefined;
 	let facts: Facts | undefined;
 	let cursor = 0;
 	let revision = 0;
+	/** Kinds skipped this turn, so a new set does not bring them back. */
+	let skipped = new Set<string>();
+	/** Revisions served this turn, so Undo skip still reaches a row after a new set. */
+	let turnRevisions = new Set<string>();
+	let hiddenForChat = false;
 
 	const stale = () => ({ outcome: "refused", reason: "stale" }) as const;
+
+	const offered = (current: Facts) =>
+		pool(current).filter((row) => !skipped.has(row.kind));
+
+	const shown = (): ComposerSuggestionsState | null => {
+		if (hiddenForChat) return hiddenState(`r${revision}`);
+		if (!facts) return null;
+		return state(offered(facts), cursor, `r${revision}`, facts);
+	};
 
 	const publish = (next?: Facts) => {
 		if (next) {
 			facts = next;
 			cursor = 0;
 			revision += 1;
+			skipped = new Set();
+			turnRevisions = new Set();
 		}
-		if (facts)
-			ui?.update("composer.suggestions", state(pool(facts), cursor, `r${revision}`, facts));
+		turnRevisions.add(`r${revision}`);
+		ui?.update("composer.suggestions", shown());
 	};
+
+	const offers = (ref: ItemRef) => {
+		const current = shown();
+		return (
+			current?.revision === ref.revision &&
+			current.items.some((item) => item.id === ref.itemId)
+		);
+	};
+
+	/** The row an item verb names, skipped or not, from a set served this turn. */
+	const rowOf = (current: Facts, ref: ItemRef) =>
+		turnRevisions.has(ref.revision)
+			? pool(current).find(
+					(row) => rowId(ref.revision, row.kind) === ref.itemId,
+				)
+			: undefined;
 
 	const onAction = (action: ComposerSuggestionsAction): PluginUiActionReply => {
 		switch (action.verb) {
 			case "use":
 			case "send":
+				return offers(action) ? { outcome: "ok" } : stale();
+			case "skip": {
+				if (!facts || action.revision !== `r${revision}`) return stale();
+				const row = rowOf(facts, action);
+				if (!row) return stale();
+				skipped.add(row.kind);
+				publish();
 				return { outcome: "ok" };
-			case "skip":
-			case "refresh":
-				if (action.revision !== `r${revision}`) return stale();
-				cursor += 1;
+			}
+			case "unskip": {
+				if (!facts) return stale();
+				const row = rowOf(facts, action);
+				if (!row || !skipped.delete(row.kind)) return stale();
+				// A row skipped from an earlier set comes back into view, not behind the cursor.
+				const at = offered(facts).findIndex((r) => r.kind === row.kind);
+				cursor = Math.min(cursor, at);
+				publish();
+				return { outcome: "ok" };
+			}
+			case "refresh": {
+				if (!facts || action.revision !== `r${revision}`) return stale();
+				// "more" is Skip on the last row, so it drops that row instead of sliding the set.
+				const last = offered(facts)
+					.slice(cursor, cursor + SET_SIZE)
+					.at(-1);
+				if (action.cause === "more" && last) skipped.add(last.kind);
+				else cursor += 1;
+				revision += 1;
+				publish();
+				return { outcome: "ok" };
+			}
+			case "hide":
+				if (action.scope === "chat") {
+					hiddenForChat = true;
+					publish();
+				}
+				return { outcome: "ok" };
+			case "show":
+				hiddenForChat = false;
 				publish();
 				return { outcome: "ok" };
 			default:
@@ -223,8 +328,14 @@ export function createNextTurnPlugin(): AgentPlugin {
 			facts = undefined;
 			cursor = 0;
 			revision = 0;
-			if (ui?.slots.includes("composer.suggestions"))
+			skipped = new Set();
+			turnRevisions = new Set();
+			hiddenForChat = false;
+			if (ui?.slots.includes("composer.suggestions")) {
 				api.registerUiSlot?.({ slot: "composer.suggestions", onAction });
+				// Setup reruns after an idle reclaim; knowing no turn, withdraw the set core still holds.
+				ui.update("composer.suggestions", null);
+			}
 		},
 	};
 }
