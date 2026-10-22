@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { WithCopyButton } from "./CopyButton"
+import { CopyButton } from "./CopyButton"
 import UnsafeImage from "./UnsafeImage"
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
@@ -328,11 +328,14 @@ const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLP
 	}
 
 	return (
-		<WithCopyButton ariaLabel="Copy code" onCopy={handleCopy} position="top-right" sticky stickyTop={40}>
-			<pre {...preProps} ref={preRef}>
+		<div className="my-[13px] grid grid-cols-[auto_minmax(0,1fr)] items-start gap-1">
+			<div className="sticky top-10 z-[2] rounded-sm bg-code pt-2.5">
+				<CopyButton ariaLabel="Copy code" onCopy={handleCopy} />
+			</div>
+			<pre {...preProps} ref={preRef} style={{ ...preProps.style, margin: 0, paddingRight: 10 }}>
 				{children}
 			</pre>
-		</WithCopyButton>
+		</div>
 	)
 }
 
