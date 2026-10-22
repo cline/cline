@@ -48,18 +48,20 @@ ClinePass is a separate provider from Cline (usage-billing). You can use both in
 ClinePass includes the following models, tested and benchmarked for coding agent use:
 
 | Model | Model ID |
-|-------|------------|
-| Kimi K3 | `cline-pass/kimi-k3` |
-| GLM-5.2 | `cline-pass/glm-5.2` |
-| Kimi K2.7 Code | `cline-pass/kimi-k2.7-code` |
-| Kimi K2.6 | `cline-pass/kimi-k2.6` |
+| --- | --- |
+| DeepSeek V4.1 Flash 1017 | `cline-pass/deepseek-v4.1-flash-1017` |
+| DeepSeek V4.1 Flash | `cline-pass/deepseek-v4.1-flash` |
 | DeepSeek V4 Pro | `cline-pass/deepseek-v4-pro` |
-| DeepSeek V4 Flash | `cline-pass/deepseek-v4-flash` |
-| MiMo-V2.5 | `cline-pass/mimo-v2.5` |
-| MiMo-V2.5-Pro | `cline-pass/mimo-v2.5-pro` |
+| GLM 5.3 Flash | `cline-pass/glm-5.3-flash` |
+| GLM 5.3 | `cline-pass/glm-5.3` |
+| Kimi K3 | `cline-pass/kimi-k3` |
+| Muse Spark 1.3 Contributor | `cline-pass/muse-spark-1.3-contributor` |
 | MiniMax M3 | `cline-pass/minimax-m3` |
+| MiMo V2.6 Pro | `cline-pass/mimo-v2.6-pro` |
+| MiMo V2.6 Flash | `cline-pass/mimo-v2.6-flash` |
 | Qwen3.7 Max | `cline-pass/qwen3.7-max` |
 | Qwen3.7 Plus | `cline-pass/qwen3.7-plus` |
+| Qwen3.8 Max | `cline-pass/qwen3.8-max` |
 
 ## Using ClinePass outside of Cline
 
@@ -90,18 +92,25 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
 ClinePass is a flat monthly subscription, so you are not charged the individual API prices below. These reference prices show the underlying per-1M-token rates for each model and can help you understand how usage is measured against your ClinePass quota (2-5x quota compares to paying standard api rate).
 
 | Model | Input | Output | Cached Read | Cached Write |
-|-------|-------|--------|-------------|--------------|
-| GLM-5.2 | $1.40 | $4.40 | $0.26 | - |
-| Kimi K2.7 Code | $0.95 | $4.00 | $0.19 | - |
-| Kimi K2.6 | $0.95 | $4.00 | $0.16 | - |
-| DeepSeek V4 Pro | $1.74 | $3.48 | $0.0145 | - |
-| DeepSeek V4 Flash | $0.14 | $0.28 | $0.0028 | - |
-| MiMo-V2.5 | $0.14 | $0.28 | $0.0028 | - |
-| MiMo-V2.5-Pro | $1.74 | $3.48 | $0.0145 | - |
-| MiniMax M3 | $0.30 | $1.20 | $0.06 | - |
+| --- | --- | --- | --- | --- |
+| DeepSeek V4.1 Flash 1017 (Off-peak) | $0.15 | $0.60 | $0.003 | - |
+| DeepSeek V4.1 Flash 1017 (Peak) | $0.30 | $1.20 | $0.006 | - |
+| DeepSeek V4.1 Flash (Off-peak) | $0.15 | $0.60 | $0.003 | - |
+| DeepSeek V4.1 Flash (Peak) | $0.30 | $1.20 | $0.006 | - |
+| DeepSeek V4 Pro (Off-peak) | $0.66 | $1.98 | $0.022 | - |
+| DeepSeek V4 Pro (Peak) | $1.32 | $3.96 | $0.044 | - |
+| GLM 5.3 Flash | $0.15 | $0.50 | $0.03 | - |
+| GLM 5.3 | $1.40 | $4.40 | $0.26 | - |
+| Kimi K3 | $3.00 | $15.00 | $0.30 | $3.00 (5min) / $6.00 (1h) |
+| Muse Spark 1.3 Contributor | $0.10 | $0.20 | $0.002 | - |
+| MiniMax M3 (≤ 512K tokens) | $0.30 | $1.20 | $0.06 | - |
+| MiniMax M3 (> 512K tokens) | $0.60 | $2.40 | $0.12 | - |
+| MiMo V2.6 Pro | $0.435 | $0.87 | $0.0036 | - |
+| MiMo V2.6 Flash | $0.14 | $0.28 | $0.0028 | - |
 | Qwen3.7 Max | $2.50 | $7.50 | $0.50 | $3.125 |
 | Qwen3.7 Plus (≤ 256K tokens) | $0.40 | $1.60 | $0.04 | $0.50 |
 | Qwen3.7 Plus (> 256K tokens) | $1.20 | $4.80 | $0.12 | $1.50 |
+| Qwen3.8 Max | $2.00 | $6.00 | $0.17 | $2.50 |
 
 ## Usage
 
