@@ -1,6 +1,8 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
+import ClineFreeModelLimitError from "@/components/chat/ClineFreeModelLimitError"
+import ClineFreePromotionEndedError from "@/components/chat/ClineFreePromotionEndedError"
 import ClinePassLimitError from "@/components/chat/ClinePassLimitError"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import EntitlementError from "@/components/chat/EntitlementError"
@@ -8,7 +10,7 @@ import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrict
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
-import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
+import { ClineError, ClineErrorType, MODEL_NOT_FOUND_GUIDANCE } from "../../../../src/services/error/ClineError"
 
 const _errorColor = "var(--vscode-errorForeground)"
 
@@ -17,9 +19,11 @@ interface ErrorRowProps {
 	errorType: "error" | "mistake_limit_reached" | "diff_error" | "clineignore_error"
 	apiRequestFailedMessage?: string
 	apiReqStreamingFailedMessage?: string
+	retryFailedRequest?: () => Promise<boolean>
 }
 
-const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
+const ErrorRow = memo((props: ErrorRowProps) => {
+	const { message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage, retryFailedRequest } = props
 	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
@@ -50,6 +54,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 									buyCreditsUrl={errorDetails?.buy_credits_url}
 									currentBalance={errorDetails?.current_balance}
 									message={errorDetails?.message}
+									retryFailedRequest={retryFailedRequest}
 									totalPromotions={errorDetails?.total_promotions}
 									totalSpent={errorDetails?.total_spent}
 								/>
@@ -72,7 +77,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					if (clineError?.isErrorType(ClineErrorType.Entitlement)) {
 						const detailMessage = clineError?._error?.details?.message || errorMessage
-						return <EntitlementError message={detailMessage} />
+						return <EntitlementError message={detailMessage} retryFailedRequest={retryFailedRequest} />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.OrgClinePassRestriction)) {
@@ -82,6 +87,18 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					if (clineError?.isErrorType(ClineErrorType.ClinePassLimit)) {
 						const detailMessage = clineError?._error?.details?.message || errorMessage
 						return <ClinePassLimitError message={detailMessage} />
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.ClineFreeModelLimit)) {
+						const detailMessage = clineError?._error?.details?.message || errorMessage
+						return <ClineFreeModelLimitError message={detailMessage} />
+					}
+
+					// A retired free model answers model-not-found once its promotion
+					// ends — dedicated copy plus a route into the model picker,
+					// since retrying the deleted model can never succeed.
+					if (clineError?.isErrorType(ClineErrorType.ClineFreePromotionEnded)) {
+						return <ClineFreePromotionEndedError />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
@@ -97,6 +114,15 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						const detailMessage = clineError?._error?.details?.message || errorMessage
 						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{detailMessage}</p>
 					}
+
+					// A 404/405/410 is the server saying the model id or endpoint
+					// path does not exist. The host already appends this guidance
+					// when it can recognise the message text; add it here only
+					// when the status alone carried the verdict.
+					const notFoundGuidance =
+						clineError?.isErrorType(ClineErrorType.NotFound) && !errorMessage.includes(MODEL_NOT_FOUND_GUIDANCE)
+							? `The model or endpoint was not found. ${MODEL_NOT_FOUND_GUIDANCE}`
+							: undefined
 
 					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineUsageBillingProvider) {
 						return !clineUser ? (
@@ -133,6 +159,8 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								{errorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</header>
+
+							{notFoundGuidance && <div>{notFoundGuidance}</div>}
 
 							{/* Windows Powershell Issue */}
 							{errorMessage?.toLowerCase()?.includes("powershell") && (

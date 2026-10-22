@@ -47,7 +47,7 @@ enum ClineSay {
   COMPLETION_RESULT_SAY = 6;
   USER_FEEDBACK = 7;
   USER_FEEDBACK_DIFF = 8;
-  API_REQ_RETRIED = 9;
+  reserved 9; // was API_REQ_RETRIED (legacy auto-retry, removed)
   COMMAND_SAY = 10;
   COMMAND_OUTPUT_SAY = 11;
   TOOL_SAY = 12;
@@ -65,8 +65,9 @@ enum ClineSay {
   CHECKPOINT_CREATED = 24;
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
-  TASK_PROGRESS = 27;
-  ERROR_RETRY = 28;
+  reserved 27;
+  reserved "TASK_PROGRESS";
+  reserved 28; // was ERROR_RETRY (legacy auto-retry, removed)
   HOOK_STATUS = 30;
   HOOK_OUTPUT_STREAM = 31;
   COMMAND_PERMISSION_DENIED = 32;
@@ -74,6 +75,8 @@ enum ClineSay {
   SUBAGENT_STATUS = 34;
   USE_SUBAGENTS_SAY = 35;
   SUBAGENT_USAGE = 36;
+  COMPACTION = 37;
+  PLAN_COMPLETION_RESULT = 38;
 }
 
 // Enum for ClineSayTool tool types
@@ -288,8 +291,6 @@ service UiService {
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);
 
-  // Subscribe to relinquish control events
-  rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
 
   // Subscribe to show webview events
   rpc subscribeToShowWebview(EmptyRequest) returns (stream ShowWebviewEvent);

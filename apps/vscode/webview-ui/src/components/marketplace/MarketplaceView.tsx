@@ -92,13 +92,19 @@ const PRIMITIVES: PrimitiveConfig[] = [
 	},
 ]
 
+// Plugins are hidden in the extension until the hub can manage the plugin process
+// (see https://github.com/cline/cline/pull/12522). MCP servers and skills are unaffected.
+const HIDDEN_PRIMITIVE_TYPES: ReadonlySet<PrimitiveType> = new Set(["plugin"])
+
+const VISIBLE_PRIMITIVES = PRIMITIVES.filter((primitive) => !HIDDEN_PRIMITIVE_TYPES.has(primitive.type))
+
 const MARKETPLACE_SECTIONS: Array<{ type: MarketplaceSectionType; label: string }> = [
 	{ type: "installed", label: "Installed" },
 	{ type: "marketplace", label: "Marketplace" },
 ]
 
-function isPrimitiveType(value: string): value is PrimitiveType {
-	return value === "mcp" || value === "skill" || value === "plugin"
+function isVisiblePrimitiveType(value: string): value is PrimitiveType {
+	return VISIBLE_PRIMITIVES.some((primitive) => primitive.type === value)
 }
 
 function entryKey(entry: MarketplaceEntry): string {
@@ -1011,9 +1017,9 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 				MarketplaceServiceClient.getMarketplaceCatalog(EmptyRequest.create({})),
 				MarketplaceServiceClient.listMarketplaceLocalInstalledEntries(EmptyRequest.create({})),
 			])
-			const entries = catalog.entries.filter((entry) => isPrimitiveType(entry.type))
+			const entries = catalog.entries.filter((entry) => isVisiblePrimitiveType(entry.type))
 			setCatalogEntries(entries)
-			setLocalEntries(local.entries.filter((entry) => isPrimitiveType(entry.type)))
+			setLocalEntries(local.entries.filter((entry) => isVisiblePrimitiveType(entry.type)))
 			const installed = await MarketplaceServiceClient.listMarketplaceInstalledEntries(
 				MarketplaceEntriesRequest.create({ entries }),
 			)
@@ -1192,7 +1198,7 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 			const response = await MarketplaceServiceClient.toggleMarketplaceLocalInstalledEntry(
 				ToggleMarketplaceLocalInstalledEntryRequest.create({ entry, enabled }),
 			)
-			setLocalEntries(response.entries.filter((item) => isPrimitiveType(item.type)))
+			setLocalEntries(response.entries.filter((item) => isVisiblePrimitiveType(item.type)))
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err))
 		} finally {
@@ -1222,7 +1228,7 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 
 			<div className="marketplace-shell">
 				<TabList className="marketplace-nav" onValueChange={handleTabChange} value={activeType}>
-					{PRIMITIVES.map((item) => (
+					{VISIBLE_PRIMITIVES.map((item) => (
 						<TabTrigger className="marketplace-tab" key={item.type} value={item.type}>
 							<item.icon aria-hidden className="h-4 w-4 shrink-0" />
 							<span className="marketplace-tab-label">{item.label}</span>

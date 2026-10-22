@@ -1,4 +1,9 @@
-import { createGateway, type GatewayProviderSettings } from "@cline/llms";
+import {
+	classifyProviderError,
+	createGateway,
+	type GatewayProviderSettings,
+	isRetryableProviderError,
+} from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -6,8 +11,10 @@ import type {
 	AgentMessage,
 	AgentMessagePart,
 	AgentModel,
+	AgentModelEvent,
 	AgentModelFinishReason,
 	AgentModelRequest,
+	AgentModelToolActivity,
 	AgentRunResult,
 	AgentRuntimeEvent,
 	AgentRuntimeHooks,
@@ -19,6 +26,8 @@ import type {
 	AgentToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
+	CaptureTaskLifecycleEventInput,
+	ProviderErrorClass,
 	TelemetryProperties,
 	ToolApprovalResult,
 	ToolPolicy,
@@ -26,16 +35,102 @@ import type {
 import {
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
+	captureTaskLifecycleEvent,
 	estimateTokens,
 	mergeModelOptions,
 	normalizeJsonLikeStringsForSchema,
 	omitUndefinedValues,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	TOOL_REJECTION_SUFFIX,
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
+/** A model request after turn preparation, ready to be issued (possibly more than once). */
+interface PreparedModelRequest {
+	request: AgentModelRequest;
+	/** When preparation began; anchors the provider-request lifecycle timings. */
+	startedAt: number;
+}
+
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
+
+/**
+ * How many times a turn that ends at the model's output-token limit without a
+ * usable tool call is retried before the run fails. Each retry nudges the model
+ * to be more concise (see MAX_TOKENS_RECOVERY_NUDGE). The counter resets on any
+ * turn that makes progress (produces a tool call), so this bounds only a *run*
+ * of consecutive cut-off turns — a single over-long response recovers, while a
+ * model that keeps overflowing still ends rather than looping forever.
+ */
+const MAX_TOKENS_RECOVERY_LIMIT = 3;
+/** Nudge appended after an output-limit cut-off, asking for more concise output. */
+const MAX_TOKENS_RECOVERY_NUDGE =
+	"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.";
+
+/**
+ * How many times to retry a model turn that failed with a transient,
+ * provider-side error (rate limits, 5xx, network hiccups, OpenRouter's
+ * generic "Provider returned error"). The initial attempt is not counted, so
+ * a value of 3 means up to 4 total requests for one turn. Retrying only
+ * transient errors — and never auth, context-overflow, or other client errors
+ * (see {@link isRetryableProviderError}) — keeps well-behaved providers on
+ * their existing single-request path, so this does not change behavior for
+ * models whose endpoints do not throw transient errors.
+ */
+const PROVIDER_ERROR_MAX_RETRIES = 3;
+/** Base backoff before the first retry; doubled each subsequent attempt. */
+const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 1_000;
+/** Upper bound on any single backoff wait. */
+const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 15_000;
+
+/**
+ * Terminal message for a turn the provider blocked. Kept separate from the
+ * generic empty-response text because the two call for opposite user action:
+ * an empty response is worth retrying, a filtered one reproduces every time.
+ */
+const CONTENT_FILTER_EMPTY_TURN_MESSAGE =
+	"Model returned no content because the response was blocked by a content filter. Retrying is unlikely to help — try rephrasing the request.";
+
+/**
+ * Terminal message when a context-window overflow cannot be recovered because
+ * there is no conversation history to compact — the system prompt, tools, and
+ * current input alone exceed the window.
+ */
+export const CONTEXT_WINDOW_OVERFLOW_NOTHING_TO_COMPACT_MESSAGE =
+	"The request exceeds the model's context window and there is no conversation history to compact — the system prompt, tools, and current input alone are too large. Reduce attached content or switch to a model with a larger context window.";
+
+/**
+ * Terminal message when a context-window overflow persists after the runtime
+ * already compacted the conversation and retried once.
+ */
+export const CONTEXT_WINDOW_OVERFLOW_RECOVERY_FAILED_MESSAGE =
+	"The conversation still exceeds the model's context window after compacting it. Start a new session or switch to a model with a larger context window.";
+
+/**
+ * Terminal message when no compaction pipeline is available to recover from a
+ * context-window overflow (e.g. compaction disabled).
+ */
+export const CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE =
+	"The conversation exceeds the model's context window. Compact the conversation, start a new session, or switch to a model with a larger context window.";
+
+/** Thrown when overflow recovery cannot proceed; carries the terminal text. */
+class ContextWindowOverflowError extends Error {
+	constructor(message: string, providerError: string | undefined) {
+		super(
+			providerError?.trim()
+				? `${message} (provider reported: ${providerError.trim()})`
+				: message,
+		);
+		this.name = "ContextWindowOverflowError";
+	}
+}
 
 // Local `createUID` helper. The clinee source imports this from
 // `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
@@ -281,6 +376,53 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+const HOOK_ATTRIBUTE_ESCAPES: Record<string, string> = {
+	_: "__",
+	'"': "_q_",
+	"<": "_lt_",
+	">": "_gt_",
+};
+
+function sanitizeHookAttribute(value: string): string {
+	// The underscore escapes itself, which makes the encoding injective
+	// (uniquely decodable escape code): no two distinct ids can collapse to
+	// the same sanitized stamp.
+	return value.replace(/[_"<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
+}
+
+/**
+ * Where a hook context block came from. Tool hooks carry the call they ran
+ * for; run-start hooks (TaskStart/UserPromptSubmit/TaskResume in their
+ * various layer spellings) have no tool identity, and the layers merge their
+ * outputs before the runtime sees them, so a single generic source labels
+ * those blocks.
+ */
+type HookContextOrigin =
+	| { source: "RunStart" }
+	| { source: "PreToolUse" | "PostToolUse"; toolCall: AgentToolCallPart };
+
+function formatHookContextBlock(
+	origin: HookContextOrigin,
+	text: string,
+): string {
+	// Tool identity keeps each block attributable to its call: contexts are
+	// batched into one message after the tool results, and parallel tool
+	// execution collects them in completion order, so position alone cannot
+	// identify the tool. Attribute values are sanitized and embedded
+	// hook_context tags (opening and closing) neutralized so neither
+	// provider-supplied ids nor hook output can corrupt or spoof the block
+	// markup.
+	const attributes = [`source="${origin.source}"`];
+	if ("toolCall" in origin) {
+		attributes.push(
+			`tool_name="${sanitizeHookAttribute(origin.toolCall.toolName)}"`,
+			`tool_call_id="${sanitizeHookAttribute(origin.toolCall.toolCallId)}"`,
+		);
+	}
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
+	return `<hook_context ${attributes.join(" ")}>\n${body}\n</hook_context>`;
+}
+
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 	return messages.map((message) => ({
 		...message,
@@ -400,6 +542,14 @@ export class AgentRuntime {
 		afterTool: [],
 		onEvent: [],
 	};
+	/**
+	 * `appendContext` blocks waiting to be injected as one user message.
+	 * beforeRun hooks fill it before the run's first model request; beforeTool
+	 * and afterTool hooks fill it during an iteration's tool executions and it
+	 * flushes after the tool results, so tool-result parts stay contiguous for
+	 * providers that require them first in the following turn.
+	 */
+	private pendingHookContexts: string[] = [];
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
@@ -411,11 +561,55 @@ export class AgentRuntime {
 		pendingToolCalls: [] as string[],
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
+		lastErrorClass: undefined as ProviderErrorClass | undefined,
+		/** Provider-reported input tokens for the most recent request this run. */
+		lastRequestInputTokens: 0,
+		/**
+		 * Whether the last provider failure was transient and worth retrying,
+		 * carried from the model boundary via `errorRetryable` on the `finish`
+		 * event (the AI SDK's typed `isRetryable` flag). Undefined when no such
+		 * signal was provided, in which case the agent loop classifies from the
+		 * flattened `lastError` message instead.
+		 */
+		lastErrorRetryable: undefined as boolean | undefined,
+		/**
+		 * Whether the model layer already recorded `sdk.error` telemetry for
+		 * `lastError` (from `errorReported` on the stream's `finish` event).
+		 * Custom `AgentModel` implementations that do not record their own
+		 * telemetry leave this false, so their failures still get reported.
+		 */
+		lastErrorReported: false,
+		/**
+		 * Finish reason carried into the run-failed `sdk.error` event. Set
+		 * only at the throw sites where a finish reason IS the failure's
+		 * cause (empty turn, max-tokens, provider error) — never recorded
+		 * ambiently on finish events, so a failure elsewhere in the loop
+		 * (hooks, listeners, transport, setup) can never inherit a reason
+		 * from a request that did not cause it. Undefined means the
+		 * attribute is omitted, which is always safe; a wrong reason is not.
+		 */
+		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
+	/** One automatic overflow-recovery attempt per run. */
+	private overflowRecoveryAttempted = false;
+	/** Consecutive output-limit cut-offs recovered this run; see MAX_TOKENS_RECOVERY_LIMIT. */
+	private maxTokensRecoveryCount = 0;
+	/** One automatic recovery attempt per run for max-tokens-truncated turns. */
+	private maxTokensRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	private modelSteerController?: AbortController;
+	private readonly telemetryProviderId?: string;
+	private readonly telemetryModelId?: string;
+	private modelRequestId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
+		this.telemetryProviderId =
+			trimNonEmpty(config.messageModelInfo?.provider) ??
+			("providerId" in config ? trimNonEmpty(config.providerId) : undefined);
+		this.telemetryModelId =
+			trimNonEmpty(config.messageModelInfo?.id) ??
+			("modelId" in config ? trimNonEmpty(config.modelId) : undefined);
 		const resolved = resolveRuntimeConfig(config);
 		this.config = {
 			...resolved,
@@ -435,8 +629,16 @@ export class AgentRuntime {
 		return this.execute(input);
 	}
 
+	/** Interrupt only the current model request; running tools finish normally. */
+	notifyPendingUserMessage(): void {
+		this.modelSteerController?.abort();
+	}
+
 	abort(reason?: unknown): void {
 		if (!this.abortController) {
+			return;
+		}
+		if (this.abortController.signal.aborted) {
 			return;
 		}
 		const abortError =
@@ -444,6 +646,9 @@ export class AgentRuntime {
 				? reason
 				: new AgentRuntimeAbortError(reason);
 		this.state.lastError = abortError.message;
+		this.captureTaskLifecycle(TASK_CANCELLED_EVENT, {
+			error: abortError,
+		});
 		this.abortController.abort(abortError);
 	}
 
@@ -473,6 +678,9 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
+		this.state.lastErrorReported = false;
 		this.state.messages = cloneMessages(messages);
 		this.config = {
 			...this.config,
@@ -493,6 +701,7 @@ export class AgentRuntime {
 			pendingToolCalls: [...this.state.pendingToolCalls],
 			usage: cloneUsage(this.state.usage),
 			lastError: this.state.lastError,
+			lastErrorClass: this.state.lastErrorClass,
 		};
 	}
 
@@ -559,8 +768,14 @@ export class AgentRuntime {
 		].filter((message): message is string => Boolean(message));
 	}
 
-	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
-		const reminderMessage = createMessage("user", [{ type: "text", text }]);
+	private async addUserReminderMessage(
+		text: string,
+		metadata: AgentMessage["metadata"] = {},
+	): Promise<AgentMessage> {
+		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			...metadata,
+			userRunSpan: 0,
+		});
 		this.state.messages.push(reminderMessage);
 		await this.emit({
 			type: "message-added",
@@ -578,11 +793,21 @@ export class AgentRuntime {
 
 		this.abortController = new AbortController();
 		this.state.runId = createUID("run");
+		this.modelRequestId = undefined;
 		this.state.status = "running";
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
+		this.state.lastErrorReported = false;
+		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
+		this.overflowRecoveryAttempted = false;
+		this.state.lastRequestInputTokens = 0;
+		this.pendingHookContexts = [];
+		this.maxTokensRecoveryCount = 0;
+		this.maxTokensRecoveryAttempted = false;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -602,6 +827,10 @@ export class AgentRuntime {
 				await this.addUserReminderMessage(completionToolReminder);
 			}
 
+			// Context collected by beforeRun hooks lands after the run's input
+			// messages so the model sees it on the first request of the run.
+			await this.flushPendingHookContexts();
+
 			let finalAssistantMessage: AgentMessage | undefined;
 
 			while (
@@ -617,16 +846,56 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
-				const { message, finishReason } = await this.generateAssistantMessage();
+				// A fresh error slate per turn: nothing from a previous turn may leak
+				// into this turn's error classification or retry decision.
+				this.resetLastError();
+				const { message, finishReason, interrupted } =
+					await this.generateAssistantMessageWithProviderRetry();
+				if (interrupted && message.content.length === 0) {
+					await this.emit({
+						type: "turn-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCallCount: 0,
+					});
+					continue;
+				}
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+					// Attribution is set immediately before each throw: nothing can
+					// interleave between a synchronous set-and-throw and the
+					// run-level catch, so `sdk.error` can never pick up a reason
+					// from a failure it did not cause. Failures with no
+					// finish-reason cause (hooks, listeners, transport) leave the
+					// field unset and the attribute is omitted.
+					if (finishReason === "error") {
+						this.state.lastFinishReason = finishReason;
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					// Provider-executed tool activity lives in message metadata, not
+					// content (projecting it into content would replay tool_use blocks
+					// the model never gets results for). A turn that is only such
+					// activity is not empty: keep the message so the transcript and
+					// display projection retain it. Replay stays safe — the codec
+					// renders empty content as its placeholder text block.
+					const hasModelToolActivity = this.hasModelToolActivity(message);
+					// A turn that produced no content because it hit the output-token
+					// limit or has an unknown finish is incomplete: preserve the message
+					// so finish-reason handling below can surface the right failure or recover.
+					if (
+						!hasModelToolActivity &&
+						finishReason !== "max-tokens" &&
+						finishReason !== "unknown"
+					) {
+						this.state.lastFinishReason = finishReason;
+						throw new Error(
+							finishReason === "content-filter"
+								? CONTENT_FILTER_EMPTY_TURN_MESSAGE
+								: "Model returned empty response",
+						);
+					}
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>
@@ -634,25 +903,46 @@ export class AgentRuntime {
 				);
 
 				finalAssistantMessage = message;
-				this.state.messages.push(message);
-				await this.emit({
-					type: "message-added",
-					snapshot: this.snapshot(),
-					message,
-				});
-				await this.emit({
-					type: "assistant-message",
-					snapshot: this.snapshot(),
-					iteration: this.state.iteration,
-					message,
-					finishReason,
-				});
+				await this.recordAssistantMessage(message, finishReason);
+
+				if (interrupted) {
+					await this.emit({
+						type: "turn-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCallCount: 0,
+					});
+					continue;
+				}
+
+				// Recovery already continued once, or external tool activity made
+				// replay unsafe. Local calls are handled below with their results.
+				if (finishReason === "unknown" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error("Model ended without a recognized finish reason");
+				}
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
+					if (await this.recoverFromIncompleteMaxTokensTurn()) {
+						await this.emit({
+							type: "turn-finished",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCallCount: 0,
+						});
+						continue;
+					}
+					// Same set-and-throw attribution as the empty-content check.
+					this.state.lastFinishReason = finishReason;
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
+				}
+				// A turn that yields tool calls is progress: reset the cut-off streak.
+				if (toolCalls.length > 0) {
+					this.maxTokensRecoveryCount = 0;
 				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
 
@@ -691,6 +981,21 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
+				if (
+					finishReason === "unknown" &&
+					!toolMessages.some((toolMessage) =>
+						toolMessage.content.some(
+							(part) => part.type === "tool-result" && !part.isError,
+						),
+					)
+				) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error(
+						"Model ended without a recognized finish reason or successful tool work",
+					);
+				}
+
+				await this.flushPendingHookContexts();
 				await this.emit({
 					type: "turn-finished",
 					snapshot: this.snapshot(),
@@ -726,8 +1031,23 @@ export class AgentRuntime {
 			const isControlledStop = normalized instanceof ControlledStopError;
 			const isAborted = this.abortController.signal.aborted || isControlledStop;
 			const status = isAborted ? "aborted" : "failed";
+			// Read before overwriting lastError below: the class only applies
+			// when the run failed on the provider error it was recorded for.
+			const errorClass =
+				normalized instanceof ContextWindowOverflowError
+					? ("context_window_exceeded" as const)
+					: normalized.message === this.state.lastError
+						? this.state.lastErrorClass
+						: undefined;
+			// Same guard: the model layer's telemetry only covers this failure
+			// if the run failed on that exact recorded error.
+			const errorAlreadyReported =
+				normalized.message === this.state.lastError &&
+				this.state.lastErrorReported;
 			this.state.status = status;
 			this.state.lastError = normalized.message;
+			this.state.lastErrorClass = errorClass;
+			this.state.lastErrorReported = errorAlreadyReported;
 			const lastAssistantMessage = this.findLastAssistantMessage();
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
@@ -757,6 +1077,7 @@ export class AgentRuntime {
 					type: "run-failed",
 					snapshot: this.snapshot(),
 					error: normalized,
+					errorClass,
 				});
 			} else {
 				await this.emit({
@@ -771,12 +1092,59 @@ export class AgentRuntime {
 		}
 	}
 
+	/**
+	 * Injects the collected hook context blocks as one user message at the end
+	 * of the conversation. Always delivers: the buffer is empty afterwards.
+	 */
+	private async flushPendingHookContexts(): Promise<void> {
+		if (this.pendingHookContexts.length === 0) {
+			return;
+		}
+		const hookContextText = this.pendingHookContexts.join("\n\n");
+		this.pendingHookContexts = [];
+		// displayRole "system" keeps the injected block out of user-facing
+		// transcripts (live and replayed) while it still reaches the model,
+		// mirroring how compaction summaries are handled.
+		const hookContextMessage = createMessage(
+			"user",
+			[{ type: "text", text: hookContextText }],
+			{ userRunSpan: 0, displayRole: "system" },
+		);
+		// Never insert between an assistant tool_use and its tool_result: a
+		// resumed session can be seeded with a trailing unresolved tool call,
+		// and a user message in that gap breaks providers' pairing rules. The
+		// context goes in ahead of that call instead — deferring it would only
+		// deliver if the model happened to call a tool next, and the buffer
+		// reset at the following run start would otherwise drop it.
+		const lastMessage = this.state.messages.at(-1);
+		const trailingToolCall =
+			lastMessage?.role === "assistant" &&
+			lastMessage.content.some((part) => part.type === "tool-call");
+		if (trailingToolCall) {
+			this.state.messages.splice(-1, 0, hookContextMessage);
+		} else {
+			this.state.messages.push(hookContextMessage);
+		}
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message: hookContextMessage,
+		});
+	}
+
 	private async callBeforeRunHooks(): Promise<void> {
 		for (const hook of this.hooks.beforeRun) {
-			const control = (await hook({
+			const result = await hook({
 				snapshot: this.snapshot(),
-			})) as AgentStopControl | undefined;
-			this.applyStopControl(control);
+			});
+			this.applyStopControl(result);
+			// Collected here, injected after the run's input messages are
+			// pushed, so the block lands in the same turn as the user prompt.
+			if (result?.appendContext?.trim()) {
+				this.pendingHookContexts.push(
+					formatHookContextBlock({ source: "RunStart" }, result.appendContext),
+				);
+			}
 		}
 	}
 
@@ -786,12 +1154,513 @@ export class AgentRuntime {
 		}
 	}
 
-	private async generateAssistantMessage(): Promise<{
+	/**
+	 * Recover from a turn that ended at the model's output-token limit without a
+	 * usable tool call: nudge the model to be concise and let the caller retry,
+	 * up to MAX_TOKENS_RECOVERY_LIMIT consecutive times. Returns false once the
+	 * limit is exhausted so the run fails instead of looping.
+	 */
+	private async recoverFromIncompleteMaxTokensTurn(): Promise<boolean> {
+		if (this.maxTokensRecoveryCount >= MAX_TOKENS_RECOVERY_LIMIT) {
+			return false;
+		}
+		this.maxTokensRecoveryCount += 1;
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: `output-token limit reached before a tool call — nudging for a more concise response (attempt ${this.maxTokensRecoveryCount}/${MAX_TOKENS_RECOVERY_LIMIT})`,
+			metadata: {
+				kind: "max_tokens_recovery",
+				reason: "max_tokens_recovery",
+				phase: "started",
+				iteration: this.state.iteration,
+				attempt: this.maxTokensRecoveryCount,
+				maxRetries: MAX_TOKENS_RECOVERY_LIMIT,
+			},
+		});
+		await this.addUserReminderMessage(MAX_TOKENS_RECOVERY_NUDGE);
+		return true;
+	}
+
+	/**
+	 * Run a model turn, retrying transient provider/API failures with backoff.
+	 *
+	 * A turn whose model stream fails with a retryable provider error (rate
+	 * limit, 5xx, network hiccup, or OpenRouter's generic "Provider returned
+	 * error") is re-issued up to {@link PROVIDER_ERROR_MAX_RETRIES} times, with
+	 * exponential backoff between attempts, before the error is allowed to
+	 * propagate and end the run. Non-retryable errors (auth, context-window
+	 * overflow, other client errors) and any attempt that already produced
+	 * visible output or provider tool activity are returned unchanged for the
+	 * caller to handle, so this only adds
+	 * resilience and never changes behavior for a turn that would otherwise
+	 * succeed. Context-window overflow recovery and max-tokens recovery still
+	 * run inside each attempt (the latter at most once per run). An unknown
+	 * finish without tool activity is continued once from the partial history;
+	 * it is never inferred from whether the response contains visible text.
+	 */
+	private async generateAssistantMessageWithProviderRetry(): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const issue = () =>
+			this.withProviderErrorRetry(() =>
+				this.generateAssistantMessageWithOverflowRecovery(),
+			);
+		const first = await issue();
+		if (first.finishReason !== "unknown" || first.interrupted) return first;
+
+		// Tool activity cannot be replayed, and local tool calls must receive
+		// their results before another request. Leave those turns to the loop.
+		if (
+			first.message.content.some((part) => part.type === "tool-call") ||
+			this.hasModelToolActivity(first.message)
+		)
+			return first;
+
+		// An unknown terminal reason, independent of text/reasoning content,
+		// permits exactly one continuation from the preserved partial history.
+		await this.recordAssistantMessage(first.message, first.finishReason);
+		// A user-role continuation avoids treating partial history as assistant
+		// prefill. Match hook context visibility in live and replayed transcripts.
+		await this.addUserReminderMessage(
+			"Previous turn ended unexpectedly. Continue from where you left off.",
+			{ displayRole: "system" },
+		);
+		this.resetLastError();
+		return await issue();
+	}
+
+	/**
+	 * Run `issue`, re-running it with backoff while it returns a turn that
+	 * failed with a transient, retryable provider error (see
+	 * {@link isRetryableProviderErrorTurn}), up to PROVIDER_ERROR_MAX_RETRIES
+	 * times. `issue` decides what is re-run: the whole prepared turn for an
+	 * ordinary request, or just the issuing of an already-prepared request.
+	 */
+	private async withProviderErrorRetry<
+		T extends { message: AgentMessage; finishReason: AgentModelFinishReason },
+	>(issue: () => Promise<T>): Promise<T> {
+		let attempt = 0;
+		for (;;) {
+			const turn = await issue();
+			if (
+				attempt >= PROVIDER_ERROR_MAX_RETRIES ||
+				!this.isRetryableProviderErrorTurn(turn)
+			) {
+				return turn;
+			}
+			attempt += 1;
+			const providerError = this.state.lastError;
+			// The failed attempt's error is captured for the notice above; clear it
+			// so the next attempt's finish event is judged on its own.
+			this.resetLastError();
+			const delayMs = Math.min(
+				PROVIDER_ERROR_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+				PROVIDER_ERROR_RETRY_MAX_DELAY_MS,
+			);
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message: `provider error — retrying (attempt ${attempt}/${PROVIDER_ERROR_MAX_RETRIES})`,
+				metadata: {
+					kind: "provider_error_retry",
+					reason: "provider_error_retry",
+					phase: "started",
+					iteration: this.state.iteration,
+					attempt,
+					maxRetries: PROVIDER_ERROR_MAX_RETRIES,
+					delayMs,
+					providerError,
+				},
+			});
+			await this.abortableDelay(delayMs);
+		}
+	}
+
+	/**
+	 * True when a turn failed with a transient provider error that a retry
+	 * could plausibly recover, and the failed attempt left nothing behind that
+	 * a second stream would duplicate or repeat:
+	 * - no content at all (text, reasoning, media, or local tool calls): those
+	 *   deltas were already emitted to the UI and there is no event to retract
+	 *   them, so re-streaming would show the output twice;
+	 * - no provider-executed tool activity (recorded in message metadata, not
+	 *   content): re-issuing the request could run those side effects again;
+	 * - not an auth or context-window failure, which the same request cannot fix.
+	 */
+	private isRetryableProviderErrorTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (turn.finishReason !== "error") {
+			return false;
+		}
+		if (turn.message.content.length > 0) {
+			return false;
+		}
+		const modelToolActivities = turn.message.metadata?.modelToolActivities;
+		if (Array.isArray(modelToolActivities) && modelToolActivities.length > 0) {
+			return false;
+		}
+		const errorClass = this.state.lastErrorClass;
+		if (errorClass === "auth" || errorClass === "context_window_exceeded") {
+			return false;
+		}
+		// Set from the model boundary's typed `isRetryable` flag when available,
+		// otherwise classified from the flattened message in the finish handler.
+		return this.state.lastErrorRetryable === true;
+	}
+
+	/**
+	 * Clear the last-error fields. Called at the start of every turn and before
+	 * every provider-error retry, so a `finish` event that omits `error` (allowed
+	 * by the public AgentModel contract) cannot inherit the class or retryability
+	 * of an earlier attempt. Deliberately not called inside overflow recovery,
+	 * whose "nothing to compact" error reports the first attempt's provider
+	 * message.
+	 */
+	private resetLastError(): void {
+		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
+		this.state.lastErrorReported = false;
+	}
+
+	/**
+	 * Sleep for `ms`, rejecting early with the abort error if the run is
+	 * aborted while waiting, so a retry backoff never blocks cancellation.
+	 */
+	private async abortableDelay(ms: number): Promise<void> {
+		this.throwIfAborted();
+		const signal = this.abortController?.signal;
+		await new Promise<void>((resolve, reject) => {
+			const onAbort = () => {
+				clearTimeout(timer);
+				reject(this.normalizeAbortError());
+			};
+			const timer = setTimeout(() => {
+				signal?.removeEventListener("abort", onAbort);
+				resolve();
+			}, ms);
+			if (signal) {
+				signal.addEventListener("abort", onAbort, { once: true });
+			}
+		});
+	}
+
+	/**
+	 * Run a model turn, recovering once per run from each of two conditions:
+	 * a provider-rejected context-window overflow, and a response truncated
+	 * at the output-token limit on a turn with no tool calls. Both recoveries
+	 * force a compaction through `prepareTurn` and retry the request.
+	 * Terminal (unrecoverable) overflow states throw with an actionable
+	 * message instead of the raw provider error; an unrecoverable truncated
+	 * turn is returned as-is so the loop surfaces the max-tokens error with
+	 * the partial content preserved.
+	 */
+	private async generateAssistantMessageWithOverflowRecovery(): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const first = await this.generateAssistantMessage();
+		if (this.isRecoverableMaxTokensTurn(first)) {
+			return await this.retryTruncatedTurnWithCompaction(first);
+		}
+		if (!this.isRecoverableOverflowTurn(first)) {
+			return first;
+		}
+		this.overflowRecoveryAttempted = true;
+		const providerError = this.state.lastError;
+		if (!this.config.prepareTurn) {
+			throw new ContextWindowOverflowError(
+				CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE,
+				providerError,
+			);
+		}
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: "context window exceeded — compacting and retrying",
+			metadata: {
+				kind: "context_overflow_recovery",
+				reason: "context_overflow_recovery",
+				phase: "started",
+				iteration: this.state.iteration,
+				providerError,
+			},
+		});
+		const retry = await this.generateAssistantMessage({
+			overflowRecovery: true,
+		});
+		if (
+			retry.finishReason === "error" &&
+			this.state.lastErrorClass === "context_window_exceeded"
+		) {
+			throw new ContextWindowOverflowError(
+				CONTEXT_WINDOW_OVERFLOW_RECOVERY_FAILED_MESSAGE,
+				this.state.lastError,
+			);
+		}
+		return retry;
+	}
+
+	private isRecoverableOverflowTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (
+			turn.finishReason !== "error" ||
+			this.state.lastErrorClass !== "context_window_exceeded" ||
+			this.overflowRecoveryAttempted
+		) {
+			return false;
+		}
+		// An errored stream that still produced tool calls proceeds through the
+		// normal loop (matching existing behavior); a retry would discard that
+		// partial work.
+		return !turn.message.content.some((part) => part.type === "tool-call");
+	}
+
+	private isRecoverableMaxTokensTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (
+			turn.finishReason !== "max-tokens" ||
+			this.maxTokensRecoveryAttempted ||
+			!this.config.prepareTurn
+		) {
+			return false;
+		}
+		// A truncated turn that produced tool calls proceeds through the normal
+		// loop, which executes them; only text-only truncations are terminal
+		// and worth a recovery attempt.
+		if (turn.message.content.some((part) => part.type === "tool-call")) {
+			return false;
+		}
+		// Provider-executed tool activity lives in metadata, not content, and has
+		// already happened — replaying the turn would repeat its side effects.
+		return !this.hasModelToolActivity(turn.message);
+	}
+
+	/** Tool activity executed outside AgentRuntime is recorded in metadata. */
+	private hasModelToolActivity(message: AgentMessage): boolean {
+		const activities = message.metadata?.modelToolActivities;
+		return Array.isArray(activities) && activities.length > 0;
+	}
+
+	/**
+	 * A response cut off at the output-token limit is often a symptom of a
+	 * nearly-full context: local OpenAI-compatible servers (llama.cpp, ollama,
+	 * LM Studio) cap generation at whatever context remains, regardless of the
+	 * requested output budget. Compacting the conversation frees that room, so
+	 * one forced compaction + retry rescues those turns. When compaction has
+	 * nothing to remove the original turn is returned, so the loop surfaces the
+	 * max-tokens error with the partial content already persisted.
+	 *
+	 * The truncated turn is not yet persisted while this runs (the loop records
+	 * a turn only after it returns), so whenever the attempt ends without a
+	 * replacement turn — compaction threw, the retry was aborted, or it errored
+	 * with nothing for the loop to execute — the truncated turn is recorded
+	 * first and the failure surfaces afterwards; the partial answer is never
+	 * lost to the recovery attempt.
+	 *
+	 * A retry that does come back is handed to the loop unjudged: the run loop
+	 * remains the only place that decides whether a turn is acceptable. When
+	 * compaction cannot help — nothing to remove, the retry truncated again, or
+	 * the turn was never eligible — the loop's own nudge-and-retry recovery
+	 * takes over, so this runs first and at most once per run.
+	 * Telemetry here is purely
+	 * observational — `started`, then `retried` with the retry's finish reason
+	 * when the attempt ran, or `failed` when it could not — so it never claims
+	 * anything about the run outcome and cannot contradict it.
+	 */
+	private async retryTruncatedTurnWithCompaction(first: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}> {
-		const usageBeforeModel = cloneUsage(this.state.usage);
+		this.maxTokensRecoveryAttempted = true;
+		// Distinct from the loop's nudge-and-retry notices (`max_tokens_recovery`)
+		// so the two strategies stay tellable apart downstream.
+		const noticeMetadata = {
+			kind: "max_tokens_compaction",
+			reason: "max_tokens_compaction",
+			iteration: this.state.iteration,
+		};
+		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+			phase: "started",
+		});
+		let retry: { message: AgentMessage; finishReason: AgentModelFinishReason };
+		try {
+			// Emitted inside the try so a throwing listener still funnels
+			// through the terminal-phase catch below.
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message:
+					"response hit the output token limit — compacting and retrying",
+				metadata: { ...noticeMetadata, phase: "started" },
+			});
+			// Prepare (compact) once; a transient provider error on the compacted
+			// request gets the same bounded retry policy as any other request, but
+			// re-issues the *same* prepared request — the transcript has not
+			// changed between a 429 and its retry, so recompacting would only repeat
+			// the compaction's notices, telemetry, and any summarizer call.
+			const prepared = await this.prepareModelRequest({
+				overflowRecovery: true,
+			});
+			retry = await this.withProviderErrorRetry(() =>
+				this.issuePreparedRequest(prepared),
+			);
+		} catch (error) {
+			if (error instanceof ContextWindowOverflowError) {
+				// Nothing to compact — keep the truncated turn so the loop
+				// surfaces the max-tokens error rather than an overflow error.
+				this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+					phase: "failed",
+					eventType: "nothing_to_compact",
+				});
+				await this.emit({
+					type: "status-notice",
+					snapshot: this.snapshot(),
+					message: "output-token-limit recovery failed: nothing to compact",
+					metadata: { ...noticeMetadata, phase: "failed" },
+				});
+				return first;
+			}
+			// Close the recovery's telemetry before rethrowing so every started
+			// phase has a terminal phase; the thrown error itself is surfaced by
+			// the run's own failure path, so no notice here. The error rides along
+			// so `error_type` separates a deliberate stop (ControlledStopError,
+			// AgentRuntimeAbortError) from a genuine recovery failure without
+			// restating how the run loop classifies either.
+			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+				phase: "failed",
+				eventType: "recovery_threw",
+				error,
+			});
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			throw error;
+		}
+		// `retried` states only that the compaction and retry ran — it makes no
+		// claim about the run, which may still reject this turn. The retry's
+		// finish reason rides along as an observed fact; pair it with the run
+		// outcome to see what became of the turn.
+		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+			phase: "retried",
+			eventType: retry.finishReason,
+		});
+		// No replacement turn came back: keep the truncated one and surface what
+		// ended the retry, exactly as the loop would have for that finish.
+		if (retry.finishReason === "aborted") {
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			throw this.normalizeAbortError();
+		}
+		if (
+			retry.finishReason === "error" &&
+			!retry.message.content.some((part) => part.type === "tool-call")
+		) {
+			await this.recordAssistantMessage(first.message, first.finishReason);
+			// An errored retry that still produced output — text, or a
+			// provider-executed tool that has already run — is observable work,
+			// not a discardable draft: keep it alongside the truncated turn so the
+			// transcript shows what happened (the loop records such a turn before
+			// failing, too). Only a retry that produced nothing is dropped.
+			if (
+				retry.message.content.length > 0 ||
+				this.hasModelToolActivity(retry.message)
+			) {
+				await this.recordAssistantMessage(retry.message, retry.finishReason);
+			}
+			throw new Error(this.state.lastError ?? "Model stream failed");
+		}
+		// A retry that came back with nothing is no replacement either: handing it
+		// on would trip the loop's empty-response guard, which throws before
+		// recording anything — discarding the truncated answer and reporting a
+		// misleading error. Keep the truncated turn, exactly as when there was
+		// nothing to compact, and let the loop surface the max-tokens error.
+		if (
+			retry.message.content.length === 0 &&
+			!this.hasModelToolActivity(retry.message)
+		) {
+			return first;
+		}
+		return retry;
+	}
+
+	/** Append an assistant turn to the transcript and announce it. */
+	private async recordAssistantMessage(
+		message: AgentMessage,
+		finishReason: AgentModelFinishReason,
+	): Promise<void> {
+		this.state.messages.push(message);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message,
+		});
+		await this.emit({
+			type: "assistant-message",
+			snapshot: this.snapshot(),
+			iteration: this.state.iteration,
+			message,
+			finishReason,
+		});
+	}
+
+	private async generateAssistantMessage(options?: {
+		overflowRecovery?: boolean;
+	}): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const controller = new AbortController();
+		this.modelSteerController = controller;
+		try {
+			return await this.generateAssistantMessageForRequest(controller, options);
+		} finally {
+			this.modelSteerController = undefined;
+		}
+	}
+
+	/**
+	 * Issue an already-prepared request as a fresh attempt: turn preparation
+	 * (compaction, before-model hooks) is not re-run, but the attempt gets its
+	 * own steer controller and lifecycle timing.
+	 */
+	private async issuePreparedRequest(prepared: PreparedModelRequest): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const controller = new AbortController();
+		this.modelSteerController = controller;
+		try {
+			return await this.streamPreparedRequest(
+				{ ...prepared, startedAt: Date.now() },
+				controller,
+			);
+		} finally {
+			this.modelSteerController = undefined;
+		}
+	}
+
+	/** A model request with turn preparation and before-model hooks applied. */
+	private async prepareModelRequest(options?: {
+		overflowRecovery?: boolean;
+	}): Promise<PreparedModelRequest> {
 		const modelRequestMetadata = omitUndefinedValues({
+			distinctId: trimNonEmpty(this.config.distinctId),
+			clientName: trimNonEmpty(this.config.clientName),
+			clientVersion: trimNonEmpty(this.config.clientVersion),
+			clineCoreVersion: trimNonEmpty(this.config.clineCoreVersion),
 			sessionId: trimNonEmpty(this.config.sessionId),
 			agentId: this.state.agentId,
 			conversationId: trimNonEmpty(this.config.conversationId),
@@ -806,32 +1675,34 @@ export class AgentRuntime {
 				description: tool.description,
 				inputSchema: tool.inputSchema,
 			})),
+			modelTools: this.config.modelTools,
 			signal: this.abortController?.signal,
 			options: mergeModelOptions(this.config.modelOptions, {
 				metadata: modelRequestMetadata,
 			}),
 		};
 
-		if (this.state.iteration > 1) {
-			const pendingUserMessage = await this.consumePendingUserMessage();
-			if (pendingUserMessage) {
-				request = {
-					...request,
-					messages: [
-						...request.messages,
-						...cloneMessages([pendingUserMessage]),
-					],
-				};
-			}
+		const startedAt = Date.now();
+
+		// Read queued input at every request boundary, including retries and
+		// continuations within the first iteration.
+		const pendingUserMessage = await this.consumePendingUserMessage();
+		if (pendingUserMessage) {
+			request = {
+				...request,
+				messages: [...request.messages, ...cloneMessages([pendingUserMessage])],
+			};
 		}
 
-		request = await this.prepareTurnForModelRequest(request);
+		request = await this.prepareTurnForModelRequest(request, options);
+		this.throwIfAborted();
 
 		for (const hook of this.hooks.beforeModel) {
 			const result = (await hook({
 				snapshot: this.snapshot(),
 				request,
 			})) as AgentBeforeModelResult | undefined;
+			this.throwIfAborted();
 			this.applyStopControl(result);
 			if (result?.messages) {
 				request = { ...request, messages: cloneMessages(result.messages) };
@@ -861,19 +1732,81 @@ export class AgentRuntime {
 			...summarizeModelRequest(request),
 		});
 
-		const stream = await this.config.model.stream(request);
+		return { request, startedAt };
+	}
+
+	private async generateAssistantMessageForRequest(
+		steerController: AbortController,
+		options?: {
+			overflowRecovery?: boolean;
+		},
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const prepared = await this.prepareModelRequest(options);
+		return await this.streamPreparedRequest(prepared, steerController);
+	}
+
+	/**
+	 * Issue a prepared request and assemble the assistant turn from its stream.
+	 * Separate from preparation so a prepared request can be re-issued (e.g.
+	 * after a transient provider error) without re-running turn preparation.
+	 */
+	private async streamPreparedRequest(
+		prepared: PreparedModelRequest,
+		steerController: AbortController,
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const usageBeforeModel = cloneUsage(this.state.usage);
+		const getTaskLifecycleDurationMs = () => Date.now() - prepared.startedAt;
+		let request = prepared.request;
+
+		this.throwIfAborted();
+		this.modelRequestId = createUID("model_request", 21);
+		request = {
+			...request,
+			options: mergeModelOptions(request.options, {
+				metadata: { modelRequestId: this.modelRequestId },
+			}),
+		};
+		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
+			durationMs: getTaskLifecycleDurationMs(),
+			phase: "provider_request_started",
+		});
+		// Steering cancels provider generation, while request preparation keeps
+		// the run-level signal so compaction and hooks can finish consistently.
+		request = {
+			...request,
+			signal: AbortSignal.any([
+				steerController.signal,
+				...(this.abortController ? [this.abortController.signal] : []),
+			]),
+		};
+		const stream = this.openTaskLifecycleStream(
+			request,
+			getTaskLifecycleDurationMs,
+		);
+
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
+		const modelToolActivities = new Map<string, AgentModelToolActivity>();
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
 		> = [];
 		let nextToolIndex = 0;
-		let finishReason: AgentModelFinishReason = "stop";
+		let finishReason: AgentModelFinishReason = "unknown";
+		let requestId: string | undefined;
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
 
 		for await (const event of stream) {
+			if (steerController.signal.aborted) break;
 			this.throwIfAborted();
 			switch (event.type) {
 				case "text-delta": {
@@ -893,6 +1826,22 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						text: event.text,
 						accumulatedText,
+					});
+					break;
+				}
+				case "media": {
+					sequence.push({
+						type: "part",
+						part: {
+							type: "media",
+							media: event.media,
+						},
+					});
+					await this.emit({
+						type: "assistant-media",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						media: event.media,
 					});
 					break;
 				}
@@ -926,6 +1875,29 @@ export class AgentRuntime {
 					break;
 				}
 				case "tool-call-delta": {
+					if (event.execution) {
+						const toolCall: AgentToolCallPart = {
+							type: "tool-call",
+							toolCallId: event.toolCallId ?? createUID("model_tool"),
+							toolName: event.toolName ?? "tool",
+							input: event.input,
+							metadata: event.metadata,
+							execution: event.execution,
+						};
+						modelToolActivities.set(toolCall.toolCallId, {
+							toolCallId: toolCall.toolCallId,
+							toolName: toolCall.toolName,
+							execution: event.execution,
+							input: toolCall.input,
+						});
+						await this.emit({
+							type: "tool-started",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCall,
+						});
+						break;
+					}
 					const key =
 						event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
 					if (event.index == null && event.toolCallId == null) {
@@ -963,21 +1935,91 @@ export class AgentRuntime {
 					}
 					break;
 				}
+				case "tool-result": {
+					const existing = modelToolActivities.get(event.toolCallId);
+					const activity = {
+						...existing,
+						toolCallId: event.toolCallId,
+						toolName: event.toolName,
+						execution: event.execution,
+						input: event.input === undefined ? existing?.input : event.input,
+						output: event.output,
+						isError: event.isError,
+					};
+					modelToolActivities.set(event.toolCallId, activity);
+					const toolCall: AgentToolCallPart = {
+						type: "tool-call",
+						toolCallId: event.toolCallId,
+						toolName: event.toolName,
+						input: activity.input,
+						execution: event.execution,
+					};
+					await this.emit({
+						type: "tool-finished",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						toolCall,
+						message: createMessage("tool", [
+							{
+								type: "tool-result",
+								toolCallId: event.toolCallId,
+								toolName: event.toolName,
+								output: event.output,
+								isError: event.isError,
+								execution: event.execution,
+							},
+						]),
+					});
+					break;
+				}
 				case "usage": {
+					// Record the provider's own input-token count for this request so
+					// the prepare-turn pipeline can trigger compaction on real usage
+					// rather than a character-based estimate.
+					if (
+						typeof event.usage.inputTokens === "number" &&
+						event.usage.inputTokens > 0
+					) {
+						this.state.lastRequestInputTokens = event.usage.inputTokens;
+					}
 					await this.updateUsage(event.usage);
 					break;
 				}
 				case "finish": {
 					finishReason = event.reason;
+					requestId = event.requestId;
 					if (event.error) {
 						this.state.lastError = event.error;
+						// Models that classify at their own error boundary (where the
+						// raw provider error is still structured) win. Anything else —
+						// custom `AgentModel` implementations, adapters that carry only
+						// a flattened message — is classified from the message so it
+						// stays eligible for overflow recovery.
+						this.state.lastErrorClass =
+							event.errorClass ?? classifyProviderError(event.error);
+						// Prefer the boundary's typed `isRetryable` signal; fall back to
+						// classifying the flattened message for models that do not carry
+						// it.
+						this.state.lastErrorRetryable =
+							event.errorRetryable ?? isRetryableProviderError(event.error);
+						this.state.lastErrorReported = event.errorReported === true;
 					}
 					break;
 				}
 			}
 		}
+		this.throwIfAborted();
+		const interrupted = steerController.signal.aborted;
+		if (interrupted) finishReason = "stop";
 
 		for (const item of sequence) {
+			// A cancelled stream may contain incomplete tool JSON or unsigned
+			// reasoning. Keep only replayable visible content from that response.
+			if (
+				interrupted &&
+				(item.type === "tool" || item.part.type === "reasoning")
+			)
+				continue;
 			if (item.type === "part") {
 				content.push(item.part);
 				continue;
@@ -1014,10 +2056,17 @@ export class AgentRuntime {
 			});
 		}
 
+		const messageMetadata: Record<string, unknown> = {};
+		if (invalidToolCalls.length > 0) {
+			messageMetadata.invalidToolCalls = invalidToolCalls;
+		}
+		if (modelToolActivities.size > 0) {
+			messageMetadata.modelToolActivities = [...modelToolActivities.values()];
+		}
 		const message = createMessage(
 			"assistant",
 			content,
-			invalidToolCalls.length > 0 ? { invalidToolCalls } : undefined,
+			Object.keys(messageMetadata).length > 0 ? messageMetadata : undefined,
 		);
 		const metrics = usageDelta(usageBeforeModel, this.state.usage);
 		if (metrics) {
@@ -1032,11 +2081,120 @@ export class AgentRuntime {
 				snapshot: this.snapshot(),
 				assistantMessage: message,
 				finishReason,
+				...(requestId ? { requestId } : {}),
 			})) as AgentStopControl | undefined;
 			this.applyStopControl(control);
 		}
 
-		return { message, finishReason };
+		return { message, finishReason, interrupted };
+	}
+
+	private async *openTaskLifecycleStream(
+		request: AgentModelRequest,
+		getTaskLifecycleDurationMs: () => number | undefined,
+	): AsyncIterable<AgentModelEvent> {
+		let stream: AsyncIterable<AgentModelEvent>;
+		let phase = "provider_request_started";
+		try {
+			stream = await this.config.model.stream(request);
+			this.throwIfAborted();
+			phase = "provider_stream_started";
+			this.captureTaskLifecycle(TASK_PROVIDER_STREAM_STARTED_EVENT, {
+				durationMs: getTaskLifecycleDurationMs(),
+				phase,
+			});
+		} catch (error) {
+			if (request.signal?.aborted && !this.abortController?.signal.aborted)
+				return;
+			if (!request.signal?.aborted && !this.isAbortError(error)) {
+				this.captureTaskLifecycleFailure(
+					error,
+					phase,
+					getTaskLifecycleDurationMs(),
+				);
+			}
+			throw error;
+		}
+
+		let receivedFirstChunk = false;
+		try {
+			for await (const event of stream) {
+				if (!receivedFirstChunk) {
+					receivedFirstChunk = true;
+					phase = "first_chunk_received";
+					this.captureTaskLifecycle(TASK_FIRST_CHUNK_RECEIVED_EVENT, {
+						durationMs: getTaskLifecycleDurationMs(),
+						phase,
+						eventType: event.type,
+					});
+				}
+				yield event;
+			}
+		} catch (error) {
+			if (request.signal?.aborted && !this.abortController?.signal.aborted)
+				return;
+			if (!request.signal?.aborted && !this.isAbortError(error)) {
+				this.captureTaskLifecycleFailure(
+					error,
+					phase,
+					getTaskLifecycleDurationMs(),
+				);
+			}
+			throw error;
+		}
+	}
+
+	private captureTaskLifecycleFailure(
+		error: unknown,
+		phase: string,
+		durationMs: number | undefined,
+	): void {
+		this.captureTaskLifecycle(TASK_PROVIDER_STREAM_FAILED_EVENT, {
+			durationMs,
+			error,
+			errorClass: classifyProviderError(error),
+			phase,
+		});
+	}
+
+	private captureTaskLifecycle(
+		event: string,
+		input: Partial<Omit<CaptureTaskLifecycleEventInput, "event">> = {},
+	): void {
+		const sessionId = trimNonEmpty(this.config.sessionId);
+		captureTaskLifecycleEvent(this.config.telemetry, {
+			event,
+			modelRequestId: this.modelRequestId,
+			sessionId,
+			ulid: sessionId,
+			agentId: this.state.agentId,
+			conversationId: trimNonEmpty(this.config.conversationId),
+			runId: this.state.runId,
+			iteration: this.state.iteration > 0 ? this.state.iteration : undefined,
+			providerId: this.getTelemetryProviderId(),
+			modelId: this.getTelemetryModelId(),
+			...input,
+		});
+	}
+
+	private getTelemetryProviderId(): string | undefined {
+		return (
+			trimNonEmpty(this.config.messageModelInfo?.provider) ??
+			this.telemetryProviderId
+		);
+	}
+
+	private getTelemetryModelId(): string | undefined {
+		return (
+			trimNonEmpty(this.config.messageModelInfo?.id) ?? this.telemetryModelId
+		);
+	}
+
+	private isAbortError(error: unknown): boolean {
+		return (
+			error instanceof AgentRuntimeAbortError ||
+			this.abortController?.signal.aborted === true
+		);
 	}
 
 	private captureUnexpectedReasoningTokens(
@@ -1068,11 +2226,13 @@ export class AgentRuntime {
 
 	private async prepareTurnForModelRequest(
 		request: AgentModelRequest,
+		options?: { overflowRecovery?: boolean },
 	): Promise<AgentModelRequest> {
 		if (!this.config.prepareTurn) {
 			return request;
 		}
 
+		const overflowRecovery = options?.overflowRecovery === true;
 		const result = await this.config.prepareTurn({
 			agentId: this.state.agentId,
 			conversationId: this.config.conversationId,
@@ -1086,6 +2246,11 @@ export class AgentRuntime {
 				provider: this.config.messageModelInfo?.provider,
 			},
 			signal: request.signal,
+			overflowRecovery: overflowRecovery || undefined,
+			previousRequestInputTokens:
+				this.state.lastRequestInputTokens > 0
+					? this.state.lastRequestInputTokens
+					: undefined,
 			emitStatusNotice: (message, metadata) => {
 				void this.emit({
 					type: "status-notice",
@@ -1095,6 +2260,30 @@ export class AgentRuntime {
 				});
 			},
 		});
+		if (overflowRecovery) {
+			// Only retry a provider-rejected overflow with a request that is
+			// actually smaller — anything else is guaranteed to fail again.
+			//
+			// Serialized length is a coarse proxy for tokens, which is all this
+			// backstop needs: it answers "did anything get removed at all" for
+			// arbitrary `prepareTurn` implementations, and the shared estimator
+			// is itself linear in character count, so switching units would not
+			// change the verdict. Authoritative token budgeting (against the
+			// model's limit) happens inside the compaction pipeline.
+			// TODO: have `prepareTurn` report the token estimates it already
+			// computed (before/after) so this decision can use real numbers
+			// instead of re-deriving a proxy here.
+			const shrunk =
+				result?.messages !== undefined &&
+				JSON.stringify(result.messages).length <
+					JSON.stringify(request.messages).length;
+			if (!shrunk) {
+				throw new ContextWindowOverflowError(
+					CONTEXT_WINDOW_OVERFLOW_NOTHING_TO_COMPACT_MESSAGE,
+					this.state.lastError,
+				);
+			}
+		}
 		if (!result) {
 			return request;
 		}
@@ -1119,7 +2308,9 @@ export class AgentRuntime {
 		if (!pending) {
 			return undefined;
 		}
-		const message = createMessage("user", [{ type: "text", text: pending }]);
+		const message = createMessage("user", [{ type: "text", text: pending }], {
+			userRunSpan: 0,
+		});
 		this.state.messages.push(message);
 		await this.emit({
 			type: "message-added",
@@ -1152,20 +2343,39 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
+		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
 		}
 
-		if (this.config.toolExecution === "parallel") {
-			return Promise.all(
-				prepared.map((execution) => this.executePreparedTool(execution)),
-			);
-		}
-
 		const results: AgentMessage[] = [];
-		for (const execution of prepared) {
-			results.push(await this.executePreparedTool(execution));
+		for (let index = 0; index < prepared.length; ) {
+			const execution = prepared[index];
+			const mode = execution.tool?.executionMode ?? this.config.toolExecution;
+			if (mode === "sequential") {
+				results.push(await this.executePreparedTool(execution));
+				index += 1;
+				continue;
+			}
+
+			// Only adjacent parallel calls overlap. An ordinary sequential tool
+			// must wait for the group before it, and finish before the next group.
+			const start = index;
+			while (
+				index < prepared.length &&
+				(prepared[index].tool?.executionMode ?? this.config.toolExecution) ===
+					"parallel"
+			) {
+				index += 1;
+			}
+			results.push(
+				...(await Promise.all(
+					prepared
+						.slice(start, index)
+						.map((call) => this.executePreparedTool(call)),
+				)),
+			);
 		}
 		return results;
 	}
@@ -1245,6 +2455,14 @@ export class AgentRuntime {
 						...result.policy,
 					};
 				}
+				if (result?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							{ source: "PreToolUse", toolCall },
+							result.appendContext,
+						),
+					);
+				}
 				this.applyStopControl(result);
 				if (result?.skip) {
 					skipReason =
@@ -1268,8 +2486,8 @@ export class AgentRuntime {
 					policy,
 				);
 				if (!approval.approved) {
-					skipReason =
-						approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
+					const reason = approval.reason ?? "Tool was not executed";
+					skipReason = `${reason} -- ${TOOL_REJECTION_SUFFIX}`;
 				}
 			}
 		}
@@ -1392,6 +2610,14 @@ export class AgentRuntime {
 					endedAt,
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
+				if (after?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							{ source: "PostToolUse", toolCall: prepared.toolCall },
+							after.appendContext,
+						),
+					);
+				}
 				this.applyStopControl(after);
 				if (after?.result) {
 					result = after.result;
@@ -1494,23 +2720,52 @@ export class AgentRuntime {
 					...metadata,
 					error: event.error,
 				});
-				captureSdkError(this.config.telemetry, {
-					component: "agents",
-					operation: "agent.run",
-					error: event.error,
-					severity: "error",
-					handled: false,
-					context: metadata as TelemetryProperties,
-				});
+				// Failures the model layer already recorded at its own error
+				// boundary (`provider.stream`, carried across the stream's
+				// string-flattening boundary as `finish.errorReported`) must not
+				// be re-reported here — that exactly doubled `sdk.error` volume.
+				// Everything else still reports: loop-originated failures, and
+				// failures from model implementations that do not record their
+				// own telemetry.
+				if (!this.state.lastErrorReported) {
+					captureSdkError(this.config.telemetry, {
+						component: "agents",
+						operation: "agent.run",
+						error: event.error,
+						severity: "error",
+						handled: false,
+						context: {
+							...(metadata as TelemetryProperties),
+							providerId: this.getTelemetryProviderId(),
+							modelId: this.getTelemetryModelId(),
+							modelRequestId: this.modelRequestId,
+							...(this.state.lastFinishReason
+								? { finishReason: this.state.lastFinishReason }
+								: {}),
+						},
+					});
+				}
 				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
 		}
-		this.config.telemetry?.capture({
-			event: `agent.${event.type}`,
-			properties: metadata as TelemetryProperties,
-		});
+		switch (event.type) {
+			// Per-token/per-chunk stream events are ~97% of agent.* telemetry
+			// volume and are never queried, so they are not mirrored to
+			// telemetry. Listeners and hooks below still receive them.
+			case "assistant-text-delta":
+			case "assistant-reasoning-delta":
+			case "assistant-media":
+			case "tool-updated":
+				break;
+			default:
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: metadata as TelemetryProperties,
+				});
+				break;
+		}
 		for (const listener of this.listeners) {
 			listener(event);
 		}

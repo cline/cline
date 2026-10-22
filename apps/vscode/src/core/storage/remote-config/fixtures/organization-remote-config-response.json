@@ -1,0 +1,8 @@
+{
+	"success": true,
+	"error": "",
+	"data": {
+		"enabled": true,
+		"value": "{\"version\":\"contract-v2\",\"globalRules\":[{\"alwaysEnabled\":false,\"name\":\"Fetched Rule\",\"contents\":\"Fetched rule contents.\"}],\"globalWorkflows\":[{\"alwaysEnabled\":true,\"name\":\"Fetched Workflow\",\"contents\":\"Fetched workflow contents.\"}],\"globalSkills\":[{\"alwaysEnabled\":true,\"name\":\"Fetched Skill\",\"contents\":\"---\\nname: Fetched Skill\\n---\\nFetched skill contents.\"}],\"blockPersonalRemoteMCPServers\":true,\"remoteMCPServers\":[{\"name\":\"managed\",\"url\":\"https://mcp.example.test\",\"alwaysEnabled\":true}],\"openTelemetryOtlpEndpoint\":\"https://otel.example.test\"}"
+	}
+}

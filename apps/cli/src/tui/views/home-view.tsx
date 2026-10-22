@@ -13,17 +13,13 @@ import {
 } from "../components/status-bar";
 import { TrackedRobot, useMouseTracker } from "../components/tracked-robot";
 import { useSession } from "../contexts/session-context";
+import { useTheme } from "../hooks/use-theme";
 import {
-	useTerminalBackground,
-	useTerminalTheme,
-} from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
 	getInputRuleColor,
-	getModeAccent,
 	getModeInputForeground,
 	getModeInputPlaceholder,
 } from "../palette";
+import { getThemeModeAccent } from "../themes";
 import { HOME_VIEW_MAX_WIDTH, type TuiProps } from "../types";
 
 export function HomeView(props: {
@@ -65,10 +61,10 @@ export function HomeView(props: {
 		visualRow: number;
 	} | null>(null);
 
-	const terminalBg = useTerminalBackground();
-	const terminalTheme = useTerminalTheme();
-	const defaultFg = getDefaultForeground(terminalBg);
-	const accent = getModeAccent(session.uiMode, terminalTheme);
+	const theme = useTheme();
+	const terminalBg = theme.background;
+	const defaultFg = theme.defaultForeground;
+	const accent = getThemeModeAccent(theme, session.uiMode);
 	const inputRuleColor = getInputRuleColor(terminalBg);
 	const inputForeground = getModeInputForeground(session.uiMode, terminalBg);
 	const inputPlaceholder = getModeInputPlaceholder(session.uiMode, terminalBg);

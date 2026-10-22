@@ -221,13 +221,15 @@ In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/
 
 Schedule agents on cron-like intervals or external events.
 
+If `--provider` and `--model` are omitted, schedules use the last configured
+provider and model. If only `--provider` is given, the schedule uses that
+provider's saved model.
+
 ```sh
 cline schedule create "Daily code review" \
   --cron "0 9 * * MON-FRI" \
   --prompt "Review PRs opened yesterday and summarize issues." \
   --workspace /path/to/repo \
-  --provider cline \
-  --model openai/gpt-5.3-codex \
   --timeout 3600 \
   --tags automation,review
 
@@ -248,7 +250,7 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `-s, --system <prompt>` | Override the system prompt |
 | `-P, --provider <id>` | Provider id (default: `cline`) |
 | `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-4.6`) |
-| `-k, --key <api-key>` | API key override for this run |
+| `-k, --key <api-key>` | API key for this run, also saved as the provider's key |
 | `-p, --plan` | Run in plan mode (default is act mode) |
 | `-i, --tui` | Interactive TUI multi-turn mode |
 | `-t, --timeout <seconds>` | Optional run timeout in seconds |
@@ -256,11 +258,11 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 | `--config <path>` | Configuration directory (used for CLI home resolution) |
 | `--hooks-dir <path>` | Additional hooks directory hint for runtime hook injection |
 | `--acp` | ACP (Agent Client Protocol) mode |
-| `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level; thinking is off when the flag is omitted. |
-| `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `basic`; use `agentic` for LLM compaction or `off` to disable. |
+| `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level. Without the flag, the CLI uses the level you last chose with `/model`, or the provider default. |
+| `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `agentic`; use `basic` for local truncation or `off` to disable. |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
-| `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline` (enables sandbox mode automatically) |
+| `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline/data` (enables sandbox mode automatically) |
 | `--auto-approve [true\|false]` | Set tool auto-approval for all tools |
 | `--kanban` | Run the external `kanban` app |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
@@ -284,10 +286,33 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline schedule <command>` - Create and manage scheduled runs
 - `cline doctor` - Inspect local CLI health and stale processes
 - `cline doctor fix` - Kill stale local RPC listeners and old CLI processes
-- `cline doctor log` - Open the CLI runtime log file
+- `cline doctor log` - Open the CLI runtime log file (`CLINE_LOG_PATH` when set)
 - `cline hook` - Handle a hook payload from stdin
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
+
+Compiled CLI binaries embed the plugin bootstrap, SDK modules, and dashboard
+assets. They can start the Hub, load SDK plugins, and serve the dashboard without
+a separate Node/Bun installation or adjacent runtime files. Resources are read directly from the binary’s read-only Bun filesystem; no
+runtime cache is extracted. `--plugin-sandbox` is an internal subprocess dispatch
+flag, not a user command.
+
+## Hub dashboard
+
+Run `cline hub` to list hub subcommands. To start the browser dashboard:
+
+```sh
+cline hub dashboard
+```
+
+The dashboard opens in your default browser and stays running until you press Ctrl+C. Use `--no-open` to print the URL without opening a browser, or `--port` to change the dashboard's HTTP/WebSocket port (default: `8787`):
+
+```sh
+cline hub dashboard --port 9090 --no-open
+cline hub dashboard --help
+```
+
+Dashboard options also include `--cwd`, `--config`, `--data-dir`, `--host`, `--public-url`, and `--room-secret`. For LAN or tunnel access, see the [Cline Hub configuration and security guidance](../cline-hub/README.md). The old `cline dashboard` invocation remains a hidden compatibility alias; use `cline hub dashboard` in new scripts.
 
 ## Zen mode
 

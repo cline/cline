@@ -1,7 +1,8 @@
 import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
+import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
-import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkInteractionCoordinator, type ToolApprovalRequest } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
@@ -12,6 +13,10 @@ vi.mock("./webview-grpc-bridge", () => ({
 
 vi.mock("@core/storage/disk", () => ({
 	saveClineMessages: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock("@/integrations/misc/extract-text", () => ({
+	processFilesIntoText: vi.fn(async (files: string[]) => `Files attached by the user:\n\n${files.join("\n")}`),
 }))
 
 describe("SdkInteractionCoordinator", () => {
@@ -358,45 +363,171 @@ describe("SdkInteractionCoordinator", () => {
 		])
 	})
 
-	it("emits mistake_limit_reached and resolves proceed as SDK recovery guidance", async () => {
+	it.each([
+		{ prompt: "Use this design", expectedText: [{ type: "text", text: "Use this design" }] },
+		{ prompt: undefined, expectedText: [] },
+	])("resolves ask_question with attached images and files: $prompt", async ({ prompt, expectedText }) => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
-		const setTurnPhase = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
-			setTurnPhase,
 		})
+		const images = ["data:image/jpeg;base64,abc"]
+		const files = ["/workspace/spec.md"]
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
-			details: "bad arguments",
-		})
+		const answerPromise = coordinator.handleAskQuestion("Which layout?", ["A", "B"], undefined)
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
-		expect(task.messageStateHandler.getClineMessages()[0]).toMatchObject({
-			type: "ask",
-			ask: "mistake_limit_reached",
-			partial: false,
-		})
-		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getClineMessages()[0].ts)
-
-		expect(coordinator.resolvePendingMistakeLimit("try smaller steps", "yesButtonClicked")).toBe(true)
-		await expect(decisionPromise).resolves.toEqual({
-			action: "continue",
-			guidance: "mistake_limit_reached: try smaller steps",
-		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
-			{ type: "ask", ask: "mistake_limit_reached" },
-			{ type: "say", say: "user_feedback", text: "try smaller steps" },
+		expect(coordinator.resolvePendingAskQuestion(prompt, images, files)).toBe(true)
+		await expect(answerPromise).resolves.toEqual([
+			...expectedText,
+			{ type: "image", mediaType: "image/jpeg", data: "abc" },
+			{ type: "text", text: "Files attached by the user:\n\n/workspace/spec.md" },
 		])
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+			{ type: "ask", ask: "followup" },
+			{ type: "say", say: "user_feedback", text: prompt ?? "", images, files },
+		])
+	})
+
+	it("settles an answered ask_question on cancel while its attachments are still loading", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+		let finishLoading!: (text: string) => void
+		vi.mocked(processFilesIntoText).mockImplementationOnce(
+			() =>
+				new Promise<string>((resolve) => {
+					finishLoading = resolve
+				}),
+		)
+
+		const answerPromise = coordinator.handleAskQuestion("Which spec?", ["A", "B"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		expect(coordinator.resolvePendingAskQuestion("Use this spec", undefined, ["/workspace/huge.pdf"])).toBe(true)
+
+		coordinator.clearPending("Cancelled")
+		await expect(answerPromise).resolves.toBe("")
+		finishLoading("Files attached by the user:\n\n/workspace/huge.pdf")
+		await expect(answerPromise).resolves.toBe("")
+	})
+
+	it("accepts an ask_question response as soon as the ask is emitted", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn(() => new Promise<void>(() => {})),
+			setTurnPhase,
+		})
+		let accepted = false
+		messages.onSessionEvent(() => {
+			if (task.messageStateHandler.getClineMessages().length === 1) {
+				accepted = coordinator.resolvePendingAskQuestion("yes")
+			}
+		})
+
+		const answer = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
+
+		expect(accepted).toBe(true)
+		await expect(answer).resolves.toBe("yes")
 		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
 	})
 
-	it("resolves mistake-limit no-button responses as stop decisions", async () => {
+	it.each(["Task cancelled", "Task switched"])("settles ask_question during its state post on %s", async (reason) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let releasePost!: () => void
+		const postStateToWebview = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					releasePost = resolve
+				}),
+		)
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+		})
+		let result: Awaited<ReturnType<SdkInteractionCoordinator["handleAskQuestion"]>> | undefined
+		const answer = coordinator.handleAskQuestion("Continue?", [], undefined).then((value) => {
+			result = value
+		})
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledOnce())
+
+		coordinator.clearPending(reason)
+		await vi.waitFor(() => expect(result).toBe(""))
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
+
+		releasePost()
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(coordinator.resolvePendingAskQuestion("new task input")).toBe(false)
+		await answer
+	})
+
+	it.each(["resolves", "rejects"])("keeps a later ask when a cleared ask's state post %s", async (outcome) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let releaseFirstPost!: () => void
+		let rejectFirstPost!: (error: Error) => void
+		const postStateToWebview = vi
+			.fn<() => Promise<void>>()
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((resolve, reject) => {
+						releaseFirstPost = resolve
+						rejectFirstPost = reject
+					}),
+			)
+			.mockResolvedValue(undefined)
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			setTurnPhase,
+		})
+		const firstAnswer = coordinator.handleAskQuestion("Old question?", [], undefined)
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(1))
+		coordinator.clearPending("Task switched")
+		await expect(firstAnswer).resolves.toBe("")
+
+		const secondAnswer = coordinator.handleAskQuestion("New question?", [], undefined)
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(2))
+		const secondAskTs = task.messageStateHandler.getClineMessages()[1].ts
+		if (outcome === "resolves") {
+			releaseFirstPost()
+		} else {
+			rejectFirstPost(new Error("Task changed while building webview state"))
+		}
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_followup", secondAskTs)
+		expect(coordinator.resolvePendingAskQuestion("new answer")).toBe(true)
+		await expect(secondAnswer).resolves.toBe("new answer")
+	})
+
+	it("rejects and clears the ask whose state post fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const error = new Error("Failed to build webview state")
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockRejectedValue(error),
+			setTurnPhase,
+		})
+
+		await expect(coordinator.handleAskQuestion("Continue?", [], undefined)).rejects.toBe(error)
+		expect(coordinator.resolvePendingAskQuestion("late answer")).toBe(false)
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("shows an error row and stops immediately when the mistake limit is reached", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
@@ -406,25 +537,35 @@ describe("SdkInteractionCoordinator", () => {
 			setTurnPhase,
 		})
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
-		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		expect(coordinator.resolvePendingMistakeLimit(undefined, "noButtonClicked")).toBe(true)
-
-		await expect(decisionPromise).resolves.toEqual({
+		// CLI parity: the decision resolves right away as a stop — no pending
+		// prompt that would leave the agent loop running against the provider.
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 4,
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				reason: "tool_execution_failed",
+				details: "bad arguments",
+			}),
+		).resolves.toEqual({
 			action: "stop",
-			reason: "stopped after mistake_limit_reached prompt",
+			reason: "mistake_limit_reached: tool_execution_failed: bad arguments",
 		})
-		expect(task.messageStateHandler.getClineMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
-		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+			{
+				type: "say",
+				say: "error",
+				partial: false,
+			},
+		])
+		const errorText = task.messageStateHandler.getClineMessages()[0].text ?? ""
+		expect(errorText).toContain("3 errors in a row")
+		expect(errorText).toContain("tool_execution_failed: bad arguments")
+		expect(errorText).toContain("Send a message to give Cline guidance")
 	})
 
-	it("clears pending mistake-limit prompts as stop decisions", async () => {
+	it("summarizes the mistake limit without details using the iteration", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
@@ -432,18 +573,17 @@ describe("SdkInteractionCoordinator", () => {
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		})
 
-		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
-			iteration: 4,
-			consecutiveMistakes: 3,
-			maxConsecutiveMistakes: 3,
-			reason: "tool_execution_failed",
+		await expect(
+			coordinator.handleConsecutiveMistakeLimitReached({
+				iteration: 4,
+				consecutiveMistakes: 3,
+				maxConsecutiveMistakes: 3,
+				reason: "tool_execution_failed",
+			}),
+		).resolves.toEqual({
+			action: "stop",
+			reason: "mistake_limit_reached: tool_execution_failed at iteration 4",
 		})
-		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
-
-		coordinator.clearPending("Task cleared")
-
-		await expect(decisionPromise).resolves.toEqual({ action: "stop", reason: "Task cleared" })
-		expect(coordinator.resolvePendingMistakeLimit(undefined, "yesButtonClicked")).toBe(false)
 	})
 
 	it("clears pending tool approvals as rejected", async () => {
@@ -472,6 +612,77 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task cancelled" })
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "read_files", "Task cancelled")
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
+	})
+
+	it("resolves an approval answered while its state post is still in flight", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn(() => new Promise<void>(() => {})),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval(approvalRequest("tool-call"))
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({ approved: true })
+	})
+
+	it("denies the approval whose state post fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordDeniedToolApproval = vi.fn()
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockRejectedValue(new Error("Task changed while building webview state")),
+			recordDeniedToolApproval,
+			setTurnPhase,
+		})
+
+		const reason = "The tool approval request could not be displayed, so the tool was not executed."
+		await expect(coordinator.handleRequestToolApproval(approvalRequest("tool-call"))).resolves.toEqual({
+			approved: false,
+			reason,
+		})
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "run_commands", reason)
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("does not deny a later approval when an earlier approval's state post fails", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		let rejectFirstPost!: (error: Error) => void
+		const postStateToWebview = vi
+			.fn<() => Promise<void>>()
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((_resolve, reject) => {
+						rejectFirstPost = reject
+					}),
+			)
+			.mockResolvedValue(undefined)
+		const recordDeniedToolApproval = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			recordDeniedToolApproval,
+		})
+
+		const firstApproval = coordinator.handleRequestToolApproval(approvalRequest("first-call"))
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(1))
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(firstApproval).resolves.toEqual({ approved: true })
+
+		const secondApproval = coordinator.handleRequestToolApproval(approvalRequest("second-call"))
+		await vi.waitFor(() => expect(postStateToWebview).toHaveBeenCalledTimes(2))
+		rejectFirstPost(new Error("Task changed while building webview state"))
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(recordDeniedToolApproval).not.toHaveBeenCalled()
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(secondApproval).resolves.toEqual({ approved: true })
 	})
 
 	it("awaits onToolApprovalAsk before emitting the approval ask", async () => {
@@ -562,3 +773,15 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 })
+
+function approvalRequest(toolCallId: string): ToolApprovalRequest {
+	return {
+		agentId: "agent",
+		conversationId: "conversation",
+		iteration: 1,
+		toolCallId,
+		toolName: "run_commands",
+		input: { commands: ["echo safe"] },
+		policy: { autoApprove: false },
+	}
+}

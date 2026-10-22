@@ -2,8 +2,9 @@ import type { ToolApprovalRequest } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import type React from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 import {
+	buildReadFilesKeys,
 	parseApplyPatchInput,
 	parseEditorInput,
 	parseReadFilesInput,
@@ -22,13 +23,14 @@ export function formatApprovalParams(
 		case "read_files": {
 			const info = parseReadFilesInput(rawInput);
 			if (!info?.files.length) break;
+			const keys = buildReadFilesKeys(info.files);
 			return info.files.map((f, i) => {
 				const range =
 					f.startLine != null
 						? ` lines ${f.startLine}-${f.endLine ?? "end"}`
 						: "";
 				return (
-					<text key={f.path} fg="gray" selectable>
+					<text key={keys[i]} fg="gray" selectable>
 						{"  "}
 						{shortenPath(f.path, 60)}
 						{range && <span fg="gray">{range}</span>}
@@ -137,6 +139,7 @@ export function formatApprovalParams(
 export function ToolApprovalContent(
 	props: ChoiceContext<boolean> & { request: ToolApprovalRequest },
 ) {
+	const palette = useDialogPalette();
 	useDialogKeyboard((key) => {
 		if (key.name === "y" || key.name === "return") {
 			props.resolve(true);

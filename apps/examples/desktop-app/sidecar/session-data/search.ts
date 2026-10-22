@@ -2,13 +2,13 @@ import { getFileIndex } from "@cline/core";
 import type { SidecarContext } from "../types";
 
 export function searchWorkspaceFiles(
-	ctx: Pick<SidecarContext, "workspaceRoot">,
+	ctx: Pick<SidecarContext, "localWorkspaceRoot">,
 	args?: Record<string, unknown>,
 ): Promise<string[]> {
 	const root =
 		typeof args?.workspaceRoot === "string" && args.workspaceRoot.trim()
 			? args.workspaceRoot.trim()
-			: ctx.workspaceRoot;
+			: ctx.localWorkspaceRoot;
 	const query =
 		typeof args?.query === "string" ? args.query.trim().toLowerCase() : "";
 	const limit =

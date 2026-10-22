@@ -37,12 +37,10 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			planModeReasoningEffort,
 			actModeReasoningEffort,
 			mode,
-			customPrompt,
 			planModeApiProvider,
 			actModeApiProvider,
 			// Fields requiring special logic (telemetry, merging, etc.)
 			telemetrySetting,
-			yoloModeToggled,
 			useAutoCondense,
 			worktreesEnabled,
 			subagentsEnabled,
@@ -96,10 +94,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			controller.stateManager.setGlobalState("mode", converted)
 		}
 
-		if (customPrompt === "compact") {
-			controller.stateManager.setGlobalState("customPrompt", "compact")
-		}
-
 		if (planModeApiProvider !== undefined) {
 			const converted = convertProtoToApiProvider(planModeApiProvider)
 			controller.stateManager.setGlobalState("planModeApiProvider", converted)
@@ -119,14 +113,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 		// Update telemetry setting
 		if (telemetrySetting) {
 			await controller.updateTelemetrySetting(telemetrySetting as TelemetrySetting)
-		}
-
-		// Update yolo mode setting (requires telemetry)
-		if (yoloModeToggled !== undefined) {
-			if (controller.task) {
-				telemetryService.captureYoloModeToggle(controller.task.ulid, yoloModeToggled)
-			}
-			controller.stateManager.setGlobalState("yoloModeToggled", yoloModeToggled)
 		}
 
 		// Update auto-condense setting (requires telemetry)

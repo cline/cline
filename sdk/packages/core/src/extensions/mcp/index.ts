@@ -1,29 +1,52 @@
-export type { DefaultMcpServerClientFactoryOptions } from "./client";
-export { createDefaultMcpServerClientFactory } from "./client";
+export type { McpAppToolMeta, McpAppToolVisibility } from "./apps";
+export {
+	createMcpAppsClientCapabilities,
+	getMcpAppToolMeta,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
+	MCP_APP_MIME_TYPE,
+	MCP_APPS_EXTENSION_ID,
+} from "./apps";
+export type {
+	DefaultMcpServerClientFactoryOptions,
+	ProbeMcpServerConnectionOptions,
+	ProbeMcpServerConnectionResult,
+} from "./client";
+export {
+	createDefaultMcpServerClientFactory,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+	probeMcpServerConnection,
+} from "./client";
 export type {
 	LoadMcpSettingsOptions,
+	McpSettingsFile,
 	McpSettingsLockOptions,
 	McpSettingsMutator,
-	McpSettingsFile,
 	RegisterMcpServersFromSettingsOptions,
 	SetMcpServerDisabledOptions,
+	UpdateMcpServerOAuthStateOptions,
 } from "./config-loader";
 export {
 	getMcpServerOAuthState,
+	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpOAuthClientChangedError,
+	McpSettingsLockTimeoutError,
+	McpSettingsMutatorPurityError,
+	McpSettingsUpdateSkippedError,
+	parseMcpServerRegistration,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
 	updateMcpServerOAuthStateAsync,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsLockTimeoutError,
-	McpSettingsMutatorPurityError,
-	McpSettingsUpdateSkippedError,
 } from "./config-loader";
 export { InMemoryMcpManager } from "./manager";
 export type {
@@ -46,14 +69,19 @@ export {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
 } from "./policies";
+export { augmentMcpTimeoutError } from "./timeout";
 export { createMcpTools } from "./tools";
 export type {
 	CreateMcpToolsOptions,
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpResourceContents,
+	McpResourceReadRequest,
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerClientFactory,
+	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,

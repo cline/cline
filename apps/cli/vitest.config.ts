@@ -50,6 +50,7 @@ export default defineConfig({
 	},
 	test: {
 		environment: "node",
+		setupFiles: ["./vitest.setup.ts"],
 		include: ["src/**/*.test.ts"],
 		exclude: ["src/**/*.e2e.test.ts", "src/tests/**"],
 		// Default 5s is tight on CI: each test uses `resetModules()` + dynamic `import("./main")`

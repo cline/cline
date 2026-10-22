@@ -15,6 +15,7 @@ function makeActions(
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
 		openSkills: vi.fn(),
+		openThemePicker: vi.fn(),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
 		runUndo: vi.fn(async () => {}),

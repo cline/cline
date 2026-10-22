@@ -240,8 +240,10 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 							}}>
 							{modelSearchResults.map((item, index) => (
 								<div
-									className={`px-2.5 py-1.5 cursor-pointer break-all whitespace-normal hover:bg-(--vscode-list-activeSelectionBackground) ${
-										index === selectedIndex ? "bg-(--vscode-list-activeSelectionBackground)" : ""
+									className={`px-2.5 py-1.5 cursor-pointer break-all whitespace-normal hover:bg-(--vscode-list-activeSelectionBackground) hover:text-(--vscode-list-activeSelectionForeground) ${
+										index === selectedIndex
+											? "bg-(--vscode-list-activeSelectionBackground) text-(--vscode-list-activeSelectionForeground)"
+											: ""
 									}`}
 									key={item.id}
 									onClick={() => {

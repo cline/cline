@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { existsSync } from "fs"
 import { Logger } from "@/shared/services/Logger"
 import { resolveWindowsPowerShellExecutable } from "@/utils/powershell"
 import { HookProcessRegistry } from "./HookProcessRegistry"
@@ -173,15 +174,33 @@ export class HookProcess extends EventEmitter {
 				void (async () => {
 					try {
 						const launchConfig = await getHookLaunchConfig(this.scriptPath)
+
+						// A cwd that doesn't exist makes spawn fail with a misleading
+						// ENOENT against the launcher binary (e.g. "spawn /bin/sh ENOENT").
+						// Fail the hook with an error naming the real culprit instead.
+						// Running the hook anyway (with no explicit cwd) is not safe: its
+						// relative paths would resolve against the host process's own
+						// working directory, not the workspace it was written for.
+						if (this.cwd && !existsSync(this.cwd)) {
+							throw new Error(
+								`Hook working directory '${this.cwd}' does not exist; not running hook '${this.scriptPath}'`,
+							)
+						}
 						this.childProcess = spawn(launchConfig.command, launchConfig.args, {
 							stdio: ["pipe", "pipe", "pipe"],
 							shell: launchConfig.shell,
 							detached: launchConfig.detached,
-							cwd: this.cwd, // Execute from the determined workspace root
+							cwd: this.cwd, // Execute from the determined workspace root (validated above)
 							windowsHide: true,
 						})
 
 						let didEmitEmptyLine = false
+						// Set when delivering the input failed (see the stdin "error"
+						// listener below); appended to failure messages so a hook that
+						// never read its input is diagnosable from the error alone.
+						let inputFailure: string | undefined
+						const withInputFailure = (message: string) =>
+							inputFailure ? `${message} The hook stopped reading its input before it was fully delivered (${inputFailure}).` : message
 
 						// Set up timeout
 						this.timeoutHandle = setTimeout(() => {
@@ -189,7 +208,9 @@ export class HookProcess extends EventEmitter {
 								this.childProcess.kill("SIGTERM")
 								reject(
 									new Error(
-										`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
+										withInputFailure(
+											`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
+										),
 									),
 								)
 							}
@@ -242,7 +263,7 @@ export class HookProcess extends EventEmitter {
 							if (code === 0) {
 								resolve()
 							} else {
-								reject(new Error(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`))
+								reject(new Error(withInputFailure(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`)))
 							}
 						})
 
@@ -259,8 +280,29 @@ export class HookProcess extends EventEmitter {
 							if (this.abortSignal) {
 								this.abortSignal.removeEventListener("abort", abortHandler)
 							}
-							this.emit("error", error)
-							reject(error)
+							const spawnError = this.describeSpawnError(error)
+							// Emitting "error" with no listener registered makes EventEmitter
+							// throw, which would escape this callback as an uncaught exception
+							// and kill the whole host process. Hook failures must fail open,
+							// so only forward the event when someone is actually listening.
+							if (this.listenerCount("error") > 0) {
+								this.emit("error", spawnError)
+							}
+							reject(spawnError)
+						})
+
+						// A hook that exits (or closes stdin) before draining its input
+						// fails the still-pending write asynchronously with EPIPE (EOF on
+						// Windows). That surfaces on the stdin stream, not the child, so
+						// without a listener it escapes as an uncaught exception on the
+						// host process. It is deliberately not treated as a failure of the
+						// run: a hook is free to ignore its input, and a hook that exits 0
+						// without reading must still count as success. The "close" handler
+						// stays the single source of truth for the outcome; the failure is
+						// only recorded so timeout/exit errors can explain it.
+						this.childProcess.stdin?.on("error", (error) => {
+							inputFailure = error.message
+							Logger.debug(`Hook '${this.scriptPath}' stopped reading its input: ${error.message}`)
 						})
 
 						// Send input to the process
@@ -283,6 +325,21 @@ export class HookProcess extends EventEmitter {
 			// Guaranteed cleanup even if process setup fails or throws
 			this.safeUnregister()
 		}
+	}
+
+	/**
+	 * Translates a child-process spawn failure into an actionable error.
+	 *
+	 * Node reports a working directory that vanished between validation and
+	 * spawn as an ENOENT on the launcher binary (e.g. "spawn /bin/sh ENOENT"),
+	 * so name the real culprit when that is what happened.
+	 */
+	private describeSpawnError(error: Error): Error {
+		const code = (error as NodeJS.ErrnoException).code
+		if (code === "ENOENT" && this.cwd && !existsSync(this.cwd)) {
+			return new Error(`Hook working directory '${this.cwd}' does not exist (reported by spawn as: ${error.message})`)
+		}
+		return error
 	}
 
 	/**

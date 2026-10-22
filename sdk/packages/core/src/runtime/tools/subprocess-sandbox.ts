@@ -4,6 +4,10 @@ import {
 	augmentNodeCommandForDebug,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
+import {
+	MAX_NODE_TIMER_DELAY_MS,
+	normalizeIdleTimeoutMs,
+} from "./subprocess-sandbox-lifecycle";
 
 interface SandboxCallMessage {
 	type: "call";
@@ -26,13 +30,26 @@ interface SandboxEventMessage {
 	payload?: unknown;
 }
 
+export interface SubprocessSandboxLauncher {
+	command: string;
+	/** Host-specific arguments placed before the bootstrap file path. */
+	argsPrefix: string[];
+}
+
 export interface SubprocessSandboxOptions {
+	/** A compiled host can dispatch a bootstrap with its embedded filesystem mounted. */
+	launcher?: SubprocessSandboxLauncher;
 	/** Inline script to execute via `node -e`. Mutually exclusive with {@link bootstrapFile}. */
 	bootstrapScript?: string;
 	/** Path to a JavaScript file to execute via `node <file>`. Mutually exclusive with {@link bootstrapScript}. */
 	bootstrapFile?: string;
 	/** Runtime executable for internal JavaScript helpers. Defaults to node/bun instead of packaged CLI binaries. */
 	runtimeExecutable?: string;
+	/**
+	 * Shut down the child after this many milliseconds with no calls in flight.
+	 * The next call starts a fresh child transparently. Disabled when omitted.
+	 */
+	idleTimeoutMs?: number;
 	name?: string;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
 }
@@ -42,16 +59,27 @@ export interface SandboxCallOptions {
 }
 
 type PendingRequest = {
+	child: ChildProcess;
 	resolve: (value: unknown) => void;
 	reject: (error: Error) => void;
 	timeout?: NodeJS.Timeout;
 };
+
+const SANDBOX_SHUTDOWN_GRACE_MS = 300;
 
 function asError(value: unknown): Error {
 	if (value instanceof Error) {
 		return value;
 	}
 	return new Error(String(value));
+}
+
+function isChildRunning(child: ChildProcess): boolean {
+	return child.exitCode === null && child.signalCode === null;
+}
+
+function isChildAvailable(child: ChildProcess): boolean {
+	return isChildRunning(child) && child.connected;
 }
 
 export const CLINE_JS_RUNTIME_PATH_ENV = "CLINE_JS_RUNTIME_PATH";
@@ -70,11 +98,34 @@ function isRuntimeExecutable(value: string | undefined): boolean {
 	);
 }
 
+/**
+ * Whether `execPath` is this process's own `bun build --compile` executable.
+ * Such a binary can still act as the plain `bun` runtime for a child process
+ * when spawned with `BUN_BE_BUN=1`, so packaged hosts (the desktop sidecar, a
+ * compiled CLI) need neither node nor bun installed on the user's machine.
+ */
+export function isCompiledBunExecutable(
+	execPath: string | undefined,
+	host: { isBunRuntime?: boolean; selfExecPath?: string } = {},
+): boolean {
+	const isBunRuntime =
+		host.isBunRuntime ??
+		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
+	const selfExecPath = host.selfExecPath ?? process.execPath;
+	return (
+		isBunRuntime &&
+		!!execPath &&
+		execPath === selfExecPath &&
+		!isRuntimeExecutable(execPath)
+	);
+}
+
 export function resolveSubprocessRuntimeExecutable(
 	options: {
 		env?: NodeJS.ProcessEnv;
 		execPath?: string;
 		runtimeExecutable?: string;
+		host?: { isBunRuntime?: boolean; selfExecPath?: string };
 	} = {},
 ): string {
 	const env = options.env ?? process.env;
@@ -100,6 +151,7 @@ export function resolveSubprocessRuntimeExecutable(
 		}
 	}
 
+	if (isCompiledBunExecutable(execPath, options.host)) return execPath;
 	return "node";
 }
 
@@ -111,14 +163,22 @@ export function buildSubprocessSandboxCommand(
 		name?: string;
 		execPath?: string;
 		runtimeExecutable?: string;
+		launcher?: SubprocessSandboxLauncher;
 	} = {},
 ): string[] {
+	if (options.launcher) {
+		return [options.launcher.command, ...options.launcher.argsPrefix, ...args];
+	}
 	const runtimeExecutable = resolveSubprocessRuntimeExecutable({
 		env: options.env,
 		execPath: options.execPath,
 		runtimeExecutable: options.runtimeExecutable,
 	});
-	return augmentNodeCommandForDebug([runtimeExecutable, ...args], {
+	// Plain Bun mode does not retain compiled execArgv.
+	const runtimeArgs = isCompiledBunExecutable(runtimeExecutable)
+		? ["--use-system-ca", ...args]
+		: args;
+	return augmentNodeCommandForDebug([runtimeExecutable, ...runtimeArgs], {
 		env: options.env,
 		execArgv: options.execArgv,
 		debugRole: options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",
@@ -127,12 +187,24 @@ export function buildSubprocessSandboxCommand(
 
 export class SubprocessSandbox {
 	private readonly options: SubprocessSandboxOptions;
+	private readonly idleTimeoutMs: number | undefined;
 	private process: ChildProcess | null = null;
 	private requestCounter = 0;
 	private readonly pending = new Map<string, PendingRequest>();
+	private idleTimer: NodeJS.Timeout | undefined;
+	private readonly shutdowns = new Map<ChildProcess, Promise<void>>();
 
 	constructor(options: SubprocessSandboxOptions) {
 		this.options = options;
+		this.idleTimeoutMs = normalizeIdleTimeoutMs(options.idleTimeoutMs);
+		if (
+			options.idleTimeoutMs !== undefined &&
+			this.idleTimeoutMs === undefined
+		) {
+			throw new RangeError(
+				`idleTimeoutMs must be an integer between 1 and ${MAX_NODE_TIMER_DELAY_MS}`,
+			);
+		}
 	}
 
 	private get processLabel(): string {
@@ -148,12 +220,78 @@ export class SubprocessSandbox {
 		if (pending.timeout) {
 			clearTimeout(pending.timeout);
 		}
+		this.armIdleTimer(pending.child);
 		return pending;
 	}
 
-	start(): void {
-		if (this.process && this.process.exitCode === null) {
+	private clearIdleTimer(): void {
+		if (!this.idleTimer) {
 			return;
+		}
+		clearTimeout(this.idleTimer);
+		this.idleTimer = undefined;
+	}
+
+	private hasPendingRequests(child: ChildProcess): boolean {
+		for (const pending of this.pending.values()) {
+			if (pending.child === child) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * The parent is the sole idle-lifecycle authority. A matching child-side
+	 * deadline can fire just before this timer and drop a newly dispatched RPC.
+	 * Children should independently handle only parent IPC disconnection.
+	 */
+	private armIdleTimer(child: ChildProcess): void {
+		if (this.process !== child) {
+			return;
+		}
+		this.clearIdleTimer();
+		if (
+			this.idleTimeoutMs === undefined ||
+			!isChildAvailable(child) ||
+			this.hasPendingRequests(child)
+		) {
+			return;
+		}
+
+		const timer = setTimeout(() => {
+			if (this.idleTimer === timer) {
+				this.idleTimer = undefined;
+			}
+			if (
+				this.process !== child ||
+				!isChildAvailable(child) ||
+				this.hasPendingRequests(child)
+			) {
+				return;
+			}
+			this.shutdownProcess(child).catch(() => {
+				// Best-effort idle cleanup. Process exit still rejects any request
+				// that raced with shutdown, though the pending guard above prevents
+				// normal calls from being interrupted.
+			});
+		}, this.idleTimeoutMs);
+		timer.unref();
+		this.idleTimer = timer;
+	}
+
+	start(): void {
+		if (this.process && isChildAvailable(this.process)) {
+			return;
+		}
+		const unavailableChild = this.process;
+		this.process = null;
+		this.clearIdleTimer();
+		if (unavailableChild && isChildRunning(unavailableChild)) {
+			this.shutdownProcess(unavailableChild).catch(() => {
+				// Best-effort cleanup of a child whose IPC channel closed before
+				// its process-exit event reached the parent.
+			});
 		}
 
 		const args = this.options.bootstrapFile
@@ -163,17 +301,19 @@ export class SubprocessSandbox {
 		const command = buildSubprocessSandboxCommand(args, {
 			name: this.options.name,
 			runtimeExecutable: this.options.runtimeExecutable,
+			launcher: this.options.launcher,
 		});
-		const child = spawn(
-			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
-			command.slice(1),
-			{
-				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withResolvedClineBuildEnv(process.env),
-				// Prevent a console window from flashing on Windows.
-				windowsHide: true,
-			},
-		);
+		const executable =
+			command[0] ?? resolveSubprocessRuntimeExecutable(this.options);
+		const env = { ...withResolvedClineBuildEnv(process.env) };
+		if (this.options.launcher) delete env.BUN_BE_BUN;
+		else if (isCompiledBunExecutable(executable)) env.BUN_BE_BUN = "1";
+		const child = spawn(executable, command.slice(1), {
+			stdio: ["ignore", "ignore", "pipe", "ipc"],
+			env,
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
+		});
 		this.process = child;
 		let stderrBuffer = "";
 		const appendStderr = (chunk: string) => {
@@ -187,24 +327,33 @@ export class SubprocessSandbox {
 			appendStderr(chunk);
 		});
 		child.on("message", (message) => {
-			this.onMessage(message as SandboxResponseMessage | SandboxEventMessage);
+			this.onMessage(
+				child,
+				message as SandboxResponseMessage | SandboxEventMessage,
+			);
 		});
 		child.on("error", (error) => {
-			this.failPending(
+			this.failPendingForProcess(
+				child,
 				new Error(
 					`${this.processLabel} process error: ${asError(error).message}`,
 				),
 			);
 		});
 		child.on("exit", (code, signal) => {
-			this.process = null;
+			if (this.process === child) {
+				this.process = null;
+				this.clearIdleTimer();
+			}
 			const stderrDetail = stderrBuffer.trim();
-			this.failPending(
+			this.failPendingForProcess(
+				child,
 				new Error(
 					`${this.options.name ?? "sandbox"} process exited (code=${String(code)}, signal=${String(signal)})${stderrDetail ? `: ${stderrDetail}` : ""}`,
 				),
 			);
 		});
+		this.armIdleTimer(child);
 	}
 
 	async call<TResult = unknown>(
@@ -214,9 +363,10 @@ export class SubprocessSandbox {
 	): Promise<TResult> {
 		this.start();
 		const child = this.process;
-		if (!child || child.exitCode !== null) {
+		if (!child || !isChildAvailable(child)) {
 			throw new Error(`${this.processLabel} process is not available`);
 		}
+		this.clearIdleTimer();
 
 		const id = `req_${++this.requestCounter}`;
 		const message: SandboxCallMessage = {
@@ -228,16 +378,20 @@ export class SubprocessSandbox {
 
 		return await new Promise<TResult>((resolve, reject) => {
 			const pending: PendingRequest = {
+				child,
 				resolve: (value) => resolve(value as TResult),
 				reject,
 			};
 			if ((options.timeoutMs ?? 0) > 0) {
 				pending.timeout = setTimeout(() => {
-					this.clearPendingRequest(id);
-					this.shutdown().catch(() => {
+					const entry = this.clearPendingRequest(id);
+					if (!entry) {
+						return;
+					}
+					this.shutdownProcess(entry.child).catch(() => {
 						// Best-effort process shutdown after timeout.
 					});
-					reject(
+					entry.reject(
 						new Error(
 							`${this.processLabel} call timed out after ${options.timeoutMs}ms: ${method}`,
 						),
@@ -245,28 +399,73 @@ export class SubprocessSandbox {
 				}, options.timeoutMs);
 			}
 			this.pending.set(id, pending);
-			child.send(message, (error) => {
-				if (!error) {
-					return;
-				}
-				const entry = this.clearPendingRequest(id);
-				if (!entry) {
-					return;
-				}
-				entry.reject(
-					new Error(
-						`${this.processLabel} failed to send call "${method}": ${asError(error).message}`,
-					),
-				);
-			});
+			try {
+				child.send(message, (error) => {
+					if (!error) {
+						return;
+					}
+					const entry = this.clearPendingRequest(id);
+					if (!entry) {
+						return;
+					}
+					entry.reject(
+						new Error(
+							`${this.processLabel} failed to send call "${method}": ${asError(error).message}`,
+						),
+					);
+				});
+			} catch (error) {
+				// send() throws synchronously when the message is not
+				// serializable (e.g. cyclic structures). Cancel the pending
+				// entry so the timeout timer above never fires — otherwise it
+				// would shut down the sandbox process out from under unrelated
+				// in-flight calls. Reject with the original error so callers
+				// can classify it (see isSerializationError in plugin-sandbox).
+				this.clearPendingRequest(id);
+				reject(asError(error));
+			}
 		});
 	}
 
 	async shutdown(): Promise<void> {
+		this.clearIdleTimer();
 		const child = this.process;
-		this.process = null;
-		if (!child || child.exitCode !== null) {
+		const inFlightShutdowns = [...this.shutdowns.values()];
+		if (child) {
+			inFlightShutdowns.push(this.shutdownProcess(child));
+		}
+		if (inFlightShutdowns.length === 0) {
 			this.failPending(new Error(`${this.processLabel} shutdown`));
+			return;
+		}
+		await Promise.all(inFlightShutdowns);
+	}
+
+	private shutdownProcess(child: ChildProcess): Promise<void> {
+		const existing = this.shutdowns.get(child);
+		if (existing) {
+			return existing;
+		}
+		if (this.process === child) {
+			this.process = null;
+			this.clearIdleTimer();
+		}
+
+		const shutdown = this.terminateProcess(child).finally(() => {
+			if (this.shutdowns.get(child) === shutdown) {
+				this.shutdowns.delete(child);
+			}
+		});
+		this.shutdowns.set(child, shutdown);
+		return shutdown;
+	}
+
+	private async terminateProcess(child: ChildProcess): Promise<void> {
+		if (!isChildRunning(child)) {
+			this.failPendingForProcess(
+				child,
+				new Error(`${this.processLabel} shutdown`),
+			);
 			return;
 		}
 		await new Promise<void>((resolve) => {
@@ -277,7 +476,7 @@ export class SubprocessSandbox {
 					// Ignore kill failures.
 				}
 				resolve();
-			}, 300);
+			}, SANDBOX_SHUTDOWN_GRACE_MS);
 			child.once("exit", () => {
 				clearTimeout(timeout);
 				resolve();
@@ -289,17 +488,25 @@ export class SubprocessSandbox {
 				resolve();
 			}
 		});
-		this.failPending(new Error(`${this.processLabel} shutdown`));
+		this.failPendingForProcess(
+			child,
+			new Error(`${this.processLabel} shutdown`),
+		);
 	}
 
 	private onMessage(
+		child: ChildProcess,
 		message: SandboxResponseMessage | SandboxEventMessage,
 	): void {
 		if (!message) {
 			return;
 		}
 		if (message.type === "event") {
-			if (typeof message.name === "string" && message.name.length > 0) {
+			if (
+				this.process === child &&
+				typeof message.name === "string" &&
+				message.name.length > 0
+			) {
 				this.options.onEvent?.({
 					name: message.name,
 					payload: message.payload,
@@ -308,6 +515,10 @@ export class SubprocessSandbox {
 			return;
 		}
 		if (message.type !== "response" || !message.id) {
+			return;
+		}
+		const matchingPending = this.pending.get(message.id);
+		if (!matchingPending || matchingPending.child !== child) {
 			return;
 		}
 		const pending = this.clearPendingRequest(message.id);
@@ -321,6 +532,19 @@ export class SubprocessSandbox {
 		pending.reject(
 			new Error(message.error?.message || `${this.processLabel} call failed`),
 		);
+	}
+
+	private failPendingForProcess(child: ChildProcess, error: Error): void {
+		for (const [id, pending] of this.pending.entries()) {
+			if (pending.child !== child) {
+				continue;
+			}
+			this.pending.delete(id);
+			if (pending.timeout) {
+				clearTimeout(pending.timeout);
+			}
+			pending.reject(error);
+		}
 	}
 
 	private failPending(error: Error): void {

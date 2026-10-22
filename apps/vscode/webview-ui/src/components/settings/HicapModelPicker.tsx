@@ -209,8 +209,10 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 								return (
 									<div
 										className={`p-[5px_10px] cursor-pointer break-all whitespace-normal ${
-											index === selectedIndex ? "bg-[var(--vscode-list-activeSelectionBackground)]" : ""
-										} hover:bg-[var(--vscode-list-activeSelectionBackground)]`}
+											index === selectedIndex
+												? "bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]"
+												: ""
+										} hover:bg-[var(--vscode-list-activeSelectionBackground)] hover:text-[var(--vscode-list-activeSelectionForeground)]`}
 										key={item.id}
 										onClick={() => {
 											handleModelChange(item.id)

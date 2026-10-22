@@ -6,7 +6,7 @@ import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
-import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import { setVscodeHostProviderMock, stubWorkspacePaths } from "@/test/host-provider-test-utils"
 
 // bun loads real ESM, so sinon cannot stub the `@utils/fs` namespace export
 // ("ES Modules cannot be stubbed"). Inject a module-level sinon stub for
@@ -19,8 +19,7 @@ const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
 mock.module("@utils/fs", fsUtilsMock)
 mock.module("@/utils/fs", fsUtilsMock)
 
-import { getAllHooksDirs, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
-import { StateManager } from "../StateManager"
+import { getAllHooksDirs, getWindowWorkspaceRoots, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
 
 describe("disk - hooks functionality", () => {
 	let sandbox: sinon.SinonSandbox
@@ -47,20 +46,8 @@ describe("disk - hooks functionality", () => {
 	})
 
 	describe("getWorkspaceHooksDirs", () => {
-		it("should return empty array when no workspace roots exist", async () => {
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => undefined,
-			} as any)
-
-			const result = await getWorkspaceHooksDirs()
-			result.should.be.an.Array()
-			result.length.should.equal(0)
-		})
-
-		it("should return empty array when workspace roots is empty array", async () => {
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [],
-			} as any)
+		it("should return empty array when the window has no workspace folders", async () => {
+			stubWorkspacePaths(sandbox, [])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
@@ -72,9 +59,7 @@ describe("disk - hooks functionality", () => {
 			const workspaceRoot = path.join(tempDir, "workspace1")
 			await fs.mkdir(workspaceRoot, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
@@ -87,9 +72,7 @@ describe("disk - hooks functionality", () => {
 			const hooksDir = path.join(workspaceRoot, ".clinerules", "hooks")
 			await fs.mkdir(hooksDir, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
@@ -104,9 +87,7 @@ describe("disk - hooks functionality", () => {
 			await fs.mkdir(path.dirname(hooksPath), { recursive: true })
 			await fs.writeFile(hooksPath, "not a directory")
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
@@ -123,9 +104,7 @@ describe("disk - hooks functionality", () => {
 			await fs.mkdir(hooksDir1, { recursive: true })
 			await fs.mkdir(hooksDir2, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot1 }, { path: workspaceRoot2 }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot1, workspaceRoot2])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
@@ -146,9 +125,7 @@ describe("disk - hooks functionality", () => {
 			await fs.mkdir(workspaceRoot2, { recursive: true }) // No hooks dir
 			await fs.mkdir(hooksDir3, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot1 }, { path: workspaceRoot2 }, { path: workspaceRoot3 }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot1, workspaceRoot2, workspaceRoot3])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
@@ -162,9 +139,7 @@ describe("disk - hooks functionality", () => {
 			const workspaceRoot = path.join(tempDir, "workspace1")
 			await fs.mkdir(workspaceRoot, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot])
 
 			// Stub isDirectory to throw an error
 			isDirectoryStub.rejects(new Error("Permission denied"))
@@ -183,9 +158,7 @@ describe("disk - hooks functionality", () => {
 			const expectedHooksDir = path.join(workspaceRoot, ".clinerules", "hooks")
 			await fs.mkdir(expectedHooksDir, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRoot }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRoot])
 
 			const result = await getWorkspaceHooksDirs()
 			result[0].should.equal(expectedHooksDir)
@@ -199,14 +172,33 @@ describe("disk - hooks functionality", () => {
 			const hooksDir = path.join(workspaceRoot, ".clinerules", "hooks")
 			await fs.mkdir(hooksDir, { recursive: true })
 
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [{ path: workspaceRootWithSlash }],
-			} as any)
+			stubWorkspacePaths(sandbox, [workspaceRootWithSlash])
 
 			const result = await getWorkspaceHooksDirs()
 			result.should.be.an.Array()
 			result.length.should.equal(1)
 			result[0].should.equal(hooksDir)
+		})
+	})
+
+	describe("getWindowWorkspaceRoots", () => {
+		it("should filter out blank workspace paths", async () => {
+			const workspaceRoot = path.join(tempDir, "workspace1")
+			stubWorkspacePaths(sandbox, ["", "   ", workspaceRoot])
+
+			const result = await getWindowWorkspaceRoots()
+			result.should.eql([workspaceRoot])
+		})
+
+		it("should return empty array when the host lookup fails", async () => {
+			sandbox.stub(HostProvider, "workspace").get(() => ({
+				getWorkspacePaths: async () => {
+					throw new Error("host bridge unavailable")
+				},
+			}))
+
+			const result = await getWindowWorkspaceRoots()
+			result.should.eql([])
 		})
 	})
 
@@ -216,9 +208,7 @@ describe("disk - hooks functionality", () => {
 			await fs.mkdir(runtimeHooksDir, { recursive: true })
 
 			sandbox.stub(os, "homedir").returns(tempDir)
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [],
-			} as any)
+			stubWorkspacePaths(sandbox, [])
 
 			isDirectoryStub.callsFake(async (targetPath: string) => targetPath === runtimeHooksDir)
 
@@ -232,9 +222,7 @@ describe("disk - hooks functionality", () => {
 			const runtimeHooksDir = path.join(tempDir, "missing-runtime-hooks")
 
 			sandbox.stub(os, "homedir").returns(tempDir)
-			sandbox.stub(StateManager, "get").returns({
-				getGlobalStateKey: () => [],
-			} as any)
+			stubWorkspacePaths(sandbox, [])
 
 			isDirectoryStub.resolves(false)
 

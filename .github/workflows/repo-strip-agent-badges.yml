@@ -1,0 +1,65 @@
+# Cloud coding agents append promotional badge blocks to PR bodies after the
+# agent's final turn, wrapped around <!-- <VENDOR>_AGENT_PR_BODY_BEGIN/END -->
+# marker comments. The agent itself never sees that content, so no repo rule or
+# agent instruction can prevent it. This strips it from the PR description on
+# open/edit, keeping only the agent-authored content between the markers.
+#
+# Uses pull_request_target so the token has write access on PRs from forks. That
+# trigger is only unsafe when a job checks out and executes PR code — this one
+# never checks out the repository, it only calls the REST API.
+name: repo-strip-agent-badges
+on:
+    pull_request_target:
+        types: [opened, edited]
+
+concurrency:
+    group: strip-agent-badges-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    strip:
+        runs-on: ubuntu-latest
+        if: contains(github.event.pull_request.body, '_AGENT_PR_BODY')
+        permissions:
+            pull-requests: write
+        steps:
+            # Pinned to a commit SHA (not the mutable v7 tag) because this job holds
+            # write permissions under pull_request_target.
+            - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              with:
+                  script: |
+                      // Re-fetch instead of trusting the event payload: the body may have
+                      // been edited again between the event firing and this run (agent
+                      // harnesses edit PR bodies post-open), and updating from the stale
+                      // snapshot would clobber the newer content.
+                      const { data: pr } = await github.rest.pulls.get({
+                          ...context.repo,
+                          pull_number: context.payload.pull_request.number,
+                      })
+                      const body = pr.body || ""
+
+                      // The BEGIN/END comments wrap the agent-authored content; everything
+                      // outside them (vendor promo badges, "open in <tool>" links) is
+                      // appended by the harness. Keep only what's between the markers.
+                      // The backreference requires BEGIN and END to name the same vendor.
+                      // No markers -> no match -> body passes through unchanged.
+                      const cleaned = body
+                          .replace(
+                              /^[\s\S]*?<!--\s*([A-Z][A-Z0-9_]*?)_AGENT_PR_BODY_BEGIN\s*-->\r?\n?([\s\S]*?)<!--\s*\1_AGENT_PR_BODY_END\s*-->[\s\S]*$/,
+                              "$2",
+                          )
+                          .trimEnd()
+
+                      // No change means a previous run already cleaned this body. Returning
+                      // without an update is what stops `edited` from retriggering forever.
+                      if (cleaned === body) {
+                          core.info("nothing to strip")
+                          return
+                      }
+
+                      await github.rest.pulls.update({
+                          ...context.repo,
+                          pull_number: pr.number,
+                          body: cleaned,
+                      })
+                      core.info(`stripped ${body.length - cleaned.length} chars from PR #${pr.number}`)

@@ -24,6 +24,11 @@ export interface AgentExtensionRule {
 	id: string;
 	content: string | (() => string | Promise<string>);
 	source?: string;
+	/**
+	 * Include this rule only while the named tool is available after host,
+	 * global-settings, and per-session policy filtering.
+	 */
+	whenToolAvailable?: string;
 }
 
 export interface AgentExtensionMessageBuilder<TMessage = unknown> {
@@ -179,13 +184,39 @@ export interface PluginSetupContext {
 	/** Host-provided logger scoped to this session/plugin setup. */
 	logger?: BasicLogger;
 	/**
-	 * Host-provided telemetry service when available in the current process.
+	 * Host-provided telemetry service. Feature-detect it
+	 * (`ctx.telemetry?.capture(...)`): it is undefined when the host has no
+	 * telemetry service.
 	 *
-	 * This service is intentionally not serialized across plugin sandbox process
-	 * boundaries; sandboxed plugins should feature-detect this property and expect
-	 * it to be undefined unless a future host adds an explicit telemetry bridge.
+	 * In-process plugins receive the host service directly. Sandboxed plugins
+	 * receive a bridge — the live service cannot cross the JSON IPC boundary —
+	 * that forwards `capture`/`captureRequired`/`recordCounter`/
+	 * `recordHistogram`/`recordGauge` to the host, which namespaces every
+	 * event and metric under `plugin.`, stamps `plugin_name`, and drops them
+	 * when the user has opted out of telemetry. Bridge caveats: properties
+	 * must be JSON-serializable; `isEnabled()` always reports `true` (the
+	 * host is the arbiter, so do not gate expensive property computation on
+	 * it); identity and common-property setters are no-ops.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * The session's working directory. Use it instead of `process.cwd()`:
+	 * plugins loaded in the Hub share one process across sessions.
+	 */
+	cwd?: string;
+	/**
+	 * Sends a plugin event (for example `steer_message`) to the session that
+	 * set the plugin up. Replaces `globalThis.__clinePluginHost.emitEvent`,
+	 * which is kept as a shim.
+	 */
+	emitEvent?: (name: string, payload?: unknown) => void;
+	/**
+	 * Registers cleanup to run when the session that set the plugin up ends.
+	 * Plugins loaded in the Hub share its process, so anything a plugin starts
+	 * for a session (timers, child processes, sockets, listeners on shared
+	 * emitters) must be stopped here.
+	 */
+	onDispose?: (cleanup: () => void | Promise<void>) => void;
 }
 
 const ExtensionCapabilityOptions = [

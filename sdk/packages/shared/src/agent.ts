@@ -5,6 +5,7 @@
  *
  */
 
+import type { GeneratedMedia } from "./llms/media";
 import type { ModelInfo } from "./llms/model-info";
 import type {
 	ToolApprovalRequest,
@@ -46,12 +47,19 @@ export interface AgentFilePart {
 	content: string;
 }
 
+export interface AgentMediaPart {
+	type: "media";
+	media: GeneratedMedia;
+}
+
 export interface AgentToolCallPart {
 	type: "tool-call";
 	toolCallId: string;
 	toolName: string;
 	input: unknown;
 	metadata?: unknown;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
 }
 
 export interface AgentToolResultPart {
@@ -60,6 +68,20 @@ export interface AgentToolResultPart {
 	toolName: string;
 	output: unknown;
 	isError?: boolean;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
+}
+
+export type ModelToolExecution = "client" | "provider";
+
+/** Observational record for a model tool executed outside AgentRuntime. */
+export interface AgentModelToolActivity {
+	toolCallId: string;
+	toolName: string;
+	execution: ModelToolExecution;
+	input?: unknown;
+	output?: unknown;
+	isError?: boolean;
 }
 
 export type AgentMessagePart =
@@ -67,6 +89,7 @@ export type AgentMessagePart =
 	| AgentReasoningPart
 	| AgentImagePart
 	| AgentFilePart
+	| AgentMediaPart
 	| AgentToolCallPart
 	| AgentToolResultPart;
 
@@ -137,6 +160,8 @@ export interface AgentRuntimeStateSnapshot {
 	pendingToolCalls: readonly string[];
 	usage: AgentUsage;
 	lastError?: string;
+	/** Classification of `lastError` when it came from a provider stream. */
+	lastErrorClass?: ProviderErrorClass;
 }
 
 // =============================================================================
@@ -147,6 +172,8 @@ export interface AgentToolDefinition {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** Core may cache oversized output for bounded model recovery. Original output is retained. */
+	resultPolicy?: "cache-oversized";
 	lifecycle?: {
 		/**
 		 * Whether a successful call to this tool completes the current run.
@@ -172,10 +199,16 @@ export interface AgentToolContext {
 	metadata?: Record<string, unknown>;
 	snapshot?: AgentRuntimeStateSnapshot;
 	emitUpdate?: (update: unknown) => void;
+	/** Session working directory. Set by the host for plugin tools. */
+	cwd?: string;
+	/** Sends a plugin event to the calling session. Set by the host for plugin tools. */
+	emitEvent?: (name: string, payload?: unknown) => void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/** Override the runtime execution mode. Adjacent parallel calls may overlap; sequential calls form ordering boundaries. */
+	executionMode?: "sequential" | "parallel";
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
@@ -193,6 +226,8 @@ export interface AgentModelRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools: readonly AgentToolDefinition[];
+	/** Provider-executed tools enabled for this model request. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	signal?: AbortSignal;
 	options?: Record<string, unknown>;
 }
@@ -211,6 +246,19 @@ export interface AgentRuntimePrepareTurnContext {
 		info?: ModelInfo;
 	};
 	signal?: AbortSignal;
+	/**
+	 * Set when the previous model request was rejected as exceeding the
+	 * model's context window; asks the prepare-turn pipeline to force a
+	 * compaction rather than trust its token estimates.
+	 */
+	overflowRecovery?: boolean;
+	/**
+	 * Input tokens the provider actually counted for the previous request this
+	 * run, when available. Compaction uses it as a floor on its char-based
+	 * estimate, which under-counts dense content (disassembly, image dumps) and
+	 * can otherwise let the real context grow past the window without triggering.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -222,15 +270,42 @@ export interface AgentRuntimePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+/**
+ * Why a model turn stopped producing output.
+ *
+ * `content-filter` is distinct from `stop` because the two need opposite
+ * handling when the turn produced nothing: a `stop` with no content is a
+ * transient upstream flake worth retrying, while a filtered turn will
+ * reproduce on every attempt. Collapsing them (as this union did before)
+ * left both surfacing as "Model returned empty response", which tells a
+ * user to retry something that cannot succeed.
+ *
+ * Missing or unrecognized provider finish reasons normalize to `unknown`: the
+ * response may be cut off and must not be treated as successful completion.
+ */
 export type AgentModelFinishReason =
+	| "unknown"
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"
+	| "content-filter"
 	| "aborted"
 	| "error";
 
+/**
+ * Coarse classification of a provider error, derived from the raw provider
+ * error object before it is flattened into a display string. Shared by the
+ * runtime's recovery policy and telemetry (`error_class`). Extend with new
+ * classes (rate_limit, billing, ...) as consumers need them.
+ *
+ * `auth`: the provider rejected the request's credentials (HTTP 401/403) —
+ * hosts should point the user at their API key configuration.
+ */
+export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
+
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
+	| { type: "media"; media: GeneratedMedia }
 	| {
 			type: "reasoning-delta";
 			text: string;
@@ -245,6 +320,21 @@ export type AgentModelEvent =
 			inputText?: string;
 			input?: unknown;
 			metadata?: unknown;
+			/** Set when execution is owned by AI SDK or the model provider. */
+			execution?: ModelToolExecution;
+	  }
+	| {
+			type: "tool-result";
+			toolCallId: string;
+			/**
+			 * Declared model tools carry a ModelToolName; provider-executed tools
+			 * (e.g. the Claude Code CLI's own tools) carry arbitrary names.
+			 */
+			toolName: string;
+			input?: unknown;
+			output: unknown;
+			isError?: boolean;
+			execution: ModelToolExecution;
 	  }
 	| {
 			type: "usage";
@@ -253,7 +343,27 @@ export type AgentModelEvent =
 	| {
 			type: "finish";
 			reason: AgentModelFinishReason;
+			/** HTTP X-Request-ID of the surfaced response, not the provider's generation ID. */
+			requestId?: string;
 			error?: string;
+			errorClass?: ProviderErrorClass;
+			/**
+			 * Whether the underlying provider error was transient and worth
+			 * retrying, decided at the model boundary from the AI SDK's typed
+			 * `isRetryable` flag while the structured error is still in hand
+			 * (`error` is a flattened string, so the agent loop cannot re-derive
+			 * this). When absent, the agent loop classifies from the message.
+			 */
+			errorRetryable?: boolean;
+			/**
+			 * The model layer already recorded `sdk.error` telemetry for this
+			 * failure at its own error boundary. `error` is a flattened string,
+			 * so this bit carries reporting ownership across the boundary: the
+			 * agent loop skips re-reporting when it is set, and still reports
+			 * failures from model implementations that do not record their own
+			 * telemetry.
+			 */
+			errorReported?: boolean;
 	  };
 
 export interface AgentModel {
@@ -276,6 +386,18 @@ export interface AgentStopControl {
 	reason?: string;
 }
 
+export interface AgentRunStartResult {
+	stop?: boolean;
+	reason?: string;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after the
+	 * run's input messages as a `<hook_context>` user message, so the model
+	 * sees it on the run's first request.
+	 */
+	appendContext?: string;
+}
+
 export interface AgentBeforeModelResult {
 	stop?: boolean;
 	reason?: string;
@@ -288,6 +410,8 @@ export interface AgentAfterModelContext {
 	snapshot: AgentRuntimeStateSnapshot;
 	assistantMessage: AgentMessage;
 	finishReason: AgentModelFinishReason;
+	/** HTTP X-Request-ID when exposed by the model adapter; hidden retry IDs are not included. */
+	requestId?: string;
 }
 
 export interface AgentBeforeToolContext {
@@ -303,6 +427,13 @@ export interface AgentBeforeToolResult {
 	reason?: string;
 	input?: unknown;
 	policy?: ToolPolicy;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after this
+	 * iteration's tool results as a `<hook_context>` user message, so the
+	 * model sees it on the next request.
+	 */
+	appendContext?: string;
 }
 
 export interface AgentAfterToolContext {
@@ -320,6 +451,13 @@ export interface AgentAfterToolResult {
 	stop?: boolean;
 	reason?: string;
 	result?: AgentToolResult;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after this
+	 * iteration's tool results as a `<hook_context>` user message, so the
+	 * model sees it on the next request.
+	 */
+	appendContext?: string;
 }
 
 export interface AgentRunLifecycleContext {
@@ -336,7 +474,10 @@ export interface AgentRunLifecycleContext {
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentRunStartResult
+		| undefined
+		| Promise<AgentRunStartResult | undefined>;
 	afterRun?: (
 		context: AgentRunLifecycleContext & { result: AgentRunResult },
 	) => void | Promise<void>;
@@ -396,6 +537,17 @@ export interface AgentRuntimePlugin {
 
 export interface AgentRuntimeConfig {
 	/**
+	 * Stable end-user distinct ID used for provider and observability metadata.
+	 * This is intentionally separate from the host-owned session id.
+	 */
+	distinctId?: string;
+	/** Calling client surface, for example `cline-vscode` or `cline-sdk`. */
+	clientName?: string;
+	/** Calling client version, such as the VS Code extension version. */
+	clientVersion?: string;
+	/** Version of the Cline Core SDK executing the runtime. */
+	clineCoreVersion?: string;
+	/**
 	 * Core/hub runtime session identifier.
 	 *
 	 * The host-owned lifecycle id for the task/session containing this runtime.
@@ -419,6 +571,8 @@ export interface AgentRuntimeConfig {
 	messageModelInfo?: AgentMessage["modelInfo"];
 	model: AgentModel;
 	modelOptions?: Record<string, unknown>;
+	/** Provider-executed tools, separate from locally executed AgentTools. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	tools?: readonly AgentTool<any, any>[];
 	hooks?: Partial<AgentRuntimeHooks>;
@@ -460,7 +614,7 @@ export interface AgentRuntimeConfig {
 }
 
 // =============================================================================
-// Runtime event union (13 variants)
+// Runtime event union
 // =============================================================================
 
 export type AgentRuntimeEvent =
@@ -493,6 +647,12 @@ export type AgentRuntimeEvent =
 			accumulatedText: string;
 			redacted?: boolean;
 			metadata?: unknown;
+	  }
+	| {
+			type: "assistant-media";
+			snapshot: AgentRuntimeStateSnapshot;
+			iteration: number;
+			media: GeneratedMedia;
 	  }
 	| {
 			type: "assistant-message";
@@ -547,6 +707,8 @@ export type AgentRuntimeEvent =
 			type: "run-failed";
 			snapshot: AgentRuntimeStateSnapshot;
 			error: Error;
+			/** Classification of the provider error that failed the run. */
+			errorClass?: ProviderErrorClass;
 	  };
 
 // =============================================================================

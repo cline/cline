@@ -128,7 +128,7 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(HubRuntimeHost);
-		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(process.cwd());
+		expect(prewarmDetachedHubServerMock).not.toHaveBeenCalled();
 		expect(resolveCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			endpoint: undefined,
 			strategy: "prefer-hub",
@@ -158,6 +158,11 @@ describe("runtime host resolution", () => {
 			endpoint: undefined,
 			strategy: "prefer-hub",
 		});
+		expect(
+			resolveCompatibleLocalHubUrlMock.mock.invocationCallOrder[0],
+		).toBeLessThan(
+			prewarmDetachedHubServerMock.mock.invocationCallOrder[0] ?? Infinity,
+		);
 		expect(ensureCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
 		expect(logger.log).toHaveBeenCalledWith(
 			"Falling back to local runtime host",
@@ -206,10 +211,43 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(HubRuntimeHost);
-		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(process.cwd());
+		expect(prewarmDetachedHubServerMock).not.toHaveBeenCalled();
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
+			onStartupError: expect.any(Function),
 		});
+	});
+
+	it("includes the hub startup failure in the error", async () => {
+		const { createRuntimeHost } = await import("./host");
+		const startupError = new Error(
+			"Timed out after 15000ms waiting for detached hub startup.",
+		);
+		ensureCompatibleLocalHubUrlMock.mockImplementation(
+			async (options: { onStartupError?: (error: unknown) => void }) => {
+				options.onStartupError?.(startupError);
+				return undefined;
+			},
+		);
+
+		const failure = await createRuntimeHost({ backendMode: "hub" }).catch(
+			(error: unknown) => error,
+		);
+
+		expect(failure).toBeInstanceOf(Error);
+		expect((failure as Error).message).toBe(
+			"No compatible hub runtime is available: Timed out after 15000ms waiting for detached hub startup.",
+		);
+		expect((failure as Error).cause).toBe(startupError);
+	});
+
+	it("keeps the plain error when no hub startup was attempted", async () => {
+		const { createRuntimeHost } = await import("./host");
+		ensureCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
+
+		await expect(createRuntimeHost({ backendMode: "hub" })).rejects.toThrow(
+			/^No compatible hub runtime is available\.$/,
+		);
 	});
 
 	it("uses the configured hub workspace root when prewarming", async () => {

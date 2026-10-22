@@ -1,6 +1,11 @@
 "use client";
 
 import {
+	type GeneratedMedia,
+	USER_REJECTED_TOOL_REASON,
+} from "@cline/shared/browser";
+import { GeneratedMediaContent } from "@cline/ui";
+import {
 	CheckIcon,
 	GitBranchIcon,
 	Loader2Icon,
@@ -324,6 +329,29 @@ function appendReasoningDelta(
 	return [...current, assistantMessage];
 }
 
+function appendAssistantMedia(
+	current: ChatMessage[],
+	media: GeneratedMedia,
+	activeAssistantIdRef: MutableRefObject<string | undefined>,
+): ChatMessage[] {
+	if (
+		current.some((message) =>
+			message.blocks?.some(
+				(block) => block.type === "media" && block.media.id === media.id,
+			),
+		)
+	) {
+		return current;
+	}
+	activeAssistantIdRef.current = undefined;
+	return [
+		...current,
+		createMessage("assistant", "", {
+			blocks: [{ id: `media:${media.id}`, type: "media", media }],
+		}),
+	];
+}
+
 type ToolResultEntry = {
 	query?: string;
 	result?: string;
@@ -637,6 +665,20 @@ function renderMessageBlocks(
 						<ReasoningContent>{block.text}</ReasoningContent>
 					</Reasoning>,
 				];
+			case "media": {
+				return [
+					<GeneratedMediaContent
+						classNames={{
+							image: "max-h-96 max-w-full rounded-md",
+							audio: "w-full",
+							video: "max-h-96 max-w-full",
+							unavailable: "rounded-md border p-3 text-sm",
+						}}
+						key={block.id}
+						media={block.media}
+					/>,
+				];
+			}
 			case "text":
 				if (options.isMeta) {
 					return [
@@ -807,6 +849,15 @@ export default function Chat({
 					setStatus(message.text);
 					return;
 				case "error":
+					// Recoverable errors are in-run notices (e.g. a plan-mode
+					// guard-blocked command recorded as a model mistake) — the
+					// run continues and any tool failure is already shown on
+					// its tool row, so keep the turn state and transcript
+					// intact. Only genuine failures end the turn.
+					if (message.recoverable) {
+						setStatus(`Recoverable error (run continues): ${message.text}`);
+						return;
+					}
 					setStatus(`Error: ${message.text}`);
 					setSending(false);
 					setHydratingSessionId(undefined);
@@ -964,6 +1015,11 @@ export default function Chat({
 							message.redacted,
 							activeAssistantIdRef,
 						),
+					);
+					return;
+				case "assistant_media":
+					setMessages((current) =>
+						appendAssistantMedia(current, message.media, activeAssistantIdRef),
 					);
 					return;
 				case "tool_event":
@@ -1129,7 +1185,7 @@ export default function Chat({
 			type: "approval_response",
 			approvalId,
 			approved,
-			reason: approved ? "Approved in Cline Hub." : "Rejected in Cline Hub.",
+			reason: approved ? "Approved in Cline Hub." : USER_REJECTED_TOOL_REASON,
 		});
 		setStatus(approved ? "Approval sent." : "Rejection sent.");
 	};

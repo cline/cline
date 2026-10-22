@@ -13,6 +13,33 @@ describe("builtin tool catalog", () => {
 		expect(catalog.some((entry) => entry.id === "teams")).toBe(true);
 	});
 
+	it("includes the unified tasks tool outside yolo mode", () => {
+		for (const mode of ["act", "plan"] as const) {
+			const entry = getCoreBuiltinToolCatalog({ mode }).find(
+				(candidate) => candidate.id === "tasks",
+			);
+			expect(entry).toMatchObject({
+				defaultEnabled: true,
+				headlessToolNames: ["tasks"],
+			});
+		}
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "yolo" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "cli" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "vscode" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+	});
+
 	it("marks teams enabled by default in act mode", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
@@ -70,5 +97,30 @@ describe("builtin tool catalog", () => {
 		expect(selected.has("teams")).toBe(true);
 		expect(selected.has("spawn_agent")).toBe(true);
 		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).toContain("teams");
+	});
+
+	it("surfaces native web search only for supported model selections", () => {
+		const anthropic = getCoreBuiltinToolCatalog({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+		});
+		expect(
+			anthropic.find((entry) => entry.id === "web_search")?.defaultEnabled,
+		).toBe(false);
+
+		const enabled = getCoreBuiltinToolCatalog({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			enabledModelToolIds: new Set(["web_search"]),
+		});
+		expect(
+			enabled.find((entry) => entry.id === "web_search")?.defaultEnabled,
+		).toBe(true);
+
+		const unsupported = getCoreBuiltinToolCatalog({
+			providerId: "ollama",
+			modelId: "llama3",
+		});
+		expect(unsupported.some((entry) => entry.id === "web_search")).toBe(false);
 	});
 });

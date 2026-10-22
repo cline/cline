@@ -1,5 +1,5 @@
 /**
- * Adapter from the new `AgentRuntimeEvent` union (13 variants, defined
+ * Adapter from the new `AgentRuntimeEvent` union (defined
  * in `@cline/shared/src/agent.ts`) to the legacy `AgentEvent` union
  * (9 top-level types, defined in
  * `@cline/shared/src/agents/types.ts`) consumed by today's
@@ -28,6 +28,8 @@
  *                        accumulated } (per delta)
  *   reasoning deltas → content_start { contentType:"reasoning",
  *                        reasoning, redacted } (per delta)
+ *   assistant-media   → content_end { contentType:"media", media }
+ *                        at the original stream position
  *   assistant-message → one content_end { contentType:"text", text }
  *                        if any text parts; one
  *                        content_end { contentType:"reasoning", reasoning }
@@ -176,6 +178,7 @@ export class RuntimeEventAdapter {
 		cacheReadTokens: 0,
 		cacheWriteTokens: 0,
 		totalCost: 0,
+		reasoningTokenCount: 0,
 	};
 
 	private toolStartedAt = new Map<string, number>();
@@ -215,6 +218,14 @@ export class RuntimeEventAdapter {
 						redacted: event.redacted === true,
 					},
 				];
+			case "assistant-media":
+				return [
+					{
+						type: "content_end",
+						contentType: "media",
+						media: event.media,
+					},
+				];
 			case "assistant-message":
 				return this.translateAssistantMessage(event.message);
 			case "tool-started":
@@ -251,6 +262,7 @@ export class RuntimeEventAdapter {
 					{
 						type: "error",
 						error: event.error,
+						errorClass: event.errorClass,
 						recoverable: false,
 						iteration: event.snapshot.iteration,
 					},
@@ -269,6 +281,7 @@ export class RuntimeEventAdapter {
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
 			totalCost: 0,
+			reasoningTokenCount: 0,
 		};
 		this.toolStartedAt.clear();
 	}
@@ -293,7 +306,12 @@ export class RuntimeEventAdapter {
 	}
 
 	private translateToolStarted(event: {
-		toolCall: { toolCallId: string; toolName: string; input: unknown };
+		toolCall: {
+			toolCallId: string;
+			toolName: string;
+			input: unknown;
+			execution?: "client" | "provider";
+		};
 	}): AgentEvent[] {
 		this.toolStartedAt.set(event.toolCall.toolCallId, Date.now());
 		return [
@@ -303,12 +321,17 @@ export class RuntimeEventAdapter {
 				toolName: event.toolCall.toolName,
 				toolCallId: event.toolCall.toolCallId,
 				input: event.toolCall.input,
+				execution: event.toolCall.execution,
 			},
 		];
 	}
 
 	private translateToolFinished(event: {
-		toolCall: { toolCallId: string; toolName: string };
+		toolCall: {
+			toolCallId: string;
+			toolName: string;
+			execution?: "client" | "provider";
+		};
 		message: AgentMessage;
 	}): AgentEvent[] {
 		const startedAt = this.toolStartedAt.get(event.toolCall.toolCallId);
@@ -327,6 +350,7 @@ export class RuntimeEventAdapter {
 				output,
 				error,
 				durationMs,
+				execution: event.toolCall.execution,
 			},
 		];
 	}
@@ -341,12 +365,16 @@ export class RuntimeEventAdapter {
 		const prevCost = this.lastUsage.totalCost ?? 0;
 		const nextCost = next.totalCost ?? 0;
 		const deltaCost = nextCost - prevCost;
+		const prevReasoning = this.lastUsage.reasoningTokenCount ?? 0;
+		const nextReasoning = next.reasoningTokenCount ?? 0;
+		const deltaReasoning = nextReasoning - prevReasoning;
 		this.lastUsage = {
 			inputTokens: next.inputTokens,
 			outputTokens: next.outputTokens,
 			cacheReadTokens: next.cacheReadTokens,
 			cacheWriteTokens: next.cacheWriteTokens,
 			totalCost: next.totalCost,
+			reasoningTokenCount: next.reasoningTokenCount,
 		};
 		return [
 			{
@@ -358,6 +386,8 @@ export class RuntimeEventAdapter {
 				cacheWriteTokens:
 					deltaCacheWrite === 0 ? undefined : Math.max(0, deltaCacheWrite),
 				cost: deltaCost === 0 ? undefined : deltaCost,
+				reasoningTokenCount:
+					deltaReasoning === 0 ? undefined : Math.max(0, deltaReasoning),
 				totalInputTokens: next.inputTokens,
 				totalOutputTokens: next.outputTokens,
 				totalCacheReadTokens:

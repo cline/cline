@@ -62,7 +62,10 @@ vi.mock("../commands/auth", async () => {
 	};
 });
 
-import { buildConnectorStartRequest } from "./session-runtime";
+import {
+	buildConnectorStartRequest,
+	isReusableConnectorSession,
+} from "./session-runtime";
 
 describe("buildConnectorStartRequest", () => {
 	beforeEach(() => {
@@ -133,6 +136,33 @@ describe("buildConnectorStartRequest", () => {
 		expect(request.model).toBe("cline-pass/glm-5.2");
 	});
 
+	it("falls back to the provider's declared default, skipping the placeholder", async () => {
+		const build = (defaultModelId: string) => {
+			mockGetLastUsedProviderSettings.mockReturnValue({ provider: "deepseek" });
+			mockGetProviderSettings.mockReturnValue({
+				provider: "deepseek",
+				apiKey: "ds-key",
+			});
+			mockGetProviderCollection.mockReturnValue({
+				provider: { env: [], defaultModelId },
+			});
+			mockResolveSystemPrompt.mockResolvedValue("system");
+			return buildConnectorStartRequest({
+				options: { cwd: "/tmp/work", mode: "act", enableTools: false },
+				io: { writeln: vi.fn(), writeErr: vi.fn() },
+				loggerConfig: { enabled: false, level: "info", destination: "stdout" },
+				systemRules: "Rules",
+			});
+		};
+
+		await expect(build("deepseek-v4-flash")).resolves.toMatchObject({
+			model: "deepseek-v4-flash",
+		});
+		await expect(build("default")).resolves.toMatchObject({
+			model: "anthropic/claude-sonnet-5.5",
+		});
+	});
+
 	it("uses auth material resolved by provider settings manager", async () => {
 		mockGetLastUsedProviderSettings.mockReturnValue({ provider: "cline-pass" });
 		mockGetProviderSettings.mockReturnValue({
@@ -159,5 +189,34 @@ describe("buildConnectorStartRequest", () => {
 		expect(request.provider).toBe("cline-pass");
 		expect(request.apiKey).toBe("workos:resolved-token");
 		expect(request.model).toBe("cline-pass/glm-5.2");
+	});
+});
+
+describe("isReusableConnectorSession", () => {
+	it("rejects missing and terminal sessions", () => {
+		expect(isReusableConnectorSession(undefined)).toBe(false);
+		expect(isReusableConnectorSession({ sessionId: "" })).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "completed" }),
+		).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "failed" }),
+		).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "aborted" }),
+		).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "cancelled" }),
+		).toBe(false);
+	});
+
+	it("accepts live and status-omitted sessions", () => {
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "running" }),
+		).toBe(true);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "idle" }),
+		).toBe(true);
+		expect(isReusableConnectorSession({ sessionId: "s1" })).toBe(true);
 	});
 });

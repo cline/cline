@@ -36,4 +36,65 @@ describe("provider settings", () => {
 			}),
 		);
 	});
+
+	it("resolves the regional endpoint from apiLine when no base URL is set", () => {
+		expect(
+			toProviderConfig({ provider: "zai", apiLine: "china" }),
+		).toMatchObject({
+			apiLine: "china",
+			baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+		});
+
+		expect(
+			toProviderConfig({ provider: "moonshot", apiLine: "china" }),
+		).toMatchObject({
+			baseUrl: "https://api.moonshot.cn/v1",
+		});
+
+		expect(
+			toProviderConfig({ provider: "qwen", apiLine: "international" }),
+		).toMatchObject({
+			baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		});
+	});
+
+	it("lets an explicit base URL win over apiLine", () => {
+		expect(
+			toProviderConfig({
+				provider: "zai",
+				apiLine: "china",
+				baseUrl: "https://proxy.example.com/v4",
+			}),
+		).toMatchObject({
+			baseUrl: "https://proxy.example.com/v4",
+		});
+	});
+
+	it("limits ChatGPT subscription known models to the Codex catalog", () => {
+		const knownModels = toProviderConfig({
+			provider: "openai-codex",
+		}).knownModels;
+		const modelIds = Object.keys(knownModels ?? {});
+
+		expect(modelIds).toEqual(
+			expect.arrayContaining(["gpt-5.5", "gpt-5.6-terra"]),
+		);
+		expect(modelIds).not.toContain("gpt-4o");
+		expect(modelIds).not.toContain("gpt-4.1");
+		expect(modelIds).not.toContain("chatgpt-image-latest");
+		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(knownModels?.["gpt-5.5"]).toMatchObject({
+			contextWindow: 400_000,
+			maxInputTokens: 272_000 * 0.95,
+		});
+	});
+
+	it("keeps the provider default base URL when no apiLine is set", () => {
+		expect(toProviderConfig({ provider: "zai" })).toMatchObject({
+			baseUrl: "https://api.z.ai/api/paas/v4",
+		});
+		expect(toProviderConfig({ provider: "moonshot" })).toMatchObject({
+			baseUrl: "https://api.moonshot.ai/v1",
+		});
+	});
 });

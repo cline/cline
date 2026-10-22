@@ -1,12 +1,11 @@
-import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useClineAuth } from "@/context/ClineAuthContext"
-import { TaskServiceClient } from "@/services/grpc-client"
 
 interface EntitlementErrorProps {
 	message?: string
+	retryFailedRequest?: () => Promise<boolean>
 }
 
 // Relative (no leading slash) so it appends to path-prefixed app URLs (e.g. self-hosted/proxy) instead of resetting to origin.
@@ -29,7 +28,7 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	}
 }
 
-const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
+const EntitlementError: React.FC<EntitlementErrorProps> = ({ message, retryFailedRequest }) => {
 	const { clineUser } = useClineAuth()
 	const subscribeUrl = buildSubscribeUrl(clineUser?.appBaseUrl)
 	const backendDetail = message && message !== HEADLINE ? message : undefined
@@ -58,13 +57,10 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 			<VSCodeButton
 				appearance="secondary"
 				className="w-full"
+				disabled={!retryFailedRequest}
 				onClick={async () => {
 					try {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-							}),
-						)
+						await retryFailedRequest?.()
 					} catch (error) {
 						console.error("Error invoking action:", error)
 					}

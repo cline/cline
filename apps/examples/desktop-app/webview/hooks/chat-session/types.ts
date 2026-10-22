@@ -1,8 +1,23 @@
 import type { SessionHookEvent } from "@/lib/session-diff";
 
 export type ProcessContext = {
+	environmentId: string;
 	workspaceRoot: string;
 	cwd: string;
+	homeDir?: string;
+	/** Where the sidecar creates task worktrees (`<root>/<id>/<repo>`). */
+	taskWorktreeRoot?: string;
+	platform?: string;
+	appVersion?: string;
+	activeEnvironmentId?: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+		workspaceRoot?: string;
+		platform?: string;
+		arch?: string;
+	} | null;
 };
 
 export type AgentChunkEvent = {
@@ -11,11 +26,28 @@ export type AgentChunkEvent = {
 	chunk: string;
 	ts: number;
 	index?: number;
+	/**
+	 * Identifies the sidecar process that numbered this chunk. `index` restarts
+	 * whenever the sidecar does, so a changed `boot` means the counter reset
+	 * rather than the stream replaying.
+	 */
+	boot?: string;
 };
 
 export type ReasoningDeltaEvent = {
 	text?: string;
 	redacted?: boolean;
+};
+
+export type ChatUsageEvent = {
+	/** Tokens consumed by the latest model request. */
+	inputTokens?: number;
+	/** Tokens produced by the latest model request. */
+	outputTokens?: number;
+	/** Input tokens served from the provider's prompt cache. */
+	cacheReadTokens?: number;
+	/** Cost of the latest model request. */
+	cost?: number;
 };
 
 export type ToolCallStartEvent = {
@@ -33,6 +65,12 @@ export type ToolCallEndEvent = {
 	durationMs?: number;
 };
 
+export type ToolCallUpdateEvent = {
+	toolCallId?: string;
+	toolName?: string;
+	update?: unknown;
+};
+
 export type ToolApprovalRequestItem = {
 	requestId: string;
 	sessionId: string;
@@ -47,6 +85,7 @@ export type ToolApprovalRequestItem = {
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];
@@ -62,12 +101,16 @@ export type ChatApiResult = {
 	text: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cacheReadTokens?: number;
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
+		cacheReadTokens?: number;
 		totalCost?: number;
 	};
 	iterations?: number;
+	/** The sidecar rebuilt the session after Cline Hub restarted mid-turn. */
+	hubInterrupted?: boolean;
 	finishReason?:
 		| "completed"
 		| "max_iterations"
@@ -82,6 +125,26 @@ export type ChatApiResult = {
 		durationMs?: number;
 	}>;
 	messages?: unknown[];
+};
+
+export type ChatSessionCommandResponse = {
+	environmentId?: string;
+	sessionId?: string;
+	cwd?: string;
+	workspaceRoot?: string;
+	result?: ChatApiResult;
+	ok?: boolean;
+	queued?: boolean;
+	/** A plugin slash command ran in the sidecar and no turn was started. */
+	commandHandled?: boolean;
+	/** One line per plugin the started session could not load. */
+	pluginWarnings?: string[];
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
+	promptsInQueue?: PromptInQueue[];
+	prompt?: PromptInQueue;
+	updated?: boolean;
+	removed?: boolean;
 };
 
 export type ChatWsResponseEvent = {

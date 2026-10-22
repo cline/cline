@@ -133,6 +133,7 @@ export function createSessionSpawnTool(
 		const tools: AgentTool[] = config.enableTools
 			? createBuiltinTools({
 					cwd: config.cwd,
+					telemetry: config.telemetry,
 					...ToolPresets[resolveToolPresetName({ mode: config.mode })],
 					executors: toolExecutors,
 				})

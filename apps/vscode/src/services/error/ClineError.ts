@@ -1,5 +1,7 @@
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 	isClinePassLimitMessage,
@@ -16,6 +18,44 @@ export enum ClineErrorType {
 	Entitlement = "entitlement",
 	OrgClinePassRestriction = "orgClinePassRestriction",
 	ClinePassLimit = "clinePassLimit",
+	ClineFreeModelLimit = "clineFreeModelLimit",
+	ClineFreePromotionEnded = "clineFreePromotionEnded",
+	/** HTTP 404/405/410: the model id or endpoint path does not exist on the server. */
+	NotFound = "notFound",
+}
+
+/**
+ * Recovery guidance for a model-or-endpoint-not-found answer. Shared by the
+ * host-side message rewrite (text-matched, since the SDK strips the HTTP
+ * status before the host sees the error) and the webview's status-based
+ * NotFound row, so a message that already carries it is not told twice.
+ */
+export const MODEL_NOT_FOUND_GUIDANCE =
+	"The model may be retired or unavailable on your account, or the model ID or base URL may be wrong. Check the model ID and base URL in API Configuration settings, or switch to a different model, then retry."
+
+// Status families with a dedicated UI. Everything else in 4xx stays on the
+// generic row, which shows the real status and message. 407 is deliberately
+// not Auth: it is the proxy rejecting credentials, not the provider, and the
+// sign-in card would point the user at the wrong account.
+const AUTH_STATUSES = new Set([401, 403])
+const PAYMENT_REQUIRED_STATUS = 402
+const NOT_FOUND_STATUSES = new Set([404, 405, 410])
+
+export const CLINE_FREE_MODEL_ID_PREFIX = "cline-free/"
+/** Error code stamped by the host when it detects a retired free model (see message-translator). */
+export const CLINE_FREE_PROMOTION_ENDED_ERROR_CODE = "cline_free_promotion_ended"
+
+/**
+ * Detects a request against a retired free model: once a promotion ends the
+ * cline-free/ model is removed from the catalog and the backend answers "model
+ * not found". The modelId gate keeps ordinary model-not-found errors on their
+ * generic path. Mirrors the CLI's detection in apps/cli/src/utils/cline-pass-errors.ts.
+ */
+export function isClineFreePromotionEndedMessage(message: string, modelId?: string): boolean {
+	if (!modelId?.toLowerCase().startsWith(CLINE_FREE_MODEL_ID_PREFIX)) {
+		return false
+	}
+	return isClineModelNotFoundMessage(message)
 }
 
 interface ErrorDetails {
@@ -186,15 +226,51 @@ export class ClineError extends Error {
 		}
 
 		if (
+			(detailMessage ? isClineFreeModelLimitMessage(detailMessage) : false) ||
+			(rawMessage ? isClineFreeModelLimitMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.ClineFreeModelLimit
+		}
+
+		if (
 			(detailMessage ? isClinePassLimitMessage(detailMessage) : false) ||
 			(rawMessage ? isClinePassLimitMessage(rawMessage) : false)
 		) {
 			return ClineErrorType.ClinePassLimit
 		}
 
-		// Check auth errors
-		const isAuthStatus = status !== undefined && status > 400 && status < 429
-		if (code === "ERR_BAD_REQUEST" || err instanceof AuthInvalidTokenError || isAuthStatus) {
+		// Retired free models must be classified before the status branch: the
+		// backend's model-not-found answer is a 404.
+		if (
+			code === CLINE_FREE_PROMOTION_ENDED_ERROR_CODE ||
+			details?.code === CLINE_FREE_PROMOTION_ENDED_ERROR_CODE ||
+			(detailMessage ? isClineFreePromotionEndedMessage(detailMessage, err.modelId) : false) ||
+			(rawMessage ? isClineFreePromotionEndedMessage(rawMessage, err.modelId) : false)
+		) {
+			return ClineErrorType.ClineFreePromotionEnded
+		}
+
+		// The HTTP status is the provider's own verdict and decides first. Only
+		// genuine credential rejections are Auth: labelling every 4xx that way
+		// sent users with a wrong model id or base URL (a 404) to the sign-in
+		// prompt instead of showing them the real answer. Statuses outside
+		// these sets fall through to the wording checks below on purpose:
+		// Gemini rejects a bad key with a 400, and only the message says so.
+		if (status !== undefined) {
+			if (AUTH_STATUSES.has(status)) {
+				return ClineErrorType.Auth
+			}
+			if (status === PAYMENT_REQUIRED_STATUS) {
+				return ClineErrorType.Balance
+			}
+			if (NOT_FOUND_STATUSES.has(status)) {
+				return ClineErrorType.NotFound
+			}
+		}
+
+		// ERR_BAD_REQUEST is axios' code for any 4xx, so it only stands in for
+		// an auth failure when no status is available to say otherwise.
+		if ((code === "ERR_BAD_REQUEST" && status === undefined) || err instanceof AuthInvalidTokenError) {
 			return ClineErrorType.Auth
 		}
 

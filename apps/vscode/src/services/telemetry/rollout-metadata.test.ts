@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { getRolloutErrorProperties, getRolloutTelemetryMetadata, ROLLOUT_ERROR_MESSAGE_LIMIT } from "./rollout-metadata"
+import {
+	getExtensionVariant,
+	getRolloutErrorProperties,
+	getRolloutTelemetryMetadata,
+	ROLLOUT_ERROR_MESSAGE_LIMIT,
+} from "./rollout-metadata"
 
 const originalVariant = process.env.CLINE_ROLLOUT_VARIANT
 
@@ -22,6 +27,20 @@ describe("rollout telemetry metadata", () => {
 
 		process.env.CLINE_ROLLOUT_VARIANT = "invalid"
 		expect(getRolloutTelemetryMetadata()).toEqual({})
+	})
+
+	it("exposes the variant for rollout builds only", () => {
+		process.env.CLINE_ROLLOUT_VARIANT = "legacy"
+		expect(getExtensionVariant()).toBe("legacy")
+
+		process.env.CLINE_ROLLOUT_VARIANT = "next"
+		expect(getExtensionVariant()).toBe("next")
+
+		delete process.env.CLINE_ROLLOUT_VARIANT
+		expect(getExtensionVariant()).toBeUndefined()
+
+		process.env.CLINE_ROLLOUT_VARIANT = "invalid"
+		expect(getExtensionVariant()).toBeUndefined()
 	})
 
 	it("bounds fallback errors without including stacks", () => {

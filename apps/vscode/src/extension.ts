@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import assert from "node:assert"
-import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
+import { disableCurrentDirectoryExecutableSearch } from "@cline/shared"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
@@ -29,6 +29,7 @@ import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
+import { migrateOpenAiCompatibleBaseUrlToV1 } from "./core/storage/openai-base-url-migration"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	cleanupOldApiKey,
@@ -45,7 +46,7 @@ import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
-import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME, diffContentProvider } from "./hosts/vscode/VscodeDiffContentProvider"
 import { EDIT_PREVIEW_URI_SCHEME, editPreviewContentProvider, VscodeEditPreview } from "./hosts/vscode/VscodeEditPreview"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
@@ -67,6 +68,9 @@ export async function reportRolloutActivation(input: RolloutBundleActivation): P
 export async function activate(context: vscode.ExtensionContext) {
 	const activationStartTime = performance.now()
 
+	// Before anything spawns with the workspace as cwd (rg, git, hooks, MCP).
+	disableCurrentDirectoryExecutableSearch()
+
 	// 1. Set up HostProvider for VSCode
 	// IMPORTANT: This must be done before any service can be registered
 	setupHostProvider(context)
@@ -81,6 +85,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 	const storageContext = createStorageContext({ workspacePath })
 	await exportVSCodeStorageToSharedFiles(context, storageContext)
+	migrateOpenAiCompatibleBaseUrlToV1(storageContext)
 
 	// 4. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
@@ -143,24 +148,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
 
-	/*
-	We use the text document content provider API to show the left side for diff view by creating a
-	virtual document for the original content. This makes it readonly so users know to edit the right
-	side if they want to keep their changes.
-
-	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by
-	claiming an uri-scheme for which your provider then returns text contents. The scheme must be
-	provided when registering a provider and cannot change afterwards.
-	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents
-	 given such an uri. In return, content providers are wired into the open document logic so that
-	 providers are always considered.
-	https://code.visualstudio.com/api/extension-guides/virtual-documents
-	*/
-	const diffContentProvider = new (class implements vscode.TextDocumentContentProvider {
-		provideTextDocumentContent(uri: vscode.Uri): string {
-			return Buffer.from(uri.query, "base64").toString("utf-8")
-		}
-	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
 	// Edit previews use a separate, mutable provider (content set programmatically and
@@ -267,51 +254,23 @@ export async function activate(context: vscode.ExtensionContext) {
 				public static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.Refactor]
 
 				provideCodeActions(
-					document: vscode.TextDocument,
-					range: vscode.Range,
+					_document: vscode.TextDocument,
+					_range: vscode.Range,
 					context: vscode.CodeActionContext,
 				): vscode.CodeAction[] {
-					const CONTEXT_LINES_TO_EXPAND = 3
-					const START_OF_LINE_CHAR_INDEX = 0
-					const LINE_COUNT_ADJUSTMENT_FOR_ZERO_INDEXING = 1
-
+					// NOTE: These commands must NOT carry `arguments`. Commands with arguments are
+					// routed through VS Code's CommandsConverter cache, whose entries are disposed
+					// when the code action list is disposed - executing the action then fails with
+					// "Actual command not found, wanted to execute ...". The handlers recover the
+					// range (selection, expanded around the cursor when empty) and intersecting
+					// diagnostics themselves via getContextForCommand.
 					const actions: vscode.CodeAction[] = []
-					const editor = vscode.window.activeTextEditor // Get active editor for selection check
-
-					// Expand range to include surrounding 3 lines or use selection if broader
-					const selection = editor?.selection
-					let expandedRange = range
-					if (
-						editor &&
-						selection &&
-						!selection.isEmpty &&
-						selection.contains(range.start) &&
-						selection.contains(range.end)
-					) {
-						expandedRange = selection
-					} else {
-						expandedRange = new vscode.Range(
-							Math.max(0, range.start.line - CONTEXT_LINES_TO_EXPAND),
-							START_OF_LINE_CHAR_INDEX,
-							Math.min(
-								document.lineCount - LINE_COUNT_ADJUSTMENT_FOR_ZERO_INDEXING,
-								range.end.line + CONTEXT_LINES_TO_EXPAND,
-							),
-							document.lineAt(
-								Math.min(
-									document.lineCount - LINE_COUNT_ADJUSTMENT_FOR_ZERO_INDEXING,
-									range.end.line + CONTEXT_LINES_TO_EXPAND,
-								),
-							).text.length,
-						)
-					}
 
 					// Add to Cline (Always available)
 					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
 						command: commands.AddToChat,
 						title: "Add to Cline",
-						arguments: [expandedRange, context.diagnostics],
 					}
 					actions.push(addAction)
 
@@ -320,7 +279,6 @@ export async function activate(context: vscode.ExtensionContext) {
 					explainAction.command = {
 						command: commands.ExplainCode,
 						title: "Explain with Cline",
-						arguments: [expandedRange],
 					}
 					actions.push(explainAction)
 
@@ -329,7 +287,6 @@ export async function activate(context: vscode.ExtensionContext) {
 					improveAction.command = {
 						command: commands.ImproveCode,
 						title: "Improve with Cline",
-						arguments: [expandedRange],
 					}
 					actions.push(improveAction)
 
@@ -340,7 +297,6 @@ export async function activate(context: vscode.ExtensionContext) {
 						fixAction.command = {
 							command: commands.FixWithCline,
 							title: "Fix with Cline",
-							arguments: [expandedRange, context.diagnostics],
 						}
 						actions.push(fixAction)
 					}
@@ -614,7 +570,6 @@ function setupHostProvider(context: ExtensionContext) {
 	outputChannel.appendLine("[Cline] Setting up VS Code host...")
 
 	const createWebview = () => new VscodeWebviewProvider(context)
-	const createDiffView = () => new VscodeDiffViewProvider()
 	const createEditPreview = () => new VscodeEditPreview()
 	const createCommentReview = () => getVscodeCommentReviewController()
 
@@ -635,7 +590,6 @@ function setupHostProvider(context: ExtensionContext) {
 	}
 	HostProvider.initialize(
 		createWebview,
-		createDiffView,
 		createEditPreview,
 		createCommentReview,
 		vscodeHostBridgeClient,

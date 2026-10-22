@@ -10,6 +10,7 @@ import {
 	isClaudeModelId,
 	isGlmModel,
 	isQwenModel,
+	resolveClaudeThinkingEra,
 } from "../model-facts";
 import {
 	applyPromptCacheToLastTextPart,
@@ -365,6 +366,156 @@ describe("anthropic-compatible routing helpers", () => {
 		).toEqual({
 			kind: "anthropic-manual",
 		});
+	});
+
+	it("classifies Claude model ids into thinking eras", () => {
+		const adaptiveEraIds = [
+			"claude-sonnet-5",
+			"claude-sonnet-5:1m",
+			"claude-opus-5",
+			"claude-opus-4-6",
+			"claude-opus-4-6:1m",
+			"claude-opus-4-8",
+			"claude-sonnet-4.6",
+			"claude-sonnet-5-20260629",
+			"anthropic.claude-opus-4-7-v1:0",
+			"anthropic/claude-haiku-5",
+			"claude-opus-6",
+		];
+		for (const modelId of adaptiveEraIds) {
+			expect(resolveClaudeThinkingEra(modelId), modelId).toBe("adaptive");
+		}
+
+		const legacyEraIds = [
+			"claude-sonnet-4-5",
+			"claude-sonnet-4-5-20250929",
+			"claude-haiku-4-5-20251001",
+			"claude-opus-4-1",
+			"claude-opus-4",
+			"claude-3-7-sonnet",
+			"claude-3-5-sonnet-20241022",
+			"claude-2.1",
+			"claude-instant-1.2",
+		];
+		for (const modelId of legacyEraIds) {
+			expect(resolveClaudeThinkingEra(modelId), modelId).toBe("legacy");
+		}
+
+		// Unrecognized Claude ids are treated as newer than the known model
+		// list (forward-compatible, matches @ai-sdk/anthropic's defaults).
+		const unknownClaudeIds = [
+			"claude-fable-5",
+			"claude-nova-2",
+			"claude-custom",
+			"us.anthropic.claude-future-9-20990101-v1:0",
+		];
+		for (const modelId of unknownClaudeIds) {
+			expect(resolveClaudeThinkingEra(modelId), modelId).toBe("unknown-claude");
+		}
+
+		const nonClaudeIds = ["custom/anthropic-alias", "gpt-5.4", undefined];
+		for (const modelId of nonClaudeIds) {
+			expect(resolveClaudeThinkingEra(modelId), modelId ?? "undefined").toBe(
+				"not-claude",
+			);
+		}
+	});
+
+	it("infers adaptive reasoning for adaptive-era Claude ids when catalog options are missing", () => {
+		const context = makeContext(
+			"claude-sonnet",
+			metadataWithRouting({
+				reasoningRoutes: [{ matcher: "anthropic-compatible" }],
+			}),
+		);
+		const makeRequest = (
+			modelId: string,
+			reasoning?: { enabled?: boolean; budgetTokens?: number },
+		) => ({
+			providerId: "test-provider",
+			modelId,
+			messages: [],
+			...(reasoning ? { reasoning } : {}),
+		});
+
+		expect(
+			resolveAnthropicReasoningRequestPolicy(
+				makeRequest("claude-sonnet-5"),
+				context,
+			),
+		).toEqual({ kind: "anthropic-adaptive" });
+		// Adaptive-era ids stay adaptive even with an explicit budget: the
+		// API rejects the manual shape outright.
+		expect(
+			resolveAnthropicReasoningRequestPolicy(
+				makeRequest("claude-opus-4-6:1m", {
+					enabled: true,
+					budgetTokens: 4096,
+				}),
+				context,
+			),
+		).toEqual({ kind: "anthropic-adaptive" });
+		// Pre-adaptive ids keep the manual wire shape.
+		expect(
+			resolveAnthropicReasoningRequestPolicy(
+				makeRequest("claude-sonnet-4-5"),
+				context,
+			),
+		).toEqual({ kind: "anthropic-manual" });
+		// Unknown Claude ids default to adaptive (forward-compatible)...
+		expect(
+			resolveAnthropicReasoningRequestPolicy(
+				makeRequest("claude-custom"),
+				context,
+			),
+		).toEqual({ kind: "anthropic-adaptive" });
+		// ...unless the request carries an explicit numeric budget, which
+		// signals a custom endpoint that expects the manual shape.
+		expect(
+			resolveAnthropicReasoningRequestPolicy(
+				makeRequest("claude-custom", { enabled: true, budgetTokens: 4096 }),
+				context,
+			),
+		).toEqual({ kind: "anthropic-manual" });
+	});
+
+	it("keeps adaptive when a numeric budget is requested but the model advertises effort", () => {
+		const baseContext = makeContext(
+			"claude-sonnet",
+			metadataWithRouting({
+				reasoningRoutes: [{ matcher: "anthropic-compatible" }],
+			}),
+		);
+		const request = {
+			providerId: "test-provider",
+			modelId: "claude-sonnet-4-6",
+			messages: [],
+			reasoning: { enabled: true, budgetTokens: 4096 },
+		};
+
+		expect(
+			resolveAnthropicReasoningRequestPolicy(request, {
+				...baseContext,
+				model: {
+					...baseContext.model,
+					reasoningOptions: [
+						{ type: "effort", values: ["low", "medium", "high", "max"] },
+						{ type: "budget_tokens", min: 1024 },
+					],
+				},
+			}),
+		).toEqual({ kind: "anthropic-adaptive" });
+
+		// Budget-only models still honor the explicit budget via manual.
+		expect(
+			resolveAnthropicReasoningRequestPolicy(request, {
+				...baseContext,
+				model: {
+					...baseContext.model,
+					reasoningOptions: [{ type: "budget_tokens", min: 1024 }],
+				},
+			}),
+		).toEqual({ kind: "anthropic-manual" });
 	});
 
 	it("does not preserve legacy Anthropic reasoning for custom Qwen providers", () => {

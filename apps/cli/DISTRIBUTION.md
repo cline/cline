@@ -129,10 +129,11 @@ The GitHub workflow at `.github/workflows/cli-publish.yml` automates publishing:
 
 - Main releases are manual. Select `publish_target=main` and set `confirm_publish=publish`.
 - Main releases require `git_tag=cli-vX.Y.Z`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
-- Nightly releases run on a schedule or manually with `publish_target=nightly`.
+- Nightly releases are manual only, with `publish_target=nightly`. There is no schedule.
+- Every run, main or nightly, waits for a reviewer to approve it in the `PublishNPM` GitHub environment.
 - Nightly releases publish `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skip if there were no commits in the last 24 hours unless forced.
 
-CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package before relying on the workflow.
+CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package, with the environment set to `PublishNPM`, before relying on the workflow.
 
 ## How It Works Under the Hood
 
@@ -269,6 +270,9 @@ The postinstall script runs in diverse environments (CI, Docker, restricted perm
 
 ### Windows
 Windows binaries are `.exe` files. The build script appends `.exe` to the output filename on Windows targets. The resolver handles this. npm on Windows generates `.cmd` shims for bin entries automatically.
+
+### Windows code signing
+Windows application control (Smart App Control, WDAC, AppLocker) blocks unsigned executables at launch, regardless of how they were installed — npm distribution gets no exemption ([#12934](https://github.com/cline/cline/issues/12934)). The publish workflow Authenticode-signs `cli-windows-x64/bin/cline.exe` and `cli-windows-arm64/bin/cline.exe` with Azure Trusted Signing before publishing, via the `.github/actions/sign-windows-cli` composite action. Signing runs on the Linux publish runner using [jsign](https://ebourg.github.io/jsign/) (`--storetype TRUSTEDSIGNING`) with an OIDC-federated Entra app, then verifies the signature chain with `osslsigncode` against the Microsoft Identity Verification Root CA 2020. If all `AZURE_*` / `AZURE_TRUSTED_SIGNING_*` repository secrets are absent, the action logs a warning and the release ships unsigned rather than failing; if only some resolve (a typo'd or renamed secret), the release fails loudly instead. The certificate profile secret is suffixed `_CLI` because the desktop app will later get its own profile; the other five secrets are shared. Note that signing bun-compiled executables requires Bun >= 1.2.23 (earlier versions located the embedded bundle relative to the end of the file, which signing corrupts).
 
 ### File permissions
 Compiled binaries need to be executable (`chmod 755`). The build script sets this after copying. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.

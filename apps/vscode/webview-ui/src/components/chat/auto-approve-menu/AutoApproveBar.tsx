@@ -1,33 +1,35 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { useRef, useState } from "react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { editorName } from "@/utils/editorName"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA } from "./constants"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
+	cloudAutoApprove?: boolean
 }
 
-const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
-	const { autoApprovalSettings, yoloModeToggled, navigateToSettings } = useExtensionState()
+const cloudAutoApproveTooltip = (editor: string) =>
+	`Cloud sessions always auto-approve actions so they can continue running when ${editor} is closed. Your local auto-approve settings are unchanged.`
+
+const AutoApproveBar = ({ style, cloudAutoApprove = false }: AutoApproveBarProps) => {
+	const { autoApprovalSettings, hostName } = useExtensionState()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
-
-	const handleNavigateToFeatures = (e: React.MouseEvent) => {
-		e.preventDefault()
-		e.stopPropagation()
-		navigateToSettings("features")
-	}
 
 	const getEnabledActionsText = () => {
 		const baseClasses = isModalVisible
 			? "text-foreground truncate"
 			: "text-muted-foreground group-hover:text-foreground truncate"
-		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
-			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
-		)
+		const enabledActionsNames = cloudAutoApprove
+			? ACTION_METADATA.map((action) => action.id)
+			: Object.keys(autoApprovalSettings.actions).filter(
+					(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
+				)
 		const enabledActions = enabledActionsNames.map((action) => {
 			return ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === action)
 		})
@@ -66,53 +68,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const borderGradient = `linear-gradient(to bottom, ${borderColor} 0%, transparent 50%)`
 	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-sideBar-background) 96%, white) 0%, transparent 80%)`
 
-	// If YOLO mode is enabled, show disabled message
-	if (yoloModeToggled) {
-		return (
-			<div
-				className="mx-3.5 select-none break-words relative"
-				style={{
-					borderTop: `0.5px solid ${borderColor}`,
-					borderRadius: "4px 4px 0 0",
-					background: bgGradient,
-					opacity: 0.5,
-					...style,
-				}}>
-				{/* Left border gradient */}
-				<div
-					className="absolute left-0 pointer-events-none"
-					style={{
-						width: 0.5,
-						top: 3,
-						height: "100%",
-						background: borderGradient,
-					}}
-				/>
-				{/* Right border gradient */}
-				<div
-					className="absolute right-0 top-0 pointer-events-none"
-					style={{
-						width: 0.5,
-						top: 3,
-						height: "100%",
-						background: borderGradient,
-					}}
-				/>
-
-				<div className="pt-4 pb-3.5 px-3.5">
-					<div className="text-sm mb-1">Auto-approve: YOLO</div>
-					<div className="text-muted-foreground text-xs">
-						YOLO mode is enabled.{" "}
-						<span className="underline cursor-pointer hover:text-foreground" onClick={handleNavigateToFeatures}>
-							Disable it in Settings
-						</span>
-						.
-					</div>
-				</div>
-			</div>
-		)
-	}
-
 	return (
 		<div
 			className="mx-3.5 select-none break-words relative"
@@ -143,31 +98,37 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				}}
 			/>
 
-			<div
-				aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
-				className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
-				onClick={() => {
-					setIsModalVisible((prev) => !prev)
-				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault()
-						e.stopPropagation()
-						setIsModalVisible((prev) => !prev)
-					}
-				}}
-				ref={buttonRef}
-				tabIndex={0}>
-				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
-					<span className="whitespace-nowrap">Auto-approve:</span>
-					{getEnabledActionsText()}
-				</div>
-				{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
-			</div>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
+						className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
+						onClick={() => {
+							setIsModalVisible((prev) => !prev)
+						}}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault()
+								e.stopPropagation()
+								setIsModalVisible((prev) => !prev)
+							}
+						}}
+						ref={buttonRef}
+						tabIndex={0}>
+						<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
+							<span className="whitespace-nowrap">Auto-approve:</span>
+							{getEnabledActionsText()}
+						</div>
+						{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+					</div>
+				</TooltipTrigger>
+				{cloudAutoApprove && <TooltipContent side="top">{cloudAutoApproveTooltip(editorName(hostName))}</TooltipContent>}
+			</Tooltip>
 
 			<AutoApproveModal
 				ACTION_METADATA={ACTION_METADATA}
 				buttonRef={buttonRef}
+				cloudAutoApprove={cloudAutoApprove}
 				isVisible={isModalVisible}
 				setIsVisible={setIsModalVisible}
 			/>

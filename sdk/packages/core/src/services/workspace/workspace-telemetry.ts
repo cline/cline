@@ -8,6 +8,11 @@ import {
 export interface WorkspaceLifecycleTelemetryInput {
 	telemetry?: ITelemetryService;
 	rootPath: string;
+	/**
+	 * Optional client identity used for de-duplication in a shared runtime
+	 * process. The same workspace still emits once per client surface.
+	 */
+	dedupeScope?: string;
 	workspaceInfo?: WorkspaceInfo;
 	rootCount?: number;
 	vcsType?: "git" | "none";
@@ -21,8 +26,12 @@ export interface WorkspaceLifecycleTelemetryInput {
 const initializedWorkspaceHashes = new Set<string>();
 const initErrorWorkspaceHashes = new Set<string>();
 
-function hashWorkspacePath(rootPath: string): string {
-	return createHash("sha256").update(rootPath).digest("hex");
+function hashWorkspacePath(rootPath: string, scope?: string): string {
+	return createHash("sha256")
+		.update(rootPath)
+		.update("\0")
+		.update(scope?.trim() ?? "")
+		.digest("hex");
 }
 
 function normalizeVcsTypes(
@@ -40,7 +49,7 @@ export function emitWorkspaceLifecycleTelemetry(
 	if (!input.telemetry) {
 		return;
 	}
-	const workspaceHash = hashWorkspacePath(input.rootPath);
+	const workspaceHash = hashWorkspacePath(input.rootPath, input.dedupeScope);
 	const rootCount = input.rootCount ?? 1;
 	if (!initializedWorkspaceHashes.has(workspaceHash)) {
 		initializedWorkspaceHashes.add(workspaceHash);

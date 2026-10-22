@@ -7,6 +7,7 @@ import type {
 	StartSessionResult,
 } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -21,6 +22,7 @@ type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHos
 type AskQuestionHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["askQuestion"]>
 type EditorExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["editorExecutor"]>
 type ApplyPatchExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["applyPatchExecutor"]>
+type ReadFileExecutorHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["readFileExecutor"]>
 
 export interface SdkSessionLifecycleOptions {
 	mcpHub: McpHub
@@ -30,11 +32,15 @@ export interface SdkSessionLifecycleOptions {
 	editorExecutor?: EditorExecutorHandler
 	/** Custom `apply_patch` executor (reverts the diff preview, then applies via the SDK default). */
 	applyPatchExecutor?: ApplyPatchExecutorHandler
+	/** Custom `read_files` executor (resolves relative paths against the workspace root). */
+	readFileExecutor?: ReadFileExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
 	getTerminalManager?: () => VscodeTerminalManager
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
 	foregroundCommands?: SdkForegroundCommandCoordinator
+	/** Resolves once the applicable remote config is ready for a new SDK session. */
+	beforeStartSession?: () => Promise<void>
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
@@ -52,6 +58,10 @@ export interface SdkSessionLifecycleOptions {
 	onDidBecomeIdle?: () => void
 }
 
+function toSessionMode(mode: string | undefined): Mode | undefined {
+	return mode === "plan" || mode === "act" ? mode : undefined
+}
+
 export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
 	private sharedHost: SdkSessionHost | undefined
@@ -66,8 +76,46 @@ export class SdkSessionLifecycle {
 	 * sequencing the CLI uses.
 	 */
 	private readonly pendingStops = new Map<string, Promise<void>>()
+	/**
+	 * Counts turns started on the active session. A send whose promise settles
+	 * after a newer turn began (Core drained a queued prompt) must not mark the
+	 * session idle, or a passive rebuild could replace it mid-turn.
+	 */
+	private turnGeneration = 0
+	/**
+	 * Session starts that read the mode setting outside the rebuild lock (new
+	 * task, edited message, checkpoint restore). Until one settles, the session
+	 * it is building is not active yet, so a mode toggle waits for it instead
+	 * of mistaking "no active session" for "nothing to rebuild".
+	 */
+	private readonly pendingStarts = new Set<Promise<void>>()
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
+
+	/**
+	 * Runs a session start, from reading the mode setting until the new
+	 * session is active and its first turn is sent, as one tracked unit.
+	 */
+	async trackSessionStart<T>(operation: () => Promise<T>): Promise<T> {
+		const run = operation()
+		const settled = run.then(
+			() => undefined,
+			() => undefined,
+		)
+		this.pendingStarts.add(settled)
+		try {
+			return await run
+		} finally {
+			this.pendingStarts.delete(settled)
+		}
+	}
+
+	/** Resolves once no tracked session start is in flight. */
+	async waitForSessionStarts(): Promise<void> {
+		while (this.pendingStarts.size > 0) {
+			await Promise.all(this.pendingStarts)
+		}
+	}
 
 	getActiveSession(): ActiveSession | undefined {
 		return this.activeSession
@@ -79,7 +127,21 @@ export class SdkSessionLifecycle {
 			return
 		}
 		activeSession.isRunning = isRunning
-		if (!isRunning) {
+		if (isRunning) {
+			this.turnGeneration += 1
+		} else {
+			this.options.onDidBecomeIdle?.()
+		}
+	}
+
+	/** Records Core's queue length for the active session; see ActiveSession.queuedPromptCount. */
+	setQueuedPromptCount(count: number): void {
+		const activeSession = this.activeSession
+		if (!activeSession || activeSession.queuedPromptCount === count) {
+			return
+		}
+		activeSession.queuedPromptCount = count
+		if (count === 0 && !activeSession.isRunning) {
 			this.options.onDidBecomeIdle?.()
 		}
 	}
@@ -113,6 +175,19 @@ export class SdkSessionLifecycle {
 		return activeSession
 	}
 
+	/**
+	 * Resolves once any in-flight stop for `sessionId` has settled. Callers that
+	 * start a session outside startNewSession (e.g. on an isolated host) must
+	 * wait here first, or the old session's late cleanup tears down the new one.
+	 */
+	async waitForPendingStop(sessionId: string): Promise<void> {
+		const pendingStop = this.pendingStops.get(sessionId)
+		if (pendingStop) {
+			Logger.log(`[SdkController] Waiting for session ${sessionId} to stop before restarting it`)
+			await pendingStop
+		}
+	}
+
 	async updateActiveSessionModel(modelId: string): Promise<boolean> {
 		const activeSession = this.activeSession
 		if (!activeSession?.sdkHost.updateSessionModel) {
@@ -125,7 +200,18 @@ export class SdkSessionLifecycle {
 
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
+		/**
+		 * Session-scoped host (e.g. a CloudSessionHost) to start on instead of the
+		 * shared local host. Its events are routed to onSessionEvent for as long
+		 * as the session is active; tool policies are left to the host.
+		 */
+		hostOverride?: SdkSessionHost,
+		/** Rechecked at every suspension point so a stale start cannot replace its successor. */
+		shouldContinue: () => boolean = () => true,
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
+		if (!shouldContinue()) {
+			throw new SessionStartSupersededError()
+		}
 		if (this.activeSession) {
 			await this.endActiveSession("startNewSession")
 		}
@@ -133,21 +219,30 @@ export class SdkSessionLifecycle {
 		// Same-id starts must wait for the previous session's stop to finish;
 		// see pendingStops. A fresh id cannot conflict, so it never waits.
 		const requestedSessionId = startInput.config?.sessionId?.trim()
-		const pendingStop = requestedSessionId ? this.pendingStops.get(requestedSessionId) : undefined
-		if (pendingStop) {
-			Logger.log(`[SdkController] Waiting for session ${requestedSessionId} to stop before restarting it`)
-			await pendingStop
+		if (requestedSessionId) {
+			await this.waitForPendingStop(requestedSessionId)
+		}
+		if (!shouldContinue()) {
+			throw new SessionStartSupersededError()
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+		const toolPolicies =
+			!hostOverride && autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
-		const sdkHost = await this.getOrCreateSharedHost()
+		const sdkHost = hostOverride ?? (await this.getOrCreateSharedHost())
+		if (!shouldContinue()) {
+			throw new SessionStartSupersededError()
+		}
 
 		const startResult = await sdkHost.start({
 			...startInput,
 			...(toolPolicies ? { toolPolicies } : {}),
 		})
+		if (!shouldContinue()) {
+			await sdkHost.stop(startResult.sessionId)
+			throw new SessionStartSupersededError()
+		}
 		this.activeSession = {
 			sessionId: startResult.sessionId,
 			startConfig: startInput.config
@@ -156,13 +251,59 @@ export class SdkSessionLifecycle {
 						modelId: startInput.config.modelId,
 					}
 				: undefined,
+			mode: toSessionMode(startInput.config?.mode),
 			sdkHost,
-			unsubscribe: () => {},
+			unsubscribe: hostOverride ? this.subscribeSessionHost(hostOverride) : () => {},
 			startResult,
 			isRunning: true,
+			queuedPromptCount: 0,
 		}
 
 		return { startResult, sdkHost }
+	}
+
+	/**
+	 * Makes an already-running conversation on a session-scoped host the active
+	 * session without starting a new one (e.g. reopening a cloud session that
+	 * keeps running in its sandbox). Events flow to onSessionEvent until the
+	 * session is ended; the host itself is not stopped when it is.
+	 */
+	async attachExistingSession(input: {
+		sdkHost: SdkSessionHost
+		sessionId: string
+		startConfig?: ActiveSession["startConfig"]
+		isRunning: boolean
+		shouldContinue?: () => boolean
+	}): Promise<ActiveSession> {
+		if (input.shouldContinue?.() === false) {
+			throw new SessionStartSupersededError()
+		}
+		if (this.activeSession) {
+			await this.endActiveSession("attachExistingSession")
+		}
+		if (input.shouldContinue?.() === false) {
+			throw new SessionStartSupersededError()
+		}
+		const session: ActiveSession = {
+			sessionId: input.sessionId,
+			startConfig: input.startConfig,
+			sdkHost: input.sdkHost,
+			unsubscribe: this.subscribeSessionHost(input.sdkHost),
+			isRunning: input.isRunning,
+			queuedPromptCount: 0,
+		}
+		this.activeSession = session
+		return session
+	}
+
+	async endActiveSessionIfHost(host: SdkSessionHost, reason: string): Promise<void> {
+		if (this.activeSession?.sdkHost === host) {
+			await this.endActiveSession(reason)
+		}
+	}
+
+	private subscribeSessionHost(sdkHost: SdkSessionHost): () => void {
+		return this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "session-host")
 	}
 
 	async replaceActiveSession(options: {
@@ -219,8 +360,10 @@ export class SdkSessionLifecycle {
 						modelId: input.start.config.modelId,
 					}
 				: activeSession.startConfig,
+			mode: toSessionMode(input.start?.config?.mode) ?? activeSession.mode,
 			startResult: restored.startResult,
 			isRunning: false,
+			queuedPromptCount: 0,
 		}
 
 		if (restored.sessionId !== sourceSessionId) {
@@ -324,8 +467,10 @@ export class SdkSessionLifecycle {
 				askQuestion: this.options.askQuestion,
 				editorExecutor: this.options.editorExecutor,
 				applyPatchExecutor: this.options.applyPatchExecutor,
+				readFileExecutor: this.options.readFileExecutor,
 				getTerminalManager: this.options.getTerminalManager,
 				foregroundCommands: this.options.foregroundCommands,
+				beforeStartSession: this.options.beforeStartSession,
 				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
 				telemetry: this.options.telemetry,
 			})
@@ -355,10 +500,13 @@ export class SdkSessionLifecycle {
 		// session was replaced by the time the send settles, the settle callbacks
 		// must not run bookkeeping against the successor (e.g. flipping a live
 		// auto-continued run to isRunning=false, which makes the event coordinator
-		// treat the new turn's completion as a cancelled-turn straggler).
+		// treat the new turn's completion as a cancelled-turn straggler). The
+		// same applies within one session when Core drains a queued prompt into
+		// a new turn before this send's promise settles.
 		const sessionAtSend = this.activeSession
+		const turnAtSend = this.turnGeneration
 		const isSuperseded = (label: string): boolean => {
-			if (this.activeSession === sessionAtSend) {
+			if (this.activeSession === sessionAtSend && this.turnGeneration === turnAtSend) {
 				return false
 			}
 			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
@@ -405,6 +553,13 @@ export class SdkSessionLifecycle {
 				this.setRunning(false)
 				await this.options.onSendError(error, sessionId)
 			})
+	}
+}
+
+export class SessionStartSupersededError extends Error {
+	constructor() {
+		super("Session start was superseded")
+		this.name = "SessionStartSupersededError"
 	}
 }
 

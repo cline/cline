@@ -23,6 +23,37 @@ describe("SdkTaskStartCoordinator", () => {
 		vi.mocked(isDirectory).mockResolvedValue(false)
 	})
 
+	it("starts the session and sends the first prompt inside one tracked session start", async () => {
+		const { coordinator, options } = makeCoordinator()
+		let tracking = false
+		options.sessions.trackSessionStart.mockImplementation(async (operation: () => Promise<unknown>) => {
+			tracking = true
+			try {
+				return await operation()
+			} finally {
+				tracking = false
+			}
+		})
+		const trackedCalls: string[] = []
+		options.sessionConfigBuilder.build.mockImplementation(async () => {
+			trackedCalls.push(`build:${tracking}`)
+			return { providerId: "anthropic", modelId: "model", apiKey: "key" }
+		})
+		options.sessions.startNewSession.mockImplementation((startInput?: { config?: { sessionId?: string } }) => {
+			trackedCalls.push(`start:${tracking}`)
+			return { startResult: { sessionId: startInput?.config?.sessionId ?? "session-123" }, sdkHost: { send: vi.fn() } }
+		})
+		options.sessions.fireAndForgetSend.mockImplementation(() => {
+			trackedCalls.push(`send:${tracking}`)
+		})
+
+		await coordinator.initTask("hello")
+
+		// The mode is read when the config is built, so a toggle has to wait from
+		// there until the session is active and its first turn is on its way.
+		expect(trackedCalls).toEqual(["build:true", "start:true", "send:true"])
+	})
+
 	it("initializes a new task, emits the task message, and sends the resolved prompt", async () => {
 		const { coordinator, options, state } = makeCoordinator()
 
@@ -53,12 +84,27 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: sessionId, task: "hello @file", modelId: "model" }),
 		)
+		// Attachments must be on the authoritative task message so the webview's
+		// optimistic pending copy (which carries them) gets confirmed and cleared.
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ type: "say", say: "task", text: "hello @file" })],
+			[
+				expect.objectContaining({
+					type: "say",
+					say: "task",
+					text: "hello @file",
+					images: ["image.png"],
+					files: ["a.ts"],
+				}),
+			],
 			{ type: "status", payload: { sessionId, status: "running" } },
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 		expect(options.messages.appendAndEmit.mock.invocationCallOrder[0]).toBeLessThan(
+			options.sessions.startNewSession.mock.invocationCallOrder[0],
+		)
+		// The first state post carries the streaming TurnState to the webview (thinking
+		// indicator) and must not wait for the potentially slow session startup.
+		expect(options.postStateToWebview.mock.invocationCallOrder[0]).toBeLessThan(
 			options.sessions.startNewSession.mock.invocationCallOrder[0],
 		)
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
@@ -69,6 +115,17 @@ describe("SdkTaskStartCoordinator", () => {
 			["image.png"],
 			["a.ts"],
 		)
+	})
+
+	it("omits images/files from the task message when the task has no attachments", async () => {
+		const { coordinator, options } = makeCoordinator()
+
+		await coordinator.initTask("plain text task")
+
+		const [emitted] = options.messages.appendAndEmit.mock.calls[0][0] as [Record<string, unknown>]
+		expect(emitted).toMatchObject({ type: "say", say: "task", text: "plain text task" })
+		expect(emitted).not.toHaveProperty("images")
+		expect(emitted).not.toHaveProperty("files")
 	})
 
 	it("emits a Cline auth error instead of starting when the cline provider has no token", async () => {
@@ -121,7 +178,8 @@ describe("SdkTaskStartCoordinator", () => {
 			],
 			{ type: "status", payload: { sessionId: state.task?.taskId, status: "error" } },
 		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		// One early post before session startup, one after the failure.
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 	})
 
 	it.each([true, false])("forwards task useAutoCondense=%s into SDK session config inputs", async (useAutoCondense) => {
@@ -242,6 +300,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 				sdkHost,
 			})),
 			fireAndForgetSend: vi.fn(),
+			trackSessionStart: vi.fn((operation: () => Promise<unknown>) => operation()),
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
@@ -288,6 +347,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		sessions: SdkTaskStartCoordinatorOptions["sessions"] & {
 			startNewSession: ReturnType<typeof vi.fn>
 			fireAndForgetSend: ReturnType<typeof vi.fn>
+			trackSessionStart: ReturnType<typeof vi.fn>
 		}
 		messages: SdkTaskStartCoordinatorOptions["messages"] & {
 			appendAndEmit: ReturnType<typeof vi.fn>

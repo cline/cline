@@ -141,7 +141,7 @@ export async function updateApiConfigurationProto(
 
 		// Update the API configuration in storage
 		controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
-		await clearOrganizationForClinePassProviderSelection(controller, normalizedApiConfiguration)
+		clearOrganizationForClinePassProviderSelection(controller, normalizedApiConfiguration)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {

@@ -19,6 +19,7 @@
  * OAuth-retry and run replay feasible.
  */
 
+import { randomUUID } from "node:crypto";
 import type { AgentRuntime } from "@cline/agents";
 import { createAgentRuntime } from "@cline/agents";
 import {
@@ -39,25 +40,39 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
+	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
 	type Message,
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsImageInput,
+	modelSupportsToolCalling,
 	type ToolCallRecord,
+	usesImageGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
-import { captureMistakeLimitReached } from "../../services/telemetry/core-events";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
+	captureAuthRunRetry,
+	captureMistakeLimitReached,
+	captureSessionErrorRecorded,
+} from "../../services/telemetry/core-events";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
+import {
+	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
+import {
+	prepareToolResultPreview,
+	prepareToolResultRecovery,
+	ToolResultCache,
+} from "../../session/services/tool-result-cache";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -72,6 +87,30 @@ import {
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
+
+export const SESSION_RUN_IN_PROGRESS_ERROR_CODE = "session_run_in_progress";
+
+/**
+ * A session was asked to shut down while one of its runs was still in flight and
+ * no abort had been requested.
+ *
+ * Carries a code so callers can recognise it structurally after it crosses the
+ * hub's JSON boundary, where an `Error` arrives as a bare message. Connectors use
+ * it to tell "this thread's session is unusable" apart from a genuine run failure,
+ * and to recover by starting a fresh session instead of wedging the thread.
+ */
+export class SessionRunInProgressError extends Error {
+	readonly code = SESSION_RUN_IN_PROGRESS_ERROR_CODE;
+
+	constructor(readonly agentId?: string) {
+		super(
+			`SessionRuntime.shutdown called while a run is in progress${
+				agentId ? ` (agentId=${agentId})` : ""
+			}`,
+		);
+		this.name = "SessionRunInProgressError";
+	}
+}
 
 function formatToolResultError(output: unknown): string {
 	if (typeof output === "string") {
@@ -153,11 +192,23 @@ function mergeRuntimeHooks(
 
 	return {
 		beforeRun: async (ctx) => {
+			let aggregate:
+				| Awaited<ReturnType<NonNullable<AgentRuntimeHooks["beforeRun"]>>>
+				| undefined;
 			for (const hook of hooks) {
 				const result = await hook.beforeRun?.(ctx);
-				if (result?.stop) return result;
+				if (!result) continue;
+				if (result.stop) return result;
+				const appendContext = [aggregate?.appendContext, result.appendContext]
+					.filter((value): value is string => Boolean(value?.trim()))
+					.join("\n\n");
+				aggregate = {
+					...aggregate,
+					...result,
+					appendContext: appendContext || undefined,
+				};
 			}
-			return undefined;
+			return aggregate;
 		},
 		afterRun: async (ctx) => {
 			for (const hook of hooks) {
@@ -283,6 +334,12 @@ export class SessionRuntime {
 	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
+	private readonly toolResultCache: ToolResultCache;
+	private cacheableToolNames = new Set<string>();
+	private readonly maxCachedResultChars: number;
+	private pendingTerminalError:
+		| Extract<AgentEvent, { type: "error" }>
+		| undefined;
 	private readonly mistakeTracker: MistakeTracker;
 	private readonly loopTracker: LoopDetectionTracker;
 	/**
@@ -359,12 +416,13 @@ export class SessionRuntime {
 	private activeTrackerWork: Promise<void> = Promise.resolve();
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
+	private readonly handleExternalAbort = (): void => {
+		this.abort(this.config.abortSignal?.reason);
+	};
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
-		this.agentId = `agent_${Date.now()}_${Math.random()
-			.toString(36)
-			.slice(2, 8)}`;
+		this.agentId = `agent_${randomUUID()}`;
 		this.parentAgentId = config.parentAgentId;
 		this.logger = deps.logger ?? config.logger;
 		this.telemetry = deps.telemetry ?? config.telemetry;
@@ -372,7 +430,19 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
+		this.toolResultCache = new ToolResultCache(
+			config.sessionId ?? this.agentId,
+		);
+		const messageBuilderOptions = getMessageBuilderOptionsFromEnv();
+		this.maxCachedResultChars =
+			messageBuilderOptions.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS;
+		this.messageBuilder = new MessageBuilder({
+			...messageBuilderOptions,
+			getToolResultRecovery: (result) =>
+				this.cacheableToolNames.has(result.name ?? "")
+					? { uri: this.toolResultCache.uriFor(result.tool_use_id) }
+					: undefined,
+		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,
@@ -458,7 +528,7 @@ export class SessionRuntime {
 
 	/** True when no run is currently active and the session is not shut down. */
 	canStartRun(): boolean {
-		return !this.running && !this.shutdownCalled;
+		return !this.running && !this.activeRunPromise && !this.shutdownCalled;
 	}
 
 	/**
@@ -532,6 +602,7 @@ export class SessionRuntime {
 	}
 
 	private resetConversationBoundaryTrackers(): void {
+		this.toolResultCache.clear();
 		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
 		this.loopTracker.reset();
@@ -557,6 +628,10 @@ export class SessionRuntime {
 	// -------------------------------------------------------------------
 	// Abort / shutdown
 	// -------------------------------------------------------------------
+
+	notifyPendingUserMessage(): void {
+		this.activeRuntime?.notifyPendingUserMessage();
+	}
 
 	abort(reason?: unknown): void {
 		const message =
@@ -625,9 +700,7 @@ export class SessionRuntime {
 	async shutdown(_reason?: string, _timeoutMs?: number): Promise<void> {
 		if (this.running) {
 			if (!this.abortRequested || !this.activeRunPromise) {
-				throw new Error(
-					`SessionRuntime.shutdown called while a run is in progress (agentId=${this.agentId})`,
-				);
+				throw new SessionRunInProgressError(this.agentId);
 			}
 			await this.activeRunPromise;
 		}
@@ -635,6 +708,7 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
+		this.toolResultCache.clear();
 	}
 
 	// -------------------------------------------------------------------
@@ -646,6 +720,8 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		const rejection = this.getRunAdmissionError();
+		if (rejection) return Promise.reject(rejection);
 		this.conversation.resetForRun();
 		this.resetConversationBoundaryTrackers();
 		return this.executeRun({
@@ -661,6 +737,8 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		const rejection = this.getRunAdmissionError();
+		if (rejection) return Promise.reject(rejection);
 		return this.executeRun({
 			userMessage,
 			userImages,
@@ -673,15 +751,35 @@ export class SessionRuntime {
 	// Private implementation
 	// -------------------------------------------------------------------
 
-	private async composeSystemPrompt(): Promise<string> {
+	private async composeSystemPrompt(
+		availableToolNames: ReadonlySet<string>,
+	): Promise<string> {
 		const rules: string[] = [];
 		for (const rule of this.contributionRegistry.getRegisteredRules()) {
+			if (
+				rule.whenToolAvailable &&
+				!availableToolNames.has(rule.whenToolAvailable)
+			) {
+				continue;
+			}
 			const content = await resolveRuleContent(rule);
 			if (content) {
 				rules.push(content);
 			}
 		}
 		return mergeSystemPromptRules(this.config.systemPrompt, rules);
+	}
+
+	private getRunAdmissionError(): Error | undefined {
+		if (this.shutdownCalled)
+			return new Error(
+				`SessionRuntime.run called after shutdown (agentId=${this.agentId})`,
+			);
+		if (this.running || this.activeRunPromise)
+			return new Error(
+				`SessionRuntime state is "running"; call canStartRun() first (agentId=${this.agentId})`,
+			);
+		return undefined;
 	}
 
 	private executeRun(input: {
@@ -691,13 +789,100 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunInternal(input).finally(() => {
-			if (this.activeRunPromise === activePromise) {
-				this.activeRunPromise = null;
-			}
-		});
+		activePromise = this.executeRunWithAuthRetry(input)
+			.then(
+				(result) => {
+					if (result.finishReason === "error") {
+						this.recordTerminalError(result.text, "result");
+						return { ...result, messages: this.conversation.getMessages() };
+					}
+					this.pendingTerminalError = undefined;
+					return result;
+				},
+				(error: unknown) => {
+					this.recordTerminalError(
+						error instanceof Error ? error.message : String(error),
+						"thrown",
+					);
+					throw error;
+				},
+			)
+			.finally(() => {
+				if (this.activeRunPromise === activePromise) {
+					this.activeRunPromise = null;
+				}
+			});
 		this.activeRunPromise = activePromise;
 		return activePromise;
+	}
+
+	private recordTerminalError(
+		message: string,
+		source: "result" | "thrown",
+	): void {
+		this.conversation.appendMessage({
+			id: `error_${crypto.randomUUID()}`,
+			role: "assistant",
+			content: [{ type: "text", text: message }],
+			ts: Date.now(),
+			metadata: { displayOnly: true, displayRole: "error" },
+			modelInfo: { id: this.config.modelId, provider: this.config.providerId },
+		});
+		const event = this.pendingTerminalError;
+		this.pendingTerminalError = undefined;
+		this.emitLegacyEvent(
+			event?.error.message === message
+				? event
+				: {
+						type: "error",
+						error: new Error(message),
+						recoverable: false,
+						iteration: 0,
+					},
+		);
+		// Count terminal visible failures without collecting provider error text,
+		// prompts, credentials, or transcript content.
+		try {
+			captureSessionErrorRecorded(this.telemetry, {
+				sessionId: this.config.sessionId,
+				provider: this.config.providerId,
+				model: this.config.modelId,
+				source,
+			});
+		} catch {
+			// Telemetry must not prevent the transcript from being returned/saved.
+		}
+	}
+
+	/**
+	 * Retry a run once when it failed with an auth-like error and the host
+	 * refreshed credentials via `config.onAuthError`. The failed attempt's
+	 * trail is already persisted to the conversation store, so the retry
+	 * continues from where the stream died instead of replaying the run.
+	 */
+	private async executeRunWithAuthRetry(input: {
+		userMessage?: string;
+		userImages?: string[];
+		userFiles?: string[];
+		isContinue: boolean;
+	}): Promise<AgentResult> {
+		const result = await this.executeRunInternal(input);
+		if (
+			result.finishReason !== "error" ||
+			!this.config.onAuthError ||
+			!isLikelyAuthError(result.text)
+		) {
+			return result;
+		}
+		const refreshed = await this.config.onAuthError().catch(() => false);
+		if (!refreshed) {
+			return result;
+		}
+		const retryResult = await this.executeRunInternal({ isContinue: true });
+		captureAuthRunRetry(this.telemetry, this.config.providerId, {
+			recovered: retryResult.finishReason !== "error",
+		});
+		return retryResult;
 	}
 
 	private async executeRunInternal(input: {
@@ -724,7 +909,7 @@ export class SessionRuntime {
 			.slice(2, 8)}`;
 		// Lazily initialize contribution-registry extensions on the
 		// first run, before runtime construction.
-		await this.ensureExtensionsInitialized();
+		await this.initializeExtensions();
 		this.eventAdapter.reset();
 		this.currentRunToolCalls = [];
 		this.currentRunUsage = { inputTokens: 0, outputTokens: 0 };
@@ -753,11 +938,14 @@ export class SessionRuntime {
 				input.userFiles,
 				this.config.userFileContentLoader,
 			);
-			this.conversation.appendMessage({ role: "user", content });
+			this.conversation.appendMessage({
+				id: crypto.randomUUID(),
+				role: "user",
+				content,
+			});
 		}
 
 		// Build the AgentRuntime for this turn.
-		const systemPrompt = await this.composeSystemPrompt();
 		const agentModel = createAgentModelFromConfig(
 			this.config,
 			this.logger,
@@ -789,7 +977,19 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const tools = Array.from(mergedToolsByName.values());
+		const dedicatedImageGeneration = usesImageGenerationOperation(
+			modelInfo ?? {},
+		);
+		const toolCallingDisabled =
+			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+		const availableTools = filterAvailableExtensionTools(
+			Array.from(mergedToolsByName.values()),
+			this.config.toolPolicies,
+		);
+		const tools = toolCallingDisabled ? [] : availableTools;
+		const systemPrompt = await this.composeSystemPrompt(
+			new Set(tools.map((tool) => tool.name)),
+		);
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is
 		// preserved across runs. Fixes P1 #1: prior turns were silently
@@ -798,6 +998,11 @@ export class SessionRuntime {
 		// conversation with just the current-turn trail.
 		const initialMessages = messagesToAgentMessages(
 			this.conversation.getMessages(),
+		);
+		this.cacheableToolNames = new Set(
+			tools
+				.filter((tool) => tool.resultPolicy === "cache-oversized")
+				.map((tool) => tool.name.toLowerCase()),
 		);
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
@@ -810,27 +1015,41 @@ export class SessionRuntime {
 			telemetry: this.telemetry,
 			tools,
 			toolContextMetadata: {
-				modelSupportsImages:
-					modelInfo?.capabilities?.includes("images") ?? true,
+				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...this.config.toolContextMetadata,
-				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: this.telemetry,
+				toolResultCache: this.toolResultCache,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
+			completionPolicy: toolCallingDisabled ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
 		this.activeRuntime = runtime;
-		if (this.abortRequested) {
-			runtime.abort(this.abortReason);
-		}
 
 		// Subscribe to runtime events; fan out legacy events to listeners
 		// and keep private book-keeping for tool-call records / usage.
 		const unsubscribe = runtime.subscribe((event: AgentRuntimeEvent) => {
+			// AgentRuntime does not accept abort() until run-started. Retain an abort
+			// requested during finite startup and forward it at that existing lifecycle
+			// boundary instead of adding a second initialization-cancellation path.
+			if (event.type === "run-started" && this.abortRequested) {
+				runtime.abort(this.abortReason);
+			}
 			this.handleRuntimeEvent(event);
 		});
+		if (this.config.abortSignal) {
+			if (this.config.abortSignal.aborted) {
+				this.handleExternalAbort();
+			} else {
+				this.config.abortSignal.addEventListener(
+					"abort",
+					this.handleExternalAbort,
+					{ once: true },
+				);
+			}
+		}
 
 		let runResult: AgentRunResult | undefined;
 		let thrownError: Error | undefined;
@@ -848,6 +1067,10 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			this.config.abortSignal?.removeEventListener(
+				"abort",
+				this.handleExternalAbort,
+			);
 			// Drain any in-flight tracker work (mistake/loop side-effects
 			// queued from handleRuntimeEvent) before we clear state so a
 			// late abort can still reach the runtime if needed.
@@ -904,6 +1127,16 @@ export class SessionRuntime {
 	 * Idempotent: subsequent calls are no-ops once the registry has
 	 * been activated.
 	 */
+	private extensionInitialization?: Promise<void>;
+	async initializeExtensions(): Promise<void> {
+		this.extensionInitialization ??= this.ensureExtensionsInitialized().catch(
+			(error) => {
+				this.extensionInitialization = undefined;
+				throw error;
+			},
+		);
+		return this.extensionInitialization;
+	}
 	private async ensureExtensionsInitialized(): Promise<void> {
 		if (this.extensionsInitialized) {
 			return;
@@ -935,6 +1168,24 @@ export class SessionRuntime {
 		]);
 		return {
 			...hooks,
+			afterTool: async (ctx) => {
+				const control = await hooks.afterTool?.(ctx);
+				const result = control?.result ?? ctx.result;
+				if (ctx.tool.resultPolicy === "cache-oversized") {
+					const { text: previewText } = prepareToolResultPreview(
+						toPersistedToolResultContent(result.output),
+					);
+					if (
+						typeof previewText === "string" &&
+						previewText.length > this.maxCachedResultChars
+					) {
+						const { text } = prepareToolResultRecovery(result.output);
+						if (typeof text === "string")
+							this.toolResultCache.store(ctx.toolCall.toolCallId, text);
+					}
+				}
+				return control;
+			},
 			beforeModel: async (ctx) => {
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {
@@ -987,6 +1238,8 @@ export class SessionRuntime {
 					provider: this.config.providerId,
 					info: modelInfo,
 				},
+				overflowRecovery: context.overflowRecovery,
+				previousRequestInputTokens: context.previousRequestInputTokens,
 				emitStatusNotice: context.emitStatusNotice,
 			});
 			if (!result) {
@@ -1012,7 +1265,12 @@ export class SessionRuntime {
 		return messagesToAgentMessages(providerMessages);
 	}
 
-	private async prepareProviderMessagesForApi(
+	/**
+	 * Projects canonical messages into the provider-request shape: extension
+	 * message builders, then `MessageBuilder.buildForApi` (tool-result
+	 * truncation, repairs). Produces the `apiMessages` given to `prepareTurn`.
+	 */
+	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;
@@ -1036,6 +1294,7 @@ export class SessionRuntime {
 				break;
 			}
 			case "turn-started": {
+				this.toolResultCache.advanceIteration();
 				// Reset per-turn tool-outcome counters used by the
 				// MistakeTracker wiring. Parity with pre-Step-9
 				// agent.ts which accumulates per-iteration success/fail
@@ -1049,6 +1308,9 @@ export class SessionRuntime {
 			case "tool-started": {
 				this.toolStartedAt.set(event.toolCall.toolCallId, new Date());
 				this.toolInputs.set(event.toolCall.toolCallId, event.toolCall.input);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Loop-detection inspection: identical consecutive
 				// tool-call signatures trip the tracker. On "soft"
 				// verdict we append a recovery notice; on "hard"
@@ -1083,6 +1345,7 @@ export class SessionRuntime {
 				const record: ToolCallRecord = {
 					id: event.toolCall.toolCallId,
 					name: event.toolCall.toolName,
+					execution: event.toolCall.execution,
 					input,
 					output:
 						resultPart?.type === "tool-result" ? resultPart.output : undefined,
@@ -1095,6 +1358,9 @@ export class SessionRuntime {
 					endedAt,
 				};
 				this.currentRunToolCalls.push(record);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Per-turn success/failure bookkeeping for MistakeTracker.
 				if (isError) {
 					this.currentTurnFailedTools += 1;
@@ -1151,6 +1417,11 @@ export class SessionRuntime {
 				break;
 		}
 		for (const legacy of this.eventAdapter.translate(event)) {
+			if (legacy.type === "error" && !legacy.recoverable) {
+				// Auth retry is an internal attempt, not a terminal public failure.
+				this.pendingTerminalError = legacy;
+				continue;
+			}
 			this.emitLegacyEvent(legacy);
 		}
 	}
@@ -1304,9 +1575,7 @@ export class SessionRuntime {
 					totalCost: runResult.usage.totalCost,
 				}
 			: this.currentRunUsage;
-		const messages = runResult
-			? agentMessagesToMessagesWithMetadata(runResult.messages)
-			: this.conversation.getMessages();
+		const messages = this.conversation.getMessages();
 		const modelInfo = tryGetModelInfo(this.config);
 		if (thrownError) {
 			throw thrownError;
@@ -1384,12 +1653,5 @@ async function buildUserTurnContent(
 }
 
 function tryGetModelInfo(config: AgentConfig): ModelInfo | undefined {
-	if (config.knownModels?.[config.modelId]) {
-		return config.knownModels[config.modelId];
-	}
-	const resolvedKnownModels = resolveKnownModelsFromConfig(config);
-	if (resolvedKnownModels?.[config.modelId]) {
-		return resolvedKnownModels[config.modelId];
-	}
-	return undefined;
+	return resolveKnownModelsFromConfig(config)?.[config.modelId];
 }

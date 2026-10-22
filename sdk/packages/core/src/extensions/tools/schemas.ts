@@ -18,7 +18,9 @@ const AbsolutePath = z
 
 export const ReadFileLineRangeSchema = z
 	.object({
-		start_line: z
+		// Models sometimes emit line numbers as strings; coerce so a `"3"` does not
+		// reject the whole tool call. The advertised JSON Schema is unaffected.
+		start_line: z.coerce
 			.number()
 			.int()
 			.positive()
@@ -27,7 +29,7 @@ export const ReadFileLineRangeSchema = z
 			.describe(
 				"Optional one-based starting line number to read from; use null or omit for the start of the file",
 			),
-		end_line: z
+		end_line: z.coerce
 			.number()
 			.int()
 			.positive()
@@ -147,6 +149,10 @@ export const StructuredCommandEntrySchema = z.union([
 export const RunCommandsInputSchema = z.object({
 	commands: z
 		.array(CommandInputSchema)
+		// Advertised to the model as minItems: 1. The lenient union below still
+		// accepts an empty list so the normalizer can reject it with one clear
+		// message instead of a union error.
+		.min(1)
 		.describe("Array of complete shell command strings to execute."),
 });
 
@@ -195,10 +201,15 @@ export const EditFileInputSchema = z
 			.string()
 			.min(1)
 			.describe("The absolute path for the action to be performed on"),
+		// Advertise old_text as a plain string: when the schema allows null, some
+		// models send null instead of the real text for replacement edits. Other
+		// models send null for optionals they aren't using, so null is still
+		// accepted at runtime and treated as omitted.
 		old_text: z
-			.string()
-			.nullable()
-			.optional()
+			.preprocess(
+				(value) => (value === null ? undefined : value),
+				z.string().optional(),
+			)
 			.describe(
 				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,
 			),
@@ -207,7 +218,8 @@ export const EditFileInputSchema = z
 			.describe(
 				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.`,
 			),
-		insert_line: z
+		// See start_line above: coerced so a stringified line number still applies.
+		insert_line: z.coerce
 			.number()
 			.int()
 			.nullable()
@@ -276,12 +288,12 @@ export const SubmitInputSchema = z.object({
 		.string()
 		.min(10)
 		.describe(
-			"Summarization of the investigation, steps taken, and resolution status to submit at the end of the session. Before submitting, read the problem again along with any provided test's assertions carefully and confirm your fix produces the expected output.",
+			"Summarization of the investigation, steps taken, and resolution status to submit at the end of the session. Before submitting, re-read the task requirements together with any provided tests or assertions, and confirm from your own tool output — not from assumption — that your solution produces the expected results at the expected file locations.",
 		),
 	verified: z
 		.boolean()
 		.describe(
-			`Have you verified that the issue is resolved to the best of your knowledge, including updating and creating all the requested files and items? 'True' if you have completed the investigation and taken all necessary steps to resolve the issue.\n'False' if you have done all you can but cannot resolve the issue or if you are stuck and cannot proceed further. =\nIMPORTANT: You must run the specific failing test(s) mentioned in the issue or test patch and include the test output in your reasoning. If the test still fails after your fix, you must revise. Do NOT submit with 'true' unless the test output shows the test passing.`,
+			`Have you verified that the issue is resolved to the best of your knowledge, including updating and creating all the requested files and items? 'True' if you have completed the investigation and gathered concrete evidence that every requirement is met.\n'False' if you have done all you can but cannot resolve the issue or if you are stuck and cannot proceed further.\nIMPORTANT: verify by EXECUTION, not by assumption. Before setting 'true' you must have observed evidence in this session that your solution works:\n- If the task provides or references specific tests, run those exact test(s) and include the passing output in your reasoning. If they still fail, revise and re-run.\n- If no tests are provided, construct your own check: actually run the program, script, or command you produced; confirm every required output file exists at the exact path requested; and confirm its contents match the required format, data types, and values. Read the output back as evidence.\nPhrases like "assume it works", "should be correct", or "probably fine" are NOT verification. Do NOT set 'true' unless your tool output shows the requirements are met; if you cannot obtain such evidence, set 'false'.`,
 		),
 });
 

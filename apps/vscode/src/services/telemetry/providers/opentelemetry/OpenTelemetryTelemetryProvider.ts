@@ -31,14 +31,20 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 	readonly name: string
 	private bypassUserSettings: boolean
+	private client?: { dispose(): Promise<void> }
 
 	constructor(
 		meterProvider: MeterProvider | null,
 		loggerProvider: LoggerProvider | null,
-		{ name, bypassUserSettings }: { name?: string; bypassUserSettings: boolean },
+		{
+			name,
+			bypassUserSettings,
+			client,
+		}: { name?: string; bypassUserSettings: boolean; client?: { dispose(): Promise<void> } },
 	) {
 		this.name = name || "OpenTelemetryProvider"
 		this.bypassUserSettings = bypassUserSettings
+		this.client = client
 
 		// Initialize telemetry settings
 		this.telemetrySettings = {
@@ -324,8 +330,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		// OpenTelemetry client provider handles shutdown
-		// Individual providers don't need to do anything
+		await this.client?.dispose()
 	}
 
 	/**

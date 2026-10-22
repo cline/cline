@@ -1,7 +1,13 @@
+import {
+	isMcpTimeoutConfigured,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
 import type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpResourceReadRequest,
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerRegistration,
 	McpServerSnapshot,
@@ -33,6 +39,7 @@ function cloneTools(
 		name: tool.name,
 		description: tool.description,
 		inputSchema: tool.inputSchema,
+		...(tool._meta ? { _meta: tool._meta } : {}),
 	}));
 }
 
@@ -63,10 +70,19 @@ export class InMemoryMcpManager implements McpManager {
 			const didTransportChange =
 				JSON.stringify(existing.registration.transport) !==
 				JSON.stringify(registration.transport);
+			// A client snapshots the timeout at construction. Preserve an
+			// unconfigured or malformed value as distinct from an explicit default
+			// because stdio initialize uses its default connect budget only when
+			// the timeout is not explicitly configured.
+			const didTimeoutChange =
+				isMcpTimeoutConfigured(existing.registration.timeoutSeconds) !==
+					isMcpTimeoutConfigured(registration.timeoutSeconds) ||
+				resolveMcpTimeoutSeconds(existing.registration.timeoutSeconds) !==
+					resolveMcpTimeoutSeconds(registration.timeoutSeconds);
 			existing.registration = { ...registration };
 			existing.updatedAt = nowMs();
 
-			if (didTransportChange) {
+			if (didTransportChange || didTimeoutChange) {
 				await this.disconnectState(existing);
 				existing.client = undefined;
 				existing.toolCache = undefined;
@@ -165,10 +181,44 @@ export class InMemoryMcpManager implements McpManager {
 		});
 	}
 
+	async readResource(
+		request: McpResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		const current = this.requireServer(request.serverName);
+		const client =
+			current.status === "connected" &&
+			current.client &&
+			!current.registration.disabled
+				? current.client
+				: await this.runExclusive(request.serverName, async () =>
+						this.ensureConnectedClient(this.requireServer(request.serverName)),
+					);
+		this.requireServer(request.serverName).updatedAt = nowMs();
+		if (!client.readResource) {
+			throw new Error(
+				`MCP server "${request.serverName}" client does not support reading resources.`,
+			);
+		}
+		return client.readResource({
+			uri: request.uri,
+			context: request.context,
+		});
+	}
+
 	async dispose(): Promise<void> {
 		const names = [...this.servers.keys()];
+		// One wedged server (e.g. a stdio child that never exits) must not stop
+		// the remaining servers from being disconnected.
+		const errors: unknown[] = [];
 		for (const name of names) {
-			await this.unregisterServer(name);
+			try {
+				await this.unregisterServer(name);
+			} catch (error) {
+				errors.push(error);
+			}
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, "MCP manager dispose failed");
 		}
 	}
 
@@ -195,15 +245,18 @@ export class InMemoryMcpManager implements McpManager {
 		}
 		state.status = "connecting";
 		state.updatedAt = nowMs();
+		let client = state.client;
 		try {
-			const client =
-				state.client ?? (await this.clientFactory(state.registration));
-			await client.connect();
+			client ??= await this.clientFactory(state.registration);
+			// Ownership transfers before connect: a failed initialize must still
+			// be reachable for cleanup, retry, and manager disposal.
 			state.client = client;
+			await client.connect();
 			state.status = "connected";
 			state.lastError = undefined;
 			state.updatedAt = nowMs();
 		} catch (error) {
+			await client?.disconnect().catch(() => {});
 			state.status = "disconnected";
 			state.lastError = error instanceof Error ? error.message : String(error);
 			state.updatedAt = nowMs();

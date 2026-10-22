@@ -55,11 +55,42 @@ describe("migration notice", () => {
 		);
 	});
 
-	it("does not show after the notice is marked as shown", () => {
+	it("does not show after every notice is marked as shown", () => {
+		const dataDir = createTempDataDir();
+
+		markClineCliMigrationNoticeShown(dataDir);
+		markClineCliMigrationNoticeShown(dataDir, "cline-cli-desktop-launch");
+
+		expect(getClineCliMigrationNotice(dataDir)).toBeUndefined();
+	});
+
+	it("shows the desktop launch notice once the ClinePass intro was shown", () => {
 		const dataDir = createTempDataDir();
 
 		markClineCliMigrationNoticeShown(dataDir);
 
+		const notice = getClineCliMigrationNotice(dataDir);
+		expect(notice?.id).toBe("cline-cli-desktop-launch");
+		expect(notice?.url).toBe("https://cline.bot/desktop");
+	});
+
+	it("shows only one notice per launch", () => {
+		const dataDir = createTempDataDir();
+
+		expect(getClineCliMigrationNotice(dataDir)?.id).toBe(
+			"cline-cli-cline-pass-intro",
+		);
+	});
+
+	it("marks the desktop launch notice as shown by id", () => {
+		const dataDir = createTempDataDir();
+
+		markClineCliMigrationNoticeShown(dataDir);
+		markClineCliMigrationNoticeShown(dataDir, "cline-cli-desktop-launch");
+
+		const rawState = readFileSync(resolveCliNoticeStatePath(dataDir), "utf8");
+		expect(rawState).toContain('"cline-cli-cline-pass-intro": true');
+		expect(rawState).toContain('"cline-cli-desktop-launch": true');
 		expect(getClineCliMigrationNotice(dataDir)).toBeUndefined();
 	});
 
@@ -85,7 +116,7 @@ describe("migration notice", () => {
 		).toBeUndefined();
 	});
 
-	it("does not show when ClinePass is already the active provider", () => {
+	it("does not show the ClinePass intro when ClinePass is already the active provider", () => {
 		const dataDir = createTempDataDir();
 
 		expect(
@@ -93,8 +124,8 @@ describe("migration notice", () => {
 				dataDir,
 				{},
 				{ activeProviderId: "cline-pass" },
-			),
-		).toBeUndefined();
+			)?.id,
+		).toBe("cline-cli-desktop-launch");
 	});
 
 	it("suppresses the active ClinePass provider even when the provider id has surrounding whitespace", () => {
@@ -141,6 +172,8 @@ describe("migration notice", () => {
 
 		const rawState = readFileSync(resolveCliNoticeStatePath(dataDir), "utf8");
 		expect(rawState).toContain("cline-cli-cline-pass-intro");
-		expect(getClineCliMigrationNotice(dataDir)).toBeUndefined();
+		expect(getClineCliMigrationNotice(dataDir)?.id).not.toBe(
+			"cline-cli-cline-pass-intro",
+		);
 	});
 });

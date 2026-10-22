@@ -105,6 +105,7 @@ function createLocalRuntimeHost(
 		sessionService:
 			backend ?? options.sessionService ?? createLocalBackend(options),
 		capabilities: options.capabilities,
+		logger: options.logger,
 		telemetry: options.telemetry,
 		toolPolicies: options.toolPolicies,
 		distinctId,
@@ -139,7 +140,6 @@ export async function createRuntimeHost(
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);
-	prewarmLocalHubIfNeeded(configuredMode, options);
 	if (configuredMode === "remote") {
 		const remoteEndpoint = options.remote?.endpoint?.trim();
 		if (!remoteEndpoint) {
@@ -162,15 +162,32 @@ export async function createRuntimeHost(
 	}
 	if (configuredMode === "hub") {
 		const explicitEndpoint = options.hub?.endpoint?.trim();
+		let startupError: unknown;
 		const hubUrl =
 			explicitEndpoint ||
 			(await ensureCompatibleLocalHubUrl({
 				strategy: options.hub?.strategy ?? "require-hub",
 				workspaceRoot: options.hub?.workspaceRoot,
 				cwd: options.hub?.cwd,
+				onStartupError: (error) => {
+					startupError = error;
+				},
 			}));
 		if (!hubUrl) {
-			throw new Error("No compatible hub runtime is available.");
+			// Keep the reason in the message: telemetry and logs record the
+			// message, and without it every startup failure looks identical.
+			const reason =
+				startupError instanceof Error
+					? startupError.message
+					: startupError === undefined
+						? undefined
+						: String(startupError);
+			throw new Error(
+				reason
+					? `No compatible hub runtime is available: ${reason}`
+					: "No compatible hub runtime is available.",
+				startupError === undefined ? undefined : { cause: startupError },
+			);
 		}
 		options.logger?.log("Using hub runtime host", {
 			url: hubUrl,
@@ -238,6 +255,7 @@ export async function createRuntimeHost(
 				});
 			}
 		}
+		prewarmLocalHubIfNeeded(configuredMode, options);
 		options.logger?.log("Falling back to local runtime host", {
 			reason: "compatible_hub_unavailable",
 			severity: "warn",

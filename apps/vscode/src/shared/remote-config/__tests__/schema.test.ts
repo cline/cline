@@ -248,7 +248,6 @@ describe("Remote Config Schema", () => {
 					{
 						id: "gpt-4",
 						temperature: 0.7,
-						isR1FormatRequired: true,
 						maxTokens: 4096,
 						contextWindow: 128000,
 						inputPrice: 0.03,
@@ -692,7 +691,6 @@ describe("Remote Config Schema", () => {
 							{
 								id: "gpt-4",
 								temperature: 0.7,
-								isR1FormatRequired: false,
 								maxTokens: 4096,
 								contextWindow: 128000,
 								inputPrice: 0.03,
@@ -702,7 +700,6 @@ describe("Remote Config Schema", () => {
 							{
 								id: "gpt-3.5-turbo",
 								temperature: 0.8,
-								isR1FormatRequired: false,
 								maxTokens: 4096,
 								contextWindow: 16000,
 								inputPrice: 0.001,

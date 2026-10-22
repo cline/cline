@@ -2,7 +2,7 @@ let activeRuntimeAbort: (() => void) | undefined;
 let activeRuntimeCleanup: (() => void) | undefined;
 let abortGraceTimer: ReturnType<typeof setTimeout> | undefined;
 let abortInProgress = false;
-let savedRejectionListeners: Function[] | undefined;
+let savedRejectionListeners: Array<(...args: unknown[]) => void> | undefined;
 
 export function setActiveRuntimeAbort(abortFn: (() => void) | undefined): void {
 	activeRuntimeAbort = abortFn;
@@ -49,9 +49,9 @@ export function markAbortInProgress(): void {
 	// rejections in the LLM streaming layer that reach every registered
 	// listener (including OpenTUI's error overlay). Swapping the listeners
 	// is the only way to prevent them from surfacing to the user.
-	savedRejectionListeners = process.rawListeners(
-		"unhandledRejection",
-	) as Function[];
+	savedRejectionListeners = process.rawListeners("unhandledRejection") as Array<
+		(...args: unknown[]) => void
+	>;
 	process.removeAllListeners("unhandledRejection");
 	process.on("unhandledRejection", (_reason, promise) => {
 		promise.catch(() => {});
@@ -68,10 +68,7 @@ export function clearAbortInProgress(): void {
 		if (savedRejectionListeners) {
 			process.removeAllListeners("unhandledRejection");
 			for (const listener of savedRejectionListeners) {
-				process.on(
-					"unhandledRejection",
-					listener as (...args: unknown[]) => void,
-				);
+				process.on("unhandledRejection", listener);
 			}
 			savedRejectionListeners = undefined;
 		}

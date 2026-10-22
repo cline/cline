@@ -1,9 +1,30 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
 	CLINE_JS_RUNTIME_PATH_ENV,
 	resolveSubprocessRuntimeExecutable,
+	SubprocessSandbox,
 } from "./subprocess-sandbox";
+
+const lifecycleBootstrapScript = [
+	"const generation = process.pid + ':' + Date.now() + ':' + Math.random();",
+	"let held;",
+	"process.on('message', (m) => {",
+	"  if (!m || m.type !== 'call') return;",
+	"  if (m.method === 'hold') { held = m; return; }",
+	"  const respond = (request) => process.send({ type: 'response', id: request.id, ok: true, result: { pid: process.pid, generation } });",
+	"  if (m.method === 'release') {",
+	"    if (held) { respond(held); held = undefined; }",
+	"    respond(m);",
+	"    return;",
+	"  }",
+	"  respond(m);",
+	"});",
+].join("\n");
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe("SubprocessSandbox runtime resolution", () => {
 	it("uses process execPath when it is a JavaScript runtime", () => {
@@ -28,6 +49,65 @@ describe("SubprocessSandbox runtime resolution", () => {
 				env: {},
 			}),
 		).toBe("node");
+	});
+
+	it("uses the current compiled Bun executable without relying on PATH", () => {
+		const path = "/opt/cline/cline";
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: path,
+				env: {},
+				host: { isBunRuntime: true, selfExecPath: path },
+			}),
+		).toBe(path);
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: path,
+				env: {},
+				host: { isBunRuntime: false, selfExecPath: path },
+			}),
+		).toBe("node");
+		expect(
+			resolveSubprocessRuntimeExecutable({
+				execPath: "/other/cline",
+				env: {},
+				host: { isBunRuntime: true, selfExecPath: path },
+			}),
+		).toBe("node");
+	});
+
+	it("retains system CA trust when a compiled executable becomes the helper runtime", () => {
+		const executable = "/opt/cline/cline";
+		const originalExecPath = process.execPath;
+		vi.stubGlobal("Bun", {});
+		try {
+			process.execPath = executable;
+			expect(
+				buildSubprocessSandboxCommand(["bootstrap.js"], {
+					execPath: executable,
+					env: {},
+					execArgv: [],
+				}),
+			).toEqual([executable, "--use-system-ca", "bootstrap.js"]);
+		} finally {
+			process.execPath = originalExecPath;
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("uses the host launcher without switching the executable to plain Bun", () => {
+		expect(
+			buildSubprocessSandboxCommand(["/embedded/plugin-sandbox-bootstrap.js"], {
+				launcher: {
+					command: "/opt/cline/cline",
+					argsPrefix: ["--plugin-sandbox"],
+				},
+			}),
+		).toEqual([
+			"/opt/cline/cline",
+			"--plugin-sandbox",
+			"/embedded/plugin-sandbox-bootstrap.js",
+		]);
 	});
 
 	it("allows an explicit helper runtime override", () => {
@@ -78,4 +158,140 @@ describe("SubprocessSandbox runtime resolution", () => {
 			"bootstrap.js",
 		]);
 	});
+});
+
+describe("SubprocessSandbox call", () => {
+	it("clears plain Bun mode for host-dispatched children without mutating the parent environment", async () => {
+		vi.stubEnv("CLINE_BUILD_ENV", "production");
+		vi.stubEnv("BUN_BE_BUN", "parent-value");
+		const sandbox = new SubprocessSandbox({
+			launcher: { command: process.execPath, argsPrefix: [] },
+			bootstrapScript:
+				"process.on('message', m => process.send({type:'response', id:m.id, ok:true, result:process.env.BUN_BE_BUN ?? null}));",
+		});
+		try {
+			await expect(sandbox.call("environment", {})).resolves.toBeNull();
+			expect(process.env.BUN_BE_BUN).toBe("parent-value");
+		} finally {
+			await sandbox.shutdown();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it("rejects non-serializable payloads without arming the timeout shutdown", async () => {
+		const sandbox = new SubprocessSandbox({
+			name: "sandbox-serialization-test",
+			// Echo server; the "slow" method answers after a delay so a call can
+			// be held in flight while the failed send's timeout window elapses.
+			bootstrapScript: [
+				"process.on('message', (m) => {",
+				"  if (!m || m.type !== 'call') return;",
+				"  const reply = () => process.send({ type: 'response', id: m.id, ok: true, result: m.args });",
+				"  if (m.method === 'slow') { setTimeout(reply, 800); } else { reply(); }",
+				"});",
+			].join("\n"),
+		});
+		try {
+			const cyclic: Record<string, unknown> = {};
+			cyclic.self = cyclic;
+
+			const slowCall = sandbox.call("slow", { ok: true }, { timeoutMs: 5000 });
+
+			// send() throws synchronously for cyclic payloads. Before the fix the
+			// pending timeout timer survived the rejection and fired ~250 ms
+			// later, shutting the sandbox down and killing the in-flight slow
+			// call above.
+			await expect(
+				sandbox.call("echo", cyclic, { timeoutMs: 250 }),
+			).rejects.toThrow(/cyclic|circular/i);
+
+			await expect(slowCall).resolves.toEqual({ ok: true });
+		} finally {
+			await sandbox.shutdown();
+		}
+	}, 20_000);
+});
+
+describe("SubprocessSandbox idle lifecycle", () => {
+	it("reclaims every child across multiple idle sandboxes", async () => {
+		vi.useFakeTimers();
+		const sandboxes = Array.from(
+			{ length: 4 },
+			(_, index) =>
+				new SubprocessSandbox({
+					name: `sandbox-idle-population-${index}`,
+					bootstrapScript: lifecycleBootstrapScript,
+					idleTimeoutMs: 1000,
+				}),
+		);
+
+		try {
+			const firstGeneration = await Promise.all(
+				sandboxes.map((sandbox) =>
+					sandbox.call<{ generation: string }>("pid", {}),
+				),
+			);
+
+			await vi.advanceTimersByTimeAsync(1001);
+
+			const secondGeneration = await Promise.all(
+				sandboxes.map((sandbox) =>
+					sandbox.call<{ generation: string }>("pid", {}),
+				),
+			);
+			for (const [index, current] of secondGeneration.entries()) {
+				expect(current.generation).not.toBe(firstGeneration[index]?.generation);
+			}
+		} finally {
+			vi.useRealTimers();
+			await Promise.all(sandboxes.map((sandbox) => sandbox.shutdown()));
+		}
+	}, 20_000);
+
+	it("shuts down an idle child and transparently starts a new generation", async () => {
+		vi.useFakeTimers();
+		const sandbox = new SubprocessSandbox({
+			name: "sandbox-idle-test",
+			bootstrapScript: lifecycleBootstrapScript,
+			idleTimeoutMs: 1000,
+		});
+
+		try {
+			const first = await sandbox.call<{
+				pid: number;
+				generation: string;
+			}>("pid", {});
+
+			await vi.advanceTimersByTimeAsync(1001);
+
+			const second = await sandbox.call<{ generation: string }>("pid", {});
+			expect(second.generation).not.toBe(first.generation);
+		} finally {
+			vi.useRealTimers();
+			await sandbox.shutdown();
+		}
+	}, 20_000);
+
+	it("does not shut down while calls are pending", async () => {
+		vi.useFakeTimers();
+		const sandbox = new SubprocessSandbox({
+			name: "sandbox-pending-idle-test",
+			bootstrapScript: lifecycleBootstrapScript,
+			idleTimeoutMs: 1000,
+		});
+
+		try {
+			const initial = await sandbox.call<{ pid: number }>("pid", {});
+			const heldCall = sandbox.call<{ pid: number }>("hold", {});
+
+			await vi.advanceTimersByTimeAsync(5000);
+
+			const release = await sandbox.call<{ pid: number }>("release", {});
+			await expect(heldCall).resolves.toMatchObject({ pid: initial.pid });
+			expect(release.pid).toBe(initial.pid);
+		} finally {
+			vi.useRealTimers();
+			await sandbox.shutdown();
+		}
+	}, 20_000);
 });

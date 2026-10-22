@@ -2,6 +2,7 @@ export type CommandPaletteAction =
 	| "settings"
 	| "change-model"
 	| "change-provider"
+	| "theme"
 	| "account"
 	| "mcp"
 	| "plugins"
@@ -56,6 +57,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+P",
 		description: "Switch provider and configure credentials",
 		keywords: ["provider", "api key", "account", "auth"],
+	},
+	{
+		action: "theme",
+		label: "Change Theme",
+		shortcut: "Opt+T",
+		description: "Pick a color theme for the TUI",
+		keywords: ["theme", "colors", "dark", "light", "appearance"],
 	},
 	{
 		action: "mcp",

@@ -45,6 +45,23 @@ describe("SdkSessionHistoryLoader", () => {
 		])
 	})
 
+	it("prefers the live in-memory conversation when the host exposes it", async () => {
+		const liveMessages = [
+			{ role: "user", content: "list the files in this folder" },
+			{ role: "assistant", content: "I will list them now." },
+		]
+		const reader = {
+			readLiveMessages: vi.fn().mockResolvedValue(liveMessages),
+			readMessages: vi.fn().mockResolvedValue([]),
+		} as unknown as SdkSessionHost
+
+		const result = await new SdkSessionHistoryLoader().loadInitialMessages(reader, "task-1")
+
+		expect(reader.readLiveMessages).toHaveBeenCalledWith("task-1")
+		expect(reader.readMessages).not.toHaveBeenCalled()
+		expect(result).toEqual(liveMessages)
+	})
+
 	it("falls back to classic API history when SDK messages are empty", async () => {
 		const reader = {
 			readMessages: vi.fn().mockResolvedValue([]),

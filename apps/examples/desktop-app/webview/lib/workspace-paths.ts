@@ -1,15 +1,43 @@
+import { isChatWorkspacePath } from "@cline/shared/browser";
+
 export const WORKSPACE_SELECTION_STORAGE_KEY =
-	"cline.code.workspace-selection.v1";
+	"cline.code.workspace-selection.v2";
+
+export const LOCAL_WORKSPACE_ENVIRONMENT_ID = "local";
 
 export type WorkspaceSelectionStorage = {
 	lastWorkspace: string;
 	workspaces: string[];
 };
 
+type WorkspaceSelectionStore = {
+	environments: Record<string, WorkspaceSelectionStorage>;
+};
+
 export type WorkspacePathSource = {
 	cwd?: string;
 	workspaceRoot?: string;
+	startedAt?: string;
+	endedAt?: string;
+	origin?: string;
+	environmentId: string;
 };
+
+// Do not offer a cloud sandbox path as a local workspace.
+function isLocalWorkspaceSource(session: WorkspacePathSource): boolean {
+	return session.origin !== "cloud";
+}
+
+/** Typed/pasted folder paths in search boxes double as manual path entry. */
+export function looksLikeFolderPath(value: string): boolean {
+	const trimmed = value.trim();
+	return (
+		trimmed.startsWith("/") ||
+		trimmed === "~" ||
+		trimmed.startsWith("~/") ||
+		/^[A-Za-z]:[\\/]/.test(trimmed)
+	);
+}
 
 export function normalizeWorkspacePath(path: string): string {
 	const trimmed = path.trim();
@@ -21,6 +49,11 @@ export function normalizeWorkspacePath(path: string): string {
 	return /^[A-Za-z]:/.test(normalized) ? normalized.toLowerCase() : normalized;
 }
 
+/**
+ * Dedupes paths across groups, keeping the first spelling seen and the
+ * first-seen position, so callers control the ranking (e.g. session recency)
+ * through argument order.
+ */
 export function mergeWorkspacePaths(
 	...pathGroups: ReadonlyArray<readonly string[]>
 ): string[] {
@@ -34,53 +67,206 @@ export function mergeWorkspacePaths(
 			}
 		}
 	}
-	return [...byNormalizedPath.values()].sort((a, b) => a.localeCompare(b));
+	return [...byNormalizedPath.values()];
 }
 
+const WINDOWS_ABSOLUTE_PATH_PATTERN = /^(?:[A-Za-z]:[\\/]|\\\\)/;
+
+export function isAbsoluteFilePath(path: string): boolean {
+	return path.startsWith("/") || WINDOWS_ABSOLUTE_PATH_PATTERN.test(path);
+}
+
+/**
+ * Diff tool outputs carry paths as the agent wrote them — sometimes absolute,
+ * sometimes relative to the session cwd. The webview has no `node:path`, so
+ * relative paths are joined against the cwd with the separator style the cwd
+ * already uses.
+ */
+export function resolveWorkspaceFilePath(path: string, cwd?: string): string {
+	const trimmed = path.trim();
+	const base = (cwd ?? "").trim();
+	if (!trimmed || !base || isAbsoluteFilePath(trimmed)) {
+		return trimmed;
+	}
+	const separator = base.includes("\\") && !base.includes("/") ? "\\" : "/";
+	return `${base.replace(/[\\/]+$/, "")}${separator}${trimmed.replace(/^\.\//, "")}`;
+}
+
+const POSIX_HOME_OR_DESKTOP_PATTERN =
+	/^(?:\/Users\/[^/]+|\/home\/[^/]+|\/root)(?:\/Desktop)?$/;
+const WINDOWS_HOME_OR_DESKTOP_PATTERN =
+	/^[a-z]:[\\/]users[\\/][^\\/]+(?:[\\/]desktop)?$/i;
+
+let hostHomePath = "";
+
+/**
+ * The webview bundle has no usable `process.env`, so standard home locations
+ * are matched by the patterns above and the sidecar reports the real host
+ * home directory through `get_process_context` to cover non-standard ones.
+ */
+export function registerHostHomeDirectory(path: string): void {
+	hostHomePath = normalizeWorkspacePath(path);
+}
+
+function isRegisteredHomeOrDesktop(normalized: string): boolean {
+	if (!hostHomePath) {
+		return false;
+	}
+	if (normalized === hostHomePath) {
+		return true;
+	}
+	return (
+		normalized.startsWith(hostHomePath) &&
+		/^[\\/]desktop$/i.test(normalized.slice(hostHomePath.length))
+	);
+}
+
+/**
+ * Sessions can run anywhere (Cline-internal worktrees and plugin installs
+ * under `.cline`, or a shell's default cwd like the home or Desktop
+ * directory), but those locations are not projects to offer in the
+ * workspace catalog. The active workspace root is registered separately,
+ * so an explicitly opened directory still shows while selected.
+ */
+export function isExcludedWorkspacePath(path: string): boolean {
+	const normalized = normalizeWorkspacePath(path);
+	if (!normalized) {
+		return false;
+	}
+	if (isChatWorkspacePath(normalized)) {
+		return true;
+	}
+	if (normalized.split(/[\\/]/).includes(".cline")) {
+		return true;
+	}
+	return (
+		isRegisteredHomeOrDesktop(normalized) ||
+		POSIX_HOME_OR_DESKTOP_PATTERN.test(normalized) ||
+		WINDOWS_HOME_OR_DESKTOP_PATTERN.test(normalized)
+	);
+}
+
+let taskWorktreeRoot = "";
+
+/**
+ * The sidecar creates task worktrees under `<cline dir>/worktrees`, where the
+ * Cline dir honors `CLINE_DIR`, and reports that root through
+ * `get_process_context` so the webview matches the same location it uses.
+ */
+export function registerTaskWorktreeRoot(path: string): void {
+	taskWorktreeRoot = normalizeWorkspacePath(path);
+}
+
+/**
+ * Worktrees the app creates for tasks (`<worktree root>/<id>/<repo>`) are
+ * transient: a task runs there, but they are never the workspace to remember
+ * or to start the next thread in. Only the exact generated shape qualifies.
+ */
+export function isTaskWorktreePath(path: string): boolean {
+	const normalized = normalizeWorkspacePath(path);
+	if (!taskWorktreeRoot || !normalized.startsWith(taskWorktreeRoot)) {
+		return false;
+	}
+	return /^[\\/][^\\/]+[\\/][^\\/]+$/.test(
+		normalized.slice(taskWorktreeRoot.length),
+	);
+}
+
+export function filterWorkspacePaths(paths: readonly string[]): string[] {
+	return paths.filter((path) => !isExcludedWorkspacePath(path));
+}
+
+/**
+ * Workspaces with the most recent session activity come first; paths whose
+ * sessions carry no parseable timestamp fall back to alphabetical order at
+ * the end.
+ */
 export function workspacePathsFromSessions(
 	sessions: readonly WorkspacePathSource[],
+	environmentId: string,
 ): string[] {
-	return mergeWorkspacePaths(
-		sessions.map((session) => session.workspaceRoot || session.cwd || ""),
+	const scopedSessions = sessions.filter(
+		(session) =>
+			session.environmentId === environmentId &&
+			isLocalWorkspaceSource(session),
 	);
+	const lastActivityByPath = new Map<string, number>();
+	for (const session of scopedSessions) {
+		const normalized = normalizeWorkspacePath(
+			session.workspaceRoot || session.cwd || "",
+		);
+		if (!normalized) {
+			continue;
+		}
+		const activity = Date.parse(session.endedAt ?? session.startedAt ?? "");
+		if (Number.isNaN(activity)) {
+			continue;
+		}
+		const known = lastActivityByPath.get(normalized);
+		if (known === undefined || activity > known) {
+			lastActivityByPath.set(normalized, activity);
+		}
+	}
+	return filterWorkspacePaths(
+		mergeWorkspacePaths(
+			scopedSessions.map(
+				(session) => session.workspaceRoot || session.cwd || "",
+			),
+		),
+	).sort((a, b) => {
+		const aTime = lastActivityByPath.get(normalizeWorkspacePath(a)) ?? 0;
+		const bTime = lastActivityByPath.get(normalizeWorkspacePath(b)) ?? 0;
+		return bTime === aTime ? a.localeCompare(b) : bTime - aTime;
+	});
 }
 
 export function parseWorkspaceSelectionStorage(
 	raw: string | null,
+	environmentId: string,
 ): WorkspaceSelectionStorage {
 	if (!raw) {
 		return { lastWorkspace: "", workspaces: [] };
 	}
 	try {
 		const parsed = JSON.parse(raw) as {
-			lastWorkspace?: unknown;
-			workspaces?: unknown;
+			environments?: Record<string, unknown>;
 		};
-		const lastWorkspace =
-			typeof parsed?.lastWorkspace === "string"
-				? parsed.lastWorkspace.trim()
+		const selected = parsed.environments?.[environmentId] as
+			| { lastWorkspace?: unknown; workspaces?: unknown }
+			| undefined;
+		const parsedLastWorkspace =
+			typeof selected?.lastWorkspace === "string"
+				? selected.lastWorkspace.trim()
 				: "";
-		const workspaces = Array.isArray(parsed?.workspaces)
-			? parsed.workspaces.filter(
+		const lastWorkspace = isChatWorkspacePath(parsedLastWorkspace)
+			? ""
+			: parsedLastWorkspace;
+		const workspaces = Array.isArray(selected?.workspaces)
+			? selected.workspaces.filter(
 					(workspace): workspace is string => typeof workspace === "string",
 				)
 			: [];
 		return {
 			lastWorkspace,
-			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
+			workspaces: filterWorkspacePaths(
+				mergeWorkspacePaths(workspaces, [lastWorkspace]),
+			),
 		};
 	} catch {
 		return { lastWorkspace: "", workspaces: [] };
 	}
 }
 
-export function readWorkspaceSelectionFromWindow(): WorkspaceSelectionStorage {
+export function readWorkspaceSelectionFromWindow(
+	environmentId: string,
+): WorkspaceSelectionStorage {
 	if (typeof window === "undefined") {
 		return { lastWorkspace: "", workspaces: [] };
 	}
 	try {
 		return parseWorkspaceSelectionStorage(
 			window.localStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY),
+			environmentId,
 		);
 	} catch {
 		return { lastWorkspace: "", workspaces: [] };
@@ -88,19 +274,40 @@ export function readWorkspaceSelectionFromWindow(): WorkspaceSelectionStorage {
 }
 
 export function writeWorkspaceSelectionToWindow(
+	environmentId: string,
 	value: WorkspaceSelectionStorage,
 ): void {
 	if (typeof window === "undefined") {
 		return;
 	}
 	try {
+		const current = (() => {
+			try {
+				const parsed = JSON.parse(
+					window.localStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY) ?? "{}",
+				) as Partial<WorkspaceSelectionStore>;
+				return parsed.environments && typeof parsed.environments === "object"
+					? parsed.environments
+					: {};
+			} catch {
+				return {};
+			}
+		})();
+		const lastWorkspace = isChatWorkspacePath(value.lastWorkspace)
+			? ""
+			: value.lastWorkspace.trim();
 		window.localStorage.setItem(
 			WORKSPACE_SELECTION_STORAGE_KEY,
 			JSON.stringify({
-				lastWorkspace: value.lastWorkspace.trim(),
-				workspaces: mergeWorkspacePaths(value.workspaces, [
-					value.lastWorkspace,
-				]),
+				environments: {
+					...current,
+					[environmentId]: {
+						lastWorkspace,
+						workspaces: filterWorkspacePaths(
+							mergeWorkspacePaths(value.workspaces, [lastWorkspace]),
+						),
+					},
+				},
 			}),
 		);
 	} catch {

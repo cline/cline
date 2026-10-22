@@ -1,3 +1,5 @@
+export { sanitizeTeamName } from "./sanitize-team-name";
+
 import type { AgentResult } from "@cline/shared";
 import {
 	type AgentTool,
@@ -230,6 +232,10 @@ function spawnTeamTeammate(
 			teammateConfigProvider: options.teammateConfigProvider,
 			createBaseTools: options.createBaseTools,
 			allowSpawn: false,
+			// Spawning is lead-only; exposing the tool to teammates just
+			// makes them burn turns on "Only the lead agent can manage
+			// teammates." rejections.
+			includeSpawnTool: false,
 		}),
 	);
 	options.runtime.spawnTeammate({
@@ -902,11 +908,4 @@ export function reviveTeamStateDates(
 				: undefined,
 		})),
 	};
-}
-
-export function sanitizeTeamName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
 }

@@ -2,6 +2,10 @@ import {
 	type AgentEvent,
 	type AgentHooks,
 	type CheckpointEntry,
+	type CoreSettingsListInput,
+	type CoreSettingsMutationResult,
+	type CoreSettingsSnapshot,
+	type CoreSettingsToggleInput,
 	createSessionCompactionState,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
@@ -15,7 +19,7 @@ import {
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
 } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { MessageWithMetadata } from "@cline/shared";
 import { createCliCore } from "../../session/session";
 import { submitAndExitInTerminal } from "../../utils/approval";
 import type {
@@ -24,6 +28,7 @@ import type {
 } from "../../utils/chat-commands";
 import { createRuntimeHooks } from "../../utils/hooks";
 import { setActiveCliSession } from "../../utils/output";
+import { formatPluginIssueWarnings } from "../../utils/plugin-issues";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
@@ -56,11 +61,11 @@ type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
 type CurrentMessagesRead =
-	| { messages: Message[]; status: "read" }
-	| { messages: Message[]; status: "recovered" }
-	| { messages: Message[]; status: "stale" };
+	| { messages: MessageWithMetadata[]; status: "read" }
+	| { messages: MessageWithMetadata[]; status: "recovered" }
+	| { messages: MessageWithMetadata[]; status: "stale" };
 type MissingSessionRecovery = {
-	messages: Message[];
+	messages: MessageWithMetadata[];
 };
 type ToolPolicyResolver = (
 	toolName: string,
@@ -106,8 +111,10 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	onActiveSessionChange?: () => void;
 }) {
 	let sessionManager: CliCore | undefined;
+	let sessionManagerPromise: Promise<CliCore> | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
 	let unsubscribePendingPrompts = () => {};
@@ -129,6 +136,7 @@ export function createInteractiveSessionRuntime(input: {
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
 		setActiveCliSession(undefined);
+		input.onActiveSessionChange?.();
 	};
 
 	const applyStartedSession = (started: StartedSession): void => {
@@ -136,12 +144,18 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		input.onActiveSessionChange?.();
+		for (const message of formatPluginIssueWarnings(started.pluginIssues)) {
+			input.onAgentEvent({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				message,
+			});
+		}
 	};
 
-	const ensureSessionManager = async (): Promise<CliCore> => {
-		if (sessionManager) {
-			return sessionManager;
-		}
+	const createSessionManager = async (): Promise<CliCore> => {
 		const manager = await createCliCore({
 			// Interactive startup must never wait for a detached hub daemon to boot.
 			// `auto` uses an already-compatible hub when one is immediately available,
@@ -192,6 +206,20 @@ export function createInteractiveSessionRuntime(input: {
 		return manager;
 	};
 
+	const ensureSessionManager = (): Promise<CliCore> => {
+		if (sessionManager) return Promise.resolve(sessionManager);
+		if (shutdownRequested)
+			return Promise.reject(
+				new Error("interactive runtime shutdown requested"),
+			);
+		if (!sessionManagerPromise) {
+			sessionManagerPromise = createSessionManager().finally(() => {
+				sessionManagerPromise = undefined;
+			});
+		}
+		return sessionManagerPromise;
+	};
+
 	const buildSessionConfig = (): Config => {
 		if (!runtimeHooks) {
 			throw new Error("interactive runtime hooks are unavailable");
@@ -210,7 +238,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const startFreshSession = async (
-		initial: Message[] = [],
+		initial: MessageWithMetadata[] = [],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
 		// Restarting an old session associate with this ID,
@@ -243,7 +271,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const startResumedSession = async (
 		resumeId: string,
-		initial: Message[] | undefined,
+		initial: MessageWithMetadata[] | undefined,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
@@ -297,6 +325,19 @@ export function createInteractiveSessionRuntime(input: {
 			throw error;
 		});
 		return await startupPromise;
+	};
+
+	const listCoreSettings = async (
+		settingsInput: CoreSettingsListInput,
+	): Promise<CoreSettingsSnapshot> => {
+		const manager = await ensureSessionManager();
+		return await manager.settings.list(settingsInput);
+	};
+	const toggleCoreSettings = async (
+		settingsInput: CoreSettingsToggleInput,
+	): Promise<CoreSettingsMutationResult> => {
+		const manager = await ensureSessionManager();
+		return await manager.settings.toggle(settingsInput);
 	};
 
 	const readCurrentMessages = async (): Promise<CurrentMessagesRead> => {
@@ -421,7 +462,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const restartWithMessages = async (
-		messages: Message[],
+		messages: MessageWithMetadata[],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
 		options?: { preserveSessionId?: boolean },
@@ -659,7 +700,9 @@ export function createInteractiveSessionRuntime(input: {
 		};
 	};
 
-	const resumeSession = async (sessionId: string): Promise<Message[]> => {
+	const resumeSession = async (
+		sessionId: string,
+	): Promise<MessageWithMetadata[]> => {
 		const manager = await ensureSessionManager();
 		const sessionRecord = await manager.get(sessionId);
 		if (!sessionRecord) {
@@ -754,7 +797,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const getCheckpointData = async (): Promise<
 		| {
-				messages: Message[];
+				messages: MessageWithMetadata[];
 				checkpointHistory: CheckpointEntry[];
 		  }
 		| undefined
@@ -777,7 +820,9 @@ export function createInteractiveSessionRuntime(input: {
 	const restoreCheckpoint = async (
 		runCount: number,
 		restoreWorkspace: boolean,
-	): Promise<{ newSessionId: string; messages: Message[] } | undefined> => {
+	): Promise<
+		{ newSessionId: string; messages: MessageWithMetadata[] } | undefined
+	> => {
 		const manager = sessionManager;
 		if (!manager || !activeSessionId) {
 			return undefined;
@@ -855,6 +900,7 @@ export function createInteractiveSessionRuntime(input: {
 			shutdownRequested = true;
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
+				await sessionManagerPromise?.catch(() => {});
 				await startupPromise?.catch(() => {});
 				await missingSessionRecoveryPromise?.catch(() => {});
 			} finally {
@@ -869,7 +915,11 @@ export function createInteractiveSessionRuntime(input: {
 				await stopCurrentSession();
 			} finally {
 				if (sessionManager) {
-					await sessionManager.dispose("cli_interactive_shutdown");
+					try {
+						await sessionManager.dispose("cli_interactive_shutdown");
+					} finally {
+						sessionManager = undefined;
+					}
 				}
 			}
 			return exitSummary;
@@ -878,7 +928,11 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	return {
+		getPluginCommandsApi: async () =>
+			(await ensureSessionManager()).pluginCommands,
 		ensureReady,
+		listCoreSettings,
+		toggleCoreSettings,
 		sendCurrentTurn,
 		updatePendingPrompt,
 		getAccumulatedUsage,

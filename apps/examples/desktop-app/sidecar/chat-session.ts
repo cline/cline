@@ -5,20 +5,72 @@ import {
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
-	type CoreSessionConfig,
+	type ClineCoreStartConfig,
+	createContextCompactionPrepareTurn,
+	createSessionCompactionState,
+	createUserInstructionConfigService,
+	findCheckpointForRun,
+	formatSessionPluginIssue,
+	getCoreBuiltinToolCatalog,
+	isSessionNotFoundError,
+	isSkillsToolAvailable,
+	ProviderSettingsManager,
+	projectSessionCompactionState,
+	RuntimeOAuthTokenManager,
+	readGlobalSettings,
+	readSessionCheckpointHistory,
+	resolveProviderApiKeyFromSettings,
+	type SessionCompactionState,
 	type SessionPendingPrompt,
+	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	toProviderConfig,
+	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { Message } from "@cline/llms";
-import { buildClineSystemPrompt } from "@cline/shared";
-import { emitChunk, nowMs, sendEvent } from "./context";
+import {
+	getGeneratedModelsForRuntimeProvider,
+	type MessageWithMetadata,
+} from "@cline/llms";
+import {
+	buildClineSystemPrompt,
+	type ConsecutiveMistakeLimitContext,
+	type ConsecutiveMistakeLimitDecision,
+	formatUserCommandBlock,
+	type SessionPluginIssue,
+} from "@cline/shared";
+import {
+	deleteMaterializedAttachments,
+	discardAllTrackedAttachments,
+	materializeUserFiles,
+	trackQueuedAttachments,
+} from "./attachments";
+import { createDesktopExtensionContext } from "./client-context";
+import {
+	getCloudSessionManager,
+	isCloudOuterSessionId,
+} from "./cloud-sessions";
+import {
+	cancelSidecarMistakeQuestions,
+	emitChunk,
+	findSessionRuntimeBinding,
+	getEnvironmentContext,
+	getSessionRuntimeBinding,
+	nowMs,
+	requestSidecarAskQuestion,
+	sendEvent,
+} from "./context";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { runPluginSlashCommand } from "./plugin-commands";
+import { derivePromptFromMessages } from "./session-data/common";
+import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
 	LiveSession,
 	PromptInQueue,
+	SessionRuntimeBinding,
 	SidecarContext,
 } from "./types";
 
@@ -36,6 +88,278 @@ const workspaceMetadataPromises = new Map<
 	string,
 	WorkspaceMetadataCacheEntry
 >();
+const ACTIVE_WORKSPACE_SESSION_STATUSES = new Set([
+	"starting",
+	"pending",
+	"running",
+	"stopping",
+]);
+const WORKSPACE_RESTORE_SEND_ERROR =
+	"Cannot send a prompt while the session workspace is being restored";
+const WORKSPACE_RESTORE_BUSY_ERROR =
+	"Wait for all turns in this workspace to finish before restoring it";
+
+type WorkspacePathSource = {
+	cwd?: unknown;
+	workspaceRoot?: unknown;
+	workspace_root?: unknown;
+};
+
+function readWorkspacePath(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
+	if (cwd) return cwd;
+	const workspaceRoot =
+		typeof source?.workspaceRoot === "string"
+			? source.workspaceRoot.trim()
+			: "";
+	if (workspaceRoot) return workspaceRoot;
+	const snakeCaseWorkspaceRoot =
+		typeof source?.workspace_root === "string"
+			? source.workspace_root.trim()
+			: "";
+	return snakeCaseWorkspaceRoot || undefined;
+}
+
+function workspacePathKey(
+	source: WorkspacePathSource | undefined,
+): string | undefined {
+	const workspacePath = readWorkspacePath(source);
+	return workspacePath ? resolve(workspacePath) : undefined;
+}
+
+/**
+ * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
+ * token: the slash menu hides same-named user commands, so expansion must
+ * not hijack them either.
+ */
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["compact", "fork", "team"]);
+
+const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000;
+const COMPACT_WHILE_RUNNING_MESSAGE =
+	"Cannot compact while a response is in progress. Try again once the current turn finishes.";
+
+/**
+ * Manual `/compact`, mirroring the CLI's local command: summarizes the full
+ * canonical transcript and stores it as the session's compaction sidecar, so
+ * the next turn and resumes use the compacted working context while the saved
+ * history stays intact. Returns the text shown to the user.
+ */
+async function compactSession(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	config: JsonRecord,
+): Promise<string> {
+	if ((await manager.get(sessionId))?.status === "running") {
+		return COMPACT_WHILE_RUNNING_MESSAGE;
+	}
+	const messages = await manager.readMessages(sessionId);
+	const conversationMessages = messages.filter(
+		(message) => message.metadata?.displayOnly !== true,
+	);
+	if (conversationMessages.length === 0) {
+		return "No messages to compact.";
+	}
+	const {
+		providerId = "",
+		modelId = "",
+		apiKey,
+		baseUrl,
+		headers,
+		providerConfig,
+	} = buildSessionConnectionUpdate(await withRemoteProviderCredentials(config));
+	const compact = createContextCompactionPrepareTurn(
+		{
+			providerId,
+			modelId,
+			apiKey,
+			baseUrl,
+			headers,
+			providerConfig,
+			compaction: { enabled: true },
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+			sessionId,
+		},
+		{ mode: "manual" },
+	);
+	const result = await compact?.({
+		agentId: "cline-desktop",
+		conversationId: sessionId,
+		parentAgentId: null,
+		iteration: 0,
+		messages: conversationMessages,
+		apiMessages: conversationMessages,
+		abortSignal: new AbortController().signal,
+		systemPrompt: "",
+		tools: [],
+		model: {
+			id: modelId,
+			provider: providerId,
+			info: getGeneratedModelsForRuntimeProvider(providerId)[modelId] ?? {
+				id: modelId,
+				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+			},
+		},
+	});
+	if (!result?.messages) {
+		return "No compaction needed.";
+	}
+	const { updated } = await manager.updateSessionCompactionState(
+		sessionId,
+		createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: result.messages,
+			conversationId: sessionId,
+			systemPrompt: result.systemPrompt,
+		}),
+	);
+	if (!updated) {
+		throw new Error("Compaction could not be saved. Try again.");
+	}
+	return `Compacted context from ${messages.length} to ${result.messages.length} messages.`;
+}
+
+/**
+ * Expand a leading `/skill` or `/workflow` token into its configured
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
+ */
+async function expandRuntimeSlashCommand(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+	mode?: unknown,
+): Promise<string> {
+	if (!prompt.startsWith("/") || prompt.length < 2) {
+		return prompt;
+	}
+	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+		return prompt;
+	}
+	const service = createUserInstructionConfigService({
+		skills: { workspacePath },
+		rules: { workspacePath },
+		workflows: { workspacePath },
+	});
+	try {
+		await service.start();
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
+	} catch (error) {
+		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
+			error,
+		});
+		return prompt;
+	} finally {
+		service.stop();
+	}
+}
+
+type TeamPromptAvailability = {
+	/** Session mode as stored in config; anything but plan/yolo counts as act. */
+	mode?: unknown;
+	disabledTools?: ReadonlySet<string>;
+};
+
+export function rewriteDesktopTeamPrompt(
+	prompt: string,
+	availability: TeamPromptAvailability = {},
+): string {
+	const match = /^\/team\b([\s\S]*)$/i.exec(prompt.trim());
+	if (!match) return prompt;
+	const task = match[1]?.trim();
+	if (!task) {
+		throw new Error(
+			"Usage: /team <task description>. Starts a team of agents for the given task.",
+		);
+	}
+	const disabledTools =
+		availability.disabledTools ??
+		new Set(readGlobalSettings().disabledTools ?? []);
+	if (disabledTools.has("teams")) {
+		throw new Error(
+			"Agent teams are disabled. Enable the Teams tool in Customizations → Tools.",
+		);
+	}
+	// The runtime resolves tool availability from the mode's preset, so a
+	// preset without team tools must reject /team here rather than send the
+	// model an instruction it cannot act on.
+	const mode =
+		availability.mode === "plan" || availability.mode === "yolo"
+			? availability.mode
+			: "act";
+	const teamsAvailable = getCoreBuiltinToolCatalog({ mode }).some(
+		(entry) => entry.id === "teams" && entry.defaultEnabled,
+	);
+	if (!teamsAvailable) {
+		throw new Error(`Agent teams are not available in ${mode} mode.`);
+	}
+	return formatUserCommandBlock(
+		`spawn a team of agents for the following task: ${task}`,
+		"team",
+	);
+}
+
+async function resolveDesktopRuntimePrompt(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+	mode?: unknown,
+): Promise<string> {
+	return rewriteDesktopTeamPrompt(
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
+		{ mode },
+	);
+}
+
+function hasActiveWorkspaceTurn(session: LiveSession): boolean {
+	return (
+		session.busy ||
+		session.transitioningProvider === true ||
+		ACTIVE_WORKSPACE_SESSION_STATUSES.has(session.status)
+	);
+}
+
+async function withWorkspaceRestoreLock<T>(
+	ctx: SidecarContext,
+	workspacePath: string,
+	work: () => Promise<T>,
+): Promise<T> {
+	const key = resolve(workspacePath);
+	if (ctx.restoringWorkspacePaths.has(key)) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	for (const session of ctx.liveSessions.values()) {
+		if (
+			workspacePathKey(session.config) === key &&
+			hasActiveWorkspaceTurn(session)
+		) {
+			throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+		}
+	}
+
+	ctx.restoringWorkspacePaths.add(key);
+	try {
+		return await work();
+	} finally {
+		ctx.restoringWorkspacePaths.delete(key);
+	}
+}
 
 function getWorkspaceMetadataPromise(
 	cwd: string,
@@ -93,7 +417,9 @@ export function refreshWorkspaceMetadata(cwd: string): void {
 // Session data helpers
 // ---------------------------------------------------------------------------
 
-function readPersistedChatMessages(sessionId: string): unknown[] | null {
+function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -102,8 +428,8 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) return parsed;
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
@@ -128,19 +454,6 @@ function readSessionMetadata(sessionId: string): JsonRecord | undefined {
 		: undefined;
 }
 
-function derivePromptFromMessages(messages: unknown[]): string {
-	for (const msg of messages) {
-		if (!msg || typeof msg !== "object") continue;
-		const m = msg as JsonRecord;
-		if (m.role !== "user") continue;
-		if (typeof m.content === "string") {
-			const line = m.content.trim().split("\n")[0]?.trim();
-			if (line) return line.slice(0, 200);
-		}
-	}
-	return "";
-}
-
 // ---------------------------------------------------------------------------
 // Live session factory
 // ---------------------------------------------------------------------------
@@ -150,6 +463,7 @@ function createLiveSession(
 	overrides?: Partial<LiveSession>,
 ): LiveSession {
 	return {
+		environmentId: overrides?.environmentId,
 		config,
 		messages: overrides?.messages ?? [],
 		promptsInQueue: overrides?.promptsInQueue ?? [],
@@ -159,6 +473,8 @@ function createLiveSession(
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
+		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
 }
 
@@ -193,7 +509,184 @@ function readPositiveInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
-function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+type MistakeLimitDecider = (
+	context: ConsecutiveMistakeLimitContext,
+) => Promise<ConsecutiveMistakeLimitDecision>;
+
+const MISTAKE_LIMIT_CONTINUE_OPTION = "Try a different approach";
+const MISTAKE_LIMIT_STOP_OPTION = "Stop this run";
+const MISTAKE_LIMIT_DETAIL_MAX_CHARS = 600;
+
+/**
+ * Desktop counterpart of the CLI's mistake-limit prompt
+ * (apps/cli/src/runtime/interactive/mistakes.ts).
+ *
+ * When the core's loop detector or mistake tracker trips, it asks the client
+ * how to proceed. Without a decision callback the default is "stop", which
+ * reaches the webview as a plain aborted turn: indistinguishable from the
+ * user pressing Stop, with no explanation. A model stuck re-issuing the same
+ * failing tool call therefore looked like Cline randomly gave up mid-task.
+ * Route the decision through the existing ask-question channel instead so
+ * the user sees what went wrong and can choose.
+ *
+ * `getSessionId` is read at prompt time: for fresh starts the session id is
+ * only known after `manager.start()` resolves, and the webview matches the
+ * prompt to its active session by id.
+ */
+export function createDesktopMistakeLimitPrompt(
+	ctx: SidecarContext,
+	getSessionId: () => string,
+): MistakeLimitDecider {
+	return async (context) => {
+		const sessionId = getSessionId().trim();
+		const recovery = ctx.liveSessions.get(sessionId)?.mistakeRecovery;
+		if (
+			recovery?.continuedThroughIteration !== undefined &&
+			context.iteration <= recovery.continuedThroughIteration
+		) {
+			// The tracker serializes decisions, so old failures can arrive after
+			// Continue. The user has already answered for these in-flight steps.
+			return { action: "continue" };
+		}
+		const detail = context.details?.trim() ?? "";
+		const truncatedDetail =
+			detail.length > MISTAKE_LIMIT_DETAIL_MAX_CHARS
+				? `${detail.slice(0, MISTAKE_LIMIT_DETAIL_MAX_CHARS)}…`
+				: detail;
+		const question = [
+			"Cline detected repeated mistakes or tool calls and needs your guidance.",
+			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
+			"How should Cline continue?",
+		]
+			.filter((line) => line.length > 0)
+			.join("\n");
+
+		let answer: string;
+		try {
+			answer = await requestSidecarAskQuestion(
+				ctx,
+				question,
+				[MISTAKE_LIMIT_CONTINUE_OPTION, MISTAKE_LIMIT_STOP_OPTION],
+				{
+					sessionId,
+					agentId: "desktop-mistake-limit",
+					iteration: context.iteration,
+				},
+			);
+		} catch (error) {
+			// Prompt timed out or the session was torn down: fall back to the
+			// core's default decision, but keep the reason so the stop is
+			// attributable.
+			ctx.logger?.log("Mistake-limit prompt unanswered; stopping run", {
+				sessionId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return {
+				action: "stop",
+				reason: `mistake_limit_reached: ${detail || context.reason}`,
+			};
+		}
+
+		const normalized = answer.trim().toLowerCase();
+		if (["2", "stop this run", "stop", "n", "no"].includes(normalized)) {
+			return {
+				action: "stop",
+				reason: "stopped after mistake_limit_reached prompt",
+			};
+		}
+		const customGuidance =
+			normalized.length > 0 &&
+			normalized !== "1" &&
+			normalized !== MISTAKE_LIMIT_CONTINUE_OPTION.toLowerCase()
+				? answer.trim()
+				: "";
+		const guidance = [
+			"The run reached the limit for repeated mistakes or tool calls.",
+			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
+			"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
+			customGuidance ? `User guidance: ${customGuidance}` : "",
+		]
+			.filter((line) => line.length > 0)
+			.join(" ");
+		// Use the existing steering queue so the running model receives the
+		// guidance, including any instructions entered in the desktop prompt.
+		const manager = ctx.runtimeBindings.get(
+			ctx.sessionEnvironmentIds.get(sessionId) ?? "local",
+		)?.sessionManager;
+		try {
+			if (!manager) throw new Error("Desktop session manager is unavailable");
+			const continuedThroughIteration = Math.max(
+				context.iteration,
+				recovery?.latestIteration ?? context.iteration,
+			);
+			await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
+			if (recovery) {
+				recovery.continuedThroughIteration = continuedThroughIteration;
+			}
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			ctx.logger?.log("Failed to steer mistake-limit guidance", {
+				sessionId,
+				error: detail,
+			});
+			// Releasing the hooks without the guidance would resume the same
+			// failing loop. Only Continue after the steering request succeeds.
+			return {
+				action: "stop",
+				reason: `Could not send recovery guidance: ${detail}`,
+			};
+		}
+		// Steering already delivers the guidance; do not also append it via
+		// the mistake tracker's recovery-notice path.
+		return { action: "continue" };
+	};
+}
+
+export function createDesktopMistakeRecovery(
+	ctx: SidecarContext,
+	getSessionId: () => string,
+) {
+	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
+	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
+	const waitForDecision = async () => {
+		const decision = await pendingDecision;
+		return decision?.action === "stop"
+			? { stop: true, reason: decision.reason }
+			: undefined;
+	};
+	return {
+		onConsecutiveMistakeLimitReached: (
+			context: ConsecutiveMistakeLimitContext,
+		) => {
+			if (!pendingDecision) {
+				pendingDecision = prompt(context).finally(() => {
+					pendingDecision = undefined;
+				});
+			}
+			return pendingDecision;
+		},
+		hooks: {
+			// The decision callback alone does not pause the SDK. These existing
+			// awaited hooks hold desktop runs at tool/model boundaries until the
+			// user answers. afterTool holds before the next iteration consumes
+			// the recovery guidance queued by the prompt's Continue action.
+			beforeModel: waitForDecision,
+			beforeTool: waitForDecision,
+			afterTool: waitForDecision,
+		},
+	};
+}
+
+function buildCoreSessionConfig(
+	config: JsonRecord,
+	telemetryUser?: SidecarContext["telemetryUser"],
+	mistakeRecovery?: ReturnType<typeof createDesktopMistakeRecovery>,
+): JsonRecord {
+	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
+	const workspaceRoot =
+		typeof rawWorkspaceRoot === "string" ? rawWorkspaceRoot.trim() : "";
+	const cwd =
+		(typeof config.cwd === "string" ? config.cwd.trim() : "") || workspaceRoot;
 	const thinking =
 		typeof config.thinking === "boolean" ? config.thinking : undefined;
 	const reasoningEffort =
@@ -210,23 +703,16 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
 		modelId: config.model ?? config.modelId ?? "",
-		mode: config.mode ?? "act",
+		mode: resolveDesktopSessionMode(config),
 		apiKey: config.apiKey ?? config.api_key ?? "",
-		workspaceRoot: config.workspaceRoot ?? config.workspace_root ?? "",
-		cwd: config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
+		baseUrl: config.baseUrl,
+		headers: config.headers,
+		providerConfig: config.providerConfig,
+		...(workspaceRoot ? { workspaceRoot } : {}),
+		...(cwd ? { cwd } : {}),
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
-		enableSpawnAgent:
-			config.enableSpawn ??
-			config.enableSpawnAgent ??
-			config.enable_spawn ??
-			false,
-		enableAgentTeams:
-			config.enableTeams ??
-			config.enableAgentTeams ??
-			config.enable_teams ??
-			false,
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
@@ -236,9 +722,25 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
 		checkpoint: { enabled: true },
+		// Core auto-compaction is opt-in; without this the 90% trigger never
+		// runs and long desktop sessions overflow the context window.
+		compaction: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
+		extensionContext: createDesktopExtensionContext(telemetryUser),
+		...mistakeRecovery,
 	};
+}
+
+/** Auto-approval is a tool policy, not a request to change the tool preset. */
+export function resolveDesktopSessionMode(
+	config: JsonRecord,
+): "act" | "plan" | "yolo" {
+	return config.mode === "plan"
+		? "plan"
+		: config.mode === "yolo"
+			? "yolo"
+			: "act";
 }
 
 export function buildSessionConnectionUpdate(
@@ -293,6 +795,67 @@ export function shouldUpdateSessionConnection(
 	);
 }
 
+function readAliasedString(
+	config: JsonRecord,
+	primaryKey: string,
+	aliasKey: string,
+): string | undefined {
+	for (const key of [primaryKey, aliasKey]) {
+		if (!Object.hasOwn(config, key)) continue;
+		const value = String(config[key] ?? "").trim();
+		return value || undefined;
+	}
+	return undefined;
+}
+
+export function mergeSessionConfig(
+	currentConfig: JsonRecord,
+	updates: JsonRecord,
+): JsonRecord {
+	const providerId =
+		readAliasedString(updates, "provider", "providerId") ??
+		readAliasedString(currentConfig, "provider", "providerId");
+	const previous = { ...currentConfig };
+	if (hasProviderChanged(currentConfig, updates)) {
+		for (const key of [
+			"apiKey",
+			"api_key",
+			"baseUrl",
+			"headers",
+			"providerConfig",
+			"accessToken",
+			"refreshToken",
+		])
+			delete previous[key];
+	}
+	const modelId =
+		readAliasedString(updates, "model", "modelId") ??
+		readAliasedString(currentConfig, "model", "modelId");
+	return {
+		...previous,
+		...updates,
+		...(providerId ? { provider: providerId, providerId } : {}),
+		...(modelId ? { model: modelId, modelId } : {}),
+	};
+}
+
+export function hasProviderChanged(
+	currentConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): boolean {
+	const currentProviderId = readAliasedString(
+		currentConfig,
+		"provider",
+		"providerId",
+	);
+	const nextProviderId = readAliasedString(
+		nextConfig,
+		"provider",
+		"providerId",
+	);
+	return nextProviderId !== undefined && currentProviderId !== nextProviderId;
+}
+
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 	const cwd = String(
 		config.cwd ?? config.workspaceRoot ?? config.workspace_root ?? "",
@@ -301,11 +864,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	const mode = config.autoApproveTools
-		? "yolo"
-		: config.mode === "plan"
-			? "plan"
-			: "act";
+	const mode = resolveDesktopSessionMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -348,7 +907,13 @@ function sendPromptsInQueueSnapshot(
 	const session = ctx.liveSessions.get(sessionId);
 	sendEvent(ctx, "prompts_in_queue_state", {
 		sessionId,
-		items: session?.promptsInQueue ?? [],
+		items:
+			session?.promptsInQueue.map(({ id, prompt, steer, attachmentCount }) => ({
+				id,
+				prompt,
+				steer,
+				attachmentCount,
+			})) ?? [],
 	});
 }
 
@@ -358,6 +923,7 @@ function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
 		prompt: item.prompt,
 		steer: item.delivery === "steer",
 		attachmentCount: item.attachmentCount,
+		userImages: item.userImages,
 	};
 }
 
@@ -372,12 +938,107 @@ function applyPendingPrompts(
 		session.promptsInQueue = mapped;
 	}
 	sendPromptsInQueueSnapshot(ctx, sessionId);
-	return mapped;
+	return mapped.map(({ id, prompt, steer, attachmentCount }) => ({
+		id,
+		prompt,
+		steer,
+		attachmentCount,
+	}));
 }
 
-function getSessionManager(ctx: SidecarContext): ClineCore {
-	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
-	return ctx.sessionManager;
+function readEnvironmentId(config: JsonRecord | undefined): string | undefined {
+	const value = config?.environmentId ?? config?.environment_id;
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readExplicitSystemPrompt(config: JsonRecord): string {
+	const value = config.systemPrompt ?? config.system_prompt;
+	return typeof value === "string" ? value : "";
+}
+
+/**
+ * A remote Hub intentionally has its own HOME and provider settings. Send the
+ * selected desktop provider configuration over the authenticated SSH tunnel so
+ * a normal signed-in desktop session can make model requests on the host. The
+ * refresh token is omitted: v0 uses the current access/API token and never
+ * writes the desktop's reusable OAuth credential to the remote settings file.
+ */
+async function withRemoteProviderCredentials(
+	config: JsonRecord,
+): Promise<JsonRecord> {
+	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	if (!providerId) return config;
+
+	const manager = new ProviderSettingsManager();
+	const settings = manager.getProviderSettings(providerId);
+	if (!settings) return config;
+	const modelId = String(
+		config.model ?? config.modelId ?? settings.model ?? "",
+	).trim();
+	const explicitProviderConfig =
+		config.providerConfig && typeof config.providerConfig === "object"
+			? (config.providerConfig as JsonRecord)
+			: undefined;
+	const explicitApiKey =
+		[
+			config.apiKey,
+			config.api_key,
+			explicitProviderConfig?.apiKey,
+			explicitProviderConfig?.accessToken,
+		]
+			.find(
+				(value): value is string =>
+					typeof value === "string" && value.trim().length > 0,
+			)
+			?.trim() ?? "";
+
+	const oauth = explicitApiKey
+		? null
+		: await new RuntimeOAuthTokenManager({
+				providerSettingsManager: manager,
+			}).resolveProviderApiKey({ providerId });
+	// Refresh can replace access tokens, account IDs, and provider metadata.
+	const refreshedSettings = manager.getProviderSettings(providerId) ?? settings;
+	const storedConfig = {
+		...toProviderConfig(
+			{ ...refreshedSettings, ...(modelId ? { model: modelId } : {}) },
+			{ includeKnownModels: false },
+		),
+	};
+	const apiKey =
+		explicitApiKey ||
+		oauth?.apiKey ||
+		resolveProviderApiKeyFromSettings(manager, providerId) ||
+		String(storedConfig.apiKey ?? "").trim();
+	const providerConfig = {
+		...storedConfig,
+		...explicitProviderConfig,
+		providerId,
+		...(modelId ? { modelId } : {}),
+		...(apiKey ? { apiKey, accessToken: apiKey } : {}),
+	};
+	delete providerConfig.refreshToken;
+
+	return {
+		...config,
+		...(apiKey ? { apiKey } : {}),
+		...(!config.baseUrl && storedConfig.baseUrl
+			? { baseUrl: storedConfig.baseUrl }
+			: {}),
+		...(!config.headers && storedConfig.headers
+			? { headers: storedConfig.headers }
+			: {}),
+		providerConfig,
+	};
+}
+
+function getSessionManager(
+	ctx: SidecarContext,
+	sessionId?: string,
+	config?: JsonRecord,
+): ClineCore {
+	return getSessionRuntimeBinding(ctx, sessionId, readEnvironmentId(config))
+		.sessionManager;
 }
 
 // ---------------------------------------------------------------------------
@@ -389,20 +1050,49 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const manager = getSessionManager(ctx);
-	const systemPrompt = await resolveSystemPrompt(request.config);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		undefined,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
+	const config =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(request.config)
+			: request.config;
+	// Workspace discovery must happen where the files live. Local desktop
+	// sessions keep the eager prompt path; SSH sessions leave a blank prompt for
+	// the remote Hub's LocalRuntimeHost bootstrap to compose from remote metadata.
+	const systemPrompt =
+		binding.kind === "ssh"
+			? readExplicitSystemPrompt(config)
+			: await resolveSystemPrompt(config);
 	const requestedSessionId = String(
-		request.config.sessionId ?? request.config.session_id ?? "",
+		config.sessionId ?? config.session_id ?? "",
 	).trim();
 	const initialMessages =
-		Array.isArray(request.config.initialMessages) &&
-		request.config.initialMessages.length > 0
-			? request.config.initialMessages
+		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
+			? config.initialMessages
 			: requestedSessionId
-				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
+				? binding.kind === "ssh"
+					? await manager
+							.readMessages(requestedSessionId)
+							.catch((error: unknown) => {
+								// The desktop supplies an ID before a new remote session exists.
+								// Only this startup read may treat missing history as empty.
+								if (isSessionNotFoundError(error)) return undefined;
+								throw error;
+							})
+					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
+	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
+	let startedSessionId = requestedSessionId;
 	const coreConfig: JsonRecord = {
-		...buildCoreSessionConfig(request.config),
+		...buildCoreSessionConfig(
+			config,
+			ctx.telemetryUser,
+			createDesktopMistakeRecovery(ctx, () => startedSessionId),
+		),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
 	};
@@ -412,32 +1102,73 @@ async function handleStart(
 	// the frontend call the separate "send" action to dispatch the prompt.
 	// This avoids a double-execution bug where start() would run the turn AND
 	// the subsequent manager.send() fire-and-forget would run it again.
-	console.error(
-		`[sidecar:handleStart] calling manager.start provider=${coreConfig.providerId} model=${coreConfig.modelId}`,
-	);
+	ctx.logger?.log("Starting desktop chat session", {
+		providerId: String(coreConfig.providerId ?? ""),
+		modelId: String(coreConfig.modelId ?? ""),
+	});
 	const startResult = await manager.start({
-		...splitCoreSessionConfig(coreConfig as unknown as CoreSessionConfig),
+		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages
-			? { initialMessages: initialMessages as Message[] }
-			: {}),
-		toolPolicies: resolveToolPolicies(request.config),
+		...(initialMessages ? { initialMessages } : {}),
+		toolPolicies: resolveToolPolicies(config),
+		sessionMetadata:
+			binding.kind === "ssh"
+				? {
+						remoteEnvironmentId: binding.environmentId,
+						remoteEnvironmentName: binding.remote?.profile.name,
+						remoteHost: binding.remote?.profile.host,
+					}
+				: undefined,
 	});
 	const sessionId = startResult.sessionId;
-	console.error(`[sidecar:handleStart] session started sessionId=${sessionId}`);
-	const session = createLiveSession(request.config, {
-		messages: initialMessages,
-		prompt: initialMessages
-			? derivePromptFromMessages(initialMessages)
-			: undefined,
-		title: requestedSessionId
-			? readSessionMetadataTitle(requestedSessionId)
-			: undefined,
-		status: "idle",
-	});
+	startedSessionId = sessionId;
+	const workspaceRoot = startResult.manifest.workspace_root;
+	const cwd = startResult.manifest.cwd;
+	ctx.logger?.log("Desktop chat session started", { sessionId });
+	const session = createLiveSession(
+		{
+			...request.config,
+			cwd,
+			workspaceRoot,
+			environmentId: binding.environmentId,
+		},
+		{
+			environmentId: binding.environmentId,
+			messages: initialMessages,
+			prompt: initialMessages
+				? derivePromptFromMessages(initialMessages)
+				: undefined,
+			title:
+				requestedSessionId && binding.kind === "local"
+					? readSessionMetadataTitle(requestedSessionId)
+					: undefined,
+			status: "idle",
+		},
+	);
 	ctx.liveSessions.set(sessionId, session);
-	return { sessionId };
+	ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+	return {
+		sessionId,
+		cwd,
+		workspaceRoot,
+		environmentId: binding.environmentId,
+		...pluginWarningsOf(startResult.pluginIssues),
+	};
+}
+
+/**
+ * Plugins the session asked for but could not load, as display lines.
+ * Failures that happen later (setup and hooks run on the first turn) arrive
+ * as notices on the session stream instead.
+ */
+function pluginWarningsOf(
+	issues: ReadonlyArray<SessionPluginIssue> | undefined,
+): { pluginWarnings?: string[] } {
+	const pluginWarnings = (issues ?? [])
+		.filter((issue) => issue.state === "failed")
+		.map(formatSessionPluginIssue);
+	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
 }
 
 async function handleAttach(
@@ -449,7 +1180,18 @@ async function handleAttach(
 		throw new Error("sessionId is required");
 	}
 
-	const manager = getSessionManager(ctx);
+	const preferredEnvironmentId = readEnvironmentId(request.config);
+	// An explicit environment is a hard routing boundary. Falling through to
+	// another connected host can attach a same-id session from the wrong machine.
+	const binding = preferredEnvironmentId
+		? getSessionRuntimeBinding(ctx, sessionId, preferredEnvironmentId)
+		: await findSessionRuntimeBinding(ctx, sessionId);
+	if (!binding) {
+		throw new Error(
+			`Session ${sessionId} not found in a connected environment`,
+		);
+	}
+	const manager = binding.sessionManager;
 	const session = await manager.get(sessionId);
 	if (!session) {
 		throw new Error(`Session ${sessionId} not found`);
@@ -460,13 +1202,12 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
-	if (ctx.hubClient) {
-		await ctx.hubClient.command("session.attach", { sessionId }, sessionId);
-	}
-	const attachedConfig: JsonRecord = {
+	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
+	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
 		sessionId,
+		environmentId: binding.environmentId,
 		provider: session.provider || existing?.config.provider || "",
 		model: session.model || existing?.config.model || "",
 		cwd:
@@ -482,7 +1223,8 @@ async function handleAttach(
 	};
 	ctx.liveSessions.set(
 		sessionId,
-		createLiveSession(attachedConfig, {
+		createLiveSession(baseAttachedConfig, {
+			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
 			status: session.status,
@@ -495,11 +1237,18 @@ async function handleAttach(
 				existing?.title,
 			endedAt: isoTimestampToMs(session.endedAt),
 			attachedViaHub: true,
+			// Preserve tracked attachment files so re-attach (called on every
+			// webview hydrate) does not orphan materialized files still awaiting
+			// cleanup.
+			queuedAttachmentFiles: existing?.queuedAttachmentFiles,
+			consumedAttachmentFiles: existing?.consumedAttachmentFiles,
 		}),
 	);
+	ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
 
 	return {
 		sessionId,
+		environmentId: binding.environmentId,
 		status: session.status,
 		provider: session.provider,
 		model: session.model,
@@ -510,82 +1259,680 @@ async function handleAttach(
 	};
 }
 
+async function startRebuiltSession(
+	manager: ClineCore,
+	ctx: SidecarContext,
+	sessionId: string,
+	config: JsonRecord,
+	systemPrompt: string,
+	messages: MessageWithMetadata[],
+	compactionState: SessionCompactionState | undefined,
+): Promise<void> {
+	const projectedMessages = compactionState
+		? projectSessionCompactionState(compactionState, messages)
+		: undefined;
+	const restarted = await manager.start({
+		...splitCoreSessionConfig(
+			buildCoreSessionConfig(
+				{
+					...config,
+					sessionId,
+					systemPrompt,
+				},
+				ctx.telemetryUser,
+				createDesktopMistakeRecovery(ctx, () => sessionId),
+			) as unknown as ClineCoreStartConfig,
+		),
+		source: SessionSource.DESKTOP,
+		interactive: true,
+		initialMessages: messages,
+		...(projectedMessages
+			? {
+					initialCompactionState: createSessionCompactionState({
+						sourceMessages: messages,
+						compactedMessages: projectedMessages,
+						systemPrompt: compactionState?.system_prompt,
+					}),
+				}
+			: {}),
+		toolPolicies: resolveToolPolicies(config),
+	});
+	if (restarted.sessionId !== sessionId) {
+		throw new Error(
+			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
+		);
+	}
+}
+
+async function rebuildSessionForProviderChange(
+	ctx: SidecarContext,
+	binding: SessionRuntimeBinding,
+	sessionId: string,
+	previousConfig: JsonRecord,
+	nextConfig: JsonRecord,
+): Promise<void> {
+	const manager = binding.sessionManager;
+	const effectivePreviousConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(previousConfig)
+			: previousConfig;
+	const effectiveNextConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(nextConfig)
+			: nextConfig;
+	const [messages, compactionState, previousSystemPrompt, nextSystemPrompt] =
+		await Promise.all([
+			manager.readMessages(sessionId),
+			manager.readSessionCompactionState(sessionId).catch((error) => {
+				ctx.logger?.log?.("Failed to read desktop session compaction state", {
+					sessionId,
+					error,
+					severity: "warn",
+				});
+				return undefined;
+			}),
+			binding.kind === "ssh"
+				? readExplicitSystemPrompt(effectivePreviousConfig)
+				: resolveSystemPrompt(effectivePreviousConfig),
+			binding.kind === "ssh"
+				? readExplicitSystemPrompt(effectiveNextConfig)
+				: resolveSystemPrompt(effectiveNextConfig),
+		]);
+
+	cancelSidecarMistakeQuestions(ctx, sessionId, "Session provider changed");
+	await manager.stop(sessionId);
+	let replacementStarted = false;
+	try {
+		await startRebuiltSession(
+			manager,
+			ctx,
+			sessionId,
+			effectiveNextConfig,
+			nextSystemPrompt,
+			messages,
+			compactionState,
+		);
+		replacementStarted = true;
+		// Reusing a session id preserves its existing manifest. Treat refreshing
+		// its connection label as part of the replacement transaction so a
+		// persistence failure cannot leave runtime and cached state diverged.
+		await manager.updateSessionConnection(
+			sessionId,
+			buildSessionConnectionUpdate(effectiveNextConfig),
+		);
+	} catch (replacementError) {
+		try {
+			if (replacementStarted) {
+				await manager.stop(sessionId);
+			}
+			await startRebuiltSession(
+				manager,
+				ctx,
+				sessionId,
+				effectivePreviousConfig,
+				previousSystemPrompt,
+				messages,
+				compactionState,
+			);
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(effectivePreviousConfig),
+			);
+		} catch (rollbackError) {
+			throw new AggregateError(
+				[replacementError, rollbackError],
+				"Provider switch and rollback both failed",
+			);
+		}
+		throw replacementError;
+	}
+}
+
+const HUB_RECONNECT_WINDOW_MS = 60_000;
+const HUB_RECONNECT_MAX_DELAY_MS = 5_000;
+const HUB_INTERRUPTED_TEXT =
+	"Interrupted: Cline Hub restarted. Send your message again to continue.";
+
+// Reconnect loops in flight, so stop/abort/reset can end them before they
+// rebuild a session the user has since walked away from.
+const hubReconnects = new Map<
+	string,
+	{
+		session: LiveSession;
+		controller: AbortController;
+		completion: Promise<HubReconnectOutcome>;
+		outcome: Promise<HubReconnectOutcome>;
+	}
+>();
+
+function cancelHubReconnect(sessionId: string): void {
+	hubReconnects.get(sessionId)?.controller.abort();
+}
+
+// Only run.start replies carry the session_not_found code; other hub commands
+// wrap the runtime's SessionNotFoundError as a generic command failure.
+function isMissingSessionError(error: unknown): boolean {
+	return (
+		isSessionNotFoundError(error) ||
+		(error instanceof Error && error.message.startsWith("session not found"))
+	);
+}
+
+// A killed hub surfaces as a transport close, or as "session not found" when
+// the client's automatic retry lands on a replacement hub that never had it.
+function isHubLossError(error: unknown): boolean {
+	return (
+		isMissingSessionError(error) ||
+		(error instanceof Error && error.name === "HubTransportError")
+	);
+}
+
+function emitHubReconnectActivity(
+	ctx: SidecarContext,
+	sessionId: string,
+	phase: "started" | "finished",
+	message: string,
+): void {
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_core_log",
+		JSON.stringify({
+			level: "info",
+			message,
+			metadata: { hubReconnect: phase },
+		}),
+	);
+}
+
+function waitForRetry(ms: number, signal: AbortSignal): Promise<void> {
+	if (signal.aborted) return Promise.resolve();
+	return new Promise((resolve) => {
+		const timer = setTimeout(done, ms);
+		function done() {
+			clearTimeout(timer);
+			signal.removeEventListener("abort", done);
+			resolve();
+		}
+		signal.addEventListener("abort", done, { once: true });
+	});
+}
+
+type HubReconnectOutcome = "rebuilt" | "survived" | "failed";
+
+/**
+ * Waits up to a minute for the hub to answer again after a hub-loss error.
+ * A session the hub still runs is left alone ("survived"); only one the hub
+ * reports missing is re-created from its persisted history ("rebuilt").
+ * Stop, abort, or reset during the wait ends it with "failed".
+ */
+async function reconnectSessionAfterHubLoss(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	session: LiveSession | undefined,
+): Promise<HubReconnectOutcome> {
+	if (!session) return "failed";
+	const existing = hubReconnects.get(sessionId);
+	if (existing?.session === session && !existing.controller.signal.aborted) {
+		return existing.outcome;
+	}
+	const controller = new AbortController();
+	const deadline = Date.now() + HUB_RECONNECT_WINDOW_MS;
+	// Keep the underlying completion as the serialization barrier, even when
+	// cancellation/deadline returns to the caller before a Hub startup settles.
+	existing?.controller.abort();
+	emitHubReconnectActivity(
+		ctx,
+		sessionId,
+		"started",
+		"Cline Hub connection lost; reconnecting",
+	);
+	const completion = Promise.resolve(existing?.completion)
+		.catch(() => undefined)
+		.then(() =>
+			recoverSessionAfterHubLoss(
+				ctx,
+				manager,
+				sessionId,
+				session,
+				controller.signal,
+				deadline,
+			),
+		)
+		.finally(() => {
+			if (hubReconnects.get(sessionId)?.controller === controller) {
+				hubReconnects.delete(sessionId);
+			}
+		});
+	const outcome = waitForHubRecovery(completion, controller, deadline).then(
+		(result) => {
+			const current = hubReconnects.get(sessionId);
+			if (!current || current.controller === controller)
+				emitHubReconnectActivity(
+					ctx,
+					sessionId,
+					"finished",
+					result === "failed"
+						? "Cline Hub reconnect gave up"
+						: "Cline Hub reconnected",
+				);
+			return result;
+		},
+	);
+	hubReconnects.set(sessionId, { session, controller, completion, outcome });
+	return outcome;
+}
+
+function waitForHubRecovery(
+	completion: Promise<HubReconnectOutcome>,
+	controller: AbortController,
+	deadline: number,
+): Promise<HubReconnectOutcome> {
+	return new Promise((resolve) => {
+		const finish = (result: HubReconnectOutcome) => {
+			clearTimeout(timer);
+			controller.signal.removeEventListener("abort", cancelled);
+			resolve(result);
+		};
+		const cancelled = () => finish("failed");
+		const timer = setTimeout(
+			() => controller.abort(),
+			Math.max(0, deadline - Date.now()),
+		);
+		controller.signal.addEventListener("abort", cancelled, { once: true });
+		completion.then(finish, () => finish("failed"));
+		if (controller.signal.aborted) cancelled();
+	});
+}
+
+async function recoverSessionAfterHubLoss(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+	session: LiveSession,
+	signal: AbortSignal,
+	deadline: number,
+): Promise<HubReconnectOutcome> {
+	const stillWanted = () =>
+		!signal.aborted &&
+		Date.now() < deadline &&
+		ctx.liveSessions.get(sessionId) === session;
+	let delay = 1_000;
+	let lastError: unknown;
+	let outcome: HubReconnectOutcome = "failed";
+	while (Date.now() < deadline && stillWanted()) {
+		try {
+			// The same connection refresh a send performs. It only succeeds
+			// against a hub that holds the session live, so it tells a
+			// surviving session apart from one lost with its hub.
+			await manager.updateSessionConnection(
+				sessionId,
+				buildSessionConnectionUpdate(session.config),
+			);
+			if (stillWanted()) outcome = "survived";
+			break;
+		} catch (error) {
+			lastError = error;
+			if (!stillWanted()) break;
+			if (isMissingSessionError(error)) {
+				try {
+					const systemPrompt = await resolveSystemPrompt(session.config);
+					if (!stillWanted()) break;
+					const compactionState = await manager
+						.readSessionCompactionState(sessionId)
+						.catch(() => undefined);
+					if (!stillWanted()) break;
+					await startRebuiltSession(
+						manager,
+						ctx,
+						sessionId,
+						session.config,
+						systemPrompt,
+						readPersistedChatMessages(sessionId) ?? session.messages ?? [],
+						compactionState,
+					);
+					if (!stillWanted()) {
+						// Undo a cancelled rebuild only while the projection still
+						// belongs to it, or reset removed it. A newly attached
+						// projection owns the session now and must be left alone.
+						const current = ctx.liveSessions.get(sessionId);
+						if (signal.aborted && (!current || current === session)) {
+							await manager.stop(sessionId).catch(() => undefined);
+						}
+						break;
+					}
+					outcome = "rebuilt";
+					break;
+				} catch (rebuildError) {
+					lastError = rebuildError;
+				}
+			}
+		}
+		await waitForRetry(
+			Math.min(delay, Math.max(0, deadline - Date.now())),
+			signal,
+		);
+		delay = Math.min(delay * 2, HUB_RECONNECT_MAX_DELAY_MS);
+	}
+	ctx.logger?.log("Desktop session hub reconnect finished", {
+		sessionId,
+		outcome,
+		...(outcome === "failed" ? { error: lastError } : {}),
+	});
+	return outcome;
+}
+
 async function handleSend(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const prompt = request.prompt?.trim();
-	if (!prompt) throw new Error("prompt is required");
-	const manager = getSessionManager(ctx);
+	const prompt = request.prompt?.trim() ?? "";
+	const hasAttachments =
+		(request.attachments?.userImages?.length ?? 0) > 0 ||
+		(request.attachments?.userFiles?.length ?? 0) > 0;
+	if (!prompt && !hasAttachments) {
+		throw new Error("prompt or attachment is required");
+	}
 	const session = ctx.liveSessions.get(sessionId);
-	if (request.config) {
-		if (
-			!session ||
-			session.attachedViaHub ||
-			shouldUpdateSessionConnection(session.config, request.config)
-		) {
-			const connectionUpdate = buildSessionConnectionUpdate(request.config);
-			await manager.updateSessionConnection(sessionId, connectionUpdate);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
+	const lockedWorkspaceKey = workspacePathKey(
+		session?.config ?? request.config,
+	);
+	if (
+		lockedWorkspaceKey &&
+		ctx.restoringWorkspacePaths.has(lockedWorkspaceKey)
+	) {
+		throw new Error(WORKSPACE_RESTORE_SEND_ERROR);
+	}
+	if (session?.transitioningProvider) {
+		throw new Error("A provider switch is already in progress");
+	}
+	const workspacePath =
+		readWorkspacePath(session?.config ?? request.config) ??
+		ctx.localWorkspaceRoot;
+	// Plugin slash commands execute in the session runtime.
+	// The handler's reply goes to the webview as a toast and
+	// only its `submitPrompt` (if any) reaches the model.
+	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (commandName === "compact") {
+		let text: string;
+		try {
+			text = session?.busy
+				? COMPACT_WHILE_RUNNING_MESSAGE
+				: await compactSession(
+						ctx,
+						manager,
+						sessionId,
+						request.config
+							? mergeSessionConfig(session?.config ?? {}, request.config)
+							: (session?.config ?? {}),
+					);
+		} catch (error) {
+			text = `Compaction failed: ${error instanceof Error ? error.message : String(error)}`;
 		}
-		if (session) {
-			session.config = { ...session.config, ...request.config };
+		sendEvent(ctx, "chat_command_output", {
+			sessionId,
+			command: commandName,
+			text,
+		});
+		return { sessionId, ok: true, commandHandled: true };
+	}
+	const pluginCommand =
+		commandName && !BUILTIN_SLASH_COMMAND_NAMES.has(commandName)
+			? await runPluginSlashCommand(ctx, {
+					workspacePath,
+					prompt,
+					sessionId,
+					environmentId: binding.environmentId,
+				})
+			: undefined;
+	if (pluginCommand) {
+		if (pluginCommand.reply) {
+			sendEvent(ctx, "chat_command_output", {
+				sessionId,
+				command: commandName,
+				text: pluginCommand.reply,
+			});
+		}
+		if (!pluginCommand.submitPrompt) {
+			return { sessionId, ok: true, commandHandled: true };
 		}
 	}
-
-	// Determine effective delivery mode.
-	// When the session is busy and no explicit delivery was requested, queue it
-	// via Core so that Core's own pending-prompts mechanism handles draining.
-	// This avoids a sidecar-only local queue that never calls manager.send().
+	// Dispatch the expanded or rewritten instructions, but keep the raw
+	// `/command` token as the session's display prompt.
+	const runtimePrompt =
+		pluginCommand?.submitPrompt ??
+		(binding.kind === "ssh"
+			? prompt
+			: await resolveDesktopRuntimePrompt(
+					ctx,
+					workspacePath,
+					prompt,
+					request.config?.mode ?? session?.config?.mode,
+				));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
 	}
-
-	if (delivery === "queue") {
-		if (session) {
-			session.prompt = prompt;
-		}
-		// Delegate queuing to Core — it will drain the prompt once the current
-		// turn finishes and emit pending_prompts / pending_prompt_submitted events.
-		await manager.send({
-			sessionId,
-			prompt,
-			delivery: "queue",
-			userImages: request.attachments?.userImages,
-		});
-		const prompts = await manager.pendingPrompts.list({ sessionId });
-		return {
-			sessionId,
-			ok: true,
-			queued: true,
-			promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
-		};
+	const nextConfig = request.config
+		? mergeSessionConfig(session?.config ?? {}, request.config)
+		: session?.config;
+	const providerChanged = Boolean(
+		session &&
+			request.config &&
+			hasProviderChanged(session.config, request.config),
+	);
+	if (providerChanged && session?.busy) {
+		throw new Error("Cannot switch providers while a turn is running");
 	}
-
+	const ownsBusyState = Boolean(
+		session && delivery !== "queue" && delivery !== "steer",
+	);
 	if (session) {
-		session.prompt = prompt;
-		session.busy = true;
-		session.status = "running";
+		if (ownsBusyState) {
+			session.prompt = prompt;
+			session.busy = true;
+			session.status = "running";
+		}
+		if (providerChanged) {
+			session.transitioningProvider = true;
+		}
 	}
 	try {
-		console.error(
-			`[sidecar:handleSend] calling manager.send sessionId=${sessionId} prompt=${prompt.slice(0, 80)}`,
-		);
-		const result = await manager.send({
+		if ((request.config || binding.kind === "ssh") && nextConfig) {
+			if (providerChanged && session) {
+				await rebuildSessionForProviderChange(
+					ctx,
+					binding,
+					sessionId,
+					session.config,
+					nextConfig,
+				);
+			} else if (
+				binding.kind === "ssh" ||
+				!session ||
+				session.attachedViaHub ||
+				shouldUpdateSessionConnection(session.config, nextConfig)
+			) {
+				const connectionUpdate = buildSessionConnectionUpdate(
+					binding.kind === "ssh"
+						? await withRemoteProviderCredentials(nextConfig)
+						: nextConfig,
+				);
+				try {
+					await manager.updateSessionConnection(sessionId, connectionUpdate);
+				} catch (error) {
+					if (
+						binding.kind === "ssh" ||
+						!isHubLossError(error) ||
+						(await reconnectSessionAfterHubLoss(
+							ctx,
+							manager,
+							sessionId,
+							session,
+						)) === "failed"
+					) {
+						throw error;
+					}
+					// No prompt was dispatched yet; refresh the recovered session
+					// and continue with this send and its requested configuration.
+					await manager.updateSessionConnection(sessionId, connectionUpdate);
+				}
+			}
+			if (session) {
+				session.config = nextConfig;
+				if (providerChanged) {
+					session.attachedViaHub = false;
+				}
+			}
+		}
+
+		if (
+			binding.kind === "ssh" &&
+			(request.attachments?.userFiles?.length ?? 0) > 0
+		) {
+			throw new Error(
+				"File attachments are not available in the SSH proof of concept yet. Images and text prompts are supported.",
+			);
+		}
+		const userFiles = materializeUserFiles(
 			sessionId,
-			prompt,
-			delivery,
-			userImages: request.attachments?.userImages,
-		});
-		console.error(
-			`[sidecar:handleSend] manager.send resolved sessionId=${sessionId} finishReason=${result?.finishReason} textLen=${result?.text?.length ?? 0}`,
+			request.attachments?.userFiles,
 		);
-		if (session) {
-			session.busy = false;
+		if (session?.attachedViaHub) {
+			// Once ClineCore sends a turn it owns the session: the attach-time
+			// connection refresh above has happened and the observer projection is
+			// muted by its subscription, so the session is no longer attach-only.
+			session.attachedViaHub = false;
+		}
+		if (delivery === "queue") {
+			if (session) {
+				session.prompt = prompt;
+			}
+			const queuePrompt = () =>
+				manager.send({
+					sessionId,
+					prompt: runtimePrompt,
+					delivery: "queue",
+					userImages: request.attachments?.userImages,
+					userFiles,
+				});
+			try {
+				await queuePrompt();
+			} catch (error) {
+				// A surviving hub may have accepted the prompt before its reply
+				// was lost. Only a rebuilt session is safe to enqueue into again.
+				if (
+					binding.kind === "ssh" ||
+					!isHubLossError(error) ||
+					(await reconnectSessionAfterHubLoss(
+						ctx,
+						manager,
+						sessionId,
+						session,
+					)) !== "rebuilt"
+				) {
+					throw error;
+				}
+				await queuePrompt();
+			}
+			const prompts = await manager.pendingPrompts.list({ sessionId });
+			trackQueuedAttachments(session, prompts, userFiles);
+			return {
+				sessionId,
+				ok: true,
+				queued: true,
+				// Response snapshot only — deliberately not routed through
+				// applyPendingPrompts. The list was taken at enqueue time and
+				// can already be stale when this response is written (the
+				// runtime may have drained the prompt meanwhile, e.g. the
+				// coerced first prompt of a fresh session); overwriting the
+				// event-maintained session.promptsInQueue and rebroadcasting
+				// prompts_in_queue_state here would resurrect a phantom queue
+				// entry for every connected webview.
+				promptsInQueue: prompts
+					.map(mapPendingPrompt)
+					.filter((item) => item.id)
+					.map(({ id, prompt, steer, attachmentCount }) => ({
+						id,
+						prompt,
+						steer,
+						attachmentCount,
+					})),
+			};
+		}
+
+		ctx.logger?.debug("Sending desktop chat prompt", {
+			sessionId,
+			promptLength: prompt.length,
+			delivery,
+		});
+		let result: Awaited<ReturnType<ClineCore["send"]>>;
+		try {
+			result = await manager.send({
+				sessionId,
+				prompt: runtimePrompt,
+				delivery,
+				userImages: request.attachments?.userImages,
+				userFiles,
+			});
+		} catch (error) {
+			deleteMaterializedAttachments(sessionId, userFiles);
+			if (
+				binding.kind === "ssh" ||
+				!isHubLossError(error) ||
+				(await reconnectSessionAfterHubLoss(
+					ctx,
+					manager,
+					sessionId,
+					session,
+				)) !== "rebuilt"
+			) {
+				throw error;
+			}
+			// The hub died mid-turn and the session is back on a fresh hub. End
+			// the turn as interrupted rather than failed; the user re-sends.
+			if (session && ownsBusyState) session.status = "idle";
+			return {
+				sessionId,
+				ok: true,
+				result: {
+					finishReason: "aborted",
+					text: HUB_INTERRUPTED_TEXT,
+					hubInterrupted: true,
+				},
+			};
+		}
+		if (result === undefined) {
+			// The runtime queued or steered the prompt instead of running it
+			// (busy interactive session / steer delivery) — track the files so
+			// they are deleted once the prompt is consumed or discarded.
+			if (userFiles?.length) {
+				trackQueuedAttachments(
+					session,
+					await manager.pendingPrompts.list({ sessionId }),
+					userFiles,
+				);
+			}
+		} else {
+			deleteMaterializedAttachments(sessionId, userFiles);
+		}
+		ctx.logger?.log("Desktop chat prompt completed", {
+			sessionId,
+			finishReason: result?.finishReason,
+			textLength: result?.text?.length ?? 0,
+		});
+		if (session && ownsBusyState) {
 			session.status = "idle";
-			if (result?.messages) session.messages = result.messages as unknown[];
+			if (result?.messages) session.messages = result.messages;
 		}
 		return {
 			sessionId,
@@ -602,11 +1949,8 @@ async function handleSend(
 				: undefined,
 		};
 	} catch (error) {
-		console.error(
-			`[sidecar:handleSend] manager.send THREW sessionId=${sessionId} error=${error instanceof Error ? error.message : String(error)}`,
-		);
-		if (session) {
-			session.busy = false;
+		ctx.logger?.error?.("Desktop chat prompt failed", { sessionId, error });
+		if (session && ownsBusyState) {
 			session.status = "error";
 		}
 		emitChunk(
@@ -626,6 +1970,15 @@ async function handleSend(
 				text: error instanceof Error ? error.message : String(error),
 			},
 		};
+	} finally {
+		if (session) {
+			if (ownsBusyState) {
+				session.busy = false;
+			}
+			if (providerChanged) {
+				session.transitioningProvider = false;
+			}
+		}
 	}
 }
 
@@ -635,7 +1988,9 @@ async function handleStop(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	await getSessionManager(ctx).stop(sessionId);
+	cancelHubReconnect(sessionId);
+	cancelSidecarMistakeQuestions(ctx, sessionId, "Session stopped");
+	await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
 		session.busy = false;
@@ -650,7 +2005,12 @@ async function handleAbort(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	await getSessionManager(ctx).abort(sessionId, "user_abort");
+	cancelHubReconnect(sessionId);
+	cancelSidecarMistakeQuestions(ctx, sessionId, "Run aborted");
+	await getSessionManager(ctx, sessionId, request.config).abort(
+		sessionId,
+		"user_abort",
+	);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
 		session.busy = false;
@@ -665,24 +2025,94 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
-	const manager = getSessionManager(ctx);
+	const forkBeforeRunCount = request.forkBeforeRunCount;
+	if (
+		forkBeforeRunCount !== undefined &&
+		(!Number.isInteger(forkBeforeRunCount) || forkBeforeRunCount < 1)
+	) {
+		throw new Error("forkBeforeRunCount must be a positive integer");
+	}
+	const manager = getSessionManager(ctx, sourceSessionId, request.config);
+	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		liveSourceSession &&
+		hasActiveWorkspaceTurn(liveSourceSession)
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	const sourceSession = await manager.get(sourceSessionId);
+	if (
+		forkBeforeRunCount !== undefined &&
+		(sourceSession?.status === "running" || sourceSession?.status === "pending")
+	) {
+		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
+	}
+	if (forkBeforeRunCount === undefined) {
+		return handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+			sourceSession,
+		);
+	}
+	const restoreWorkspacePath =
+		readWorkspacePath(sourceSession) ??
+		readWorkspacePath(liveSourceSession?.config) ??
+		readWorkspacePath(request.config);
+	if (!restoreWorkspacePath) {
+		throw new Error("cwd or workspaceRoot is required to edit a message");
+	}
+	return withWorkspaceRestoreLock(ctx, restoreWorkspacePath, () =>
+		handleForkUnlocked(
+			ctx,
+			request,
+			sourceSessionId,
+			forkBeforeRunCount,
+			sourceSession,
+			restoreWorkspacePath,
+		),
+	);
+}
+
+async function handleForkUnlocked(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sourceSessionId: string,
+	forkBeforeRunCount: number | undefined,
+	sourceSession: SessionRecord | undefined,
+	restoreWorkspacePath?: string,
+): Promise<unknown> {
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
 	const sourceMessages =
-		readPersistedChatMessages(sourceSessionId) ??
-		ctx.liveSessions.get(sourceSessionId)?.messages;
+		binding.kind === "ssh"
+			? await manager.readMessages(sourceSessionId)
+			: (readPersistedChatMessages(sourceSessionId) ??
+				ctx.liveSessions.get(sourceSessionId)?.messages);
+
 	if (!sourceMessages?.length) {
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
 
-	const sourceSession = await manager.get(sourceSessionId);
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)
-			: undefined) ?? readSessionMetadata(sourceSessionId);
+			: undefined) ??
+		(binding.kind === "local"
+			? readSessionMetadata(sourceSessionId)
+			: undefined);
 	const liveConfig = ctx.liveSessions.get(sourceSessionId)?.config;
-	const forkConfig: JsonRecord = {
+	const baseForkConfig: JsonRecord = {
 		...(liveConfig ?? {}),
 		...(request.config ?? {}),
 		sessionId: undefined,
+		environmentId: binding.environmentId,
 		provider:
 			sourceSession?.provider ||
 			liveConfig?.provider ||
@@ -712,56 +2142,130 @@ async function handleFork(
 			request.config?.cwd ||
 			"",
 	};
+	const forkConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(baseForkConfig)
+			: baseForkConfig;
 	const checkpointMetadata =
 		sourceMetadata?.checkpoint !== undefined
 			? { checkpoints: sourceMetadata.checkpoint }
 			: {};
+	let forkMessages =
+		forkBeforeRunCount === undefined
+			? sourceMessages
+			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
 			source: sourceSession?.source ?? "desktop",
+			...(forkBeforeRunCount !== undefined
+				? { beforeRunCount: forkBeforeRunCount }
+				: {}),
 			...checkpointMetadata,
 		},
 	};
-	const systemPrompt = await resolveSystemPrompt(forkConfig);
-	const startResult = await manager.start({
+	const systemPrompt =
+		binding.kind === "ssh"
+			? readExplicitSystemPrompt(forkConfig)
+			: await resolveSystemPrompt(forkConfig);
+	let newSessionId = "";
+	const startInput = {
 		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
-				...forkConfig,
-				systemPrompt,
-				initialMessages: sourceMessages,
-			}) as unknown as CoreSessionConfig,
+			buildCoreSessionConfig(
+				{
+					...forkConfig,
+					systemPrompt,
+				},
+				ctx.telemetryUser,
+				createDesktopMistakeRecovery(ctx, () => newSessionId),
+			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		initialMessages: sourceMessages as Message[],
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
-	});
-	const newSessionId = startResult.sessionId;
+	};
+	// Sessions without a checkpoint at or before the edited run (imported
+	// transcripts, checkpoints disabled) have no workspace state to roll back,
+	// so fork the trimmed messages onto the current workspace instead of
+	// failing the edit.
+	const canRestoreWorkspace =
+		forkBeforeRunCount !== undefined &&
+		findCheckpointForRun(
+			readSessionCheckpointHistory({ metadata: sourceMetadata }),
+			forkBeforeRunCount,
+		) !== undefined;
+	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
+		const cwd =
+			restoreWorkspacePath ||
+			(typeof forkConfig.cwd === "string" && forkConfig.cwd.trim()) ||
+			(typeof forkConfig.workspaceRoot === "string" &&
+				forkConfig.workspaceRoot.trim()) ||
+			"";
+		if (!cwd) {
+			throw new Error("cwd or workspaceRoot is required to edit a message");
+		}
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: forkBeforeRunCount,
+			cwd,
+			restore: {
+				messages: true,
+				workspace: true,
+				omitCheckpointMessageFromSession: true,
+			},
+			start: startInput,
+		});
+		if (!restored.sessionId) {
+			throw new Error("Message edit restore did not return a new session");
+		}
+		newSessionId = restored.sessionId;
+	} else {
+		const started = await manager.start({
+			...startInput,
+			initialMessages: forkMessages,
+		});
+		newSessionId = started.sessionId;
+	}
+	try {
+		const read = await manager.readMessages(newSessionId);
+		if (forkBeforeRunCount !== undefined || read.length > 0) {
+			forkMessages = read;
+		}
+	} catch {}
+	discardAllTrackedAttachments(
+		sourceSessionId,
+		ctx.liveSessions.get(sourceSessionId),
+	);
+	cancelSidecarMistakeQuestions(
+		ctx,
+		sourceSessionId,
+		"Session replaced by fork",
+	);
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		newSessionId,
-		createLiveSession(forkConfig, {
-			messages: sourceMessages,
-			prompt: derivePromptFromMessages(sourceMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
+		createLiveSession(baseForkConfig, {
+			environmentId: binding.environmentId,
+			messages: forkMessages,
+			prompt: derivePromptFromMessages(forkMessages),
+			title:
+				binding.kind === "local"
+					? readSessionMetadataTitle(sourceSessionId)
+					: typeof sourceMetadata?.title === "string"
+						? sourceMetadata.title
+						: undefined,
 			status: "idle",
 		}),
 	);
+	ctx.sessionEnvironmentIds.set(newSessionId, binding.environmentId);
 	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 	sendPromptsInQueueSnapshot(ctx, newSessionId);
-	let messages: unknown[] = sourceMessages;
-	try {
-		const read = await manager.readMessages(newSessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages,
 	};
 }
 
@@ -771,6 +2275,8 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
+		cancelHubReconnect(sessionId);
+		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
 		if (
 			session?.busy ||
@@ -778,9 +2284,11 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await getSessionManager(ctx).stop(sessionId);
+			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 		}
+		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
+		ctx.sessionEnvironmentIds.delete(sessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
 	return { sessionId: request.sessionId, ok: true };
@@ -799,59 +2307,93 @@ async function handleRestoreCheckpoint(
 		runCount < 1
 	)
 		throw new Error("checkpointRunCount must be a positive integer");
-	if (!request.config)
+	const requestedConfig = request.config;
+	if (!requestedConfig)
 		throw new Error("config is required to restore a checkpoint");
 	const cwd =
-		(typeof request.config.cwd === "string" && request.config.cwd.trim()) ||
-		(typeof request.config.workspaceRoot === "string" &&
-			request.config.workspaceRoot.trim()) ||
+		(typeof requestedConfig.cwd === "string" && requestedConfig.cwd.trim()) ||
+		(typeof requestedConfig.workspaceRoot === "string" &&
+			requestedConfig.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
-	const manager = getSessionManager(ctx);
-	const restored = await manager.restore({
-		sessionId: sourceSessionId,
-		checkpointRunCount: runCount,
-		cwd,
-		restore: { messages: true, workspace: true },
-		start: {
-			...splitCoreSessionConfig(
-				buildCoreSessionConfig({
-					...request.config,
-					systemPrompt: await resolveSystemPrompt(request.config),
-				}) as unknown as CoreSessionConfig,
-			),
-			source: SessionSource.DESKTOP,
-			interactive: true,
-			toolPolicies: resolveToolPolicies(request.config),
-		},
-	});
-	const sessionId = restored.sessionId;
-	const restoredMessages = restored.messages;
-	if (!sessionId || !restoredMessages) {
-		throw new Error("Checkpoint restore did not return a new session");
-	}
-	ctx.liveSessions.delete(sourceSessionId);
-	ctx.liveSessions.set(
-		sessionId,
-		createLiveSession(request.config, {
-			messages: restoredMessages,
-			prompt: derivePromptFromMessages(restoredMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
-			status: "idle",
-		}),
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(requestedConfig),
 	);
-	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
-	sendPromptsInQueueSnapshot(ctx, sessionId);
-	let messages: unknown[] = restoredMessages;
-	try {
-		const read = await manager.readMessages(sessionId);
-		if (read?.length > 0) messages = read;
-	} catch {}
-	return {
-		sessionId,
-		messages,
-		restoredCheckpoint: restored.checkpoint,
-	};
+	const manager = binding.sessionManager;
+	const config =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(requestedConfig)
+			: requestedConfig;
+	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		// Updated once restore() returns; read lazily by the mistake-limit prompt.
+		let restoredSessionId = sourceSessionId;
+		const restored = await manager.restore({
+			sessionId: sourceSessionId,
+			checkpointRunCount: runCount,
+			cwd,
+			restore: { messages: true, workspace: true },
+			start: {
+				...splitCoreSessionConfig(
+					buildCoreSessionConfig(
+						{
+							...config,
+							systemPrompt:
+								binding.kind === "ssh"
+									? readExplicitSystemPrompt(config)
+									: await resolveSystemPrompt(config),
+						},
+						ctx.telemetryUser,
+						createDesktopMistakeRecovery(ctx, () => restoredSessionId),
+					) as unknown as ClineCoreStartConfig,
+				),
+				source: SessionSource.DESKTOP,
+				interactive: true,
+				toolPolicies: resolveToolPolicies(config),
+			},
+		});
+		const sessionId = restored.sessionId;
+		const restoredMessages = restored.messages;
+		if (!sessionId || !restoredMessages) {
+			throw new Error("Checkpoint restore did not return a new session");
+		}
+		restoredSessionId = sessionId;
+		discardAllTrackedAttachments(
+			sourceSessionId,
+			ctx.liveSessions.get(sourceSessionId),
+		);
+		cancelSidecarMistakeQuestions(
+			ctx,
+			sourceSessionId,
+			"Session checkpoint restored",
+		);
+		ctx.liveSessions.delete(sourceSessionId);
+		ctx.liveSessions.set(
+			sessionId,
+			createLiveSession(requestedConfig, {
+				environmentId: binding.environmentId,
+				messages: restoredMessages,
+				prompt: derivePromptFromMessages(restoredMessages),
+				title: readSessionMetadataTitle(sourceSessionId),
+				status: "idle",
+			}),
+		);
+		// A restore that reuses the source session id leaves the persisted
+		// transcript describing the discarded turns, and read_session_messages
+		// prefers that file over the live session. Write the trimmed history so
+		// the transcript matches the workspace the restore just rolled back to.
+		if (binding.kind === "local") {
+			persistSessionMessages(sessionId, restoredMessages);
+		}
+		ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+		return {
+			sessionId,
+			restoredCheckpoint: restored.checkpoint,
+		};
+	});
 }
 
 async function handlePendingPrompts(
@@ -860,9 +2402,11 @@ async function handlePendingPrompts(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const prompts = await getSessionManager(ctx).pendingPrompts.list({
+	const prompts = await getSessionManager(
+		ctx,
 		sessionId,
-	});
+		request.config,
+	).pendingPrompts.list({ sessionId });
 	return {
 		sessionId,
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
@@ -875,14 +2419,17 @@ async function handleSteerPrompt(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	const promptId = request.promptId?.trim();
-	if (!sessionId || !promptId)
-		throw new Error("sessionId and promptId are required");
-	const manager = getSessionManager(ctx);
-	const result = await manager.pendingPrompts.update({
-		sessionId,
-		promptId,
-		delivery: "steer",
-	});
+	if (!sessionId) throw new Error("sessionId is required");
+	if (request.promptId !== undefined && !promptId)
+		throw new Error("promptId cannot be empty");
+	const manager = getSessionManager(ctx, sessionId, request.config);
+	const result = promptId
+		? await manager.pendingPrompts.update({
+				sessionId,
+				promptId,
+				delivery: "steer",
+			})
+		: await manager.pendingPrompts.steerFirst({ sessionId });
 	return {
 		sessionId,
 		updated: result.updated === true,
@@ -903,11 +2450,28 @@ async function handleUpdatePendingPrompt(
 	if (!prompt) {
 		throw new Error("prompt is required");
 	}
-	const manager = getSessionManager(ctx);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
+	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
+	// Queued prompts are delivered by the runtime without another pass
+	// through handleSend, so resolve slash commands here too.
+	const runtimePrompt =
+		binding.kind === "ssh"
+			? prompt
+			: await resolveDesktopRuntimePrompt(
+					ctx,
+					readWorkspacePath(sessionConfig) ?? ctx.localWorkspaceRoot,
+					prompt,
+					sessionConfig?.mode,
+				);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
-		prompt,
+		prompt: runtimePrompt,
 	});
 	return {
 		sessionId,
@@ -926,11 +2490,15 @@ async function handleRemovePendingPrompt(
 	if (!sessionId || !promptId) {
 		throw new Error("sessionId and promptId are required");
 	}
-	const manager = getSessionManager(ctx);
+	const manager = getSessionManager(ctx, sessionId, request.config);
 	const result = await manager.pendingPrompts.delete({
 		sessionId,
 		promptId,
 	});
+	if (result.removed === true) {
+		deleteMaterializedAttachments(sessionId, result.prompt?.userFiles);
+		ctx.liveSessions.get(sessionId)?.queuedAttachmentFiles?.delete(promptId);
+	}
 	return {
 		sessionId,
 		removed: result.removed === true,
@@ -965,7 +2533,146 @@ export async function handleChatSessionCommand(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
+	const executionTarget = String(request.config?.executionTarget ?? "").trim();
+	const sessionId = request.sessionId?.trim();
+	const existingCloudSession =
+		sessionId &&
+		(isCloudOuterSessionId(sessionId) ||
+			ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud");
+	if (executionTarget === "cloud" || existingCloudSession) {
+		ctx = getEnvironmentContext(ctx, "local");
+		const cloud = getCloudSessionManager(ctx);
+		// The approval preference lives only client-side; keep the live session
+		// current so a lazily created inner session inherits the user's choice.
+		const requestedAutoApprove = request.config?.autoApproveTools;
+		if (typeof requestedAutoApprove === "boolean" && sessionId) {
+			const live = ctx.liveSessions.get(sessionId);
+			if (live) {
+				live.config.autoApproveTools = requestedAutoApprove;
+			}
+		}
+		switch (request.action) {
+			case "start": {
+				const requestedSessionId = String(
+					request.config?.sessionId ?? request.config?.session_id ?? "",
+				).trim();
+				// Server ids attach even with a cold registry; client-planned ids create.
+				if (requestedSessionId && cloud.isCloudSession(requestedSessionId)) {
+					return await cloud.attach(requestedSessionId);
+				}
+				// Gate new sessions only; existing cloud sessions must remain usable.
+				if (!isCloudAgentsEnabled()) {
+					throw new Error(
+						"Cloud sessions are not enabled for this account yet.",
+					);
+				}
+				const repoUrl = String(request.config?.repoUrl ?? "").trim();
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				if (!repoUrl || !modelId) {
+					throw new Error("repoUrl and model are required for a cloud session");
+				}
+				const branch = String(request.config?.branch ?? "").trim();
+				const initialPrompt = request.prompt?.trim();
+				const reasoningEffort = readReasoningEffort(
+					request.config?.reasoningEffort,
+				);
+				return await cloud.create({
+					...(requestedSessionId ? { requestId: requestedSessionId } : {}),
+					repoUrl,
+					modelId,
+					...(initialPrompt ? { initialPrompt } : {}),
+					...(branch ? { branch } : {}),
+					...(typeof request.config?.thinking === "boolean"
+						? { thinking: request.config.thinking }
+						: {}),
+					...(reasoningEffort ? { reasoningEffort } : {}),
+					...(typeof requestedAutoApprove === "boolean"
+						? { autoApproveTools: requestedAutoApprove }
+						: {}),
+				});
+			}
+			case "attach":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.attach(sessionId);
+			case "send": {
+				if (!sessionId) throw new Error("sessionId is required");
+				if (request.attachments?.userFiles?.length) {
+					throw new Error(
+						"File attachments are not supported in cloud sessions",
+					);
+				}
+				const prompt = request.prompt?.trim() ?? "";
+				if (
+					!prompt &&
+					!request.attachments?.userImages?.some((image) => image.trim())
+				) {
+					throw new Error("prompt or image is required");
+				}
+				const modelId = String(
+					request.config?.model ?? request.config?.modelId ?? "",
+				).trim();
+				return await cloud.send(
+					sessionId,
+					prompt,
+					request.delivery,
+					modelId || undefined,
+					request.attachments?.userImages,
+				);
+			}
+			case "stop":
+			case "abort":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.abort(sessionId);
+			case "pending_prompts":
+				if (!sessionId) throw new Error("sessionId is required");
+				return await cloud.pendingPrompts(sessionId);
+			case "steer_prompt": {
+				const promptId = request.promptId?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				return await cloud.updatePendingPrompt(sessionId, promptId, {
+					delivery: "steer",
+				});
+			}
+			case "update_pending_prompt": {
+				const promptId = request.promptId?.trim();
+				const prompt = request.prompt?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				if (!prompt) throw new Error("prompt is required");
+				return await cloud.updatePendingPrompt(sessionId, promptId, {
+					prompt,
+				});
+			}
+			case "remove_pending_prompt": {
+				const promptId = request.promptId?.trim();
+				if (!sessionId || !promptId)
+					throw new Error("sessionId and promptId are required");
+				return await cloud.removePendingPrompt(sessionId, promptId);
+			}
+			default:
+				throw new Error(
+					`${request.action} is not supported for cloud sessions yet`,
+				);
+		}
+	}
 	const handler = ACTION_HANDLERS[request.action];
 	if (!handler) throw new Error("unsupported action");
-	return handler(ctx, request);
+	const explicitEnvironment = readEnvironmentId(request.config);
+	const binding =
+		!explicitEnvironment && request.sessionId
+			? await findSessionRuntimeBinding(ctx, request.sessionId)
+			: undefined;
+	return handler(
+		getEnvironmentContext(
+			ctx,
+			explicitEnvironment ??
+				binding?.environmentId ??
+				ctx.activeEnvironmentId ??
+				"local",
+		),
+		request,
+	);
 }

@@ -1,5 +1,74 @@
+import { z } from "zod";
+
 export const IMAGE_OMITTED_PLACEHOLDER =
 	"[media omitted: invalid or exceeds size limit]";
+
+/**
+ * Substituted for image content at request-build time when the target model
+ * does not advertise image input. The stored conversation history keeps the
+ * real image, so switching to an image-capable model restores it.
+ */
+export const IMAGE_UNSUPPORTED_PLACEHOLDER =
+	"[Image attached — this model cannot view images]";
+
+export const GeneratedMediaModalitySchema = z.enum([
+	"image",
+	"audio",
+	"video",
+	"file",
+]);
+export type GeneratedMediaModality = z.infer<
+	typeof GeneratedMediaModalitySchema
+>;
+
+export const GeneratedMediaSourceSchema = z.discriminatedUnion("type", [
+	z.object({ type: z.literal("base64"), data: z.string().min(1) }),
+	z.object({
+		type: z.literal("url"),
+		url: z
+			.string()
+			.url()
+			.refine((value) => {
+				const protocol = new URL(value).protocol;
+				return protocol === "http:" || protocol === "https:";
+			}, "Generated media URLs must use HTTP or HTTPS"),
+	}),
+	z.object({ type: z.literal("artifact"), artifactId: z.string().min(1) }),
+]);
+export type GeneratedMediaSource = z.infer<typeof GeneratedMediaSourceSchema>;
+
+function modalityForMediaType(mediaType: string): GeneratedMediaModality {
+	if (mediaType.startsWith("image/")) return "image";
+	if (mediaType.startsWith("audio/")) return "audio";
+	if (mediaType.startsWith("video/")) return "video";
+	return "file";
+}
+
+/** Canonical model-generated media, shared by streaming and persistence. */
+export const GeneratedMediaSchema = z
+	.object({
+		id: z.string().min(1),
+		modality: GeneratedMediaModalitySchema,
+		mediaType: z.string().min(1),
+		source: GeneratedMediaSourceSchema,
+		name: z.string().min(1).optional(),
+		sizeBytes: z.number().int().nonnegative().optional(),
+	})
+	.refine((media) => modalityForMediaType(media.mediaType) === media.modality, {
+		message: "Generated media modality must match its media type",
+		path: ["modality"],
+	});
+export type GeneratedMedia = z.infer<typeof GeneratedMediaSchema>;
+
+export function isGeneratedMedia(value: unknown): value is GeneratedMedia {
+	return GeneratedMediaSchema.safeParse(value).success;
+}
+
+export function generatedMediaModalityFromMediaType(
+	mediaType: string,
+): GeneratedMediaModality {
+	return modalityForMediaType(mediaType);
+}
 
 export const SUPPORTED_IMAGE_MEDIA_TYPES = [
 	"image/png",
@@ -63,6 +132,23 @@ export interface MediaBudgetState {
 		Record<ImageMediaValidationFailure["reason"], number>
 	>;
 }
+
+export interface Base64MediaValidationSuccess {
+	ok: true;
+	base64: string;
+	encodedBytes: number;
+	decodedBytes: number;
+}
+
+export interface Base64MediaValidationFailure {
+	ok: false;
+	reason: "invalid_base64" | "total_limit";
+	message: string;
+}
+
+export type Base64MediaValidationResult =
+	| Base64MediaValidationSuccess
+	| Base64MediaValidationFailure;
 
 export function imageBase64EncodedByteLength(base64: string): number {
 	return base64.length;
@@ -165,6 +251,48 @@ export function isBase64Char(charCode: number): boolean {
 
 export function isCanonicalBase64(base64: string): boolean {
 	return base64.length > 0 && isCanonicalBase64Range(base64, 0, base64.length);
+}
+
+/** Validate and reserve an arbitrary inline media payload against the turn budget. */
+export function validateAndReserveBase64Media(
+	data: string,
+	budget: MediaBudgetOptions,
+	state: MediaBudgetState,
+): Base64MediaValidationResult {
+	const range = trimmedRange(data);
+	const encodedBytes = range.end - range.start;
+	if (encodedBytes === 0) {
+		return {
+			ok: false,
+			reason: "invalid_base64",
+			message: "Generated media must contain valid base64",
+		};
+	}
+
+	const resolved = resolveMediaBudget(budget);
+	if (state.totalEncodedBytes + encodedBytes > resolved.maxTotalMediaBytes) {
+		return {
+			ok: false,
+			reason: "total_limit",
+			message: `Generated media exceeds the ${resolved.maxTotalMediaBytes} byte total media limit`,
+		};
+	}
+	if (!isCanonicalBase64Range(data, range.start, range.end)) {
+		return {
+			ok: false,
+			reason: "invalid_base64",
+			message: "Generated media must contain valid base64",
+		};
+	}
+
+	const base64 = data.slice(range.start, range.end);
+	state.totalEncodedBytes += encodedBytes;
+	return {
+		ok: true,
+		base64,
+		encodedBytes,
+		decodedBytes: imageBase64DecodedByteLength(base64),
+	};
 }
 
 function isCanonicalBase64Range(

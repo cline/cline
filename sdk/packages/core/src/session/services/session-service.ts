@@ -83,12 +83,18 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
+		rootOnly?: boolean;
 	}): Promise<SessionRow[]> {
 		const whereClauses: string[] = [];
 		const params: unknown[] = [];
 		if (options.parentSessionId) {
 			whereClauses.push("parent_session_id = ?");
 			params.push(options.parentSessionId);
+		}
+		if (options.rootOnly) {
+			whereClauses.push(
+				"is_subagent = 0 AND (parent_session_id IS NULL OR parent_session_id = '')",
+			);
 		}
 		if (options.status) {
 			whereClauses.push("status = ?");
@@ -119,7 +125,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				`UPDATE sessions
 				 SET status = 'running', ended_at = NULL, exit_code = NULL, updated_at = ?, status_lock = ?,
 					 parent_session_id = ?, parent_agent_id = ?, agent_id = ?, conversation_id = ?, is_subagent = 1,
-					 prompt = COALESCE(prompt, ?)
+					 prompt = COALESCE(prompt, ?), metadata_json = ?
 				 WHERE session_id = ? AND status_lock = ?`,
 				[
 					nowIso(),
@@ -129,6 +135,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 					input.agentId ?? null,
 					input.conversationId ?? null,
 					input.prompt ?? null,
+					stringifyMetadata(input.metadata),
 					input.sessionId,
 					input.expectedStatusLock,
 				],

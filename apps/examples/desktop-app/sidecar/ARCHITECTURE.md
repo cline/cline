@@ -2,9 +2,12 @@
 
 ## Overview
 
-The sidecar is a single Bun process that handles the desktop backend runtime directly.
+The sidecar is a Bun process that adapts the desktop UI and native operations to
+the shared Cline Hub.
 
-It imports `@cline/core` directly and serves the Next.js frontend over HTTP + WebSocket.
+It imports `@cline/core`, discovers or starts the canonical shared Hub, registers
+as a Hub client, and serves the Next.js frontend over HTTP + WebSocket. The
+sidecar does not own a private agent runtime Hub.
 
 ## Directory Structure
 
@@ -13,8 +16,12 @@ sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
+├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
-├── chat-session.ts       # In-process chat session management
+├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
+├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
+├── cline-auth.ts         # Refresh-aware Cline auth token resolution
+├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
 ├── types.ts              # Shared types
@@ -31,15 +38,23 @@ Event:    { "type": "event", "event": { "name": string, "payload": unknown } }
 
 ## Key Design Decisions
 
-### 1. Chat Sessions — In-Process via LocalRuntimeHost
+### 1. Chat Sessions — Shared Hub Client
 
-Instead of spawning a separate runtime bridge process, we use `LocalRuntimeHost` directly:
+`ClineCore` uses Hub mode without an explicit endpoint. Core therefore reuses
+the same compatible Hub discovered by the CLI or starts the canonical detached
+Hub when the desktop is the first client:
 
 ```typescript
-import { LocalRuntimeHost } from "@cline/core";
-
 const sessionManager = await ClineCore.create({
+  clientName: "cline-code",
   backendMode: "hub",
+  hub: {
+    strategy: "require-hub",
+    workspaceRoot,
+    cwd: workspaceRoot,
+    clientType: "code-sidecar",
+    displayName: "Cline Desktop sidecar",
+  },
   capabilities: {
     requestToolApproval: async (request) => {
       // Push approval request to frontend via WebSocket event
@@ -66,19 +81,45 @@ sessionManager.subscribe((event) => {
 });
 ```
 
-### 2. Tool Approval — In-Memory Promise Resolution
+The packaged backend runs on the bundled Cline CLI and has it start the Hub:
+`cline-cli hub ensure` reuses a compatible healthy Hub or starts one, and the
+Hub daemon is that same CLI binary. Any Hub the backend itself has to start
+later goes through the same binary (`setHubDaemonLauncher`). Startup discovery
+and locking ensure concurrent clients converge on one Hub.
 
-No more file-system watchers. Tool approvals use in-memory promise maps:
+The backend ships Core’s complete `plugin-runtime` artifact beside its script.
+The standalone CLI embeds the same artifact in its read-only Bun filesystem.
+The script runner does not mount that filesystem, so Desktop uses its packaged
+copy without extracting resources at startup.
+
+Every create, restart, fork, and restore also attaches the serializable Desktop
+`ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
+that context across the Hub transport and scopes the daemon-owned telemetry
+service to the originating surface. This keeps lifecycle events centralized in
+Core while reporting Desktop dimensions (`cline_type: "desktop"`, `platform:
+"Cline Desktop"`, and the Desktop app version) and the current account and
+organization. The shared Hub telemetry singleton is never mutated per session,
+so concurrent CLI and Desktop tasks retain their own attribution.
+
+### 2. Tool Approval — Client-Owned Promise Resolution
+
+The shared Hub routes approval requests back to the client that created the
+session. Desktop approvals use in-memory promise maps while the webview is
+online:
 
 ```typescript
 const pendingApprovals = new Map<string, {
-  resolve: (result: ToolApprovalResult) => void;
+  resolve: (result: ToolApprovalResult) => void | Promise<void>;
   request: ToolApprovalRequest;
 }>();
 
 // When core requests approval → store promise, push to frontend
 // When frontend responds → resolve promise
 ```
+
+Cloud sessions route approvals the same way, but the resolver forwards the
+response to the sandbox Hub (`approval.respond`), which is why `resolve` may
+be async.
 
 ### 3. Provider Management — Direct ProviderSettingsManager
 
@@ -96,12 +137,11 @@ const store = new SqliteSessionStore();
 
 ### 5. Routine Schedules — Direct Hub Commands
 
-Routine operations now ensure the local hub server in-process and issue hub schedule commands directly. They are still called in-process, not via child script:
+Routine operations use the same connected Hub client as chat session
+observation. They never start a second in-process Hub:
 
 ```typescript
-import { ensureHubServer, sendHubCommand } from "@cline/core";
-await ensureHubServer({ runtimeHandlers: createLocalHubScheduleRuntimeHandlers() });
-await sendHubCommand({}, { command: "schedule.list", payload: { limit: 200 } });
+await ctx.hubClient.command("schedule.list", { limit: 200 });
 ```
 
 ### 6. Native Commands
@@ -118,33 +158,84 @@ The frontend `desktop-client.ts` connects directly to the sidecar WebSocket:
 
 ## Command Map
 
+The model picker first uses `list_provider_catalog`, which reads the bundled and
+registered models without network access. It then calls `list_provider_models`
+for the active provider, both on mount and when the provider changes. All built-in
+providers backed by the shared catalog refresh from the live feed (including
+OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
+Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
+discovery endpoints instead. Catalog and public endpoint requests time out after
+five seconds, and the initial picker remains usable while a refresh is pending.
+The sidecar omits bundled `knownModels` from the discovery config so they cannot
+override live metadata; explicitly registered model overrides retain precedence.
+
+The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
+command/docs) through the shared RPC contract. The sidecar resolves these facts
+from the registered provider catalog; chat validation and credential-error UI use
+that data rather than importing the browser LLM registry. Error-message metadata
+retains the provider facts used for that message, so changing providers does not
+change an existing message's recovery action. The same response carries
+`modelTools` for provider-level settings indicators such as web-search support.
+
+Voice settings and the composer's microphone separately call
+`list_transcription_models`. Exact audio-only input and text-only output identify
+speech-to-text models; operation labels do not admit additional modalities.
+Multimodal live models are categorized as `realtime` and are currently unsupported.
+The core service restricts voice choices to executable transcription transports. Vercel voice discovery uses its current `/v1/models` response and
+`websocket-transcription` tags, without merging bundled entries. Discovery errors
+hide that provider's voice choices; they do not block ordinary chat model loading.
+Saving a voice choice, transcribing a recording, and creating a streaming session
+all validate against this same catalog. The network-free provider snapshot carries
+the saved voice choice, which is not proof of current availability.
+
+The webview caches verified voice models for five minutes and renders their
+snapshot when reopening Voice settings. Provider credential changes invalidate
+this cache; changing only the selected voice model preserves it. Session startup
+still validates on the sidecar. Streaming sessions declare the transport and PCM
+sample rate, including Gemini's 16 kHz input and ElevenLabs Scribe v2 Realtime.
+Provider WebSocket handlers are installed before capture starts; Gateway raw
+error events preserve upstream failures that its generic stream error omits.
+
 Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | `LocalRuntimeHost` in-process |
+| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `list_transcription_models` | `getLocalTranscriptionModels` |
+| `save_voice_input_settings` | validates and persists the selected transcription provider/model |
+| `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
+| `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
-| `list_chat_sessions` | `SqliteSessionStore` + file discovery |
-| `list_discovered_sessions` | Merged discovery |
-| `read_session_messages` | Session data readers |
+| `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
+| `list_discovered_sessions` | Merged discovery (local + cloud) |
+| `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
 | `read_session_hooks` | Session data readers |
-| `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
-| `update_chat_session_title` | `resolveSessionBackend().updateSession` |
+| `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
+| `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
+| `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
+| `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
+| `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
+| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
+| `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
-| `get_git_branch` | `execFileSync("git", ...)` |
-| `list_git_branches` | `execFileSync("git", ...)` |
-| `checkout_git_branch` | `execFileSync("git", ...)` |
+| `get_git_branch` | async `execFile("git", ...)` |
+| `list_git_branches` | async `execFile("git", ...)` |
+| `checkout_git_branch` | async `execFile("git", ...)` |
+| `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
-| `list_routine_schedules` | local hub schedule commands |
+| `poll_ask_questions` | In-memory pending map |
+| `respond_ask_question` | In-memory promise resolution |
+| `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
 | `open_mcp_settings_file` | OS `open` command |
@@ -152,7 +243,8 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
+bun run dev:headless  # Start sidecar and Next.js with a fresh shared approval credential
+bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
+bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```

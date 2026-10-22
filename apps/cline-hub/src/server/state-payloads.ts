@@ -1,4 +1,4 @@
-import { listActiveConnectors } from "../../../cli/src/connectors/status";
+import { listActiveConnectors } from "@cline/core";
 import type { WebviewHubState } from "../webview-protocol";
 import {
 	clientSummariesPayload,
@@ -60,6 +60,8 @@ export function hubStatusPayload(ctx: HubContext) {
 			clientId: client.clientId,
 			displayName: client.displayName,
 			clientType: client.clientType,
+			version: client.version,
+			pid: client.pid,
 			connectedAt: new Date(client.connectedAt).toISOString(),
 		})),
 		activeSessions: sessionSummaries.length,

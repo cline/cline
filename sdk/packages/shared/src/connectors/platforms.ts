@@ -41,11 +41,17 @@ export interface ConnectorPlatformDef {
 	type: "polling" | "webhook" | "hybrid";
 	hint: string;
 	fields: ConnectorFieldDef[];
+	/**
+	 * Adapter-derived flags that may be persisted for fast reconnects but must
+	 * be regenerated whenever dashboard-managed configuration changes.
+	 */
+	derivedReconnectFlags?: string[];
 	security?: ConnectorSecurityDef;
 }
 
 export interface ConnectorFieldDef {
 	flag: string;
+	aliases?: string[];
 	label: string;
 	placeholder?: string;
 	required?: boolean;
@@ -73,6 +79,7 @@ export interface ConnectorSecurityFieldDef {
 export interface ConnectorSecurityDef {
 	prompt: string;
 	fields: ConnectorSecurityFieldDef[];
+	argumentFlags: string[];
 	buildArgs: (values: Record<string, string>) => string[];
 }
 
@@ -91,6 +98,7 @@ export type ConnectorChannel = {
 export type ActiveConnectorRecord = {
 	id: string;
 	type: string;
+	instanceId: string;
 	pid: number;
 	hubUrl: string;
 	startedAt?: string;
@@ -132,6 +140,112 @@ export function shouldIncludeConnectorField(
 		return false;
 	}
 	return true;
+}
+
+/**
+ * Build the non-interactive CLI arguments for a validated connector
+ * configuration. The channel name itself is intentionally omitted so the
+ * arguments can be persisted and reused by any host.
+ */
+export function buildConnectorConnectArgs(
+	platform: ConnectorPlatformDef,
+	values: Record<string, string>,
+	security?: { enabled: boolean; values: Record<string, string> },
+): string[] {
+	const fieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		const rawValue = values[field.flag];
+		fieldValues[field.flag] =
+			typeof rawValue === "string"
+				? rawValue.trim()
+				: (field.initialValue ?? "");
+	}
+
+	const args: string[] = [];
+	for (const field of platform.fields) {
+		if (!shouldIncludeConnectorField(field, fieldValues)) {
+			continue;
+		}
+		const value = fieldValues[field.flag] ?? "";
+		if (!value) {
+			if (field.required) {
+				throw new Error(`${field.label} is required`);
+			}
+			continue;
+		}
+		args.push(field.flag, value);
+	}
+
+	if (security?.enabled === true && platform.security) {
+		const hookValues: Record<string, string> = {};
+		for (const field of platform.security.fields) {
+			const value = security.values[field.key]?.trim();
+			if (!value) {
+				throw new Error(field.requiredMessage);
+			}
+			const validationError = field.validate?.(value);
+			if (validationError) {
+				throw new Error(validationError);
+			}
+			hookValues[field.key] = value;
+		}
+		args.push(...platform.security.buildArgs(hookValues));
+	}
+
+	return args;
+}
+
+function isManagedConnectorArg(
+	arg: string,
+	managedFlags: Set<string>,
+): { managed: boolean; consumesNext: boolean } {
+	if (managedFlags.has(arg)) {
+		return { managed: true, consumesNext: true };
+	}
+	for (const flag of managedFlags) {
+		if (arg.startsWith(`${flag}=`)) {
+			return { managed: true, consumesNext: false };
+		}
+	}
+	return { managed: false, consumesNext: false };
+}
+
+/**
+ * Replace dashboard-owned connector and security flags while retaining
+ * CLI-only runtime options such as provider, model, cwd, and tool settings.
+ */
+export function mergeConnectorConnectArgs(
+	platform: ConnectorPlatformDef,
+	existingArgs: string[],
+	configuredArgs: string[],
+	options: { replaceSecurityArgs: boolean },
+): string[] {
+	const managedFlags = new Set([
+		...platform.fields.flatMap((field) => [
+			field.flag,
+			...(field.aliases ?? []),
+		]),
+		...(platform.derivedReconnectFlags ?? []),
+	]);
+	if (options.replaceSecurityArgs) {
+		for (const flag of platform.security?.argumentFlags ?? []) {
+			managedFlags.add(flag);
+		}
+	}
+
+	const preservedArgs: string[] = [];
+	for (let index = 0; index < existingArgs.length; index += 1) {
+		const arg = existingArgs[index] ?? "";
+		const match = isManagedConnectorArg(arg, managedFlags);
+		if (!match.managed) {
+			preservedArgs.push(arg);
+			continue;
+		}
+		if (match.consumesNext) {
+			index += 1;
+		}
+	}
+	return [...preservedArgs, ...configuredArgs];
 }
 
 export function connectorChannelsFromPlatforms(
@@ -196,9 +310,11 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 		name: "Telegram",
 		type: "polling",
 		hint: "Easiest to set up. No public URL needed.",
+		derivedReconnectFlags: ["-m", "--bot-username"],
 		fields: [
 			{
 				flag: "-k",
+				aliases: ["--bot-token"],
 				label: "Bot token",
 				placeholder: "7123456789:AAH...",
 				required: true,
@@ -226,6 +342,7 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 					validate: validateTelegramUserId,
 				},
 			],
+			argumentFlags: ["--allowed-user-id", "--hook-command"],
 			buildArgs: ({ userId }) => ["--allowed-user-id", userId ?? ""],
 		},
 	},
@@ -300,6 +417,7 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 					validate: validateSlackUserId,
 				},
 			],
+			argumentFlags: ["--hook-command"],
 			buildArgs: ({ teamId, userId }) => [
 				"--hook-command",
 				`jq -r ".payload.actor.participantKey" | grep -qx "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
@@ -314,6 +432,7 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 		fields: [
 			{
 				flag: "--application-id",
+				aliases: ["--app-id"],
 				label: "Application ID",
 				required: true,
 				help: [
@@ -323,6 +442,7 @@ export const CONNECTOR_PLATFORMS: ConnectorPlatformDef[] = [
 			},
 			{
 				flag: "--bot-token",
+				aliases: ["--token"],
 				label: "Bot token",
 				required: true,
 				help: ["Go to Bot section, create a bot, copy the token"],

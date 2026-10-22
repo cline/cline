@@ -19,4 +19,22 @@ describe("isToolAutoApproved", () => {
 
 		expect(isToolAutoApproved("run_commands", settings)).toBe(false)
 	})
+
+	it("auto-approves all MCP tools when the Use MCP servers toggle is on", () => {
+		const settings = {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS,
+			actions: { ...DEFAULT_AUTO_APPROVAL_SETTINGS.actions, useMcp: true },
+		}
+
+		expect(isToolAutoApproved("firecrawl__scrape", settings)).toBe(true)
+	})
+
+	it("prompts for MCP tools when the Use MCP servers toggle is off", () => {
+		const settings = {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS,
+			actions: { ...DEFAULT_AUTO_APPROVAL_SETTINGS.actions, useMcp: false },
+		}
+
+		expect(isToolAutoApproved("firecrawl__scrape", settings)).toBe(false)
+	})
 })

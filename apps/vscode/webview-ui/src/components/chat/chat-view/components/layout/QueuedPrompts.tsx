@@ -64,25 +64,30 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 					const attachments = attachmentLabel(item.attachmentCount)
 					const isSteer = item.delivery === "steer"
 					const isCancelling = cancellingIds.has(item.id)
+					// The prompt text renders in spans whose line boxes are 5 spacing units tall
+					// (the global `span { @apply leading-5 }` base style), so every control in the
+					// row is sized/offset against that same 5-unit first line to stay vertically
+					// centered with it: the dot ((5 - 1.5) / 2 units), the h-5 badges, and the
+					// size-5 (26px) cancel button pulled in by -my-1.5 ((5u - size-5) / 2).
 					return (
 						<div
-							className="flex items-start gap-2 rounded-[3px] bg-input-background/40 px-2 py-1.5 text-xs leading-snug"
+							className="flex items-start gap-2 rounded-[3px] bg-input-background/40 px-2 py-1.5 text-xs"
 							key={item.id}>
-							<span aria-hidden="true" className="mt-[5px] size-1.5 shrink-0 rounded-full bg-description/70" />
+							<span aria-hidden="true" className="mt-1.75 size-1.5 shrink-0 rounded-full bg-description/70" />
 							<span className="min-w-0 flex-1 break-words text-foreground">{truncatePrompt(item.prompt)}</span>
 							{isSteer && (
-								<span className="shrink-0 rounded-[3px] border border-editor-group-border px-1.5 py-[1px] text-[10px] leading-4 text-description">
+								<span className="flex h-5 shrink-0 items-center rounded-[3px] border border-editor-group-border px-1.5 text-[10px] leading-none text-description">
 									Steer
 								</span>
 							)}
 							{attachments && (
-								<span className="shrink-0 rounded-[3px] border border-editor-group-border px-1.5 py-[1px] text-[10px] leading-4 text-description">
+								<span className="flex h-5 shrink-0 items-center rounded-[3px] border border-editor-group-border px-1.5 text-[10px] leading-none text-description">
 									{attachments}
 								</span>
 							)}
 							<button
 								aria-label="Cancel queued message"
-								className="mt-[-2px] flex size-5 shrink-0 items-center justify-center rounded-[3px] text-description hover:bg-toolbar-hover-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+								className="-my-1.5 flex size-5 shrink-0 items-center justify-center rounded-[3px] text-description hover:bg-toolbar-hover-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
 								disabled={isCancelling}
 								onClick={() => cancelQueuedPrompt(item.id)}
 								title="Cancel queued message"

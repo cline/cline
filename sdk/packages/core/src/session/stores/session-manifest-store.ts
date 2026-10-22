@@ -30,6 +30,7 @@ import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../models/session-manifest";
+import type { SessionRow } from "../models/session-row";
 import { writeFileAtomic } from "./atomic-file";
 
 function isNotFoundError(error: unknown): boolean {
@@ -39,6 +40,50 @@ function isNotFoundError(error: unknown): boolean {
 		"code" in error &&
 		error.code === "ENOENT"
 	);
+}
+
+function isSafeSessionArtifactId(sessionId: string): boolean {
+	return (
+		sessionId !== "." &&
+		sessionId !== ".." &&
+		!sessionId.includes("/") &&
+		!sessionId.includes("\\")
+	);
+}
+
+function sessionRowFromManifest(
+	manifest: SessionManifest,
+	messagesPath: string,
+): SessionRow {
+	return {
+		sessionId: manifest.session_id,
+		source: manifest.source,
+		pid: manifest.pid,
+		startedAt: manifest.started_at,
+		endedAt: manifest.ended_at ?? null,
+		exitCode: manifest.exit_code ?? null,
+		status: manifest.status,
+		statusLock: 0,
+		interactive: manifest.interactive,
+		provider: manifest.provider,
+		model: manifest.model,
+		cwd: manifest.cwd,
+		workspaceRoot: manifest.workspace_root,
+		teamName: manifest.team_name ?? null,
+		enableTools: manifest.enable_tools,
+		enableSpawn: manifest.enable_spawn,
+		enableTeams: manifest.enable_teams,
+		parentSessionId: null,
+		parentAgentId: null,
+		agentId: null,
+		conversationId: null,
+		isSubagent: false,
+		prompt: manifest.prompt ?? null,
+		metadata: manifest.metadata ?? null,
+		hookPath: "",
+		messagesPath,
+		updatedAt: nowIso(),
+	};
 }
 
 export class SessionManifestStore {
@@ -57,15 +102,11 @@ export class SessionManifestStore {
 	}
 
 	initializeMessagesFile(
-		sessionId: string,
+		row: SessionRow,
 		path: string,
 		startedAt: string,
 	): void {
-		writeEmptyMessagesFile(
-			path,
-			startedAt,
-			resolveMessagesFileContext(sessionId),
-		);
+		writeEmptyMessagesFile(path, startedAt, resolveMessagesFileContext(row));
 	}
 
 	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {
@@ -142,31 +183,53 @@ export class SessionManifestStore {
 		}
 	}
 
-	async resolveArtifactPath(
-		sessionId: string,
-		kind: "messagesPath",
-		fallback: (id: string) => string,
-	): Promise<string> {
-		const row = await this.adapter.getSession(sessionId);
-		const value = row?.[kind];
-		return typeof value === "string" && value.trim().length > 0
-			? value
-			: fallback(sessionId);
+	readSessionRowFromManifest(sessionId: string): SessionRow | undefined {
+		if (!isSafeSessionArtifactId(sessionId)) {
+			return undefined;
+		}
+		const { manifest } = this.readManifestFile(sessionId);
+		if (!manifest || manifest.session_id !== sessionId) {
+			return undefined;
+		}
+		return sessionRowFromManifest(
+			manifest,
+			this.artifacts.sessionMessagesPath(sessionId),
+		);
+	}
+
+	/**
+	 * Resolve the session row backing a message write, re-adopting it from the
+	 * on-disk manifest when the index was rebuilt or the artifacts were restored.
+	 */
+	private async resolveSessionRow(sessionId: string): Promise<SessionRow> {
+		const indexed = await this.adapter.getSession(sessionId);
+		if (indexed) {
+			return indexed;
+		}
+		const adopted = this.readSessionRowFromManifest(sessionId);
+		if (!adopted) {
+			throw new Error(
+				`Cannot persist messages for unknown session: ${sessionId}`,
+			);
+		}
+		await this.adapter.upsertSession(adopted);
+		this.logger?.debug("Re-adopted session row from manifest", { sessionId });
+		return adopted;
 	}
 
 	async persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.Message[],
+		messages: LlmsProviders.MessageWithMetadata[],
 		systemPrompt?: string,
 	): Promise<void> {
-		const path = await this.resolveArtifactPath(
-			sessionId,
-			"messagesPath",
-			(id) => this.artifacts.sessionMessagesPath(id),
-		);
+		const row = await this.resolveSessionRow(sessionId);
+		const path =
+			typeof row.messagesPath === "string" && row.messagesPath.trim().length > 0
+				? row.messagesPath
+				: this.artifacts.sessionMessagesPath(sessionId);
 		const payload = buildMessagesFilePayload({
 			updatedAt: nowIso(),
-			context: resolveMessagesFileContext(sessionId),
+			context: resolveMessagesFileContext(row),
 			messages: messages as StoredMessageWithMetadata[],
 			systemPrompt,
 		});
@@ -177,7 +240,6 @@ export class SessionManifestStore {
 			return;
 		}
 		try {
-			const row = await this.adapter.getSession(sessionId);
 			await this.messagesArtifactUploader.uploadMessagesFile({
 				sessionId,
 				path,

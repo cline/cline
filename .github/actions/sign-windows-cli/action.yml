@@ -1,0 +1,155 @@
+name: Sign Windows CLI binaries
+description: >
+  Authenticode-signs the compiled Windows CLI executables with Azure Trusted
+  Signing (via jsign, so it runs on Linux runners) and verifies the resulting
+  signatures. If the Azure Trusted Signing secrets are not configured, the
+  action logs a warning and exits successfully so releases keep working while
+  signing infrastructure is being provisioned.
+
+inputs:
+  azure-client-id:
+    description: Client ID of the Entra app with the Trusted Signing Certificate Profile Signer role (OIDC federated credential, no client secret).
+    required: false
+    default: ""
+  azure-tenant-id:
+    description: Entra tenant ID.
+    required: false
+    default: ""
+  azure-subscription-id:
+    description: Azure subscription ID containing the Trusted Signing account.
+    required: false
+    default: ""
+  endpoint:
+    description: Trusted Signing account endpoint, for example https://eus.codesigning.azure.net.
+    required: false
+    default: ""
+  account:
+    description: Trusted Signing account name.
+    required: false
+    default: ""
+  certificate-profile:
+    description: Trusted Signing certificate profile name.
+    required: false
+    default: ""
+  files:
+    description: Newline-separated list of PE files to sign.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check signing configuration
+      id: check
+      shell: bash
+      env:
+        AZURE_CLIENT_ID: ${{ inputs.azure-client-id }}
+        AZURE_TENANT_ID: ${{ inputs.azure-tenant-id }}
+        AZURE_SUBSCRIPTION_ID: ${{ inputs.azure-subscription-id }}
+        SIGNING_ENDPOINT: ${{ inputs.endpoint }}
+        SIGNING_ACCOUNT: ${{ inputs.account }}
+        SIGNING_PROFILE: ${{ inputs.certificate-profile }}
+      run: |
+        missing=()
+        set_count=0
+        for var in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID SIGNING_ENDPOINT SIGNING_ACCOUNT SIGNING_PROFILE; do
+          if [ -z "${!var}" ]; then
+            missing+=("$var")
+          else
+            set_count=$((set_count + 1))
+          fi
+        done
+
+        if [ "${#missing[@]}" -eq 0 ]; then
+          echo "Azure Trusted Signing is configured; Windows binaries will be signed."
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+        elif [ "$set_count" -eq 0 ]; then
+          echo "::warning::Azure Trusted Signing is not configured; publishing UNSIGNED Windows binaries. Set the AZURE_* and AZURE_TRUSTED_SIGNING_* repository secrets to enable signing."
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+        else
+          # Partial configuration is almost certainly a typo'd or renamed
+          # secret. Fail loudly instead of silently publishing unsigned.
+          echo "::error::Azure Trusted Signing is PARTIALLY configured; refusing to publish. Missing: ${missing[*]}"
+          exit 1
+        fi
+
+    - name: Azure login (OIDC)
+      if: steps.check.outputs.enabled == 'true'
+      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+      with:
+        client-id: ${{ inputs.azure-client-id }}
+        tenant-id: ${{ inputs.azure-tenant-id }}
+        subscription-id: ${{ inputs.azure-subscription-id }}
+
+    - name: Sign Windows binaries
+      if: steps.check.outputs.enabled == 'true'
+      shell: bash
+      env:
+        SIGNING_ENDPOINT: ${{ inputs.endpoint }}
+        SIGNING_ACCOUNT: ${{ inputs.account }}
+        SIGNING_PROFILE: ${{ inputs.certificate-profile }}
+        FILES: ${{ inputs.files }}
+        JSIGN_VERSION: "7.5"
+        JSIGN_SHA256: "602a51c3545a6dc4fb99bd2ea7152b26d1345916d0c93ddfbd5936cb735af91c"
+      run: |
+        set -euo pipefail
+
+        JSIGN_JAR="${RUNNER_TEMP}/jsign-${JSIGN_VERSION}.jar"
+        curl -fsSL -o "$JSIGN_JAR" "https://github.com/ebourg/jsign/releases/download/${JSIGN_VERSION}/jsign-${JSIGN_VERSION}.jar"
+        echo "${JSIGN_SHA256}  ${JSIGN_JAR}" | sha256sum --check --strict
+
+        JSIGN_STOREPASS=$(az account get-access-token --resource https://codesigning.azure.net --query accessToken --output tsv)
+        echo "::add-mask::${JSIGN_STOREPASS}"
+        export JSIGN_STOREPASS
+
+        # jsign expects the endpoint host, not the URL. Tolerate both the
+        # portal's display form (trailing slash) and the bare form.
+        KEYSTORE="${SIGNING_ENDPOINT#https://}"
+        KEYSTORE="${KEYSTORE%/}"
+
+        while IFS= read -r file; do
+          [ -z "$file" ] && continue
+          echo "Signing ${file}"
+          java -jar "$JSIGN_JAR" \
+            --storetype TRUSTEDSIGNING \
+            --keystore "$KEYSTORE" \
+            --storepass env:JSIGN_STOREPASS \
+            --alias "${SIGNING_ACCOUNT}/${SIGNING_PROFILE}" \
+            --alg SHA-256 \
+            --tsaurl http://timestamp.acs.microsoft.com \
+            --tsmode RFC3161 \
+            --replace \
+            "$file"
+        done <<< "$FILES"
+
+    - name: Verify signatures
+      if: steps.check.outputs.enabled == 'true'
+      shell: bash
+      env:
+        FILES: ${{ inputs.files }}
+        # Authenticode chains anchor to the Microsoft Identity Verification
+        # Root CA 2020, which is not in the Mozilla TLS bundle, so fetch it
+        # explicitly (pinned) for osslsigncode chain validation.
+        MS_ROOT_URL: "https://www.microsoft.com/pkiops/certs/Microsoft%20Identity%20Verification%20Root%20Certificate%20Authority%202020.crt"
+        MS_ROOT_SHA256: "5367f20c7ade0e2bca790915056d086b720c33c1fa2a2661acf787e3292e1270"
+      run: |
+        set -euo pipefail
+
+        if ! command -v osslsigncode >/dev/null; then
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osslsigncode
+        fi
+
+        MS_ROOT_DER="${RUNNER_TEMP}/ms-identity-root-2020.crt"
+        MS_ROOT_PEM="${RUNNER_TEMP}/ms-identity-root-2020.pem"
+        curl -fsSL -o "$MS_ROOT_DER" "$MS_ROOT_URL"
+        echo "${MS_ROOT_SHA256}  ${MS_ROOT_DER}" | sha256sum --check --strict
+        openssl x509 -inform DER -in "$MS_ROOT_DER" -out "$MS_ROOT_PEM"
+
+        while IFS= read -r file; do
+          [ -z "$file" ] && continue
+          echo "Verifying signature on ${file}"
+          # Timestamp countersignature chain is checked separately by Windows;
+          # -ignore-timestamp only skips TSA chain validation here, not the
+          # Authenticode chain itself.
+          osslsigncode verify -in "$file" -CAfile "$MS_ROOT_PEM" -ignore-timestamp
+        done <<< "$FILES"

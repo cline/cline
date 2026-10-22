@@ -22,7 +22,7 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 	} = useExtensionState()
 	const platformConfig = usePlatform()
 	const isVsCodePlatform = platformConfig.type === PlatformType.VSCODE
-	const executionMode = vscodeTerminalExecutionMode ?? "backgroundExec"
+	const executionMode = vscodeTerminalExecutionMode ?? "vscodeTerminal"
 	const isBackgroundExec = executionMode === "backgroundExec"
 
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())

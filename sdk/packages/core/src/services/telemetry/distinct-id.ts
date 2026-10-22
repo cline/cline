@@ -6,6 +6,20 @@ import * as nodeMachineId from "node-machine-id";
 
 const GENERATED_DISTINCT_ID_FILE_NAME = "machine-id";
 
+let cachedMachineId: string | undefined;
+let machineIdProbed = false;
+
+export function resolveCoreDeviceId(): string {
+	// Only the machine id is cached: it is environment-independent and probing
+	// it shells out to the OS. The generated fallback is re-resolved on every
+	// call because it lives under the data dir, which can change at runtime
+	if (!machineIdProbed) {
+		cachedMachineId = getMachineDistinctId();
+		machineIdProbed = true;
+	}
+	return cachedMachineId ?? resolveGeneratedFallbackDistinctId();
+}
+
 export function resolveCoreDistinctId(explicitDistinctId?: string): string {
 	const normalizedDistinctId = explicitDistinctId?.trim();
 	if (normalizedDistinctId) {

@@ -1,7 +1,15 @@
 import type { AgentMessage } from "./agent";
-import type { ReasoningEffort } from "./agents/types";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
+import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
+import type {
+	AgendaAutomationPolicy,
+	AgendaTaskCreateInput,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	AgendaTaskUpdateInput,
+} from "./tasks";
 
 export type HubProtocolVersion = "v1";
 
@@ -19,8 +27,28 @@ export type HubCapabilityName =
 	| "session.abort"
 	| "schedule.create"
 	| "schedule.list"
+	| "task.create"
+	| "task.list"
+	| "task.get"
+	| "task.update"
+	| "task.approve"
+	| "task.cancel"
+	| "task.run"
+	| "task.automation.get"
+	| "task.automation.set"
 	| "settings.get"
-	| "settings.set";
+	| "settings.set"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised"
+	| "run.enqueue"
+	| "run.list"
+	| "hub.drain"
+	| "hub.status"
+	| "plugins.list"
+	| "plugins.status"
+	| "plugins.reload"
+	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
@@ -32,8 +60,28 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"session.abort",
 	"schedule.create",
 	"schedule.list",
+	"task.create",
+	"task.list",
+	"task.get",
+	"task.update",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.get",
+	"task.automation.set",
 	"settings.get",
 	"settings.set",
+	"connector.start",
+	"connector.stop",
+	"connector.supervised",
+	"run.enqueue",
+	"run.list",
+	"hub.drain",
+	"hub.status",
+	"plugins.list",
+	"plugins.status",
+	"plugins.reload",
+	"stream.replay",
 ];
 
 export interface HubProtocolMetadata {
@@ -109,6 +157,9 @@ export interface ClientCapability {
 	scopes?: string[];
 	payloadSchema?: Record<string, unknown>;
 }
+
+/** Client capability advertised by a live user surface that can answer tool approvals. */
+export const HUB_CLIENT_TOOL_APPROVAL_CAPABILITY = "approval.respond";
 
 export interface HubClientRegistration {
 	clientId?: string;
@@ -282,6 +333,7 @@ export interface ScheduleRecord {
 	scheduleId: string;
 	name: string;
 	cronPattern: string;
+	timezone?: string;
 	prompt: string;
 	workspaceRoot: string;
 	cwd?: string;
@@ -326,15 +378,47 @@ export interface ScheduleExecutionRecord {
 	costUsd?: number;
 }
 
+export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
+export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
+
+export const HUB_SCHEDULE_MODES = ["act", "plan", "yolo"] as const;
+export type HubScheduleMode = (typeof HUB_SCHEDULE_MODES)[number];
+
+export function isHubScheduleMode(value: unknown): value is HubScheduleMode {
+	return HUB_SCHEDULE_MODES.some((mode) => mode === value);
+}
+
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent: HubScheduleMode,
+): HubScheduleMode;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+): HubScheduleMode | undefined;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent?: HubScheduleMode,
+): HubScheduleMode | undefined {
+	if (!payload || !Object.hasOwn(payload, "mode")) {
+		return defaultWhenAbsent;
+	}
+	const mode = payload.mode;
+	if (isHubScheduleMode(mode)) {
+		return mode;
+	}
+	throw new Error(`mode must be one of: ${HUB_SCHEDULE_MODES.join(", ")}`);
+}
+
 export interface HubScheduleCreateInput {
 	name: string;
 	cronPattern: string;
+	timezone?: string;
 	prompt: string;
 	workspaceRoot: string;
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string;
 	maxIterations?: number;
 	timeoutSeconds?: number;
@@ -349,12 +433,13 @@ export interface HubScheduleUpdateInput {
 	scheduleId: string;
 	name?: string;
 	cronPattern?: string;
+	timezone?: string | null;
 	prompt?: string;
 	workspaceRoot?: string;
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string | null;
 	maxIterations?: number | null;
 	timeoutSeconds?: number | null;
@@ -364,6 +449,176 @@ export interface HubScheduleUpdateInput {
 	runtimeOptions?: HubSessionRuntimeOptions;
 	metadata?: Record<string, JsonValue | undefined>;
 }
+
+export interface HubTaskIdInput {
+	taskId: string;
+}
+
+export type HubTaskCreateInput = Omit<AgendaTaskCreateInput, "createdBy">;
+export type HubTaskUpdateInput = Omit<AgendaTaskUpdateInput, "updatedBy">;
+
+export interface HubTaskRevisionInput extends HubTaskIdInput {
+	expectedRevision: number;
+}
+
+export interface HubTaskCancelInput extends HubTaskRevisionInput {
+	reason?: string;
+}
+
+export interface HubTaskAutomationSetInput {
+	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
+}
+
+export interface HubSessionSearchInput {
+	query: string;
+	limit?: number;
+	workspaceRoot?: string;
+}
+
+export interface HubSessionSearchHit {
+	sessionId: string;
+	documentId: string;
+	ordinal: number;
+	role: string;
+	startedAt: string;
+	workspaceRoot: string;
+	title: string;
+	snippet: string;
+	score: number;
+}
+
+/**
+ * Lifecycle state of one plugin module loaded by a host (normally the Hub).
+ *
+ * - `loading`: the module is being imported.
+ * - `ready`: imported and set up without errors.
+ * - `degraded`: a hook or tool call failed; the plugin is still called.
+ * - `failed`: the last setup failed, or the plugin is off for every session
+ *   because its import failed, a stray error was attributed to it, or calls
+ *   kept failing. Only a setup failure lets the next session try again.
+ * - `disabled`: turned off in settings; never imported.
+ */
+export type PluginRuntimeState =
+	| "loading"
+	| "ready"
+	| "degraded"
+	| "failed"
+	| "disabled";
+
+/**
+ * Where a plugin error happened: `discover`, `import`, `setup`, `dispose`,
+ * `hook:<name>`, `tool:<name>`, `command:<name>`, `rule:<id>`,
+ * `messageBuilder:<name>`, or `uncaught` for a stray exception or rejection
+ * the host attributed to the plugin from its stack.
+ */
+export type PluginErrorPhase =
+	| "discover"
+	| "import"
+	| "setup"
+	| "dispose"
+	| "uncaught"
+	| `hook:${string}`
+	| `tool:${string}`
+	| `command:${string}`
+	| `rule:${string}`
+	| `messageBuilder:${string}`;
+
+export interface PluginErrorRecord {
+	phase: PluginErrorPhase;
+	message: string;
+	stack?: string;
+	pluginPath: string;
+	/** Epoch milliseconds. */
+	timestamp: number;
+	sessionId?: string;
+	timedOut?: boolean;
+}
+
+export interface PluginStatusRecord {
+	/** Plugin `name` export, or a name derived from the path before import. */
+	name: string;
+	pluginPath: string;
+	state: PluginRuntimeState;
+	lastError?: PluginErrorRecord;
+	errorCount: number;
+	timeoutCount: number;
+	/** Live sessions that set this plugin up. */
+	sessionIds: string[];
+	capabilities?: string[];
+	hooks?: string[];
+	/** Epoch milliseconds of the last state or error change. */
+	updatedAt: number;
+}
+
+/**
+ * Per-session plugin selection, shaped like `toolPolicies`: `"*"` sets the
+ * default and named entries override it for one plugin. Plugins are enabled
+ * unless a policy says otherwise.
+ */
+export interface PluginPolicy {
+	enabled?: boolean;
+}
+
+export type PluginPolicies = Record<string, PluginPolicy>;
+
+/** A plugin a session asked for but does not have, reported at session start. */
+export interface SessionPluginIssue {
+	name: string;
+	pluginPath: string;
+	state: PluginRuntimeState;
+	/** `session_policy` when the session's `plugins` policy turned it off. */
+	reason?: "session_policy" | "settings" | "error";
+	lastError?: PluginErrorRecord;
+}
+
+export interface HubPluginsReloadInput {
+	/** Plugin name or absolute module path. */
+	plugin: string;
+}
+
+/**
+ * Strongly typed task command payloads. This map is intentionally extensible so
+ * other Hub command families can adopt typed payloads without changing the wire
+ * envelope.
+ */
+export interface HubCommandInputMap {
+	"session.search": HubSessionSearchInput;
+	"task.create": HubTaskCreateInput;
+	"task.list": AgendaTaskListInput;
+	"task.get": HubTaskIdInput;
+	"task.update": HubTaskUpdateInput;
+	"task.approve": HubTaskRevisionInput;
+	"task.cancel": HubTaskCancelInput;
+	"task.run": HubTaskRevisionInput;
+	"task.automation.get": Record<string, never>;
+	"task.automation.set": HubTaskAutomationSetInput;
+	"plugins.list": Record<string, never>;
+	"plugins.status": Record<string, never>;
+	"plugins.reload": HubPluginsReloadInput;
+}
+
+/** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
+export interface HubCommandOutputMap {
+	"session.search": { hits: HubSessionSearchHit[] };
+	"task.create": { task: AgendaTaskRecord };
+	"task.list": { tasks: AgendaTaskRecord[] };
+	"task.get": { task?: AgendaTaskRecord };
+	"task.update": { task: AgendaTaskRecord };
+	"task.approve": { task: AgendaTaskRecord };
+	"task.cancel": { task: AgendaTaskRecord };
+	"task.run": { task: AgendaTaskRecord; run?: AgendaTaskRunRecord };
+	"task.automation.get": { policy: AgendaAutomationPolicy };
+	"task.automation.set": { policy: AgendaAutomationPolicy };
+	"plugins.list": { plugins: PluginStatusRecord[] };
+	"plugins.status": { plugins: PluginStatusRecord[] };
+	"plugins.reload": { plugins: PluginStatusRecord[] };
+}
+
+export type HubTypedCommandName = keyof HubCommandInputMap & HubCommandName;
+export type HubCommandInput<TCommand extends HubTypedCommandName> =
+	HubCommandInputMap[TCommand];
+export type HubCommandOutput<TCommand extends HubTypedCommandName> =
+	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
 	| "client.register"
@@ -376,6 +631,7 @@ export type HubCommandName =
 	| "mention_files.search"
 	| "catalog.list"
 	| "session.list"
+	| "session.search"
 	| "session.create"
 	| "session.attach"
 	| "session.detach"
@@ -388,13 +644,22 @@ export type HubCommandName =
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
+	| "session.steer_first_pending_prompt"
 	| "session.update_pending_prompt"
 	| "session.remove_pending_prompt"
 	| "session.fork"
 	| "session.hook"
 	| "run.start"
 	| "session.send_input"
+	| "run.enqueue"
+	| "run.list"
 	| "run.abort"
+	| "run.proceed_while_running"
+	| "hub.drain"
+	| "hub.status"
+	| "plugins.list"
+	| "plugins.status"
+	| "plugins.reload"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
@@ -417,6 +682,17 @@ export type HubCommandName =
 	| "schedule.stats"
 	| "schedule.active"
 	| "schedule.upcoming"
+	| "task.create"
+	| "task.list"
+	| "task.get"
+	| "task.update"
+	| "task.approve"
+	| "task.cancel"
+	| "task.run"
+	| "task.automation.get"
+	| "task.automation.set"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
 	| "settings.list"
 	| "settings.get"
 	| "settings.patch"
@@ -424,6 +700,9 @@ export type HubCommandName =
 	| "connector.channels"
 	| "connector.configure"
 	| "connector.delete_config"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"
@@ -439,6 +718,7 @@ export function getDefaultHubCommandTimeoutMs(
 	switch (command) {
 		case "run.start":
 		case "session.send_input":
+		case "plugins.commands.run":
 			return null;
 		default:
 			return HUB_DEFAULT_COMMAND_TIMEOUT_MS;
@@ -491,9 +771,13 @@ export type HubEventName =
 	| "run.aborted"
 	| "run.completed"
 	| "run.failed"
+	| "run.enqueued"
+	| "run.interrupted"
+	| "hub.drain_changed"
 	| "iteration.started"
 	| "iteration.finished"
 	| "assistant.delta"
+	| "assistant.media"
 	| "assistant.finished"
 	| "session.notice"
 	| "reasoning.delta"
@@ -522,7 +806,15 @@ export type HubEventName =
 	| "schedule.triggered"
 	| "schedule.execution_completed"
 	| "schedule.execution_failed"
+	| "task.created"
+	| "task.updated"
+	| "task.deleted"
+	| "task.run.started"
+	| "task.run.completed"
+	| "task.run.failed"
+	| "task.automation.updated"
 	| "settings.changed"
+	| "plugin.status_changed"
 	| "ui.notify"
 	| "ui.show_window"
 	| "hub.client.updated";
@@ -531,6 +823,13 @@ export interface HubEventEnvelope {
 	version: HubProtocolVersion;
 	event: HubEventName;
 	eventId?: string;
+	/**
+	 * Monotonic global sequence assigned by the Hub's durable event log.
+	 * A client can resume delivery exactly where it left off by passing the
+	 * last observed sequence as `sinceSequence` on `stream.subscribe`.
+	 * Absent on hubs (or events) without a durable log.
+	 */
+	sequence?: number;
 	sessionId?: string;
 	clientId?: string;
 	sourceHubId?: string;
@@ -784,7 +1083,17 @@ export interface HubStateSnapshot {
 export type HubTransportFrame =
 	| { kind: "command"; envelope: HubCommandEnvelope }
 	| { kind: "reply"; envelope: HubReplyEnvelope }
-	| { kind: "stream.subscribe"; clientId: string; sessionId?: string }
+	| {
+			kind: "stream.subscribe";
+			clientId: string;
+			sessionId?: string;
+			/**
+			 * Replay cursor: when set, the Hub first replays durable events with
+			 * `sequence > sinceSequence` (scoped to `sessionId` when given), then
+			 * live-tails. Omit for live-only delivery (legacy behavior).
+			 */
+			sinceSequence?: number;
+	  }
 	| { kind: "stream.unsubscribe"; clientId: string; sessionId?: string }
 	| { kind: "event"; envelope: HubEventEnvelope };
 
@@ -799,4 +1108,26 @@ export interface HubUINotifyPayload {
 export interface HubUIShowWindowPayload {
 	windowId?: string;
 	focus?: boolean;
+}
+
+/**
+ * Human phrase for the live work an outdated Hub is serving, used by the
+ * "Hub update required" surfaces in the CLI and the desktop app - the two
+ * must read identically, which is why the copy lives here. Falls back to an
+ * unquantified phrase when the Hub could not answer the activity query.
+ */
+export function describeOutdatedHubSessions(counts: {
+	activeSessionCount?: number;
+	participantClientCount?: number;
+}): string {
+	const sessions = counts.activeSessionCount;
+	if (typeof sessions !== "number" || sessions <= 0) {
+		return "active sessions from other Cline clients";
+	}
+	const sessionsPhrase = `${sessions} active session${sessions === 1 ? "" : "s"}`;
+	const clients = counts.participantClientCount;
+	if (typeof clients !== "number" || clients <= 0) {
+		return sessionsPhrase;
+	}
+	return `${sessionsPhrase} from ${clients} connected Cline client${clients === 1 ? "" : "s"}`;
 }

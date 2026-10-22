@@ -142,7 +142,8 @@ ctx.workspaceInfo            // { rootPath, hint, latestGitBranchName,
                              //   latestGitCommitHash, associatedRemoteUrls }
 ctx.automation?.ingestEvent  // emit normalized automation events
 ctx.logger?.log              // structured logger scoped to this plugin
-ctx.telemetry                // ITelemetryService — only present in-process
+ctx.telemetry                // ITelemetryService — direct service in-process;
+                             //   an IPC bridge in sandboxed plugins (see below)
 ```
 
 **Two big rules about `ctx.workspaceInfo`:**
@@ -848,7 +849,8 @@ If the plugin fails validation or setup, the CLI prints a clear error and contin
 - **`afterRun` firing on aborts** — guard with `if (result.status !== "completed") return;`.
 - **Heavy work in `setup()`** — `setup()` blocks session start. Defer expensive work into the first tool call or `beforeRun`.
 - **Importing host internals** — only import from `@cline/core`. Reaching into host-specific packages (e.g. CLI internals) will break in non-CLI hosts.
-- **Sandboxed plugins and `telemetry`** — telemetry is process-local. Feature-detect `ctx.telemetry` and expect it to be undefined in sandboxed plugin processes.
+- **Emitting telemetry** — feature-detect `ctx.telemetry` (`ctx.telemetry?.capture(...)`); it is undefined when the host has no telemetry service. In-process plugins get the host service directly. Sandboxed plugins get a bridge: `capture` / `captureRequired` / `recordCounter|Histogram|Gauge` are forwarded to the host over JSON IPC, so properties must be plain JSON data (strings, numbers, booleans) — never live objects. The host namespaces every plugin event and metric under `plugin.`, stamps `plugin_name`, and drops events when the user opted out of telemetry.
+- **`ctx.telemetry.isEnabled()` in the sandbox always returns `true`** — the bridge is stateless and the host is the arbiter: opted-out events are dropped host-side. Do not use `isEnabled()` to gate expensive property computation in a sandboxed plugin; keep telemetry properties cheap to build. Identity/common-property setters (`setDistinctId`, `setCommonProperties`, …) are host concerns and are no-ops in the sandbox.
 - **Resolving bundled assets** — use `import.meta.url` + `fileURLToPath` to find files inside your package; never `process.cwd()`. For workspace paths, do the opposite: use `ctx.workspaceInfo?.rootPath`, never `import.meta.url`.
 - **Plugin name collisions** — `name` must be unique within a session. If two plugins share a name, validation fails. Namespace by package (`my-org-redactor`, not `redactor`).
 

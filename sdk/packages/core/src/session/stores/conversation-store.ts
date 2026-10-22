@@ -47,7 +47,27 @@ export class ConversationStore {
 	}
 
 	replaceMessages(messages: readonly MessageWithMetadata[]): void {
-		this.messages = [...messages];
+		// Agent snapshots exclude display-only entries. Reinsert each after its
+		// closest surviving predecessor; compacted-away history lands at the start.
+		const indices = new Map(
+			messages.map((message, index) => [message.id, index]),
+		);
+		const insertions = new Map<number, MessageWithMetadata[]>();
+		let anchor = -1;
+		for (const message of this.messages) {
+			const index = message.id ? indices.get(message.id) : undefined;
+			if (index !== undefined) {
+				anchor = index;
+			} else if (message.metadata?.displayOnly === true) {
+				const entries = insertions.get(anchor) ?? [];
+				entries.push(message);
+				insertions.set(anchor, entries);
+			}
+		}
+		this.messages = [...(insertions.get(-1) ?? [])];
+		for (const [index, message] of messages.entries()) {
+			this.messages.push(message, ...(insertions.get(index) ?? []));
+		}
 	}
 
 	resetForRun(): void {

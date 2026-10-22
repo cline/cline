@@ -260,6 +260,26 @@ export class SqliteSessionStore implements SessionStore {
 		return result;
 	}
 
+	/**
+	 * Child sessions — subagent runs and team-task runs — recorded under a
+	 * parent, oldest first so a caller can present them in spawn order.
+	 */
+	listChildren(parentSessionId: string, limit = 200): SessionRecord[] {
+		const rows = this.queryAll<Record<string, unknown>>(
+			`SELECT session_id FROM sessions WHERE parent_session_id = ?
+			 ORDER BY started_at ASC LIMIT ?`,
+			[parentSessionId, limit],
+		);
+		const result: SessionRecord[] = [];
+		for (const row of rows) {
+			const item = this.get(asString(row.session_id));
+			if (item) {
+				result.push(item);
+			}
+		}
+		return result;
+	}
+
 	delete(sessionId: string, cascade = false): boolean {
 		const changed =
 			this.run(`DELETE FROM sessions WHERE session_id = ?`, [sessionId])

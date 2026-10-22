@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
-import { MemoizedMarkdown } from "./markdown";
+import { describe, expect, test, vi } from "vitest";
+import { createDesktopMarkdownPlugins, MemoizedMarkdown } from "./markdown";
 
 describe("MemoizedMarkdown", () => {
 	test("renders structured GFM content and blocks remote images", () => {
@@ -43,6 +43,49 @@ const ready = true;
 		expect(html).not.toContain('data-streamdown="blocked-image"');
 	});
 
+	test("recognizes Mermaid fences as the owned diagram block instead of plain code", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={"```mermaid\nflowchart LR\n  A[Text] --> B[SVG]\n```"}
+			/>,
+		);
+
+		// Diagrams render in the browser, so SSR emits the owned block's shell:
+		// a filename header (derived here from the diagram) and a skeleton, never
+		// Streamdown's literal "mermaid" label or a plain code-block.
+		expect(html).toContain('data-streamdown="mermaid-block"');
+		expect(html).toContain("flowchart-text-svg.mmd");
+		expect(html).toContain("cline-mermaid__skeleton");
+		expect(html).not.toContain('data-streamdown="code-block"');
+		expect(html).not.toContain("flowchart LR");
+	});
+
+	test("names the diagram from the fence title", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={
+					'```mermaid title="app-infrastructure-architecture"\nflowchart LR\n  A --> B\n```'
+				}
+			/>,
+		);
+
+		expect(html).toContain("app-infrastructure-architecture.mmd");
+	});
+
+	test("owns the Mermaid block through a lazy custom renderer", () => {
+		const loader = vi.fn(async () => ({
+			default: { initialize: vi.fn(), render: vi.fn() },
+		}));
+		const plugins = createDesktopMarkdownPlugins(loader);
+
+		// Streamdown checks `renderers` before its built-in Mermaid block, so the
+		// diagram plugin must not be registered (it would only be dead config).
+		expect(plugins).not.toHaveProperty("mermaid");
+		expect(plugins.renderers).toHaveLength(1);
+		expect(plugins.renderers[0]?.language).toBe("mermaid");
+		expect(loader).not.toHaveBeenCalled();
+	});
+
 	test("repairs an unfinished code fence while streaming", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
@@ -55,16 +98,86 @@ const ready = true;
 		expect(html).toContain("stillStreaming");
 	});
 
-	test("routes external links through confirmation controls", () => {
+	test("renders honest external links with their real destination", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown content="[Review](https://example.com/review)" />,
 		);
 
 		expect(html).toContain('data-streamdown="link"');
 		expect(html).toContain("Review");
+		expect(html).toContain('href="https://example.com/review"');
+		expect(html).not.toContain('aria-haspopup="dialog"');
+	});
+
+	test("keeps external links whose URL text matches the destination direct", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[example.com/review](https://www.example.com/review)" />,
+		);
+
+		expect(html).toContain('href="https://www.example.com/review"');
+		expect(html).not.toContain('aria-haspopup="dialog"');
+	});
+
+	test("routes deceptive URL-text links through confirmation controls", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[github.com/cline](https://evil.example/payload)" />,
+		);
+
+		expect(html).toContain('data-streamdown="link"');
 		expect(html).toContain('href="#confirm-external-link"');
 		expect(html).toContain('aria-haspopup="dialog"');
-		expect(html).not.toContain('href="https://example.com/review"');
+		expect(html).not.toContain('href="https://evil.example/payload"');
+	});
+
+	test("treats fully qualified trailing-dot hostnames like their plain form", () => {
+		const deceptiveHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[github.com.](https://evil.example/payload)" />,
+		);
+		expect(deceptiveHtml).toContain('href="#confirm-external-link"');
+		expect(deceptiveHtml).not.toContain('href="https://evil.example/payload"');
+
+		const honestHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[github.com.](https://github.com/cline)" />,
+		);
+		expect(honestHtml).toContain('href="https://github.com/cline"');
+		expect(honestHtml).not.toContain('aria-haspopup="dialog"');
+	});
+
+	test("treats protocol-relative labels like their https form", () => {
+		const deceptiveHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[//github.com](https://evil.example/payload)" />,
+		);
+		expect(deceptiveHtml).toContain('href="#confirm-external-link"');
+		expect(deceptiveHtml).not.toContain('href="https://evil.example/payload"');
+
+		const honestHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[//github.com](https://github.com/cline)" />,
+		);
+		expect(honestHtml).toContain('href="https://github.com/cline"');
+		expect(honestHtml).not.toContain('aria-haspopup="dialog"');
+	});
+
+	test("sees through inline formatting inside deceptive URL text", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="[**github.com**/cline](https://evil.example/payload)" />,
+		);
+
+		expect(html).toContain('href="#confirm-external-link"');
+		expect(html).not.toContain('href="https://evil.example/payload"');
+	});
+
+	test("treats scheme and port mismatches as deceptive", () => {
+		const schemeHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[https://example.com](http://example.com/login)" />,
+		);
+		expect(schemeHtml).toContain('href="#confirm-external-link"');
+		expect(schemeHtml).not.toContain('href="http://example.com/login"');
+
+		const portHtml = renderToStaticMarkup(
+			<MemoizedMarkdown content="[example.com](https://example.com:8080/admin)" />,
+		);
+		expect(portHtml).toContain('href="#confirm-external-link"');
+		expect(portHtml).not.toContain('href="https://example.com:8080/admin"');
 	});
 
 	test("leaves app-local and fragment links navigable", () => {

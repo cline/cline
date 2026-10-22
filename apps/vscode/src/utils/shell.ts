@@ -1,4 +1,4 @@
-import { existsSync } from "fs"
+import { existsSync, lstatSync } from "fs"
 import { userInfo } from "os"
 import * as nodePath from "path"
 import * as vscode from "vscode"
@@ -191,8 +191,10 @@ function getWindowsShellFromVSCode(): string | null {
 			return configuredShell
 		}
 		if (profile?.source === "PowerShell") {
-			// If the profile is sourced from PowerShell, assume the newest
-			return SHELL_PATHS.POWERSHELL_7
+			// A source-based profile delegates install detection to VS Code.
+			// Mirror that detection for background execution rather than assuming
+			// PowerShell 7 was installed to the MSI path.
+			return getWindowsDefaultShell()
 		}
 		// Otherwise, assume legacy Windows PowerShell
 		return SHELL_PATHS.POWERSHELL_LEGACY
@@ -287,7 +289,7 @@ export function getAvailableTerminalProfiles(): TerminalProfile[] {
 			{
 				id: "powershell-7",
 				name: "PowerShell 7",
-				path: SHELL_PATHS.POWERSHELL_7,
+				path: getInstalledWindowsPwsh() ?? SHELL_PATHS.POWERSHELL_7,
 				description: "PowerShell 7 (pwsh.exe)",
 			},
 			{
@@ -398,6 +400,22 @@ export function getWindowsPwshInstallPaths(): string[] {
 	]
 }
 
+/** Returns an installed modern PowerShell executable, if one can be found. */
+function getInstalledWindowsPwsh(): string | undefined {
+	return getWindowsPwshInstallPaths().find((candidate) => {
+		if (existsSync(candidate)) {
+			return true
+		}
+		try {
+			// Microsoft Store App Execution Aliases are zero-byte reparse points.
+			// Node can spawn them, but existsSync() reports false.
+			return lstatSync(candidate).isSymbolicLink()
+		} catch {
+			return false
+		}
+	})
+}
+
 /**
  * The shell VS Code launches on Windows when the user has not configured a
  * default terminal profile: its built-in default is PowerShell (pwsh when
@@ -406,8 +424,7 @@ export function getWindowsPwshInstallPaths(): string[] {
  * run in a visible VS Code terminal or a background child process.
  */
 function getWindowsDefaultShell(): string {
-	const pwsh = getWindowsPwshInstallPaths().find((candidate) => existsSync(candidate))
-	return pwsh ?? SHELL_PATHS.POWERSHELL_LEGACY
+	return getInstalledWindowsPwsh() ?? SHELL_PATHS.POWERSHELL_LEGACY
 }
 
 export function getShell(): string {

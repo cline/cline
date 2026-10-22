@@ -12,9 +12,10 @@ import {
 	rejectAllPendingApprovals,
 	requestToolApprovalFromWebview,
 } from "./approvals";
+import { configureConnectorCliLaunch } from "./connectors";
 import { workspaceRoot } from "./deps";
 import {
-	formatClientName,
+	formatClientDetails,
 	formatSessionCreator,
 	parseSessionContext,
 	trackSession,
@@ -22,7 +23,7 @@ import {
 import type { HubContext } from "./state";
 import { broadcastHubState } from "./state-payloads";
 import type { SessionContext } from "./types";
-import { asString, basename, isActiveSession, isVisibleClient } from "./utils";
+import { asRecord, asString, basename, clientMetadata, isActiveSession, isVisibleClient } from "./utils";
 
 export async function syncHubHealth(ctx: HubContext): Promise<void> {
 	if (!ctx.hubUrl) {
@@ -64,6 +65,7 @@ export async function syncHubClientsAndSessions(
 			displayName: client.displayName,
 			clientType: client.clientType,
 			connectedAt: client.connectedAt,
+			...clientMetadata(client.metadata),
 		});
 	}
 	ctx.sessions.clear();
@@ -90,6 +92,7 @@ export async function syncHubClientsAndSessions(
 }
 
 export async function attachHub(ctx: HubContext): Promise<void> {
+	configureConnectorCliLaunch();
 	const hub = await ensureDetachedHubServer(workspaceRoot);
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
@@ -140,15 +143,17 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 			const clientId = asString(payload.clientId);
 			const clientType = asString(payload.clientType) ?? "unknown";
 			if (!clientId || !isVisibleClient(clientType)) return;
-			ctx.clients.set(clientId, {
+			const tracked = {
 				clientId,
 				displayName: asString(payload.displayName),
 				clientType,
 				connectedAt: Date.now(),
-			});
+				...clientMetadata(asRecord(payload.metadata)),
+			};
+			ctx.clients.set(clientId, tracked);
 			ctx.pushEvent(
 				"Client connected",
-				`${asString(payload.displayName) ?? clientType} joined the hub`,
+				`${formatClientDetails(tracked)} joined the hub`,
 				"success",
 			);
 			broadcastHubState(ctx);
@@ -161,7 +166,7 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 			if (client) {
 				ctx.pushEvent(
 					"Client disconnected",
-					`${formatClientName(client)} left the hub`,
+					`${formatClientDetails(client)} left the hub`,
 					"info",
 				);
 			}

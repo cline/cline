@@ -5,6 +5,7 @@ import {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./ai-sdk-format";
+import { IMAGE_UNSUPPORTED_PLACEHOLDER } from "./media";
 
 describe("formatMessagesForAiSdk", () => {
 	const imageData = (byteLength: number, fill = 1) =>
@@ -74,6 +75,53 @@ describe("formatMessagesForAiSdk", () => {
 			{
 				role: "assistant",
 				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+		]);
+	});
+
+	it("replaces messages whose parts are all empty text with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "user", content: [{ type: "text", text: "" }] },
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "   \n\t  " },
+					{ type: "text", text: "" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+		]);
+	});
+
+	it("keeps messages that pair empty text with other content", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "" },
+					{ type: "image", image, mediaType: "image/png" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "" },
+					{ type: "file", data: image, mediaType: "image/png" },
+				],
 			},
 		]);
 	});
@@ -207,7 +255,7 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
-	it("forwards image content blocks as AI SDK content/image-data parts", () => {
+	it("forwards image content blocks as AI SDK content file parts", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{
 				role: "user",
@@ -242,8 +290,8 @@ describe("formatMessagesForAiSdk", () => {
 							value: [
 								{ type: "text", text: "Successfully read image" },
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -258,7 +306,7 @@ describe("formatMessagesForAiSdk", () => {
 		// `read_files` returns its output as a `ToolOperationResult[]` whose
 		// `result` is a content-block array `[{type:'text'}, {type:'image'}]`.
 		// `formatMessagesForAiSdk` (via `toAiSdkToolResultOutput`) must walk
-		// the tree, hoist any nested image blocks out as native `image-data`
+		// the tree, hoist any nested image blocks out as native `file`
 		// content parts, and forward the remaining metadata as a JSON-encoded
 		// text block so the model receives multimodal input rather than a
 		// JSON-stringified base64 blob.
@@ -333,8 +381,8 @@ describe("formatMessagesForAiSdk", () => {
 									]),
 								},
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -371,8 +419,8 @@ describe("formatMessagesForAiSdk", () => {
 					}),
 				},
 				{
-					type: "image-data",
-					data: "QkFTRTY0REFUQQ==",
+					type: "file",
+					data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 					mediaType: "image/jpeg",
 				},
 			],
@@ -383,7 +431,7 @@ describe("formatMessagesForAiSdk", () => {
 		// Regression: a `read_files` call with multiple image paths returns
 		// a single `ToolOperationResult[]` whose entries each carry one
 		// `{type:'image', data, mediaType}` block. All of them must end up
-		// as native `image-data` content parts attached to the tool-result.
+		// as native `file` content parts attached to the tool-result.
 		// Previously only the first was preserved (or all were lost on the
 		// SDK-direct path), causing the model to "see" the wrong image set.
 		const messages = formatMessagesForAiSdk(undefined, [
@@ -438,7 +486,7 @@ describe("formatMessagesForAiSdk", () => {
 			},
 		]);
 
-		// Both images must end up as image-data content parts on the
+		// Both images must end up as file content parts on the
 		// tool-result output, and no orphaned image messages may remain.
 		expect(messages).toEqual([
 			{
@@ -480,13 +528,13 @@ describe("formatMessagesForAiSdk", () => {
 									]),
 								},
 								{
-									type: "image-data",
-									data: "SlBFR0RBVEE=",
+									type: "file",
+									data: { type: "data", data: "SlBFR0RBVEE=" },
 									mediaType: "image/jpeg",
 								},
 								{
-									type: "image-data",
-									data: "UE5HREFUQQ==",
+									type: "file",
+									data: { type: "data", data: "UE5HREFUQQ==" },
 									mediaType: "image/png",
 								},
 							],
@@ -583,8 +631,8 @@ describe("formatMessagesForAiSdk", () => {
 							value: [
 								{ type: "text", text: "Successfully read image" },
 								{
-									type: "image-data",
-									data: "QkFTRTY0REFUQQ==",
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
 									mediaType: "image/jpeg",
 								},
 							],
@@ -753,6 +801,164 @@ describe("formatMessagesForAiSdk", () => {
 		expect(serialized).not.toContain("data:image/jpeg;base64,/9j/");
 	});
 
+	it("moves generated assistant images onto the following user turn", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Generate an image" }],
+			},
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here it is" },
+					{ type: "image", image, mediaType: "image/jpeg" },
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "Tell me about the image" }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "Generate an image" }],
+			},
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here it is" },
+					{ type: "text", text: "[generated image]" },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Tell me about the image" },
+					{ type: "file", data: image, mediaType: "image/jpeg" },
+				],
+			},
+		]);
+	});
+
+	it("moves generated assistant images onto string user messages", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+			{
+				role: "user",
+				content: "Describe it",
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "[generated image]" }],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Describe it" },
+					{ type: "file", data: image, mediaType: "image/png" },
+				],
+			},
+		]);
+	});
+
+	it("preserves generated assistant images across a tool-result turn", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{ type: "image", image, mediaType: "image/png" },
+					{
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						input: { query: "bee" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						input: { query: "hive" },
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						output: "found",
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						output: "also found",
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "[generated image]" },
+					{
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						input: { query: "bee" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						input: { query: "hive" },
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						output: { type: "text", value: "found" },
+					},
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						output: { type: "text", value: "also found" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
 	it("keeps raw base64 string images without mediaType by defaulting to png", () => {
 		const image = imageData(8);
 		const messages = formatMessagesForAiSdk(undefined, [
@@ -765,7 +971,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(messages).toEqual([
 			{
 				role: "user",
-				content: [{ type: "image", image, mediaType: "image/png" }],
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -782,7 +988,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(messages).toEqual([
 			{
 				role: "user",
-				content: [{ type: "image", image, mediaType: "image/png" }],
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
 			},
 		]);
 	});
@@ -848,8 +1054,8 @@ describe("formatMessagesForAiSdk", () => {
 				role: "user",
 				content: [
 					{
-						type: "image",
-						image: `data:image/jpeg;base64,${image}`,
+						type: "file",
+						data: `data:image/jpeg;base64,${image}`,
 						mediaType: "image/jpeg",
 					},
 				],
@@ -871,8 +1077,8 @@ describe("formatMessagesForAiSdk", () => {
 				role: "user",
 				content: [
 					{
-						type: "image",
-						image: `data:image/jpeg;base64,${image}`,
+						type: "file",
+						data: `data:image/jpeg;base64,${image}`,
 						mediaType: "image/jpeg",
 					},
 				],
@@ -979,7 +1185,7 @@ describe("formatMessagesForAiSdk", () => {
 		expect(serialized).toContain(
 			"[media omitted: invalid or exceeds size limit]",
 		);
-		expect(serialized).not.toContain('"type":"image-data"');
+		expect(serialized).not.toContain('"type":"file"');
 		expect(serialized).not.toContain("PHN2Zz4=");
 		expect(serialized).not.toContain(oversizedImage);
 	});
@@ -1054,6 +1260,82 @@ describe("formatMessagesForAiSdk", () => {
 			},
 		]);
 		expect(JSON.stringify(messages)).not.toContain(hiddenPayload);
+	});
+
+	it("replays canonical assistant media exactly once on the next user turn", () => {
+		const data = "aGVsbG8=";
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I made an image." },
+					{
+						type: "media",
+						media: {
+							id: "generated-image",
+							modality: "image",
+							mediaType: "image/png",
+							source: { type: "base64", data },
+						},
+					},
+				],
+			},
+			{ role: "user", content: [{ type: "text", text: "Refine it." }] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I made an image." },
+					{ type: "text", text: "[generated image]" },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Refine it." },
+					{ type: "file", data, mediaType: "image/png" },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages).split(data)).toHaveLength(2);
+	});
+
+	it("replays supported generated audio and hides it from text-only models", () => {
+		const source = {
+			id: "generated-audio",
+			modality: "audio" as const,
+			mediaType: "audio/mpeg",
+			source: { type: "base64" as const, data: "SUQz" },
+		};
+		const history = [
+			{
+				role: "assistant" as const,
+				content: [{ type: "media" as const, media: source }],
+			},
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "Continue." }],
+			},
+		];
+
+		const supported = formatMessagesForAiSdk(undefined, history, {
+			supportedInputModalities: ["text", "audio"],
+		});
+		const unsupported = formatMessagesForAiSdk(undefined, history, {
+			supportedInputModalities: ["text"],
+		});
+
+		expect(supported.at(-1)?.content).toContainEqual({
+			type: "file",
+			data: "SUQz",
+			mediaType: "audio/mpeg",
+		});
+		expect(JSON.stringify(unsupported)).not.toContain("SUQz");
+		expect(JSON.stringify(unsupported)).toContain(
+			"[generated audio unavailable to this model]",
+		);
 	});
 });
 
@@ -1230,5 +1512,214 @@ describe("formatMessagesForAiSdk - surrogate sanitization", () => {
 			text: string;
 		}>;
 		expect(content[0]?.text).toContain("file \uFFFD");
+	});
+});
+
+describe("formatMessagesForAiSdk - models without image support", () => {
+	const imageData = (byteLength: number, fill = 1) =>
+		Buffer.alloc(byteLength, fill).toString("base64");
+
+	it("substitutes user image parts with placeholder text", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "look at this" },
+						{ type: "image", image, mediaType: "image/png" },
+					],
+				},
+			],
+			{ supportedInputModalities: ["text"] },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "look at this" },
+					{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("substitutes generated assistant images moved to the next user turn", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "assistant",
+					content: [{ type: "image", image, mediaType: "image/png" }],
+				},
+				{
+					role: "user",
+					content: [{ type: "text", text: "Describe it" }],
+				},
+			],
+			{ supportedInputModalities: ["text"] },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "[generated image]" }],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Describe it" },
+					{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("keeps user image parts when image input is explicitly supported", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [{ type: "image", image, mediaType: "image/png" }],
+				},
+			],
+			{ supportedInputModalities: ["text", "image"] },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
+	it("substitutes image blocks inside tool-result content arrays", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_file",
+							output: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "image", data: image, mediaType: "image/jpeg" },
+							],
+						},
+					],
+				},
+			],
+			{ supportedInputModalities: ["text"] },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_file",
+						output: {
+							type: "content",
+							value: [
+								{ type: "text", text: "Successfully read image" },
+								{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+							],
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
+	});
+
+	it("substitutes nested images in structured tool results without hoisting", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_files",
+							output: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										{ type: "text", text: "Successfully read image" },
+										{ type: "image", data: image, mediaType: "image/jpeg" },
+									],
+									success: true,
+								},
+							],
+						},
+					],
+				},
+			],
+			{ supportedInputModalities: ["text"] },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_files",
+						output: {
+							type: "json",
+							value: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										"Successfully read image",
+										IMAGE_UNSUPPORTED_PLACEHOLDER,
+									],
+									success: true,
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+		const serialized = JSON.stringify(messages);
+		expect(serialized).not.toContain(image);
+		expect(serialized).not.toContain('"type":"image-data"');
+	});
+
+	it("uses the unsupported placeholder for error tool-result media too", () => {
+		const image = imageData(16);
+		const output = toAiSdkToolResultOutput(
+			[
+				{ type: "text", text: "boom" },
+				{ type: "image", data: image, mediaType: "image/jpeg" },
+			],
+			true,
+			undefined,
+			{ supportsImages: false },
+		);
+
+		expect(output).toEqual({
+			type: "error-json",
+			value: ["boom", IMAGE_UNSUPPORTED_PLACEHOLDER],
+		});
 	});
 });

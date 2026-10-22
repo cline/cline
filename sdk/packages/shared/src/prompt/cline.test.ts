@@ -3,6 +3,8 @@ import {
 	buildClineSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
+	processWorkspaceInfo,
 } from "./cline";
 
 const BASE_OPTIONS = {
@@ -11,6 +13,29 @@ const BASE_OPTIONS = {
 	workspaceName: "project",
 	platform: "linux",
 };
+
+describe("processWorkspaceInfo", () => {
+	it("redacts URL credentials while preserving SCP-style SSH remotes", () => {
+		const metadata = JSON.parse(
+			processWorkspaceInfo({
+				rootPath: "/workspace/project",
+				associatedRemoteUrls: [
+					"origin: https://user:token@github.com/cline/cline.git",
+					"backup: ssh://git:secret@example.com/cline/cline.git",
+					"mirror: git@github.com:cline/cline.git",
+				],
+			}),
+		);
+
+		expect(
+			metadata.workspaces["/workspace/project"].associatedRemoteUrls,
+		).toEqual([
+			"origin: https://github.com/cline/cline.git",
+			"backup: ssh://example.com/cline/cline.git",
+			"mirror: git@github.com:cline/cline.git",
+		]);
+	});
+});
 
 describe("buildClineSystemPrompt mode instructions", () => {
 	it("explains the user_input mode attribute in act mode", () => {
@@ -42,15 +67,38 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		expect(PLAN_MODE_INSTRUCTIONS).toContain("switch_to_act_mode");
 	});
 
-	it("emits mode instructions for both mode: undefined and yolo", () => {
-		// After a switch the transcript still contains messages tagged with the
-		// other mode, so the explanation is unconditional.
+	it("swaps in the manual-switch plan contract when the host has no switch tool", () => {
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			mode: "plan",
+			planModeSwitchTool: false,
+		});
+		expect(prompt).toContain(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH);
+		expect(prompt).not.toContain("switch_to_act_mode");
+		// The read-only run_commands contract is shared by both variants.
+		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("run_commands");
+		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("Plan/Act toggle");
+	});
+
+	it("explains mode tags when the mode defaults to act", () => {
 		expect(buildClineSystemPrompt({ ...BASE_OPTIONS })).toContain(
 			MODE_TAG_INSTRUCTIONS,
 		);
-		expect(buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "yolo" })).toContain(
-			MODE_TAG_INSTRUCTIONS,
-		);
+	});
+
+	it("omits plan/act instructions in YOLO while preserving caller rules", () => {
+		const rules = "# Custom Rules\n\nAlways speak like a pirate.";
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			mode: "yolo",
+			rules,
+		});
+		expect(prompt).toContain(rules);
+		expect(prompt).not.toContain(MODE_TAG_INSTRUCTIONS);
+		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS);
+		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH);
+		expect(prompt).not.toContain("# Plan / Act Modes");
+		expect(prompt).not.toContain("switch_to_act_mode");
 	});
 
 	it("places caller rules before the mode instructions", () => {
@@ -62,6 +110,25 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		const rulesIndex = prompt.indexOf("Always speak like a pirate.");
 		expect(rulesIndex).toBeGreaterThan(-1);
 		expect(rulesIndex).toBeLessThan(prompt.indexOf(MODE_TAG_INSTRUCTIONS));
+	});
+
+	it("includes rich workspace metadata for the Cline backend parser", () => {
+		const metadata = JSON.stringify({
+			workspaces: {
+				"/workspace/project": {
+					hint: "project",
+					associatedRemoteUrls: ["origin: https://github.com/cline/cline.git"],
+					latestGitCommitHash: "abc123",
+				},
+			},
+		});
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			providerId: "cline",
+			metadata,
+		});
+
+		expect(prompt).toContain(`# Workspace Configuration\n${metadata}`);
 	});
 
 	it("respects an explicit override prompt without injecting mode sections", () => {

@@ -1,14 +1,39 @@
-import { prewarmWorkspaceMetadata } from "./chat-session";
+import { homedir } from "node:os";
 import {
+	checkManagedHubBuildMismatch,
+	createClineTelemetryServiceConfig,
+	ensureLoginShellPath,
+	readGlobalSettings,
+	setHomeDirIfUnset,
+	setModelToolEnabledGlobally,
+	watchManagedHubBuildMismatch,
+} from "@cline/core";
+import {
+	buildTelemetrySelfcheckReport,
+	captureSdkError,
+	disableCurrentDirectoryExecutableSearch,
+	ensureLoopbackProxyBypass,
+	setClineClientIdentity,
+} from "@cline/shared";
+import { prewarmWorkspaceMetadata } from "./chat-session";
+import { adoptDesktopCliRuntime, ensureHubWithDesktopCli } from "./cli-runtime";
+import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
+import { configureConnectorCliLaunch } from "./connectors";
+import {
+	broadcastEvent,
 	createSidecarContext,
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
+let activeObservability:
+	| ReturnType<typeof createDesktopObservability>
+	| undefined;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 	let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -27,24 +52,80 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 	});
 }
 
-async function main() {
+async function main(desktopCliPath?: string) {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
 	}
 
+	// When launched from Finder/the Dock the app inherits launchd's minimal
+	// PATH, so agent-spawned processes can't find shell-profile-installed
+	// tools like `gh`. Kick resolution off first so it overlaps the rest of
+	// startup, but await it before the session manager exists — that's what
+	// spawns children (agent sessions, MCP servers, scheduled runs).
+	const shellPathPromise = ensureLoginShellPath();
+
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
-	const ctx = createSidecarContext(workspaceRoot);
+	setHomeDirIfUnset(homedir());
+	configureConnectorCliLaunch(workspaceRoot);
+	const observability = createDesktopObservability();
+	activeObservability = observability;
+	const ctx = createSidecarContext(workspaceRoot, observability);
+	observability.logger.log("Desktop sidecar starting", {
+		workspaceRoot,
+		pid: process.pid,
+	});
+
+	// Web search is opt-in elsewhere in Cline, but the desktop app defaults
+	// it to on. Seed the shared setting only when the user has never set it,
+	// so an explicit off (from any Cline app) stays off. Best-effort: an
+	// unwritable settings file must not block startup over a default.
+	try {
+		if (readGlobalSettings().tools?.web_search === undefined) {
+			setModelToolEnabledGlobally("web_search", true);
+		}
+	} catch (error) {
+		observability.logger.error?.("Failed to seed web search default", {
+			error,
+		});
+	}
 
 	prewarmWorkspaceMetadata(workspaceRoot);
+	observability.logger.log(
+		"Login shell PATH resolution",
+		await shellPathPromise,
+	);
+	// The packaged app hands Hub startup to its bundled CLI: it reuses a
+	// compatible healthy Hub or starts one, and the session manager attaches.
+	// Afterwards the PATH above is set, so a new Hub inherits it. On failure
+	// the session manager still starts the Hub through the same CLI launcher.
+	if (desktopCliPath) {
+		try {
+			const hub = await ensureHubWithDesktopCli(desktopCliPath, workspaceRoot);
+			observability.logger.log("Hub ready via Cline CLI", { url: hub.url });
+		} catch (error) {
+			observability.logger.error?.("Cline CLI hub ensure failed", { error });
+		}
+	}
 	await initializeSessionManager(ctx);
 
 	let shuttingDown = false;
+	let handlingFatalError = false;
 	const shutdown = async (reason = "code_sidecar_shutdown"): Promise<void> => {
 		if (shuttingDown) {
 			return;
 		}
 		shuttingDown = true;
-		await withTimeout(disposeSidecarContext(ctx, reason), SHUTDOWN_TIMEOUT_MS);
+		observability.logger.log("Desktop sidecar shutting down", { reason });
+		await withTimeout(
+			(async () => {
+				try {
+					await disposeSidecarContext(ctx, reason);
+				} finally {
+					await observability.dispose();
+				}
+			})(),
+			SHUTDOWN_TIMEOUT_MS,
+		);
 	};
 
 	const shutdownAndExit = (signal: string): void => {
@@ -55,29 +136,142 @@ async function main() {
 
 	process.once("SIGINT", () => shutdownAndExit("SIGINT"));
 	process.once("SIGTERM", () => shutdownAndExit("SIGTERM"));
+	const handleFatalError = (kind: string, error: unknown): void => {
+		if (handlingFatalError) {
+			process.exit(1);
+		}
+		handlingFatalError = true;
+		observability.logger.error?.("Desktop sidecar process error", {
+			kind,
+			error,
+		});
+		captureSdkError(observability.telemetry, {
+			component: "desktop",
+			operation: `sidecar.${kind}`,
+			error,
+			handled: false,
+			severity: "fatal",
+		});
+		void shutdown(`code_sidecar_${kind}`).finally(() => process.exit(1));
+	};
+	process.on("uncaughtException", (error) => {
+		handleFatalError("uncaught_exception", error);
+	});
+	process.on("unhandledRejection", (error) => {
+		handleFatalError("unhandled_rejection", error);
+	});
 	process.once("beforeExit", () => {
 		void shutdown("code_sidecar_before_exit");
 	});
 
-	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
+	const { port, approvalToken } = startServer(ctx, SIDECAR_PORT, shutdown);
+	observability.logger.log("Desktop sidecar ready", {
+		port,
+		mode: SIDECAR_MODE,
+	});
+
+	// Another Cline installation (e.g. an updated CLI) can replace the shared
+	// Hub daemon while this app is running. Surface that to the webview so it
+	// can prompt the user to update and restart.
+	watchManagedHubBuildMismatch({
+		onMismatch: (mismatch) => {
+			ctx.hubBuildMismatch = mismatch;
+			observability.logger.log("Managed hub build mismatch detected", {
+				hubBuildId: mismatch.hubBuildId,
+				hubCoreVersion: mismatch.hubCoreVersion,
+				reason: mismatch.reason,
+			});
+			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+		},
+	});
+	// The watcher's first check only runs after its interval, but a mismatch
+	// that already exists at startup - an older Hub this app attached to
+	// because it is still serving other clients' sessions - must prompt
+	// before the user starts working, not half a minute in. Session-manager
+	// init has already settled the hub state, so check once right away. The
+	// broadcast reaches webviews that are already connected; the replay in
+	// createWebSocketHandler covers ones that connect later. Skipped when
+	// CLINE_HUB_PORT pins an explicit endpoint, matching the watcher: such
+	// hosts keep protocol-only compatibility and must not show update prompts.
+	if (!process.env.CLINE_HUB_PORT?.trim()) {
+		void checkManagedHubBuildMismatch()
+			.then((mismatch) => {
+				if (!mismatch || ctx.hubBuildMismatch) {
+					return;
+				}
+				ctx.hubBuildMismatch = mismatch;
+				observability.logger.log(
+					"Managed hub build mismatch detected at startup",
+					{
+						hubBuildId: mismatch.hubBuildId,
+						hubCoreVersion: mismatch.hubCoreVersion,
+						reason: mismatch.reason,
+					},
+				);
+				broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+			})
+			.catch(() => undefined);
+	}
 
 	// A wildcard bind isn't a dialable address; advertise loopback instead.
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
 	const endpoint = `http://${dialHost}:${port}`;
-	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
+	const wsEndpoint = new URL(`ws://${dialHost}:${port}/transport`);
+	wsEndpoint.searchParams.set("approval_token", approvalToken);
 	process.stdout.write(
 		`${JSON.stringify({
 			type: "ready",
 			endpoint,
-			wsEndpoint,
+			wsEndpoint: wsEndpoint.toString(),
 			pid: process.pid,
 			mode: SIDECAR_MODE,
 		})}\n`,
 	);
 }
 
-main().catch((error) => {
+/**
+ * Prints whether the telemetry configuration that was inlined at build time
+ * (see scripts/telemetry-define-args.ts) actually made it into this bundle,
+ * then exits. CI runs this against the packaged backend and fails the
+ * publish when a release-grade build reports `"enabled":false` or an
+ * unusable OTLP endpoint, so a regression in the build-time inlining can
+ * never ship silently again.
+ */
+function runTelemetrySelfcheck(): void {
+	const report = buildTelemetrySelfcheckReport(
+		createClineTelemetryServiceConfig(),
+	);
+	process.stdout.write(`${JSON.stringify(report)}\n`);
+}
+
+async function runEntrypoint(): Promise<void> {
+	// The selfcheck only inspects build-time config and must not start anything.
+	if (process.argv.includes("--telemetry-selfcheck")) {
+		runTelemetrySelfcheck();
+		return;
+	}
+	const { cliPath } = adoptDesktopCliRuntime();
+	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
+
+	disableCurrentDirectoryExecutableSearch();
+	// Before the Hub daemon and agent-spawned processes inherit this env.
+	ensureLoopbackProxyBypass();
+	await main(cliPath);
+}
+
+runEntrypoint().catch(async (error) => {
 	const message = error instanceof Error ? error.message : String(error);
+	activeObservability?.logger.error?.("Desktop sidecar process failed", {
+		error,
+	});
+	captureSdkError(activeObservability?.telemetry, {
+		component: "desktop",
+		operation: "sidecar.startup",
+		error,
+		handled: false,
+		severity: "fatal",
+	});
+	await activeObservability?.dispose();
 	process.stderr.write(`${message}\n`);
 	process.exit(1);
 });

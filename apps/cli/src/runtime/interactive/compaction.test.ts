@@ -12,6 +12,25 @@ import {
 	resolveCompactionProviderConfig,
 } from "./compaction";
 
+const createHandlerMock = vi.fn();
+
+// Core defaults to the agentic compaction strategy, which summarizes via a
+// real LLM handler. Stub only `createHandlerAsync` so no network call (or API
+// key) is needed; every other `@cline/llms` export stays real because
+// `@cline/core` re-exports them.
+vi.mock("@cline/llms", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/llms")>()),
+	createHandlerAsync: (config: unknown) => createHandlerMock(config),
+}));
+
+async function* streamChunks(
+	chunks: Array<Record<string, unknown>>,
+): AsyncGenerator<Record<string, unknown>> {
+	for (const chunk of chunks) {
+		yield chunk;
+	}
+}
+
 function createConfig(): Config {
 	return {
 		providerId: "anthropic",
@@ -46,12 +65,41 @@ function createProviderSettingsManager(): ProviderSettingsManager {
 }
 
 afterEach(() => {
+	createHandlerMock.mockReset();
 	for (const tempDir of providerSettingsTempDirs.splice(0)) {
 		rmSync(tempDir, { force: true, recursive: true });
 	}
 });
 
 describe("compactInteractiveMessages", () => {
+	it("keeps saved errors in history but excludes them from summarization", async () => {
+		const messages = [
+			{ role: "user" as const, content: "first request" },
+			{
+				role: "assistant" as const,
+				content: "provider failed",
+				metadata: { displayOnly: true, displayRole: "error" },
+			},
+			{ role: "user" as const, content: "retry" },
+			{ role: "assistant" as const, content: "answer" },
+		];
+		const config = createConfig();
+		const compact = vi.fn((context: CoreCompactionContext) => {
+			expect(context.messages).toEqual([messages[0], messages[2], messages[3]]);
+			return { messages: [{ role: "user" as const, content: "summary" }] };
+		});
+		config.compaction = { compact };
+		const result = await compactInteractiveMessages({
+			config,
+			providerSettingsManager: createProviderSettingsManager(),
+			sessionId: "session",
+			messages,
+		});
+		expect(compact).toHaveBeenCalledOnce();
+		expect(result.canonicalMessages).toEqual(messages);
+		expect(result.compactionState?.source_message_count).toBe(3);
+	});
+
 	it("resolves manual compaction provider config from persisted OAuth settings", () => {
 		const manager = createProviderSettingsManager();
 		manager.saveProviderSettings({
@@ -163,6 +211,15 @@ describe("compactInteractiveMessages", () => {
 	});
 
 	it("uses a useful target budget for manual compaction", async () => {
+		const mockSummary = "## Goal\nMocked agentic compaction summary";
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{ type: "text", id: "summary-1", text: mockSummary },
+					{ type: "done", id: "summary-1", success: true },
+				]),
+			),
+		});
 		const longText = "x".repeat(16_000);
 		const messages = Array.from({ length: 10 }, (_, index) => ({
 			role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
@@ -189,6 +246,17 @@ describe("compactInteractiveMessages", () => {
 		expect(compactedMessages.length).toBeGreaterThan(1);
 		expect(compactedMessages.length).toBeLessThan(messages.length);
 		expect(compactedTextLength).toBeGreaterThan(1_000);
+
+		// The agentic strategy folds older messages into a summary message
+		// built from the (mocked) summarizer output.
+		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		const [summaryMessage] = compactedMessages;
+		const summaryText = Array.isArray(summaryMessage?.content)
+			? summaryMessage.content
+					.map((block) => ("text" in block ? block.text : ""))
+					.join("\n")
+			: String(summaryMessage?.content ?? "");
+		expect(summaryText).toContain(mockSummary);
 	});
 
 	it("reports compaction when core returns changed messages with the same count", async () => {

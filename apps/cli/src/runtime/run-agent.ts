@@ -32,7 +32,9 @@ import {
 	setActiveCliSession,
 	writeErr,
 	writeln,
+	writeWarn,
 } from "../utils/output";
+import { formatPluginIssueWarnings } from "../utils/plugin-issues";
 import type { Config } from "../utils/types";
 import { shouldShowCliUsageCost } from "../utils/usage-cost-display";
 import { setActiveRuntimeAbort } from "./active-runtime";
@@ -205,7 +207,9 @@ export async function runAgent(
 			event.error.message.trim()
 		) {
 			displayedErrorMessages.add(
-				formatCliErrorMessage(event.error.message).trim(),
+				formatCliErrorMessage(event.error.message, {
+					modelId: config.modelId,
+				}).trim(),
 			);
 		}
 		handleEvent(event, config);
@@ -275,7 +279,9 @@ export async function runAgent(
 			prompt: userInput,
 			userImages,
 			userFiles,
-		} = await buildUserInputMessage(prompt, userInstructionService);
+		} = await buildUserInputMessage(prompt, userInstructionService, {
+			mode: config.mode,
+		});
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
 			config: {
@@ -303,6 +309,9 @@ export async function runAgent(
 		});
 
 		activeSessionId = started.sessionId;
+		for (const warning of formatPluginIssueWarnings(started.pluginIssues)) {
+			writeWarn(warning);
+		}
 		setActiveCliSession({
 			manifest: started.manifest,
 		});
@@ -390,7 +399,9 @@ export async function runAgent(
 		}
 
 		if (result.finishReason !== "completed") {
-			const errorText = formatCliErrorMessage(result.text).trim();
+			const errorText = formatCliErrorMessage(result.text, {
+				modelId: config.modelId,
+			}).trim();
 			if (
 				errorText &&
 				(config.outputMode === "json" || !displayedErrorMessages.has(errorText))
@@ -411,7 +422,7 @@ export async function runAgent(
 		);
 		process.exitCode = 0;
 	} catch (err) {
-		const message = formatCliErrorMessage(err);
+		const message = formatCliErrorMessage(err, { modelId: config.modelId });
 		logCliError(config.logger, "CLI task run failed", { error: err });
 		writeErr(message);
 		process.exitCode = 1;

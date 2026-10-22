@@ -120,7 +120,7 @@ Scan profiles control where Bumblebee looks. `baseline` checks standard global t
     cline connect telegram -k "<BOT-TOKEN>" --cwd ~/tools/bumblebee
     ```
 
-    Leave this process running. It polls Telegram and delivers scheduled results, so it must stay alive.
+    The connector starts in the background and keeps running after the command returns. It polls Telegram and delivers scheduled results.
   </Step>
 
   <Step title="Open the chat">
@@ -155,14 +155,14 @@ The bot replies with the new schedule, including its id.
 
 ### Option B: From your terminal
 
-Create the schedule with the Cline CLI on the same machine and pass the delivery method explicitly. The running Telegram connector delivers the result to its chat:
+First send `/whereami` to your bot. It replies with the chat's `deliveryThread`, such as `telegram:123456789`. Then create the schedule on the same machine and pass that thread. The running Telegram connector delivers the result to that chat:
 
 ```bash
 cline schedule create "supply-chain-watch" \
   --cron "0 8 * * *" \
   --workspace ~/tools/bumblebee \
   --delivery-adapter telegram \
-  --delivery-bot <bot-username> \
+  --delivery-thread <deliveryThread> \
   --prompt "Pull the latest Bumblebee catalogs and scan this machine for compromised packages. Run: git pull --quiet && go build -o bumblebee ./cmd/bumblebee && ./bumblebee scan --profile deep --root \$HOME --exposure-catalog ./threat_intel/ --findings-only. Read the NDJSON output. If any line has record_type set to finding, reply starting with '🚨 COMPROMISE DETECTED' and list each package name, version, ecosystem, and source_file. If there are no findings, reply with exactly '✅ Clean: no compromised packages found.'"
 ```
 
@@ -197,8 +197,9 @@ To see a real alert, add a package and version that matches a catalog entry to a
 
 ## Keep it running
 
-- The connector process (`cline connect telegram`) must stay running for delivery to work. Run it under a process manager (systemd, launchd, `pm2`, or a `tmux`/`screen` session) so it survives reboots.
+- The connector must be running for delivery to work. It runs in the background, and the hub starts it again whenever the hub itself starts. Neither starts when the computer boots: after a reboot, run `cline hub start`, which brings the connector back.
 - The hub runs the schedule and starts automatically when you create one. If it is not running, start it with `cline hub start`.
+- `cline connect --stop telegram` stops the connector and keeps the hub from starting it again.
 - Manage schedules anytime with `cline schedule list`, `cline schedule pause <id>`, `cline schedule resume <id>`, and `cline schedule delete <id>`.
 
 ## Customize

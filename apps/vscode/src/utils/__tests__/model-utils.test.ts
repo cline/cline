@@ -8,8 +8,6 @@ import {
 	isGLMModelFamily,
 	isGPT5ModelFamily,
 	isGptOssModelFamily,
-	isNextGenModelFamily,
-	isPoolsideModelFamily,
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
 } from "../model-utils"
@@ -115,24 +113,6 @@ describe("isGptOssModelFamily", () => {
 		isGptOssModelFamily("gpt-5").should.equal(false)
 		isGptOssModelFamily("gpt-4o").should.equal(false)
 		isGptOssModelFamily("claude-sonnet-4").should.equal(false)
-	})
-})
-
-describe("isPoolsideModelFamily", () => {
-	it("should return true for Laguna model IDs", () => {
-		isPoolsideModelFamily("poolside/laguna-m.1").should.equal(true)
-		isPoolsideModelFamily("laguna-enterprise").should.equal(true)
-		isPoolsideModelFamily("LAGUNA").should.equal(true)
-	})
-
-	it("should return false for non-Poolside model IDs", () => {
-		isPoolsideModelFamily("gpt-5").should.equal(false)
-		isPoolsideModelFamily("deepseek-chat").should.equal(false)
-		isPoolsideModelFamily("claude-sonnet-4").should.equal(false)
-	})
-
-	it("should qualify Laguna models for next-gen paths", () => {
-		isNextGenModelFamily("poolside/laguna-m.1").should.equal(true)
 	})
 })
 

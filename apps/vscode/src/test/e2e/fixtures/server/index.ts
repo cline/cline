@@ -7,6 +7,7 @@ import {
 	E2E_MOCK_CLINE_MODELS,
 	E2E_MOCK_CLINE_RECOMMENDED_MODELS,
 	E2E_MOCK_EDITOR_TOOL_CALL,
+	E2E_MOCK_POWERSHELL_TOOL_CALL,
 	E2E_REGISTERED_MOCK_ENDPOINTS,
 } from "./api"
 import { ClineDataMock } from "./data"
@@ -31,6 +32,8 @@ export class ClineApiServerMock {
 	private orgBalance = 500.0
 	private userHasOrganization = false
 	private spendLimitExceeded = false
+	private checkpointProbeRelease: Promise<void> | undefined
+	private releaseCheckpointProbeGate: (() => void) | undefined
 	public generationCounter = 0
 
 	public readonly API_USER = new ClineDataMock("personal")
@@ -64,6 +67,19 @@ export class ClineApiServerMock {
 	 */
 	public setSpendLimitExceeded(exceeded: boolean) {
 		this.spendLimitExceeded = exceeded
+	}
+
+	public holdCheckpointProbe(): void {
+		this.releaseCheckpointProbe()
+		this.checkpointProbeRelease = new Promise((resolve) => {
+			this.releaseCheckpointProbeGate = resolve
+		})
+	}
+
+	public releaseCheckpointProbe(): void {
+		this.releaseCheckpointProbeGate?.()
+		this.releaseCheckpointProbeGate = undefined
+		this.checkpointProbeRelease = undefined
 	}
 
 	public setCurrentUser(user: UserResponse | null) {
@@ -480,27 +496,74 @@ export class ClineApiServerMock {
 						// a `role: "tool"` message. Detect that follow-up first — the
 						// original "edit_request" user prompt is still present in the
 						// conversation history of the follow-up request, so order matters.
-						// Scoped to edit_request conversations so tool results from other
-						// (future) scenarios don't mis-route to EDIT_REQUEST_COMPLETE.
+						// Scope tool-result routing to the mock scenarios that issued a tool
+						// call so unrelated conversations retain the default response.
 						const hasToolResult =
-							body.includes("edit_request") &&
+							(body.includes("edit_request") || body.includes("powershell_background_request")) &&
 							Array.isArray(messages) &&
 							messages.some((m: { role?: string }) => m?.role === "tool")
 
+						const serializedMessages = Array.isArray(messages)
+							? messages.map((message) => JSON.stringify(message))
+							: []
+						const lastIndexIncluding = (needle: string) => {
+							for (let i = serializedMessages.length - 1; i >= 0; i--) {
+								if (serializedMessages[i].includes(needle)) return i
+							}
+							return -1
+						}
+						const checkpointProbeIndex = lastIndexIncluding("checkpoint_rebuild_probe")
+						const checkpointFollowupIndex = lastIndexIncluding("follow-up after enabling checkpoints")
+						const lastUserIndex = Array.isArray(messages)
+							? messages.map((m: { role?: string }) => m?.role).lastIndexOf("user")
+							: -1
+						// Only the probe turn itself is held open and streams slowly; later
+						// turns whose history contains the probe text answer normally.
+						const isCheckpointProbeTurn = checkpointProbeIndex >= 0 && checkpointProbeIndex === lastUserIndex
+						const checkpointProbeRelease = isCheckpointProbeTurn ? controller.checkpointProbeRelease : undefined
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
-						let includeEditorToolCall = false
+						const chunkDelayMs = isCheckpointProbeTurn ? 750 : 10
+						log("Checkpoint probe indices:", { checkpointFollowupIndex, checkpointProbeIndex, lastUserIndex })
+						if (checkpointFollowupIndex >= 0 && checkpointFollowupIndex === lastUserIndex) {
+							responseText = E2E_MOCK_API_RESPONSES.CHECKPOINT_FOLLOWUP
+						} else if (isCheckpointProbeTurn) {
+							responseText = E2E_MOCK_API_RESPONSES.CHECKPOINT_REBUILD_PROBE
+						}
+						// The hooks e2e sends "hook context probe" after its
+						// UserPromptSubmit hook returned a contextModification; answer
+						// according to whether the injected block made it into this
+						// model request, so the test asserts injection end to end.
+						// The block must follow the *latest* probe prompt: an earlier
+						// turn's block stays in the conversation history, so a
+						// whole-body search would report a fresh injection that never
+						// happened on later turns.
+						if (body.includes("hook context probe")) {
+							const lastPromptIndex = lastIndexIncluding("hook context probe")
+							const lastFactIndex = lastIndexIncluding("HOOK_INJECTED_FACT")
+							responseText =
+								lastFactIndex > lastPromptIndex
+									? E2E_MOCK_API_RESPONSES.HOOK_CONTEXT_RECEIVED
+									: E2E_MOCK_API_RESPONSES.HOOK_CONTEXT_MISSING
+						}
+						let toolCall: typeof E2E_MOCK_EDITOR_TOOL_CALL | typeof E2E_MOCK_POWERSHELL_TOOL_CALL | undefined
 						log("Chat completion mock selection:", {
 							isEditRequest: body.includes("edit_request"),
+							isPowerShellRequest: body.includes("powershell_background_request"),
 							hasToolResult,
 						})
 						if (hasToolResult) {
-							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
+							responseText = body.includes("powershell_background_request")
+								? E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_COMPLETE
+								: E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
 						} else if (body.includes("edit_request")) {
 							// Stream lead-in text followed by a structured `editor` tool
 							// call (OpenAI tool_calls deltas) — the only tool-call syntax
 							// the SDK runtime executes.
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_LEAD_IN
-							includeEditorToolCall = true
+							toolCall = E2E_MOCK_EDITOR_TOOL_CALL
+						} else if (body.includes("powershell_background_request")) {
+							responseText = E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_LEAD_IN
+							toolCall = E2E_MOCK_POWERSHELL_TOOL_CALL
 						}
 						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
 
@@ -523,16 +586,16 @@ export class ClineApiServerMock {
 							// for a tool_calls index must carry `id` + `function.name`;
 							// `function.arguments` accumulates as string fragments. Split
 							// the arguments JSON to exercise fragment reassembly.
-							const argumentsJson = JSON.stringify(E2E_MOCK_EDITOR_TOOL_CALL.arguments)
+							const argumentsJson = toolCall ? JSON.stringify(toolCall.arguments) : ""
 							const argsSplitAt = Math.floor(argumentsJson.length / 2)
-							const toolCallDeltas = includeEditorToolCall
+							const toolCallDeltas = toolCall
 								? [
 										[
 											{
 												index: 0,
-												id: E2E_MOCK_EDITOR_TOOL_CALL.id,
+												id: toolCall.id,
 												type: "function",
-												function: { name: E2E_MOCK_EDITOR_TOOL_CALL.name, arguments: "" },
+												function: { name: toolCall.name, arguments: "" },
 											},
 										],
 										[
@@ -570,7 +633,11 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
-									setTimeout(sendChunk, 10)
+									if (checkpointProbeRelease && chunkIndex === 3) {
+										void checkpointProbeRelease.then(sendChunk)
+									} else {
+										setTimeout(sendChunk, chunkDelayMs)
+									}
 								} else if (toolCallDeltaIndex < toolCallDeltas.length) {
 									const chunk = {
 										id: generationId,
@@ -589,7 +656,7 @@ export class ClineApiServerMock {
 									}
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									toolCallDeltaIndex++
-									setTimeout(sendChunk, 10)
+									setTimeout(sendChunk, chunkDelayMs)
 								} else {
 									const finalChunk = {
 										id: generationId,
@@ -600,7 +667,7 @@ export class ClineApiServerMock {
 											{
 												index: 0,
 												delta: {},
-												finish_reason: includeEditorToolCall ? "tool_calls" : "stop",
+												finish_reason: toolCall ? "tool_calls" : "stop",
 											},
 										],
 										usage: {
@@ -711,7 +778,11 @@ export class ClineApiServerMock {
 
 			handleRequest().catch((err) => {
 				console.error("Request handling error:", err)
-				sendApiError("Internal server error", 500)
+				if (!res.headersSent) {
+					sendApiError("Internal server error", 500)
+				} else if (!res.writableEnded) {
+					res.end()
+				}
 			})
 		})
 

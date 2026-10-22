@@ -6,9 +6,12 @@
 
 import {
 	type ApplyPatchExecutor,
+	type AskQuestionExecutor,
 	ClineCore,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
+	type CompareCheckpointInput,
+	type CompareCheckpointResult,
 	type CoreSessionEvent,
 	type EditorExecutor,
 	type HookEventPayload,
@@ -29,13 +32,15 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 	type ToolExecutors,
+	toClineCoreStartInput,
 } from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import { RUNTIME_CONFIG_EXTENSION_KINDS, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { type VscodeGitTelemetry, VscodeGitTelemetryManager } from "./git-telemetry"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
@@ -53,7 +58,7 @@ export interface VscodeSessionHostOptions {
 		policy: { enabled: boolean; autoApprove: boolean }
 	}) => Promise<{ approved: boolean; reason?: string }>
 	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
-	askQuestion?: (question: string, options: string[], context: AgentToolContext) => Promise<string>
+	askQuestion?: AskQuestionExecutor
 	/**
 	 * Custom `editor` tool executor (diff-view edit pipeline). Fully replaces the SDK's
 	 * default disk-writing executor.
@@ -64,10 +69,17 @@ export interface VscodeSessionHostOptions {
 	 * delegating to the SDK's default patch application).
 	 */
 	applyPatchExecutor?: ApplyPatchExecutor
+	/**
+	 * Custom `read_files` executor (resolves relative paths against the workspace root
+	 * instead of the extension host's process.cwd(), which is usually "/").
+	 */
+	readFileExecutor?: ToolExecutors["readFile"]
 	/** Per-tool approval policies derived from the user's auto-approval settings. */
 	toolPolicies?: Record<string, ToolPolicy>
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
+	/** Resolves once the applicable remote config is ready for a new SDK session. */
+	beforeStartSession?: () => Promise<void>
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/**
@@ -83,10 +95,18 @@ export interface VscodeSessionHostOptions {
 export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
+	private readonly prepareStartSessionInput: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>
+	private readonly gitTelemetry: VscodeGitTelemetryManager
 
-	private constructor(inner: ClineCore) {
+	private constructor(
+		inner: ClineCore,
+		prepareStartSessionInput: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>,
+		options: VscodeSessionHostOptions,
+	) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
+		this.prepareStartSessionInput = prepareStartSessionInput
+		this.gitTelemetry = new VscodeGitTelemetryManager(options.telemetry)
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
@@ -107,11 +127,53 @@ export class VscodeSessionHost implements SdkSessionHost {
 		if (options.applyPatchExecutor) {
 			toolExecutors.applyPatch = options.applyPatchExecutor
 		}
+		if (options.readFileExecutor) {
+			toolExecutors.readFile = options.readFileExecutor
+		}
 		if (options.getTerminalManager) {
 			// Setting bash to undefined suppresses the SDK's createShellTool():
 			// createDefaultTools() checks `enableBash && executors.bash` — falsy
 			// bash means no built-in run_commands tool is created.
 			;(toolExecutors as Record<string, unknown>).bash = undefined
+		}
+
+		// Both start and checkpoint restore use the same input preparation.
+		const prepareStartSessionInput = async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
+			await options.beforeStartSession?.()
+			// Read only after the readiness gate: it may have atomically replaced
+			// the integration that must be captured by this session.
+			const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
+			const inputWithRemoteConfig = remoteConfigIntegration
+				? await remoteConfigIntegration.applyToStartSessionInput(input)
+				: input
+			const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
+			const extraTools = await createVscodeExtraTools(options.mcpHub, {
+				cwd: inputWithRemoteConfig.config.cwd,
+				getTerminalManager: options.getTerminalManager,
+				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
+				foregroundCommands: options.foregroundCommands,
+			})
+			const config: ClineCoreStartInput["config"] = {
+				...inputWithRemoteConfig.config,
+				telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
+				extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+			}
+			return {
+				...inputWithRemoteConfig,
+				source: inputWithRemoteConfig.source ?? "vscode",
+				// The extension runs file hooks through its own hooks adapter
+				// (status chips, hooksEnabled setting, HookFactory discovery).
+				// Exclude the SDK core's file-hook extension or every hook
+				// would execute twice per event.
+				localRuntime: {
+					...(inputWithRemoteConfig.localRuntime ?? {}),
+					hooks: config.hooks,
+					configExtensions: (
+						inputWithRemoteConfig.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
+					).filter((kind) => kind !== "hooks"),
+				},
+				config,
+			}
 		}
 
 		const inner = await ClineCore.create({
@@ -125,43 +187,28 @@ export class VscodeSessionHost implements SdkSessionHost {
 			toolPolicies: options.toolPolicies,
 			telemetry: options.telemetry,
 			distinctId: getDistinctId() || undefined,
-			prepare: async () => ({
-				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
-					const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
-					const inputWithRemoteConfig = remoteConfigIntegration
-						? await remoteConfigIntegration.applyToStartSessionInput(input)
-						: input
-					const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
-					const extraTools = await createVscodeExtraTools(options.mcpHub, {
-						cwd: inputWithRemoteConfig.config.cwd,
-						getTerminalManager: options.getTerminalManager,
-						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
-						foregroundCommands: options.foregroundCommands,
-					})
-					return {
-						...inputWithRemoteConfig,
-						source: inputWithRemoteConfig.source ?? "vscode",
-						config: {
-							...inputWithRemoteConfig.config,
-							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
-						},
-					}
-				},
-			}),
 		})
 
 		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}
-		return new VscodeSessionHost(inner)
+		return new VscodeSessionHost(inner, prepareStartSessionInput, options)
 	}
 
 	async start(input: StartSessionInput): Promise<StartSessionResult>
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
-		return this.inner.start(input as ClineCoreStartInput)
+		const prepared = await this.prepareStartSessionInput(toClineCoreStartInput(input))
+		const observer = this.gitTelemetry.init(prepared)
+		try {
+			const result = await this.inner.start(prepared)
+			this.gitTelemetry.start(result.sessionId, observer)
+			return result
+		} catch (error) {
+			observer?.dispose()
+			throw error
+		}
 	}
 
 	async send(input: SendSessionInput) {
@@ -199,10 +246,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async stop(sessionId: string): Promise<void> {
+		this.gitTelemetry.stop(sessionId)
 		return this.inner.stop(sessionId)
 	}
 
 	async dispose(reason?: string): Promise<void> {
+		this.gitTelemetry.dispose()
 		return this.inner.dispose(reason)
 	}
 
@@ -226,12 +275,35 @@ export class VscodeSessionHost implements SdkSessionHost {
 		return this.inner.readMessages(sessionId)
 	}
 
+	async readLiveMessages(sessionId: string) {
+		return this.inner.readLiveMessages(sessionId)
+	}
+
 	async updateSessionCompactionState(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }> {
 		return this.inner.updateSessionCompactionState(sessionId, state)
 	}
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
-		return this.inner.restore(input)
+		// Apply the same preparation to checkpoint-restore replacement sessions.
+		let observer: VscodeGitTelemetry | undefined
+		if (input.start) {
+			const start = await this.prepareStartSessionInput(toClineCoreStartInput(input.start))
+			observer = this.gitTelemetry.init(start)
+			input = { ...input, start }
+		}
+		try {
+			const result = await this.inner.restore(input)
+			if (result.startResult && result.sessionId) this.gitTelemetry.start(result.sessionId, observer)
+			else observer?.dispose()
+			return result
+		} catch (error) {
+			observer?.dispose()
+			throw error
+		}
+	}
+
+	async compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult> {
+		return this.inner.compareCheckpoint(input)
 	}
 
 	async update(

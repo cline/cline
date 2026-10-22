@@ -1,6 +1,10 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SqliteCronStore } from "../store/sqlite-cron-store";
 import { CronMaterializer } from "./cron-materializer";
@@ -49,6 +53,104 @@ describe("CronMaterializer", () => {
 		const m = new CronMaterializer({ store });
 		expect(m.materializeAll().oneOffQueued).toBe(1);
 		expect(m.materializeAll().oneOffQueued).toBe(0);
+	});
+
+	it("preserves a future run time when materializing a one-off spec", () => {
+		const spec = seedOneOff();
+		const runAt = new Date(Date.now() + 60_000).toISOString();
+		store.updateSpecNextRunAt(spec.specId, runAt);
+		const materializer = new CronMaterializer({ store });
+
+		expect(materializer.materializeAll().oneOffQueued).toBe(1);
+		expect(store.listRuns({ specId: spec.specId })[0]?.scheduledFor).toBe(
+			runAt,
+		);
+	});
+
+	it("replaces a queued one-time run when its timestamp changes", () => {
+		const originalRunAt = Date.now() + 60_000;
+		const rescheduledRunAt = originalRunAt + 60 * 60_000;
+		const spec = store.createHubSchedule({
+			name: "Run once",
+			cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+			metadata: {
+				[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: originalRunAt,
+			},
+		});
+		const materializer = new CronMaterializer({ store });
+		expect(materializer.materializeAll().oneOffQueued).toBe(1);
+
+		const updated = requireValue(
+			store.updateHubSchedule(spec.externalId, {
+				scheduleId: spec.externalId,
+				metadata: {
+					[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: rescheduledRunAt,
+				},
+			}),
+		);
+
+		expect(updated.revision).toBe(spec.revision + 1);
+		expect(updated.nextRunAt).toBe(new Date(rescheduledRunAt).toISOString());
+		expect(materializer.materializeAll().oneOffQueued).toBe(1);
+		const runs = store.listRuns({ specId: spec.specId });
+		expect(runs).toHaveLength(2);
+		expect(runs.filter((run) => run.status === "cancelled")).toEqual([
+			expect.objectContaining({
+				specRevision: spec.revision,
+				scheduledFor: new Date(originalRunAt).toISOString(),
+			}),
+		]);
+		expect(runs.filter((run) => run.status === "queued")).toEqual([
+			expect.objectContaining({
+				specRevision: updated.revision,
+				scheduledFor: new Date(rescheduledRunAt).toISOString(),
+			}),
+		]);
+	});
+
+	it("keeps only one queued run after pausing and resuming a one-time schedule", () => {
+		const runAt = Date.now() + 60_000;
+		const spec = store.createHubSchedule({
+			name: "Run once",
+			cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+			metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+		});
+		const materializer = new CronMaterializer({ store });
+		expect(materializer.materializeAll().oneOffQueued).toBe(1);
+
+		const paused = requireValue(
+			store.updateHubSchedule(spec.externalId, {
+				scheduleId: spec.externalId,
+				enabled: false,
+			}),
+		);
+		expect(paused.enabled).toBe(false);
+		expect(
+			store.listRuns({ specId: spec.specId, status: "queued" }),
+		).toHaveLength(0);
+		expect(materializer.materializeAll().oneOffQueued).toBe(0);
+
+		const resumed = requireValue(
+			store.updateHubSchedule(spec.externalId, {
+				scheduleId: spec.externalId,
+				enabled: true,
+			}),
+		);
+		expect(resumed.revision).toBe(spec.revision + 1);
+		expect(materializer.materializeAll().oneOffQueued).toBe(1);
+		const runs = store.listRuns({ specId: spec.specId });
+		expect(runs).toHaveLength(2);
+		expect(runs.filter((run) => run.status === "cancelled")).toHaveLength(1);
+		expect(runs.filter((run) => run.status === "queued")).toEqual([
+			expect.objectContaining({
+				specRevision: resumed.revision,
+				scheduledFor: new Date(runAt).toISOString(),
+			}),
+		]);
 	});
 
 	it("queues a new run when the revision bumps", () => {

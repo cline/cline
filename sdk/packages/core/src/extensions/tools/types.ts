@@ -7,6 +7,7 @@
 import type {
 	AgentToolContext,
 	ImageContent,
+	ITelemetryService,
 	TextContent,
 } from "@cline/shared";
 import type {
@@ -144,13 +145,14 @@ export type SkillsExecutor = (
  * @param question - Single clarifying question for the user
  * @param options - 2-5 selectable answer options
  * @param context - Tool execution context
- * @returns Executor-specific result payload
+ * @returns The user's answer, as text or as text and image blocks when the
+ * user attached images or files to it
  */
 export type AskQuestionExecutor = (
 	question: string,
 	options: string[],
 	context: AgentToolContext,
-) => Promise<string>;
+) => Promise<string | Array<TextContent | ImageContent>>;
 
 /**
  * Skill metadata exposed by SkillsExecutor for clients/UI
@@ -238,6 +240,14 @@ export type DefaultToolName =
  * Configuration for enabling/disabling default tools
  */
 export interface DefaultToolsConfig {
+	/**
+	 * Host telemetry service, injected at tool construction time. Tools that
+	 * emit operational telemetry (e.g. run_commands timeouts) close over this
+	 * service. It is a live host object and must never travel on the per-call
+	 * AgentToolContext, which crosses process boundaries over JSON IPC.
+	 */
+	telemetry?: ITelemetryService;
+
 	/**
 	 * Enable the read_files tool
 	 * @default true

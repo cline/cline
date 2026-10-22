@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.64",
+	"version": "0.0.95",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -34,14 +34,19 @@
 		"./services/feature-flags/posthog": {
 			"types": "./dist/services/feature-flags/posthog.d.ts",
 			"import": "./dist/services/feature-flags/posthog.js"
+		},
+		"./cloud": {
+			"types": "./dist/cloud/index.d.ts",
+			"import": "./dist/cloud/index.js"
 		}
 	},
 	"scripts": {
-		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json && bun run ./scripts/verify-runtime-build-id.ts",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit && bun run typecheck:smoke",
 		"typecheck:smoke": "bun tsc -p tsconfig.smoke.json --noEmit",
 		"test": "bun run test:unit && bun run test:e2e",
 		"test:live": "vitest run --config vitest.config.ts src/extensions/context/compaction.live.test.ts",
+		"test:compaction": "bun --conditions=development run scripts/compact-session.ts",
 		"test:unit": "vitest run --config vitest.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
 		"verify:routines": "zsh -lc 'bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
@@ -63,9 +68,12 @@
 		"@opentelemetry/sdk-trace-base": "^2.6.1",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@opentelemetry/semantic-conventions": "^1.40.0",
+		"http-proxy-agent": "^7.0.2",
+		"https-proxy-agent": "^7.0.6",
 		"jiti": "^2.7.0",
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
+		"proxy-from-env": "^2.1.0",
 		"simple-git": "3.36.0",
 		"ws": "^8.20.0",
 		"yaml": "^2.8.2",
@@ -80,8 +88,10 @@
 		}
 	},
 	"devDependencies": {
+		"@types/proxy-from-env": "^1.0.4",
 		"@types/ws": "^8.18.1",
-		"posthog-node": "^5.8.0"
+		"posthog-node": "^5.8.0",
+		"skills": "1.7.2"
 	},
 	"engines": {
 		"node": ">=22"

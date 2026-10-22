@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 		recommended: [
 			{
 				id: "cline-next",
+				name: "Cline Next",
 				description: "Next Cline model",
 				tags: ["recommended"],
 			},
@@ -99,13 +100,37 @@ describe("ClineModelPicker", () => {
 	it("commits Cline model selections through provider config so providers.json is updated", async () => {
 		render(<ClineModelPicker currentMode="act" />)
 
-		fireEvent.click(await screen.findByText("cline-next"))
+		// Featured cards render the display name from the RPC, but selection
+		// still commits the underlying model id.
+		fireEvent.click(await screen.findByText("Cline Next"))
 
 		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledTimes(1))
 		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
 			providerId: "cline",
 			modelId: "cline-next",
 		})
+	})
+
+	it("renders RPC-provided display names on featured cards, falling back to ids", async () => {
+		// Names arrive display-ready: the extension host resolves them against
+		// the model catalog in fetchClineRecommendedModels.
+		mocks.makeUnaryRequest.mockResolvedValueOnce({
+			recommended: [{ id: "anthropic/claude-opus-5", name: "Claude Opus 5", description: "Frontier model", tags: ["NEW"] }],
+			free: [
+				{ id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash", description: "Fast and efficient", tags: [] },
+				{ id: "unknown/mystery-model", name: "", description: "No display name", tags: [] },
+			],
+		})
+
+		render(<ClineModelPicker currentMode="act" />)
+
+		expect(await screen.findByText("Claude Opus 5")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByText("Free"))
+
+		expect(await screen.findByText("DeepSeek V4 Flash")).toBeInTheDocument()
+		// A missing display name degrades to the raw id
+		expect(screen.getByText("unknown/mystery-model")).toBeInTheDocument()
 	})
 
 	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {

@@ -222,8 +222,10 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 							{modelSearchResults.map((result, index) => (
 								<div
 									className={`p-[5px_10px] cursor-pointer break-all whitespace-normal ${
-										index === selectedIndex ? "bg-(--vscode-list-activeSelectionBackground)" : ""
-									} hover:bg-(--vscode-list-activeSelectionBackground)`}
+										index === selectedIndex
+											? "bg-(--vscode-list-activeSelectionBackground) text-(--vscode-list-activeSelectionForeground)"
+											: ""
+									} hover:bg-(--vscode-list-activeSelectionBackground) hover:text-(--vscode-list-activeSelectionForeground)`}
 									key={result.id}
 									onClick={() => {
 										handleModelChange(result.id)

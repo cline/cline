@@ -46,14 +46,17 @@ function clinePassFallbackModelInfo(modelId: string): ModelInfo {
 	}
 }
 
-function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "description">): FeaturedTabEntry | null {
+// Names arrive display-ready from the recommended-models RPC (the extension
+// host resolves them against the model catalog in fetchClineRecommendedModels)
+
+function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "description">): FeaturedTabEntry | null {
 	if (!model.id) {
 		return null
 	}
 	// The whole list is included with the plan, so no per-card label chip
 	return {
 		id: model.id,
-		displayName: model.id.replace(CLINE_PASS_MODEL_ID_PREFIX, ""),
+		displayName: model.name || model.id.replace(CLINE_PASS_MODEL_ID_PREFIX, ""),
 		description: model.description || "",
 		label: "",
 	}
@@ -66,8 +69,7 @@ function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "descrip
 	const firstTag = model.tags?.[0]
 	return {
 		id: model.id,
-		// The FREE chip already says it, so drop OpenRouter's :free marker
-		displayName: (model.name || model.id).replace(/:free$/i, ""),
+		displayName: model.name || model.id,
 		description: model.description || "",
 		label: typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : "FREE",
 	}
@@ -94,8 +96,8 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 		customModelInfo: clinePassFallbackModelInfo,
 	})
 	const { clineUser } = useClineAuth()
-	const [subscribedEntries, setSubscribedEntries] = useState<FeaturedTabEntry[]>([])
-	const [freeEntries, setFreeEntries] = useState<FeaturedTabEntry[]>([])
+	const [subscribedModels, setSubscribedModels] = useState<ClineRecommendedModel[]>([])
+	const [freeModels, setFreeModels] = useState<ClineRecommendedModel[]>([])
 	const [activeTab, setActiveTab] = useState<"subscribed" | "free">("subscribed")
 
 	useEffect(() => {
@@ -111,14 +113,8 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 				if (cancelled) {
 					return
 				}
-				setSubscribedEntries(
-					(response.clinePass ?? [])
-						.map(toSubscribedEntry)
-						.filter((entry): entry is FeaturedTabEntry => entry !== null),
-				)
-				setFreeEntries(
-					(response.free ?? []).map(toFreeEntry).filter((entry): entry is FeaturedTabEntry => entry !== null),
-				)
+				setSubscribedModels(response.clinePass ?? [])
+				setFreeModels(response.free ?? [])
 			} catch (err) {
 				console.error("Failed to refresh ClinePass recommended models:", err)
 			}
@@ -132,23 +128,19 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 	// Fall back to the provider catalog (subscribed) and the bundled free list
 	// until the endpoint responds
 	const subscribedCards = useMemo(() => {
-		if (subscribedEntries.length > 0) {
-			return subscribedEntries
+		if (subscribedModels.length > 0) {
+			return subscribedModels.map(toSubscribedEntry).filter((entry): entry is FeaturedTabEntry => entry !== null)
 		}
 		return Object.keys(models ?? {})
 			.filter((id) => id.startsWith(CLINE_PASS_MODEL_ID_PREFIX))
-			.map((id) => toSubscribedEntry({ id, description: models[id]?.description ?? "" }))
+			.map((id) => toSubscribedEntry({ id, name: models[id]?.name ?? "", description: models[id]?.description ?? "" }))
 			.filter((entry): entry is FeaturedTabEntry => entry !== null)
-	}, [subscribedEntries, models])
+	}, [subscribedModels, models])
 
 	const freeCards = useMemo(() => {
-		if (freeEntries.length > 0) {
-			return freeEntries
-		}
-		return CLINE_RECOMMENDED_MODELS_FALLBACK.free
-			.map(toFreeEntry)
-			.filter((entry): entry is FeaturedTabEntry => entry !== null)
-	}, [freeEntries])
+		const source = freeModels.length > 0 ? freeModels : CLINE_RECOMMENDED_MODELS_FALLBACK.free
+		return source.map(toFreeEntry).filter((entry): entry is FeaturedTabEntry => entry !== null)
+	}, [freeModels])
 
 	// Land on the tab containing the configured model
 	useEffect(() => {
@@ -201,10 +193,10 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 						{activeCards.map((entry) => (
 							<FeaturedModelCard
 								description={entry.description}
+								displayName={entry.displayName}
 								isSelected={selectedModel.modelId === entry.id}
 								key={entry.id}
 								label={entry.label}
-								modelId={entry.displayName}
 								onClick={() => handleFeaturedModelSelect(entry.id)}
 							/>
 						))}

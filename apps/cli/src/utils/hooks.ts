@@ -328,7 +328,13 @@ export function createRuntimeHooks(options: {
 				);
 			},
 			onEvent: async (event) => {
-				if (event.type !== "message-added" || event.message.role !== "user") {
+				if (
+					event.type !== "message-added" ||
+					event.message.role !== "user" ||
+					// Injected hook-context blocks are user-role messages with a
+					// system display role; they are not user prompts.
+					event.message.metadata?.displayRole === "system"
+				) {
 					return;
 				}
 				await dispatchHookPayload(

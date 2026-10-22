@@ -1,0 +1,16 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "main-window",
+	"description": "Permissions required by the main desktop window.",
+	"windows": ["main"],
+	"permissions": [
+		"core:default",
+		"core:window:allow-close",
+		"core:window:allow-is-maximized",
+		"core:window:allow-minimize",
+		"core:window:allow-toggle-maximize",
+		"core:window:allow-set-title",
+		"core:window:allow-start-dragging",
+		"notification:default"
+	]
+}

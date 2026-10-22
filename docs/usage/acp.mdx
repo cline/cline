@@ -1,0 +1,138 @@
+---
+title: "ACP"
+sidebarTitle: "ACP"
+description: "Use Cline as the coding agent in Zed, JetBrains IDEs, Neovim, Emacs, and any other ACP-capable client."
+---
+
+Cline CLI speaks the [Agent Client Protocol (ACP)](https://agentclientprotocol.com), an open standard that lets editors and other tools drive terminal-based coding agents. Any ACP-capable client can use Cline as its coding agent without a dedicated extension — the same agent you use in the terminal, embedded in the tool you're already working in.
+
+## Prerequisites
+
+- Cline CLI installed (install via `npm i -g cline`)
+- Credentials are optional up front — most clients let you sign in when the first session starts, and credentials saved by `cline auth` are reused automatically
+
+## How it works
+
+ACP mode is started with the `--acp` flag:
+
+```bash
+cline --acp
+```
+
+You don't run this yourself — the client launches the command and talks to Cline over stdio. Configure the client to run it, then start a thread from its agent UI.
+
+<Tip>
+If a client can't spawn the agent, it may not inherit your shell's `PATH`. Use the absolute path from `which cline` as the command.
+</Tip>
+
+## Clients
+
+ACP is supported by a growing ecosystem of editors, IDEs, and other tools. Setup for the most popular clients is below; the [ACP client directory](https://agentclientprotocol.com/get-started/clients) maintains the full list.
+
+### Zed
+
+Add Cline as a custom agent in Zed's `settings.json`:
+
+```json
+{
+  "agent_servers": {
+    "Cline": {
+      "type": "custom",
+      "command": "cline",
+      "args": ["--acp"],
+      "env": {}
+    }
+  }
+}
+```
+
+Open the Agent Panel, start a new thread, and select **Cline**.
+
+### JetBrains IDEs
+
+AI Assistant in JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, and others) supports [ACP agents](https://www.jetbrains.com/help/ai-assistant/acp.html). In the AI Chat tool window, select **Add Custom Agent** — this creates `~/.jetbrains/acp.json` — then add Cline:
+
+```json
+{
+  "agent_servers": {
+    "Cline": {
+      "command": "cline",
+      "args": ["--acp"],
+      "env": {}
+    }
+  }
+}
+```
+
+Cline then appears in the AI Chat agent selector.
+
+### Neovim
+
+The [CodeCompanion](https://codecompanion.olimorris.dev/configuration/adapters-acp) plugin ships a built-in `cline_cli` ACP adapter that runs `cline --acp`. Set it as your chat adapter:
+
+```lua
+require("codecompanion").setup({
+  strategies = {
+    chat = { adapter = "cline_cli" },
+  },
+})
+```
+
+Other Neovim ACP clients, such as [avante.nvim](https://github.com/yetone/avante.nvim) and [agentic.nvim](https://github.com/carlos-algms/agentic.nvim), can also launch Cline via `cline --acp`.
+
+### Emacs
+
+[agent-shell](https://github.com/xenodium/agent-shell) drives ACP agents from a native Emacs buffer. Configure a custom agent that runs `cline --acp` per the agent-shell docs.
+
+### Other clients
+
+Anything that speaks ACP can run Cline the same way — point it at `cline --acp`. The [client directory](https://agentclientprotocol.com/get-started/clients) includes note-taking apps like Obsidian, notebooks like marimo, mobile clients, and chat bridges for Slack, Discord, and Telegram.
+
+## What works over ACP
+
+- **Sign-in from the client** — if no credentials are found, the client prompts you to sign in with Cline, ClinePass, or a ChatGPT subscription. Credentials saved by `cline auth` are reused automatically.
+- **Plan/Act modes** — switch between [Plan and Act](/core-workflows/plan-and-act) from the client's mode selector.
+- **Model and provider selection** — pick any model from the active provider's catalog, or switch providers, from the client's model picker.
+- **Permission prompts** — file edits and commands are approved through the client's permission UI. Nothing is auto-approved by default, but you can [auto-approve all tools](#auto-approving-tools) per session or at launch.
+- **Session resume** — conversations are persisted, so clients that support session loading can restore a thread after a restart.
+- **Images** — prompts can include images for vision-capable models.
+- **Organization switching** — Cline team accounts can switch between personal and organization billing.
+
+## Auto-approving tools
+
+By default every file edit and command goes through the client's permission UI. To let Cline run tools without asking:
+
+- **Per session** — sessions expose an **Auto-approve tools** toggle in the client's session settings (clients that support ACP config options, like Zed, render it alongside the model and mode pickers). Flipping it takes effect on the next tool call.
+- **At launch** — pass `--auto-approve true` in the client's agent config to start every session with auto-approval on:
+
+```json
+{
+  "agent_servers": {
+    "Cline": {
+      "type": "custom",
+      "command": "cline",
+      "args": ["--acp", "--auto-approve", "true"],
+      "env": {}
+    }
+  }
+}
+```
+
+<Warning>
+With auto-approval on, Cline edits files and runs commands without asking. Only enable it in workspaces where you're comfortable with unattended changes.
+</Warning>
+
+## Environment variables
+
+Set these under `env` in the client's agent server config to preconfigure the agent:
+
+| Variable | Effect |
+|---|---|
+| `CLINE_API_KEY` | Authenticate with an API key instead of interactive sign-in |
+| `CLINE_PROVIDER` | Pin the provider (disables provider switching in the client) |
+| `CLINE_MODEL` | Default model for new sessions |
+
+## Next Steps
+
+- [CLI Overview](/usage/cli-overview)
+- [CLI Reference](/cli/cli-reference)

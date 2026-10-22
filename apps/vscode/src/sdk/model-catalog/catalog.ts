@@ -1,8 +1,6 @@
 import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
-import { getFeatureFlagsService } from "@/services/feature-flags"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { getProviderSettingsManager } from "../provider-migration"
 import type {
 	CatalogError,
@@ -50,13 +48,13 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 }
 
 /**
- * Normalize the SDK's usage-cost-display answer (string union) into the
- * extension's {@link UsageCostDisplay} type. The SDK function takes a
- * provider id (not metadata) and consults its own registry; we forward
- * the id and trust the answer rather than re-parsing the metadata bag.
+ * Read the SDK's usage-cost-display answer for a provider. The SDK
+ * function takes a provider id (not metadata) and consults its own
+ * registry; we forward the id and trust the answer rather than
+ * re-parsing the metadata bag.
  */
 function readUsageCostDisplay(providerId: string): UsageCostDisplay {
-	return resolveProviderUsageCostDisplay(providerId) === "hide" ? "hide" : "show"
+	return resolveProviderUsageCostDisplay(providerId)
 }
 
 function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {
@@ -192,9 +190,8 @@ function toProviderListing(provider: ProviderListItem): ProviderListing {
 
 async function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
 	const manager = getProviderSettingsManager()
-	const featureFlags = getFeatureFlagsService()
 	const { providers } = await listLocalProviders(manager, {
-		isClinePassEnabled: featureFlags.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+		isClinePassEnabled: true,
 	})
 	return providers.map(toProviderListing)
 }

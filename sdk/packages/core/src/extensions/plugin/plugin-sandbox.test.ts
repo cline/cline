@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -18,7 +18,10 @@ import {
 	it,
 	vi,
 } from "vitest";
-import { loadSandboxedPlugins } from "./plugin-sandbox";
+import {
+	CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
+	loadSandboxedPlugins,
+} from "./plugin-sandbox";
 
 function createApiCapture() {
 	const tools: AgentTool[] = [];
@@ -56,7 +59,10 @@ function makeSnapshot() {
 	};
 }
 
-describe("plugin-sandbox", () => {
+describe.each([
+	"subprocess",
+	"worker",
+] as const)("plugin-sandbox (%s)", (transport) => {
 	let dir = "";
 	let sharedSandbox:
 		| Awaited<ReturnType<typeof loadSandboxedPlugins>>
@@ -210,6 +216,32 @@ describe("plugin-sandbox", () => {
 		);
 
 		await writeFile(
+			join(dir, "plugin-telemetry.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-telemetry',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api, ctx) {",
+				"    api.registerTool({",
+				"      name: 'emit_plugin_telemetry',",
+				"      description: 'emit plugin telemetry',",
+				"      inputSchema: { type: 'object', properties: { topic: { type: 'string' } }, required: ['topic'] },",
+				"      execute: async (input) => {",
+				"        ctx.telemetry?.capture({",
+				"          event: 'sandbox_topic_used',",
+				"          properties: { topic: input.topic },",
+				"        });",
+				"        ctx.telemetry?.recordCounter('sandbox_topics', 1, { topic: input.topic });",
+				"        return { enabled: ctx.telemetry?.isEnabled() ?? false };",
+				"      },",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
 			join(dir, "plugin-ts.ts"),
 			[
 				"const TOOL_NAME: string = 'sandbox_ts_echo';",
@@ -257,7 +289,13 @@ describe("plugin-sandbox", () => {
 			"utf8",
 		);
 
-		const sdkDepDir = join(dir, "node_modules", "@cline", "shared");
+		const sdkDepDir = join(
+			dir,
+			"sdk-plugin",
+			"node_modules",
+			"@cline",
+			"shared",
+		);
 		await mkdir(sdkDepDir, { recursive: true });
 		await writeFile(
 			join(sdkDepDir, "package.json"),
@@ -274,7 +312,7 @@ describe("plugin-sandbox", () => {
 			"utf8",
 		);
 		await writeFile(
-			join(dir, "plugin-sdk.ts"),
+			join(dir, "sdk-plugin", "plugin-sdk.ts"),
 			[
 				"import { sdkMarker } from '@cline/shared';",
 				"export default {",
@@ -354,22 +392,25 @@ describe("plugin-sandbox", () => {
 		);
 
 		sharedSandbox = await loadSandboxedPlugins({
+			transport,
 			pluginPaths: [
 				join(dir, "plugin.mjs"),
 				join(dir, "plugin-events.mjs"),
 				join(dir, "plugin-run-end.mjs"),
 				join(dir, "plugin-automation-events.mjs"),
+				join(dir, "plugin-telemetry.mjs"),
 				join(dir, "plugin-message-builder.mjs"),
 				join(dir, "plugin-rules.mjs"),
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
-				join(dir, "plugin-sdk.ts"),
+				join(dir, "sdk-plugin", "plugin-sdk.ts"),
 				join(dir, "plugin-host-dep.ts"),
 				join(dir, "plugin-create-tool.ts"),
 			],
 			// CI environments are significantly slower for jiti transpilation;
 			// the default 4 000 ms is too tight for 7 plugins.
 			importTimeoutMs: 30_000,
+			telemetryAvailable: true,
 			onEvent: (event) => {
 				forwardedEvents.push(event);
 			},
@@ -415,6 +456,150 @@ describe("plugin-sandbox", () => {
 		expect(result).toEqual({ echoed: "ok" });
 	});
 
+	it("strips non-serializable host values from the tool context before IPC", async () => {
+		const extension = sharedExtensions.get("sandbox-test");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		const echoTool = tools.find((tool) => tool.name === "sandbox_echo");
+		expect(echoTool).toBeDefined();
+
+		// The production orchestrator attaches the live telemetry service
+		// (cyclic: PostHog client) under this metadata key. Without
+		// sanitization, child.send() throws and every plugin tool call fails.
+		const cyclicTelemetry: Record<string, unknown> = { capture: () => {} };
+		cyclicTelemetry.self = cyclicTelemetry;
+		const result = await echoTool?.execute({ value: "ok" }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			signal: new AbortController().signal,
+			emitUpdate: () => {},
+			metadata: {
+				modelSupportsImages: true,
+				__clineInternalTelemetry: cyclicTelemetry,
+			},
+		} as unknown as AgentToolContext);
+		expect(result).toEqual({ echoed: "ok" });
+	});
+
+	it("bridges ctx.telemetry calls to the host as plugin_telemetry events", async () => {
+		const extension = sharedExtensions.get("sandbox-telemetry");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		const tool = tools.find((t) => t.name === "emit_plugin_telemetry");
+		expect(tool).toBeDefined();
+
+		const result = await tool?.execute({ topic: "weather" }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		} as AgentToolContext);
+		expect(result).toEqual({ enabled: true });
+
+		const telemetryEvents = forwardedEvents.filter(
+			(event) => event.name === "plugin_telemetry",
+		);
+		expect(telemetryEvents).toHaveLength(2);
+		expect(telemetryEvents[0]?.payload).toMatchObject({
+			pluginName: "sandbox-telemetry",
+			kind: "event",
+			event: "sandbox_topic_used",
+			properties: { topic: "weather" },
+		});
+		expect(telemetryEvents[1]?.payload).toMatchObject({
+			pluginName: "sandbox-telemetry",
+			kind: "metric",
+			metric: "counter",
+			name: "sandbox_topics",
+			value: 1,
+			attributes: { topic: "weather" },
+		});
+	});
+
+	it("omits ctx.telemetry when the host reports no telemetry service", async () => {
+		const noTelemetryDir = await mkdtemp(
+			join(tmpdir(), "core-plugin-sandbox-no-telemetry-"),
+		);
+		try {
+			const pluginPath = join(noTelemetryDir, "plugin-telemetry.mjs");
+			await writeFile(
+				pluginPath,
+				[
+					"export default {",
+					"  name: 'sandbox-no-telemetry',",
+					"  manifest: { capabilities: ['tools'] },",
+					"  setup(api, ctx) {",
+					"    api.registerTool({",
+					"      name: 'probe_telemetry',",
+					"      description: 'probe telemetry availability',",
+					"      inputSchema: { type: 'object', properties: {}, required: [] },",
+					"      execute: async () => ({ present: ctx.telemetry !== undefined }),",
+					"    });",
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+			const events: Array<{ name: string; payload?: unknown }> = [];
+			const sandbox = await loadSandboxedPlugins({
+				transport,
+				pluginPaths: [pluginPath],
+				importTimeoutMs: 30_000,
+				// telemetryAvailable intentionally omitted: no host service.
+				onEvent: (event) => events.push(event),
+			});
+			try {
+				const { tools, api } = createApiCapture();
+				await sandbox.extensions?.[0]?.setup?.(api, {});
+				const tool = tools.find((t) => t.name === "probe_telemetry");
+				const result = await tool?.execute({}, {
+					agentId: "agent-1",
+					iteration: 1,
+				} as AgentToolContext);
+				expect(result).toEqual({ present: false });
+				expect(
+					events.filter((event) => event.name === "plugin_telemetry"),
+				).toHaveLength(0);
+			} finally {
+				await sandbox.shutdown();
+			}
+		} finally {
+			await rm(noTelemetryDir, { recursive: true, force: true });
+		}
+	}, 60_000);
+
+	it("strips non-serializable tool input via the same fallback", async () => {
+		const extension = sharedExtensions.get("sandbox-test");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api, {});
+		const echoTool = tools.find((tool) => tool.name === "sandbox_echo");
+		expect(echoTool).toBeDefined();
+
+		// beforeTool hooks and programmatic callers can rewrite the input, so
+		// it can carry non-serializable values just like the context can.
+		const cyclicInput: Record<string, unknown> = { value: "ok" };
+		cyclicInput.self = cyclicInput;
+		const result = await echoTool?.execute(cyclicInput, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		} as AgentToolContext);
+		expect(result).toEqual({ echoed: "ok" });
+
+		// BigInts raise a different serialization error message than cycles do
+		// in both Bun and Node; the fallback must classify those too.
+		const bigintInput: Record<string, unknown> = {
+			value: "ok",
+			blockNumber: 123n,
+		};
+		const bigintResult = await echoTool?.execute(bigintInput, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		} as AgentToolContext);
+		expect(bigintResult).toEqual({ echoed: "ok" });
+	});
+
 	it("enforces hook timeout and cancels sandbox process", async () => {
 		const timeoutDir = await mkdtemp(
 			join(tmpdir(), "core-plugin-sandbox-timeout-"),
@@ -434,6 +619,7 @@ describe("plugin-sandbox", () => {
 			);
 
 			const sandboxed = await loadSandboxedPlugins({
+				transport,
 				pluginPaths: [pluginPath],
 				hookTimeoutMs: 50,
 			});
@@ -472,13 +658,69 @@ describe("plugin-sandbox", () => {
 			// the per-test timeout (3000 ms below) would fail it.
 			vi.stubEnv("CLINE_PLUGIN_IMPORT_TIMEOUT_MS", "150");
 			await expect(
-				loadSandboxedPlugins({ pluginPaths: [pluginPath] }),
+				loadSandboxedPlugins({ pluginPaths: [pluginPath], transport }),
 			).rejects.toThrow(/timed out/i);
 		} finally {
 			vi.unstubAllEnvs();
 			await rm(envDir, { recursive: true, force: true });
 		}
 	}, 3000);
+
+	it("reclaims an idle plugin process and reinitializes it on the next call", async () => {
+		const idleDir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-idle-"));
+		let sandboxed: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
+		try {
+			const pluginPath = join(idleDir, "plugin-idle.mjs");
+			await writeFile(
+				pluginPath,
+				[
+					"import { threadId } from 'node:worker_threads';",
+					"export default {",
+					"  name: 'sandbox-idle',",
+					"  manifest: { capabilities: ['tools'] },",
+					"  setup(api) {",
+					"    api.registerTool({",
+					"      name: 'sandbox_process_id',",
+					"      description: 'return the sandbox process id',",
+					"      inputSchema: { type: 'object', properties: {}, required: [] },",
+					"      execute: async () => ({ pid: process.pid + ':' + threadId }),",
+					"    });",
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			vi.stubEnv(CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV, "1000");
+			vi.useFakeTimers();
+			sandboxed = await loadSandboxedPlugins({
+				transport,
+				pluginPaths: [pluginPath],
+				importTimeoutMs: 30_000,
+			});
+			const { tools, api } = createApiCapture();
+			await sandboxed.extensions?.[0]?.setup?.(api, {});
+			const tool = tools.find((entry) => entry.name === "sandbox_process_id");
+			expect(tool).toBeDefined();
+
+			const context = {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			} as AgentToolContext;
+			const first = (await tool?.execute({}, context)) as { pid: string };
+
+			await vi.advanceTimersByTimeAsync(1001);
+
+			const second = (await tool?.execute({}, context)) as { pid: string };
+			expect(second.pid).not.toBe(first.pid);
+		} finally {
+			vi.useRealTimers();
+			vi.unstubAllEnvs();
+			await sandboxed?.shutdown();
+			await rm(idleDir, { recursive: true, force: true });
+		}
+	}, 60_000);
 
 	it("forwards sandbox plugin events to the host", async () => {
 		const extension = sharedExtensions.get("sandbox-events");
@@ -498,8 +740,66 @@ describe("plugin-sandbox", () => {
 		]);
 	});
 
-	it("resolves sandbox bootstrap from the npm wrapper platform package", async () => {
+	it("selects sibling, then source, then installed bootstrap candidates", async () => {
+		const { selectBootstrapCandidate } = await import("./plugin-sandbox");
+		const makeExists = (existing: string[]) => (path: string) =>
+			existing.includes(path);
+
+		// Compiled bundle: the sibling bootstrap matches the host build.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/dist/extensions/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/src/plugin-sandbox-bootstrap.ts",
+				installedCandidates: ["/wrapper/extensions/bootstrap.js"],
+				exists: makeExists([
+					"/dist/extensions/plugin-sandbox-bootstrap.js",
+					"/wrapper/extensions/bootstrap.js",
+				]),
+			}),
+		).toEqual({ file: "/dist/extensions/plugin-sandbox-bootstrap.js" });
+
+		// Source host: the source bootstrap must win over a separately
+		// installed CLI package's compiled bootstrap. A published bootstrap
+		// resolves modules against the other installation's layout and
+		// silently breaks plugin loading for the source host.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/src/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/src/plugin-sandbox-bootstrap.ts",
+				installedCandidates: ["/wrapper/extensions/bootstrap.js"],
+				exists: makeExists([
+					"/src/plugin-sandbox-bootstrap.ts",
+					"/wrapper/extensions/bootstrap.js",
+				]),
+			}),
+		).toEqual({ sourcePath: "/src/plugin-sandbox-bootstrap.ts" });
+
+		// Compiled binary (bunfs import.meta): nothing exists on disk next to
+		// the module, so the installed wrapper bootstrap is the right one.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, "/wrapper/extensions/bootstrap.js"],
+				exists: makeExists(["/wrapper/extensions/bootstrap.js"]),
+			}),
+		).toEqual({ file: "/wrapper/extensions/bootstrap.js" });
+
+		// A host that ships no bootstrap at all: there is no fallback. Plugin
+		// code never runs on the host's main thread, so this is a failure.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, undefined],
+				exists: makeExists([]),
+			}),
+		).toBeUndefined();
+	});
+
+	it("ignores packaged runtime and npm wrapper bootstraps when running from source", async () => {
 		const previousWrapperPath = process.env.CLINE_WRAPPER_PATH;
+		const previousRuntimeDirectory = process.env.CLINE_PLUGIN_RUNTIME_DIR;
 		const wrapperRoot = await mkdtemp(
 			join(tmpdir(), "core-plugin-sandbox-wrapper-"),
 		);
@@ -562,26 +862,60 @@ describe("plugin-sandbox", () => {
 			);
 
 			process.env.CLINE_WRAPPER_PATH = wrapperPath;
+			// A complete packaged runtime must not bypass the source bootstrap.
+			const runtimeDirectory = join(wrapperRoot, "plugin-runtime");
+			const corePackageDirectory = join(
+				runtimeDirectory,
+				"node_modules",
+				"@cline",
+				"core",
+			);
+			await mkdir(corePackageDirectory, { recursive: true });
+			await writeFile(
+				join(corePackageDirectory, "package.json"),
+				JSON.stringify({ name: "@cline/core" }),
+			);
+			await writeFile(
+				join(runtimeDirectory, "package.json"),
+				JSON.stringify({ type: "module" }),
+			);
+			await copyFile(
+				bootstrapPath,
+				join(runtimeDirectory, "plugin-sandbox-bootstrap.js"),
+			);
+			process.env.CLINE_PLUGIN_RUNTIME_DIR = runtimeDirectory;
 			vi.resetModules();
 			const { loadSandboxedPlugins: loadSandboxedPluginsFromWrapper } =
 				await import("./plugin-sandbox");
 			const sandboxed = await loadSandboxedPluginsFromWrapper({
+				transport,
 				pluginPaths: [join(wrapperRoot, "unused-plugin.mjs")],
 				onEvent: (event) => events.push(event),
 			});
 
 			try {
+				// Regression: this host runs from source, so the sandbox must run
+				// the source bootstrap, NOT the wrapper package's compiled one. The
+				// fake wrapper bootstrap would report a "wrapper-bootstrap" plugin
+				// and emit wrapper_bootstrap_selected; with the source bootstrap in
+				// charge, the (nonexistent) plugin path simply fails to load.
 				expect(
-					sandboxed.extensions?.map((extension) => extension.name),
-				).toEqual(["wrapper-bootstrap"]);
-				expect(events).toContainEqual({
+					sandboxed.extensions?.map((extension) => extension.name) ?? [],
+				).toEqual([]);
+				expect(events).not.toContainEqual({
 					name: "wrapper_bootstrap_selected",
 					payload: { ok: true },
 				});
+				expect(sandboxed.failures.length).toBeGreaterThan(0);
 			} finally {
 				await sandboxed.shutdown();
 			}
 		} finally {
+			if (previousRuntimeDirectory === undefined) {
+				delete process.env.CLINE_PLUGIN_RUNTIME_DIR;
+			} else {
+				process.env.CLINE_PLUGIN_RUNTIME_DIR = previousRuntimeDirectory;
+			}
 			if (previousWrapperPath === undefined) {
 				delete process.env.CLINE_WRAPPER_PATH;
 			} else {
@@ -704,6 +1038,7 @@ describe("plugin-sandbox", () => {
 
 	it("continues loading remaining sandbox plugins when one setup fails", async () => {
 		const sandboxed = await loadSandboxedPlugins({
+			transport,
 			pluginPaths: [
 				join(dir, "plugin.mjs"),
 				join(dir, "plugin-broken-setup.mjs"),
@@ -726,6 +1061,7 @@ describe("plugin-sandbox", () => {
 
 	it("keeps the later duplicate sandbox plugin and reports the override", async () => {
 		const sandboxed = await loadSandboxedPlugins({
+			transport,
 			pluginPaths: [
 				join(dir, "plugin-duplicate-a.mjs"),
 				join(dir, "plugin-duplicate-b.mjs"),
@@ -779,6 +1115,7 @@ describe("plugin-sandbox", () => {
 
 	it("loads sandbox plugins matching manifest providerIds and modelIds", async () => {
 		const matched = await loadSandboxedPlugins({
+			transport,
 			pluginPaths: [join(dir, "plugin-targeted.mjs")],
 			providerId: "openai",
 			modelId: "gpt-5.4",
@@ -796,6 +1133,7 @@ describe("plugin-sandbox", () => {
 
 	it("filters sandbox plugins with non-matching manifest providerIds and modelIds", async () => {
 		const filtered = await loadSandboxedPlugins({
+			transport,
 			pluginPaths: [join(dir, "plugin-targeted.mjs")],
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4.5",
@@ -808,4 +1146,197 @@ describe("plugin-sandbox", () => {
 			await filtered.shutdown();
 		}
 	}, 15_000);
+});
+
+describe("plugin-sandbox (worker only)", () => {
+	let dir = "";
+	const context = {
+		agentId: "agent-1",
+		conversationId: "conv-1",
+		iteration: 1,
+	} as AgentToolContext;
+
+	beforeAll(async () => {
+		dir = await mkdtemp(join(tmpdir(), "core-plugin-worker-"));
+	});
+
+	afterAll(async () => {
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	async function loadToolPlugin(
+		name: string,
+		executeBody: string,
+		options: { cwd?: string; contributionTimeoutMs?: number } = {},
+	) {
+		const pluginPath = join(dir, `${name}.mjs`);
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				`  name: '${name}',`,
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api) {",
+				"    api.registerTool({",
+				`      name: '${name}',`,
+				"      description: 'test tool',",
+				"      inputSchema: { type: 'object', properties: {} },",
+				`      execute: async (input) => { ${executeBody} },`,
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+		const sandboxed = await loadSandboxedPlugins({
+			transport: "worker",
+			pluginPaths: [pluginPath],
+			...options,
+		});
+		const { tools, api } = createApiCapture();
+		await sandboxed.extensions?.[0]?.setup?.(api, {});
+		const tool = tools.find((entry) => entry.name === name);
+		if (!tool) throw new Error(`tool ${name} not registered`);
+		return { sandboxed, tool };
+	}
+
+	it("terminates a plugin stuck in a synchronous loop and recovers", async () => {
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_spin",
+			"if (input.spin) { for (;;) {} } return 'ok';",
+			// The recovery call boots a fresh worker and re-imports the plugin
+			// within this same limit, so leave room for slow CI machines.
+			{ contributionTimeoutMs: 3000 },
+		);
+		try {
+			await expect(tool.execute({ spin: true }, context)).rejects.toThrow(
+				/timed out/i,
+			);
+			// The host event loop kept running, and the next call gets a fresh
+			// worker that re-imports the plugin.
+			await expect(tool.execute({ spin: false }, context)).resolves.toBe("ok");
+		} finally {
+			await sandboxed.shutdown();
+		}
+	}, 20_000);
+
+	it("reports the session cwd without changing the host cwd", async () => {
+		const hostCwd = process.cwd();
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_cwd",
+			"return process.cwd();",
+			{ cwd: dir },
+		);
+		try {
+			await expect(tool.execute({}, context)).resolves.toBe(dir);
+			expect(process.cwd()).toBe(hostCwd);
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+
+	it("does not need a JavaScript runtime executable", async () => {
+		vi.stubEnv("CLINE_JS_RUNTIME_PATH", join(dir, "missing-node"));
+		try {
+			const { sandboxed, tool } = await loadToolPlugin(
+				"worker_no_runtime",
+				"return 'ran';",
+			);
+			try {
+				await expect(tool.execute({}, context)).resolves.toBe("ran");
+			} finally {
+				await sandboxed.shutdown();
+			}
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it("contains a stray throw from a plugin timer", async () => {
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_stray",
+			"if (input.boom) { setTimeout(() => { throw new Error('stray boom'); }, 0); return new Promise(() => {}); } return 'alive';",
+		);
+		try {
+			await expect(tool.execute({ boom: true }, context)).rejects.toThrow(
+				/stray boom/,
+			);
+			await expect(tool.execute({}, context)).resolves.toBe("alive");
+		} finally {
+			await sandboxed.shutdown();
+		}
+	}, 20_000);
+
+	it("ends only the worker when a plugin calls process.exit", async () => {
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_exit",
+			"if (input.exit) { process.exit(7); } return 'alive';",
+		);
+		try {
+			await expect(tool.execute({ exit: true }, context)).rejects.toThrow(
+				/exited \(code=7\)/,
+			);
+			await expect(tool.execute({}, context)).resolves.toBe("alive");
+		} finally {
+			await sandboxed.shutdown();
+		}
+	}, 20_000);
+
+	it("discards plugin stdout but completes write callbacks", async () => {
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_stdout",
+			[
+				"console.log('discarded');",
+				"await new Promise((resolve) => process.stdout.write('a', resolve));",
+				"await new Promise((resolve) => process.stdout.write('b', 'utf8', resolve));",
+				"return process.stdout.write('c');",
+			].join(" "),
+		);
+		try {
+			await expect(tool.execute({}, context)).resolves.toBe(true);
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+
+	it("drops functions from results like the JSON IPC does", async () => {
+		const { sandboxed, tool } = await loadToolPlugin(
+			"worker_uncloneable",
+			"return { value: 1, fn: () => 2 };",
+		);
+		try {
+			await expect(tool.execute({}, context)).resolves.toEqual({ value: 1 });
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+});
+
+it("clears the subprocess Bun mode before importing plugin code", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "plugin-runtime-env-"));
+	const original = process.env.BUN_BE_BUN;
+	let sandbox: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
+	try {
+		const plugin = join(directory, "environment.js");
+		await writeFile(
+			plugin,
+			`
+if (process.env.BUN_BE_BUN) throw new Error('Bun runtime mode leaked into plugin code');
+export default {name:'environment',manifest:{capabilities:['commands']},setup(api){api.registerCommand({name:'env',handler:()=> 'ready'})}};
+`,
+		);
+		process.env.BUN_BE_BUN = "1";
+		sandbox = await loadSandboxedPlugins({
+			pluginPaths: [plugin],
+			transport: "subprocess",
+		});
+		expect(sandbox.failures).toEqual([]);
+		expect(sandbox.extensions).toHaveLength(1);
+		expect(process.env.BUN_BE_BUN).toBe("1");
+	} finally {
+		if (original === undefined) delete process.env.BUN_BE_BUN;
+		else process.env.BUN_BE_BUN = original;
+		await sandbox?.shutdown();
+		await rm(directory, { recursive: true, force: true });
+	}
 });

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CronEventSpec } from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SqliteCronStore } from "../store/sqlite-cron-store";
 import {
 	automationEventMatchesFilters,
@@ -71,6 +71,111 @@ describe("CronEventIngress", () => {
 			spec,
 		}).record;
 	}
+
+	function event(eventId = "evt_retry") {
+		return {
+			eventId,
+			eventType: "github.pull_request.opened",
+			source: "github",
+			occurredAt: new Date(nowMs).toISOString(),
+			dedupeKey: "pr:12",
+			attributes: { repository: "acme/api" },
+		};
+	}
+
+	it.each([
+		"first run",
+		"second run",
+		"processing status",
+	])("rolls back failed acceptance at %s and accepts redelivery once", (failurePoint) => {
+		const first = seedEventSpec({ id: "first" });
+		const second = seedEventSpec({ id: "second" });
+		const originalEnqueue = store.enqueueRun.bind(store);
+		let calls = 0;
+		const injected =
+			failurePoint === "processing status"
+				? vi.spyOn(store, "updateEventLogProcessing").mockImplementation(() => {
+						throw new Error("injected failure");
+					})
+				: vi.spyOn(store, "enqueueRun").mockImplementation((input) => {
+						calls++;
+						if (calls === (failurePoint === "first run" ? 1 : 2))
+							throw new Error("injected failure");
+						return originalEnqueue(input);
+					});
+		expect(() => ingress.ingestEvent(event())).toThrow("injected failure");
+		injected.mockRestore();
+		expect(store.getEventLog("evt_retry")).toBeUndefined();
+		expect(store.listRuns()).toHaveLength(0);
+		expect(store.getSpec(first.specId)?.lastMaterializedRunId).toBeUndefined();
+		expect(store.getSpec(second.specId)?.lastMaterializedRunId).toBeUndefined();
+
+		// Reopening proves retryability comes from persisted state, not this instance.
+		store.close();
+		store = new SqliteCronStore({ dbPath: join(dir, "cron.db") });
+		ingress = new CronEventIngress({ store, now: () => nowMs });
+		const retried = ingress.ingestEvent(event());
+		expect(retried.duplicate).toBe(false);
+		expect(retried.queuedRuns).toHaveLength(2);
+		expect(new Set(retried.queuedRuns.map((run) => run.specId))).toEqual(
+			new Set([first.specId, second.specId]),
+		);
+		expect(retried.event.processingStatus).toBe("queued");
+		expect(retried.event.queuedRunCount).toBe(2);
+		expect(ingress.ingestEvent(event()).duplicate).toBe(true);
+		expect(store.listRuns()).toHaveLength(2);
+	});
+
+	it("rolls back debounce changes when processing fails after materialization", () => {
+		seedEventSpec({ debounceSeconds: 30 });
+		const accepted = ingress.ingestEvent(event("evt_original"));
+		const originalRun = accepted.queuedRuns[0];
+		expect(originalRun).toBeDefined();
+		nowMs += 10000;
+		const injected = vi
+			.spyOn(store, "updateEventLogProcessing")
+			.mockImplementationOnce(() => {
+				throw new Error("status write failed");
+			});
+		expect(() => ingress.ingestEvent(event())).toThrow("status write failed");
+		injected.mockRestore();
+		expect(store.getEventLog("evt_retry")).toBeUndefined();
+		expect(store.listRuns()).toEqual([originalRun]);
+		const retried = ingress.ingestEvent(event());
+		expect(retried.queuedRuns[0]?.runId).toBe(originalRun?.runId);
+		expect(retried.queuedRuns[0]?.triggerEventId).toBe("evt_retry");
+		expect(retried.queuedRuns[0]?.scheduledFor).toBe(
+			"2026-04-23T10:00:40.000Z",
+		);
+		expect(store.listRuns()).toHaveLength(1);
+	});
+
+	it("does not expose partial acceptance to another connection", () => {
+		seedEventSpec({ id: "first" });
+		seedEventSpec({ id: "second" });
+		const peer = new SqliteCronStore({ dbPath: join(dir, "cron.db") });
+		const enqueue = store.enqueueRun.bind(store);
+		const observed = vi
+			.spyOn(store, "enqueueRun")
+			.mockImplementation((input) => {
+				const run = enqueue(input);
+				expect(peer.getEventLog("evt_retry")).toBeUndefined();
+				expect(peer.listRuns()).toHaveLength(0);
+				return run;
+			});
+		try {
+			ingress.ingestEvent(event());
+			expect(observed).toHaveBeenCalledTimes(2);
+			expect(peer.getEventLog("evt_retry")?.processingStatus).toBe("queued");
+			expect(peer.listRuns()).toHaveLength(2);
+			const peerIngress = new CronEventIngress({ store: peer });
+			expect(peerIngress.ingestEvent(event()).duplicate).toBe(true);
+			expect(peer.listRuns()).toHaveLength(2);
+		} finally {
+			observed.mockRestore();
+			peer.close();
+		}
+	});
 
 	it("persists a normalized event and queues matching event runs", () => {
 		const spec = seedEventSpec({

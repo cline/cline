@@ -10,13 +10,6 @@ vi.mock("@/context/ClineAuthContext", () => ({
 	useClineAuth: () => mockAuth,
 }))
 
-const askResponseMock = vi.fn()
-vi.mock("@/services/grpc-client", () => ({
-	TaskServiceClient: {
-		askResponse: (...args: unknown[]) => askResponseMock(...args),
-	},
-}))
-
 const getSubscribeHref = () => screen.getByRole("link", { name: /get clinepass/i }).getAttribute("href")
 const querySubscribeLink = () => screen.queryByRole("link", { name: /get clinepass/i })
 
@@ -58,13 +51,11 @@ describe("EntitlementError", () => {
 		expect(getSubscribeHref()).toBe("https://proxy.enterprise.com/cline/app/dashboard/subscription?personal=true")
 	})
 
-	it("sends a yesButtonClicked askResponse when Retry Request is clicked", () => {
-		render(<EntitlementError />)
+	it("uses the shared recovery handler when Retry Request is clicked", () => {
+		const retryFailedRequest = vi.fn().mockResolvedValue(true)
+		render(<EntitlementError retryFailedRequest={retryFailedRequest} />)
 		// VSCodeButton has no ARIA role in jsdom; click by label text instead.
 		fireEvent.click(screen.getByText("Retry Request"))
-		expect(askResponseMock).toHaveBeenCalledTimes(1)
-		expect(askResponseMock.mock.calls[0][0]).toMatchObject({
-			responseType: "yesButtonClicked",
-		})
+		expect(retryFailedRequest).toHaveBeenCalledTimes(1)
 	})
 })

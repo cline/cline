@@ -7,7 +7,7 @@ description: Use when preparing, tagging, and publishing an apps/cli npm release
 
 Use this skill when the user asks to release the CLI, publish `cline`, bump the CLI version, draft release notes, create a `cli-vX.Y.Z` tag, or trigger the CLI publish workflow.
 
-The CLI is npm-only. Do not add alternate distribution or signing steps.
+The CLI is npm-only. Do not add alternate distribution channels. Windows binaries are Authenticode-signed automatically by the publish workflow via Azure Trusted Signing (see the `.github/actions/sign-windows-cli` composite action and "Windows code signing" in `apps/cli/DISTRIBUTION.md`); if the signing secrets are not configured the workflow warns and publishes unsigned binaries. Local publishes (`bun release cli`) do not sign — prefer the GitHub Actions publish path for releases users run on Windows.
 
 > Working directory: run every command below from the repository root. Paths and scripts (e.g. `apps/cli/package.json`, `sdk/packages/`, `bun release cli`, `bun run version`) are written relative to the repo root.
 
@@ -25,7 +25,8 @@ The skill should guide the user through one release preparation flow, then offer
   - Local publish helper: `bun release cli`.
 - npm dist-tags and git tags are separate. `--tag latest` and `--tag nightly` are npm registry channels. `cli-vX.Y.Z` is a git tag for source history and GitHub releases.
 - The GitHub main release workflow runs from `main`, requires an existing `cli-vX.Y.Z` tag, checks out that tag, and publishes from it.
-- The GitHub nightly workflow publishes to npm with the `nightly` dist-tag and does not create a tag.
+- The GitHub nightly workflow publishes to npm with the `nightly` dist-tag and does not create a tag. It is manual dispatch only; there is no cron.
+- Every CI publish (CLI main and nightly, SDK, UI) waits for a reviewer to approve the run in the `PublishNPM` GitHub environment, and the npm trusted publishers require that environment. The run sits in `waiting` until approved; that is not a hang. Hand the user the run URL so they can click "Review deployments"; never approve it via the API.
 - The local release helper requires a clean checkout and `cli-vX.Y.Z` to point at `HEAD` locally and on `origin` before publishing.
 - Local GitHub release creation requires `gh` to be authenticated with release permissions for the repo.
 - Always ask before pushing commits or tags.
@@ -142,6 +143,8 @@ The `sdk/packages` commits matter here even though the SDK was released separate
 Include user-facing features, fixes, behavior changes, compatibility changes, and notable install or release changes. Exclude pure refactors, tests, style, chores, and internal file moves unless they matter to users.
 
 Write a flat bullet list. Translate commit messages into user-facing language. If a commit is unclear, read the full commit before summarizing it.
+
+**Scope notes to the CLI.** Shared-code commits in the range are often for desktop or the extension. Keep a bullet only if the change reaches `apps/cli` (hub fixes do; desktop webview/sidecar/voice/packaging don't). Skip items already in the last CLI section, grep any quoted string, and leave out anything uncertain.
 
 Present the draft and wait for approval before editing files.
 

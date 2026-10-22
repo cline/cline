@@ -1,12 +1,9 @@
-import type { ITelemetryService } from "@cline/shared";
+import type { AgentToolContext, ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import {
-	CLINE_INTERNAL_TELEMETRY_METADATA_KEY,
-	getToolContextTelemetry,
-} from "../../services/telemetry/tool-context";
 import {
 	buildRunCommandsDescription,
 	createDefaultTools,
+	createEditorTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
@@ -14,7 +11,7 @@ import {
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
-import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 function hasSchemaKey(value: unknown, key: string): boolean {
@@ -482,16 +479,88 @@ describe("default apply_patch tool", () => {
 });
 
 describe("run_commands tool description", () => {
-	it("names PowerShell with ';' sequencing for PowerShell shells", () => {
-		const description = buildRunCommandsDescription("powershell", true);
-		expect(description).toContain("Commands run through PowerShell");
+	it.each([
+		"powershell",
+		"powershell.exe",
+		"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\PowerShell.EXE",
+	])("names Windows PowerShell and its redundant wrapper for %s", (shell) => {
+		const description = buildRunCommandsDescription(shell, true);
+		expect(description).toContain("Windows PowerShell (powershell.exe)");
+		expect(description).toContain(
+			"quote paths and arguments for powershell.exe",
+		);
+		expect(description).not.toContain(
+			"quote paths and arguments for Windows PowerShell",
+		);
+		expect(description).toContain(
+			"do not wrap them in another powershell.exe -Command invocation",
+		);
+		expect(description).not.toContain("PowerShell (pwsh.exe)");
 		expect(description).toContain("use ';' to sequence commands");
 		expect(description).toContain("in Windows environment");
+	});
+
+	it.each([
+		"pwsh",
+		"pwsh.exe",
+		"C:\\Program Files\\PowerShell\\7\\PWSH.EXE",
+	])("names PowerShell and its redundant wrapper for %s", (shell) => {
+		const description = buildRunCommandsDescription(shell, true);
+		expect(description).toContain("PowerShell (pwsh.exe)");
+		expect(description).toContain("quote paths and arguments for pwsh.exe");
+		expect(description).not.toContain(
+			"quote paths and arguments for PowerShell",
+		);
+		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
+		expect(description).toContain(
+			"do not wrap them in another pwsh.exe -Command invocation",
+		);
+		expect(description).toContain("use ';' to sequence commands");
+		expect(description).toContain(
+			"Only start another shell when you intentionally need a different shell or a separate process.",
+		);
+		expect(description).not.toContain("Windows PowerShell");
+	});
+
+	it("describes PowerShell on Unix without claiming a version or Windows host", () => {
+		const description = buildRunCommandsDescription("/usr/bin/pwsh", false);
+		expect(description).toContain("PowerShell (pwsh)");
+		expect(description).toContain("quote paths and arguments for pwsh");
+		expect(description).toContain("another pwsh -Command invocation");
+		expect(description).not.toContain("Windows");
+		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
+	});
+
+	it.each([
+		["powershell.exe", true],
+		["pwsh.exe", true],
+		["/usr/bin/pwsh", false],
+	])("tells %s how PowerShell escapes quotes", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).toContain(
+			'PowerShell escapes with a backtick (`), not a backslash: inside double quotes, \\" ends the string.',
+		);
+		expect(description).toContain("Remove-Item -LiteralPath instead of cmd /c");
+		expect(description).toContain("-WhatIf");
+	});
+
+	it.each([
+		["cmd", true],
+		["C:\\Program Files\\Git\\bin\\bash.exe", true],
+		["wsl", true],
+		["/bin/bash", false],
+	])("keeps PowerShell quoting guidance out of %s", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).not.toContain("backtick");
+		expect(description).not.toContain("Remove-Item");
 	});
 
 	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
 		const description = buildRunCommandsDescription("cmd", true);
 		expect(description).toContain("Commands run through cmd.exe");
+		expect(description).toContain(
+			"do not wrap them in another cmd.exe /c invocation",
+		);
 		expect(description).toContain("use '&&' to sequence commands");
 		expect(description).not.toContain("PowerShell");
 	});
@@ -504,11 +573,14 @@ describe("run_commands tool description", () => {
 	});
 
 	it("notes the Windows host for POSIX shells on Windows only", () => {
-		const onWindows = buildRunCommandsDescription("posix", true);
+		const onWindows = buildRunCommandsDescription(
+			"C:\\Program Files\\Git\\bin\\bash.exe",
+			true,
+		);
 		expect(onWindows).toContain("POSIX (bash-compatible) shell on Windows");
 		expect(onWindows).not.toContain("PowerShell");
 
-		const onUnix = buildRunCommandsDescription("posix", false);
+		const onUnix = buildRunCommandsDescription("/bin/bash", false);
 		expect(onUnix).not.toContain("Windows");
 		expect(onUnix).toContain("grep/head/tail");
 	});
@@ -536,7 +608,19 @@ describe("run_commands tool description", () => {
 		expect(tool.description).not.toContain("PowerShell");
 
 		shell = "powershell.exe";
-		expect(tool.description).toContain("Commands run through PowerShell");
+		const windowsPowerShellDescription = tool.description;
+		expect(windowsPowerShellDescription).toContain(
+			"Windows PowerShell (powershell.exe)",
+		);
+		expect(tool.description).toBe(windowsPowerShellDescription);
+
+		shell = "pwsh.exe";
+		const powerShellDescription = tool.description;
+		const pwshExecutable = process.platform === "win32" ? "pwsh.exe" : "pwsh";
+		expect(powerShellDescription).toContain(`PowerShell (${pwshExecutable})`);
+		expect(powerShellDescription).not.toBe(windowsPowerShellDescription);
+		shell = "C:\\Program Files\\PowerShell\\7\\PWSH.EXE";
+		expect(tool.description).toBe(powerShellDescription);
 
 		// The property must survive the shallow copy the runtime performs when
 		// building AgentToolDefinitions for a model request.
@@ -570,17 +654,6 @@ describe("default run_commands tool", () => {
 			.map((call) => call[0])
 			.filter((event) => event.event === "sdk.tool_timeout");
 	}
-
-	it("reads telemetry from the internal metadata key", () => {
-		const telemetry = createTelemetryStub();
-
-		expect(
-			getToolContextTelemetry({
-				telemetry: "user-defined-label",
-				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
-			}),
-		).toBe(telemetry);
-	});
 
 	it("accepts object input with commands as a single string", async () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>
@@ -729,6 +802,49 @@ describe("default run_commands tool", () => {
 			process.cwd(),
 			expect.objectContaining({ iteration: 1 }),
 		);
+	});
+
+	it("identifies streamed updates from parallel commands", async () => {
+		const updates: unknown[] = [];
+		const execute = vi.fn(
+			async (
+				command: string | { command: string; args?: string[] },
+				_cwd: string,
+				context: AgentToolContext,
+			) => {
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: typeof command === "string" ? command : command.command,
+				});
+				return "done";
+			},
+		);
+		const tool = createShellTool(execute);
+
+		await tool.execute(
+			{ commands: ["pwd", { command: "node", args: ["--version"] }] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(updates).toEqual([
+			{
+				stream: "stdout",
+				chunk: "pwd",
+				commandIndex: 0,
+				query: "pwd",
+			},
+			{
+				stream: "stdout",
+				chunk: "node",
+				commandIndex: 1,
+				query: "node --version",
+			},
+		]);
 	});
 
 	it("rejects invalid text-object command entries", async () => {
@@ -1185,8 +1301,8 @@ describe("default run_commands tool", () => {
 		// race regardless of host load (a tight real-timer margin flaked under
 		// heavy parallel CI runs).
 		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
-		const tool = createShellTool(execute, { bashTimeoutMs: 5 });
 		const telemetry = createTelemetryStub();
+		const tool = createShellTool(execute, { bashTimeoutMs: 5, telemetry });
 
 		const result = await tool.execute(
 			{
@@ -1206,7 +1322,6 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 				toolCallId: "tool-call-1",
 				metadata: {
-					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 					mode: "act",
 					source: "sdk-test",
 				},
@@ -1258,21 +1373,20 @@ describe("default run_commands tool", () => {
 
 		await createShellTool(executorTimeout, {
 			bashTimeoutMs: 5000,
+			telemetry,
 		}).execute({ commands: ["echo timeout"] } as never, {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
-		await createShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
-			{ commands: ["echo not-timeout"] } as never,
-			{
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				iteration: 2,
-				metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
-			},
-		);
+		await createShellTool(plainFailure, {
+			bashTimeoutMs: 5000,
+			telemetry,
+		}).execute({ commands: ["echo not-timeout"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
 
 		const timeoutCalls = capturedTimeoutEvents(telemetry);
 		expect(timeoutCalls).toHaveLength(1);
@@ -1289,7 +1403,7 @@ describe("default run_commands tool", () => {
 		// race regardless of host load (a tight real-timer margin flaked under
 		// heavy parallel CI runs).
 		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
-		const tool = createShellTool(execute, { bashTimeoutMs: 5 });
+		const tool = createShellTool(execute, { bashTimeoutMs: 5, telemetry });
 
 		const result = await tool.execute(
 			{ commands: ["echo secret-token", "pwd"] },
@@ -1301,7 +1415,6 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 				toolCallId: "tool-call-1",
 				metadata: {
-					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 					mode: "act",
 					source: "sdk-test",
 				},
@@ -1341,14 +1454,13 @@ describe("default run_commands tool", () => {
 
 	it("does not emit timeout telemetry for normal command success", async () => {
 		const execute = vi.fn(async () => "ok");
-		const tool = createShellTool(execute, { bashTimeoutMs: 50 });
 		const telemetry = createTelemetryStub();
+		const tool = createShellTool(execute, { bashTimeoutMs: 50, telemetry });
 
 		await tool.execute({ commands: ["echo hi"] } as never, {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			iteration: 1,
-			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
 
 		expect(capturedTimeoutEvents(telemetry)).toEqual([]);
@@ -1792,6 +1904,51 @@ describe("zod schema conversion", () => {
 });
 
 describe("default editor tool", () => {
+	it("publishes old_text as an optional string without null", () => {
+		const tool = createEditorTool(async () => "patched");
+		const schema = tool.inputSchema as {
+			required?: string[];
+			properties?: Record<string, { type?: string | string[] }>;
+		};
+
+		expect(schema.required).not.toContain("old_text");
+		expect(schema.properties?.old_text?.type).toBe("string");
+	});
+
+	it.each([
+		{ name: "creating a missing file", insert_line: undefined, query: "edit" },
+		{ name: "inserting a line", insert_line: 1, query: "insert" },
+	])("normalizes null old_text when $name", async ({ insert_line, query }) => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const result = await tool.execute(
+			{
+				path: "/tmp/example.ts",
+				// @ts-expect-error Models may send null despite the advertised string schema.
+				old_text: null,
+				new_text: "created",
+				insert_line,
+			},
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(result).toEqual({
+			query: `${query}:/tmp/example.ts`,
+			result: "patched",
+			success: true,
+		});
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				path: "/tmp/example.ts",
+				old_text: undefined,
+				new_text: "created",
+				insert_line,
+			}),
+			process.cwd(),
+			expect.anything(),
+		);
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
@@ -1941,6 +2098,35 @@ describe("default editor tool", () => {
 			}),
 			process.cwd(),
 			expect.anything(),
+		);
+	});
+
+	it("accepts a stringified insert_line but not a non-numeric one", async () => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+		// Deliberately wrong-typed: this is what an LLM can put on the wire.
+		const inputWith = (insert_line: unknown) =>
+			({
+				path: "/tmp/example.ts",
+				new_text: "after",
+				insert_line,
+			}) as EditFileInput;
+
+		await tool.execute(inputWith("3"), context);
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({ insert_line: 3 }),
+			process.cwd(),
+			expect.anything(),
+		);
+
+		// A word such as "end" has no line number to infer, so it must keep failing.
+		await expect(tool.execute(inputWith("end"), context)).rejects.toThrow(
+			/insert_line/,
 		);
 	});
 

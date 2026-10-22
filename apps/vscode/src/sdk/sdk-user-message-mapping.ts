@@ -1,9 +1,17 @@
 import { normalizeUserInput, stripModeNotices } from "@cline/shared"
-import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
+
+/**
+ * Canned prompt SdkModeCoordinator sends to drive the plan -> act
+ * auto-continuation. Defined here (a leaf module) rather than in the
+ * coordinator so display-layer consumers (message-translator, ordinal
+ * mapping) don't pull the coordinator's heavy import graph into their tests.
+ */
+export const ACT_MODE_CONTINUATION_PROMPT = "The user approved switching to act mode. Continue with the approved plan now."
 
 export type SdkUserMessage = {
 	role?: unknown
 	content?: unknown
+	metadata?: unknown
 }
 
 export function extractSdkUserText(message: SdkUserMessage): string {
@@ -47,7 +55,14 @@ export function isSyntheticUserPrompt(text: string): boolean {
 	// the synthetic prompt would start counting as a visible user message and
 	// shift every later edit/regenerate ordinal by one.
 	const normalized = stripModeNotices(normalizeUserInput(text))
-	return normalized.startsWith("[TASK RESUMPTION]") || normalized === ACT_MODE_CONTINUATION_PROMPT
+	return (
+		normalized.startsWith("[TASK RESUMPTION]") ||
+		normalized === ACT_MODE_CONTINUATION_PROMPT ||
+		// Hook-injected context is model-facing only; the runtime stamps these
+		// messages displayRole "system", and this text guard keeps transcripts
+		// clean on paths where that metadata is unavailable.
+		normalized.startsWith("<hook_context")
+	)
 }
 
 function hasAttachmentBlocks(message: SdkUserMessage): boolean {
@@ -77,7 +92,48 @@ function hasAttachmentBlocks(message: SdkUserMessage): boolean {
  * attachment-only continuation carries the synthetic text alongside the
  * user's image/file blocks AND a visible bubble, so it must still be counted.
  */
+export interface PersistedHookContextChip {
+	hookName: string
+	toolName?: string
+	status: "completed"
+}
+
+/**
+ * Parses hook-context blocks out of a runtime-injected user message so replay
+ * can reconstruct the hook status rows shown live. Returns [] for anything
+ * that is not a hook-context injection. Forged tags inside hook output are
+ * escaped by the runtime (`<\hook_context`), so only real blocks match.
+ */
+export function extractPersistedHookContextChips(message: SdkUserMessage): PersistedHookContextChip[] {
+	if (message.role !== "user") {
+		return []
+	}
+	const text = extractSdkUserText(message)
+	if (!text.startsWith("<hook_context")) {
+		return []
+	}
+	const chips: PersistedHookContextChip[] = []
+	const blockPattern = /<hook_context source="([^"]+)"(?:\s+tool_name="([^"]*)")?[^>]*>/g
+	let match: RegExpExecArray | null = blockPattern.exec(text)
+	while (match !== null) {
+		chips.push({
+			hookName: match[1],
+			...(match[2] ? { toolName: match[2] } : {}),
+			status: "completed",
+		})
+		match = blockPattern.exec(text)
+	}
+	return chips
+}
+
 export function isSyntheticSdkUserMessage(message: SdkUserMessage): boolean {
+	// Runtime-generated messages (hook context, compaction summaries) carry a
+	// display role that marks them model-facing only.
+	const metadata = message.metadata as { displayRole?: unknown } | undefined
+	const displayRole = typeof metadata?.displayRole === "string" ? metadata.displayRole.trim().toLowerCase() : undefined
+	if (displayRole === "system" || displayRole === "status") {
+		return true
+	}
 	const text = extractSdkUserText(message)
 	return !!text && isSyntheticUserPrompt(text) && !hasAttachmentBlocks(message)
 }
@@ -101,4 +157,32 @@ export function findSdkUserMessageIndexByOrdinal(sdkMessages: SdkUserMessage[], 
 		seenUsers += 1
 		return seenUsers === userOrdinal
 	})
+}
+
+/**
+ * Returns the checkpoint run number for a persisted SDK user message.
+ * This intentionally mirrors the core checkpoint counter: every root user
+ * message starts a run except recovery notices. Hidden mode/resume prompts
+ * therefore still advance the counter even though they have no webview row.
+ */
+export function getSdkCheckpointRunCountForMessageIndex(sdkMessages: SdkUserMessage[], targetIndex: number): number | undefined {
+	if (sdkMessages[targetIndex]?.role !== "user") {
+		return undefined
+	}
+
+	let runCount = 0
+	for (let index = 0; index <= targetIndex; index += 1) {
+		const message = sdkMessages[index]
+		if (message?.role !== "user") {
+			continue
+		}
+		const metadata =
+			message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+				? (message.metadata as Record<string, unknown>)
+				: undefined
+		if (metadata?.kind !== "recovery_notice") {
+			runCount += 1
+		}
+	}
+	return runCount
 }

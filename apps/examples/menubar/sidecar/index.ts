@@ -10,7 +10,14 @@ import {
 	stopLocalHubServerGracefully,
 	toHubStatusUrl,
 } from "@cline/core";
-import type { HubUINotifyPayload, SessionRecord } from "@cline/shared";
+import {
+	claimHubDaemonProcess,
+	ensureLoopbackProxyBypass,
+	type HubUINotifyPayload,
+	isBunEmbeddedModulePath,
+	type SessionRecord,
+} from "@cline/shared";
+import { configureMenubarConnectorCliLaunch } from "./connector-cli-launch";
 
 interface TrackedClient {
 	clientId: string;
@@ -79,14 +86,16 @@ type ClientSummaryGroup = {
 
 function isBundledDaemonEntryInvocation(): boolean {
 	const entryArg = process.argv[1]?.trim() ?? "";
+	const normalizedEntryArg = entryArg.replace(/\\/g, "/");
 	const isBunEmbeddedEntry =
-		entryArg.includes("/$bunfs/") &&
-		(entryArg.endsWith("/entry.js") || entryArg.endsWith("/entry.ts"));
+		isBunEmbeddedModulePath(entryArg) &&
+		(normalizedEntryArg.endsWith("/entry.js") ||
+			normalizedEntryArg.endsWith("/entry.ts"));
 	return (
 		process.argv.includes("--cline-hub-daemon") ||
 		isBunEmbeddedEntry ||
-		entryArg.endsWith("/daemon-entry.js") ||
-		entryArg.endsWith("/daemon-entry.ts") ||
+		normalizedEntryArg.endsWith("/daemon-entry.js") ||
+		normalizedEntryArg.endsWith("/daemon-entry.ts") ||
 		entryArg === "daemon-entry.js" ||
 		entryArg === "daemon-entry.ts"
 	);
@@ -258,12 +267,13 @@ function summarizeClient(client: TrackedClient): {
 	if (
 		normalizedType === "code-sidecar" ||
 		normalizedType === "code-sidecar-approvals" ||
+		normalizedType === "code-sidecar-observer" ||
 		normalizedType === "code-sidecar-list"
 	) {
 		return {
 			key: "code-app",
-			label: "Code App",
-			name: "Code App",
+			label: "Cline Desktop",
+			name: "Cline Desktop",
 		};
 	}
 	return {
@@ -416,6 +426,7 @@ function resolveProviderLaunchAuth(
 async function main(): Promise<void> {
 	const workspaceRoot = process.cwd();
 	const providerSettingsManager = new ProviderSettingsManager();
+	configureMenubarConnectorCliLaunch(workspaceRoot);
 	// Discover or start a detached shared hub
 	let hubUrl: string;
 	let hubAuthToken: string;
@@ -937,7 +948,15 @@ async function main(): Promise<void> {
 	});
 }
 
-if (isBundledDaemonEntryInvocation()) {
+// Claim unconditionally, before the personality is decided: the spawn path sets
+// the sentinel on every daemon it launches, and this host selects the daemon by
+// argv. Leaving the variable in the environment would hand it to every process a
+// daemon-hosted session spawns — agent shell commands, MCP servers, hooks — each
+// of which would then try to become a hub daemon and die on EADDRINUSE.
+// Applies to both personalities below.
+ensureLoopbackProxyBypass();
+const claimedDaemonSentinel = claimHubDaemonProcess();
+if (claimedDaemonSentinel || isBundledDaemonEntryInvocation()) {
 	await import("@cline/core/hub/daemon-entry");
 } else {
 	main().catch((err) => {

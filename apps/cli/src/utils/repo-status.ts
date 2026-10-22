@@ -14,6 +14,18 @@ export interface RepoStatus {
 	diffStats: GitDiffStats | null;
 }
 
+export function isSameRepoStatus(a: RepoStatus, b: RepoStatus): boolean {
+	if (a.branch !== b.branch) return false;
+	if (a.diffStats === null || b.diffStats === null) {
+		return a.diffStats === b.diffStats;
+	}
+	return (
+		a.diffStats.files === b.diffStats.files &&
+		a.diffStats.additions === b.diffStats.additions &&
+		a.diffStats.deletions === b.diffStats.deletions
+	);
+}
+
 export async function readRepoStatus(cwd: string): Promise<RepoStatus> {
 	const [branchResult, diffResult] = await Promise.allSettled([
 		execFileAsync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"], {

@@ -1,5 +1,10 @@
 /// <reference types="@types/bun" />
-export {};
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+	resolveRepoRootFromCorePackage,
+	resolveSdkRuntimeBuildId,
+} from "./scripts/runtime-build-id";
 
 type PackageManifest = {
 	dependencies?: Record<string, string>;
@@ -9,13 +14,23 @@ type PackageManifest = {
 const packageJson = (await Bun.file(
 	new URL("./package.json", import.meta.url),
 ).json()) as PackageManifest;
+const corePackageRoot = dirname(fileURLToPath(import.meta.url));
+const runtimeBuildId = resolveSdkRuntimeBuildId(
+	resolveRepoRootFromCorePackage(corePackageRoot),
+);
 
 // Keep declared runtime packages external so they are not duplicated inside each
 // bundled entrypoint and installed again from package.json.
-const external = Object.keys({
-	...(packageJson.dependencies ?? {}),
-	...(packageJson.peerDependencies ?? {}),
-});
+const external = [
+	"@cline/core/hub/daemon-entry",
+	// Preserve the optional provider boundary; bundling it hoists posthog-node
+	// into every runtime entrypoint even when the local import is dynamic.
+	"@cline/core/services/feature-flags/posthog",
+	...Object.keys({
+		...(packageJson.dependencies ?? {}),
+		...(packageJson.peerDependencies ?? {}),
+	}),
+];
 
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
@@ -28,9 +43,21 @@ const buildConfig = {
 	packages: "bundle",
 	sourcemap,
 	external,
+	define: {
+		__CLINE_CORE_RUNTIME_BUILD_ID__: JSON.stringify(runtimeBuildId),
+		// Unlike the deterministic fingerprint above, the epoch orders builds in
+		// time so managed-Hub compatibility can tell a newer daemon from a stale
+		// one. Consulted only when fingerprints already differ.
+		__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: JSON.stringify(Date.now()),
+	},
 } as const;
 
 const builds: Parameters<typeof Bun.build>[0][] = [
+	{
+		entrypoints: ["./src/cloud/index.ts"],
+		outdir: "./dist/cloud",
+		...buildConfig,
+	},
 	// Build main exports separately to avoid Bun bundler output path conflicts
 	{
 		entrypoints: ["./src/index.ts"],
@@ -55,13 +82,6 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	{
 		entrypoints: ["./src/services/feature-flags/posthog.ts"],
 		outdir: "./dist/services/feature-flags",
-		...buildConfig,
-	},
-	// The plugin sandbox bootstrap runs in an isolated child process via
-	// SubprocessSandbox and must be emitted as a separate executable entrypoint.
-	{
-		entrypoints: ["./src/extensions/plugin/plugin-sandbox-bootstrap.ts"],
-		outdir: "./dist/extensions",
 		...buildConfig,
 	},
 ];

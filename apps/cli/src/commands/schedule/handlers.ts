@@ -1,22 +1,22 @@
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
-	addAutonomousOptions,
-	addDeliveryOptions,
 	addSharedOptions,
 	emitJsonOrText,
 	formatResolvedAddressLabel,
-	mergeScheduleMetadata,
 	parseJsonObjectFlag,
 	parseList,
+	parseMode,
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
+import { addDeliveryOptions, scheduleMetadata } from "./delivery-input";
 import {
 	registerScheduleExportCommand,
 	registerScheduleImportCommand,
 	registerScheduleUpdateCommand,
 } from "./import-export";
+import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
 
 export function registerScheduleCommands(
@@ -63,18 +63,25 @@ export function registerScheduleCommands(
 		.option("--disabled", "Create in disabled state")
 		.option("--max-parallel <n>", "Max parallel executions", "1")
 		.option("--metadata-json <json>", "Metadata as JSON object")
-		.option("--mode <act|plan>", "Execution mode")
-		.option("--model <model>", "Model to use", "openai/gpt-5.3-codex")
-		.option("--provider <id>", "Provider ID", "cline")
+		.option("--mode <act|plan|yolo>", "Execution mode", "yolo")
+		.option("--model <model>", "Model to use")
+		.option("--provider <id>", "Provider ID")
 		.option("--system-prompt <text>", "System prompt override")
 		.option("--tags <list>", "Comma-separated tags")
 		.option("--timeout <seconds>", "Timeout in seconds");
 	addDeliveryOptions(createCmd);
-	addAutonomousOptions(createCmd);
 	addSharedOptions(createCmd);
 	createCmd.action(
 		action(async (name: string) => {
 			const opts = createCmd.opts();
+			const metadataJson = parseJsonObjectFlag(opts.metadataJson);
+			const metadata = scheduleMetadata({
+				metadata: metadataJson && {
+					object: metadataJson,
+					label: "--metadata-json",
+				},
+				flags: opts,
+			});
 			const address = resolveAddress(opts.address);
 			const ensured = await ensureSchedulerHub(address, opts.workspace, io);
 			if (!ensured.ok) {
@@ -86,17 +93,17 @@ export function registerScheduleCommands(
 			}
 			const client = ensured.client;
 			try {
-				const metadata = mergeScheduleMetadata(
-					parseJsonObjectFlag(opts.metadataJson),
-					opts,
-				);
+				const modelSelection = resolveScheduleModelSelection({
+					provider: opts.provider,
+					model: opts.model,
+				});
 				const created = await client.createSchedule({
 					name,
 					cronPattern: opts.cron,
 					prompt: opts.prompt,
-					provider: opts.provider,
-					model: opts.model,
-					mode: opts.mode === "plan" ? "plan" : "act",
+					provider: modelSelection.provider,
+					model: modelSelection.model,
+					mode: parseMode(opts.mode) ?? "yolo",
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,

@@ -2,6 +2,7 @@ import { type ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -31,12 +32,22 @@ const askSageDefaultURL = "https://api.asksage.ai/server"
 export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { write } = useProviderConfig("asksage")
 	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
 		"asksage",
 		apiConfiguration,
 		currentMode,
 	)
 	const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>(models)
+
+	// Write through the SDK provider-config store so providers.json stays in
+	// sync for CLI/desktop hosts. The store mirrors `baseUrl` back to the
+	// legacy `asksageApiUrl` state key (even when providers.json validation
+	// rejects a partially-typed URL), so the legacy readers — including the
+	// /get-models fetch keyed on apiConfiguration.asksageApiUrl — keep working.
+	const handleApiUrlChange = (value: string) => {
+		void write({ baseUrl: value }).catch((err) => console.error("Failed to update AskSage API URL:", err))
+	}
 
 	useEffect(() => {
 		const fetchModels = async () => {
@@ -87,7 +98,7 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
-				onChange={(value) => handleFieldChange("asksageApiUrl", value)}
+				onChange={handleApiUrlChange}
 				placeholder="Enter AskSage API URL..."
 				style={{ width: "100%" }}
 				type="text">

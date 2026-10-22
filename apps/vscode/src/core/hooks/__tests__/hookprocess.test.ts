@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
+import type { EventEmitter } from "events"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
 import "should"
-import { getHookLaunchConfig, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
-import { withPlatform } from "./test-utils"
+import { getHookLaunchConfig, HookProcess, resetHookLaunchConfigCacheForTesting } from "../HookProcess"
+import { withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 function createDeferred<T>() {
 	let resolve!: (value: T | PromiseLike<T>) => void
@@ -174,4 +178,123 @@ describe("HookProcess", () => {
 			}
 		})
 	})
+})
+
+describe("HookProcess spawn failures", () => {
+	let tempDir: string
+
+	beforeEach(async () => {
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hookprocess-test-"))
+	})
+
+	afterEach(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true })
+	})
+
+	async function writeTestHook(): Promise<string> {
+		const hookBasePath = path.join(tempDir, "TaskStart")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nconsole.log(JSON.stringify({ cancel: false }))\n`)
+		return process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+	}
+
+	it("fails the hook run with an error naming the cwd when it does not exist", async () => {
+		const scriptPath = await writeTestHook()
+		const missingCwd = path.join(tempDir, "deleted-workspace-root")
+
+		// A hook assigned a working directory that no longer exists must fail
+		// (open, catchably) rather than run with its relative paths resolving
+		// against the host process's own working directory.
+		const hookProcess = new HookProcess(scriptPath, 30000, undefined, missingCwd)
+
+		try {
+			await hookProcess.run("{}")
+			throw new Error("Expected hook run to fail")
+		} catch (error: any) {
+			error.message.should.containEql(missingCwd)
+			error.message.should.containEql("does not exist")
+		}
+	}, 15000)
+
+	it.skipIf(process.platform === "win32")(
+		"rejects instead of crashing when spawn fails with no error listener registered",
+		async () => {
+			const scriptPath = await writeTestHook()
+
+			// A regular file passes the pre-spawn cwd existence check but makes
+			// spawn fail with an "error" event (ENOTDIR). No "error" listener is
+			// registered here, matching StdioHookRunner: an unguarded emit would
+			// escape the child's error callback as an uncaught exception and kill
+			// the whole process instead of failing this one hook.
+			const fileAsCwd = path.join(tempDir, "not-a-directory")
+			await fs.writeFile(fileAsCwd, "")
+
+			const hookProcess = new HookProcess(scriptPath, 5000, undefined, fileAsCwd)
+
+			try {
+				await hookProcess.run("{}")
+				throw new Error("Expected hook run to fail")
+			} catch (error: any) {
+				error.message.should.not.equal("Expected hook run to fail")
+			}
+		},
+	)
+})
+
+describe("HookProcess stdin failures", () => {
+	let tempDir: string
+
+	beforeEach(async () => {
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hookprocess-stdin-test-"))
+	})
+
+	afterEach(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true })
+	})
+
+	it("fails open when the hook exits without reading a large input", async () => {
+		const hookBasePath = path.join(tempDir, "UserPromptSubmit")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nprocess.exit(3)\n`)
+		const scriptPath = process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+
+		// An input larger than the pipe buffer leaves part of the write pending
+		// when the hook exits. That failure lands on the stdin stream, not the
+		// child; unguarded it escapes as an uncaught exception and kills the
+		// whole host process instead of failing this one hook.
+		const uncaught: unknown[] = []
+		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
+			uncaught.push(error)
+		}
+		process.on("uncaughtException", onUncaught)
+		try {
+			const hookProcess = new HookProcess(scriptPath, 15000)
+			const input = JSON.stringify({ userPromptSubmit: { prompt: "x".repeat(1_000_000) } })
+			try {
+				await hookProcess.run(input)
+				throw new Error("Expected hook run to fail")
+			} catch (error: any) {
+				error.message.should.match(/Hook exited with code 3/)
+				// stdin's failure is emitted before the child's "close", so the exit
+				// error can say the input never arrived.
+				error.message.should.match(/stopped reading its input before it was fully delivered/)
+			}
+			// Give a late pipe error a chance to surface before asserting.
+			await new Promise((resolve) => setTimeout(resolve, 200))
+			uncaught.should.be.empty()
+		} finally {
+			// Through the plain EventEmitter type: bun-types merges extra
+			// overloads into `process` that break resolution of this call.
+			;(process as unknown as EventEmitter).removeListener("uncaughtException", onUncaught)
+		}
+	}, 15000)
+
+	it("still succeeds when a hook ignores a large input and exits 0", async () => {
+		const hookBasePath = path.join(tempDir, "TaskStart")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nconsole.log("{}")\n`)
+		const scriptPath = process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+
+		// Ignoring stdin is legitimate hook behavior; a failed input delivery
+		// must not turn a successful hook into a failed one.
+		const hookProcess = new HookProcess(scriptPath, 15000)
+		await hookProcess.run(JSON.stringify({ taskStart: { blob: "x".repeat(1_000_000) } }))
+	}, 15000)
 })

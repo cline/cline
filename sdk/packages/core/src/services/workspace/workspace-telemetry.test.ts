@@ -44,7 +44,7 @@ describe("emitWorkspaceLifecycleTelemetry", () => {
 		resetWorkspaceTelemetryForTests();
 	});
 
-	test("emits workspace.initialized once per process per workspace path", () => {
+	test("emits workspace.initialized once per process, client, and workspace path", () => {
 		const stub = createTelemetryStub();
 		emitWorkspaceLifecycleTelemetry({
 			telemetry: stub.telemetry,
@@ -62,6 +62,20 @@ describe("emitWorkspaceLifecycleTelemetry", () => {
 		});
 		const initialized = findCalls(stub, "workspace.initialized");
 		expect(initialized).toHaveLength(1);
+	});
+
+	test("emits once for each client sharing the same runtime and workspace", () => {
+		const stub = createTelemetryStub();
+		for (const dedupeScope of ["cline-cli", "cline-desktop"]) {
+			emitWorkspaceLifecycleTelemetry({
+				telemetry: stub.telemetry,
+				rootPath: "/tmp/repo",
+				dedupeScope,
+				vcsType: "git",
+			});
+		}
+
+		expect(findCalls(stub, "workspace.initialized")).toHaveLength(2);
 	});
 
 	test("emits separate workspace.initialized events for distinct paths", () => {

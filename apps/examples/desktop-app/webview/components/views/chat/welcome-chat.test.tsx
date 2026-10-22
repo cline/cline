@@ -1,37 +1,752 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+// @vitest-environment jsdom
+
+import type { ClineAccountOrganization } from "@cline/core";
+import type { AgendaTaskRecord } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared/browser";
+import { act, type ComponentProps, type ReactNode } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import {
+	readCloudRepositorySelection,
+	writeCloudRepositorySelection,
+} from "@/lib/cloud-repositories";
 import { WelcomeScreen } from "./welcome-chat";
 
-describe("WelcomeScreen", () => {
-	it("renders every known project instead of capping the project strip", () => {
-		const workspaces = Array.from(
-			{ length: 6 },
-			(_, index) => `/projects/project-${index + 1}`,
-		);
-		const html = renderToStaticMarkup(
+const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
+	vi.hoisted(() => ({
+		invokeMock: vi.fn(
+			async (_command: string, _args?: unknown) => ({}) as unknown,
+		),
+		openExternalUrlMock: vi.fn(async () => undefined),
+		subscribeMock: vi.fn(
+			(_eventName: string, _handler: (payload: unknown) => void) => () =>
+				undefined,
+		),
+		accountRef: {
+			user: null as { id: string } | null,
+			activeOrganization: null as ClineAccountOrganization | null,
+		},
+	}));
+
+const listAgendaTasksMock = vi.hoisted(() => vi.fn());
+const approveAgendaTaskMock = vi.hoisted(() => vi.fn());
+const runAgendaTaskMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: {
+		invoke: invokeMock,
+		listAgendaTasks: listAgendaTasksMock,
+		approveAgendaTask: approveAgendaTaskMock,
+		cancelAgendaTask: vi.fn(),
+		runAgendaTask: runAgendaTaskMock,
+		subscribe: subscribeMock,
+		subscribeTransportState: vi.fn(() => () => undefined),
+	},
+	openExternalUrl: openExternalUrlMock,
+}));
+// The Agenda UI ships hidden for now; these tests force the flag on so they
+// keep guarding the dormant feature. agenda-ui-hidden.test.tsx covers the
+// shipped (hidden) state.
+vi.mock("@/lib/feature-flags", () => ({ AGENDA_UI_ENABLED: true }));
+
+vi.mock("@/contexts/account-context", () => ({
+	useAccount: () => ({
+		user: accountRef.user,
+		activeOrganization: accountRef.activeOrganization,
+		refreshAccount: vi.fn(async () => undefined),
+	}),
+}));
+let container: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+	window.localStorage.clear();
+	accountRef.user = null;
+	accountRef.activeOrganization = null;
+	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	window.matchMedia = vi.fn().mockReturnValue({
+		matches: true,
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+	});
+	container = document.createElement("div");
+	document.body.appendChild(container);
+	root = createRoot(container);
+	listAgendaTasksMock.mockReset();
+	listAgendaTasksMock.mockResolvedValue([]);
+	approveAgendaTaskMock.mockReset();
+	runAgendaTaskMock.mockReset();
+});
+
+afterEach(async () => {
+	await act(async () => root.unmount());
+	container.remove();
+	vi.restoreAllMocks();
+});
+
+async function renderWelcomeScreen({
+	workspaceRoot,
+	workspaces,
+	gitBranch = "main",
+	environmentSelector = null,
+	selectChat = vi.fn(async () => true),
+	onListGitBranches = vi.fn(async () => ({
+		current: "main",
+		branches: ["main"],
+	})),
+	onOpenSession = vi.fn(),
+	...cloudProps
+}: {
+	workspaceRoot: string;
+	workspaces: string[];
+	gitBranch?: string | null;
+	environmentSelector?: ReactNode;
+	selectChat?: () => Promise<boolean>;
+	onListGitBranches?: () => Promise<{
+		current: string;
+		branches: string[];
+	}>;
+	onOpenSession?: (sessionId: string) => void | Promise<void>;
+} & Partial<ComponentProps<typeof WelcomeScreen>>): Promise<void> {
+	await act(async () => {
+		root.render(
 			<WorkspaceProvider
 				value={{
-					workspaceRoot: workspaces[0] ?? "",
+					workspaceRoot,
 					workspaces,
 					listWorkspaces: vi.fn(async () => workspaces),
 					refreshWorkspaces: vi.fn(async () => undefined),
 					switchWorkspace: vi.fn(async () => true),
 					pickWorkspaceDirectory: vi.fn(async () => null),
+					selectChat,
 				}}
 			>
 				<WelcomeScreen
 					active
 					body={null}
 					composer={null}
-					onStartChat={vi.fn()}
-					quickActions={[]}
+					gitBranch={gitBranch}
+					environmentSelector={environmentSelector}
+					onListGitBranches={onListGitBranches}
+					onOpenSession={onOpenSession}
+					onSwitchGitBranch={vi.fn(async () => true)}
+					{...cloudProps}
 				/>
 			</WorkspaceProvider>,
 		);
+		await Promise.resolve();
+	});
+}
+
+async function clickButton(
+	text: string,
+	last = false,
+	rootNode: ParentNode = container,
+): Promise<void> {
+	const buttons = [
+		...rootNode.querySelectorAll<HTMLButtonElement>("button"),
+	].filter((candidate) => candidate.textContent?.includes(text));
+	const button = last ? buttons.at(-1) : buttons[0];
+	expect(button).toBeDefined();
+	await act(async () => {
+		button?.click();
+		await Promise.resolve();
+	});
+}
+
+describe("WelcomeScreen", () => {
+	it.each([
+		"login",
+		"cancel",
+	])("waits for both requests before retry when %s settles first", async (first) => {
+		invokeMock.mockReset();
+		let finishCancel!: () => void;
+		let rejectLogin!: (error: Error) => void;
+		invokeMock.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login")
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			if (command === "cancel_provider_oauth_login")
+				return await new Promise<void>((resolve) => {
+					finishCancel = resolve;
+				});
+			return {};
+		});
+		await renderWelcomeScreen({
+			workspaceRoot: "",
+			workspaces: [],
+			executionTarget: "cloud",
+			cloudAgentsEnabled: true,
+		});
+		await clickButton("Sign in with Cline");
+		expect(container.textContent).toContain("Waiting for browser");
+		await clickButton("Cancel");
+		const cancelling = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Cancel",
+		);
+		expect(cancelling?.disabled).toBe(true);
+		expect(invokeMock).toHaveBeenCalledWith("cancel_provider_oauth_login", {
+			provider: "cline",
+		});
+		await act(async () => {
+			if (first === "login") rejectLogin(new Error("Sign-in cancelled"));
+			else finishCancel();
+		});
+		expect(
+			Array.from(container.querySelectorAll("button")).find((button) =>
+				button.textContent?.includes("Waiting for browser"),
+			)?.disabled,
+		).toBe(true);
+		await act(async () => {
+			if (first === "login") finishCancel();
+			else rejectLogin(new Error("Sign-in cancelled"));
+		});
+		expect(container.textContent).not.toContain("Sign in failed");
+		await clickButton("Sign in with Cline");
+		expect(
+			invokeMock.mock.calls.filter(
+				([command]) => command === "run_provider_oauth_login",
+			),
+		).toHaveLength(2);
+	});
+
+	it.each([
+		"none",
+		"retry",
+		"manual",
+		"picker",
+	])("remembers the Cloud repository and branch (failure recovery: %s)", async (recovery) => {
+		accountRef.user = { id: "user-1" };
+		const scope = JSON.stringify([
+			getClineEnvironmentConfig().appBaseUrl,
+			"user-1",
+			null,
+		]);
+		const repoUrl = "https://github.com/org/repo";
+		const repositories = {
+			connected: true,
+			repositories: [
+				{
+					id: 7,
+					name: "repo",
+					fullName: "org/repo",
+					url: repoUrl,
+					defaultBranch: "main",
+				},
+			],
+		};
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const props = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			workspaceRoot: "",
+			workspaces: [],
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		invokeMock.mockImplementation(async (command) =>
+			command === "list_cloud_repositories"
+				? repositories
+				: { available: true, branches: ["main", "feature"] },
+		);
+		await renderWelcomeScreen(props);
+		await clickButton("Select repository");
+		await clickButton("org/repo");
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+		await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "main" });
+		await clickButton("main");
+		await clickButton("feature");
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature");
+		await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "feature" });
+		expect(readCloudRepositorySelection(scope)).toEqual({
+			repoUrl,
+			branch: "feature",
+		});
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		const repoCheck = Promise.withResolvers<unknown>();
+		const branchCheck = Promise.withResolvers<unknown>();
+		invokeMock.mockImplementation((command) =>
+			command === "list_cloud_repositories"
+				? repoCheck.promise
+				: branchCheck.promise,
+		);
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		await renderWelcomeScreen(props);
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		await act(async () => repoCheck.resolve(repositories));
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		if (recovery === "picker") {
+			invokeMock.mockImplementation((command) =>
+				command === "list_cloud_repositories"
+					? Promise.reject(new Error("Picker lookup failed"))
+					: branchCheck.promise,
+			);
+			await clickButton("Select repository");
+			expect(container.textContent).toContain("Could not load repositories.");
+		}
+		if (recovery === "retry" || recovery === "manual") {
+			await act(async () =>
+				branchCheck.reject(new Error("Branch lookup failed")),
+			);
+			expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+			expect(container.textContent).toContain("Select repository");
+			expect(readCloudRepositorySelection(scope)).toEqual({
+				repoUrl,
+				branch: "feature",
+			});
+			if (recovery === "manual") {
+				await clickButton("Select repository");
+				await clickButton("org/repo");
+				expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+				expect(onCloudBranchChange).toHaveBeenLastCalledWith("main");
+				await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "main" });
+				expect(readCloudRepositorySelection(scope)).toEqual({
+					repoUrl,
+					branch: "main",
+				});
+				expect(container.textContent).not.toContain(
+					"Could not reach Cline Cloud",
+				);
+				return;
+			}
+			invokeMock.mockImplementation(async (command) =>
+				command === "list_cloud_repositories"
+					? repositories
+					: { available: true, branches: ["feature"] },
+			);
+			await clickButton("Retry");
+		}
+		await act(async () =>
+			branchCheck.resolve({ available: true, branches: ["feature"] }),
+		);
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(repoUrl);
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("feature");
+		await renderWelcomeScreen({ ...props, repoUrl, cloudBranch: "feature" });
+		expect(
+			container.querySelector(`button[title="${repoUrl}"]`),
+		).not.toBeNull();
+		expect(container.textContent).toContain("feature");
+	});
+
+	it.each([
+		"account",
+		"organization",
+		"revoked",
+		"history",
+		"user-pick",
+	])("does not restore over a changed %s context", async (scenario) => {
+		accountRef.user = { id: "user-1" };
+		const scope = JSON.stringify([
+			getClineEnvironmentConfig().appBaseUrl,
+			"user-1",
+			null,
+		]);
+		const repoUrl = "https://github.com/org/repo";
+		writeCloudRepositorySelection(scope, { repoUrl, branch: "feature" });
+		const branchCheck = Promise.withResolvers<unknown>();
+		invokeMock.mockImplementation((command, args) =>
+			command === "list_cloud_repositories"
+				? Promise.resolve({
+						connected: true,
+						repositories:
+							scenario === "revoked"
+								? []
+								: [
+										{
+											id: 7,
+											name: "repo",
+											fullName: "org/repo",
+											url: repoUrl,
+											defaultBranch: "main",
+										},
+										{
+											id: 8,
+											name: "other",
+											fullName: "org/other",
+											url: "https://github.com/org/other",
+											defaultBranch: "main",
+										},
+									],
+					})
+				: (args as { repositoryId?: number })?.repositoryId === 8
+					? Promise.resolve({ available: true, branches: ["main"] })
+					: branchCheck.promise,
+		);
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const props = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			workspaceRoot: "",
+			workspaces: [],
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		await renderWelcomeScreen(props);
+		if (scenario === "account") accountRef.user = { id: "user-2" };
+		if (scenario === "organization") {
+			accountRef.activeOrganization = {
+				organizationId: "org-2",
+				name: "Organization 2",
+				active: true,
+				memberId: "member-1",
+				roles: ["member"],
+			};
+		}
+		await renderWelcomeScreen({
+			...props,
+			active: scenario !== "history",
+			repoUrl: scenario === "user-pick" ? "https://github.com/org/other" : "",
+			cloudBranch: scenario === "user-pick" ? "main" : "",
+		});
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		await act(async () =>
+			branchCheck.resolve({ available: true, branches: ["feature"] }),
+		);
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith(repoUrl);
+		expect(onCloudBranchChange).not.toHaveBeenCalledWith("feature");
+		expect(readCloudRepositorySelection(scope)).toEqual({
+			repoUrl:
+				scenario === "user-pick" ? "https://github.com/org/other" : repoUrl,
+			branch: scenario === "user-pick" ? "main" : "feature",
+		});
+	});
+
+	it("opens the GitHub App install flow from cloud onboarding", async () => {
+		accountRef.user = { id: "user-1" };
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				return {
+					connected: false,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [],
+				};
+			}
+			if (command === "cline_integrations") {
+				return { url: "https://github.com/apps/cline/installations/new" };
+			}
+			return {};
+		});
+
+		await renderWelcomeScreen({
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		await clickButton("Connect GitHub");
+
+		expect(invokeMock).toHaveBeenCalledWith("cline_integrations", {
+			operation: "githubInstallUrl",
+		});
+		expect(openExternalUrlMock).toHaveBeenCalledWith(
+			"https://github.com/apps/cline/installations/new",
+		);
+		accountRef.user = null;
+	});
+
+	it("places the environment selector before the workspace selector", async () => {
+		await renderWelcomeScreen({
+			environmentSelector: (
+				<button data-testid="environment-selector" type="button">
+					Local
+				</button>
+			),
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		const environmentSelector = container.querySelector(
+			'[data-testid="environment-selector"]',
+		);
+		const workspaceSelector = container.querySelector(
+			'button[title="project-1"]',
+		);
+		expect(environmentSelector).not.toBeNull();
+		expect(workspaceSelector).not.toBeNull();
+		expect(
+			environmentSelector?.compareDocumentPosition(workspaceSelector as Node) ??
+				0,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+	});
+
+	it("does not render static prompt suggestions", async () => {
+		await renderWelcomeScreen({
+			gitBranch: "main",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		expect(container.textContent).not.toContain("Review changes");
+		expect(container.textContent).not.toContain("Check for build errors");
+		expect(container.textContent).not.toContain("Summarize this folder");
+		expect(container.textContent).not.toContain("Draft a document");
+	});
+
+	it("shows live workspace suggestions and approves them before starting", async () => {
+		const task = agendaTask({ status: "pending_approval" });
+		const approved = { ...task, status: "approved" as const, revision: 2 };
+		const running = {
+			...approved,
+			status: "in_progress" as const,
+			lastSessionId: "task-session-1",
+		};
+		const onOpenSession = vi.fn();
+		listAgendaTasksMock.mockResolvedValue([task]);
+		approveAgendaTaskMock.mockResolvedValue(approved);
+		runAgendaTaskMock.mockResolvedValue({ task: running });
+
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			onOpenSession,
+		});
+		expect(listAgendaTasksMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				scope: "workspace",
+				workspaceRoot: "/projects/project-1",
+				types: ["suggestion", "reminder", "follow-up"],
+			}),
+		);
+		await clickButton("Review PR checks");
+		expect(approveAgendaTaskMock).not.toHaveBeenCalled();
+		expect(document.body.textContent).toContain(task.instructions);
+		await clickButton("Approve and start", false, document);
+
+		expect(approveAgendaTaskMock).toHaveBeenCalledWith({
+			taskId: "task-1",
+			expectedRevision: 1,
+		});
+		expect(runAgendaTaskMock).toHaveBeenCalledWith({
+			taskId: "task-1",
+			expectedRevision: 2,
+		});
+		expect(onOpenSession).toHaveBeenCalledWith("task-session-1");
+	});
+
+	it("shows workspace follow-up items", async () => {
+		listAgendaTasksMock.mockResolvedValue([
+			agendaTask({
+				type: "follow-up",
+				title: "Finish accessibility review",
+				description: undefined,
+			}),
+		]);
+
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		expect(container.textContent).toContain("Finish accessibility review");
+		expect(container.textContent).toContain("Follow-up · P1");
+	});
+
+	it("hides expired workspace suggestions", async () => {
+		listAgendaTasksMock.mockResolvedValue([
+			agendaTask({ expiresAt: "2020-01-01T00:00:00.000Z" }),
+		]);
+
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		expect(container.textContent).not.toContain("Review PR checks");
+	});
+
+	it("renders every known project in the opened workspace menu", async () => {
+		const workspaces = Array.from(
+			{ length: 6 },
+			(_, index) => `/projects/project-${index + 1}`,
+		);
+		await renderWelcomeScreen({
+			workspaceRoot: workspaces[0] ?? "",
+			workspaces,
+		});
+
+		const heading = container.querySelector("h1");
+		expect(heading?.textContent).toBe("What would you like to build?");
+		expect(heading?.classList.contains("sr-only")).toBe(true);
+		expect(container.querySelector("[data-welcome-hero]")).not.toBeNull();
+		await clickButton("project-1");
 
 		for (let index = 1; index <= workspaces.length; index += 1) {
-			expect(html).toContain(`project-${index}`);
+			expect(container.textContent).toContain(`project-${index}`);
 		}
 	});
+
+	it("keeps a repository picked from a freshly scoped list after an org switch", async () => {
+		accountRef.user = { id: "user-1" };
+		const repository = (owner: string) => ({
+			id: 7,
+			name: "repo",
+			fullName: `${owner}/repo`,
+			url: `https://github.com/${owner}/repo`,
+			defaultBranch: "main",
+		});
+		// Mount-time check sees the old org; every later fetch (the picker's
+		// included) sees the new org.
+		let fetches = 0;
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				fetches += 1;
+				return {
+					connected: true,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [repository(fetches === 1 ? "oldorg" : "neworg")],
+				};
+			}
+			return {};
+		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const cloudProps = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			...cloudProps,
+		});
+
+		await clickButton("Select repository");
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await clickButton("neworg/repo");
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(
+			"https://github.com/neworg/repo",
+		);
+
+		// The parent applies the selection; the stale-selection guard must
+		// not wipe it against the old org's snapshot.
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			...cloudProps,
+			repoUrl: "https://github.com/neworg/repo",
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).not.toHaveBeenCalledWith("");
+		accountRef.user = null;
+	});
+
+	it("re-checks cloud setup when the sidecar broadcasts a scope change", async () => {
+		accountRef.user = { id: "user-1" };
+		subscribeMock.mockClear();
+		let fetches = 0;
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				fetches += 1;
+				if (fetches > 1) return { connected: true, repositories: [] };
+				return {
+					connected: true,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [
+						{
+							id: 7,
+							name: "repo",
+							fullName: "org/repo",
+							url: "https://github.com/org/repo",
+							defaultBranch: "main",
+						},
+					],
+				};
+			}
+			return {};
+		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/org/repo",
+			onRepoUrlChange,
+			onCloudBranchChange,
+		});
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		const scopeHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "cloud_sessions_changed",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(scopeHandler).toBeDefined();
+
+		const fetchesBefore = fetches;
+		await act(async () => {
+			scopeHandler?.({});
+			await Promise.resolve();
+		});
+
+		expect(fetches).toBeGreaterThan(fetchesBefore);
+		expect(onRepoUrlChange).toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).toHaveBeenCalledWith("");
+		accountRef.user = null;
+	});
+
+	it("selects Just chat from the pathless workspace menu", async () => {
+		const selectChat = vi.fn(async () => true);
+		const onListGitBranches = vi.fn(async () => ({
+			current: "main",
+			branches: ["main"],
+		}));
+		await renderWelcomeScreen({
+			workspaceRoot: "",
+			workspaces: ["/projects/existing"],
+			selectChat,
+			onListGitBranches,
+		});
+
+		expect(container.querySelector('button[title="main"]')).toBeNull();
+		expect(onListGitBranches).not.toHaveBeenCalled();
+		await clickButton("Chat");
+		expect(container.textContent).toContain("/projects/existing");
+		await clickButton("Just chat", true);
+
+		expect(selectChat).toHaveBeenCalledOnce();
+	});
 });
+
+function agendaTask(
+	overrides: Partial<AgendaTaskRecord> = {},
+): AgendaTaskRecord {
+	return {
+		taskId: "task-1",
+		type: "suggestion",
+		status: "pending_approval",
+		title: "Review PR checks",
+		description: "Check whether CI is green.",
+		instructions: "Review the pull request checks.",
+		scope: "workspace",
+		workspaceRoot: "/projects/project-1",
+		resourcePaths: [],
+		priority: 1,
+		availableAt: "2026-08-13T00:00:00.000Z",
+		expiresAt: "2099-08-20T00:00:00.000Z",
+		automationEligible: true,
+		revision: 1,
+		createdBy: { kind: "agent" },
+		updatedBy: { kind: "agent" },
+		createdAt: "2026-08-13T00:00:00.000Z",
+		updatedAt: "2026-08-13T00:00:00.000Z",
+		...overrides,
+	};
+}

@@ -71,6 +71,8 @@ export interface ParsedArgs {
 	interactive: boolean;
 	outputMode: CliOutputMode;
 	mode: CliAgentMode;
+	/** Whether a mode flag (--plan/--act/--yolo/--zen) was explicitly provided */
+	modeExplicitlySet?: boolean;
 	timeoutSeconds?: number;
 	invalidTimeoutSeconds?: string;
 	thinking: boolean;

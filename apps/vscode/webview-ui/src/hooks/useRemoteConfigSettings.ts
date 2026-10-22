@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { RemoteConfigServiceClient } from "@/services/grpc-client"
 
 export interface RemoteConfigSetting {
@@ -7,19 +8,49 @@ export interface RemoteConfigSetting {
 	content: string
 	enabled: boolean
 	locked: boolean
-	toggle: () => void
+	toggle: (enabled: boolean) => void
 }
 
-function toggleRemoteConfigSetting(settingName: string) {
-	// TODO(ENG): The backend handler is not implemented yet and currently
-	// rejects. Handle the result (e.g. update UI state) once toggling is wired
-	// up; for now swallow the rejection so it doesn't surface as an unhandled
-	// promise rejection.
-	RemoteConfigServiceClient.toggleRemoteConfigSetting({ value: settingName }).catch(() => {})
+export interface RemoteConfigSettingsState {
+	settings: RemoteConfigSetting[]
+	isLoading: boolean
+	error?: string
 }
 
-export default function useRemoteConfigSettings(isVisible: boolean): RemoteConfigSetting[] {
-	const [remoteConfigSettings, setRemoteConfigSettings] = useState<RemoteConfigSetting[]>([])
+type ProtoSetting = Awaited<ReturnType<typeof RemoteConfigServiceClient.getRemoteConfigSettings>>["settings"][number]
+
+function settingType(type: ProtoSetting["type"]): RemoteConfigSetting["type"] {
+	return type === 0 ? "rule" : type === 1 ? "workflow" : "skill"
+}
+
+export default function useRemoteConfigSettings(isVisible: boolean): RemoteConfigSettingsState {
+	const { remoteConfigRevision } = useExtensionState()
+	const [state, setState] = useState<Omit<RemoteConfigSettingsState, "settings"> & { settings: ProtoSetting[] }>({
+		settings: [],
+		isLoading: false,
+	})
+
+	const toggle = useCallback(async (setting: ProtoSetting, enabled: boolean) => {
+		setState((current) => ({ ...current, error: undefined }))
+		try {
+			const updated = await RemoteConfigServiceClient.toggleRemoteConfigSetting({
+				type: setting.type,
+				name: setting.name,
+				enabled,
+			})
+			setState((current) => ({
+				...current,
+				settings: current.settings.map((entry) =>
+					entry.type === updated.type && entry.name === updated.name ? updated : entry,
+				),
+			}))
+		} catch (error) {
+			setState((current) => ({
+				...current,
+				error: error instanceof Error ? error.message : "Failed to update managed configuration",
+			}))
+		}
+	}, [])
 
 	useEffect(() => {
 		if (!isVisible) {
@@ -27,32 +58,38 @@ export default function useRemoteConfigSettings(isVisible: boolean): RemoteConfi
 		}
 
 		let isCancelled = false
+		setState((current) => ({ ...current, isLoading: true, error: undefined }))
 
-		RemoteConfigServiceClient.getRemoteConfigSettings({}).then((response) => {
-			if (isCancelled) {
-				return
-			}
-
-			const settings = response.settings.map(
-				(setting) =>
-					({
-						type: setting.type === 0 ? "rule" : setting.type === 1 ? "workflow" : "skill",
-						name: setting.name,
-						content: setting.content,
-						enabled: setting.enabled,
-						locked: setting.locked,
-						toggle: () => {
-							toggleRemoteConfigSetting(setting.name)
-						},
-					}) as RemoteConfigSetting,
-			)
-			setRemoteConfigSettings(settings)
-		})
+		RemoteConfigServiceClient.getRemoteConfigSettings({})
+			.then((response) => {
+				if (!isCancelled) {
+					setState({ settings: response.settings, isLoading: false })
+				}
+			})
+			.catch((error) => {
+				if (!isCancelled) {
+					setState((current) => ({
+						...current,
+						isLoading: false,
+						error: error instanceof Error ? error.message : "Failed to load managed configuration",
+					}))
+				}
+			})
 
 		return () => {
 			isCancelled = true
 		}
-	}, [isVisible])
+	}, [isVisible, remoteConfigRevision])
 
-	return remoteConfigSettings
+	return {
+		...state,
+		settings: state.settings.map((setting) => ({
+			type: settingType(setting.type),
+			name: setting.name,
+			content: setting.content,
+			enabled: setting.enabled,
+			locked: setting.locked,
+			toggle: (enabled) => void toggle(setting, enabled),
+		})),
+	}
 }

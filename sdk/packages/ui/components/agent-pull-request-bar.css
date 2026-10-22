@@ -1,0 +1,13 @@
+/* Web links retain touch targets; native desktop keeps its existing geometry. */
+@media (pointer: coarse) {
+	.cline-ui-pr-bar:not([data-native-navigation]) :is(button, a),
+	.cline-ui-pr-bar__checks:not([data-native-navigation]) :is(button, a) {
+		min-height: 44px;
+		min-width: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
+}
+.cline-ui-pr-bar__branch a {
+	max-width: 100%;
+}

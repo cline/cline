@@ -94,6 +94,13 @@ function forwardAgentEvent(
 					error: event.error,
 				},
 			});
+			return;
+		}
+		if (event.contentType === "media" && event.media) {
+			ctx.sendToSelectedPeers(sessionId, {
+				type: "assistant_media",
+				media: event.media,
+			});
 		}
 		return;
 	}
@@ -119,9 +126,16 @@ function forwardAgentEvent(
 		return;
 	}
 	if (event.type === "error") {
+		// Forwarded with the recoverable flag intact: recoverable errors are
+		// in-run notices (the MistakeTracker emits one per recorded mistake,
+		// e.g. a plan-mode guard-blocked run_commands call) and the run keeps
+		// going, so it is up to each peer to decide how to render them — the
+		// turn's outcome is decided by how it actually ends (turn_done /
+		// non-recoverable error).
 		ctx.sendToSelectedPeers(sessionId, {
 			type: "error",
 			text: event.error.message,
+			recoverable: event.recoverable,
 		});
 	}
 }

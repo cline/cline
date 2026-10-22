@@ -6,12 +6,13 @@
  * 2. The toolListChangeCallback fires only when the tool list actually changes
  * 3. The callback does NOT fire on mere status updates (error messages, etc.)
  *
- * We avoid importing McpHub directly (too many transitive deps for unit tests).
- * Instead we extract the pure logic and test it in isolation.
+ * Fingerprint assertions call the production McpHub method so the session
+ * rebuild boundary cannot drift from a test-only implementation.
  */
 import { describe, it } from "bun:test"
 import "should"
 import sinon from "sinon"
+import { McpHub } from "../McpHub"
 
 // ---------------------------------------------------------------------------
 // Extract the pure logic from McpHub for testing
@@ -21,24 +22,17 @@ import sinon from "sinon"
 interface MinimalConnection {
 	server: {
 		name: string
+		config: string
 		status: string
 		disabled?: boolean
-		tools?: Array<{ name: string }>
+		tools?: Array<{ name: string; description?: string; inputSchema?: object }>
 	}
 }
 
 function computeToolFingerprint(connections: MinimalConnection[]): string {
-	const entries: string[] = []
-	for (const conn of connections) {
-		if (conn.server.disabled || conn.server.status !== "connected") {
-			continue
-		}
-		for (const tool of conn.server.tools ?? []) {
-			entries.push(`${conn.server.name}:${tool.name}`)
-		}
-	}
-	entries.sort()
-	return entries.join("|")
+	const hub = Object.create(McpHub.prototype) as McpHub
+	;(hub as unknown as { connections: MinimalConnection[] }).connections = connections
+	return hub.computeToolFingerprint()
 }
 
 /**
@@ -71,13 +65,21 @@ function createToolListChangeTracker() {
 	}
 }
 
-function makeConnection(name: string, status: string, tools: string[], disabled = false): MinimalConnection {
+function makeConnection(
+	name: string,
+	status: string,
+	tools: string[],
+	disabled = false,
+	timeout = 60,
+	toolOverrides: Record<string, Partial<{ description: string; inputSchema: object }>> = {},
+): MinimalConnection {
 	return {
 		server: {
 			name,
+			config: JSON.stringify({ type: "stdio", command: "node", timeout }),
 			status,
 			disabled,
-			tools: tools.map((t) => ({ name: t })),
+			tools: tools.map((toolName) => ({ name: toolName, ...toolOverrides[toolName] })),
 		},
 	}
 }
@@ -88,15 +90,17 @@ function makeConnection(name: string, status: string, tools: string[], disabled 
 
 describe("McpHub tool list change detection", () => {
 	describe("computeToolFingerprint", () => {
-		it("should return empty string when no servers are connected", () => {
-			computeToolFingerprint([]).should.equal("")
+		it("should return an empty structured fingerprint when no servers are connected", () => {
+			computeToolFingerprint([]).should.equal("[]")
 		})
 
 		it("should include tools from connected, non-disabled servers", () => {
 			const connections = [makeConnection("server-a", "connected", ["tool1", "tool2"])]
-			const fp = computeToolFingerprint(connections)
-			fp.should.containEql("server-a:tool1")
-			fp.should.containEql("server-a:tool2")
+			const entries = JSON.parse(computeToolFingerprint(connections)).map((entry: string) => JSON.parse(entry))
+			entries.should.deepEqual([
+				["server-a", "tool1", null, {}, 60_000],
+				["server-a", "tool2", null, {}, 60_000],
+			])
 		})
 
 		it("should exclude tools from disconnected servers", () => {
@@ -104,19 +108,18 @@ describe("McpHub tool list change detection", () => {
 				makeConnection("server-a", "connected", ["tool1"]),
 				makeConnection("server-b", "disconnected", ["tool2"]),
 			]
-			const fp = computeToolFingerprint(connections)
-			fp.should.containEql("server-a:tool1")
-			fp.should.not.containEql("server-b:tool2")
+			const entries = JSON.parse(computeToolFingerprint(connections)).map((entry: string) => JSON.parse(entry))
+			entries.should.deepEqual([["server-a", "tool1", null, {}, 60_000]])
 		})
 
 		it("should exclude tools from disabled servers", () => {
 			const connections = [makeConnection("server-a", "connected", ["tool1"], true)]
-			computeToolFingerprint(connections).should.equal("")
+			computeToolFingerprint(connections).should.equal("[]")
 		})
 
 		it("should exclude tools from connecting servers", () => {
 			const connections = [makeConnection("server-a", "connecting", ["tool1"])]
-			computeToolFingerprint(connections).should.equal("")
+			computeToolFingerprint(connections).should.equal("[]")
 		})
 
 		it("should produce sorted, deterministic output regardless of insertion order", () => {
@@ -135,6 +138,42 @@ describe("McpHub tool list change detection", () => {
 			const fp1 = computeToolFingerprint([makeConnection("s", "connected", ["tool1"])])
 			const fp2 = computeToolFingerprint([makeConnection("s", "connected", ["tool2"])])
 			fp1.should.not.equal(fp2)
+		})
+
+		it("should produce different fingerprints for different wrapper timeouts", () => {
+			const fp1 = computeToolFingerprint([makeConnection("s", "connected", ["tool1"], false, 60)])
+			const fp2 = computeToolFingerprint([makeConnection("s", "connected", ["tool1"], false, 120)])
+			fp1.should.not.equal(fp2)
+		})
+
+		it("should produce different fingerprints for different descriptions", () => {
+			const fp1 = computeToolFingerprint([makeConnection("s", "connected", ["tool1"])])
+			const fp2 = computeToolFingerprint([
+				makeConnection("s", "connected", ["tool1"], false, 60, {
+					tool1: { description: "updated" },
+				}),
+			])
+			fp1.should.not.equal(fp2)
+		})
+
+		it("should fingerprint schemas deterministically and detect schema changes", () => {
+			const fp1 = computeToolFingerprint([
+				makeConnection("s", "connected", ["tool1"], false, 60, {
+					tool1: { inputSchema: { type: "object", properties: { a: { type: "string" } } } },
+				}),
+			])
+			const sameSchemaDifferentKeyOrder = computeToolFingerprint([
+				makeConnection("s", "connected", ["tool1"], false, 60, {
+					tool1: { inputSchema: { properties: { a: { type: "string" } }, type: "object" } },
+				}),
+			])
+			const changedSchema = computeToolFingerprint([
+				makeConnection("s", "connected", ["tool1"], false, 60, {
+					tool1: { inputSchema: { type: "object", properties: { b: { type: "number" } } } },
+				}),
+			])
+			fp1.should.equal(sameSchemaDifferentKeyOrder)
+			fp1.should.not.equal(changedSchema)
 		})
 	})
 

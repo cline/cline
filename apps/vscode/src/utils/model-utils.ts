@@ -56,16 +56,6 @@ export function isClaude4PlusModelFamily(id: string): boolean {
 	return version >= 4
 }
 
-function isGemini2dot5ModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("gemini-2.5")
-}
-
-function isGrok4ModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("grok-4")
-}
-
 export function isGPT5ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
@@ -90,24 +80,9 @@ export function isGLMModelFamily(id: string): boolean {
 	)
 }
 
-function isMinimaxModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("minimax")
-}
-
-function isNextGenOpenSourceModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return ["kimi-k2"].some((substring) => modelId.includes(substring))
-}
-
 function isDevstralModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("devstral")
-}
-
-function isGemini3ModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
 export function isGeminiFlashModel(id: string): boolean {
@@ -115,38 +90,6 @@ export function isGeminiFlashModel(id: string): boolean {
 	const isGooglePrefixedGemini = modelId.startsWith("google/gemini")
 	const isDirectGemini = modelId.startsWith("gemini-")
 	return (isGooglePrefixedGemini || isDirectGemini) && modelId.includes("flash")
-}
-
-function isDeepSeek32ModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("deepseek") && modelId.includes("3.2") && !modelId.includes("speciale")
-}
-
-function isDeepSeekNativeModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
-}
-
-export function isPoolsideModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return modelId.includes("laguna")
-}
-
-export function isNextGenModelFamily(id: string): boolean {
-	const modelId = normalize(id)
-	return (
-		isClaude4PlusModelFamily(modelId) ||
-		isGemini2dot5ModelFamily(modelId) ||
-		isGrok4ModelFamily(modelId) ||
-		isGPT5ModelFamily(modelId) ||
-		isGptOssModelFamily(modelId) ||
-		isMinimaxModelFamily(modelId) ||
-		isGemini3ModelFamily(modelId) ||
-		isNextGenOpenSourceModelFamily(modelId) ||
-		isDeepSeek32ModelFamily(modelId) ||
-		isDeepSeekNativeModelFamily(modelId) ||
-		isPoolsideModelFamily(modelId)
-	)
 }
 
 /**

@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { CommentReviewController, type ReviewComment } from "@/integrations/editor/CommentReviewController"
 import { Logger } from "@/shared/services/Logger"
-import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
+import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffContentProvider"
 
 /**
  * Cline's GitHub avatar URL

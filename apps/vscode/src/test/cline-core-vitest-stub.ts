@@ -1,5 +1,7 @@
-import { readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import type { CoreSpawnReason } from "@cline/shared"
+import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
 	accessToken?: string
@@ -11,7 +13,10 @@ export interface StartSessionResult {
 	sessionId: string
 }
 
-export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+export {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/output-limits"
 
 export interface StoredModelEntry {
 	id?: string
@@ -52,6 +57,12 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
+export {
+	parseRuleConfigFromMarkdown,
+	parseSkillConfigFromMarkdown,
+} from "../../../../sdk/packages/core/src/extensions/config/user-instruction-config-loader"
+export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
 // @cline/llms registry exactly as in production. Tests that touch it must
@@ -60,15 +71,16 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
 	try {
 		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
-		return settings.compactionStrategy === "agentic" ? "agentic" : "basic"
+		return settings.compactionStrategy === "basic" ? "basic" : "agentic"
 	} catch {
-		return "basic"
+		return "agentic"
 	}
 }
 
@@ -83,24 +95,40 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 	}
 }
 
-export function truncateCommandOutput(output: string): string {
-	return output
-}
+export type ModelToolName = "web_search"
 
-export class CommandExitError extends Error {
-	constructor(
-		readonly exitCode: number,
-		readonly output: string,
-	) {
-		super(`Command exited with code ${exitCode}`)
-		this.name = "CommandExitError"
+export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH ?? ""
+	try {
+		const settings = JSON.parse(readFileSync(filePath, "utf8"))
+		return settings.tools?.[name]?.enabled ?? true
+	} catch {
+		return !existsSync(filePath)
 	}
 }
+
+export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolean): void {
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
+	if (filePath) {
+		let settings: { tools?: Record<string, { enabled: boolean }> } = {}
+		try {
+			settings = JSON.parse(readFileSync(filePath, "utf8"))
+		} catch {}
+		writeFileSync(filePath, JSON.stringify({ ...settings, tools: { ...settings.tools, [name]: { enabled } } }))
+	}
+}
+
+export {
+	CommandExitError,
+	CommandSpawnError,
+	CommandTerminationError,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 
 export function createShellExecutor() {
 	return async () => ""
 }
 
+export { augmentMcpTimeoutError } from "../../../../sdk/packages/core/src/extensions/mcp/timeout"
 // The real createShellTool, so tests exercise the actual description
 // building and shell classification (getShellKind) rather than a stub that
 // would have to duplicate those invariants.
@@ -113,10 +141,25 @@ export {
 	createApplyPatchExecutor,
 	type PatchFileChange,
 } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch"
-export { PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
+export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
-export type { ApplyPatchExecutor, EditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/types"
+export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+// Real rule selection re-exported from SDK source so standalone callers are
+// tested against the same pipeline a session's system prompt uses.
+export { loadRulesForSystemPromptFromRecords } from "../../../../sdk/packages/core/src/runtime/safety/rules"
+export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
+// Real source-of-truth values re-exported so the extension is tested against the
+// same session-source tag and core version the SDK stamps on a session's requests.
+export { SessionSource } from "../../../../sdk/packages/core/src/types/common"
+export { CORE_BUILD_VERSION } from "../../../../sdk/packages/core/src/version"
+
+// Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
+// so the workspace read override and its tests exercise the actual read semantics.
+// Only the readFile executor is provided; the heavy executors are not needed in tests.
+export function createDefaultExecutors() {
+	return { readFile: createFileReadExecutor() }
+}
 
 export interface SessionHistoryRecord {
 	id: string
@@ -152,6 +195,15 @@ export function readSessionCheckpointHistory(session: { metadata?: Record<string
 		const kind = record.kind === "stash" || record.kind === "commit" ? record.kind : undefined
 		return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }]
 	})
+}
+
+export function createRestoredCheckpointMetadata(
+	session: { metadata?: Record<string, unknown> } | undefined,
+	runCount: number,
+): { latest: CheckpointEntry; history: CheckpointEntry[] } | undefined {
+	const history = readSessionCheckpointHistory(session).filter((entry) => entry.runCount <= runCount)
+	const latest = history.at(-1)
+	return latest ? { latest, history } : undefined
 }
 
 export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
@@ -194,6 +246,8 @@ export interface TelemetryMetadata {
 	os_type: string
 	os_version: string
 	is_dev?: string
+	core_spawn_ordinal?: number
+	core_spawn_reason?: CoreSpawnReason
 }
 
 export interface ITelemetryService {
@@ -222,6 +276,7 @@ export interface ConfiguredTelemetryHandle {
 	readonly telemetry: ITelemetryService
 	flush(): Promise<void>
 	dispose(): Promise<void>
+	emitProviderCreated?(): void
 }
 
 function createNoopTelemetry(): ITelemetryService {
@@ -482,3 +537,5 @@ export async function loginOcaOAuth(): Promise<OAuthCredentials> {
 export async function loginOpenAICodex(): Promise<OAuthCredentials> {
 	return {}
 }
+
+export { resolveMessageDisplayRole } from "../../../../sdk/packages/core/src/session/user-run-messages"

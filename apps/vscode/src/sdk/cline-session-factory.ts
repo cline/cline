@@ -8,7 +8,9 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
+import { BlockList, isIP } from "node:net"
 import {
+	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
 	type CoreSessionConfig,
 	getProviderAuthHandler,
@@ -17,29 +19,30 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import type { ModelInfo as SdkModelInfo } from "@cline/llms"
+import type { ProviderApiLine, ModelInfo as SdkModelInfo } from "@cline/llms"
 import {
 	getGeneratedModelsForProvider,
 	getModelsForProvider,
+	isProviderApiLine,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
-import { buildClineSystemPrompt } from "@cline/shared"
+import { buildClineSystemPrompt, isClineProvider } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-support"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { fetch } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -74,6 +77,11 @@ export interface SessionConfigInput {
 	workspaceRoot?: string
 	/** Current mode (act/plan) */
 	mode?: Mode
+	/** Runtime identity when execution happens outside the extension host. */
+	runtime?: {
+		modelSelection: { providerId: string; modelId: string }
+		platform: string
+	}
 }
 
 /** Active session state tracked by the factory */
@@ -82,6 +90,12 @@ export interface ActiveSession {
 	sessionId: string
 	/** The config used to start the active session. */
 	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
+	/**
+	 * The mode the session's tools were built for. It can differ from the
+	 * persisted mode setting while a start or rebuild is in flight, so mode
+	 * switches compare against this rather than the setting.
+	 */
+	mode?: Mode
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
@@ -90,6 +104,12 @@ export interface ActiveSession {
 	startResult?: StartSessionResult
 	/** Whether the session is currently running */
 	isRunning: boolean
+	/**
+	 * Prompts Core holds in this session's queue. Core drains the queue itself
+	 * as soon as a turn ends, so a session with queued prompts is about to run
+	 * again and is not idle for passive rebuilds.
+	 */
+	queuedPromptCount: number
 }
 
 function createSdkLogger() {
@@ -131,6 +151,34 @@ async function resolveIsMultiRootWorkspace(): Promise<boolean> {
 	}
 }
 
+/**
+ * Client identity the SDK reports for this host: the session's
+ * `extensionContext.client`, and the source of the Cline surface headers
+ * (`X-CLIENT-TYPE`, `X-PLATFORM`, …). Standalone requests (commit message
+ * generation) call this too, so a one-shot request and a task from the same
+ * host report the same client by construction — there is no second mapping
+ * to keep in step. Falls back to the extension's own identity when the host
+ * bridge can't answer.
+ */
+export interface HostClientContext {
+	name: string
+	version: string
+	platform?: string
+	platformVersion?: string
+	isMultiRoot: boolean
+}
+
+export async function resolveClineRequestClientContext(): Promise<HostClientContext> {
+	const [hostIdentity, isMultiRoot] = await Promise.all([resolveHostIdentity(), resolveIsMultiRootWorkspace()])
+	return {
+		name: hostIdentity?.clineType || ClineClient.VSCode,
+		version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
+		platform: hostIdentity?.platform || undefined,
+		platformVersion: hostIdentity?.version || undefined,
+		isMultiRoot,
+	}
+}
+
 function resolveWorkspaceName(workspacePath: string): string {
 	const trimmed = workspacePath.trim()
 	const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "")
@@ -158,6 +206,11 @@ function providerSettingsProviderId(providerId: string): string {
  * Convert SDK provider-level reasoning settings into the SDK session fields that
  * are actually forwarded as model options. Keep `thinking` and
  * `reasoningEffort` coherent: a disabled/none state must never carry an effort.
+ *
+ * A persisted `budgetTokens` without an effort (written by older extension
+ * versions or the legacy-state migration) is honored by mapping the budget
+ * onto the effort scale, so users who had extended thinking enabled keep it
+ * enabled after upgrading to the effort-based control.
  */
 export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningSettings | undefined): SessionReasoningConfig {
 	if (!reasoning) {
@@ -168,14 +221,23 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 		return { thinking: false }
 	}
 
+	const effort = isReasoningEffort(reasoning.effort)
+		? reasoning.effort
+		: reasoningEffortFromThinkingBudget(reasoning.budgetTokens)
+
 	if (reasoning.enabled === true) {
 		return {
 			thinking: true,
-			...(isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}),
+			...(effort ? { reasoningEffort: effort } : {}),
 		}
 	}
 
-	return isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}
+	if (isReasoningEffort(reasoning.effort)) {
+		return { reasoningEffort: reasoning.effort }
+	}
+
+	// Legacy budget with no explicit enabled/effort: treat as thinking-on.
+	return effort ? { thinking: true, reasoningEffort: effort } : {}
 }
 
 function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
@@ -224,9 +286,17 @@ function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, 
 
 function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	const modelInfo = selection.modelInfo
-	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>(
-		(selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>,
-	)
+	// Seed from the SDK capability list preserved at the catalog boundary
+	// (`adaptSdkModelInfo`), then layer user overrides and the legacy boolean
+	// projections on top. The preserved list is the only source that carries
+	// capabilities without a legacy boolean (e.g. `tools`), and the SDK treats
+	// a populated capabilities array as authoritative — reconstructing one
+	// purely from the booleans silently disables everything they don't cover.
+	const preservedCapabilities = modelInfo.capabilities as NonNullable<SdkModelInfo["capabilities"]> | undefined
+	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>([
+		...(preservedCapabilities ?? []),
+		...((selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>),
+	])
 	const setCapability = (capability: NonNullable<SdkModelInfo["capabilities"]>[number], enabled: boolean): void => {
 		if (enabled) capabilities.add(capability)
 		else capabilities.delete(capability)
@@ -235,10 +305,29 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	setCapability("prompt-cache", modelInfo.supportsPromptCache)
 	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
 	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
+	if (preservedCapabilities === undefined || preservedCapabilities.length === 0) {
+		// No authoritative SDK list survived to here (dynamic-list snapshot,
+		// fallback metadata, or a custom model). The array we are rebuilding
+		// from booleans must still carry a definitive tool-calling signal,
+		// because a non-empty capabilities array without "tools" reads as
+		// "cannot call tools" to the SDK runtime. Legacy metadata only models
+		// tool support for OpenAI-compatible entries via `supportsTools`.
+		//
+		// An EMPTY array is the same "no signal" state as an absent one —
+		// modelHasCapability treats both as unspecified — and configs carried
+		// over from before the field existed (or round-tripped through a
+		// boundary that defaults it to []) land exactly here. Guarding only
+		// `undefined` let those custom models keep a non-empty, tool-less
+		// array once any boolean projection (e.g. reasoning) populated it,
+		// silently disabling tool calling at the runtime gate (#13463).
+		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
+		setCapability("tools", supportsTools !== false)
+	}
 
 	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
 	const contextWindow = positiveFiniteNumber(modelInfo.contextWindow)
-	const maxInputTokens = positiveFiniteNumber(selection.overrides?.maxInputTokens)
+	const maxInputTokens =
+		positiveFiniteNumber(selection.overrides?.maxInputTokens) ?? positiveFiniteNumber(modelInfo.maxInputTokens)
 	const temperature = nonNegativeFiniteNumber(modelInfo.temperature)
 	const inputPrice = nonNegativeFiniteNumber(modelInfo.inputPrice)
 	const outputPrice = nonNegativeFiniteNumber(modelInfo.outputPrice)
@@ -255,6 +344,9 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		...(contextWindow !== undefined ? { contextWindow } : {}),
 		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
 		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(modelInfo.operation !== undefined ? { operation: modelInfo.operation } : {}),
+		...(modelInfo.operationModes !== undefined ? { operationModes: [...modelInfo.operationModes] } : {}),
+		...(modelInfo.modalities !== undefined ? { modalities: modelInfo.modalities } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
 		...(hasPricing
@@ -524,7 +616,14 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 		return undefined
 	}
 
-	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.baseUrl
+	const sdkProviderId = toSdkProviderId(providerId)
+	// OpenAI Compatible endpoints are user-supplied, so use the URL as entered
+	// rather than inheriting the OpenAI default `/v1` path.
+	if (sdkProviderId === "openai-compatible") {
+		return trimmed
+	}
+
+	const providerDefaultBaseUrl = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.provider.baseUrl
 	if (!providerDefaultBaseUrl) {
 		return trimmed
 	}
@@ -567,6 +666,55 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+/**
+ * Resolve Azure OpenAI settings (API version / Entra ID auth) for the OpenAI
+ * Compatible provider. The webview saves them only to legacy state
+ * (`azureApiVersion` / `azureIdentity`); the providers.json `azure` block is
+ * the fallback for entries written by the CLI onboarding or the one-shot
+ * legacy migration. Without this mapping the SDK gateway never appends
+ * `?api-version=` to Azure deployment URLs and Azure rejects every request
+ * with "Resource not found" (#13655).
+ *
+ * Values resolved from legacy state are also mirrored into providers.json so
+ * the CLI — which reads only providers.json — sees the same Azure
+ * configuration the extension uses. The legacy migration never updates
+ * existing entries, so this mirror is the only ongoing sync for these fields.
+ */
+export function resolveAzureProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "azure"> | undefined {
+	const apiVersion = config.azureApiVersion?.trim() || undefined
+	const useIdentity = typeof config.azureIdentity === "boolean" ? config.azureIdentity : undefined
+
+	let stored: ProviderSettings | undefined
+	try {
+		stored = getProviderSettingsManager().getProviderSettings("openai-compatible")
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible Azure settings from providers.json")
+	}
+
+	if (apiVersion === undefined && useIdentity === undefined) {
+		return stored?.azure ? { azure: stored.azure } : undefined
+	}
+
+	const azure: NonNullable<ProviderSettings["azure"]> = {
+		...(stored?.azure ?? {}),
+		...(apiVersion !== undefined ? { apiVersion } : {}),
+		...(useIdentity !== undefined ? { useIdentity } : {}),
+	}
+
+	if (stored?.azure?.apiVersion !== azure.apiVersion || stored?.azure?.useIdentity !== azure.useIdentity) {
+		try {
+			getProviderSettingsManager().saveProviderSettings(
+				{ ...(stored ?? {}), provider: "openai-compatible", azure },
+				{ setLastUsed: false },
+			)
+		} catch {
+			Logger.warn("[SessionFactory] Failed to mirror Azure settings into providers.json")
+		}
+	}
+
+	return { azure }
+}
+
 type OllamaProviderConfig = {
 	modelInfo?: { id: string; name: string; contextWindow: number }
 	timeoutMs?: number
@@ -603,15 +751,70 @@ export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: s
 	}
 }
 
+/**
+ * Providers whose base URL commonly points at a local model server. Those
+ * can spend longer than undici's 300s idle timeouts producing the first
+ * token, so they get `fetchWithoutIdleTimeouts` when the base URL is on the
+ * local network. Remote gateways (and every other provider) keep the
+ * proxy-aware fetch: on VS Code it honours `http.proxy`, which
+ * `fetchWithoutIdleTimeouts` cannot, and it keeps the dead-connection cap.
+ */
+const LOCAL_SERVER_PROVIDERS = new Set(["lmstudio", "ollama", "openai-compatible", "litellm"])
+
+const LOCAL_NETWORK_ADDRESSES = new BlockList()
+for (const [address, prefix] of [
+	["127.0.0.0", 8],
+	["0.0.0.0", 32],
+	["10.0.0.0", 8],
+	["172.16.0.0", 12],
+	["192.168.0.0", 16],
+	["169.254.0.0", 16],
+	["100.64.0.0", 10],
+] as const) {
+	LOCAL_NETWORK_ADDRESSES.addSubnet(address, prefix, "ipv4")
+}
+LOCAL_NETWORK_ADDRESSES.addAddress("::1", "ipv6")
+LOCAL_NETWORK_ADDRESSES.addSubnet("fc00::", 7, "ipv6")
+LOCAL_NETWORK_ADDRESSES.addSubnet("fe80::", 10, "ipv6")
+
+// An unset base URL means the provider's localhost default.
+function isLocalNetworkUrl(baseUrl: string | undefined): boolean {
+	if (!baseUrl) {
+		return true
+	}
+	let host: string
+	try {
+		host = new URL(baseUrl).hostname.replace(/^\[|\]$/g, "").toLowerCase()
+	} catch {
+		return false
+	}
+	// BlockList matches IPv4-mapped IPv6 (`[::ffff:127.0.0.1]`) against the
+	// IPv4 rules, so no unwrapping is needed.
+	const family = isIP(host)
+	if (family) {
+		return LOCAL_NETWORK_ADDRESSES.check(host, family === 6 ? "ipv6" : "ipv4")
+	}
+	return !host.includes(".") || /\.(localhost|local|internal)$/.test(host)
+}
+
+export function resolveProviderFetch(sdkProviderId: string, baseUrl: string | undefined): typeof globalThis.fetch {
+	return LOCAL_SERVER_PROVIDERS.has(sdkProviderId) && isLocalNetworkUrl(baseUrl) ? fetchWithoutIdleTimeouts : fetch
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",
+		// The OpenAI Compatible provider may be stored under its SDK spelling
+		// (settings written through the SDK settings store) instead of the
+		// extension's legacy "openai" id; both use the same legacy state field.
+		"openai-compatible": "openAiBaseUrl",
 		ollama: "ollamaBaseUrl",
 		lmstudio: "lmStudioBaseUrl",
 		gemini: "geminiBaseUrl",
 		requesty: "requestyBaseUrl",
 		litellm: "liteLlmBaseUrl",
+		asksage: "asksageApiUrl",
 		oca: "ocaBaseUrl",
 		aihubmix: "aihubmixBaseUrl",
 		dify: "difyBaseUrl",
@@ -619,7 +822,81 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 
 	const field = baseUrlMap[providerId]
 	if (field) {
-		return normalizeSdkBaseUrl(providerId, config[field])
+		const fromState = normalizeSdkBaseUrl(providerId, config[field])
+		if (fromState) {
+			return fromState
+		}
+	}
+
+	// SDK-backed providers save their base URL in providers.json instead of
+	// legacy ApiConfiguration fields. Fall back to that store (mirroring
+	// resolveApiKey) so ProviderConfig consumers that don't re-resolve settings
+	// themselves — e.g. the compaction summarizer's createHandlerAsync — still
+	// reach the configured endpoint instead of the provider default.
+	try {
+		const manager = getProviderSettingsManager()
+		const settingsBaseUrl = manager.getProviderSettings(providerSettingsProviderId(providerId))?.baseUrl
+		const normalized = normalizeSdkBaseUrl(providerId, settingsBaseUrl)
+		if (normalized) {
+			return normalized
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} base URL from providers.json`)
+	}
+
+	return undefined
+}
+
+/**
+ * Resolve the regional API line ("china" | "international") for providers with
+ * regional endpoints (Qwen, Moonshot, Z AI, MiniMax and their coding
+ * variants). Resolution order:
+ *
+ * 1. The provider's own legacy StateManager field (mirroring resolveBaseUrl).
+ * 2. The provider's own providers.json `apiLine` (SDK-store fallback).
+ * 3. For coding variants without their own legacy field or stored line, the
+ *    base provider's legacy field (qwen-code shares Qwen's DashScope region,
+ *    zai-coding-plan shares Z AI's account region) — so a variant-specific
+ *    providers.json setting still wins over the shared field.
+ *
+ * The SDK gateway maps the line to the provider's regional base URL when no
+ * explicit base URL is configured.
+ */
+export function resolveApiLine(providerId: string, config: ApiConfiguration): ProviderApiLine | undefined {
+	const apiLineMap: Record<string, keyof ApiConfiguration> = {
+		qwen: "qwenApiLine",
+		moonshot: "moonshotApiLine",
+		zai: "zaiApiLine",
+		minimax: "minimaxApiLine",
+	}
+	const sharedApiLineMap: Record<string, keyof ApiConfiguration> = {
+		"qwen-code": "qwenApiLine",
+		"zai-coding-plan": "zaiApiLine",
+	}
+
+	const field = apiLineMap[providerId]
+	if (field) {
+		const fromState = config[field]
+		if (isProviderApiLine(fromState)) {
+			return fromState
+		}
+	}
+
+	try {
+		const settingsApiLine = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))?.apiLine
+		if (isProviderApiLine(settingsApiLine)) {
+			return settingsApiLine
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} API line from providers.json`)
+	}
+
+	const sharedField = sharedApiLineMap[providerId]
+	if (sharedField) {
+		const fromSharedState = config[sharedField]
+		if (isProviderApiLine(fromSharedState)) {
+			return fromSharedState
+		}
 	}
 
 	return undefined
@@ -653,6 +930,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	let apiLine: ProviderApiLine | undefined
 	let apiConfig: ApiConfiguration | undefined
 	// Cloud-provider structured options. The core runtime reads these from
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
@@ -661,24 +939,35 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
+	let azureProviderConfig: Pick<ProviderSettings, "azure"> | undefined
 
 	try {
 		const stateManager = StateManager.get()
 		apiConfig = stateManager.getApiConfiguration()
 
-		// Resolve the provider for the current mode
-		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		providerId = modeProvider
+		// Resolve the provider for the current mode. State written by older
+		// builds or other hosts may carry SDK catalog spellings (e.g.
+		// `openai-compatible`); fold them back to the legacy spelling the
+		// provider-keyed maps below are keyed by.
+		const modeProvider =
+			input.runtime?.modelSelection.providerId ??
+			(mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider)
+		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
 
 		if (providerId) {
 			// Resolve API key
 			apiKey = resolveApiKey(providerId, apiConfig)
 
 			// Resolve model ID
-			modelId = resolveModelId(providerId, mode, apiConfig)
+			modelId = input.runtime?.modelSelection.modelId ?? resolveModelId(providerId, mode, apiConfig)
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
+
+			// Resolve the regional API line (Qwen/Moonshot/Z AI/MiniMax). The
+			// SDK gateway routes to the line's regional endpoint when no
+			// explicit base URL is set.
+			apiLine = resolveApiLine(providerId, apiConfig)
 
 			// Resolve Bedrock region + AWS authentication options from the legacy
 			// ApiConfiguration (StateManager is the VSCode source of truth, not
@@ -700,6 +989,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
 			}
 
+			// The OpenAI Compatible provider is spelled "openai" after the
+			// legacy fold above; keep the SDK spelling as a defensive alias.
+			if (providerId === "openai" || providerId === "openai-compatible") {
+				azureProviderConfig = resolveAzureProviderConfig(apiConfig)
+			}
+
 			Logger.log(
 				`[SessionFactory] Resolved from StateManager: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`,
 			)
@@ -717,14 +1012,17 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
 			const lastUsed = manager.getLastUsedProviderSettings({
-				isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+				isClinePassEnabled: true,
 			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {
-				providerId = lastUsed.provider
+				// providers.json stores SDK provider ids (e.g. `openai-compatible`);
+				// normalize to the legacy spelling used across this factory.
+				providerId = toLegacyApiProvider(lastUsed.provider)
 				modelId = lastUsed.model
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
+				apiLine = isProviderApiLine(lastUsed.apiLine) ? lastUsed.apiLine : undefined
 				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
 			}
 		} catch (error) {
@@ -765,10 +1063,17 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
 			: resolveProviderReasoningConfig(providerId)
 
-	// Build the system prompt using the shared prompt builder. Core still
-	// expects callers to provide a concrete systemPrompt, but the prompt builder
-	// can derive baseline workspace context from the root path and workspace
-	// name, so we avoid duplicating core's richer workspace metadata pass here.
+	// Include rich workspace metadata so Cline API observability can extract
+	// git remotes and the latest commit hash from the system message.
+	let workspaceMetadata: string | undefined
+	if (isClineProvider(providerId)) {
+		try {
+			workspaceMetadata = await buildWorkspaceMetadata(workspaceRoot)
+		} catch (error) {
+			Logger.warn("[SessionFactory] Failed to build workspace metadata:", error)
+		}
+	}
+
 	let systemPrompt = ""
 	try {
 		const workspaceName = resolveWorkspaceName(cwd)
@@ -776,9 +1081,15 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			ide: "VS Code",
 			workspaceRoot,
 			workspaceName,
+			metadata: workspaceMetadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
-			platform: process.platform,
+			platform: input.runtime?.platform ?? process.platform,
+			// The extension never exposes switch_to_act_mode (unlike the CLI):
+			// matching the legacy extension, the user must flip the Plan/Act
+			// toggle themselves, so the plan contract must not tell the model to
+			// call a tool it does not have.
+			planModeSwitchTool: false,
 		})
 		Logger.log(`[SessionFactory] Built system prompt: ${systemPrompt.length} chars`)
 	} catch (error) {
@@ -799,7 +1110,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 
 	const stateManager = StateManager.get()
-	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	// Auto compact is on by default; keep this fallback aligned with the
+	// `useAutoCondense` default in shared/storage/state-keys.ts.
+	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? true
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
@@ -808,8 +1121,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
-	const hostIdentity = await resolveHostIdentity()
-	const isMultiRoot = await resolveIsMultiRootWorkspace()
+	const client = await resolveClineRequestClientContext()
 	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
 	try {
 		// Constructing the settings manager loads providers.json and models.json into
@@ -842,12 +1154,21 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
 		...(cloudProviderConfig ?? {}),
+		// Only spread when defined: an explicit `azure: undefined` key would
+		// clobber the providers.json azure block core merges in downstream
+		// (buildProviderConfig spreads this session config over stored settings).
+		...(azureProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(apiLine !== undefined ? { apiLine } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
-		fetch,
+		// Mirror the user's Max Output Tokens for consumers that build handlers
+		// straight from providerConfig — notably the compaction summarizer, which
+		// otherwise falls back to a small default output cap (CLINE-2911).
+		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
+		fetch: resolveProviderFetch(sdkProviderId, baseUrl),
 	}
 
 	const config: CoreSessionConfig = {
@@ -856,6 +1177,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		apiKey,
 		baseUrl,
 		providerConfig,
+		// Also expose the catalog at the top level: manual compaction
+		// (sdk-compaction.ts) budgets against config.knownModels[modelId] and
+		// otherwise falls back to a conservative 64k input budget.
+		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		cwd,
 		workspaceRoot,
 		systemPrompt,
@@ -882,19 +1207,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		logger: sdkLogger,
 		extensionContext: {
 			user: distinctId ? { distinctId } : undefined,
-			client: {
-				name: hostIdentity?.clineType || ClineClient.VSCode,
-				version: hostIdentity?.clineVersion || ExtensionRegistryInfo.version,
-				platform: hostIdentity?.platform || undefined,
-				platformVersion: hostIdentity?.version || undefined,
-				isMultiRoot,
-			},
+			client,
 			workspace: {
 				rootPath: workspaceRoot,
 				cwd,
 				workspaceName: resolveWorkspaceName(workspaceRoot),
 				ide: "VS Code",
-				platform: process.platform,
+				platform: input.runtime?.platform ?? process.platform,
 				mode: mode === "plan" ? "plan" : "act",
 			},
 			logger: sdkLogger,
@@ -912,12 +1231,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 /**
  * Build the StartSessionInput for a new task.
  *
- * IMPORTANT: We pass `interactive: true` but NO `prompt`. This creates the
- * session and returns immediately — the runtime host only executes a turn when
- * a prompt is sent. The caller should then call `core.send({ sessionId, prompt })`
- * to run the first turn. This cleanly separates session creation from
- * inference, preventing the gRPC handler from blocking until the first
- * agent turn completes.
+ * IMPORTANT: We pass `interactive: true` but NO `prompt`. This allocates the
+ * session in memory and returns immediately; no persisted session row or
+ * artifacts are created yet. The caller then uses
+ * `core.send({ sessionId, prompt })` for the first user turn, which persists
+ * that same session ID before inference. This keeps initialization responsive
+ * without leaving empty history entries when the user never sends a message.
  */
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
 	return {

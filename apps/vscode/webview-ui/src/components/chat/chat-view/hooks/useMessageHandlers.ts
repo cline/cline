@@ -2,18 +2,35 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { IntentEvent } from "@shared/proto/cline/ui"
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
-import type { ButtonActionType } from "../shared/buttonConfig"
-import type { ChatState, MessageHandlers } from "../types/chatTypes"
+import { buttonsForPhase, getTurnStateMessage } from "../shared/buttonConfig"
+import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
+
+function formatDraftText(text: string, activeQuote: string | null): string {
+	if (!activeQuote) {
+		return text
+	}
+	return `[context] \n>  ${activeQuote} \n[/context] \n\n ${text}`
+}
+
+// `/compact` and its aliases `/smol` and `/newtask` run a real SDK manual
+// compaction via the condense RPC. Sending the literal text to the model would
+// make it improvise a fake summary instead of compacting the context window
+// (CLINE-2503). `/newtask` aliases compaction because condensing achieves its
+// goal (continue working with a fresh, summarized context) without the legacy
+// new_task tool.
+function isCompactionCommand(text: string): boolean {
+	return text === "/compact" || text === "/smol" || text === "/newtask"
+}
 
 /**
  * Custom hook for managing message handlers
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -25,37 +42,88 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		enableButtons,
 		setEnableButtons,
 		setPendingUserMessage,
+		setPendingResponse,
 		clineAsk,
 		lastMessage,
 	} = chatState
 	const cancelInFlightRef = useRef(false)
+	const pendingResponseIdRef = useRef(0)
+	// The first recovery action for an authoritative turn sequence owns that
+	// sequence until the backend advances it. A ref makes competing click
+	// handlers observe the claim before React can render the mirrored UI state.
+	const recoveryClaimRef = useRef<number | undefined>(undefined)
+	const [claimedRecoverySeq, setClaimedRecoverySeq] = useState<number | undefined>(undefined)
+	// Recovery is available exactly when the footer offers Retry, so the composer,
+	// the footer buttons and the embedded retry controls share one decision. Most
+	// provider failures reach the error phase without an anchor message, so the
+	// anchor only refines the button set (mistake_limit_reached shows Proceed).
+	const recoverySeq =
+		turnState?.phase === "error" &&
+		buttonsForPhase(turnState, getTurnStateMessage(messages, turnState)).primaryAction === "retry"
+			? turnState.seq
+			: undefined
+	const errorRecoveryAvailable = recoverySeq !== undefined
+	const recoveryActionInFlight = recoverySeq !== undefined && claimedRecoverySeq === recoverySeq
+	const claimErrorRecovery = useCallback(() => {
+		if (recoverySeq === undefined) {
+			return true
+		}
+		if (recoveryClaimRef.current === recoverySeq) {
+			return false
+		}
+		recoveryClaimRef.current = recoverySeq
+		setClaimedRecoverySeq(recoverySeq)
+		return true
+	}, [recoverySeq])
+	const releaseErrorRecoveryClaim = useCallback(() => {
+		if (recoverySeq !== undefined && recoveryClaimRef.current === recoverySeq) {
+			recoveryClaimRef.current = undefined
+			setClaimedRecoverySeq(undefined)
+		}
+	}, [recoverySeq])
+
+	// Manual compaction does not take part in the recovery claim, so it is
+	// unavailable while Retry / Start New Task are offered. The header button
+	// and the typed /compact command both go through this gate.
+	const compactTask = useCallback(async () => {
+		if (errorRecoveryAvailable) {
+			return false
+		}
+		await SlashServiceClient.condense(StringRequest.create({ value: "compact" }))
+		return true
+	}, [errorRecoveryAvailable])
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
-			let messageToSend = text.trim()
-			const hasContent = messageToSend || images.length > 0 || files.length > 0
+			const recoveryDraft = recoverySeq === undefined ? undefined : chatState.getDraftSnapshot()
+			const submittedText = recoveryDraft?.text ?? text
+			const submittedImages = recoveryDraft?.images ?? images
+			const submittedFiles = recoveryDraft?.files ?? files
+			const submittedQuote = recoveryDraft?.activeQuote ?? activeQuote
+			let messageToSend = submittedText.trim()
+			const hasContent = messageToSend || submittedImages.length > 0 || submittedFiles.length > 0
 
 			// Prepend the active quote if it exists
-			if (activeQuote && hasContent) {
-				const prefix = "[context] \n> "
-				const formattedQuote = activeQuote
-				const suffix = "\n[/context] \n\n"
-				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
+			if (submittedQuote && hasContent) {
+				messageToSend = formatDraftText(messageToSend, submittedQuote)
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
-			// `/compact` (and its alias `/smol`) must run a real SDK manual
-			// compaction via the condense RPC — sending the literal text to the
-			// model would make it improvise a fake summary instead of compacting
-			// the context window (CLINE-2503). With no active task there is nothing
-			// to compact, so fall through to normal new-task handling.
-			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
-				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
-					console.error("Failed to compact task:", err),
-				)
+			// With no active task there is nothing to compact, so fall through to
+			// normal new-task handling.
+			if (messages.length > 0 && isCompactionCommand(messageToSend)) {
+				// While Retry / Start New Task are offered the command is neither
+				// compacted nor sent to the model as text; the draft stays put.
+				if (errorRecoveryAvailable) {
+					return
+				}
+				// Clear the input before awaiting the RPC — condense resolves only
+				// after compaction finishes, and the typed command lingering in the
+				// field the whole time reads as if the send didn't register.
 				setInputValue("")
 				setActiveQuote(null)
+				await compactTask().catch((err) => console.error("Failed to compact task:", err))
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
@@ -71,8 +139,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							action: "prompt_submitted",
 							source: "chat_submit",
 							hasText: messageToSend.length > 0,
-							hasImages: images.length > 0,
-							hasFiles: files.length > 0,
+							hasImages: submittedImages.length > 0,
+							hasFiles: submittedFiles.length > 0,
 							hasActiveTask,
 							textLength: messageToSend.length,
 						}),
@@ -94,49 +162,139 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
+				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
+					const id = ++pendingResponseIdRef.current
+					// A follow-up submitted during an active stream is queued/steering feedback.
+					// The authoritative streaming UI is already current, so forcing a loader could
+					// duplicate it alongside content that is still visibly streaming.
+					if (turnState?.phase !== "streaming") {
+						setPendingResponse({
+							id,
+							turnStateSeq: turnState?.seq,
+							messageCount: messages.length,
+						})
+					}
+					const optimisticMessage = pendingMessage
+						? {
+								afterTs: Math.max(0, ...messages.map((message) => message.ts)),
+								message: pendingMessage,
+							}
+						: undefined
+					if (optimisticMessage) {
+						setPendingUserMessage(optimisticMessage)
+					}
+					return { id, optimisticMessage }
+				}
+				const rollbackPendingResponse = (
+					id: number,
+					optimisticMessage: ReturnType<typeof beginPendingResponse>["optimisticMessage"],
+				) => {
+					setPendingResponse((current) => (current?.id === id ? undefined : current))
+					if (optimisticMessage) {
+						setPendingUserMessage((current) => (current === optimisticMessage ? undefined : current))
+					}
+				}
 				const sendAskResponseWithPendingState = async (
 					request: ReturnType<typeof AskResponseRequest.create>,
 					options: { showPendingMessage?: boolean } = {},
 				) => {
 					trackPromptSubmitted(true)
 					clearSentMessageState()
-					if (options.showPendingMessage) {
-						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
-						setPendingUserMessage({
-							afterTs,
-							message: {
-								ts: Date.now(),
-								type: "say",
-								say: "user_feedback",
-								text: request.text ?? "",
-								images: request.images,
-								files: request.files,
-								partial: false,
-							},
-						})
-					}
+					const { id, optimisticMessage } = beginPendingResponse(
+						options.showPendingMessage
+							? {
+									ts: Date.now(),
+									type: "say",
+									say: "user_feedback",
+									text: request.text ?? "",
+									images: request.images,
+									files: request.files,
+									partial: false,
+								}
+							: undefined,
+					)
 					try {
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
-						if (options.showPendingMessage) {
-							setPendingUserMessage(undefined)
-						}
+						rollbackPendingResponse(id, optimisticMessage)
 						restorePendingMessageState()
 						throw error
 					}
 				}
+				const sendErrorRecoveryResponse = async () => {
+					if (!recoveryDraft || !claimErrorRecovery()) {
+						return false
+					}
+					const request = AskResponseRequest.create({
+						responseType: "messageResponse",
+						text: messageToSend,
+						images: submittedImages,
+						files: submittedFiles,
+					})
+					trackPromptSubmitted(true)
+					const { id, optimisticMessage } = beginPendingResponse({
+						ts: Date.now(),
+						type: "say",
+						say: "user_feedback",
+						text: request.text ?? "",
+						images: request.images,
+						files: request.files,
+						partial: false,
+					})
+					try {
+						await TaskServiceClient.askResponse(request)
+						chatState.consumeDraftSnapshot(recoveryDraft)
+						return true
+					} catch (error) {
+						rollbackPendingResponse(id, optimisticMessage)
+						releaseErrorRecoveryClaim()
+						throw error
+					}
+				}
+
+				if (recoveryDraft) {
+					if (await sendErrorRecoveryResponse()) {
+						if ("disableAutoScrollRef" in chatState) {
+							;(chatState as any).disableAutoScrollRef.current = false
+						}
+					}
+					return
+				}
 
 				if (messages.length === 0) {
+					// Cloud selected means cloud requested, even without a repository: the
+					// extension refuses an incomplete cloud request rather than running the
+					// task locally behind a Cloud label.
+					const runInCloud = !!cloudSessionsEnabled && cloudTaskTarget?.target === "cloud"
 					const request = NewTaskRequest.create({
 						text: messageToSend,
 						images,
-						files,
+						// Local file paths cannot be read from a cloud sandbox; the composer
+						// refuses a cloud send while files are attached.
+						files: runInCloud ? [] : files,
+						...(runInCloud
+							? {
+									executionTarget: "cloud",
+									cloudRepoUrl: cloudTaskTarget.repoUrl,
+									cloudBranch: cloudTaskTarget.branch,
+								}
+							: {}),
 					})
 					clearSentMessageState()
 					trackPromptSubmitted(false)
+					const { id, optimisticMessage } = beginPendingResponse({
+						ts: Date.now(),
+						type: "say",
+						say: "task",
+						text: messageToSend,
+						images,
+						files,
+						partial: false,
+					})
 					try {
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
+						rollbackPendingResponse(id, optimisticMessage)
 						restorePendingMessageState()
 						throw error
 					}
@@ -155,6 +313,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+						// Resuming a task opened from history rebuilds the SDK session before the
+						// extension echoes say:user_feedback, so without an optimistic bubble the
+						// user's message would not appear until the (slow) resume finishes — the
+						// chat would show only the Thinking loader in the meantime.
 						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -162,6 +324,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								images,
 								files,
 							}),
+							{ showPendingMessage: turnState?.phase !== "streaming" },
 						)
 						messageSent = true
 					} else {
@@ -241,10 +404,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 				}
 
-				// New tasks clear optimistically before the RPC; the repeated success cleanup is idempotent.
+				// Every send path clears the draft before its RPC. Do not clear it again
+				// here: the RPC can take a while (a cloud task provisions its sandbox
+				// first) and the user may have typed a new draft in the meantime.
 				if (messageSent) {
-					clearSentMessageState()
-
 					// Reset auto-scroll
 					if ("disableAutoScrollRef" in chatState) {
 						;(chatState as any).disableAutoScrollRef.current = false
@@ -257,6 +420,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			clineAsk,
 			turnState,
 			activeQuote,
+			recoverySeq,
+			errorRecoveryAvailable,
+			compactTask,
+			claimErrorRecovery,
+			releaseErrorRecoveryClaim,
 			setInputValue,
 			setActiveQuote,
 			sendingDisabled,
@@ -266,106 +434,90 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			enableButtons,
 			setEnableButtons,
 			setPendingUserMessage,
+			setPendingResponse,
 			chatState,
+			cloudSessionsEnabled,
+			cloudTaskTarget,
 		],
 	)
 
-	// Start a new task
-	const startNewTask = useCallback(async () => {
-		UiServiceClient.trackIntent(
-			IntentEvent.create({
-				action: "new_task_clicked",
-				source: "chat_new_task",
-				hasActiveTask: messages.length > 0,
-			}),
-		).catch((error) => console.error("Failed to track new task click:", error))
-		setActiveQuote(null)
-		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [messages.length, setActiveQuote])
+	const clearTask = useCallback(
+		async (source: "chat_new_task" | "navbar") => {
+			UiServiceClient.trackIntent(
+				IntentEvent.create({
+					action: "new_task_clicked",
+					source,
+					hasActiveTask: messages.length > 0,
+				}),
+			).catch((error) => console.error("Failed to track new task click:", error))
+			// Drop any unconfirmed optimistic message: if it lingered past an explicit
+			// New Task, withPendingUserMessage would re-inject the old task (and its
+			// attachments) into the freshly cleared transcript, leaving the chat stuck
+			// on the previous task (#12924).
+			setPendingUserMessage(undefined)
+			setPendingResponse(undefined)
+			await TaskServiceClient.clearTask(EmptyRequest.create({}))
+		},
+		[messages.length, setPendingUserMessage, setPendingResponse],
+	)
 
-	// Clear input state helper
-	const clearInputState = useCallback(() => {
-		setInputValue("")
-		setActiveQuote(null)
-		setSelectedImages([])
-		setSelectedFiles([])
-	}, [setInputValue, setActiveQuote, setSelectedImages, setSelectedFiles])
+	// Start a new task
+	const startNewTask = useCallback(
+		async (source: "chat_new_task" | "navbar" = "chat_new_task") => {
+			if (!claimErrorRecovery()) {
+				return false
+			}
+			// Quotes refer to rows in the task being closed. Keep independent draft
+			// text and attachments, but do not carry stale task context forward.
+			setActiveQuote(null)
+			try {
+				await clearTask(source)
+			} catch (error) {
+				releaseErrorRecoveryClaim()
+				throw error
+			}
+			return true
+		},
+		[claimErrorRecovery, clearTask, releaseErrorRecoveryClaim, setActiveQuote],
+	)
 
 	// Execute button action based on type
 	const executeButtonAction = useCallback(
-		async (actionType: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
-			const trimmedInput = text?.trim()
-			const hasContent = trimmedInput || (images && images.length > 0) || (files && files.length > 0)
-
-			switch (actionType) {
-				case "retry":
+		async (invocation: ButtonActionInvocation) => {
+			switch (invocation.type) {
+				case "retry": {
+					if (!claimErrorRecovery()) {
+						return false
+					}
 					// For API retry (api_req_failed), always send simple approval without content
-					await TaskServiceClient.askResponse(
-						AskResponseRequest.create({
-							responseType: "yesButtonClicked",
-						}),
-					)
-					clearInputState()
+					try {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+							}),
+						)
+					} catch (error) {
+						releaseErrorRecoveryClaim()
+						throw error
+					}
 					break
+				}
 				case "approve":
-					if (hasContent) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-							}),
-						)
-					}
-					clearInputState()
-					break
-
 				case "reject":
-					if (hasContent) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-							}),
-						)
-					}
-					clearInputState()
+				case "proceed": {
+					const { draft } = invocation
+					const trimmedText = draft.text.trim()
+					const hasContent = trimmedText.length > 0 || draft.images.length > 0 || draft.files.length > 0
+					const text = hasContent ? formatDraftText(trimmedText, draft.activeQuote) : undefined
+					const responseType = invocation.type === "reject" ? "noButtonClicked" : "yesButtonClicked"
+					await TaskServiceClient.askResponse(
+						AskResponseRequest.create(
+							hasContent ? { responseType, text, images: draft.images, files: draft.files } : { responseType },
+						),
+					)
+					chatState.consumeDraftSnapshot(draft)
 					break
-
-				case "proceed":
-					if (hasContent) {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-								text: trimmedInput,
-								images: images,
-								files: files,
-							}),
-						)
-					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "yesButtonClicked",
-							}),
-						)
-					}
-					clearInputState()
-					break
+				}
 
 				case "proceed_while_running":
 					// Detach the running foreground terminal command: the agent
@@ -378,6 +530,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "new_task":
 					if (clineAsk === "new_task") {
+						// Reset context from the old task before the first await. A quote
+						// selected while New Task is in flight belongs to the new draft.
+						setActiveQuote(null)
 						await TaskServiceClient.newTask(
 							NewTaskRequest.create({
 								text: lastMessage?.text,
@@ -386,13 +541,15 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							}),
 						)
 					} else {
-						await startNewTask()
+						if (!(await startNewTask())) {
+							return false
+						}
 					}
 					break
 
 				case "cancel": {
 					if (cancelInFlightRef.current) {
-						return
+						return false
 					}
 					cancelInFlightRef.current = true
 					setSendingDisabled(true)
@@ -432,20 +589,22 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if ("disableAutoScrollRef" in chatState) {
 				;(chatState as any).disableAutoScrollRef.current = false
 			}
+			return true
 		},
 		[
 			clineAsk,
 			lastMessage,
-			messages,
-			clearInputState,
-			handleSendMessage,
 			startNewTask,
 			chatState,
 			backgroundCommandRunning,
+			claimErrorRecovery,
+			releaseErrorRecoveryClaim,
+			setActiveQuote,
 			setSendingDisabled,
 			setEnableButtons,
 		],
 	)
+	const retryFailedRequest = useCallback(() => executeButtonAction({ type: "retry" }), [executeButtonAction])
 
 	// Handle task close button click
 	const handleTaskCloseButtonClick = useCallback(() => {
@@ -453,9 +612,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	}, [startNewTask])
 
 	return {
+		errorRecoveryAvailable,
+		recoveryActionInFlight,
+		compactTask,
 		handleSendMessage,
 		executeButtonAction,
 		handleTaskCloseButtonClick,
+		retryFailedRequest,
 		startNewTask,
 	}
 }

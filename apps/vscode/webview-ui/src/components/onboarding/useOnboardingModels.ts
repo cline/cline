@@ -28,6 +28,7 @@ function toOnboardingModel(
 
 	return {
 		id: rec.id,
+		// Names arrive display-ready from the recommended-models RPC
 		name: rec.name || rec.id,
 		group,
 		badge,

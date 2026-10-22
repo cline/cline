@@ -5,6 +5,7 @@ export type CoreSettingsType =
 	| "skills"
 	| "workflows"
 	| "rules"
+	| "plugins"
 	| "tools"
 	| "mcp";
 
@@ -12,6 +13,7 @@ export type CoreSettingsItemKind =
 	| "skill"
 	| "workflow"
 	| "rule"
+	| "plugin"
 	| "tool"
 	| "mcp";
 
@@ -33,11 +35,49 @@ export interface CoreSettingsItem {
 	toggleable?: boolean;
 	pluginName?: string;
 	pluginPath?: string;
+	/** True when this item comes from the portable agent-plugins.org format. */
+	agentPlugin?: boolean;
+	/** Loader diagnostics associated with this item, if any. */
+	loadError?: string;
+	contributions?: CorePluginContributions;
+}
+
+export interface CorePluginContributions {
+	inspectionStatus: "available" | "disabled" | "failed";
+	capabilities: string[];
+	tools: string[];
+	skills: string[];
+	rules: string[];
+	hooks: string[];
+	commands: string[];
+	mcpServers: string[];
+	providers: string[];
+}
+
+export interface CorePluginSettingsSnapshot {
+	plugins: CoreSettingsItem[];
+	tools: CoreSettingsItem[];
+}
+
+export interface CorePluginSettingsSource {
+	list(input: CoreSettingsListInput): Promise<CorePluginSettingsSnapshot>;
+	/** Apply enablement and return the source's authoritative post-mutation state. */
+	setEnabled(input: {
+		path: string;
+		enabled: boolean;
+		cwd?: string;
+		workspaceRoot?: string;
+	}): Promise<CorePluginSettingsSnapshot>;
+}
+
+export interface CoreSettingsServiceOptions {
+	pluginSource?: CorePluginSettingsSource;
 }
 
 export interface CoreSettingsSnapshot {
 	workflows: CoreSettingsItem[];
 	rules: CoreSettingsItem[];
+	plugins: CoreSettingsItem[];
 	skills: CoreSettingsItem[];
 	tools: CoreSettingsItem[];
 	mcp: CoreSettingsItem[];
@@ -46,6 +86,10 @@ export interface CoreSettingsSnapshot {
 export interface CoreSettingsListInput {
 	cwd?: string;
 	workspaceRoot?: string;
+	/** Optional explicit portable Agent Plugin roots, resolved by the host. */
+	agentPluginPaths?: string[];
+	/** Whether inspecting Cline plugins should execute their setup for tool metadata. */
+	includePluginTools?: boolean;
 	userInstructionService?: UserInstructionConfigService;
 	availabilityContext?: BuiltinToolAvailabilityContext;
 }

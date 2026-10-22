@@ -33,8 +33,9 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
+import type { CoreCompactionContext } from "../../types/config";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -370,6 +371,57 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		);
 	});
 
+	it("composes tool-conditional rules only when the tool is enabled", async () => {
+		const conditionalRuleExtension: AgentExtension = {
+			name: "conditional-tool-rule",
+			manifest: { capabilities: ["rules"] },
+			setup: (api) => {
+				api.registerRule({
+					id: "conditional-tool-rule:guidance",
+					content: "Use tasks for durable follow-up work.",
+					whenToolAvailable: "tasks",
+				});
+			},
+		};
+		const todoListTool: AgentTool = {
+			name: "tasks",
+			description: "Manage durable agenda items.",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({ ok: true }),
+		};
+
+		const enabledCapture = withCapturingFakeRuntime();
+		const enabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+			}),
+			enabledCapture.deps,
+		);
+		await enabledSession.run("go");
+
+		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
+			"Base prompt.\n\nUse tasks for durable follow-up work.",
+		);
+		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
+
+		const disabledCapture = withCapturingFakeRuntime();
+		const disabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+				toolPolicies: { tasks: { enabled: false } },
+			}),
+			disabledCapture.deps,
+		);
+		await disabledSession.run("go");
+
+		expect(disabledCapture.configs[0]?.systemPrompt).toBe("Base prompt.");
+		expect(disabledCapture.configs[0]?.tools).toEqual([]);
+	});
+
 	it("passes session, caller, and logger context into extension setup()", async () => {
 		const logger = {
 			debug: vi.fn(),
@@ -570,6 +622,64 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("aggregates beforeRun appendContext across config and extension hooks", async () => {
+		const extension: AgentExtension = {
+			name: "run-start-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeRun: () => ({ appendContext: "ext-context" }),
+			},
+		};
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeRun: () => ({ appendContext: "config-context" }),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeRun = hooks?.beforeRun;
+		expect(beforeRun).toBeDefined();
+
+		const result = await beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({
+			appendContext: "config-context\n\next-context",
+		});
+	});
+
+	it("returns a stopping beforeRun result without aggregating context into it", async () => {
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: {
+					beforeRun: () => ({ stop: true, reason: "blocked at start" }),
+				},
+			}),
+			deps,
+		);
+
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const result = await hooks?.beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({ stop: true, reason: "blocked at start" });
+	});
+
 	it("merges beforeModel metadata through final message preparation", async () => {
 		const extension: AgentExtension = {
 			name: "metadata-ext",
@@ -743,6 +853,90 @@ describe("SessionRuntime message preparation", () => {
 		expect(Object.hasOwn(result ?? {}, "systemPrompt")).toBe(false);
 	});
 
+	it("forwards the previous request's actual input token count to prepareTurn", async () => {
+		// Compaction triggers on the provider's real input count for the previous
+		// request, so this bridge must not drop the field while rebuilding the
+		// context — otherwise the estimate is the only signal in production.
+		const prepareTurn = vi.fn(() => ({
+			systemPrompt: "rewritten system prompt",
+		}));
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig({ prepareTurn }), deps);
+
+		await session.run("go");
+		const runtimePrepareTurn = configs[0]?.prepareTurn;
+		expect(runtimePrepareTurn).toBeDefined();
+
+		await runtimePrepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "<user_input>task</user_input>" }],
+					createdAt: 1,
+				},
+			],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+			previousRequestInputTokens: 123_456,
+		});
+
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ previousRequestInputTokens: 123_456 }),
+		);
+	});
+
+	it("passes the resolved model context limit to auto compaction", async () => {
+		const modelId = "local-model";
+		const contextWindow = 65_536;
+		const compact = vi.fn((_context: CoreCompactionContext) => undefined);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId,
+			compaction: { enabled: true, compact },
+		});
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				// The discovered catalog entry has no limit; a selected-model
+				// override supplies the limit used by the gateway request.
+				knownModels: { [modelId]: { id: modelId, name: modelId } },
+				providerConfig: {
+					providerId: "anthropic",
+					modelId,
+					maxInputTokens: 128_000,
+					modelInfo: { id: modelId, contextWindow },
+				},
+				prepareTurn,
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		await configs[0]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [makeAgentMessage("m1", "user", "x".repeat(300_000))],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.model.info).toMatchObject({ contextWindow });
+		expect(context?.budget.request.maxInputTokens).toBe(contextWindow);
+		expect(context?.budget.request.triggerTokens).toBe(contextWindow * 0.9);
+	});
+
 	it("allows prepareTurn to return only a system prompt", async () => {
 		const prepareTurn = vi.fn(() => ({
 			systemPrompt: "rewritten system prompt",
@@ -845,10 +1039,60 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(runtimeConfig.toolContextMetadata).toEqual(
 		expect.objectContaining({
 			modelSupportsImages: true,
-			[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 		}),
 	);
+	// The live telemetry service is a host object with cyclic internals; it
+	// must never ride on toolContextMetadata, which crosses process
+	// boundaries over JSON IPC (plugin sandbox, hub clients).
+	expect(Object.values(runtimeConfig.toolContextMetadata ?? {})).not.toContain(
+		telemetry,
+	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
+});
+
+it.each([
+	["absent", undefined],
+	["empty", []],
+])("keeps image support enabled when the capability list is %s", async (_label, capabilities) => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					...(capabilities === undefined ? {} : { capabilities }),
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: true }),
+	);
+});
+
+it("disables image support when a populated capability list omits images", async () => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					capabilities: ["tools", "prompt-cache"],
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: false }),
+	);
 });
 
 describe("SessionRuntime.run", () => {
@@ -867,6 +1111,116 @@ describe("SessionRuntime.run", () => {
 		expect(result.startedAt).toBeInstanceOf(Date);
 		expect(result.endedAt).toBeInstanceOf(Date);
 		expect(typeof result.durationMs).toBe("number");
+	});
+
+	it("disables tools and completion-tool policy for dedicated image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						operation: "image-generation",
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("preserves tools and completion-tool policy for mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image", "text"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy,
+			}),
+			deps,
+		);
+
+		await session.run("Answer normally or generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
+	});
+
+	it("disables tools and completion-tool policy for tool-less mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "google/gemini-2.5-flash-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
 	it("appends the user turn into the conversation store", async () => {
@@ -907,6 +1261,10 @@ describe("SessionRuntime.run", () => {
 		const { deps } = withFakeRuntime({ throwError: new Error("boom") });
 		const session = new SessionRuntime(makeAgentConfig(), deps);
 		await expect(session.run("go")).rejects.toThrow("boom");
+		expect(session.getMessages().at(-1)).toMatchObject({
+			content: [{ type: "text", text: "boom" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
 	});
 
 	it("rejects re-entrant run while the previous run is still active", async () => {
@@ -973,13 +1331,30 @@ describe("SessionRuntime.run", () => {
 			},
 		} as unknown as AgentRuntime;
 
-		const session = new SessionRuntime(makeAgentConfig(), {
-			createAgentRuntimeImpl: () => slowRuntime,
-		});
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			{
+				createAgentRuntimeImpl: () => slowRuntime,
+			},
+		);
 		const first = session.run("one");
 		await Promise.resolve();
 		expect(session.canStartRun()).toBe(false);
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
 		await expect(session.continue("two")).rejects.toThrow(/"running"/i);
+		await expect(session.run("three")).rejects.toThrow(/"running"/i);
+		expect(session.getMessages()).toEqual(before);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+		expect(events.filter((event) => event.type === "error")).toHaveLength(0);
 		release?.();
 		await first;
 		expect(session.canStartRun()).toBe(true);
@@ -1464,13 +1839,25 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		const first = await session.run("first");
 		expect(first.finishReason).toBe("error");
 		expect(first.text).toBe("upstream failed");
-		expect(session.getMessages().map((message) => message.role)).toEqual([
-			"user",
-		]);
+		expect(first.messages.at(-1)).toMatchObject({
+			content: [{ type: "text", text: "upstream failed" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
+		// Exercise a disk round-trip before retrying.
+		session.restore(JSON.parse(JSON.stringify(first.messages)));
 
 		const second = await session.continue("second");
 		expect(second.finishReason).toBe("completed");
 		expect(second.text).toBe("second ok");
+		expect(
+			second.messages.filter((message) => message.metadata?.displayOnly),
+		).toHaveLength(1);
+		expect(second.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
 		expect(modelRequests).toHaveLength(2);
 		expect(
 			modelRequests[1]?.some((message) =>
@@ -1547,11 +1934,125 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"user",
 			"assistant",
 			"user",
+			"assistant",
 		]);
-		const lastContent = session.getMessages().at(-1)?.content[0];
+		const lastContent = session.getMessages().at(-2)?.content[0];
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// external abort signal
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime external abort signal", () => {
+	it("observes the parent signal only while a run is active", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const removeEventListener = vi.spyOn(
+			controller.signal,
+			"removeEventListener",
+		);
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			deps,
+		);
+
+		expect(addEventListener).not.toHaveBeenCalled();
+		await session.run("delegated task");
+
+		expect(addEventListener).toHaveBeenCalledOnce();
+		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it("does not retain the parent signal when extension startup fails", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const extension: AgentExtension = {
+			name: "failing-startup",
+			manifest: { capabilities: ["tools"] },
+			setup: () => {
+				throw new Error("startup failed");
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				abortSignal: controller.signal,
+				extensions: [extension],
+				hookErrorMode: "throw",
+			}),
+		);
+
+		await expect(session.run("delegated task")).rejects.toThrow(
+			"startup failed",
+		);
+		expect(addEventListener).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"before",
+		"during",
+	] as const)("retains a parent abort received %s delegated startup", async (timing) => {
+		const controller = new AbortController();
+		let releaseStartup: (() => void) | undefined;
+		// AgentRuntime plugin setup has no cancellation contract. Release this
+		// finite startup explicitly and verify the retained abort is applied before
+		// the model runs; making arbitrary plugin initialization abortable is not
+		// part of SessionRuntime cancellation propagation.
+		const startupGate = new Promise<void>((resolve) => {
+			releaseStartup = resolve;
+		});
+		let markStartupEntered: (() => void) | undefined;
+		const startupEntered = new Promise<void>((resolve) => {
+			markStartupEntered = resolve;
+		});
+		const modelStream = vi.fn(async () =>
+			(async function* () {
+				yield { type: "text-delta" as const, text: "should not run" };
+				yield { type: "finish" as const, reason: "stop" as const };
+			})(),
+		);
+		const scriptedModel: AgentModel = { stream: modelStream };
+
+		if (timing === "before") {
+			controller.abort("parent session aborted");
+		}
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({
+						...config,
+						model: scriptedModel,
+						plugins: [
+							...(config.plugins ?? []),
+							{
+								name: "delayed-startup",
+								async setup() {
+									markStartupEntered?.();
+									await startupGate;
+									return {};
+								},
+							},
+						],
+					}),
+			},
+		);
+		const runPromise = session.run("delegated task");
+		await startupEntered;
+		if (timing === "during") {
+			controller.abort("parent session aborted");
+		}
+		releaseStartup?.();
+
+		await expect(runPromise).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(modelStream).not.toHaveBeenCalled();
+		await session.shutdown();
 	});
 });
 
@@ -1560,6 +2061,29 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.shutdown", () => {
+	it("rejects new runs without changing a stopped transcript", async () => {
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			withFakeRuntime().deps,
+		);
+		await session.run("done");
+		await session.shutdown();
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		await expect(session.run("again")).rejects.toThrow("after shutdown");
+		await expect(session.continue("again")).rejects.toThrow("after shutdown");
+		expect(session.getMessages()).toEqual(before);
+		expect(events).toEqual([]);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+	});
 	it("completes successfully when no run is active and locks out future runs", async () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		await expect(session.shutdown()).resolves.toBeUndefined();
@@ -2395,5 +2919,180 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.continue("b");
 		await session.continue("c");
 		expect(abortCalls).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Auth retry
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime auth retry", () => {
+	const authFailure = {
+		status: "failed",
+		error: new Error(
+			"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
+		),
+	} satisfies Partial<AgentRunResult>;
+
+	/** Runtime factory that scripts each successive AgentRuntime build. */
+	function withSequencedRuntimes(scripts: FakeAgentRuntimeScript[]): {
+		deps: SessionRuntimeOrchestratorDeps;
+		createdCount: () => number;
+	} {
+		let created = 0;
+		const deps: SessionRuntimeOrchestratorDeps = {
+			createAgentRuntimeImpl: () => {
+				const script = scripts[Math.min(created, scripts.length - 1)];
+				created += 1;
+				return makeFakeAgentRuntime(script).runtime;
+			},
+		};
+		return { deps, createdCount: () => created };
+	}
+
+	it("retries once with refreshed credentials when a run fails with an auth error", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as AgentConfig["telemetry"];
+		const { deps, createdCount } = withSequencedRuntimes([
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
+			{ result: { outputText: "recovered" } },
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({ onAuthError, telemetry }),
+			deps,
+		);
+
+		const terminalEvents: AgentEvent[] = [];
+		session.subscribeEvents((event) => terminalEvents.push(event));
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(2);
+		expect(result.finishReason).toBe("completed");
+		expect(result.text).toBe("recovered");
+		expect(
+			terminalEvents.filter(
+				(event) => event.type === "error" && !event.recoverable,
+			),
+		).toHaveLength(0);
+		expect(
+			result.messages.some((message) => message.metadata?.displayOnly),
+		).toBe(false);
+		expect(
+			session.getMessages().some((message) => message.metadata?.displayOnly),
+		).toBe(false);
+		expect(
+			capture.mock.calls.some(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toBe(false);
+		expect(capture).toHaveBeenCalledWith({
+			event: "user.auth_run_retry",
+			properties: { provider: "anthropic", recovered: true },
+		});
+	});
+
+	it("records and reports only the final failed authentication attempt", async () => {
+		const capture = vi.fn();
+		const { deps } = withSequencedRuntimes([
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
+			{
+				result: {
+					status: "failed",
+					error: new Error("API key expired after refresh"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				onAuthError: async () => true,
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			deps,
+		);
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		const result = await session.run("go");
+		expect(
+			result.messages.filter((message) => message.metadata?.displayOnly),
+		).toEqual([
+			expect.objectContaining({
+				content: [{ type: "text", text: "API key expired after refresh" }],
+			}),
+		]);
+		expect(
+			events.filter((event) => event.type === "error" && !event.recoverable),
+		).toHaveLength(1);
+		const recorded = capture.mock.calls.filter(
+			([event]) => event.event === "session.error_recorded",
+		);
+		expect(recorded).toHaveLength(1);
+		expect(recorded[0]?.[0].properties).toEqual({
+			sessionId: undefined,
+			provider: "anthropic",
+			model: "claude-3-5-sonnet",
+			source: "result",
+		});
+	});
+
+	it("returns the failed result when the host cannot refresh credentials", async () => {
+		const onAuthError = vi.fn(async () => false);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
+	});
+
+	it("does not invoke onAuthError for non-auth failures", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{
+				result: {
+					status: "failed",
+					error: new Error("Model stream failed"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).not.toHaveBeenCalled();
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
 	});
 });

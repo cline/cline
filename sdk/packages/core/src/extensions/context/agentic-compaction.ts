@@ -1,5 +1,5 @@
-import { createHandlerAsync } from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
+import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
@@ -20,30 +20,13 @@ import {
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
-	resolveEffectiveMaxInputTokens,
+	resolveProviderMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
 } from "./compaction-shared";
+import { generateSummary } from "./summary-generation";
 
 const MIN_AGENTIC_SUMMARY_INPUT_TOKENS = 1_024;
-
-function resolveProviderMaxInputTokens(
-	providerConfig: ProviderConfig,
-): number | undefined {
-	const modelInfoLimit = resolveEffectiveMaxInputTokens({
-		maxInputTokens:
-			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
-		contextWindow: providerConfig.modelInfo?.contextWindow,
-	});
-	if (modelInfoLimit !== undefined) {
-		return modelInfoLimit;
-	}
-	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
-	return resolveEffectiveMaxInputTokens({
-		maxInputTokens: knownModelInfo?.maxInputTokens,
-		contextWindow: knownModelInfo?.contextWindow,
-	});
-}
 
 export function buildAgenticSummaryInputBudget(options: {
 	messages: CoreCompactionContext["messages"];
@@ -56,33 +39,6 @@ export function buildAgenticSummaryInputBudget(options: {
 		policyIntent: "agentic_summary",
 		estimateMessageTokens: options.estimateMessageTokens,
 	});
-}
-
-async function generateSummary(options: {
-	providerConfig: ProviderConfig;
-	request: string;
-	logger?: BasicLogger;
-}): Promise<string> {
-	const handler = await createHandlerAsync(options.providerConfig);
-	let text = "";
-	for await (const chunk of handler.createMessage(
-		"Summarize the provided coding session into a concise continuation note with detailed next steps.",
-		[{ role: "user", content: options.request }],
-	)) {
-		if (chunk.type === "text") {
-			text += chunk.text;
-			continue;
-		}
-		if (chunk.type === "done" && !chunk.success && chunk.error) {
-			throw new Error(chunk.error);
-		}
-	}
-	options.logger?.debug("Generated compaction summary", {
-		outputChars: text.length,
-		modelId: options.providerConfig.modelId,
-		providerId: options.providerConfig.providerId,
-	});
-	return text.trim();
 }
 
 function safeJsonSize(value: unknown): number {
@@ -230,12 +186,36 @@ export async function runAgenticCompaction(options: {
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 		triggerTokens: options.context.budget.request.triggerTokens,
 	});
-	const rawSummary = await generateSummary({
+	const summaryResult = await generateSummary({
 		providerConfig: summarizerProviderConfig,
+		systemPrompt:
+			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
 		request: summaryRequest,
-		logger: options.logger,
 	});
-	if (!rawSummary.trim()) {
+	options.logger?.debug("Generated compaction summary", {
+		outputChars: summaryResult.text.length,
+		reasoningChars: summaryResult.reasoningChars,
+		incompleteReason: summaryResult.incompleteReason,
+		modelId: summarizerProviderConfig.modelId,
+		providerId: summarizerProviderConfig.providerId,
+	});
+	const rawSummary = summaryResult.text.trim();
+	if (!rawSummary) {
+		options.logger?.log(
+			"Skipped agentic compaction: summarizer returned no summary text",
+			{
+				severity: "warn",
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				summarizerMaxOutputTokens: summarizerProviderConfig.maxOutputTokens,
+				reasoningChars: summaryResult.reasoningChars,
+				incompleteReason: summaryResult.incompleteReason,
+				likelyCause:
+					summaryResult.reasoningChars > 0
+						? "output_budget_consumed_by_reasoning"
+						: "empty_response",
+			},
+		);
 		return undefined;
 	}
 
@@ -249,6 +229,7 @@ export async function runAgenticCompaction(options: {
 			summary,
 			fileOps,
 			tokensBefore,
+			userRunSpan: countUserRunMessages(messagesToSummarize),
 		}),
 		...messages.slice(cutIndex),
 	];

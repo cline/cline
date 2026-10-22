@@ -41,7 +41,28 @@ import {
 
 type AgentHookControl = Omit<HookControl, "appendMessages"> & {
 	appendMessages?: unknown[];
+	/**
+	 * Error message accompanying `cancel: true`. Kept separate from `context`
+	 * so injectable context from one hook never leaks into another hook's
+	 * cancellation reason when controls are merged.
+	 */
+	cancelReason?: string;
 };
+
+/**
+ * Maximum size for a hook's injected context (`contextModification`), matching
+ * the legacy extension's cap. Prevents a hook from overflowing the prompt.
+ */
+export const MAX_HOOK_CONTEXT_SIZE = 50_000;
+
+export function truncateHookContext(
+	context: string | undefined,
+): string | undefined {
+	if (context === undefined || context.length <= MAX_HOOK_CONTEXT_SIZE) {
+		return context;
+	}
+	return `${context.slice(0, MAX_HOOK_CONTEXT_SIZE)}\n[hook context truncated: exceeded ${MAX_HOOK_CONTEXT_SIZE} characters]`;
+}
 
 export interface HookOutput {
 	contextModification: string;
@@ -103,6 +124,12 @@ export type RunHookResult = RunSubprocessEventResult;
 
 const DEFAULT_HOOK_COMMAND = ["agent", "hook"];
 
+/**
+ * Default timeout for blocking tool hooks (tool_call/tool_result). Without a
+ * bound, a hook command that never exits would block the agent indefinitely.
+ */
+const DEFAULT_TOOL_HOOK_TIMEOUT_MS = 120_000;
+
 export async function runHook(
 	payload: HookEventPayload,
 	options: RunHookOptions = {},
@@ -130,6 +157,16 @@ export interface SubprocessHooksOptions {
 	workspaceInfo?: WorkspaceInfo;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
+	/**
+	 * Run agent_start/agent_resume hooks blocking, honoring their control
+	 * output (cancel, contextModification). Off by default: these hooks have
+	 * always been fire-and-forget with stdio ignored, so an existing
+	 * long-running script would otherwise stall every run start until the
+	 * timeout. A host that flips this on must tell hook authors that
+	 * long-running run-start hooks need to background themselves (spawn a
+	 * detached child and exit).
+	 */
+	blockingRunStartHooks?: boolean;
 	onDispatchError?: (error: Error, payload: HookEventPayload) => void;
 	onDispatch?: (event: {
 		payload: HookEventPayload;
@@ -177,19 +214,29 @@ function toHookControl(value: unknown): AgentHookControl | undefined {
 	if (!hasControlKey) {
 		return undefined;
 	}
-	const contextFromHook =
+	const injectableContext =
 		typeof maybe.context === "string"
 			? maybe.context
 			: typeof maybe.contextModification === "string"
 				? maybe.contextModification
-				: typeof maybe.errorMessage === "string" &&
-						maybe.errorMessage.length > 0
-					? maybe.errorMessage
-					: undefined;
+				: undefined;
+	const errorMessage =
+		typeof maybe.errorMessage === "string" &&
+		maybe.errorMessage.trim().length > 0
+			? maybe.errorMessage
+			: undefined;
+	const cancel = typeof maybe.cancel === "boolean" ? maybe.cancel : undefined;
 	return {
-		cancel: typeof maybe.cancel === "boolean" ? maybe.cancel : undefined,
+		cancel,
 		review: typeof maybe.review === "boolean" ? maybe.review : undefined,
-		context: contextFromHook,
+		// A cancelling hook's message is its error/reason, not injectable
+		// conversation context; errorMessage takes precedence there.
+		context:
+			cancel === true
+				? undefined
+				: truncateHookContext(injectableContext ?? errorMessage),
+		cancelReason:
+			cancel === true ? (errorMessage ?? injectableContext) : undefined,
 		overrideInput: Object.hasOwn(maybe, "overrideInput")
 			? maybe.overrideInput
 			: undefined,
@@ -298,11 +345,44 @@ function runtimeToolRecord(
 
 function beforeToolResultFromControl(
 	control: AgentHookControl | undefined,
-): { stop?: boolean; input?: unknown } | undefined {
+):
+	| { stop?: boolean; reason?: string; input?: unknown; appendContext?: string }
+	| undefined {
 	if (!control) return undefined;
-	const result: { stop?: boolean; input?: unknown } = {};
-	if (control.cancel === true) result.stop = true;
+	const result: {
+		stop?: boolean;
+		reason?: string;
+		input?: unknown;
+		appendContext?: string;
+	} = {};
+	if (control.cancel === true) {
+		result.stop = true;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
+		}
+	} else if (control.context?.trim()) {
+		result.appendContext = control.context;
+	}
 	if (control.overrideInput !== undefined) result.input = control.overrideInput;
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+// Shared by afterTool and beforeRun: both may stop the run or inject
+// context, and neither can override tool input.
+function stopOrContextResultFromControl(
+	control: AgentHookControl | undefined,
+): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
+	if (!control) return undefined;
+	const result: { stop?: boolean; reason?: string; appendContext?: string } =
+		{};
+	if (control.cancel === true) {
+		result.stop = true;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
+		}
+	} else if (control.context?.trim()) {
+		result.appendContext = control.context;
+	}
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
@@ -327,35 +407,71 @@ async function dispatchDetached(
 export function createSubprocessHooks(
 	options: SubprocessHooksOptions = {},
 ): SubprocessHookControl {
+	// With blockingRunStartHooks, run-start hooks execute blocking so their
+	// output is collected: like the tool hooks, they may cancel the run or
+	// inject context, neither of which is possible from a detached spawn with
+	// ignored stdio. The default stays fire-and-forget so existing
+	// long-running run-start scripts don't stall every run until the timeout.
 	const beforeRun = async (
 		ctx: AgentRunLifecycleContext,
-	): Promise<undefined> => {
+	): Promise<
+		{ stop?: boolean; reason?: string; appendContext?: string } | undefined
+	> => {
 		const base = runtimeBase(ctx);
 		const isResume =
 			(options.env ?? process.env).CLINE_HOOK_AGENT_RESUME === "1";
-		if (isResume) {
-			const resumePayload: AgentResumeHookPayload = {
-				...basePayload("agent_resume", base, options),
-				hookName: "agent_resume",
-				taskResume: {
-					taskMetadata: {},
-					previousState: {},
-				},
-			};
-			await dispatchDetached(resumePayload, options);
-		} else {
-			const startPayload: AgentStartHookPayload = {
-				...basePayload("agent_start", base, options),
-				hookName: "agent_start",
-				taskStart: { taskMetadata: {} },
-			};
-			await dispatchDetached(startPayload, options);
+		const payload: AgentResumeHookPayload | AgentStartHookPayload = isResume
+			? {
+					...basePayload("agent_resume", base, options),
+					hookName: "agent_resume",
+					taskResume: {
+						taskMetadata: {},
+						previousState: {},
+					},
+				}
+			: {
+					...basePayload("agent_start", base, options),
+					hookName: "agent_start",
+					taskStart: { taskMetadata: {} },
+				};
+		if (!options.blockingRunStartHooks) {
+			await dispatchDetached(payload, options);
+			return undefined;
 		}
-		return undefined;
+		try {
+			const result = await runHook(payload, {
+				command: options.command,
+				cwd: options.cwd,
+				env: options.env,
+				detached: false,
+				timeoutMs: options.timeoutMs ?? DEFAULT_TOOL_HOOK_TIMEOUT_MS,
+				onSpawn: options.onSpawn,
+			});
+			options.onDispatch?.({ payload, result, detached: false });
+			if (result?.timedOut) {
+				throw new Error(`${payload.hookName} hook command timed out`);
+			}
+			// Unparseable stdout is tolerated for run-start hooks: they long ran
+			// with stdout ignored entirely, so existing scripts print diagnostics
+			// freely. Output only becomes control when it parses.
+			if (result?.parseError) {
+				return undefined;
+			}
+			return stopOrContextResultFromControl(toHookControl(result?.parsedJson));
+		} catch (error) {
+			options.onDispatchError?.(toError(error), payload);
+			return;
+		}
 	};
 
 	const onEvent = async (event: AgentRuntimeEvent): Promise<void> => {
-		if (event.type !== "message-added" || event.message.role !== "user") {
+		if (
+			event.type !== "message-added" ||
+			event.message.role !== "user" ||
+			// Injected hook-context blocks are user-role messages with a system
+			// display role; they are not user prompts.
+			event.message.metadata?.displayRole === "system"
+		) {
 			return;
 		}
 		const base = {
@@ -409,7 +525,7 @@ export function createSubprocessHooks(
 				cwd: options.cwd,
 				env: options.env,
 				detached: false,
-				timeoutMs: options.timeoutMs,
+				timeoutMs: options.timeoutMs ?? DEFAULT_TOOL_HOOK_TIMEOUT_MS,
 				onSpawn: options.onSpawn,
 			});
 			options.onDispatch?.({ payload, result, detached: false });
@@ -428,7 +544,11 @@ export function createSubprocessHooks(
 		}
 	};
 
-	const afterTool = async (ctx: AgentAfterToolContext): Promise<undefined> => {
+	const afterTool = async (
+		ctx: AgentAfterToolContext,
+	): Promise<
+		{ stop?: boolean; reason?: string; appendContext?: string } | undefined
+	> => {
 		const record = runtimeToolRecord(ctx);
 		const base = {
 			agentId: ctx.snapshot.agentId,
@@ -454,8 +574,30 @@ export function createSubprocessHooks(
 				executionTimeMs: record.durationMs,
 			},
 		};
-		await dispatchDetached(payload, options);
-		return undefined;
+
+		try {
+			const result = await runHook(payload, {
+				command: options.command,
+				cwd: options.cwd,
+				env: options.env,
+				detached: false,
+				timeoutMs: options.timeoutMs ?? DEFAULT_TOOL_HOOK_TIMEOUT_MS,
+				onSpawn: options.onSpawn,
+			});
+			options.onDispatch?.({ payload, result, detached: false });
+			if (result?.timedOut) {
+				throw new Error("tool_result hook command timed out");
+			}
+			if (result?.parseError) {
+				throw new Error(
+					`tool_result hook produced invalid control JSON: ${result.parseError}`,
+				);
+			}
+			return stopOrContextResultFromControl(toHookControl(result?.parsedJson));
+		} catch (error) {
+			options.onDispatchError?.(toError(error), payload);
+			return;
+		}
 	};
 
 	const afterRun: NonNullable<AgentHooks["afterRun"]> = async ({

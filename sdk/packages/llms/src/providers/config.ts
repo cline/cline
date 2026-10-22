@@ -5,7 +5,11 @@
  * This replaces the per-provider config chaos with a single structure.
  */
 
-import type { BasicLogger, ExtensionContext } from "@cline/shared";
+import type {
+	BasicLogger,
+	ExtensionContext,
+	ReasoningEffort,
+} from "@cline/shared";
 import type { ModelInfo, ProviderClient } from "../catalog/types";
 import {
 	BUILT_IN_PROVIDER,
@@ -129,7 +133,7 @@ export interface TokenConfig {
  */
 export interface ReasoningConfig {
 	/** Reasoning effort level */
-	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	reasoningEffort?: ReasoningEffort;
 	/** Extended thinking budget in tokens */
 	thinkingBudgetTokens?: number;
 	/** Enable thinking with provider/model defaults when supported */
@@ -261,6 +265,11 @@ export interface ProviderOptions {
 export interface ModelCatalogConfig {
 	/** Fetch latest catalog at handler initialization */
 	loadLatestOnInit?: boolean;
+	/**
+	 * Include models that are only valid for Cline Cloud sessions.
+	 * Defaults to false; cloud-inclusive and local catalogs use separate caches.
+	 */
+	includeClineCloudModels?: boolean;
 	/** Fetch provider-private models when auth is available */
 	loadPrivateOnAuth?: boolean;
 	/** Catalog endpoint URL */
@@ -309,14 +318,6 @@ export interface ProviderConfig
 
 	/** Task/session ID for telemetry */
 	taskId?: string;
-
-	/** Retry callback */
-	onRetryAttempt?: (
-		attempt: number,
-		maxRetries: number,
-		delay: number,
-		error: unknown,
-	) => void;
 
 	/** AbortSignal for cancelling requests */
 	abortSignal?: AbortSignal;

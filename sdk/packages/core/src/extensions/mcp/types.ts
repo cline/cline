@@ -4,6 +4,7 @@ export interface McpToolDescriptor {
 	name: string;
 	description?: string;
 	inputSchema: Record<string, unknown>;
+	_meta?: Record<string, unknown>;
 }
 
 export interface McpToolCallRequest {
@@ -14,6 +15,25 @@ export interface McpToolCallRequest {
 }
 
 export type McpToolCallResult = unknown;
+
+export interface McpResourceReadRequest {
+	serverName: string;
+	uri: string;
+	context?: AgentToolContext;
+}
+
+export interface McpResourceContents {
+	uri: string;
+	mimeType?: string;
+	text?: string;
+	blob?: string;
+	_meta?: Record<string, unknown>;
+}
+
+export interface McpResourceReadResult {
+	contents: McpResourceContents[];
+	_meta?: Record<string, unknown>;
+}
 
 export interface McpToolProvider {
 	listTools(serverName: string): Promise<readonly McpToolDescriptor[]>;
@@ -69,13 +89,29 @@ export interface McpServerOAuthState {
 	redirectUrl?: string;
 	lastError?: string;
 	lastAuthenticatedAt?: number;
+	authorizationRequired?: boolean;
+}
+
+export interface McpServerOAuthClientConfig {
+	clientId: string;
+	clientSecret?: string;
 }
 
 export interface McpServerRegistration {
 	name: string;
 	transport: McpServerTransportConfig;
 	disabled?: boolean;
+	/**
+	 * Per-server request timeout in seconds, from the `timeout` field in
+	 * cline_mcp_settings.json. Undefined means the shared default for ordinary
+	 * requests; the stdio client uses its default connect budget for
+	 * initialize until a finite timeout is explicitly configured. Registrations are
+	 * resolved when the runtime is built, so changes take effect on the next
+	 * session.
+	 */
+	timeoutSeconds?: number;
 	metadata?: Record<string, unknown>;
+	oauthClient?: McpServerOAuthClientConfig;
 	oauth?: McpServerOAuthState;
 }
 
@@ -98,6 +134,10 @@ export interface McpServerClient {
 		arguments?: Record<string, unknown>;
 		context?: AgentToolContext;
 	}): Promise<McpToolCallResult>;
+	readResource?(request: {
+		uri: string;
+		context?: AgentToolContext;
+	}): Promise<McpResourceReadResult>;
 }
 
 export type McpServerClientFactory = (
@@ -108,6 +148,7 @@ export interface McpServerOAuthStatus {
 	serverName: string;
 	oauthSupported: boolean;
 	oauthConfigured: boolean;
+	authorizationRequired: boolean;
 	lastError?: string;
 	lastAuthenticatedAt?: number;
 }
@@ -131,5 +172,8 @@ export interface McpManager extends McpToolProvider {
 	listServers(): readonly McpServerSnapshot[];
 	refreshTools(serverName: string): Promise<readonly McpToolDescriptor[]>;
 	callTool(request: McpToolCallRequest): Promise<McpToolCallResult>;
+	readResource?(
+		request: McpResourceReadRequest,
+	): Promise<McpResourceReadResult>;
 	dispose(): Promise<void>;
 }

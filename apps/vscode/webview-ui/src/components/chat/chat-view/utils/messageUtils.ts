@@ -138,10 +138,8 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 		}
 		switch (message.say) {
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
-			case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
-			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
@@ -192,7 +190,6 @@ function isBrowserSessionMessage(message: ClineMessage): boolean {
 			"browser_action",
 			"browser_action_result",
 			"reasoning",
-			"error_retry",
 		].includes(message.say ?? "")
 	}
 	return false
@@ -302,33 +299,6 @@ export function findReasoningForApiReq(
 		reasoning: reasoningParts.length > 0 ? reasoningParts.join("\n\n") : undefined,
 		responseStarted,
 	}
-}
-
-/**
- * Check if a text message's associated API request is still in progress.
- * Returns true if there's no cost yet on the parent api_req_started.
- */
-export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineMessage[]): boolean {
-	// Find the api_req_started that precedes this text message
-	const textIndex = allMessages.findIndex((m) => m.ts === textTs)
-	if (textIndex === -1) {
-		return false
-	}
-
-	// Look backwards for the most recent api_req_started
-	for (let i = textIndex - 1; i >= 0; i--) {
-		const msg = allMessages[i]
-		if (msg.say === "api_req_started" && msg.text) {
-			try {
-				const info = JSON.parse(msg.text)
-				// If no cost, the request is still in progress
-				return info.cost == null
-			} catch {
-				return false
-			}
-		}
-	}
-	return false
 }
 
 /**

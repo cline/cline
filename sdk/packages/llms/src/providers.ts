@@ -1,4 +1,10 @@
-export { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "./providers/builtins";
+export {
+	getGeneratedModelsForRuntimeProvider,
+	isProviderApiLine,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+	type ProviderApiLine,
+	resolveProviderApiLineBaseUrl,
+} from "./providers/builtins";
 export {
 	type ApiHandler,
 	BUILT_IN_PROVIDER,
@@ -17,6 +23,12 @@ import {
 	createGatewayApiHandler,
 	createGatewayApiHandlerAsync,
 } from "./providers/compat";
+
+export {
+	resolveGatewayProviderRegistration,
+	resolveGatewayProviderRegistrationSync,
+} from "./providers/compat";
+
 import {
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
@@ -30,13 +42,22 @@ import {
 } from "./providers/types";
 
 export {
+	classifyProviderError,
+	isRetryableProviderError,
+} from "./providers/error-classification";
+export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,

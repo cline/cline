@@ -21,12 +21,14 @@ mock.module("node:os", osMock)
 // control which PowerShell installs "exist" regardless of the host machine.
 let existsSyncImpl: typeof actualFs.existsSync = actualFs.existsSync
 const existsSyncDelegate = ((path: unknown) => existsSyncImpl(path as string)) as typeof actualFs.existsSync
-const fsMockNamespace = { ...actualFs, existsSync: existsSyncDelegate }
+let lstatSyncImpl: typeof actualFs.lstatSync = actualFs.lstatSync
+const lstatSyncDelegate = ((path: unknown) => lstatSyncImpl(path as string)) as typeof actualFs.lstatSync
+const fsMockNamespace = { ...actualFs, existsSync: existsSyncDelegate, lstatSync: lstatSyncDelegate }
 const fsMock = () => ({ ...fsMockNamespace, default: fsMockNamespace })
 mock.module("fs", fsMock)
 mock.module("node:fs", fsMock)
 
-import { getShell } from "@utils/shell"
+import { getShell, getShellForProfile } from "@utils/shell"
 
 describe("Shell Detection Tests", () => {
 	let originalPlatform: string
@@ -34,6 +36,7 @@ describe("Shell Detection Tests", () => {
 	let originalGetConfig: typeof vscode.workspace.getConfiguration
 	let originalUserInfo: typeof actualOs.userInfo
 	let originalExistsSync: typeof actualFs.existsSync
+	let originalLstatSync: typeof actualFs.lstatSync
 
 	// Helper to mock VS Code configuration
 	function mockVsCodeConfig(platformKey: string, defaultProfileName: string | null, profiles: Record<string, any>) {
@@ -58,6 +61,7 @@ describe("Shell Detection Tests", () => {
 		originalGetConfig = vscode.workspace.getConfiguration
 		originalUserInfo = userInfoImpl
 		originalExistsSync = existsSyncImpl
+		originalLstatSync = lstatSyncImpl
 
 		// Clear environment variables for a clean test
 		delete process.env.SHELL
@@ -68,6 +72,9 @@ describe("Shell Detection Tests", () => {
 		// Default: PowerShell 7 is not installed, so the Windows default
 		// resolves to legacy Windows PowerShell.
 		existsSyncImpl = (() => false) as any
+		lstatSyncImpl = (() => {
+			throw new Error("ENOENT")
+		}) as typeof actualFs.lstatSync
 	})
 
 	afterEach(() => {
@@ -77,6 +84,7 @@ describe("Shell Detection Tests", () => {
 		vscode.workspace.getConfiguration = originalGetConfig
 		userInfoImpl = originalUserInfo
 		existsSyncImpl = originalExistsSync
+		lstatSyncImpl = originalLstatSync
 	})
 
 	// --------------------------------------------------------------------------
@@ -146,10 +154,43 @@ describe("Shell Detection Tests", () => {
 		})
 
 		it("uses PowerShell 7 path if source is 'PowerShell' but no explicit path", () => {
+			existsSyncImpl = ((candidate: actualFs.PathLike) =>
+				candidate === "C:\\Program Files\\PowerShell\\7\\pwsh.exe") as typeof actualFs.existsSync
 			mockVsCodeConfig("windows", "PowerShell", {
 				PowerShell: { source: "PowerShell" },
 			})
 			expect(getShell()).to.equal("C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+		})
+
+		it("uses Store-installed pwsh for a source-based PowerShell profile", () => {
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			lstatSyncImpl = ((candidate: actualFs.PathLike) => {
+				if (candidate !== storePwsh) {
+					throw new Error("ENOENT")
+				}
+				return { isSymbolicLink: () => true } as actualFs.Stats
+			}) as typeof actualFs.lstatSync
+			mockVsCodeConfig("windows", "PowerShell", {
+				PowerShell: { source: "PowerShell" },
+			})
+
+			expect(getShell()).to.equal(storePwsh)
+		})
+
+		it("uses Store-installed pwsh for Cline's PowerShell 7 profile", () => {
+			process.env.LOCALAPPDATA = "C:\\Users\\Test\\AppData\\Local"
+			const storePwsh = "C:\\Users\\Test\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+			existsSyncImpl = (() => false) as typeof actualFs.existsSync
+			lstatSyncImpl = ((candidate: actualFs.PathLike) => {
+				if (candidate !== storePwsh) {
+					throw new Error("ENOENT")
+				}
+				return { isSymbolicLink: () => true } as actualFs.Stats
+			}) as typeof actualFs.lstatSync
+
+			expect(getShellForProfile("powershell-7")).to.equal(storePwsh)
 		})
 
 		it("falls back to legacy PowerShell if profile includes 'powershell' but no path/source", () => {

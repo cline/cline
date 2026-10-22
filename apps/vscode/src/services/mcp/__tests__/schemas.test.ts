@@ -253,6 +253,26 @@ describe("McpSettingsSchema", () => {
 			result.data!.mcpServers["cliServer"].type.should.equal("streamableHttp")
 			result.data!.mcpServers["extensionServer"].type.should.equal("stdio")
 		})
+
+		it("normalises malformed and out-of-range timeouts without rejecting siblings", () => {
+			const result = McpSettingsSchema.safeParse({
+				mcpServers: {
+					malformed: {
+						transport: { type: "stdio", command: "node" },
+						timeout: "120",
+					},
+					tooSmall: { command: "node", timeout: 0 },
+					tooLarge: { command: "node", timeout: 60_000 },
+					valid: { command: "node", timeout: 120 },
+				},
+			})
+
+			result.success.should.be.true()
+			result.data!.mcpServers.malformed.timeout.should.equal(60)
+			result.data!.mcpServers.tooSmall.timeout.should.equal(1)
+			result.data!.mcpServers.tooLarge.timeout.should.equal(3600)
+			result.data!.mcpServers.valid.timeout.should.equal(120)
+		})
 	})
 
 	// -------------------------------------------------------------------------

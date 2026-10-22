@@ -192,6 +192,35 @@ export function formatDisplayUserInput(input?: string): string {
 	return normalized ? `/${envelope.slash} ${normalized}` : `/${envelope.slash}`;
 }
 
+export const SESSION_SEARCH_TITLE_MAX_LENGTH = 240;
+export const SESSION_SEARCH_PREVIEW_MAX_LENGTH = 480;
+
+function compactSessionSearchText(input: string, maxLength: number): string {
+	const compact = input.replace(/\s+/gu, " ").trim();
+	if (compact.length <= maxLength) return compact;
+	return `${compact.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+export function formatSessionSearchTitle(input?: string): string {
+	return compactSessionSearchText(
+		formatDisplayUserInput(input),
+		SESSION_SEARCH_TITLE_MAX_LENGTH,
+	);
+}
+
+export function formatSessionSearchPreview(
+	role: string,
+	input?: string,
+): string {
+	const trimmed = input?.trim() ?? "";
+	const normalizedRole = role.toLowerCase();
+	const display =
+		normalizedRole === "user" || normalizedRole === "session"
+			? formatDisplayUserInput(trimmed)
+			: trimmed;
+	return compactSessionSearchText(display, SESSION_SEARCH_PREVIEW_MAX_LENGTH);
+}
+
 export function xmlTagsRemoval(input?: string, tag?: string): string {
 	if (!input?.trim()) return "";
 	if (!tag) return input;

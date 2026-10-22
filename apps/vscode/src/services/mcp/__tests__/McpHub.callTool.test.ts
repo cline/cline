@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import sinon from "sinon"
 import { McpHub } from "../McpHub"
 
@@ -166,6 +167,122 @@ describe("McpHub.callTool", () => {
 			requestOptions.timeout.should.be.a.Number()
 			requestOptions.timeout.should.be.above(0)
 		})
+
+		it("should pass the abort signal in request options", async () => {
+			const { hub, client } = createMcpHub()
+			const controller = new AbortController()
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-signal", controller.signal)
+
+			client.request.firstCall.args[2].signal.should.equal(controller.signal)
+		})
+	})
+
+	// ── Per-server timeout resolution ─────────────────────────────────
+
+	describe("timeout resolution", () => {
+		it("should pass the configured per-server timeout (seconds) as ms", async () => {
+			const { hub, client } = createMcpHub({
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }),
+			})
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-t01")
+
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(120_000)
+		})
+
+		it("should clamp a milliseconds/seconds mix-up to the maximum", async () => {
+			const { hub, client } = createMcpHub({
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 60000 }),
+			})
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-t02")
+
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(3_600_000)
+		})
+
+		it("should fall back to the default when the config is malformed", async () => {
+			const { hub, client } = createMcpHub({ config: "not-json" })
+
+			await hub.callTool("test-server", "slow_tool", undefined, "ulid-t03")
+
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(60_000)
+		})
+
+		it("should apply the per-server timeout to metadata requests (tools/list)", async () => {
+			const { hub, client } = createMcpHub({
+				client: createMockClient({ tools: [] }),
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }),
+			})
+
+			await (hub as any).fetchToolsList("test-server")
+
+			client.request.calledOnce.should.be.true()
+			const requestArgs = client.request.firstCall.args[0]
+			requestArgs.method.should.equal("tools/list")
+			const requestOptions = client.request.firstCall.args[2]
+			requestOptions.timeout.should.equal(120_000)
+		})
+
+		it("should fetch the four capability lists in parallel", async () => {
+			// Each request resolves on the next macrotask and records how many
+			// requests were in flight when it started. Sequential awaits would
+			// observe one in-flight request each; parallel dispatch observes all
+			// four before the first resolves.
+			let inFlight = 0
+			const inFlightAtStart: number[] = []
+			const client = {
+				request: sinon.stub().callsFake((request: { method: string }) => {
+					inFlight += 1
+					inFlightAtStart.push(inFlight)
+					return new Promise((resolve) => {
+						setTimeout(() => {
+							inFlight -= 1
+							resolve(
+								request.method === "tools/list"
+									? { tools: [] }
+									: request.method === "resources/list"
+										? { resources: [] }
+										: request.method === "resources/templates/list"
+											? { resourceTemplates: [] }
+											: { prompts: [] },
+							)
+						}, 0)
+					})
+				}),
+			}
+			const { hub, connection } = createMcpHub({ client: client as never })
+
+			await (hub as any).fetchServerCapabilities(connection)
+
+			client.request.callCount.should.equal(4)
+			Math.max(...inFlightAtStart).should.equal(4)
+		})
+
+		it("should augment request-timeout errors with how to raise the bound", async () => {
+			const failingClient = {
+				request: sinon.stub().rejects(new McpError(ErrorCode.RequestTimeout, "Request timed out")),
+			}
+			const { hub } = createMcpHub({
+				client: failingClient,
+				config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }),
+			})
+
+			let thrown: any
+			try {
+				await hub.callTool("test-server", "slow_tool", undefined, "ulid-t04")
+			} catch (error) {
+				thrown = error
+			}
+
+			thrown.should.be.instanceOf(McpError)
+			thrown.code.should.equal(ErrorCode.RequestTimeout)
+			thrown.message.should.match(/timed out after 120s/)
+			thrown.message.should.match(/"timeout" field \(in seconds\)/)
+		})
 	})
 
 	// ── Error handling ──────────────────────────────────────────────────
@@ -193,6 +310,26 @@ describe("McpHub.callTool", () => {
 			} catch (error: any) {
 				threw = true
 				error.message.should.containEql("disabled")
+			}
+			threw.should.be.true()
+		})
+
+		it("should throw a controlled error when the connection has no client (failed reconnect)", async () => {
+			// A failed (re)connect registers a disconnected entry with a null
+			// client; a tool wrapper captured by an active session can still
+			// call it and must get a controlled error, not a TypeError.
+			const { hub, connection } = createMcpHub()
+			connection.server.status = "disconnected"
+			;(connection.server as any).error = "spawn broken-command ENOENT"
+			;(connection as any).client = null
+
+			let threw = false
+			try {
+				await hub.callTool("test-server", "some_tool", undefined, "ulid-018")
+			} catch (error: any) {
+				threw = true
+				error.message.should.containEql('Server "test-server" is not connected')
+				error.message.should.containEql("spawn broken-command ENOENT")
 			}
 			threw.should.be.true()
 		})

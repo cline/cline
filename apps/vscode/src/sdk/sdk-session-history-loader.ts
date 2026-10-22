@@ -1,11 +1,14 @@
 import { Logger } from "@/shared/services/Logger"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
+import { readCurrentMessages, type SdkInitialMessages, type SdkSessionHost } from "./session-host"
 
 export class SdkSessionHistoryLoader {
 	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<SdkInitialMessages | undefined> {
 		try {
-			const sdkMessages = await sessionHost.readMessages(taskId)
+			// A rebuild right after aborting a turn (e.g. a plan/act mode switch
+			// mid-approval) would read an empty persisted transcript and drop
+			// the task context, so read the current conversation.
+			const sdkMessages = await readCurrentMessages(sessionHost, taskId)
 			if (sdkMessages.length > 0) {
 				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(sdkMessages)
 				if (sanitizedMessages !== sdkMessages) {

@@ -30,7 +30,7 @@ describe("createAnthropicProviderModule", () => {
 			context("minimax"),
 		);
 
-		provider.model("MiniMax-M2.5");
+		provider.operations.language("MiniMax-M2.5");
 
 		expect(createAnthropicMock).toHaveBeenCalledWith(
 			expect.objectContaining({

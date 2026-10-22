@@ -34,6 +34,11 @@ export interface CompactSessionMessagesInput {
 	sessionId: string
 	/** The conversation transcript to compact (SDK message shape). */
 	messages: SdkMessage[]
+	/**
+	 * Receives the SDK's compaction status notices (started/completed/skipped
+	 * with token + message counters) so the caller can drive progress UI.
+	 */
+	emitStatusNotice?: (message: string, metadata?: Record<string, unknown>) => void
 }
 
 export interface CompactSessionMessagesResult {
@@ -104,6 +109,7 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 			provider: input.config.providerId,
 			info: compactionModelInfo,
 		},
+		emitStatusNotice: input.emitStatusNotice,
 	})
 	if (!result) {
 		return { compacted: false, messages: input.messages }

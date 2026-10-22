@@ -112,9 +112,13 @@ message Secrets {
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
-  reserved 144, 154, 176;
-  reserved "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
-
+  reserved 150; // was custom_prompt (removed - compact prompt setting no longer supported)
+  reserved "custom_prompt";
+  reserved 139; // was max_consecutive_mistakes (removed; the SDK owns the mistake limit)
+  reserved "max_consecutive_mistakes";
+  reserved 142; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
+  reserved 149;
+  reserved "focus_chain_settings";
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -251,13 +255,9 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  optional int32 max_consecutive_mistakes = 139;
-  optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
-  optional FocusChainSettings focus_chain_settings = 149;
-  optional string custom_prompt = 150;
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
   optional bool background_edit_enabled = 155;
@@ -277,7 +277,6 @@ message Settings {
   optional int32 open_telemetry_log_batch_timeout = 170;
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
-  optional bool auto_approve_all_toggled = 174;
   map<string, string> open_ai_headers = 177;
   optional string plan_mode_cline_model_id = 178;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
@@ -288,6 +287,8 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional bool cloud_sessions_enabled = 188;
+  optional string open_telemetry_traces_exporter = 189;
 }
 
 message State {
@@ -395,7 +396,8 @@ message UpdateSettingsRequest {
   reserved 38; // was skills_enabled (removed - now always enabled)
   reserved 43; // was lazy_teammate_mode_enabled (removed)
   reserved 12; // was terminal_output_line_limit (removed; SDK command output limits are character-based)
-  reserved "native_tool_call_enabled", "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
+  reserved 19; // was custom_prompt (removed - compact prompt setting no longer supported)
+  reserved "native_tool_call_enabled", "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled", "custom_prompt";
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -410,16 +412,16 @@ message UpdateSettingsRequest {
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   reserved 16; // was strict_plan_mode_enabled (removed)
-  optional FocusChainSettings focus_chain_settings = 17;
+  reserved 17;
+  reserved "focus_chain_settings";
   optional bool use_auto_condense = 18;
-  optional string custom_prompt = 19;
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
-  optional bool yolo_mode_toggled = 22;
+  reserved 22; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
-  optional int32 max_consecutive_mistakes = 28;
+  reserved 28; // was max_consecutive_mistakes (removed; the SDK owns the mistake limit)
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
@@ -430,15 +432,12 @@ message UpdateSettingsRequest {
   optional bool worktrees_enabled = 40;
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;
+  optional bool web_search_enabled = 45;
+  optional bool cloud_sessions_enabled = 46;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
   optional int32 timeout_ms = 1;
-}
-
-message FocusChainSettings {
-  bool enabled = 1;
-  int32 remind_cline_interval = 2;
 }
 
 message UpdateTerminalConnectionTimeoutResponse {
