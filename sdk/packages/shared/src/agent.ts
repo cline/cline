@@ -13,7 +13,10 @@ import type {
 	ToolPolicy,
 } from "./llms/tools";
 import type { BasicLogger } from "./logging/logger";
-import type { ITelemetryService } from "./services/telemetry";
+import type {
+	ITelemetryService,
+	TelemetryProperties,
+} from "./services/telemetry";
 
 // =============================================================================
 // Lightweight telemetry surface used by AgentRuntime
@@ -581,6 +584,12 @@ export interface AgentRuntimeConfig {
 	plugins?: readonly AgentRuntimePlugin[];
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	/**
+	 * Extra properties for the `agent.run-finished` / `agent.run-failed`
+	 * telemetry mirror, read once when the run ends. Lets the host attach
+	 * diagnostics it derives from runtime events without the loop owning them.
+	 */
+	runEndTelemetryProperties?: () => TelemetryProperties;
 	initialMessages?: readonly AgentMessage[];
 	maxIterations?: number;
 	completionPolicy?: {
@@ -662,6 +671,16 @@ export type AgentRuntimeEvent =
 			iteration: number;
 			message: AgentMessage;
 			finishReason: AgentModelFinishReason;
+	  }
+	| {
+			/**
+			 * Progress while the model streams a tool call's arguments. Carries
+			 * no arguments: consumers use it only to tell a slow stream from a
+			 * silent one.
+			 */
+			type: "tool-call-delta";
+			snapshot: AgentRuntimeStateSnapshot;
+			iteration: number;
 	  }
 	| {
 			type: "tool-started";

@@ -62,6 +62,7 @@ import {
 	captureMistakeLimitReached,
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
+import { RunHealthObserver } from "../../services/telemetry/run-health";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import {
 	DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -983,7 +984,7 @@ export class SessionRuntime {
 			.slice(2, 8)}`;
 		// Lazily initialize contribution-registry extensions on the
 		// first run, before runtime construction.
-		await this.ensureExtensionsInitialized();
+		await this.initializeExtensions();
 		this.eventAdapter.reset();
 		this.currentRunToolCalls = [];
 		this.currentRunUsage = { inputTokens: 0, outputTokens: 0 };
@@ -1082,6 +1083,14 @@ export class SessionRuntime {
 				.filter((tool) => tool.resultPolicy === "cache-oversized")
 				.map((tool) => tool.name.toLowerCase()),
 		);
+		const runHealth =
+			this.telemetry &&
+			new RunHealthObserver(this.telemetry, {
+				sessionId: this.config.sessionId,
+				isSubagent: Boolean(this.parentAgentId),
+				providerId: this.config.providerId,
+				modelId: this.config.modelId,
+			});
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: turnConfig,
 			sessionId: turnConfig.sessionId,
@@ -1091,6 +1100,9 @@ export class SessionRuntime {
 			model: agentModel,
 			logger: this.logger,
 			telemetry: this.telemetry,
+			runEndTelemetryProperties: runHealth
+				? () => runHealth.endProperties()
+				: undefined,
 			tools,
 			toolContextMetadata: {
 				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
@@ -1124,6 +1136,7 @@ export class SessionRuntime {
 			if (event.type === "run-started" && this.abortRequested) {
 				runtime.abort(this.abortReason);
 			}
+			runHealth?.observe(event);
 			this.handleRuntimeEvent(event);
 		});
 		if (this.config.abortSignal) {
@@ -1154,6 +1167,7 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			runHealth?.dispose();
 			this.config.abortSignal?.removeEventListener(
 				"abort",
 				this.handleExternalAbort,
@@ -1249,6 +1263,16 @@ export class SessionRuntime {
 	 * Idempotent: subsequent calls are no-ops once the registry has
 	 * been activated.
 	 */
+	private extensionInitialization?: Promise<void>;
+	async initializeExtensions(): Promise<void> {
+		this.extensionInitialization ??= this.ensureExtensionsInitialized().catch(
+			(error) => {
+				this.extensionInitialization = undefined;
+				throw error;
+			},
+		);
+		return this.extensionInitialization;
+	}
 	private async ensureExtensionsInitialized(): Promise<void> {
 		if (this.extensionsInitialized) {
 			return;
@@ -1391,7 +1415,12 @@ export class SessionRuntime {
 		return messagesToAgentMessages(providerMessages);
 	}
 
-	private async prepareProviderMessagesForApi(
+	/**
+	 * Projects canonical messages into the provider-request shape: extension
+	 * message builders, then `MessageBuilder.buildForApi` (tool-result
+	 * truncation, repairs). Produces the `apiMessages` given to `prepareTurn`.
+	 */
+	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;

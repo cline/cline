@@ -244,6 +244,56 @@ describe("SdkSessionLifecycle", () => {
 		expect(getServers).toHaveBeenCalledOnce()
 	})
 
+	it("records the mode the active session was built for", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		await lifecycle.startNewSession({
+			config: { providerId: "anthropic", modelId: "claude-sonnet-4", mode: "plan" },
+		} as StartInput)
+
+		expect(lifecycle.getActiveSession()?.mode).toBe("plan")
+	})
+
+	it("waits for tracked session starts, including ones that fail", async () => {
+		const lifecycle = makeLifecycle()
+		let finishStart!: () => void
+		const start = lifecycle.trackSessionStart(
+			() =>
+				new Promise<void>((resolve) => {
+					finishStart = resolve
+				}),
+		)
+		let waited = false
+		const waiting = lifecycle.waitForSessionStarts().then(() => {
+			waited = true
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(waited).toBe(false)
+
+		finishStart()
+		await start
+		await waiting
+		expect(waited).toBe(true)
+
+		// A waiter already in place when a start fails is released, not rejected:
+		// a mode toggle waiting on a failed new-task start must still go ahead.
+		let failStart!: (error: Error) => void
+		const failing = lifecycle.trackSessionStart(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					failStart = reject
+				}),
+		)
+		const waitingOnFailure = lifecycle.waitForSessionStarts()
+		failStart(new Error("start failed"))
+		await expect(failing).rejects.toThrow("start failed")
+		await expect(waitingOnFailure).resolves.toBeUndefined()
+		await expect(lifecycle.waitForSessionStarts()).resolves.toBeUndefined()
+	})
+
 	it("stores the provider and model config used to start the active session", async () => {
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
@@ -829,7 +879,10 @@ describe("SdkSessionLifecycle", () => {
 		expect(sdkHost.stop).not.toHaveBeenCalled()
 	})
 
-	it("adopts the restored session and stops the source session", async () => {
+	it.each([
+		undefined,
+		"act",
+	] as const)("adopts the restored session with mode override %s and stops the source", async (mode) => {
 		const restored = {
 			sessionId: "restored-session",
 			startResult: { sessionId: "restored-session" },
@@ -847,15 +900,32 @@ describe("SdkSessionLifecycle", () => {
 				sessionId: "source-session",
 				providerId: "openai",
 				modelId: "gpt-5",
+				mode: "plan",
 			},
 		} as StartInput)
 		const result = await lifecycle.restoreActiveSession({
 			sessionId: "source-session",
 			checkpointRunCount: 1,
+			...(mode
+				? {
+						start: {
+							config: {
+								providerId: "openai",
+								modelId: "gpt-5",
+								mode,
+								systemPrompt: "Synthetic restore test",
+								enableTools: true,
+								enableSpawnAgent: false,
+								enableAgentTeams: false,
+							},
+						},
+					}
+				: {}),
 		})
 
 		expect(result).toBe(restored)
 		expect(lifecycle.getActiveSession()?.sessionId).toBe("restored-session")
+		expect(lifecycle.getActiveSession()?.mode).toBe(mode ?? "plan")
 		expect(lifecycle.getActiveSession()?.startConfig).toEqual({
 			providerId: "openai",
 			modelId: "gpt-5",

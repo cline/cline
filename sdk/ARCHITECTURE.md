@@ -225,6 +225,10 @@ Provider-field edits have two coordinated paths in the VS Code host:
    promise identity before applying provider edits. Resolution checks the same
    identity synchronously; cancellation or replacement discards the stale
    response without answering a new ask or queuing it as a follow-up.
+   Questions register their resolver and message anchor before emitting the ask,
+   so an immediate response can use the same identity checks while state is
+   still being posted. Session installation and checkpoint restore retain the
+   mode used to build that session alongside the replacement callbacks.
 6. Agentic compaction uses the provider/model captured by its turn context.
    The prepare-turn callback receives a secret-free model-settings snapshot,
    preserving metadata, token limits, temperature, and capabilities. Live
@@ -256,10 +260,13 @@ field.
 
 ### Hub-Backed Runtime
 
+The hub health endpoint includes its `hubId`. Restart callers compare this instance identity while waiting for shutdown, so a replacement started by reconnecting clients at the same address counts as retirement of the original hub. Desktop local activity is recorded only at its local hub observer subscription; cloud session projection does not write to that activity list.
+
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery. The spawner waits up to 15s for the daemon to publish a usable discovery record (cold starts of the compiled binary on Windows regularly need more than the previous 8s). If the daemon still fails to come up, the runtime host's `No compatible hub runtime is available` error carries the underlying reason, and the daemon reports its own startup failure to telemetry (`hub.daemon.startup`) before exiting.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
+   One daemon serves every Cline client on the machine, and a hub-hosted session's telemetry carries only its own client (`clientName`/`clientVersion`), so the daemon also records *whose build started it*. The spawner stamps `CLINE_HUB_LAUNCHER_CLIENT`, `CLINE_HUB_LAUNCHER_VERSION`, and `CLINE_HUB_LAUNCHER_TRANSPORT` on the daemon environment (`withHubLauncherIdentity` in `@cline/shared`), defaulting to the spawning process's `ClineClientIdentity` and `local`. An embedding host that starts the hub through the CLI (the desktop app running `cline-cli hub ensure`) stamps itself first, and a stamp already present is kept as a whole, so the CLI that performs the spawn never records its own name or fills in its version next to the host's name. SSH remote hubs are stamped by the client over the `env` prefix of the remote `hub ensure` command with `transport=ssh`. The daemon claims the stamp out of its environment at startup (`claimHubLauncherIdentity`, same hazard as the daemon sentinel: hosted sessions spawn processes that inherit the environment, and a hub one of them starts must record itself) and publishes it with its build id and executable name as OTel resource attributes: `cline.hub.launcher.client`, `cline.hub.launcher.version`, `cline.hub.launcher.transport`, `cline.hub.build_id`, `cline.hub.runtime`. Collectors and Langfuse surface these as `resourceAttributes.*`, so a desktop session hosted by a CLI-started hub is attributable to that CLI build.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
@@ -629,6 +636,11 @@ IDs must be span attributes, not only observation metadata, for Langfuse trackin
 
 In the collector relay path, spans use the existing host OTLP exporter. The
 collector owns Langfuse credentials and downstream filtering and sampling.
+The relay exists only when the host registered a traces exporter, which release
+builds inline at build time (`OTEL_TRACES_EXPORTER`, `CLINE_TRACE_*`) into the
+CLI, the extension, and the desktop backend and its bundled CLI; a packaged
+app has no runtime environment to read them from. The `--telemetry-selfcheck`
+report includes `traces_exporter` so publish workflows can gate on it.
 `llms` checks provider eligibility, client sampling, opt-out, and content policy
 per request. The host owns flushing and shutting down its provider.
 
@@ -837,10 +849,10 @@ Because no plugin code runs on the daemon's thread, its `uncaughtException` /
 #### Worker and subprocess transports
 
 Both transports share one RPC protocol and one bootstrap
-(`plugin-sandbox-bootstrap.ts`), bundled self-contained into
-`dist/extensions/plugin-sandbox-bootstrap.js` (the core build fails if it
-imports anything but Node builtins, because hosts ship it without
-`node_modules`):
+(`plugin-sandbox-bootstrap.ts`). After SDK compilation, Core builds
+`dist/plugin-runtime/`, containing the self-contained bootstrap and the complete
+SDK import graph under `node_modules/@cline`. Package exports come from the SDK
+manifests, including browser subpaths. Hosts ship this directory as one artifact:
 
 - `WorkerSandbox` (worker mode): structured clone over the worker's message
   port. A worker must not `chdir` (Bun would change the host's cwd), so the
@@ -853,16 +865,54 @@ imports anything but Node builtins, because hosts ship it without
 - `SubprocessSandbox` (sandbox mode): JSON IPC to a `node`/`bun` child with
   stdout ignored.
 
-Hosts find the bootstrap beside their bundle (`plugin-sandbox-bootstrap.js`,
-or `.mjs` for the CommonJS VS Code bundle), beside the CLI binary
-(`extensions/`), or through `CLINE_PLUGIN_BOOTSTRAP_PATH` (the desktop
-sidecar sets it to the copy shipped as a Tauri resource). A host that ships
-none cannot run plugins at all: every load fails with
-`PluginBootstrapMissingError`, which names the env var, rather than
-importing plugin code into the host. The SSH remote host is in that state
-today: since #14792 it is the bundled Cline CLI uploaded as a single file
-with no bootstrap beside it, so plugins fail on remotes until the remote
-runtime carries one.
+Core resolves the complete artifact through `CLINE_PLUGIN_RUNTIME_DIR`, a
+package-local `plugin-runtime` directory, or embedded resources. Source hosts
+prefer their sibling TypeScript bootstrap over packaged runtimes so development
+and tests execute the current bootstrap and module importer without rebuilding.
+The CLI compiler embeds the runtime tree and dashboard assets in Bun's read-only
+filesystem. Worker and subprocess transports read the same embedded bootstrap
+and SDK exports without extracting files or creating a runtime cache.
+VS Code and npm CLI copy the complete artifact into their bundles. Desktop
+ships it beside its external backend script, whose plain Bun host does not
+mount the CLI's filesystem.
+A host without a bootstrap fails closed with
+`PluginBootstrapMissingError`; plugin code never runs on the host main thread.
+
+Compiled hosts register their subprocess entrypoint with `setPluginSandboxLauncher`.
+The CLI and Desktop’s bundled CLI use the internal `--plugin-sandbox` flag,
+which lazily imports the embedded bootstrap with bunfs mounted and compiled
+runtime flags (including system CA trust) intact. Generic script sandboxes
+still use plain Bun mode when reusing a compiled runtime.
+
+
+`LocalRuntimeHost.pluginCommands` owns plugin command discovery and execution,
+exposed to clients through Hub RPC (`plugins.commands.list` /
+`plugins.commands.run`). The desktop sidecar, CLI, and connectors reuse their
+existing runtime connections and do not load plugins themselves. Plugin command
+execution can recover a connection before dispatch, but never resends a
+dispatched action whose reply was lost.
+
+A resident session lists and executes commands from its own contribution
+registry, retaining the plugin instance and context shared with its hooks.
+Session registrations keep their session lifetime. Without a resident session,
+the runtime uses a per-workspace catalog. Each request fingerprints the enabled
+discoverable plugin entries and their imported source graph, and reloads the
+catalog when that changes; other settings, setup logs, and state files beside a
+plugin do not. Each load uses its own `PluginRegistry`, so a catalog import
+failure cannot block a resident session's copy of the same plugin, and the
+retry re-imports it. A failed load keeps healthy commands, reports
+`status: "error"`, and is retried by a request after 30 seconds. Catalogs idle for 10 minutes release
+their workers. Reload, eviction, and disposal wait for running handlers. Clients
+re-list to stay current (for example when a slash menu opens or the active
+session changes); there is no catalog push event.
+
+The shared command executor records `task.tool_used` once per matched handler,
+including failures, for both direct runtime and Hub calls. Telemetry failures
+cannot replace a command's result or original error. Hub status and replacement
+checks count active command requests even without a chat participant; draining
+refuses new catalog and command requests. CLI and desktop fallbacks treat a
+failed catalog read as "not a plugin command" so skills and workflows still
+work, while errors from a listed plugin's handler remain visible.
 
 Sandboxed plugin subprocesses and workers are session-local but lazily recreatable. Core
 reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
@@ -894,6 +944,10 @@ Do not move these concerns into `@cline/agents`:
 - RPC lifecycle
 - host-specific approvals
 - remote-config policy caching
+
+Diagnostics derived from a run (for example run stall telemetry, see `DOC.md`)
+belong in a `core` observer of runtime events. `agents` only emits the events and
+merges host-supplied properties through `runEndTelemetryProperties`.
 
 ### Keep `core` Generic
 

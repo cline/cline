@@ -34,3 +34,14 @@ updates:
                 - "version-update:semver-major"
                 - "version-update:semver-minor"
                 - "version-update:semver-patch"
+
+    # Pinned skills CLI release (devDependency of @cline/core). `cline skill`
+    # and the marketplace skill fallback run this exact version through npx,
+    # so version updates are wanted here, unlike the entries above: each bump
+    # goes through CI and review before it reaches users.
+    - package-ecosystem: "bun"
+      directory: "/"
+      schedule:
+          interval: "weekly"
+      allow:
+          - dependency-name: "skills"

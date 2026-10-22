@@ -1877,6 +1877,7 @@ export class AgentRuntime {
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
 		const modelToolActivities = new Map<string, AgentModelToolActivity>();
+		let lastToolCallDeltaAt = 0;
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
@@ -2014,6 +2015,17 @@ export class AgentRuntime {
 							assembly.inputText,
 							event.inputText,
 						);
+					}
+					// Only a progress signal: at most once a second, since each event
+					// copies the whole conversation and a large file write streams
+					// thousands of argument chunks.
+					if (Date.now() - lastToolCallDeltaAt >= 1_000) {
+						lastToolCallDeltaAt = Date.now();
+						await this.emit({
+							type: "tool-call-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+						});
 					}
 					break;
 				}
@@ -2849,7 +2861,18 @@ export class AgentRuntime {
 			case "assistant-text-delta":
 			case "assistant-reasoning-delta":
 			case "assistant-media":
+			case "tool-call-delta":
 			case "tool-updated":
+				break;
+			case "run-finished":
+			case "run-failed":
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: {
+						...(metadata as TelemetryProperties),
+						...this.config.runEndTelemetryProperties?.(),
+					},
+				});
 				break;
 			default:
 				this.config.telemetry?.capture({
