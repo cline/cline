@@ -126,17 +126,13 @@ import {
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
-import {
-	readDesktopSettings,
-	setCloudSessionsEnabled,
-} from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
 import {
 	identifyDesktopFeatureFlagsAccount,
-	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { getHubStatus, restartHub } from "./hub-admin";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
@@ -166,10 +162,7 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import {
-	getPluginCommandService,
-	warmPluginCommandService,
-} from "./plugin-commands";
+import { listPluginCommands } from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -2207,8 +2200,6 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// Resolve flags in the sidecar: available shows the opt-in;
-		// enabled requires both the rollout flag and the user's opt-in.
 		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
@@ -2216,10 +2207,6 @@ export async function handleCommand(
 		return {
 			...snapshot,
 			cloudAgents: isCloudAgentsEnabled({
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			}),
-			cloudAgentsAvailable: isCloudAgentsAvailable({
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
@@ -2240,6 +2227,20 @@ export async function handleCommand(
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
+	}
+
+	if (command === "get_hub_status") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub status requires a trusted desktop connection");
+		}
+		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
+	}
+	if (command === "restart_hub") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub restart requires a trusted desktop connection");
+		}
+		await restartHub(ctx, await ensureSharedHubClient(ctx));
+		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
 	}
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
@@ -3221,9 +3222,6 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
-	if (command === "get_desktop_settings") {
-		return readDesktopSettings();
-	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)
 			? args.sessionIds.filter(
@@ -3233,18 +3231,6 @@ export async function handleCommand(
 		const result = writeDiagnosticsReport(sessionIds);
 		openFileInEditor(dirname(result.path));
 		return result;
-	}
-	if (command === "set_cloud_sessions_enabled") {
-		if (typeof args?.cloud_sessions_enabled !== "boolean") {
-			throw new Error("cloud_sessions_enabled must be a boolean");
-		}
-		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		broadcastEvent(ctx, "cloud_sessions_changed", {});
-		broadcastEvent(ctx, "feature_flags_changed", {
-			cloudAgents: isCloudAgentsEnabled(),
-			cloudAgentsAvailable: isCloudAgentsAvailable(),
-		});
-		return settings;
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
@@ -3568,22 +3554,17 @@ export async function handleCommand(
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
 	}
-	if (command === "warm_plugin_commands") {
-		// The webview reports whichever local workspace it has adopted so the
-		// plugin sandbox is loaded before the slash menu first needs it.
-		const binding = getCommandRuntimeBinding(ctx, args);
-		const workspacePath = String(args?.workspacePath ?? "").trim();
-		if (binding.kind === "local" && workspacePath) {
-			warmPluginCommandService(ctx, workspacePath);
-		}
-		return { environmentId: binding.environmentId };
-	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu
 		// only offers commands that can actually run there.
 		const workspacePath =
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
-		return await getPluginCommandService(ctx, workspacePath).listCommands();
+		return await listPluginCommands(
+			ctx,
+			workspacePath,
+			typeof args?.sessionId === "string" ? args.sessionId : undefined,
+			requestedEnvironmentId(args),
+		);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

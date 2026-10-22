@@ -13,6 +13,28 @@ beforeEach(() => {
 });
 
 describe("SDK error telemetry", () => {
+	it("preserves typed retryability and nested transport codes without matching messages", () => {
+		const socket = Object.assign(new Error("socket closed"), {
+			code: "ECONNRESET",
+		});
+		const error = Object.assign(
+			new Error("API failed", {
+				cause: new Error("wrapper", { cause: socket }),
+			}),
+			{ isRetryable: true },
+		);
+		expect(normalizeSdkError(error)).toMatchObject({
+			error_cause_code: "ECONNRESET",
+			error_retryable: true,
+		});
+		expect(normalizeSdkError(socket)).not.toHaveProperty("error_retryable");
+	});
+
+	it("bounds traversal of cyclic error causes", () => {
+		const error = new Error("cyclic");
+		error.cause = error;
+		expect(normalizeSdkError(error)).toMatchObject({ error_message: "cyclic" });
+	});
 	it("normalizes unknown errors with sanitized, bounded messages", () => {
 		const normalized = normalizeSdkError(
 			new Error(

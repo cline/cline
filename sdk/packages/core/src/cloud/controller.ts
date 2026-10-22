@@ -45,6 +45,7 @@ import type {
 	CloudCreationOptions,
 	CloudHandoffSeed,
 	CloudQueuedPrompt,
+	CloudSendLifecycle,
 	CloudSessionAttachment,
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -76,7 +77,7 @@ const CLOUD_WORKSPACE_ROOT = "/workspace";
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
-const CLOUD_SESSION_SYSTEM_PROMPT =
+export const CLOUD_SESSION_SYSTEM_PROMPT =
 	"IMPORTANT: GitHub authentication is handled automatically by the infrastructure. " +
 	"An egress proxy transparently injects credentials into all GitHub traffic. " +
 	"You do NOT need to set up, configure, or manage any tokens, API keys, or credentials, " +
@@ -85,6 +86,28 @@ const CLOUD_SESSION_SYSTEM_PROMPT =
 	"(`gh pr create`, `gh pr diff`, `gh issue list`, `gh api`, ...). " +
 	"`git` push and pull are authenticated the same way. " +
 	"Simply run the commands normally — credentials are injected transparently.";
+
+/** The prompt a new cloud task starts with: GitHub access plus its work-branch rules. */
+export function buildCloudSessionSystemPrompt(
+	record: Pick<CloudSessionRecord, "id" | "sandboxType" | "metadata">,
+): string {
+	const branch = `cline/${(record.metadata.taskId?.trim() || record.id).slice(-8).toLowerCase()}`;
+	const resumable =
+		record.sandboxType === "resumable" ||
+		record.metadata.sandboxType === "resumable";
+	return (
+		`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
+		`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
+		"(or check it out if it already exists), and never commit directly to the default branch. " +
+		(resumable
+			? "Commit and push only when the user asks. "
+			: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
+				`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
+				"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
+				`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
+		"Do not force-push or amend commits that are already pushed unless the user explicitly asks."
+	);
+}
 
 function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
 	if (!workspaceRelativePath) return CLOUD_WORKSPACE_ROOT;
@@ -1154,11 +1177,19 @@ export class CloudSessionController {
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, record);
 		// REST does not round-trip these client-side first-task preferences.
-		const { autoApproveTools, thinking, reasoningEffort } = input;
+		const {
+			autoApproveTools,
+			thinking,
+			reasoningEffort,
+			mode,
+			workspaceRelativePath,
+		} = input;
 		this.pendingInitialTasks.set(record.id, {
 			autoApproveTools,
 			thinking,
 			reasoningEffort,
+			mode: mode ?? "act",
+			workspaceRelativePath,
 		});
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1293,6 +1324,7 @@ export class CloudSessionController {
 		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
+		lifecycle?: CloudSendLifecycle,
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1368,32 +1400,7 @@ export class CloudSessionController {
 			const statusChanged = live.status !== "running";
 			live.busy = true;
 			live.status = "running";
-			live.prompt ||= prompt;
 			if (statusChanged) this.publishSnapshot(outerSessionId, false, "status");
-		}
-		const record = this.knownSessions.get(outerSessionId);
-		if (
-			record &&
-			!record.title?.trim() &&
-			!this.titleWrites.has(outerSessionId)
-		) {
-			const title = deriveCloudSessionTitle(prompt);
-			if (title) {
-				record.title = title;
-				if (live) {
-					live.title = title;
-				}
-				const write = this.options.api
-					.updateTitle?.(outerSessionId, title)
-					.then(() => {})
-					.catch(() => {})
-					.finally(() => {
-						if (this.titleWrites.get(outerSessionId) === write) {
-							this.titleWrites.delete(outerSessionId);
-						}
-					});
-				if (write) this.titleWrites.set(outerSessionId, write);
-			}
 		}
 		const dispatchedRequests = new Set<string>();
 		let accepted = false;
@@ -1433,6 +1440,32 @@ export class CloudSessionController {
 							throw new Error(
 								"The cloud session reconnected before the prompt could be sent. Please try again.",
 							);
+						}
+						lifecycle?.beforeDispatch?.();
+						if (live && ownsBusyState) live.prompt ||= prompt;
+						const record = this.knownSessions.get(outerSessionId);
+						if (
+							record &&
+							!record.title?.trim() &&
+							!this.titleWrites.has(outerSessionId)
+						) {
+							const title = deriveCloudSessionTitle(prompt);
+							if (title) {
+								record.title = title;
+								if (live) {
+									live.title = title;
+								}
+								const write = this.options.api
+									.updateTitle?.(outerSessionId, title)
+									.then(() => {})
+									.catch(() => {})
+									.finally(() => {
+										if (this.titleWrites.get(outerSessionId) === write) {
+											this.titleWrites.delete(outerSessionId);
+										}
+									});
+								if (write) this.titleWrites.set(outerSessionId, write);
+							}
 						}
 					},
 				},
@@ -2743,8 +2776,13 @@ export class CloudSessionController {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.sessions.get(connection.remote.id);
-		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
-		const mode = handoffSeed?.mode ?? "act";
+		const preferences =
+			this.pendingInitialTasks.get(connection.remote.id) ??
+			this.restoredOptions.get(connection.remote.id);
+		const cwd = cloudWorkspaceCwd(
+			handoffSeed?.workspaceRelativePath ?? preferences?.workspaceRelativePath,
+		);
+		const mode = handoffSeed?.mode ?? preferences?.mode ?? "act";
 		try {
 			await handoffSeed?.onSeeding?.();
 			this.assertSessionActive(connection.remote.id, connection);
@@ -2752,21 +2790,7 @@ export class CloudSessionController {
 			if (handoffSeed) throw new CloudHandoffSeedRejectedError(error);
 			throw error;
 		}
-		const branch = `cline/${(connection.remote.metadata.taskId?.trim() || connection.remote.id).slice(-8).toLowerCase()}`;
-		const resumable =
-			connection.remote.sandboxType === "resumable" ||
-			connection.remote.metadata.sandboxType === "resumable";
-		const systemPrompt =
-			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
-			`Do all work for this task on the branch \`${branch}\`: create it from the current checkout before your first change ` +
-			"(or check it out if it already exists), and never commit directly to the default branch. " +
-			(resumable
-				? "Commit and push only when the user asks. "
-				: "SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
-					`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
-					"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
-					`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. `) +
-			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		const systemPrompt = buildCloudSessionSystemPrompt(connection.remote);
 		const thinking = handoffSeed?.config?.thinking ?? live?.config.thinking;
 		const reasoningEffort =
 			handoffSeed?.config?.reasoningEffort ?? live?.config.reasoningEffort;

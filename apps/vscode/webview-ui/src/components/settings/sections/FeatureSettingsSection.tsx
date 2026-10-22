@@ -154,6 +154,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled,
 		backgroundEditEnabled,
 		showFeatureTips,
+		cloudSessionsAvailable,
+		cloudSessionsEnabled,
 	} = useExtensionState()
 
 	// State lookup for mapped features
@@ -215,6 +217,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								description="Let the model search the web when the selected provider and model support it. Applies to new tasks."
 								label="Web Search"
 								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
+							/>
+							<FeatureRow
+								checked={cloudSessionsEnabled}
+								description="Run Cline on your GitHub repositories in secure cloud sandboxes. Adds a Cloud option to the new task composer. Requires a Cline account with GitHub connected."
+								id="cloud-sessions"
+								isVisible={!!cloudSessionsAvailable}
+								label="Cloud"
+								onChange={(checked) => updateSetting("cloudSessionsEnabled", checked)}
 							/>
 						</div>
 					</div>

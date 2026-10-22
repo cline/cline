@@ -64,7 +64,7 @@ export class FeatureFlagsProviderFactory {
  * or for testing purposes
  */
 class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
-	async getAllFlagsAndPayloads(_: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
+	async getAllFlagsAndPayloads(_: { distinctId?: string; flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined> {
 		return {}
 	}
 
