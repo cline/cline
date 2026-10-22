@@ -2,6 +2,7 @@ import {
 	getMcpAppToolMeta,
 	isMcpAppResourceUri,
 	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
 } from "./apps";
 import { defaultMcpToolNameTransform } from "./name-transform";
 import type {
@@ -40,7 +41,7 @@ export interface McpAppsRuntime {
 export interface CreateMcpAppsRuntimeOptions {
 	manager: Pick<McpManager, "listTools" | "callTool" | "readResource">;
 	serverNames: readonly string[];
-	resolvableServerNames?: readonly string[];
+	agentTools: ReadonlyMap<string, readonly McpToolDescriptor[]>;
 	nameTransform?: McpToolNameTransform;
 	isToolEnabled?: (agentToolName: string) => boolean;
 }
@@ -49,10 +50,19 @@ export function createMcpAppsRuntime(
 	options: CreateMcpAppsRuntimeOptions,
 ): McpAppsRuntime {
 	const serverNames = new Set(options.serverNames);
-	const resolvableServerNames = new Set(
-		options.resolvableServerNames ?? options.serverNames,
-	);
 	const nameTransform = options.nameTransform ?? defaultMcpToolNameTransform;
+	const appToolBindings = new Map<string, McpAppToolBinding | undefined>();
+	for (const [serverName, descriptors] of options.agentTools) {
+		for (const descriptor of descriptors.filter(isMcpToolVisibleToModel)) {
+			const resourceUri = getMcpAppToolMeta(descriptor)?.resourceUri;
+			appToolBindings.set(
+				nameTransform({ serverName, toolName: descriptor.name }),
+				resourceUri
+					? { serverName, toolName: descriptor.name, resourceUri }
+					: undefined,
+			);
+		}
+	}
 
 	function requireServer(serverName: string): void {
 		if (!serverNames.has(serverName)) {
@@ -72,27 +82,7 @@ export function createMcpAppsRuntime(
 
 	return {
 		async resolveTool(agentToolName) {
-			for (const serverName of resolvableServerNames) {
-				let descriptors: readonly McpToolDescriptor[];
-				try {
-					descriptors = await options.manager.listTools(serverName);
-				} catch {
-					continue;
-				}
-				const descriptor = descriptors.find(
-					(candidate) =>
-						nameTransform({ serverName, toolName: candidate.name }) ===
-						agentToolName,
-				);
-				if (!descriptor) {
-					continue;
-				}
-				const resourceUri = getMcpAppToolMeta(descriptor)?.resourceUri;
-				return resourceUri
-					? { serverName, toolName: descriptor.name, resourceUri }
-					: undefined;
-			}
-			return undefined;
+			return appToolBindings.get(agentToolName);
 		},
 
 		async readResource(request) {

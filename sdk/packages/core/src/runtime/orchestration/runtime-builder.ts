@@ -25,6 +25,7 @@ import {
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
 	type McpAppsRuntime,
+	type McpToolDescriptor,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 } from "../../extensions/mcp";
@@ -286,22 +287,27 @@ async function loadConfiguredMcpTools(options: {
 
 	const enabled = registrations.filter((r) => r.disabled !== true);
 	const results = await Promise.allSettled(
-		enabled.map((r) =>
-			createMcpTools({
+		enabled.map(async (r) => {
+			const descriptors = await manager.listTools(r.name);
+			const tools = await createMcpTools({
 				serverName: r.name,
-				provider: manager,
+				provider: {
+					listTools: async () => descriptors,
+					callTool: (request) => manager.callTool(request),
+				},
 				// Keep the tool wrapper timeout in agreement with the MCP
 				// request timeout: both derive from the server's registration.
 				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
-			}),
-		),
+			});
+			return { descriptors, tools };
+		}),
 	);
 	const tools: AgentTool[] = [];
-	const loadedServerNames: string[] = [];
+	const agentTools = new Map<string, readonly McpToolDescriptor[]>();
 	for (const [i, result] of results.entries()) {
 		if (result.status === "fulfilled") {
-			tools.push(...result.value);
-			loadedServerNames.push(enabled[i].name);
+			tools.push(...result.value.tools);
+			agentTools.set(enabled[i].name, result.value.descriptors);
 		} else {
 			const message =
 				result.reason instanceof Error
@@ -320,7 +326,7 @@ async function loadConfiguredMcpTools(options: {
 					mcpApps: createMcpAppsRuntime({
 						manager,
 						serverNames: enabled.map((registration) => registration.name),
-						resolvableServerNames: loadedServerNames,
+						agentTools,
 						isToolEnabled: (agentToolName) =>
 							isToolEnabledByPolicies(agentToolName, options.toolPolicies) &&
 							!options.disabledToolNames?.has(agentToolName),

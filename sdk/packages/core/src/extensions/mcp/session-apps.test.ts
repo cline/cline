@@ -38,7 +38,8 @@ describe("MCP Apps session runtime", () => {
 	it("resolves an agent tool name to its server, tool, and UI resource", async () => {
 		const apps = createMcpAppsRuntime({
 			manager: createManager(),
-			serverNames: ["broken", "weather"],
+			serverNames: ["weather"],
+			agentTools: new Map([["weather", weatherTools]]),
 		});
 
 		await expect(apps.resolveTool("weather__show_weather")).resolves.toEqual({
@@ -50,16 +51,19 @@ describe("MCP Apps session runtime", () => {
 		await expect(apps.resolveTool("unknown__tool")).resolves.toBeUndefined();
 	});
 
-	it("resolves only on servers that loaded tools", async () => {
+	it("resolves from the tools the agent loaded without asking servers", async () => {
 		const manager = createManager();
 		const apps = createMcpAppsRuntime({
 			manager,
 			serverNames: ["broken", "weather"],
-			resolvableServerNames: ["weather"],
+			agentTools: new Map([["weather", weatherTools]]),
 		});
 
 		await expect(apps.resolveTool("read_file")).resolves.toBeUndefined();
-		expect(manager.listTools).toHaveBeenCalledExactlyOnceWith("weather");
+		await expect(
+			apps.resolveTool("weather__show_weather"),
+		).resolves.toMatchObject({ serverName: "weather" });
+		expect(manager.listTools).not.toHaveBeenCalled();
 		await apps.readResource({
 			serverName: "broken",
 			uri: "ui://broken/view.html",
@@ -67,10 +71,56 @@ describe("MCP Apps session runtime", () => {
 		expect(manager.readResource).toHaveBeenCalledOnce();
 	});
 
+	it("resolves colliding names to the tool the agent keeps", async () => {
+		const apps = createMcpAppsRuntime({
+			manager: createManager(),
+			serverNames: ["a", "a__b"],
+			agentTools: new Map<string, McpToolDescriptor[]>([
+				[
+					"a",
+					[
+						{
+							name: "b__c",
+							inputSchema: { type: "object" },
+							_meta: { ui: { resourceUri: "ui://a/view.html" } },
+						},
+					],
+				],
+				[
+					"a__b",
+					[
+						{
+							name: "c",
+							inputSchema: { type: "object" },
+							_meta: { ui: { resourceUri: "ui://a__b/view.html" } },
+						},
+						{
+							name: "c",
+							inputSchema: { type: "object" },
+							_meta: {
+								ui: {
+									resourceUri: "ui://hidden/view.html",
+									visibility: ["app"],
+								},
+							},
+						},
+					],
+				],
+			]),
+		});
+
+		await expect(apps.resolveTool("a__b__c")).resolves.toEqual({
+			serverName: "a__b",
+			toolName: "c",
+			resourceUri: "ui://a__b/view.html",
+		});
+	});
+
 	it("matches names produced by a custom name transform", async () => {
 		const apps = createMcpAppsRuntime({
 			manager: createManager(),
 			serverNames: ["weather"],
+			agentTools: new Map([["weather", weatherTools]]),
 			nameTransform: ({ toolName }) => `custom_${toolName}`,
 		});
 
@@ -81,7 +131,11 @@ describe("MCP Apps session runtime", () => {
 
 	it("calls tools the app is allowed to call", async () => {
 		const manager = createManager();
-		const apps = createMcpAppsRuntime({ manager, serverNames: ["weather"] });
+		const apps = createMcpAppsRuntime({
+			manager,
+			serverNames: ["weather"],
+			agentTools: new Map(),
+		});
 
 		await apps.callTool({
 			serverName: "weather",
@@ -100,7 +154,11 @@ describe("MCP Apps session runtime", () => {
 
 	it("rejects model-only, missing, and out-of-session tools", async () => {
 		const manager = createManager();
-		const apps = createMcpAppsRuntime({ manager, serverNames: ["weather"] });
+		const apps = createMcpAppsRuntime({
+			manager,
+			serverNames: ["weather"],
+			agentTools: new Map(),
+		});
 
 		await expect(
 			apps.callTool({ serverName: "weather", toolName: "summarize" }),
@@ -119,6 +177,7 @@ describe("MCP Apps session runtime", () => {
 		const apps = createMcpAppsRuntime({
 			manager,
 			serverNames: ["weather"],
+			agentTools: new Map(),
 			isToolEnabled: (agentToolName) =>
 				agentToolName !== "weather__refresh_view",
 		});
@@ -136,7 +195,11 @@ describe("MCP Apps session runtime", () => {
 
 	it("reads resources only from servers in the session", async () => {
 		const manager = createManager();
-		const apps = createMcpAppsRuntime({ manager, serverNames: ["weather"] });
+		const apps = createMcpAppsRuntime({
+			manager,
+			serverNames: ["weather"],
+			agentTools: new Map(),
+		});
 
 		await apps.readResource({
 			serverName: "weather",
