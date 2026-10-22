@@ -436,8 +436,7 @@ describe("hub-owned cloud sessions", () => {
 });
 
 describe("cloud RPC over a shared hub socket", () => {
-	it("hydrates another desktop client, preserves ownership on disconnect, and refuses new work while draining", async () => {
-		const f = fixture();
+	async function startCloudHub(f: ReturnType<typeof fixture>) {
 		const root = mkdtempSync(join(tmpdir(), "cline-cloud-hub-"));
 		const server = await startHubWebSocketServer({
 			owner: createInMemoryHubOwnerContext("cloud-wire"),
@@ -460,6 +459,57 @@ describe("cloud RPC over a shared hub socket", () => {
 			runQueue: false,
 			cloudSessionOptions: f.cloudSessionOptions,
 		});
+		return { root, server };
+	}
+
+	it("reports in-flight cloud commands as hub activity", async () => {
+		const f = fixture();
+		const { root, server } = await startCloudHub(f);
+		const client = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientId: "cloud-activity",
+			workspaceRoot: root,
+		});
+		const viewer = new HubCloudSessionClient(async () => {
+			await client.connect();
+			return client;
+		});
+		try {
+			await viewer.connect();
+			const provisioning = deferred<{ sessionId: string; status: string }>();
+			f.controllers[0]!.controller.create.mockReturnValueOnce(
+				provisioning.promise,
+			);
+			const created = viewer.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/cline",
+			});
+			await vi.waitFor(() =>
+				expect(f.controllers[0]!.controller.create).toHaveBeenCalled(),
+			);
+			expect((await client.command("session.list")).payload).toMatchObject({
+				activeCloudCommands: 1,
+			});
+			expect((await client.command("hub.status")).payload).toMatchObject({
+				idle: false,
+			});
+			provisioning.resolve({ sessionId: "ses-one", status: "ready" });
+			await created;
+			expect((await client.command("session.list")).payload).toMatchObject({
+				activeCloudCommands: 0,
+			});
+		} finally {
+			await viewer.dispose();
+			await client.dispose();
+			await server.close();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("hydrates another desktop client, preserves ownership on disconnect, and refuses new work while draining", async () => {
+		const f = fixture();
+		const { root, server } = await startCloudHub(f);
 		const first = new NodeHubClient({
 			url: server.url,
 			authToken: server.authToken,

@@ -943,6 +943,7 @@ export class HubServerTransport implements NativeHubTransport {
 					payload: {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
+						activeCloudCommands: this.cloud.activeCommands,
 					},
 				};
 			}

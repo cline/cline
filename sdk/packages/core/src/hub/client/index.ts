@@ -1221,6 +1221,8 @@ export interface HubSessionActivity {
 	participantClientCount: number;
 	/** Plugin command requests executing even without an attached session. */
 	activePluginRequests: number;
+	/** Cloud session commands, such as provisioning, executing in the hub. */
+	activeCloudCommands: number;
 }
 
 /**
@@ -1267,24 +1269,30 @@ export function summarizeHubSessionActivity(
 			}
 		}
 	}
-	const requests =
-		payload && typeof payload === "object"
-			? (payload as { activePluginRequests?: unknown }).activePluginRequests
-			: undefined;
-	const activePluginRequests =
-		typeof requests === "number" && Number.isInteger(requests) && requests > 0
-			? requests
+	const count = (key: "activePluginRequests" | "activeCloudCommands") => {
+		const value =
+			payload && typeof payload === "object"
+				? (payload as Record<string, unknown>)[key]
+				: undefined;
+		return typeof value === "number" && Number.isInteger(value) && value > 0
+			? value
 			: 0;
+	};
 	return {
 		activeSessionCount,
 		participantClientCount: clientIds.size,
-		activePluginRequests,
+		activePluginRequests: count("activePluginRequests"),
+		activeCloudCommands: count("activeCloudCommands"),
 	};
 }
 
 export function hasActiveHubSessions(payload: unknown): boolean {
 	const activity = summarizeHubSessionActivity(payload);
-	return activity.activeSessionCount > 0 || activity.activePluginRequests > 0;
+	return (
+		activity.activeSessionCount > 0 ||
+		activity.activePluginRequests > 0 ||
+		activity.activeCloudCommands > 0
+	);
 }
 
 /**
@@ -1329,7 +1337,9 @@ export async function localHubHasNoActiveSessions(
 	try {
 		const activity = await queryHubSessionActivity(url, authToken, options);
 		return (
-			activity.activeSessionCount === 0 && activity.activePluginRequests === 0
+			activity.activeSessionCount === 0 &&
+			activity.activePluginRequests === 0 &&
+			activity.activeCloudCommands === 0
 		);
 	} catch {
 		// Recovery callers must not treat a hub they cannot positively observe
