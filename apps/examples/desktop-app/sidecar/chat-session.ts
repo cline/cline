@@ -726,7 +726,12 @@ function buildCoreSessionConfig(
 		// runs and long desktop sessions overflow the context window.
 		compaction: { enabled: true },
 		sessions: config.sessions,
-		initialMessages: config.initialMessages,
+		// Note: `initialMessages` is intentionally NOT set here. It is a
+		// top-level `StartSessionInput` field passed directly to
+		// `manager.start()`, and the SDK reads it from there. Embedding it in
+		// the transport session config too serializes the whole transcript a
+		// second time into one `session.create` frame, so large sessions
+		// exceed the hub frame limit and can never resume.
 		extensionContext: createDesktopExtensionContext(telemetryUser),
 		...mistakeRecovery,
 	};
@@ -1094,7 +1099,6 @@ async function handleStart(
 			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
-		...(initialMessages ? { initialMessages } : {}),
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
 	// provided to start(), the local runtime host runs the full agent turn

@@ -207,6 +207,20 @@ describe("starting SSH sessions", () => {
 		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
 	});
 
+	it("passes the transcript top-level only, not duplicated inside the transport config", async () => {
+		const { ctx, config, start } = setup();
+		await handleChatSessionCommand(ctx, { action: "start", config });
+		const startInput = start.mock.calls[0]?.[0] as {
+			config?: Record<string, unknown>;
+			initialMessages?: unknown;
+		};
+		// The transcript must travel once, at the top level. Embedding it inside
+		// the transport config too serializes it twice into the session.create
+		// frame, so large sessions exceed the hub frame limit and cannot resume.
+		expect(startInput.initialMessages).toEqual(transcript);
+		expect(startInput.config).not.toHaveProperty("initialMessages");
+	});
+
 	it("propagates other read failures without creating a session", async () => {
 		const { ctx, config, readMessages, start } = setup();
 		const error = Object.assign(new Error("Hub disconnected"), {
