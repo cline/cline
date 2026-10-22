@@ -110,7 +110,7 @@
 	"devDependencies": {
 		"@cline/sdk": "workspace:*",
 		"@tailwindcss/postcss": "^4.2.0",
-		"@tauri-apps/cli": "^2.0.0",
+		"@tauri-apps/cli": "^2.12.3",
 		"@types/bun": "^1.4.2",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
