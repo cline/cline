@@ -501,6 +501,7 @@ export {
 	getClineClientIdentity,
 	setClineClientIdentity,
 } from "./runtime/cline-client-identity";
+export { getClineDashboardUrl } from "./runtime/cline-dashboard-url";
 export type {
 	ClineEnvironment,
 	ClineEnvironmentConfig,
@@ -515,7 +516,6 @@ export {
 	resolveClineAppBaseUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
-export { getClineDashboardUrl } from "./runtime/cline-dashboard-url";
 export type {
 	ConnectorCliLaunchSpec,
 	ConnectorInstanceRef,
