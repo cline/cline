@@ -227,8 +227,7 @@ test("skip drops the named row, unskip restores it, a stale revision is refused"
 	expect(
 		await tray.act({ verb: "skip", revision: "r1", itemId: "r1:review_diff" }),
 	).toEqual(ok);
-	expect(tray.last()?.revision).toBe("r1");
-	expect(tray.ids()).toEqual(["r1:verify", "r1:wrap_up", "r1:next_step"]);
+	expect(tray.ids()).toEqual(["r2:verify", "r2:wrap_up", "r2:next_step"]);
 	expect(tray.last()?.canRefresh).toBe(false);
 
 	expect(
@@ -245,7 +244,7 @@ test("skip drops the named row, unskip restores it, a stale revision is refused"
 			itemId: "r1:review_diff",
 		}),
 	).toEqual(ok);
-	expect(tray.ids()).toEqual(["r1:verify", "r1:review_diff", "r1:wrap_up"]);
+	expect(tray.ids()).toEqual(["r3:verify", "r3:review_diff", "r3:wrap_up"]);
 	expect(tray.last()?.canRefresh).toBe(true);
 
 	for (const itemId of [
@@ -260,7 +259,7 @@ test("skip drops the named row, unskip restores it, a stale revision is refused"
 	expect(tray.last()?.status).toBe("empty");
 
 	await tray.afterRun(run("completed", [edited]));
-	expect(tray.ids()).toEqual(["r2:verify", "r2:review_diff", "r2:wrap_up"]);
+	expect(tray.ids()).toEqual(["r8:verify", "r8:review_diff", "r8:wrap_up"]);
 });
 
 test("refresh serves the next set under a new revision and keeps skipped rows out", async () => {
@@ -270,21 +269,20 @@ test("refresh serves the next set under a new revision and keeps skipped rows ou
 
 	await tray.act({ verb: "skip", revision: "r1", itemId: "r1:verify" });
 	expect(tray.ids()).toEqual([
-		"r1:fix_failure",
-		"r1:review_diff",
-		"r1:wrap_up",
+		"r2:fix_failure",
+		"r2:review_diff",
+		"r2:wrap_up",
 	]);
 	expect(tray.last()?.canRefresh).toBe(true);
 
 	expect(
-		await tray.act({ verb: "refresh", revision: "r1", cause: "new_set" }),
+		await tray.act({ verb: "refresh", revision: "r2", cause: "new_set" }),
 	).toEqual(ok);
-	expect(tray.last()?.revision).toBe("r2");
-	expect(tray.ids()).toEqual(["r2:review_diff", "r2:wrap_up", "r2:next_step"]);
+	expect(tray.ids()).toEqual(["r3:review_diff", "r3:wrap_up", "r3:next_step"]);
 	expect(tray.last()?.canRefresh).toBe(false);
 
 	expect(
-		await tray.act({ verb: "refresh", revision: "r1", cause: "more" }),
+		await tray.act({ verb: "refresh", revision: "r2", cause: "more" }),
 	).toEqual(stale);
 });
 
@@ -300,40 +298,61 @@ test("Skip on the last row asks for more and drops that row, not the first", asy
 	expect(tray.last()?.canRefresh).toBe(false);
 });
 
+test("a Skip on the last row sent before the previous skip's set arrives is refused, not applied to the refill", async () => {
+	const tray = connect();
+	await tray.afterRun(run("completed", [edited]));
+	await tray.act({ verb: "skip", revision: "r1", itemId: "r1:verify" });
+	expect(tray.ids()).toEqual(["r2:review_diff", "r2:wrap_up", "r2:next_step"]);
+
+	expect(
+		await tray.act({ verb: "refresh", revision: "r1", cause: "more" }),
+	).toEqual(stale);
+	expect(tray.ids()).toEqual(["r2:review_diff", "r2:wrap_up", "r2:next_step"]);
+
+	expect(
+		await tray.act({ verb: "skip", revision: "r1", itemId: "r1:wrap_up" }),
+	).toEqual(ok);
+	expect(tray.ids()).toEqual(["r3:review_diff", "r3:next_step"]);
+});
+
 test("Undo skip restores the row after a new set, until the next turn", async () => {
 	const tray = connect();
 	await tray.afterRun(run("completed", [edited, failedCommand]));
 	await tray.act({ verb: "skip", revision: "r1", itemId: "r1:verify" });
-	await tray.act({ verb: "refresh", revision: "r1", cause: "new_set" });
-	expect(tray.ids()).toEqual(["r2:review_diff", "r2:wrap_up", "r2:next_step"]);
+	await tray.act({ verb: "refresh", revision: "r2", cause: "new_set" });
+	expect(tray.ids()).toEqual(["r3:review_diff", "r3:wrap_up", "r3:next_step"]);
 
 	expect(
 		await tray.act({ verb: "unskip", revision: "r1", itemId: "r1:verify" }),
 	).toEqual(ok);
-	expect(tray.ids()).toEqual(["r2:verify", "r2:review_diff", "r2:wrap_up"]);
+	expect(tray.ids()).toEqual(["r4:verify", "r4:review_diff", "r4:wrap_up"]);
 	expect(
 		await tray.act({ verb: "unskip", revision: "r1", itemId: "r1:verify" }),
 	).toEqual(stale);
 
 	await tray.afterRun(run("completed", [edited, failedCommand]));
-	await tray.act({ verb: "skip", revision: "r3", itemId: "r3:fix_failure" });
-	await tray.act({ verb: "refresh", revision: "r3", cause: "new_set" });
-	expect(tray.ids()).toEqual(["r4:review_diff", "r4:wrap_up", "r4:next_step"]);
+	await tray.act({ verb: "skip", revision: "r5", itemId: "r5:fix_failure" });
+	await tray.act({ verb: "refresh", revision: "r6", cause: "new_set" });
+	expect(tray.ids()).toEqual(["r7:review_diff", "r7:wrap_up", "r7:next_step"]);
 	expect(
 		await tray.act({
 			verb: "unskip",
-			revision: "r3",
-			itemId: "r3:fix_failure",
+			revision: "r5",
+			itemId: "r5:fix_failure",
 		}),
 	).toEqual(ok);
-	expect(tray.ids()).toEqual(["r4:fix_failure", "r4:verify", "r4:review_diff"]);
+	expect(tray.ids()).toEqual(["r8:fix_failure", "r8:verify", "r8:review_diff"]);
 
-	await tray.act({ verb: "skip", revision: "r4", itemId: "r4:verify" });
+	await tray.act({ verb: "skip", revision: "r8", itemId: "r8:verify" });
 	await tray.afterRun(run("completed", [edited, failedCommand]));
 	expect(
-		await tray.act({ verb: "unskip", revision: "r4", itemId: "r4:verify" }),
+		await tray.act({ verb: "unskip", revision: "r8", itemId: "r8:verify" }),
 	).toEqual(stale);
-	expect(tray.ids()).toEqual(["r5:fix_failure", "r5:verify", "r5:review_diff"]);
+	expect(tray.ids()).toEqual([
+		"r10:fix_failure",
+		"r10:verify",
+		"r10:review_diff",
+	]);
 });
 
 test("once it has served a set, use and send are ok only for a row the current set still offers", async () => {
@@ -354,10 +373,13 @@ test("once it has served a set, use and send are ok only for a row the current s
 
 	await tray.act({ verb: "skip", revision: "r1", itemId: "r1:verify" });
 	expect(
-		await tray.act({ verb: "send", revision: "r1", itemId: "r1:verify" }),
+		await tray.act({ verb: "send", revision: "r1", itemId: "r1:review_diff" }),
 	).toEqual(stale);
 	expect(
-		await tray.act({ verb: "send", revision: "r1", itemId: "r1:next_step" }),
+		await tray.act({ verb: "send", revision: "r2", itemId: "r2:verify" }),
+	).toEqual(stale);
+	expect(
+		await tray.act({ verb: "send", revision: "r2", itemId: "r2:next_step" }),
 	).toEqual(ok);
 
 	await tray.afterRun(run("failed"));
@@ -392,7 +414,7 @@ test("hide for this chat holds across turns until show", async () => {
 		hiddenReason: "user",
 		title: "Next",
 		command: "next",
-		revision: "r1",
+		revision: "r2",
 		items: [],
 		canRefresh: false,
 	});
@@ -404,12 +426,12 @@ test("hide for this chat holds across turns until show", async () => {
 	expect(tray.last()).toMatchObject({
 		status: "hidden",
 		hiddenReason: "user",
-		revision: "r2",
+		revision: "r3",
 	});
 
 	expect(await tray.act({ verb: "show" })).toEqual(ok);
 	expect(tray.last()?.status).toBe("ready");
-	expect(tray.ids()).toEqual(["r2:verify", "r2:review_diff", "r2:wrap_up"]);
+	expect(tray.ids()).toEqual(["r4:verify", "r4:review_diff", "r4:wrap_up"]);
 });
 
 test("a worker restarted after an idle reclaim withdraws the set core still holds, lets the click on it use or send, and never reissues its revision", async () => {

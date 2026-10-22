@@ -231,7 +231,7 @@ export function createNextTurnPlugin(): AgentPlugin {
 	let revision = 0;
 	/** Kinds skipped this turn, so a new set does not bring them back. */
 	let skipped = new Set<string>();
-	/** Revisions served this turn, so Undo skip still reaches a row after a new set. */
+	/** Revisions served this turn, so Skip and Undo skip still reach a row after a new set. */
 	let turnRevisions = new Set<string>();
 	let hiddenForChat = false;
 
@@ -246,14 +246,15 @@ export function createNextTurnPlugin(): AgentPlugin {
 		return state(offered(facts), cursor, `r${revision}`, facts);
 	};
 
+	/** Every state published gets its own revision, so a verb aimed at the set it replaced is refused. */
 	const publish = (next?: Facts) => {
 		if (next) {
 			facts = next;
 			cursor = 0;
-			revision += 1;
 			skipped = new Set();
 			turnRevisions = new Set();
 		}
+		revision += 1;
 		turnRevisions.add(`r${revision}`);
 		ui?.update("composer.suggestions", shown());
 	};
@@ -281,7 +282,8 @@ export function createNextTurnPlugin(): AgentPlugin {
 				// A worker restarted after an idle reclaim has served no set, so the one clicked is still the last turn's: a newer turn would have reached afterRun here.
 				return !facts || offers(action) ? { outcome: "ok" } : stale();
 			case "skip": {
-				if (!facts || action.revision !== `r${revision}`) return stale();
+				// A row keeps its kind all turn, so a skip from a set already replaced still names one row.
+				if (!facts) return stale();
 				const row = rowOf(facts, action);
 				if (!row) return stale();
 				skipped.add(row.kind);
@@ -306,7 +308,6 @@ export function createNextTurnPlugin(): AgentPlugin {
 					.at(-1);
 				if (action.cause === "more" && last) skipped.add(last.kind);
 				else cursor += 1;
-				revision += 1;
 				publish();
 				return { outcome: "ok" };
 			}
