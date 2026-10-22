@@ -472,25 +472,44 @@ tool calls on an already connected server. A read that starts while the server
 is being disconnected or re-registered can fail with a disconnect error; retry
 it.
 
-## Privacy settings link
+## Dashboard links
+
+`getClineDashboardUrl(path, appBaseUrl, client)` from `@cline/shared` (also
+exported for browsers) resolves a path into the Cline web app and attributes the
+client that opened it with `client=<ClientName>`, where `ClientName` is the type
+in `extensions/context.ts` (`cline-cli`, `cline-vscode`, `cline-jetbrains`,
+`cline-desktop`). The account views build their web app links with it, so every
+link in one view follows the same app URL and carries the same attribution. Pass
+the client explicitly: `getClineClientIdentity()` is process-local and holds
+display names for request headers (`"VSCode Extension"`), so webviews cannot
+read it.
+
+`client` is appended after the path is resolved. `new URL(path, base)` keeps the
+base's own query string for a relative path and replaces it for a path that has
+its own, so appending afterwards is the only ordering that holds for both.
+
+It returns `undefined` when the path or base URL is missing, the base URL is
+unusable, or the result would leave the app's origin, such as an absolute,
+protocol-relative, `javascript:`, `file:` or editor-scheme value. Hosts render no
+link in those cases.
+
+### Privacy settings link
 
 `GET /users/me` returns `dataPrivacyPath`, the Cline web app path where users
 manage their data use and Cline Bench preferences (for example
 `/dashboard/account?tab=privacy`). `ClineAccountUser.dataPrivacyPath` carries it,
-and servers that do not send it leave it undefined.
-
-`getClinePrivacySettingsUrl(dataPrivacyPath, appBaseUrl, client)` from
-`@cline/shared` (also exported for browsers) resolves the path against the app
-base URL and adds `client=<cli|desktop|jetbrains|vscode>`. It returns `undefined`
-when the path is missing, the base URL is unusable, or the result would leave the
-app's origin, such as an absolute, protocol-relative, `javascript:`, `file:` or
-editor-scheme value. Hosts render no link in those cases.
+and servers that do not send it leave it undefined. Hosts pass it straight to
+`getClineDashboardUrl`.
 
 Account requests honour a provider `baseUrl` override, so the app URL has to be
 derived from the backend they actually hit rather than from `CLINE_ENVIRONMENT`
 alone. `resolveClineAppBaseUrl(apiBaseUrl)` from `@cline/shared` (also exported
-for browsers) returns the `appBaseUrl` of the environment whose `apiBaseUrl`
-matches, ignoring a trailing slash. It returns `undefined` for a backend no
+for browsers) returns the `appBaseUrl` of the environment whose `apiBaseUrl` has
+the same URL origin. It returns `undefined` for a backend no
 environment declares (a proxy or self-hosted host), which makes hosts hide the
 link instead of opening another environment's privacy settings.
+
+Switching the account backend while a host runs is not a supported flow, so a
+host resolves that app URL once at startup and keeps it. A backend change takes
+effect on the next restart.
 

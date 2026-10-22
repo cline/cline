@@ -166,6 +166,12 @@ export type SidecarContext = {
 	 * replayed to webviews that connect after the event fired.
 	 */
 	hubBuildMismatch: ManagedHubBuildMismatchEvent | null;
+	/**
+	 * Web app the account links point at, resolved once at startup: switching
+	 * account backend or environment while the app runs is not a supported
+	 * flow. Undefined for a backend no Cline environment declares.
+	 */
+	clineAppBaseUrl?: string;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };

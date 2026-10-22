@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCloudSessionManager } from "./cloud-sessions";
 import { handleCommand } from "./commands";
-import { createSidecarContext } from "./context";
+import { createSidecarContext, resolveSidecarClineAppBaseUrl } from "./context";
 import {
 	getDesktopFeatureFlagsService,
 	resetDesktopFeatureFlagsForTesting,
@@ -216,32 +216,42 @@ describe("get_cline_app_base_url", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("returns the web app URL of the sidecar's Cline environment", async () => {
-		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
-		const { ctx } = createContext();
-
-		await expect(
-			handleCommand(ctx, "get_cline_app_base_url", {}),
-		).resolves.toBe("https://staging-app.cline.bot");
-	});
-
-	it("follows a provider baseUrl override to the matching web app", async () => {
-		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+	async function saveClineBaseUrl(baseUrl: string) {
 		const { ctx } = createContext();
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline",
 			api_key: "account-token",
-			base_url: "https://core-api.staging.int.cline.bot",
+			base_url: baseUrl,
 		});
+	}
 
-		await expect(
-			handleCommand(ctx, "get_cline_app_base_url", {}),
-		).resolves.toBe("https://staging-app.cline.bot");
+	it("resolves the web app of the sidecar's Cline environment", () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+
+		expect(resolveSidecarClineAppBaseUrl()).toBe(
+			"https://staging-app.cline.bot",
+		);
 	});
 
-	it("returns no web app URL for a backend it cannot match", async () => {
+	it("follows a provider baseUrl override to the matching web app", async () => {
 		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+		await saveClineBaseUrl("https://core-api.staging.int.cline.bot");
+
+		expect(resolveSidecarClineAppBaseUrl()).toBe(
+			"https://staging-app.cline.bot",
+		);
+	});
+
+	it("resolves no web app for a backend it cannot match", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+		await saveClineBaseUrl("https://cline-proxy.example.com");
+
+		expect(resolveSidecarClineAppBaseUrl()).toBeUndefined();
+	});
+
+	it("returns the app URL resolved at startup, for every environment context", async () => {
 		const { ctx } = createContext();
+		ctx.clineAppBaseUrl = "https://staging-app.cline.bot";
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline",
 			api_key: "account-token",
@@ -250,6 +260,9 @@ describe("get_cline_app_base_url", () => {
 
 		await expect(
 			handleCommand(ctx, "get_cline_app_base_url", {}),
-		).resolves.toBeUndefined();
+		).resolves.toBe("https://staging-app.cline.bot");
+		await expect(
+			handleCommand(ctx, "get_cline_app_base_url", { environmentId: "ssh-1" }),
+		).resolves.toBe("https://staging-app.cline.bot");
 	});
 });

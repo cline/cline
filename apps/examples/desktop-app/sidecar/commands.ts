@@ -84,7 +84,6 @@ import {
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	readHubScheduleMode,
-	resolveClineAppBaseUrl,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
@@ -3224,15 +3223,7 @@ export async function handleCommand(
 		return readGlobalSettings();
 	}
 	if (command === "get_cline_app_base_url") {
-		// Account calls honour a provider `baseUrl` override (see `cline_account`
-		// below), so the link has to follow the backend they actually hit.
-		// An unrecognised backend (proxy, self-hosted) resolves to no app URL,
-		// which makes the webview hide the action instead of opening another
-		// environment's privacy settings.
-		const settings = new ProviderSettingsManager().getProviderSettings("cline");
-		return resolveClineAppBaseUrl(
-			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-		);
+		return ctx.clineAppBaseUrl;
 	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)

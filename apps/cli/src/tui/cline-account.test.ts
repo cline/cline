@@ -286,7 +286,7 @@ describe("loadClineAccountSnapshot", () => {
 
 		const appOrigin = new URL(getClineEnvironmentConfig().appBaseUrl).origin;
 		expect(snapshot.privacySettingsUrl).toBe(
-			`${appOrigin}/dashboard/account?tab=privacy&client=cli`,
+			`${appOrigin}/dashboard/account?tab=privacy&client=cline-cli`,
 		);
 	});
 
@@ -312,7 +312,7 @@ describe("loadClineAccountSnapshot", () => {
 		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
 
 		expect(snapshot.privacySettingsUrl).toBe(
-			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=cli",
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=cline-cli",
 		);
 	});
 

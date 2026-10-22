@@ -217,7 +217,7 @@ Supported commands:
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
 | `get_feature_flags` | PostHog flag snapshot + `isCloudAgentsEnabled()` (env override + `code-cloud-agents` rollout flag) |
-| `get_cline_app_base_url` | `getClineEnvironmentConfig().appBaseUrl`, so web app links follow `CLINE_ENVIRONMENT` |
+| `get_cline_app_base_url` | `ctx.clineAppBaseUrl`, resolved once at startup from the provider `baseUrl` override or `CLINE_ENVIRONMENT`; undefined for a backend no environment declares |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
 | `list_cloud_models` | `CloudSessionManager.listModels()` (account-scoped Usage-Billing, ClinePass, and ClineFree catalogs; model IDs use the Cline cloud transport) |
 | `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |

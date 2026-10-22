@@ -515,8 +515,7 @@ export {
 	resolveClineAppBaseUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
-export type { ClinePrivacySettingsClient } from "./runtime/cline-privacy-settings-url";
-export { getClinePrivacySettingsUrl } from "./runtime/cline-privacy-settings-url";
+export { getClineDashboardUrl } from "./runtime/cline-dashboard-url";
 export type {
 	ConnectorCliLaunchSpec,
 	ConnectorInstanceRef,

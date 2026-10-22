@@ -1,13 +1,13 @@
 "use client";
 
 import type { ClineAccountOrganization, ClineAccountUser } from "@cline/core";
-import { getClinePrivacySettingsUrl } from "@cline/shared/browser";
 import {
 	createContext,
 	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -27,11 +27,10 @@ type AccountContextValue = {
 	accountReady: boolean;
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
+	/** The web app this environment's account lives in. Environment
+	 * configuration, not account state: it is resolved once and never follows
+	 * an account refresh. */
 	clineAppBaseUrl: string | undefined;
-	privacySettingsUrl: string | undefined;
-	/** Publishes a user another view just fetched, so the values derived here
-	 * follow the freshest response instead of the mount-time fetch. */
-	applyAccountUser: (user: ClineAccountUser) => void;
 	refreshAccount: () => Promise<void>;
 };
 
@@ -41,8 +40,6 @@ const AccountContext = createContext<AccountContextValue>({
 	organizations: [],
 	activeOrganization: null,
 	clineAppBaseUrl: undefined,
-	privacySettingsUrl: undefined,
-	applyAccountUser: () => undefined,
 	refreshAccount: async () => undefined,
 });
 
@@ -111,21 +108,23 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 	const [accountReady, setAccountReady] = useState(false);
 	const [clineAppBaseUrl, setClineAppBaseUrl] = useState<string>();
 
+	const appBaseUrlLoaded = useRef(false);
+
 	const loadAppBaseUrl = useCallback(async () => {
+		// The app URL is fixed for the app's lifetime, so a resolved value is kept
+		// and only a lookup that has not succeeded yet is retried.
+		if (appBaseUrlLoaded.current) return;
 		try {
 			setClineAppBaseUrl(
 				await desktopClient.invoke<string>("get_cline_app_base_url"),
 			);
+			appBaseUrlLoaded.current = true;
 		} catch {
-			// The privacy links stay hidden until a later fetch succeeds.
+			// Account links stay hidden until a reconnect retries the lookup.
 		}
 	}, []);
 
 	const refreshAccount = useCallback(async () => {
-		// The saved backend can change without the transport reconnecting
-		// (saving or clearing a `baseUrl` override), so the app a link points
-		// at is re-read wherever the account itself is refreshed.
-		void loadAppBaseUrl();
 		try {
 			const me = await desktopClient.invoke<ClineAccountUser>("cline_account", {
 				action: "clineAccount",
@@ -150,7 +149,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		} finally {
 			setAccountReady(true);
 		}
-	}, [loadAppBaseUrl]);
+	}, []);
 
 	useEffect(() => {
 		// Seed from the cached identity after mount so the signed-in name renders
@@ -171,11 +170,6 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		[loadAppBaseUrl],
 	);
 
-	const applyAccountUser = useCallback((next: ClineAccountUser) => {
-		setUser(next);
-		writeCachedAccountUser(next);
-	}, []);
-
 	const value = useMemo<AccountContextValue>(() => {
 		const organizations = user?.organizations ?? [];
 		return {
@@ -185,17 +179,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 			activeOrganization:
 				organizations.find((organization) => organization.active) ?? null,
 			clineAppBaseUrl,
-			privacySettingsUrl: clineAppBaseUrl
-				? getClinePrivacySettingsUrl(
-						user?.dataPrivacyPath,
-						clineAppBaseUrl,
-						"desktop",
-					)
-				: undefined,
-			applyAccountUser,
 			refreshAccount,
 		};
-	}, [accountReady, applyAccountUser, clineAppBaseUrl, refreshAccount, user]);
+	}, [accountReady, clineAppBaseUrl, refreshAccount, user]);
 
 	return (
 		<AccountContext.Provider value={value}>{children}</AccountContext.Provider>

@@ -9,16 +9,11 @@ import {
 } from "@/lib/app-font-size";
 import { SettingsView } from "./settings-view";
 
-const { invoke, openExternalUrl, useAccount } = vi.hoisted(() => ({
-	invoke: vi.fn(),
-	openExternalUrl: vi.fn(),
-	useAccount: vi.fn(),
-}));
-vi.mock("@/contexts/account-context", () => ({ useAccount }));
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke },
 	isTauriAvailable: vi.fn(() => false),
-	openExternalUrl,
+	openExternalUrl: vi.fn(),
 }));
 
 let container: HTMLDivElement;
@@ -45,8 +40,6 @@ beforeEach(() => {
 	document.documentElement.style.removeProperty("font-size");
 	delete document.documentElement.dataset.clineFontSize;
 	invoke.mockReset();
-	openExternalUrl.mockReset();
-	useAccount.mockReturnValue({ privacySettingsUrl: undefined });
 	invoke.mockImplementation(async (command: string) => {
 		if (command === "get_hub_status") {
 			return { url: "ws://127.0.0.1:1234", clients: [], events: [] };
@@ -119,47 +112,5 @@ describe("SettingsView font size", () => {
 		expect(container.textContent).toContain("20px");
 		expect(updatedSlider?.getAttribute("aria-valuenow")).toBe("20");
 		expect(increaseButton?.disabled).toBe(true);
-	});
-});
-
-describe("SettingsView privacy settings link", () => {
-	async function renderGeneralSettingsWithPrivacyLink(
-		privacySettingsUrl?: string,
-	) {
-		useAccount.mockReturnValue({ privacySettingsUrl });
-		await act(async () => {
-			root.render(
-				<SettingsView
-					onExportDiagnostics={vi.fn()}
-					onNavigateSection={vi.fn()}
-					section="General"
-				/>,
-			);
-		});
-	}
-
-	const privacySettingsLink = () =>
-		Array.from(container.querySelectorAll("button")).find(
-			(button) => button.textContent === "privacy settings",
-		);
-
-	it("hides the sentence when there is no privacy settings link", async () => {
-		await renderGeneralSettingsWithPrivacyLink(undefined);
-
-		expect(container.textContent).toContain("Telemetry");
-		expect(container.textContent).not.toContain("Cline Bench");
-		expect(privacySettingsLink()).toBeUndefined();
-	});
-
-	it("opens the privacy settings link from the account context", async () => {
-		await renderGeneralSettingsWithPrivacyLink(
-			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-		);
-
-		await act(async () => privacySettingsLink()?.click());
-
-		expect(openExternalUrl).toHaveBeenCalledWith(
-			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-		);
 	});
 });

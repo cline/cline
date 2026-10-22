@@ -5,7 +5,7 @@ import { StyledCreditDisplay } from "./StyledCreditDisplay"
 type CreditBalanceProps = {
 	balance: number | null
 	fetchCreditBalance: () => void
-	creditUrl: URL
+	creditUrl: string | undefined
 	lastFetchTime: number
 	isLoading: boolean
 }
@@ -29,9 +29,11 @@ export const CreditBalance = ({ balance, fetchCreditBalance, creditUrl, lastFetc
 			</div>
 
 			<div className="w-full">
-				<VSCodeButtonLink className="w-full" href={creditUrl.href}>
-					Add Credits
-				</VSCodeButtonLink>
+				{creditUrl && (
+					<VSCodeButtonLink className="w-full" href={creditUrl}>
+						Add Credits
+					</VSCodeButtonLink>
+				)}
 			</div>
 		</div>
 	)

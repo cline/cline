@@ -13,6 +13,7 @@ export type ClientName =
 	| "cline-vscode"
 	| "cline-jetbrains"
 	| "cline-cli"
+	| "cline-desktop"
 	| "cline-sdk"
 	| "cline-kanban"
 	| "cline-acp"

@@ -5,14 +5,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountView } from "./account-view";
 
-const { invoke, openExternalUrl, useAccount, applyAccountUser } = vi.hoisted(
-	() => ({
-		invoke: vi.fn(),
-		openExternalUrl: vi.fn(),
-		useAccount: vi.fn(),
-		applyAccountUser: vi.fn(),
-	}),
-);
+const { invoke, openExternalUrl, useAccount } = vi.hoisted(() => ({
+	invoke: vi.fn(),
+	openExternalUrl: vi.fn(),
+	useAccount: vi.fn(),
+}));
 vi.mock("@/contexts/account-context", () => ({ useAccount }));
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
@@ -26,10 +23,8 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	invoke.mockReset();
 	openExternalUrl.mockReset();
-	applyAccountUser.mockReset();
 	useAccount.mockReturnValue({
-		clineAppBaseUrl: undefined,
-		applyAccountUser,
+		clineAppBaseUrl: "https://app.cline.bot",
 		refreshAccount: vi.fn(),
 	});
 	container = document.createElement("div");
@@ -92,7 +87,7 @@ describe("AccountView usage table", () => {
 		await act(async () => seeMoreButton?.click());
 
 		expect(openExternalUrl).toHaveBeenCalledWith(
-			"https://app.cline.bot/dashboard/usage",
+			"https://app.cline.bot/dashboard/usage?client=cline-desktop",
 		);
 	});
 });
@@ -140,6 +135,32 @@ describe("AccountView signed-out state", () => {
 		expect(
 			invoke.mock.calls.filter(([command]) => command === "cline_account"),
 		).toHaveLength(1);
+	});
+
+	it("hides Create account without a Cline app but keeps Cancel while signing in", async () => {
+		useAccount.mockReturnValue({
+			clineAppBaseUrl: undefined,
+			refreshAccount: vi.fn(),
+		});
+		invoke.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise(() => {});
+			}
+			return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
+		});
+		await act(async () => root.render(<AccountView />));
+		const button = (label: string) =>
+			Array.from(container.querySelectorAll("button")).find(
+				(button) => button.textContent === label,
+			);
+
+		expect(button("Sign in")).toBeDefined();
+		expect(button("Create account")).toBeUndefined();
+
+		await act(async () => button("Sign in")?.click());
+
+		expect(button("Cancel")).toBeDefined();
+		expect(openExternalUrl).not.toHaveBeenCalled();
 	});
 
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {
@@ -248,12 +269,13 @@ describe("AccountView signed-out state", () => {
 });
 
 describe("AccountView privacy settings", () => {
-	async function renderSignedInWithPrivacyLink(dataPrivacyPath?: string) {
-		useAccount.mockReturnValue({
+	async function renderSignedInWithPrivacyLink(
+		dataPrivacyPath?: string,
+		{ clineAppBaseUrl }: { clineAppBaseUrl: string | undefined } = {
 			clineAppBaseUrl: "https://staging-app.cline.bot",
-			applyAccountUser,
-			refreshAccount: vi.fn(),
-		});
+		},
+	) {
+		useAccount.mockReturnValue({ clineAppBaseUrl, refreshAccount: vi.fn() });
 		invoke.mockImplementation(
 			async (_command: string, args?: Record<string, unknown>) => {
 				switch (args?.operation) {
@@ -294,6 +316,11 @@ describe("AccountView privacy settings", () => {
 			'button[title="Privacy settings"]',
 		);
 
+	const buttonWithText = (label: string) =>
+		Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === label,
+		);
+
 	it("hides the action when there is no privacy settings link", async () => {
 		await renderSignedInWithPrivacyLink(undefined);
 
@@ -309,22 +336,34 @@ describe("AccountView privacy settings", () => {
 
 		expect(openExternalUrl).toHaveBeenNthCalledWith(
 			1,
-			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=cline-desktop",
 		);
 		expect(openExternalUrl).toHaveBeenNthCalledWith(
 			2,
-			"https://staging-app.cline.bot/dashboard",
+			"https://staging-app.cline.bot/dashboard?client=cline-desktop",
 		);
 	});
 
-	it("publishes the user it loads so the shared link can follow it", async () => {
-		await renderSignedInWithPrivacyLink("/dashboard/account?tab=privacy");
+	it("opens organization creation on the sidecar's Cline app", async () => {
+		await renderSignedInWithPrivacyLink(undefined);
 
-		expect(applyAccountUser).toHaveBeenCalledWith(
-			expect.objectContaining({
-				dataPrivacyPath: "/dashboard/account?tab=privacy",
-			}),
+		await act(async () => buttonWithText("Create")?.click());
+
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://staging-app.cline.bot/onboarding?step=1&client=cline-desktop",
 		);
+	});
+
+	it("hides every web app link when no Cline app is resolved", async () => {
+		await renderSignedInWithPrivacyLink("/dashboard/account?tab=privacy", {
+			clineAppBaseUrl: undefined,
+		});
+
+		expect(privacySettingsButton()).toBeNull();
+		expect(dashboardButton()).toBeNull();
+		expect(buttonWithText("Credit")).toBeUndefined();
+		expect(buttonWithText("Create")).toBeUndefined();
+		expect(openExternalUrl).not.toHaveBeenCalled();
 	});
 });
 
@@ -390,7 +429,6 @@ describe("AccountView sign-out", () => {
 		await act(async () => signOutButton?.click());
 		await act(async () => resolveSecondFetch(USER));
 
-		expect(applyAccountUser).toHaveBeenCalledTimes(1);
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("Sign in to Cline");
 		});

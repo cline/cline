@@ -44,15 +44,15 @@ function makeUser(overrides: Partial<ClineAccountUser> = {}): ClineAccountUser {
 }
 
 function Probe() {
-	const { user, activeOrganization, privacySettingsUrl } = useAccount();
+	const { user, activeOrganization, clineAppBaseUrl } = useAccount();
 	return (
 		<div>
 			<span data-testid="account-name">{user?.displayName ?? "none"}</span>
 			<span data-testid="account-org">
 				{activeOrganization?.name ?? "none"}
 			</span>
-			<span data-testid="privacy-settings-url">
-				{privacySettingsUrl ?? "none"}
+			<span data-testid="app-base-url">
+				{typeof clineAppBaseUrl === "string" ? clineAppBaseUrl : "none"}
 			</span>
 		</div>
 	);
@@ -150,11 +150,11 @@ describe("account context", () => {
 		).toBe("beatrix@cline.bot");
 	});
 
-	it("links to privacy settings on the sidecar's Cline app", async () => {
+	it("reports the sidecar's Cline app for its links", async () => {
 		invoke.mockImplementation(async (command: string) =>
 			command === "get_cline_app_base_url"
 				? "https://staging-app.cline.bot"
-				: makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
+				: makeUser(),
 		);
 
 		await act(async () => {
@@ -166,17 +166,15 @@ describe("account context", () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(probeText("privacy-settings-url")).toBe(
-				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-			);
+			expect(probeText("app-base-url")).toBe("https://staging-app.cline.bot");
 		});
 	});
 
-	it("looks up the sidecar's Cline app again after reconnecting", async () => {
+	it("retries the Cline app lookup on reconnect until the sidecar answers", async () => {
 		let sidecarReportsClineApp = false;
 		invoke.mockImplementation(async (command: string) => {
 			if (command !== "get_cline_app_base_url") {
-				return makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" });
+				return makeUser();
 			}
 			if (!sidecarReportsClineApp) {
 				throw new Error("Desktop backend transport unavailable");
@@ -195,7 +193,7 @@ describe("account context", () => {
 		await vi.waitFor(() => {
 			expect(probeText("account-name")).toBe("Beatrix");
 		});
-		expect(probeText("privacy-settings-url")).toBe("none");
+		expect(probeText("app-base-url")).toBe("none");
 
 		sidecarReportsClineApp = true;
 		await act(async () => {
@@ -204,19 +202,21 @@ describe("account context", () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(probeText("privacy-settings-url")).toBe(
-				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-			);
+			expect(probeText("app-base-url")).toBe("https://staging-app.cline.bot");
 		});
 	});
 
-	it("re-reads the Cline app when the saved backend changes", async () => {
-		let sidecarAppBaseUrl = "https://staging-app.cline.bot";
-		invoke.mockImplementation(async (command: string) =>
-			command === "get_cline_app_base_url"
-				? sidecarAppBaseUrl
-				: makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
-		);
+	it("resolves the Cline app once and keeps it across refreshes and reconnects", async () => {
+		let lookups = 0;
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "get_cline_app_base_url") {
+				lookups += 1;
+				return lookups === 1
+					? "https://staging-app.cline.bot"
+					: "https://app.cline.bot";
+			}
+			return makeUser();
+		});
 
 		function RefreshProbe() {
 			const { refreshAccount } = useAccount();
@@ -237,71 +237,16 @@ describe("account context", () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(probeText("privacy-settings-url")).toBe(
-				"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-			);
+			expect(probeText("app-base-url")).toBe("https://staging-app.cline.bot");
 		});
-
-		// Saving or clearing a `baseUrl` override moves account calls to another
-		// backend without reconnecting the transport.
-		sidecarAppBaseUrl = "https://app.cline.bot";
-		await act(async () => {
-			container.querySelector("button")?.click();
-		});
-
-		await vi.waitFor(() => {
-			expect(probeText("privacy-settings-url")).toBe(
-				"https://app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-			);
-		});
-	});
-
-	it("adopts a user another view loads after the mount fetch failed", async () => {
-		invoke.mockImplementation(async (command: string) => {
-			if (command === "get_cline_app_base_url") {
-				return "https://staging-app.cline.bot";
-			}
-			throw new Error("fetch failed");
-		});
-
-		function ApplyUserProbe() {
-			const { applyAccountUser } = useAccount();
-			return (
-				<button
-					type="button"
-					onClick={() =>
-						applyAccountUser(
-							makeUser({ dataPrivacyPath: "/dashboard/account?tab=privacy" }),
-						)
-					}
-				>
-					apply
-				</button>
-			);
-		}
-
-		await act(async () => {
-			root.render(
-				<AccountProvider>
-					<Probe />
-					<ApplyUserProbe />
-				</AccountProvider>,
-			);
-		});
-
-		await vi.waitFor(() => {
-			expect(probeText("account-name")).toBe("none");
-		});
-		expect(probeText("privacy-settings-url")).toBe("none");
 
 		await act(async () => {
 			container.querySelector("button")?.click();
+			setTransportState("connected");
 		});
 
-		expect(probeText("account-name")).toBe("Beatrix");
-		expect(probeText("privacy-settings-url")).toBe(
-			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=desktop",
-		);
+		expect(lookups).toBe(1);
+		expect(probeText("app-base-url")).toBe("https://staging-app.cline.bot");
 	});
 
 	it("treats the typed not-authenticated result as signed out", async () => {

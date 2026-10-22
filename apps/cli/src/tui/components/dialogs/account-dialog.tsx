@@ -211,7 +211,9 @@ function OrganizationRow(props: {
 	);
 }
 
-function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
+export function accountActions(
+	snapshot: ClineAccountSnapshot,
+): AccountAction[] {
 	const actions = LOADED_ACTIONS.map((action) => {
 		if (action.id !== "change-account") {
 			return action;

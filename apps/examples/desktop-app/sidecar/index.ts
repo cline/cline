@@ -24,6 +24,7 @@ import {
 	createSidecarContext,
 	disposeSidecarContext,
 	initializeSessionManager,
+	resolveSidecarClineAppBaseUrl,
 } from "./context";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
@@ -70,6 +71,7 @@ async function main(desktopCliPath?: string) {
 	const observability = createDesktopObservability();
 	activeObservability = observability;
 	const ctx = createSidecarContext(workspaceRoot, observability);
+	ctx.clineAppBaseUrl = resolveSidecarClineAppBaseUrl();
 	observability.logger.log("Desktop sidecar starting", {
 		workspaceRoot,
 		pid: process.pid,

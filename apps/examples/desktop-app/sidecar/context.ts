@@ -10,6 +10,7 @@ import {
 	ensureCompatibleLocalHubUrl,
 	type ITelemetryService,
 	NodeHubClient,
+	ProviderSettingsManager,
 	type RuntimeCapabilities,
 	setHomeDirIfUnset,
 	type ToolApprovalRequest,
@@ -17,8 +18,10 @@ import {
 } from "@cline/core";
 import {
 	type AgentEvent,
+	getClineEnvironmentConfig,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	isGeneratedMedia,
+	resolveClineAppBaseUrl,
 } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
@@ -653,6 +656,25 @@ export function handleCoreSessionEvent(
 // ---------------------------------------------------------------------------
 // Context factory
 // ---------------------------------------------------------------------------
+
+/**
+ * The web app behind the account backend this sidecar runs against. Account
+ * calls honour a provider `baseUrl` override, so it is part of the same
+ * startup resolution. A backend no Cline environment declares (proxy,
+ * self-hosted) and an unreadable provider settings file both resolve to
+ * undefined, which hides the webview's account links instead of opening
+ * another environment.
+ */
+export function resolveSidecarClineAppBaseUrl(): string | undefined {
+	try {
+		const settings = new ProviderSettingsManager().getProviderSettings("cline");
+		return resolveClineAppBaseUrl(
+			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		);
+	} catch {
+		return undefined;
+	}
+}
 
 export function createSidecarContext(
 	workspaceRoot: string,
