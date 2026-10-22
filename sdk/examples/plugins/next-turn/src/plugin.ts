@@ -178,19 +178,21 @@ const CUE: Record<
 	failed: { text: "after the turn that failed", tone: "repair" },
 };
 
-const rowId = (revision: string, kind: string) => `${revision}:${kind}`;
+/** A row keeps its id all turn, so a host's highlight stays on it as each new set arrives. */
+const rowId = (turn: string, kind: string) => `${turn}:${kind}`;
 
 /** One page of the pool as the slot's state. Core clamps every field, so this adds no text passes. */
 export function state(
 	rows: readonly Row[],
 	cursor: number,
+	turn: string,
 	revision: string,
 	facts: Facts,
 ): ComposerSuggestionsState {
 	const items: ComposerSuggestionItem[] = rows
 		.slice(cursor, cursor + SET_SIZE)
 		.map((row) => ({
-			id: rowId(revision, row.kind),
+			id: rowId(turn, row.kind),
 			label: row.label,
 			tone: row.tone,
 			...(row.icon ? { icon: row.icon } : {}),
@@ -222,17 +224,15 @@ function hiddenState(revision: string): ComposerSuggestionsState {
 	};
 }
 
-type ItemRef = { revision: string; itemId: string };
-
 export function createNextTurnPlugin(): AgentPlugin {
 	let ui: PluginUiContext | undefined;
 	let facts: Facts | undefined;
 	let cursor = 0;
 	let revision = 0;
+	/** The revision of the turn's first set, which every row id of the turn carries. */
+	let turn = "";
 	/** Kinds skipped this turn, so a new set does not bring them back. */
 	let skipped = new Set<string>();
-	/** Revisions served this turn, so Skip and Undo skip still reach a row after a new set. */
-	let turnRevisions = new Set<string>();
 	let hiddenForChat = false;
 
 	const stale = () => ({ outcome: "refused", reason: "stale" }) as const;
@@ -243,48 +243,37 @@ export function createNextTurnPlugin(): AgentPlugin {
 	const shown = (): ComposerSuggestionsState | null => {
 		if (hiddenForChat) return hiddenState(`r${revision}`);
 		if (!facts) return null;
-		return state(offered(facts), cursor, `r${revision}`, facts);
+		return state(offered(facts), cursor, turn, `r${revision}`, facts);
 	};
 
-	/** Every state published gets its own revision, so a verb aimed at the set it replaced is refused. */
+	/** Every state published gets its own revision, so a refresh aimed at the set it replaced is refused; item verbs go by the row id, which holds all turn. */
 	const publish = (next?: Facts) => {
+		revision += 1;
 		if (next) {
 			facts = next;
 			cursor = 0;
+			turn = `r${revision}`;
 			skipped = new Set();
-			turnRevisions = new Set();
 		}
-		revision += 1;
-		turnRevisions.add(`r${revision}`);
 		ui?.update("composer.suggestions", shown());
 	};
 
-	const offers = (ref: ItemRef) => {
-		const current = shown();
-		return (
-			current?.revision === ref.revision &&
-			current.items.some((item) => item.id === ref.itemId)
-		);
-	};
+	const offers = (itemId: string) =>
+		shown()?.items.some((item) => item.id === itemId) ?? false;
 
-	/** The row an item verb names, skipped or not, from a set served this turn. */
-	const rowOf = (current: Facts, ref: ItemRef) =>
-		turnRevisions.has(ref.revision)
-			? pool(current).find(
-					(row) => rowId(ref.revision, row.kind) === ref.itemId,
-				)
-			: undefined;
+	/** The row an item verb names, skipped or not, from any set this turn. */
+	const rowOf = (current: Facts, itemId: string) =>
+		pool(current).find((row) => rowId(turn, row.kind) === itemId);
 
 	const onAction = (action: ComposerSuggestionsAction): PluginUiActionReply => {
 		switch (action.verb) {
 			case "use":
 			case "send":
 				// A worker restarted after an idle reclaim has served no set, so the one clicked is still the last turn's: a newer turn would have reached afterRun here.
-				return !facts || offers(action) ? { outcome: "ok" } : stale();
+				return !facts || offers(action.itemId) ? { outcome: "ok" } : stale();
 			case "skip": {
-				// A row keeps its kind all turn, so a skip from a set already replaced still names one row.
 				if (!facts) return stale();
-				const row = rowOf(facts, action);
+				const row = rowOf(facts, action.itemId);
 				if (!row) return stale();
 				skipped.add(row.kind);
 				publish();
@@ -292,7 +281,7 @@ export function createNextTurnPlugin(): AgentPlugin {
 			}
 			case "unskip": {
 				if (!facts) return stale();
-				const row = rowOf(facts, action);
+				const row = rowOf(facts, action.itemId);
 				if (!row || !skipped.delete(row.kind)) return stale();
 				// A row skipped from an earlier set comes back into view, not behind the cursor.
 				const at = offered(facts).findIndex((r) => r.kind === row.kind);
@@ -341,8 +330,8 @@ export function createNextTurnPlugin(): AgentPlugin {
 			cursor = 0;
 			// Core and the host keep a withdrawn set's revision, so a restarted worker counts on from the clock instead of reissuing it.
 			revision = Date.now();
+			turn = "";
 			skipped = new Set();
-			turnRevisions = new Set();
 			hiddenForChat = false;
 			if (ui?.slots.includes("composer.suggestions")) {
 				api.registerUiSlot?.({ slot: "composer.suggestions", onAction });
