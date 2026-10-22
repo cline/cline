@@ -61,6 +61,7 @@ import {
 	captureTaskCompleted,
 } from "../../services/telemetry/core-events";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
+import { classifyBumpText } from "../../services/telemetry/stall-signals";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
@@ -1254,6 +1255,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		// Only the input the queue drain replays carries this marker; any
+		// other input during a queued run is fresh user input.
+		const replayingQueuedPrompt = session.replayingQueuedPrompt === true;
+		session.replayingQueuedPrompt = false;
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -1266,6 +1271,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 				userImageCount: input.userImages?.length ?? 0,
 				userFileCount: input.userFiles?.length ?? 0,
 				delivery: delivery ?? "immediate",
+				// A prompt sent into a busy run, or right after one ended, is how
+				// users react to a stall; agent.run-finished carries the run's side.
+				// A queued prompt replayed by the drain was labelled when the user
+				// sent it, so its replay carries no stall fields.
+				...(replayingQueuedPrompt
+					? {}
+					: {
+							agentBusy: !canStartRun,
+							bumpKind: classifyBumpText(input.prompt),
+							...(session.lastTurnEndedAt === undefined
+								? {}
+								: { msSinceTurnEnd: Date.now() - session.lastTurnEndedAt }),
+						}),
 			},
 		});
 		if (delivery === "queue" || delivery === "steer") {
@@ -1969,6 +1987,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 			return result;
 		} finally {
+			session.lastTurnEndedAt = Date.now();
 			await this.refreshActiveSessionGitMetadata(session);
 		}
 	}
