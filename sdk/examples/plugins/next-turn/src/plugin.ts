@@ -27,10 +27,20 @@ type Facts = {
 	toolErrored: boolean;
 };
 
-function editedPath(input: unknown): string | undefined {
-	if (!input || typeof input !== "object") return undefined;
-	const path = (input as { path?: unknown }).path;
-	return typeof path === "string" && path.length > 0 ? path : undefined;
+const PATCH_TARGET = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
+
+/** A write names its `path`, or, as apply_patch, each file its patch body adds, updates or deletes. */
+function editedPaths(input: unknown): string[] {
+	const fields: { path?: unknown; input?: unknown } =
+		input && typeof input === "object" ? input : {};
+	const patch = typeof input === "string" ? input : fields.input;
+	if (typeof patch === "string")
+		return [...patch.matchAll(PATCH_TARGET)].flatMap(
+			(match) => match[1]?.trim() || [],
+		);
+	return typeof fields.path === "string" && fields.path.length > 0
+		? [fields.path]
+		: [];
 }
 
 /**
@@ -52,19 +62,19 @@ export function factsOf(
 	messages: readonly AgentMessage[],
 	result: AgentRunResult,
 ): Facts {
-	const edits = new Map<string, string | undefined>();
+	const edits = new Map<string, string[]>();
 	let toolErrored = false;
 	for (const message of finishedTurn(messages)) {
 		for (const part of message.content) {
 			if (part.type === "tool-call" && WRITE_TOOLS.has(part.toolName))
-				edits.set(part.toolCallId, editedPath(part.input));
+				edits.set(part.toolCallId, editedPaths(part.input));
 			else if (part.type === "tool-result" && part.isError) {
 				toolErrored = true;
 				edits.delete(part.toolCallId);
 			}
 		}
 	}
-	const paths = new Set([...edits.values()].filter((p): p is string => !!p));
+	const paths = new Set([...edits.values()].flat());
 	const status =
 		result.status === "aborted"
 			? "cancelled"
@@ -268,7 +278,8 @@ export function createNextTurnPlugin(): AgentPlugin {
 		switch (action.verb) {
 			case "use":
 			case "send":
-				return offers(action) ? { outcome: "ok" } : stale();
+				// A worker restarted after an idle reclaim has served no set, so the one clicked is still the last turn's: a newer turn would have reached afterRun here.
+				return !facts || offers(action) ? { outcome: "ok" } : stale();
 			case "skip": {
 				if (!facts || action.revision !== `r${revision}`) return stale();
 				const row = rowOf(facts, action);
@@ -327,7 +338,8 @@ export function createNextTurnPlugin(): AgentPlugin {
 			ui = rawContext.ui;
 			facts = undefined;
 			cursor = 0;
-			revision = 0;
+			// Core and the host keep a withdrawn set's revision, so a restarted worker counts on from the clock instead of reissuing it.
+			revision = Date.now();
 			skipped = new Set();
 			turnRevisions = new Set();
 			hiddenForChat = false;

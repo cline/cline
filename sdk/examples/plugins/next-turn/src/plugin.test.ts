@@ -1,6 +1,10 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeEach, expect, setSystemTime, test } from "bun:test";
 import type { AgentMessage, ComposerSuggestionsState } from "@cline/shared";
 import { createNextTurnPlugin, factsOf, pool, state } from "./plugin";
+
+/** A worker's revisions count on from the clock at setup, so a worker set up at 0 serves r1, r2, … */
+beforeEach(() => setSystemTime(new Date(0)));
+afterAll(() => setSystemTime());
 
 const msg = (parts: unknown[]): AgentMessage =>
 	({
@@ -82,6 +86,31 @@ test("a successful write counts one file", () => {
 		filesEdited: 1,
 		toolErrored: false,
 	});
+});
+
+const patched = (toolCallId: string, input: unknown) =>
+	msg([
+		{ type: "tool-call", toolCallId, toolName: "apply_patch", input },
+		{ type: "tool-result", toolCallId, toolName: "apply_patch", output: "ok" },
+	]);
+
+test("a patch counts each file it adds, updates or deletes, and a file edited twice counts once", () => {
+	const facts = factsOf(
+		[
+			patched("p1", {
+				input:
+					"*** Begin Patch\n*** Update File: a.ts\n@@\n-x\n+y\n*** Add File: b.ts\n+x\n*** Delete File: c.ts\n*** End Patch",
+			}),
+			patched(
+				"p2",
+				"*** Begin Patch\n*** Update File: a.ts\n@@\n-y\n+z\n*** End Patch",
+			),
+			edited,
+		],
+		run("completed"),
+	);
+	expect(facts.filesEdited).toBe(3);
+	expect(pool(facts)[0]?.why).toBe("3 files changed this turn.");
 });
 
 test("an errored write counts nothing and raises the fix row first", () => {
@@ -307,12 +336,8 @@ test("Undo skip restores the row after a new set, until the next turn", async ()
 	expect(tray.ids()).toEqual(["r5:fix_failure", "r5:verify", "r5:review_diff"]);
 });
 
-test("use and send are ok only for a row the current set still offers", async () => {
+test("once it has served a set, use and send are ok only for a row the current set still offers", async () => {
 	const tray = connect();
-	expect(
-		await tray.act({ verb: "send", revision: "r0", itemId: "r0:verify" }),
-	).toEqual(stale);
-
 	await tray.afterRun(run("completed", [edited]));
 	expect(
 		await tray.act({ verb: "use", revision: "r1", itemId: "r1:verify" }),
@@ -387,19 +412,30 @@ test("hide for this chat holds across turns until show", async () => {
 	expect(tray.ids()).toEqual(["r2:verify", "r2:review_diff", "r2:wrap_up"]);
 });
 
-test("a worker restarted after an idle reclaim withdraws the set core still holds", async () => {
+test("a worker restarted after an idle reclaim withdraws the set core still holds, lets the click on it use or send, and never reissues its revision", async () => {
 	const before = connect();
 	expect(before.last()).toBeNull();
 	await before.afterRun(run("completed", [edited]));
 	expect(before.ids()).toEqual(["r1:verify", "r1:review_diff", "r1:wrap_up"]);
 
+	setSystemTime(new Date(30 * 60_000));
 	const after = connect(before.published);
 	expect(after.last()).toBeNull();
+	const verify = { revision: "r1", itemId: "r1:verify" };
+	expect(await after.act({ verb: "use", ...verify })).toEqual(ok);
+	expect(await after.act({ verb: "send", ...verify })).toEqual(ok);
+	expect(await after.act({ verb: "skip", ...verify })).toEqual(stale);
 	expect(
-		await after.act({ verb: "send", revision: "r1", itemId: "r1:verify" }),
+		await after.act({ verb: "refresh", revision: "r1", cause: "new_set" }),
 	).toEqual(stale);
+	expect(after.last()).toBeNull();
 	await after.afterRun(run("completed", [edited]));
-	expect(after.ids()).toEqual(["r1:verify", "r1:review_diff", "r1:wrap_up"]);
+	expect(after.last()?.revision).not.toBe("r1");
+	expect(after.ids()).toEqual([
+		"r1800001:verify",
+		"r1800001:review_diff",
+		"r1800001:wrap_up",
+	]);
 });
 
 test("setup pushes nothing to a host that renders no slot", () => {
