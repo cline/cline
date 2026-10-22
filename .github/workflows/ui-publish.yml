@@ -105,6 +105,9 @@ jobs:
       inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
     needs: quality
+    # npm trusted publishing for @cline/ui requires this environment, so a
+    # publish only happens after a PublishNPM reviewer approves the run.
+    environment: PublishNPM
     runs-on: ubuntu-latest
     permissions:
       contents: read
