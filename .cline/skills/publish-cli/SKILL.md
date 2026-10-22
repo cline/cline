@@ -18,14 +18,13 @@ The skill should guide the user through one release preparation flow, then offer
 - SDK prerequisite: the CLI depends on the SDK via `workspace:*` (`@cline/core`, `@cline/shared`, and friends). If the SDK changed since its last release, release the SDK first and wait for it to finish publishing before releasing the CLI. See "Step 0: Release the SDK first if it changed" below.
 - Version source: `apps/cli/package.json`.
 - Main release tag: `cli-vX.Y.Z`, where `X.Y.Z` matches `apps/cli/package.json`.
-- Nightly release version: `X.Y.Z-nightly.TIMESTAMP`.
 - Release prep includes approved release notes, a version bump, and an `apps/cli/CHANGELOG.md` update.
 - Publish paths:
   - GitHub workflow: `.github/workflows/cli-publish.yml`.
   - Local publish helper: `bun release cli`.
-- npm dist-tags and git tags are separate. `--tag latest` and `--tag nightly` are npm registry channels. `cli-vX.Y.Z` is a git tag for source history and GitHub releases.
+- npm dist-tags and git tags are separate. `--tag latest` is an npm registry channel. `cli-vX.Y.Z` is a git tag for source history and GitHub releases.
 - The GitHub main release workflow runs from `main`, requires an existing `cli-vX.Y.Z` tag, checks out that tag, and publishes from it.
-- The GitHub nightly workflow publishes to npm with the `nightly` dist-tag and does not create a tag.
+- There is no CLI nightly. Every CI publish (CLI, SDK, UI) waits for a reviewer to approve the run in the `PublishNPM` GitHub environment, and the npm trusted publishers require that environment.
 - The local release helper requires a clean checkout and `cli-vX.Y.Z` to point at `HEAD` locally and on `origin` before publishing.
 - Local GitHub release creation requires `gh` to be authenticated with release permissions for the repo.
 - Always ask before pushing commits or tags.
@@ -93,6 +92,8 @@ git push origin HEAD
 gh workflow run sdk-publish.yml -f channel=latest -f confirm_publish=publish
 gh run list --workflow=sdk-publish.yml --limit=1 --json databaseId,url,status,createdAt --jq '.[0]'
 ```
+
+After the tests pass, the publish job waits for a `PublishNPM` reviewer to approve the run.
 
 The workflow runs the SDK tests, publishes `@cline/shared`, `@cline/llms`, `@cline/agents`, `@cline/core`, and `@cline/sdk` to npm with the `latest` dist-tag in dependency order, and pushes `sdk/<pkg>/v<version>` git tags.
 
@@ -210,27 +211,16 @@ Ask the user which path to use:
 
 - GitHub main release. Use this after the release commit is on `main` and the matching `cli-vX.Y.Z` tag has been pushed. The workflow publishes to npm from that tag, creates the GitHub release, and posts to Slack.
 - Local release. Use this when the user wants to publish from this machine. The local machine must be authenticated to npm and GitHub.
-- GitHub nightly release.
 - Stop after the version commit.
 
 For GitHub main release:
 
 ```sh
-gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh workflow run cli-publish.yml -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
 gh run list --workflow=cli-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
 
-For GitHub nightly release:
-
-```sh
-gh workflow run cli-publish.yml -f publish_target=nightly
-```
-
-For forced GitHub nightly release:
-
-```sh
-gh workflow run cli-publish.yml -f publish_target=nightly -f force_nightly_publish=true
-```
+The run pauses in `waiting` until a `PublishNPM` reviewer approves it. That is not a hang. Hand the user the run URL so they can click "Review deployments"; never approve it via the API.
 
 For local publish:
 

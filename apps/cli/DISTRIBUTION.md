@@ -95,7 +95,7 @@ Use this path for normal releases.
 ```bash
 git tag -a cli-vX.Y.Z -m "CLI vX.Y.Z"
 git push origin refs/tags/cli-vX.Y.Z
-gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh workflow run cli-publish.yml -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
 ```
 
 This path requires the release commit to be on `main` and the matching `cli-vX.Y.Z` tag to exist before the workflow runs. The workflow checks out the tag, publishes to npm with the `latest` dist-tag, creates the GitHub release, and posts to Slack.
@@ -127,12 +127,12 @@ bun release cli --tag next
 
 The GitHub workflow at `.github/workflows/cli-publish.yml` automates publishing:
 
-- Main releases are manual. Select `publish_target=main` and set `confirm_publish=publish`.
-- Main releases require `git_tag=cli-vX.Y.Z`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
-- Nightly releases run on a schedule or manually with `publish_target=nightly`.
-- Nightly releases publish `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skip if there were no commits in the last 24 hours unless forced.
+- Releases are manual dispatch only. Set `confirm_publish=publish`.
+- Every run waits for a reviewer to approve it in the `PublishNPM` GitHub environment before anything is built or published.
+- Releases require `git_tag=cli-vX.Y.Z`, check out that tag, verify it matches `apps/cli/package.json`, run tests, build all platform packages, publish to npm with the `latest` dist-tag using trusted publishing, create a GitHub release, and post to Slack.
+- There is no nightly channel.
 
-CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package before relying on the workflow.
+CI publishing uses npm trusted publishing. Configure npm trusted publishers for the `cline` wrapper package and every platform package, with the environment set to `PublishNPM`, before relying on the workflow.
 
 ## How It Works Under the Hood
 

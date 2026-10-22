@@ -37,12 +37,6 @@ Run Cline in your terminal. Interactive chat for paired sessions, or fully headl
 npm install -g cline
 ```
 
-For nightly builds:
-
-```sh
-npm install -g cline@nightly
-```
-
 Platform binaries are published for macOS, Linux, and Windows on `arm64` and `x64`. The `cline` package resolves the correct binary for your platform via optional dependencies, so no Node, Bun, or Zig runtime is required at install time.
 
 ## Quick start

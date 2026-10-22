@@ -1,31 +1,19 @@
 name: cli-publish
 
+# Manual dispatch only. Every publish waits for approval on the PublishNPM
+# environment, so there is no nightly: an unattended cron run would just sit
+# waiting for a reviewer every day.
 on:
-  schedule:
-    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
-      publish_target:
-        description: "Which publish flow to run"
-        required: true
-        default: "main"
-        type: choice
-        options:
-          - main
-          - nightly
       git_tag:
-        description: "Existing release tag to publish when publish_target=main, for example cli-v0.1.0"
-        required: false
+        description: "Existing release tag to publish, for example cli-v0.1.0"
+        required: true
         type: string
       confirm_publish:
-        description: 'Required when publish_target=main. Type "publish" to confirm release publish.'
-        required: false
+        description: 'Type "publish" to confirm release publish.'
+        required: true
         type: string
-      force_nightly_publish:
-        description: "Force nightly publish even with no commits in last 24h"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -45,9 +33,13 @@ jobs:
       github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.publish_target == 'main' &&
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
+    # npm trusted publishing for every CLI package requires this environment,
+    # so a publish only happens after a PublishNPM reviewer approves the run.
+    # The environment's deployment-branch policy (main only) is the enforced
+    # branch gate; the `if` above is advisory.
+    environment: PublishNPM
     runs-on: ubuntu-latest
 
     steps:
@@ -92,7 +84,7 @@ jobs:
           TAG: ${{ github.event.inputs.git_tag }}
         run: |
           if [ -z "$TAG" ]; then
-            echo "git_tag is required when publish_target=main"
+            echo "git_tag is required"
             exit 1
           fi
 
@@ -296,199 +288,3 @@ jobs:
                 elements:
                   - type: "mrkdwn"
                     text: "<https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}|View on npm>${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, steps.version.outputs.tag) || '' }}"
-
-  publish-nightly:
-    name: Publish cline nightly
-    permissions:
-      contents: read
-      id-token: write
-    if: |
-      github.repository == 'cline/cline' &&
-      github.ref == 'refs/heads/main' &&
-      (
-        github.event_name == 'schedule' ||
-        (
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.publish_target == 'nightly'
-        )
-      )
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check for recent commits
-        id: check_commits
-        env:
-          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}
-        run: |
-          if [ "$FORCE_PUBLISH" = "true" ]; then
-            echo "force_nightly_publish enabled, proceeding with publish"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$(git rev-list --count HEAD --since='24 hours ago')" -eq 0 ]; then
-            echo "No commits in last 24 hours, skipping publish"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Found recent commits, proceeding with publish"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Bun
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.2"
-
-      - name: Setup Node.js
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24.x"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Verify publish tooling
-        if: steps.check_commits.outputs.skip != 'true'
-        run: |
-          NPM_VERSION=$(npm --version)
-          echo "npm ${NPM_VERSION}"
-          IFS=. read -r major minor patch <<EOF
-          ${NPM_VERSION}
-          EOF
-          if [ "$major" -lt 11 ] || { [ "$major" -eq 11 ] && [ "$minor" -lt 5 ]; } || { [ "$major" -eq 11 ] && [ "$minor" -eq 5 ] && [ "$patch" -lt 1 ]; }; then
-            echo "npm 11.5.1 or newer is required for trusted publishing"
-            exit 1
-          fi
-
-      - name: Install dependencies
-        if: steps.check_commits.outputs.skip != 'true'
-        run: bun install
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build SDK packages
-        if: steps.check_commits.outputs.skip != 'true'
-        run: bun run build:sdk
-        env:
-          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
-          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
-          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
-          OTEL_LOGS_EXPORTER: otlp
-          OTEL_METRICS_EXPORTER: otlp
-          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
-          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-
-      - name: Run tests
-        if: steps.check_commits.outputs.skip != 'true'
-        run: bun run test
-
-      - name: Generate nightly version
-        if: steps.check_commits.outputs.skip != 'true'
-        id: version
-        run: |
-          BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
-          TIMESTAMP=$(date +%s)
-          VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
-
-          echo "Base version: ${BASE_VERSION}"
-          echo "Generated nightly version: ${VERSION}"
-          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Update nightly package version
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          node -e '
-            const fs = require("node:fs");
-            const path = "apps/cli/package.json";
-            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
-            pkg.version = process.env.VERSION;
-            fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
-          '
-          cat apps/cli/package.json | grep '"version"'
-
-      - name: Build platform binaries
-        if: steps.check_commits.outputs.skip != 'true'
-        run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: apps/cli
-        env:
-          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
-          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
-          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
-          OTEL_LOGS_EXPORTER: otlp
-          OTEL_METRICS_EXPORTER: otlp
-          OTEL_TRACES_EXPORTER: otlp
-          CLINE_TRACE_RECORD_CONTENT: "true"
-          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
-          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-
-      - name: Verify build output
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          EXPECTED=(
-            "@cline/cli-darwin-arm64"
-            "@cline/cli-darwin-x64"
-            "@cline/cli-linux-arm64"
-            "@cline/cli-linux-x64"
-            "@cline/cli-windows-arm64"
-            "@cline/cli-windows-x64"
-          )
-
-          for package_name in "${EXPECTED[@]}"; do
-            dir="apps/cli/dist/${package_name#@cline/}"
-            if [ ! -f "$dir/package.json" ]; then
-              echo "Missing package manifest: $dir/package.json"
-              exit 1
-            fi
-            actual_name=$(node -p "require('./$dir/package.json').name")
-            actual_version=$(node -p "require('./$dir/package.json').version")
-            if [ "$actual_name" != "$package_name" ]; then
-              echo "Expected $package_name, got $actual_name"
-              exit 1
-            fi
-            if [ "$actual_version" != "$VERSION" ]; then
-              echo "Expected $package_name@$VERSION, got $actual_version"
-              exit 1
-            fi
-            ls -lh "$dir/bin/"
-          done
-
-      - name: Sign Windows binaries
-        if: steps.check_commits.outputs.skip != 'true'
-        uses: ./.github/actions/sign-windows-cli
-        with:
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          account: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          certificate-profile: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_CLI }}
-          files: |
-            apps/cli/dist/cli-windows-x64/bin/cline.exe
-            apps/cli/dist/cli-windows-arm64/bin/cline.exe
-
-      - name: Publish to NPM with nightly tag
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
-        run: bun script/publish-npm.ts --tag nightly
-        working-directory: apps/cli
-
-      - name: Summary
-        if: steps.check_commits.outputs.skip != 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          echo "Published cline@${VERSION} to npm with dist-tag 'nightly'"
-          echo "Install with: npm install -g cline@nightly"
