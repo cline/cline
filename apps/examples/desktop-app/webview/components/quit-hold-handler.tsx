@@ -109,6 +109,7 @@ export function QuitHoldHandler({
 			if (areShortcutsSuspended()) return stop();
 			if (!matchesAccelerator(event, accelerator)) return;
 			event.preventDefault();
+			event.stopImmediatePropagation();
 			if (holdMs === 0) {
 				if (!event.repeat) quitApp();
 				return;

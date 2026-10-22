@@ -152,6 +152,23 @@ describe("QuitHoldHandler", () => {
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
+	it("keeps the quit shortcut from reaching input handlers", () => {
+		const input = document.createElement("textarea");
+		container.appendChild(input);
+		const onInputKeyDown = vi.fn();
+		input.addEventListener("keydown", onInputKeyDown);
+		act(() => {
+			input.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					key: "q",
+					metaKey: true,
+				}),
+			);
+		});
+		expect(onInputKeyDown).not.toHaveBeenCalled();
+	});
+
 	it("does not quit when repeats stop before the hold threshold", () => {
 		press();
 		advance(500);
