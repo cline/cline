@@ -366,6 +366,9 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
+			if (ctx.hubStartup) {
+				ws.send(encodeSidecarEvent("hub_status", ctx.hubStartup.status));
+			}
 			// Replay the current mismatch, null included: a webview that
 			// reconnects in place keeps its notice mounted, so it needs the
 			// withdrawal it missed as much as a mismatch detected meanwhile.

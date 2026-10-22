@@ -1072,6 +1072,7 @@ export function useChatSession(environmentId: string) {
 		return () => {
 			if (turnEndReconcileTimerRef.current !== null) {
 				clearTimeout(turnEndReconcileTimerRef.current);
+				turnEndReconcileTimerRef.current = null;
 			}
 		};
 	}, []);
@@ -1417,6 +1418,9 @@ export function useChatSession(environmentId: string) {
 		return () => {
 			if (streamFlushTimerRef.current !== null) {
 				clearTimeout(streamFlushTimerRef.current);
+				// The app can be hidden and restored (Activity) with refs intact; a
+				// stale id would make schedulePendingStreamFlush skip every flush.
+				streamFlushTimerRef.current = null;
 			}
 		};
 	}, []);
