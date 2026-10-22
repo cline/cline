@@ -11,6 +11,7 @@ import type {
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import type { UserContext } from "@cline/shared";
+import type { HubStartup } from "./hub-startup";
 
 export const LOCAL_ENVIRONMENT_ID = "local";
 
@@ -172,6 +173,8 @@ export type SidecarContext = {
 	 * flow. Undefined for a backend no Cline environment declares.
 	 */
 	clineAppBaseUrl?: string;
+	/** Local Hub setup, which runs after the transport is published. */
+	hubStartup?: HubStartup;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };

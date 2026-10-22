@@ -158,6 +158,23 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("reuses the installed session manager when a retried startup only failed its readiness sync", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		updateCapabilitiesMock.mockRejectedValueOnce(new Error("hub busy"));
+
+		await expect(initializeSessionManager(ctx)).rejects.toThrow("hub busy");
+		const installed = ctx.runtimeBindings.get("local");
+		expect(installed).toBeDefined();
+
+		await initializeSessionManager(ctx);
+		expect(createCoreMock).toHaveBeenCalledTimes(1);
+		expect(ctx.runtimeBindings.get("local")).toBe(installed);
+		expect(updateCapabilitiesMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("wires the desktop logger and telemetry through the shared Hub client", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
