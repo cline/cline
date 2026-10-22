@@ -328,7 +328,7 @@ const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLP
 	}
 
 	return (
-		<WithCopyButton ariaLabel="Copy code" onCopy={handleCopy} position="top-right">
+		<WithCopyButton ariaLabel="Copy code" onCopy={handleCopy} position="top-right" sticky stickyTop={40}>
 			<pre {...preProps} ref={preRef}>
 				{children}
 			</pre>

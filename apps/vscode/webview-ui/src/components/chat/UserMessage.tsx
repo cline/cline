@@ -1,3 +1,4 @@
+import { MessageTimestamp } from "./MessageTimestamp"
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import React, { forwardRef, useMemo, useRef, useState } from "react"
@@ -19,7 +20,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
-	const { checkpointManagerErrorMessage } = useExtensionState()
+	const { checkpointManagerErrorMessage, showUserMessageTimestamps } = useExtensionState()
 
 	const highlightedText = useMemo(() => highlightText(editedText || text), [editedText, text])
 
@@ -152,6 +153,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			{((images && images.length > 0) || (files && files.length > 0)) && (
 				<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "8px" }} />
 			)}
+			{showUserMessageTimestamps !== false && messageTs !== undefined && <MessageTimestamp label="Submitted" timestamp={messageTs} />}
 		</div>
 	)
 }

@@ -866,3 +866,8 @@ export function getIconByToolName(toolName: string) {
 			return WrenchIcon
 	}
 }
+
+/** Latest submission from current history, including attachment-only submissions. */
+export function getLatestUserPrompt(messages: ClineMessage[]): ClineMessage | null {
+	return [...messages].reverse().find((message) => message.type === "say" && message.say === "user_feedback") ?? messages[0] ?? null
+}

@@ -283,6 +283,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		doubleCheckCompletionEnabled: false,
 		lazyTeammateModeEnabled: false,
 		showFeatureTips: true,
+		showUserMessageTimestamps: true,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

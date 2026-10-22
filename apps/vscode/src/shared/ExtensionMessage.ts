@@ -115,6 +115,7 @@ export interface ExtensionState {
 	doubleCheckCompletionEnabled?: boolean
 	lazyTeammateModeEnabled?: boolean
 	showFeatureTips?: boolean
+	showUserMessageTimestamps?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
@@ -130,6 +131,8 @@ export interface ClineMessage {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	completedAt?: number
+	interruptedAt?: number
 	commandCompleted?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean

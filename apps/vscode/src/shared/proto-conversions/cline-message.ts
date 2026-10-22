@@ -193,6 +193,8 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		images: message.images ?? [],
 		files: message.files ?? [],
 		partial: message.partial ?? false,
+		completedAt: message.completedAt,
+		interruptedAt: message.interruptedAt,
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -224,6 +226,8 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): AppClineMessage {
 	const message: AppClineMessage = {
 		ts: protoMessage.ts,
+		completedAt: protoMessage.completedAt,
+		interruptedAt: protoMessage.interruptedAt,
 		type: protoMessage.type === ClineMessageType.ASK ? "ask" : "say",
 	}
 

@@ -3,10 +3,8 @@ import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
+import { getLatestUserPrompt } from "../utils/messageUtils"
 import { ScrollBehavior } from "../types/chatTypes"
-
-// Height of the sticky user message header (padding + content)
-const STICKY_HEADER_HEIGHT = 32
 
 /**
  * Custom hook for managing scroll behavior
@@ -39,59 +37,28 @@ export function useScrollBehavior(
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
 	const [scrolledPastUserMessage, setScrolledPastUserMessage] = useState<ClineMessage | null>(null)
 
-	// Find all user feedback messages
-	const userFeedbackMessages = useMemo(() => {
-		return visibleMessages.filter((msg) => msg.say === "user_feedback")
-	}, [visibleMessages])
+	const latestUserPrompt = useMemo(() => getLatestUserPrompt(messages), [messages])
 
-	// Track scroll position to detect which user message has been scrolled past
-	// Shows the most recent user message that's above the current viewport
 	const checkScrolledPastUserMessage = useCallback(() => {
-		const scrollContainer = scrollContainerRef.current
-		if (!scrollContainer || userFeedbackMessages.length === 0) {
+		const container = scrollContainerRef.current
+		if (!container || !latestUserPrompt) {
 			setScrolledPastUserMessage(null)
 			return
 		}
-
-		const containerRect = scrollContainer.getBoundingClientRect()
-
-		// Find the most recent (last in order) user message that's been scrolled past
-		// We iterate from the end to find the latest one that's above the viewport
-		let mostRecentScrolledPast: ClineMessage | null = null
-
-		// Track if we've found any visible message element in the DOM
-		// This helps us determine if missing elements are above or below viewport
-		let foundAnyVisibleElement = false
-
-		for (let i = userFeedbackMessages.length - 1; i >= 0; i--) {
-			const msg = userFeedbackMessages[i]
-			const messageElement = scrollContainer.querySelector(`[data-message-ts="${msg.ts}"]`) as HTMLElement
-
-			if (messageElement) {
-				foundAnyVisibleElement = true
-				const messageRect = messageElement.getBoundingClientRect()
-				// Message is scrolled past if its bottom edge is above (or near) the container's top
-				// Add a small threshold so the pin appears slightly before message fully scrolls out
-				const threshold = 10
-				if (messageRect.bottom < containerRect.top + threshold) {
-					mostRecentScrolledPast = msg
-					break // Found the most recent one that's scrolled past
-				}
-			} else {
-				// Element not in DOM - it's virtualized out
-				// Only consider it scrolled past if we've already found a visible element after it
-				// (meaning this missing element is above the viewport, not below)
-				if (foundAnyVisibleElement) {
-					mostRecentScrolledPast = msg
-					break
-				}
-				// If we haven't found any visible elements yet, this message might be
-				// below the viewport, so continue looking for visible elements
-			}
+		// The initial task lives in TaskHeader, outside Virtuoso. Give it the same readable preview.
+		if (latestUserPrompt.ts === messages[0]?.ts) {
+			setScrolledPastUserMessage(latestUserPrompt)
+			return
 		}
-
-		setScrolledPastUserMessage(mostRecentScrolledPast)
-	}, [userFeedbackMessages])
+		const element = container.querySelector<HTMLElement>(`[data-message-ts="${latestUserPrompt.ts}"]`)
+		const top = container.getBoundingClientRect().top
+		const passed = element
+			? element.getBoundingClientRect().top < top - 1
+			: [...container.querySelectorAll<HTMLElement>("[data-message-ts]")].some(
+				(row) => Number(row.dataset.messageTs) > latestUserPrompt.ts && row.getBoundingClientRect().bottom > top,
+			)
+		setScrolledPastUserMessage(passed ? latestUserPrompt : null)
+	}, [latestUserPrompt, messages])
 
 	// Use scroll event listener - attach to the scrollable element inside the container
 	useEffect(() => {
@@ -128,11 +95,10 @@ export function useScrollBehavior(
 		}
 	}, [checkScrolledPastUserMessage])
 
-	// Handler for when visible range changes in Virtuoso (kept for compatibility but not used for sticky)
+	// Virtualized rows can mount after the scroll event, including during automatic scrolling.
 	const handleRangeChanged = useCallback((_range: ListRange) => {
-		// Range changed callback - we now use scroll position instead
-		// but keep this for potential future use
-	}, [])
+		requestAnimationFrame(checkScrolledPastUserMessage)
+	}, [checkScrolledPastUserMessage])
 	const scrollToBottomSmooth = useMemo(
 		() =>
 			debounce(
@@ -194,19 +160,12 @@ export function useScrollBehavior(
 				setPendingScrollToMessage(null)
 				disableAutoScrollRef.current = true
 
-				// Check if this is the first user feedback message (no sticky header would show when scrolling to it)
-				const isFirstUserMessage =
-					groupIndex === 0 || !visibleMessages.slice(0, visibleIndex).some((msg) => msg.say === "user_feedback")
-
-				const stickyHeaderOffset = isFirstUserMessage ? 0 : STICKY_HEADER_HEIGHT
-
 				// Use scrollToIndex with offset - Virtuoso handles this more reliably than manual scrollTo
 				requestAnimationFrame(() => {
 					virtuosoRef.current?.scrollToIndex({
 						index: groupIndex,
 						align: "start",
 						behavior: "smooth",
-						offset: -stickyHeaderOffset,
 					})
 				})
 			}

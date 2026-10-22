@@ -4,7 +4,6 @@ import { useCallback, useMemo } from "react"
 import { Virtuoso } from "react-virtuoso"
 import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { cn } from "@/lib/utils"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { isToolGroup } from "../../utils/messageUtils"
 import { createMessageRenderer } from "../messages/MessageRenderer"
@@ -30,7 +29,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	chatState,
 	messageHandlers,
 }) => {
-	const { clineMessages } = useExtensionState()
+	const { clineMessages, setExpandTaskHeader } = useExtensionState()
 	const lastRawMessage = useMemo(() => clineMessages.at(-1), [clineMessages])
 
 	const {
@@ -56,10 +55,12 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	// Handler to scroll to the scrolled past user message
 	const handleScrollToUserMessage = useCallback(() => {
-		if (scrollToMessage && scrolledPastUserMessageIndex >= 0) {
+		if (scrolledPastUserMessageIndex === 0) {
+			setExpandTaskHeader(true)
+		} else if (scrollToMessage && scrolledPastUserMessageIndex >= 0) {
 			scrollToMessage(scrolledPastUserMessageIndex)
 		}
-	}, [scrollToMessage, scrolledPastUserMessageIndex])
+	}, [scrollToMessage, scrolledPastUserMessageIndex, setExpandTaskHeader])
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
 	const lastVisibleRow = useMemo(() => groupedMessages.at(-1), [groupedMessages])
@@ -202,20 +203,16 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	return (
 		<div className="overflow-hidden flex flex-col h-full relative">
-			{/* Sticky User Message - positioned absolutely to avoid layout shifts */}
-			<div
-				className={cn(
-					"absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px] bg-background",
-					scrolledPastUserMessage && "pb-2",
-				)}>
+			<div className="shrink-0 max-h-[25%] flex flex-col px-4 bg-background">
 				<StickyUserMessage
+					key={scrolledPastUserMessage?.ts}
 					isVisible={!!scrolledPastUserMessage}
 					lastUserMessage={scrolledPastUserMessage}
 					onScrollToMessage={handleScrollToUserMessage}
 				/>
 			</div>
 
-			<div className="grow flex" ref={scrollContainerRef}>
+			<div className="grow min-h-0 flex" ref={scrollContainerRef}>
 				<Virtuoso
 					atBottomStateChange={(isAtBottom) => {
 						setIsAtBottom(isAtBottom)

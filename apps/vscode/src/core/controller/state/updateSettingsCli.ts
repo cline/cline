@@ -1,7 +1,7 @@
 import { buildApiHandler } from "@core/api"
 
 import { Empty } from "@shared/proto/cline/common"
-import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
+import { PlanActMode, Settings as ProtoSettings, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -57,10 +57,21 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				...simpleSettings
 			} = request.settings
 
+			// toJSON omits generated empty map defaults, preserving optional false.
+			const timestampOnlyUpdate =
+				request.settings.showUserMessageTimestamps !== undefined &&
+				Object.keys(ProtoSettings.toJSON(request.settings) as Record<string, unknown>).every(
+					(key) => key === "showUserMessageTimestamps",
+				)
+
 			// Batch update for simple pass-through fields
-			const filteredSettings: Partial<Settings> = Object.fromEntries(
-				Object.entries(simpleSettings).filter(([key, value]) => key !== "openaiReasoningEffort" && value !== undefined),
-			)
+			const filteredSettings: Partial<Settings> = timestampOnlyUpdate
+				? { showUserMessageTimestamps: request.settings.showUserMessageTimestamps }
+				: Object.fromEntries(
+						Object.entries(simpleSettings).filter(
+							([key, value]) => key !== "openaiReasoningEffort" && value !== undefined,
+						),
+					)
 
 			controller.stateManager.setGlobalStateBatch(filteredSettings)
 
@@ -116,15 +127,13 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				controller.stateManager.setGlobalState("actModeApiProvider", converted)
 			}
 
-			if (controller.task) {
+			if (controller.task && !timestampOnlyUpdate) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 				const apiConfigForHandler = {
 					...controller.stateManager.getApiConfiguration(),
 					ulid: controller.task.ulid,
 				}
-				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey(
-					"planActSeparateModelsSetting",
-				)
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode, planActSeparateModelsSetting)
 			}
 
