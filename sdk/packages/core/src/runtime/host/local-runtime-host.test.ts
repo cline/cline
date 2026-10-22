@@ -566,6 +566,80 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("labels prompts sent during a queued run but not the queued replay", async () => {
+		const sessionId = "sess-queued-input";
+		const capture = vi.fn();
+		const telemetry = { capture, captureRequired: vi.fn() } as never;
+		let busy = false;
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn(() => !busy),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest: createManifest(sessionId),
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ telemetry, sessionId }),
+				interactive: true,
+			}),
+		);
+		const session = (
+			manager as unknown as {
+				sessions: Map<
+					string,
+					{ drainingPendingPrompts: boolean; replayingQueuedPrompt?: boolean }
+				>;
+			}
+		).sessions.get(sessionId);
+		if (!session) throw new Error("session not started");
+		const inputSent = () =>
+			capture.mock.calls
+				.map(([e]) => e)
+				.filter((e) => e.event === "session.input_sent")
+				.map((e) => e.properties);
+
+		// The drain replays a queued prompt: only that input is unlabelled.
+		session.drainingPendingPrompts = true;
+		session.replayingQueuedPrompt = true;
+		await manager.runTurn({ sessionId, prompt: "continue" });
+		// The user reacts while that queued run is busy, and again just as
+		// it goes idle: both are fresh input and stay labelled.
+		busy = true;
+		await manager.runTurn({ sessionId, prompt: "are you stuck?" });
+		busy = false;
+		await manager.runTurn({ sessionId, prompt: "hello?" });
+
+		const [replay, whileBusy, whileIdle] = inputSent();
+		expect(replay).not.toHaveProperty("bumpKind");
+		expect(whileBusy).toMatchObject({ agentBusy: true, bumpKind: "probe" });
+		expect(whileIdle).toHaveProperty("bumpKind");
+	});
+
 	it("resolves OAuth credentials before creating the agent", async () => {
 		const sessionId = "sess-oauth-bootstrap";
 		const manifest = createManifest(sessionId);

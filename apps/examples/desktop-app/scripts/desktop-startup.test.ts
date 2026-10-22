@@ -145,6 +145,29 @@ function processCommandLine(pid: number): string | undefined {
 	return ps.status === 0 ? ps.stdout.trim() : undefined;
 }
 
+function waitForHubStartup(wsEndpoint: string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const socket = new WebSocket(wsEndpoint);
+		const timer = setTimeout(() => {
+			socket.close();
+			reject(new Error("Hub startup did not settle within 30 seconds"));
+		}, 30_000);
+		socket.onmessage = (event) => {
+			const message = JSON.parse(String(event.data));
+			const state = message.event?.payload?.state;
+			if (message.event?.name === "hub_status" && state !== "starting") {
+				clearTimeout(timer);
+				socket.close();
+				resolve(state);
+			}
+		};
+		socket.onerror = () => {
+			clearTimeout(timer);
+			reject(new Error(`Could not connect to ${wsEndpoint}`));
+		};
+	});
+}
+
 async function runStartupScenario(
 	extraEnv: Record<string, string>,
 	options: { hubAlreadyRunning: boolean; discoveryContents?: string },
@@ -231,12 +254,16 @@ async function runStartupScenario(
 			},
 		);
 		let endpoint: string | undefined;
+		let wsEndpoint: string | undefined;
 		const deadline = Date.now() + 30_000;
 		while (Date.now() < deadline) {
 			for (const line of readFileSync(stdoutPath, "utf8").split("\n")) {
 				try {
 					const message = JSON.parse(line);
-					if (message.type === "ready") endpoint = message.endpoint;
+					if (message.type === "ready") {
+						endpoint = message.endpoint;
+						wsEndpoint = message.wsEndpoint;
+					}
 				} catch {
 					/* Ignore other output and incomplete lines. */
 				}
@@ -253,6 +280,11 @@ async function runStartupScenario(
 		});
 		expect(health.ok).toBe(true);
 		expect(await health.json()).toMatchObject({ ok: true, pid: child.pid });
+		// The backend publishes its endpoint before starting the Hub and reports
+		// Hub startup over the transport, replaying the current state on connect.
+		expect(await waitForHubStartup(String(wsEndpoint)), stderrPath).toBe(
+			"ready",
+		);
 		const hub = JSON.parse(readFileSync(discoveryPath, "utf8"));
 		hubPid = hub.pid;
 		if (existingHub) {
