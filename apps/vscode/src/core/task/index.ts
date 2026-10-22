@@ -99,6 +99,7 @@ import {
 	isNextGenModelFamily,
 	isParallelToolCallingEnabled,
 	modelRequiresNativeToolCalls,
+	withBedrockBaseModelId,
 } from "@utils/model-utils";
 import { arePathsEqual, getDesktopDir } from "@utils/path";
 import { filterExistingFiles } from "@utils/tabFiltering";
@@ -2105,7 +2106,12 @@ export class Task {
 		) as string;
 		const providerId = configuredProviderId;
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt");
-		return { model, providerId, customPrompt, mode };
+		return {
+			model: withBedrockBaseModelId(model, providerId, mode, apiConfig),
+			providerId,
+			customPrompt,
+			mode,
+		};
 	}
 
 	private async writePromptMetadataArtifacts(params: {

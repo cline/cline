@@ -1,5 +1,5 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
-import { AnthropicModelId, anthropicModels, ModelInfo } from "@/shared/api"
+import { AnthropicModelId, anthropicModels, ApiConfiguration, ModelInfo } from "@/shared/api"
 import { ApiFormat } from "@/shared/proto/cline/models"
 
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
@@ -285,6 +285,27 @@ export function isParallelToolCallingEnabled(enableParallelSetting: boolean, pro
 		return false
 	}
 	return isNativeToolCallingConfig(providerInfo, true) || isGPT5ModelFamily(providerInfo.model.id)
+}
+
+/**
+ * Custom Bedrock inference-profile ARNs carry no model name, so family matchers
+ * (prompt variant, native tools) would treat a Claude ARN as an unknown model.
+ * Returns the model with the configured base model id for matching; API calls
+ * still use the handler's own model id.
+ */
+export function withBedrockBaseModelId<M extends { id: string }>(
+	model: M,
+	providerId: string,
+	mode: "plan" | "act",
+	apiConfig: ApiConfiguration,
+): M {
+	if (providerId !== "bedrock") {
+		return model
+	}
+	const plan = mode === "plan"
+	const selected = plan ? apiConfig.planModeAwsBedrockCustomSelected : apiConfig.actModeAwsBedrockCustomSelected
+	const baseId = plan ? apiConfig.planModeAwsBedrockCustomModelBaseId : apiConfig.actModeAwsBedrockCustomModelBaseId
+	return selected && baseId ? { ...model, id: baseId } : model
 }
 
 function normalize(text: string): string {

@@ -24,6 +24,7 @@ import { calculateApiCostAnthropic } from "@/utils/cost";
 import {
 	isNextGenModelFamily,
 	modelRequiresNativeToolCalls,
+	withBedrockBaseModelId,
 } from "@/utils/model-utils";
 import { TaskState } from "../../TaskState";
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator";
@@ -370,7 +371,12 @@ export class SubagentRunner {
 			) as string;
 			const providerInfo = {
 				providerId,
-				model: api.getModel(),
+				model: withBedrockBaseModelId(
+					api.getModel(),
+					providerId,
+					mode,
+					apiConfiguration,
+				),
 				mode,
 				customPrompt:
 					this.baseConfig.services.stateManager.getGlobalSettingsKey(

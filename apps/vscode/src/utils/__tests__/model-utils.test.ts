@@ -17,6 +17,7 @@ import {
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
 	supportsReasoningEffortForModel,
+	withBedrockBaseModelId,
 } from "../model-utils"
 
 // Minimal helper — modelDoesntSupportWebp only reads apiHandlerModel.id
@@ -311,5 +312,22 @@ describe("modelDoesntSupportWebp", () => {
 		modelDoesntSupportWebp(m("gemini-2.5-flash")).should.equal(false)
 		modelDoesntSupportWebp(m("qwen2.5-vl-72b")).should.equal(false)
 		modelDoesntSupportWebp(m("llama-3.1-8b")).should.equal(false)
+	})
+})
+
+describe("withBedrockBaseModelId", () => {
+	const arn = "arn:aws-us-gov:bedrock:us-gov-west-1:123456789012:application-inference-profile/abc123"
+	const cfg = { actModeAwsBedrockCustomSelected: true, actModeAwsBedrockCustomModelBaseId: "anthropic.claude-haiku-5-5:1m" }
+
+	it("matches a custom ARN by its base model so Claude is recognized", () => {
+		isNextGenModelFamily(arn).should.equal(false)
+		const model = withBedrockBaseModelId(m(arn), "bedrock", "act", cfg as any)
+		model.id.should.equal("anthropic.claude-haiku-5-5:1m")
+		isNextGenModelFamily(model.id).should.equal(true)
+	})
+
+	it("leaves non-custom or non-bedrock models untouched", () => {
+		withBedrockBaseModelId(m(arn), "anthropic", "act", cfg as any).id.should.equal(arn)
+		withBedrockBaseModelId(m(arn), "bedrock", "plan", cfg as any).id.should.equal(arn)
 	})
 })
