@@ -926,6 +926,16 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.aiand.com/v1" },
 	},
 	{
+		id: "inferall",
+		name: "InferAll",
+		description:
+			"One API key for open models at $0 per token and paid frontier models",
+		family: "openai-compatible",
+		defaultModelId: "nvidia/nemotron-3-ultra-550b-a55b",
+		apiKeyEnv: ["INFERALL_API_KEY"],
+		defaults: { baseUrl: "https://api.inferall.ai/v1" },
+	},
+	{
 		id: "aihubmix",
 		name: "AI Hub Mix",
 		description: "AI model aggregator",
