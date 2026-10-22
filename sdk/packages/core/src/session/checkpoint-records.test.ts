@@ -71,13 +71,16 @@ describe("recording checkpoint outcomes", () => {
 		});
 	});
 
-	it("keeps only the newest failures", () => {
-		let metadata: CheckpointMetadata = { history: [] };
-		for (let runCount = 1; runCount <= 60; runCount++) {
+	it("keeps every failure so no failed run falls back to an earlier checkpoint", () => {
+		let metadata: CheckpointMetadata = recordCheckpointEntry(
+			{ history: [] },
+			entry(1),
+		);
+		for (let runCount = 2; runCount <= 60; runCount++) {
 			metadata = recordCheckpointFailure(metadata, failure(runCount));
 		}
-		expect(metadata.failures).toHaveLength(50);
-		expect(metadata.failures?.[0]?.runCount).toBe(11);
+
+		expect(resolveRunCheckpoint(session(metadata), 2).status).toBe("failed");
 	});
 
 	it("reads records written before failures were recorded", () => {

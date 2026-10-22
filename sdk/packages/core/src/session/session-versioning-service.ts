@@ -208,6 +208,7 @@ export class SessionVersioningService {
 				checkpointRunCount: input.checkpointRunCount,
 				cwd: input.cwd,
 				restoreMessages,
+				restoreWorkspace,
 			});
 			plannedCheckpoint = plan.checkpoint;
 		} catch (error) {

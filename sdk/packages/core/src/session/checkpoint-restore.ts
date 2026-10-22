@@ -6,6 +6,8 @@ import { isCheckpointStashMessage } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
 import {
 	type CheckpointEntry,
+	findCheckpointForRun,
+	readSessionCheckpointHistory,
 	resolveRunCheckpoint,
 } from "./checkpoint-records";
 import { getUserRunSpan } from "./user-run-messages";
@@ -208,20 +210,32 @@ export function createCheckpointRestorePlan(input: {
 	checkpointRunCount: number;
 	cwd?: string;
 	restoreMessages?: boolean;
+	restoreWorkspace?: boolean;
 }): CheckpointRestorePlan {
 	const runCount = input.checkpointRunCount;
 	if (!Number.isInteger(runCount) || runCount < 1) {
 		throw new Error("checkpointRunCount must be a positive integer");
 	}
 	const resolved = resolveRunCheckpoint(input.session, runCount);
-	if (resolved.status !== "available") {
+	// Only restoring files needs the run's own snapshot. A chat-only restore
+	// leaves the workspace alone, so a failed snapshot does not block it; it
+	// keeps the nearest earlier checkpoint as its anchor, as before.
+	const checkpoint =
+		resolved.status === "available"
+			? resolved.checkpoint
+			: input.restoreWorkspace === false
+				? findCheckpointForRun(
+						readSessionCheckpointHistory(input.session),
+						runCount,
+					)
+				: undefined;
+	if (!checkpoint) {
 		throw new Error(
 			resolved.status === "failed"
 				? `No checkpoint was taken for run ${runCount} in session ${input.session.sessionId}: ${resolved.errorMessage}`
 				: `No checkpoint found at or before run ${runCount} in session ${input.session.sessionId}`,
 		);
 	}
-	const { checkpoint } = resolved;
 	const cwd = (
 		input.cwd?.trim() ||
 		input.session.cwd ||

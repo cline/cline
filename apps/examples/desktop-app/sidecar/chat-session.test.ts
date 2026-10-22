@@ -788,6 +788,80 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
+	it("forks without restoring an earlier snapshot when the edited run's checkpoint failed", async () => {
+		const sourceSessionId = `source-failed-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+			{ role: "user" as const, content: "prompt to edit" },
+			{ role: "assistant" as const, content: "response to replace" },
+		];
+		const expectedMessages = sourceMessages.slice(0, 2);
+		const start = vi.fn(async () => ({ sessionId: "failed-run-fork" }));
+		const restore = vi.fn(async () => {
+			throw new Error("restore must not rewind to run 1's snapshot");
+		});
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext({
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						checkpoint: {
+							latest: { ref: "first", createdAt: 1, runCount: 1 },
+							history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+							failures: [
+								{ runCount: 2, createdAt: 2, errorMessage: "snapshot failed" },
+							],
+						},
+					},
+				})),
+				readMessages: vi.fn(async () => expectedMessages),
+				restore,
+				start,
+			}),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 2,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: expectedMessages }),
+		);
+	});
+
 	it("keeps a full-history fork on the current workspace and cancels source questions", async () => {
 		const sourceSessionId = `source-full-fork-${Date.now()}`;
 		const sourceMessages = [

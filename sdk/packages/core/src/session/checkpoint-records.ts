@@ -41,9 +41,6 @@ export type RunCheckpoint =
 	| { status: "failed"; errorMessage: string }
 	| { status: "unrecorded" };
 
-/** Long sessions in unsupported workspaces fail every turn; keep the newest. */
-const MAX_CHECKPOINT_FAILURES = 50;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -185,7 +182,11 @@ export function recordCheckpointEntry(
 	return withOptionalFields(history, failures, entry);
 }
 
-/** Records a failure for its run, replacing any earlier outcome for it. */
+/**
+ * Records a failure for its run, replacing any earlier outcome for it.
+ * Failures are never pruned: each one is what stops its run from falling back
+ * to an earlier checkpoint, so they grow with the session like `history`.
+ */
 export function recordCheckpointFailure(
 	metadata: CheckpointMetadata,
 	failure: CheckpointFailure,
@@ -198,9 +199,7 @@ export function recordCheckpointFailure(
 			(other) => other.runCount !== failure.runCount,
 		),
 		failure,
-	]
-		.sort(byRunCount)
-		.slice(-MAX_CHECKPOINT_FAILURES);
+	].sort(byRunCount);
 	return withOptionalFields(history, failures);
 }
 
