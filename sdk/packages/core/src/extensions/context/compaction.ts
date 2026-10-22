@@ -4,6 +4,7 @@ import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
+	recordCompactionCancelled,
 	type TelemetryCompactionStrategy,
 } from "../../services/telemetry/core-events";
 import {
@@ -478,16 +479,10 @@ export function createContextCompactionPrepareTurn(
 		let executedStrategy = telemetryStrategy;
 		let result: CoreCompactionResult | undefined;
 		const recordCancellation = () => {
-			try {
-				config.telemetry?.recordCounter(
-					"cline.compaction.cancelled.total",
-					1,
-					{ mode: effectiveMode, strategy: executedStrategy },
-					"Compaction attempts cancelled via their abort signal",
-				);
-			} catch {
-				// Telemetry must not interrupt cancellation.
-			}
+			recordCompactionCancelled(config.telemetry, {
+				mode: effectiveMode,
+				strategy: executedStrategy,
+			});
 		};
 		context.abortSignal.addEventListener("abort", recordCancellation, {
 			once: true,
