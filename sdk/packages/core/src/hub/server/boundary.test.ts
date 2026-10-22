@@ -1749,18 +1749,18 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("fails capability requests to a client that unregistered and did not come back", async () => {
+	it("holds capability requests for a disconnected owner through a short reconnect", async () => {
 		vi.useFakeTimers();
 		try {
 			const transport = createTransport();
 			const ctx = getContext(transport);
-			const register = (clientId: string) =>
+			const register = () =>
 				transport.handleCommand({
 					version: "v1",
-					requestId: `req-register-${clientId}`,
+					requestId: "req-register",
 					command: "client.register",
-					clientId,
-					payload: { clientId, clientType: "desktop" },
+					clientId: "owner-client",
+					payload: { clientId: "owner-client", clientType: "desktop" },
 				});
 			const unregister = () =>
 				transport.handleCommand({
@@ -1769,12 +1769,27 @@ describe("HubServerTransport boundaries", () => {
 					command: "client.unregister",
 					clientId: "owner-client",
 				});
-			await register("owner-client");
+			const requested: string[] = [];
+			const resubscribe = async () => {
+				await register();
+				const unsubscribe = transport.subscribe(
+					"owner-client",
+					(event) => {
+						if (event.event === "capability.requested") {
+							requested.push(String(event.payload?.capabilityName));
+						}
+					},
+					{ sessionId: "session-1" },
+				);
+				await vi.advanceTimersByTimeAsync(0);
+				return unsubscribe;
+			};
+			await register();
 			await unregister();
 
-			// A brief socket drop: the same client reconnects within the grace
-			// period and gets the request.
-			void requestCapability(
+			// A brief socket drop: the request waits, and reaches the same
+			// client once it registers and subscribes again.
+			const answered = requestCapability(
 				ctx,
 				"session-1",
 				"hook.afterTool",
@@ -1782,31 +1797,57 @@ describe("HubServerTransport boundaries", () => {
 				"owner-client",
 			);
 			await vi.advanceTimersByTimeAsync(1_000);
-			expect(ctx.pendingCapabilityRequests.size).toBe(0);
-			await register("owner-client");
-			await vi.advanceTimersByTimeAsync(200);
-			expect(
-				[...ctx.pendingCapabilityRequests.values()].map(
-					(r) => r.targetClientId,
-				),
-			).toEqual(["owner-client"]);
-			ctx.pendingCapabilityRequests.clear();
+			expect(requested).toEqual([]);
+			const unsubscribe = await resubscribe();
+			expect(requested).toEqual(["hook.afterTool"]);
+			const [requestId] = [...ctx.pendingCapabilityRequests.keys()];
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "req-respond",
+				command: "capability.respond",
+				clientId: "owner-client",
+				payload: { requestId, ok: true, payload: { done: true } },
+			});
+			await expect(answered).resolves.toEqual({ done: true });
+			unsubscribe();
 			await unregister();
 
-			// A run still in flight after its client quit raises its next hook:
-			// it fails once the grace period passes instead of waiting forever.
-			const request = requestCapability(
+			// Stop while waiting for the owner cancels the request; it is not
+			// delivered when the owner comes back.
+			const stopped = requestCapability(
 				ctx,
 				"session-1",
 				"hook.beforeTool",
 				{},
 				"owner-client",
 			);
-			const failed = expect(request).rejects.toThrow(
+			const stoppedFails = expect(stopped).rejects.toThrow("user stop");
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "req-abort",
+				command: "run.abort",
+				sessionId: "session-1",
+				payload: { reason: "user stop" },
+			});
+			await stoppedFails;
+			(await resubscribe())();
+			expect(requested).toEqual(["hook.afterTool"]);
+			await unregister();
+
+			// The owner never comes back: the request fails once the grace
+			// period passes instead of waiting forever.
+			const abandoned = requestCapability(
+				ctx,
+				"session-1",
+				"hook.beforeTool",
+				{},
+				"owner-client",
+			);
+			const abandonedFails = expect(abandoned).rejects.toThrow(
 				/disconnected before it could respond/,
 			);
 			await vi.advanceTimersByTimeAsync(CAPABILITY_OWNER_RECONNECT_GRACE_MS);
-			await failed;
+			await abandonedFails;
 			expect(ctx.pendingCapabilityRequests.size).toBe(0);
 		} finally {
 			vi.useRealTimers();

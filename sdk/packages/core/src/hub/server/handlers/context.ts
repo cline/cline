@@ -44,6 +44,11 @@ export type PendingCapabilityRequest = {
 	targetClientId: string;
 	capabilityName: string;
 	onProgress?: (payload: Record<string, unknown>) => void;
+	/**
+	 * Set while the owner is disconnected and the request has not reached it
+	 * yet; delivered once when the owner subscribes again.
+	 */
+	undeliveredEvent?: HubEventEnvelope;
 	resolve: (result: {
 		ok: boolean;
 		payload?: Record<string, unknown>;

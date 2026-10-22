@@ -64,6 +64,7 @@ import {
 	handleCapabilityRequest,
 	handleCapabilityRespond,
 	requestCapability as requestCapabilityHandler,
+	takeUndeliveredCapabilityEvents,
 } from "./handlers/capability-handlers";
 import {
 	handleClientList,
@@ -1264,26 +1265,36 @@ export class HubServerTransport implements NativeHubTransport {
 		current.add(entry);
 		this.listeners.set(clientId, current);
 		// Re-issue pending approvals so a (re)connecting client can answer a
-		// request raised while it was away instead of leaving the turn parked.
+		// request raised while it was away instead of leaving the turn parked,
+		// and deliver capability requests that waited for this client to
+		// reconnect.
 		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
-		if (pending.length > 0) {
-			queueMicrotask(() => {
-				const listeners = this.listeners.get(clientId);
-				if (!listeners?.has(entry)) {
-					return;
+		queueMicrotask(() => {
+			const listeners = this.listeners.get(clientId);
+			if (!listeners?.has(entry)) {
+				return;
+			}
+			// Taken here, not at subscribe time, so a listener removed before
+			// this runs leaves them for the next subscription.
+			const events = [
+				...pending,
+				...takeUndeliveredCapabilityEvents(
+					this.ctx,
+					clientId,
+					options?.sessionId,
+				),
+			];
+			for (const event of events) {
+				try {
+					entry.listener(event);
+				} catch (error) {
+					logHubBoundaryError(
+						"listener threw while re-issuing pending request",
+						error,
+					);
 				}
-				for (const event of pending) {
-					try {
-						entry.listener(event);
-					} catch (error) {
-						logHubBoundaryError(
-							"listener threw while re-issuing pending approval",
-							error,
-						);
-					}
-				}
-			});
-		}
+			}
+		});
 		return () => {
 			const listeners = this.listeners.get(clientId);
 			if (!listeners) {

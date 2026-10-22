@@ -1,4 +1,8 @@
-import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
+import type {
+	HubCommandEnvelope,
+	HubEventEnvelope,
+	HubReplyEnvelope,
+} from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import { captureCapabilityOwnerGone } from "../../../services/telemetry/core-events";
 import { logHubMessage } from "../hub-server-logging";
@@ -19,16 +23,28 @@ export const CAPABILITY_OWNER_GONE_MESSAGE =
  */
 export const CAPABILITY_OWNER_RECONNECT_GRACE_MS = 7_000;
 
-async function waitForClient(
+/**
+ * Requests that waited for their owner to reconnect, to deliver to that owner
+ * now that it is subscribed again. Each is returned once.
+ */
+export function takeUndeliveredCapabilityEvents(
 	ctx: HubTransportContext,
 	clientId: string,
-): Promise<boolean> {
-	// ponytail: polls every 100ms; switch to a register listener if many requests wait at once.
-	const deadline = Date.now() + CAPABILITY_OWNER_RECONNECT_GRACE_MS;
-	while (!ctx.clients.has(clientId) && Date.now() < deadline) {
-		await new Promise((resolve) => setTimeout(resolve, 100));
+	sessionId?: string,
+): HubEventEnvelope[] {
+	const events: HubEventEnvelope[] = [];
+	for (const pending of ctx.pendingCapabilityRequests.values()) {
+		if (
+			!pending.undeliveredEvent ||
+			pending.targetClientId !== clientId ||
+			(sessionId && pending.sessionId !== sessionId)
+		) {
+			continue;
+		}
+		events.push(pending.undeliveredEvent);
+		pending.undeliveredEvent = undefined;
 	}
-	return ctx.clients.has(clientId);
+	return events;
 }
 
 export async function requestCapability(
@@ -47,43 +63,51 @@ export async function requestCapability(
 		capabilityName,
 		targetClientId,
 	});
-	// Unregistering or detaching cancels the owner's pending requests, but a
-	// request raised after that (a run still in flight when its client
-	// restarted) would wait forever: nobody answers it and nothing times it
-	// out. A disconnected owner gets a short grace period to reconnect under
-	// the same id. Requests are never handed to another client: a client that
-	// joined later may enforce different hooks or tools under the same name.
-	const goneReason = ctx.detachedClientsBySession
-		?.get(sessionId)
-		?.has(targetClientId)
-		? "detached"
-		: !ctx.clients.has(targetClientId) &&
-				!(await waitForClient(ctx, targetClientId))
-			? "disconnected"
-			: undefined;
-	if (goneReason) {
+	const fail = (reason: "detached" | "disconnected") => {
 		logHubMessage("warn", "capability.request.end", {
 			requestId,
 			sessionId,
 			capabilityName,
 			targetClientId,
 			ok: false,
-			error: `target_client_${goneReason}`,
+			error: `target_client_${reason}`,
 			durationMs: Math.round(performance.now() - startedAt),
 		});
 		captureCapabilityOwnerGone(ctx.telemetry, {
 			sessionId,
 			capabilityName,
-			reason: goneReason,
+			reason,
 		});
-		throw new Error(CAPABILITY_OWNER_GONE_MESSAGE);
+		return new Error(CAPABILITY_OWNER_GONE_MESSAGE);
+	};
+	// Unregistering or detaching cancels the owner's pending requests, but a
+	// request raised after that (a run still in flight when its client
+	// restarted) would wait forever: nobody answers it and nothing times it
+	// out. Requests are never handed to another client: a client that joined
+	// later may enforce different hooks or tools under the same name.
+	if (ctx.detachedClientsBySession?.get(sessionId)?.has(targetClientId)) {
+		throw fail("detached");
 	}
 	return await new Promise((resolve, reject) => {
+		const event = ctx.buildEvent(
+			"capability.requested",
+			{
+				requestId,
+				targetClientId,
+				capabilityName,
+				payload,
+			},
+			sessionId,
+		);
+		const connected = ctx.clients.has(targetClientId);
+		// Registered before any waiting, so Stop (or a detach) cancels it
+		// whether it is waiting for the owner to reconnect or to answer.
 		ctx.pendingCapabilityRequests.set(requestId, {
 			sessionId,
 			targetClientId,
 			capabilityName,
 			onProgress,
+			undeliveredEvent: connected ? undefined : event,
 			resolve: (result) => {
 				logHubMessage(result.ok ? "info" : "warn", "capability.request.end", {
 					requestId,
@@ -113,18 +137,19 @@ export async function requestCapability(
 				resolve(result.payload);
 			},
 		});
-		ctx.publish(
-			ctx.buildEvent(
-				"capability.requested",
-				{
-					requestId,
-					targetClientId,
-					capabilityName,
-					payload,
-				},
-				sessionId,
-			),
-		);
+		if (!connected) {
+			// A disconnected owner gets a short grace period to come back under the
+			// same id (a brief socket drop); the request reaches it when it
+			// subscribes again (see takeUndeliveredCapabilityEvents).
+			setTimeout(() => {
+				const pending = ctx.pendingCapabilityRequests.get(requestId);
+				if (!pending?.undeliveredEvent) return;
+				ctx.pendingCapabilityRequests.delete(requestId);
+				reject(fail("disconnected"));
+			}, CAPABILITY_OWNER_RECONNECT_GRACE_MS);
+			return;
+		}
+		ctx.publish(event);
 		logHubMessage("info", "capability.request.published", {
 			requestId,
 			sessionId,
