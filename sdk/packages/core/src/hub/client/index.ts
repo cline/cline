@@ -46,6 +46,8 @@ type PendingReply = {
 };
 
 type HubCommandOptions = {
+	/** Whether transport recovery may resend a request after dispatch. */
+	retryAfterDispatch?: boolean;
 	timeoutMs?: number | null;
 	/** Synchronous local guard, checked after connection before each dispatch. */
 	beforeDispatch?: () => void;
@@ -741,14 +743,28 @@ export class NodeHubClient {
 		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
+		let dispatched = false;
+		const dispatchOptions = {
+			...options,
+			onDispatch: (requestId: string) => {
+				dispatched = true;
+				options?.onDispatch?.(requestId);
+			},
+		};
 		const canRecoverTransport =
 			command !== "client.register" && command !== "client.unregister";
 		while (true) {
 			try {
-				return await this.commandOnce(command, payload, sessionId, options);
+				return await this.commandOnce(
+					command,
+					payload,
+					sessionId,
+					dispatchOptions,
+				);
 			} catch (error) {
 				if (
 					!canRecoverTransport ||
+					(dispatched && options?.retryAfterDispatch === false) ||
 					attempt >= 1 ||
 					!(await this.recoverLocalHubTransport(error))
 				) {
@@ -1224,6 +1240,8 @@ export interface HubSessionActivity {
 	activeSessionCount: number;
 	/** Distinct client ids attached to those sessions. */
 	participantClientCount: number;
+	/** Plugin command requests executing even without an attached session. */
+	activePluginRequests: number;
 }
 
 /**
@@ -1270,11 +1288,24 @@ export function summarizeHubSessionActivity(
 			}
 		}
 	}
-	return { activeSessionCount, participantClientCount: clientIds.size };
+	const requests =
+		payload && typeof payload === "object"
+			? (payload as { activePluginRequests?: unknown }).activePluginRequests
+			: undefined;
+	const activePluginRequests =
+		typeof requests === "number" && Number.isInteger(requests) && requests > 0
+			? requests
+			: 0;
+	return {
+		activeSessionCount,
+		participantClientCount: clientIds.size,
+		activePluginRequests,
+	};
 }
 
 export function hasActiveHubSessions(payload: unknown): boolean {
-	return summarizeHubSessionActivity(payload).activeSessionCount > 0;
+	const activity = summarizeHubSessionActivity(payload);
+	return activity.activeSessionCount > 0 || activity.activePluginRequests > 0;
 }
 
 /**
@@ -1318,7 +1349,9 @@ export async function localHubHasNoActiveSessions(
 ): Promise<boolean> {
 	try {
 		const activity = await queryHubSessionActivity(url, authToken, options);
-		return activity.activeSessionCount === 0;
+		return (
+			activity.activeSessionCount === 0 && activity.activePluginRequests === 0
+		);
 	} catch {
 		// Recovery callers must not treat a hub they cannot positively observe
 		// idle as safe to stop, so an unanswerable hub reports as busy here.

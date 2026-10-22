@@ -2846,6 +2846,7 @@ describe("sdk-gateway", () => {
 			}),
 		);
 		expect(streamTextSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+			maxRetries: 3,
 			streamRetries: 3,
 		});
 		expect(events.at(-1)).toMatchObject({

@@ -135,7 +135,7 @@ export function TaskTargetPanel() {
 				<span className="text-[11px] font-medium uppercase tracking-wide text-description">Run task</span>
 				<div
 					aria-label="Where to run the task"
-					className="inline-flex rounded-sm border border-input-foreground/20 p-0.5"
+					className="inline-flex rounded-lg border border-input-foreground/20 p-1"
 					role="radiogroup">
 					<TargetButton
 						active={!isCloud}
@@ -230,7 +230,7 @@ function TargetButton({
 		<button
 			aria-checked={active}
 			className={cn(
-				"inline-flex cursor-pointer items-center gap-1 rounded-xs border-0 px-2 py-0.5 text-xs",
+				"m-0 inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 px-2 py-0.5 text-xs",
 				active ? "bg-button-background text-button-foreground" : "bg-transparent text-description hover:text-foreground",
 			)}
 			onClick={onClick}

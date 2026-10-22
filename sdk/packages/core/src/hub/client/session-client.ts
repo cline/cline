@@ -19,7 +19,9 @@ import type {
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { NodeHubClient } from "../client";
+import { createHubPluginCommandsApi } from "./plugin-commands";
 import {
 	createHubPluginUiApi,
 	type HubPluginUiApi,
@@ -291,6 +293,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
+	readonly pluginCommands: PluginCommandsApi;
 	readonly pluginUi: HubPluginUiApi;
 
 	constructor(options: HubSessionClientOptions) {
@@ -304,6 +307,7 @@ export class HubSessionClient {
 			cwd: options.cwd,
 			metadata: options.metadata,
 		});
+		this.pluginCommands = createHubPluginCommandsApi(this.client);
 		this.pluginUi = createHubPluginUiApi(this.client);
 		this.client.onRegistered(() => this.pluginUi.onRegistered());
 	}

@@ -609,7 +609,10 @@ describe("NodeHubClient", () => {
 		expect(isHubReconnectableTransportError(new Error("closed"))).toBe(false);
 	});
 
-	it("rediscovers the local hub and retries commands after transport close", async () => {
+	it.each([
+		"read",
+		"plugin execution",
+	])("recovers a lost %s reply without replaying plugin side effects", async (kind) => {
 		vi.resetModules();
 		const originalWebSocket = globalThis.WebSocket;
 		const recoveredUrl = "ws://127.0.0.1:25464/hub";
@@ -625,6 +628,7 @@ describe("NodeHubClient", () => {
 			updatedAt: new Date().toISOString(),
 		};
 
+		const executed = vi.fn();
 		class RecoveryWebSocket {
 			readyState = 0;
 			private failedCommand = false;
@@ -670,6 +674,7 @@ describe("NodeHubClient", () => {
 					});
 					return;
 				}
+				executed(frame.envelope.command);
 				if (this.url.includes(":25463/") && !this.failedCommand) {
 					this.failedCommand = true;
 					queueMicrotask(() => {
@@ -752,14 +757,29 @@ describe("NodeHubClient", () => {
 			});
 
 			const beforeDispatch = vi.fn();
-			await expect(
-				client.command("client.list", undefined, undefined, { beforeDispatch }),
-			).resolves.toMatchObject({
-				ok: true,
-				payload: { clients: [] },
-			});
-			expect(beforeDispatch).toHaveBeenCalledTimes(2);
-			expect(client.getUrl()).toBe(recoveredUrl);
+			if (kind === "read") {
+				await expect(
+					client.command("client.list", undefined, undefined, {
+						beforeDispatch,
+					}),
+				).resolves.toMatchObject({ ok: true, payload: { clients: [] } });
+				expect(beforeDispatch).toHaveBeenCalledTimes(2);
+				expect(executed).toHaveBeenCalledTimes(2);
+				expect(client.getUrl()).toBe(recoveredUrl);
+			} else {
+				const { createHubPluginCommandsApi } = await import(
+					"./plugin-commands"
+				);
+				await expect(
+					createHubPluginCommandsApi(client).run({
+						workspacePath: "/tmp/project",
+						prompt: "/mutate",
+					}),
+				).rejects.toMatchObject({ code: "hub_connection_closed" });
+				expect(executed).toHaveBeenCalledExactlyOnceWith(
+					"plugins.commands.run",
+				);
+			}
 			await client.dispose();
 		} finally {
 			if (originalWebSocket) {
@@ -1558,6 +1578,21 @@ describe("resolveCompatibleLocalHubUrl", () => {
 });
 
 describe("hasActiveHubSessions", () => {
+	it("counts active plugin requests without attached sessions", async () => {
+		const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+			"."
+		);
+		expect(
+			hasActiveHubSessions({ sessions: [], activePluginRequests: 1 }),
+		).toBe(true);
+		expect(
+			summarizeHubSessionActivity({ sessions: [], activePluginRequests: 2 }),
+		).toMatchObject({ activeSessionCount: 0, activePluginRequests: 2 });
+		expect(
+			hasActiveHubSessions({ sessions: [], activePluginRequests: 0 }),
+		).toBe(false);
+	});
+
 	const payload = (sessions: unknown[]) => ({ sessions });
 
 	it("is idle for an empty or malformed list", async () => {

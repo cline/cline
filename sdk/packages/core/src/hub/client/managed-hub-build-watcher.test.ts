@@ -16,7 +16,11 @@ type DiscoveryMockOptions = {
 	 * counts. Always mocked: the real query opens a socket, which never
 	 * settles under this file's fake timers.
 	 */
-	activity?: { activeSessionCount: number; participantClientCount: number };
+	activity?: {
+		activeSessionCount: number;
+		participantClientCount: number;
+		activePluginRequests: number;
+	};
 	/**
 	 * This client's own build identity; omitted keeps the real resolution
 	 * (env-driven buildId/epoch plus the actual core package version).
@@ -222,7 +226,11 @@ describe("checkManagedHubBuildMismatch", () => {
 				port: 59999,
 				url: "ws://127.0.0.1:59999/hub",
 			},
-			activity: { activeSessionCount: 2, participantClientCount: 1 },
+			activity: {
+				activeSessionCount: 2,
+				participantClientCount: 1,
+				activePluginRequests: 0,
+			},
 		});
 		const { checkManagedHubBuildMismatch } = await import(
 			"./managed-hub-build-watcher"
@@ -232,6 +240,7 @@ describe("checkManagedHubBuildMismatch", () => {
 			reason: "outdated_hub",
 			activeSessionCount: 2,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 	});
 
@@ -352,7 +361,11 @@ describe("checkManagedHubBuildMismatch with required capabilities", () => {
 			record: liveRecord,
 			probe: sameBuildHub,
 			status: { ...sameBuildHub, capabilities: ["session.create"] },
-			activity: { activeSessionCount: 1, participantClientCount: 2 },
+			activity: {
+				activeSessionCount: 1,
+				participantClientCount: 2,
+				activePluginRequests: 0,
+			},
 		});
 		const { checkManagedHubBuildMismatch } = await import(
 			"./managed-hub-build-watcher"
@@ -369,6 +382,7 @@ describe("checkManagedHubBuildMismatch with required capabilities", () => {
 			missingCapabilities: ["plugins.ui"],
 			activeSessionCount: 1,
 			participantClientCount: 2,
+			activePluginRequests: 0,
 		});
 	});
 

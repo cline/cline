@@ -670,14 +670,16 @@ export {
 	uninstallMcpServer,
 } from "./services/mcp-install";
 export type {
+	PluginCommandCatalog,
 	PluginCommandResult,
-	PluginCommandService,
+	PluginCommandsApi,
+	PluginCommandTarget,
 	PluginSlashCommand,
-} from "./services/plugin-commands";
+} from "./services/plugin-command-api";
 export {
-	createPluginCommandService,
 	normalizePluginCommandName,
-} from "./services/plugin-commands";
+	parsePluginCommand,
+} from "./services/plugin-command-api";
 export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
@@ -986,6 +988,12 @@ export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "./extensions/context/compaction";
+export { summarizeConversation } from "./extensions/context/summarize-conversation";
+export {
+	CLINE_PLUGIN_RUNTIME_DIR_ENV,
+	resolvePluginRuntimeDirectory,
+	setPluginSandboxLauncher,
+} from "./extensions/plugin/plugin-runtime";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type ApplyPatchExecutor,
@@ -1040,6 +1048,7 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
 export {
 	createHubPluginUiApi,
 	type HubPluginUiApi,
@@ -1132,6 +1141,7 @@ export type {
 	RegisterModelInput,
 	RegisterProviderInput,
 } from "./services/llms/runtime-types";
+export { SKILLS_CLI_PACKAGE, SKILLS_CLI_VERSION } from "./services/skills-cli";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

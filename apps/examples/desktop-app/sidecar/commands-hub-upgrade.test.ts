@@ -243,7 +243,11 @@ describe("hub_session_activity command", () => {
 
 		await expect(
 			handleCommand(ctx, "hub_session_activity", {}),
-		).resolves.toEqual({ activeSessionCount: 2, participantClientCount: 2 });
+		).resolves.toEqual({
+			activeSessionCount: 2,
+			participantClientCount: 2,
+			activePluginRequests: 0,
+		});
 		expect(hubCommand).toHaveBeenCalledWith("session.list", { limit: 500 });
 	});
 

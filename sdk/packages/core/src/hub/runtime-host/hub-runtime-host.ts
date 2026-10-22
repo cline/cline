@@ -48,6 +48,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
@@ -83,6 +84,7 @@ import {
 	NodeHubClient,
 	restartLocalHubIfIdleAfterStartupTimeout,
 } from "../client";
+import { createHubPluginCommandsApi } from "../client/plugin-commands";
 import { createHubPluginUiApi } from "../client/plugin-ui";
 
 function toJsonRecord(
@@ -767,6 +769,7 @@ function buildManifestFromSnapshot(
 export class HubRuntimeHost implements RuntimeHost {
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginCommands: PluginCommandsApi;
 	public readonly pluginUi = createHubPluginUiApi(
 		{ command: (...args) => this.client.command(...args) },
 		{ beforeCommand: (sessionId) => this.ensureSessionSubscription(sessionId) },
@@ -814,6 +817,9 @@ export class HubRuntimeHost implements RuntimeHost {
 			delete: (input) => this.requestPendingPromptDelete(input),
 		};
 		this.client = this.createClient(options.url);
+		this.pluginCommands = createHubPluginCommandsApi({
+			command: (...args) => this.client.command(...args),
+		});
 	}
 
 	private createClient(url: string): NodeHubClient {
