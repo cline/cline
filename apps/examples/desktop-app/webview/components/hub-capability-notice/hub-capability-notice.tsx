@@ -22,6 +22,7 @@ import {
 	describeHubRestartInterruption,
 	HUB_RESTART_COST,
 	type HubSessionActivity,
+	hubHasNothingToInterrupt,
 	persistHubCapabilityNoticeDismissal,
 	readHubCapabilityNoticeDismissal,
 } from "./helpers";
@@ -37,10 +38,10 @@ function readActivity(value: unknown): HubSessionActivity | null {
 	if (!value || typeof value !== "object") {
 		return null;
 	}
-	const { activeSessionCount, participantClientCount } =
+	const { activeSessionCount, participantClientCount, activePluginRequests } =
 		value as HubSessionActivity;
 	return typeof activeSessionCount === "number"
-		? { activeSessionCount, participantClientCount }
+		? { activeSessionCount, participantClientCount, activePluginRequests }
 		: null;
 }
 
@@ -132,7 +133,7 @@ export function HubCapabilityNotice({ className }: { className?: string }) {
 		const activity = await desktopClient
 			.invoke("hub_session_activity", {})
 			.then(readActivity, () => null);
-		if (activity?.activeSessionCount === 0) {
+		if (hubHasNothingToInterrupt(activity)) {
 			await restart();
 			return;
 		}

@@ -84,6 +84,21 @@ describe("the plugin suggestions notice", () => {
 		);
 	});
 
+	it("words the interruption of plugin commands running without a session", () => {
+		expect(
+			describeHubRestartInterruption({
+				activeSessionCount: 0,
+				activePluginRequests: 1,
+			}),
+		).toBe("The Hub is running a plugin command. Restarting interrupts it.");
+		expect(
+			describeHubRestartInterruption({
+				activeSessionCount: 0,
+				activePluginRequests: 2,
+			}),
+		).toBe("The Hub is running 2 plugin commands. Restarting interrupts them.");
+	});
+
 	it("still states the cost when the Hub could not be read", () => {
 		expect(describeHubRestartInterruption(null)).toBe(
 			"Cline couldn't check what the Hub is serving. Restarting interrupts any work in progress in Cline apps that use the Hub, including this one.",

@@ -25,11 +25,18 @@ export function persistHubCapabilityNoticeDismissal(key: string): void {
 	}
 }
 
-/** Live sessions on the Hub, read when the person asks to restart it. */
+/** Live work on the Hub, read when the person asks to restart it. */
 export type HubSessionActivity = {
 	activeSessionCount?: number;
 	participantClientCount?: number;
+	activePluginRequests?: number;
 };
+
+export function hubHasNothingToInterrupt(
+	activity: HubSessionActivity | null,
+): boolean {
+	return activity?.activeSessionCount === 0 && !activity.activePluginRequests;
+}
 
 /** Said before any reading: the restart's cost does not depend on one. */
 export const HUB_RESTART_COST =
@@ -43,6 +50,12 @@ export function describeHubRestartInterruption(
 	activity: HubSessionActivity | null,
 ): string {
 	const sessions = activity?.activeSessionCount;
+	const pluginRequests = activity?.activePluginRequests ?? 0;
+	if (sessions === 0 && pluginRequests > 0) {
+		return pluginRequests === 1
+			? "The Hub is running a plugin command. Restarting interrupts it."
+			: `The Hub is running ${pluginRequests} plugin commands. Restarting interrupts them.`;
+	}
 	if (typeof sessions !== "number" || sessions <= 0) {
 		return `Cline couldn't check what the Hub is serving. ${HUB_RESTART_COST}`;
 	}
