@@ -610,26 +610,34 @@ describe("LocalRuntimeHost", () => {
 		);
 		const session = (
 			manager as unknown as {
-				sessions: Map<string, { drainingPendingPrompts: boolean }>;
+				sessions: Map<
+					string,
+					{ drainingPendingPrompts: boolean; replayingQueuedPrompt?: boolean }
+				>;
 			}
 		).sessions.get(sessionId);
 		if (!session) throw new Error("session not started");
-		session.drainingPendingPrompts = true;
 		const inputSent = () =>
 			capture.mock.calls
 				.map(([e]) => e)
 				.filter((e) => e.event === "session.input_sent")
 				.map((e) => e.properties);
 
-		// The drain replays a queued prompt: it starts the run, unlabelled.
+		// The drain replays a queued prompt: only that input is unlabelled.
+		session.drainingPendingPrompts = true;
+		session.replayingQueuedPrompt = true;
 		await manager.runTurn({ sessionId, prompt: "continue" });
-		// The user reacts while that queued run is busy: still labelled.
+		// The user reacts while that queued run is busy, and again just as
+		// it goes idle: both are fresh input and stay labelled.
 		busy = true;
 		await manager.runTurn({ sessionId, prompt: "are you stuck?" });
+		busy = false;
+		await manager.runTurn({ sessionId, prompt: "hello?" });
 
-		const [replay, reaction] = inputSent();
+		const [replay, whileBusy, whileIdle] = inputSent();
 		expect(replay).not.toHaveProperty("bumpKind");
-		expect(reaction).toMatchObject({ agentBusy: true, bumpKind: "probe" });
+		expect(whileBusy).toMatchObject({ agentBusy: true, bumpKind: "probe" });
+		expect(whileIdle).toHaveProperty("bumpKind");
 	});
 
 	it("resolves OAuth credentials before creating the agent", async () => {

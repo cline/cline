@@ -36,6 +36,8 @@ export type ActiveSession = {
 	teamRunWaiters: Array<() => void>;
 	pendingPrompts: PendingPrompt[];
 	drainingPendingPrompts: boolean;
+	/** Set by the queue drain on the one input it replays; consumed by runTurn. */
+	replayingQueuedPrompt?: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
 	pluginCommandError?: string;
 	pluginCommandTail?: Promise<unknown>;
