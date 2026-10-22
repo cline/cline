@@ -195,6 +195,74 @@ describe("AgentRuntime", () => {
 		).toBe(false);
 	});
 
+	it("keeps partial assistant output in the transcript when the run is aborted mid-stream", async () => {
+		const started = Promise.withResolvers<void>();
+		const model = new ScriptedModel([
+			async function* (request) {
+				yield { type: "text-delta", text: "Partial essay" };
+				yield { type: "reasoning-delta", text: "incomplete reasoning" };
+				yield {
+					type: "tool-call-delta",
+					toolCallId: "partial",
+					toolName: "echo",
+					inputText: '{"text":',
+				};
+				started.resolve();
+				await new Promise<void>((resolve) => {
+					if (request.signal?.aborted) return resolve();
+					request.signal?.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				});
+				throw new DOMException("Cancelled", "AbortError");
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+		const resultPromise = runtime.run("Write an essay");
+		await started.promise;
+		runtime.abort("user cancelled");
+		const result = await resultPromise;
+
+		expect(result.status).toBe("aborted");
+		// The aborted turn stays in the transcript so a follow-up turn sees
+		// the cut-off response instead of an unanswered prompt it would
+		// regenerate (cline/cline#14702).
+		const assistant = result.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant).toHaveLength(1);
+		expect(result.outputText).toBe("Partial essay");
+		// Incomplete tool JSON and unsigned reasoning are not replayable —
+		// only visible text survives, matching the steer-interruption path.
+		expect(
+			assistant[0]?.content.every(
+				(part) => part.type !== "tool-call" && part.type !== "reasoning",
+			),
+		).toBe(true);
+	});
+
+	it("records no assistant message when aborted before any streamed content", async () => {
+		const model = new ScriptedModel([
+			async function* (request) {
+				await new Promise<void>((resolve) => {
+					if (request.signal?.aborted) return resolve();
+					request.signal?.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				});
+				throw new DOMException("Cancelled", "AbortError");
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+		const resultPromise = runtime.run("Hi");
+		await expect.poll(() => model.requests.length).toBe(1);
+		runtime.abort("user cancelled");
+		const result = await resultPromise;
+
+		expect(result.status).toBe("aborted");
+		expect(result.messages.map((message) => message.role)).toEqual(["user"]);
+	});
+
 	it("passes the surfaced request ID to afterModel without carrying it into the next call", async () => {
 		const afterModel = vi.fn();
 		const model = new ScriptedModel([
