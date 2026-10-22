@@ -46,7 +46,7 @@ describe("getClineUris", () => {
 
 	it("keeps the credits tab and redirect on the organization route", () => {
 		expect(getClineUris("https://staging-app.cline.bot", "credits", "organization")).toBe(
-			"https://staging-app.cline.bot/organization?tab=credits&redirect=true&client=cline-vscode",
+			"https://staging-app.cline.bot/dashboard/organization?tab=credits&redirect=true&client=cline-vscode",
 		)
 	})
 })

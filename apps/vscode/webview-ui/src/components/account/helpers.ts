@@ -25,7 +25,7 @@ export const getMainRole = (roles?: string[]) => {
 
 export const getClineUris = (base: string | undefined, type: "dashboard" | "credits", route?: "account" | "organization") =>
 	getClineDashboardUrl(
-		type === "dashboard" ? "dashboard" : `/${route ?? "account"}?tab=credits&redirect=true`,
+		type === "dashboard" ? "dashboard" : `/dashboard/${route ?? "account"}?tab=credits&redirect=true`,
 		base,
 		getClineClientName(),
 	)

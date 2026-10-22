@@ -2,6 +2,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
 import { getClineUris } from "@/components/account/helpers"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
+import { DEFAULT_APP_BASE_URL } from "@/components/onboarding/clinePassSubscribe"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 
@@ -25,10 +26,16 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	const { clineUser, activeOrganization } = useClineAuth()
 	const [fullBuyCreditsUrl, setFullBuyCreditsUrl] = useState<string>("")
 
+	// API-key users have no signed-in clineUser; falling back to production keeps
+	// them a way to buy credits rather than hiding the only recovery action.
 	const dashboardUrl = useMemo(
 		() =>
 			buyCreditsUrl ??
-			getClineUris(clineUser?.appBaseUrl, "credits", activeOrganization?.organizationId ? "organization" : "account"),
+			getClineUris(
+				clineUser?.appBaseUrl || DEFAULT_APP_BASE_URL,
+				"credits",
+				activeOrganization?.organizationId ? "organization" : "account",
+			),
 		[buyCreditsUrl, clineUser?.appBaseUrl, activeOrganization?.organizationId],
 	)
 

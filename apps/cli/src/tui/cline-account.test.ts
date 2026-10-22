@@ -447,6 +447,10 @@ describe("isClineAccountCreditsErrorMessage", () => {
 });
 
 describe("getClineCreditsDashboardUrl", () => {
+	beforeEach(() => {
+		coreMocks.getProviderSettings.mockReset();
+	});
+
 	afterEach(() => {
 		vi.unstubAllEnvs();
 	});
@@ -458,5 +462,25 @@ describe("getClineCreditsDashboardUrl", () => {
 		expect(getClineCreditsDashboardUrl()).toBe(
 			"https://staging-app.cline.bot/dashboard/account?tab=credits&client=cline-cli",
 		);
+	});
+
+	it("follows a backend override to the environment that bills the account", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+		vi.stubEnv("CLINE_API_BASE_URL", "https://api.cline.bot");
+		const { getClineCreditsDashboardUrl } = await import("./cline-account");
+
+		expect(getClineCreditsDashboardUrl()).toBe(
+			"https://app.cline.bot/dashboard/account?tab=credits&client=cline-cli",
+		);
+	});
+
+	it("leaves the link out for a backend no environment declares", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			baseUrl: "https://cline-proxy.example.com",
+		});
+		const { getClineCreditsDashboardUrl } = await import("./cline-account");
+
+		expect(getClineCreditsDashboardUrl()).toBeUndefined();
 	});
 });

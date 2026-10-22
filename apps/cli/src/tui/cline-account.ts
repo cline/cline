@@ -25,10 +25,12 @@ import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
+// Follows the backend that rejected the request, not CLINE_ENVIRONMENT alone:
+// credits bought on another environment would not lift this balance.
 export function getClineCreditsDashboardUrl(): string | undefined {
 	return getClineDashboardUrl(
 		"dashboard/account?tab=credits",
-		getClineEnvironmentConfig().appBaseUrl,
+		resolveClineAppBaseUrl(resolveClineAccountBackend({}).apiBaseUrl),
 		"cline-cli",
 	);
 }
