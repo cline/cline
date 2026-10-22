@@ -1296,6 +1296,12 @@ async function handleHubApprovalRequest(
 export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
+	// A retried startup must not replace (and leak) a manager that an earlier
+	// attempt installed before its final readiness sync failed.
+	if (ctx.runtimeBindings.has(LOCAL_ENVIRONMENT_ID)) {
+		await syncSidecarApprovalReadiness(ctx);
+		return;
+	}
 	setHomeDirIfUnset(homedir());
 	const sessionManager = await ClineCore.create({
 		clientName: "cline-code",
