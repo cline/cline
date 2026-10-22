@@ -19,6 +19,7 @@ import {
 	getThoughtDurationMilliseconds,
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
+import { PromptDraftStore } from "../lib/prompt-draft-store";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 import { usePromptDraft } from "./use-prompt-draft";
 
@@ -433,8 +434,79 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("restores the submitted draft and attachments when the original session start rejects while away", async () => {
+		const drafts = new PromptDraftStore();
+		let draft!: ReturnType<typeof usePromptDraft>;
+		function DraftHarness({ threadId }: { threadId: string }) {
+			current = useChatSession("local");
+			draft = usePromptDraft(drafts, threadId);
+			return null;
+		}
+		const show = (threadId: string) =>
+			act(async () => {
+				root.render(<DraftHarness key={threadId} threadId={threadId} />);
+			});
+		const started = deferred<void>();
+		let rejectStart!: (error: Error) => void;
+		const startResult = new Promise<never>((_resolve, reject) => {
+			rejectStart = reject;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request;
+					if (
+						request &&
+						typeof request === "object" &&
+						"action" in request &&
+						request.action === "start"
+					) {
+						started.resolve();
+						return await startResult;
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		const attachment = new File(["attached"], "notes.txt");
+		await show("A");
+		let send!: Promise<boolean>;
+		let settled!: Promise<void>;
+		await act(async () => {
+			const attempt = draft.beginSend("Original submitted prompt", [
+				attachment,
+			]);
+			send = current.sendPrompt("Original submitted prompt", [attachment]);
+			settled = send.then((accepted) => {
+				attempt.settle(accepted);
+			});
+			await started.promise;
+		});
+		await show("B");
+		await act(async () => {
+			rejectStart(new Error("Provider connection failed"));
+			await settled;
+		});
+		const recovered: File[][] = [];
+		await show("A");
+		const unsubscribe = drafts.subscribeAttachments("A", (files) =>
+			recovered.push(files),
+		);
+		unsubscribe();
+		expect(draft.promptDraft.value).toBe("Original submitted prompt");
+		expect(recovered).toEqual([[attachment]]);
+	});
+
 	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
-		const drafts = new Map<string, string>();
+		const drafts = new PromptDraftStore();
 		let draft!: ReturnType<typeof usePromptDraft>;
 		function DraftHarness({ threadId }: { threadId: string }) {
 			current = useChatSession("local");
@@ -476,10 +548,10 @@ describe("useChatSession", () => {
 			},
 		);
 		await show("A");
-		let restore!: (value: string) => boolean;
+		let attempt!: ReturnType<typeof draft.beginSend>;
 		let send!: Promise<boolean>;
 		await act(async () => {
-			restore = draft.clearPromptForSend();
+			attempt = draft.beginSend("Original submitted prompt", []);
 			send = current.sendPrompt("Original submitted prompt");
 			await started.promise;
 		});
@@ -490,7 +562,7 @@ describe("useChatSession", () => {
 			rejectStart(new Error("Provider connection failed"));
 			const accepted = await send;
 			expect(accepted).toBe(false);
-			expect(restore("Original submitted prompt")).toBe(false);
+			expect(attempt.settle(accepted)).toBe(false);
 		});
 		await show("B");
 		await show("A");
