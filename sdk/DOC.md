@@ -471,3 +471,28 @@ malformed replies throw. It is optional on `McpManager` and
 tool calls on an already connected server. A read that starts while the server
 is being disconnected or re-registered can fail with a disconnect error; retry
 it.
+
+## Run stall telemetry
+
+`@cline/core` measures stalls with a `RunHealthObserver`
+(`packages/core/src/services/telemetry/run-health.ts`). `SessionRuntime`
+creates one per run, for root agents and subagents, when telemetry is
+configured. It watches only the run's runtime events and is disposed when the
+run returns.
+
+- `task.run_idle` fires at most once per run, while it is still running and has
+  emitted no runtime event for 60s.
+- When the run ends, `AgentRuntime` calls the optional
+  `AgentRuntimeConfig.runEndTelemetryProperties()` once, while capturing
+  `agent.run-finished` or `agent.run-failed`, and merges the result into that
+  event. Core uses it to add `maxIdleMs`, `maxIdleAfter`, `msSinceLastEvent`,
+  `lastEventType`, `finishReason`, `idleReported`, `endedOn` and
+  `textSignature`. The observer stops its idle check at that point.
+- `tool-call-delta` is a runtime event emitted for each streamed tool-call
+  argument chunk. It carries no arguments and exists so that a slow tool-call
+  stream is not mistaken for a silent one. It is not mirrored to telemetry and
+  is not forwarded as hub hook traffic.
+
+No message text leaves the client: `textSignature` and `session.input_sent`'s
+`bumpKind` are enums computed locally
+(`packages/core/src/services/telemetry/stall-signals.ts`).

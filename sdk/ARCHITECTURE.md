@@ -861,6 +861,10 @@ Do not move these concerns into `@cline/agents`:
 - host-specific approvals
 - remote-config policy caching
 
+Diagnostics derived from a run (for example run stall telemetry, see `DOC.md`)
+belong in a `core` observer of runtime events. `agents` only emits the events and
+merges host-supplied properties through `runEndTelemetryProperties`.
+
 ### Keep `core` Generic
 
 Do not make `@cline/core` organization- or provider-specific.
