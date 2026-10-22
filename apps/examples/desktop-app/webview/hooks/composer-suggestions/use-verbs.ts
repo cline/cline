@@ -14,6 +14,7 @@ import {
 	useCallback,
 	useRef,
 } from "react";
+import { type SendSnapshot, snapshotAtSend } from "./sent-prompt";
 import { delay, msSinceExposed } from "./timing";
 import type {
 	ComposerSuggestionsOptions,
@@ -33,6 +34,7 @@ export function useSuggestionVerbs({
 	lastSkip,
 	setLastSkip,
 	setSendingItemId,
+	sendSnapshotRef,
 }: {
 	invoke: SuggestionsInvoke;
 	boundRef: RefObject<string>;
@@ -42,6 +44,7 @@ export function useSuggestionVerbs({
 	lastSkip: LastSkip | undefined;
 	setLastSkip: Dispatch<SetStateAction<LastSkip | undefined>>;
 	setSendingItemId: Dispatch<SetStateAction<string | undefined>>;
+	sendSnapshotRef: RefObject<SendSnapshot>;
 }) {
 	/** A one-key Send is waiting for its verdict; another press then sends nothing. */
 	const sendInFlightRef = useRef(false);
@@ -128,6 +131,7 @@ export function useSuggestionVerbs({
 				]);
 				if (verdict?.outcome === "refused") return;
 				if (boundRef.current !== boundSessionId) return;
+				sendSnapshotRef.current = snapshotAtSend(latest.current);
 				latest.current.onSend(ref.prompt);
 				dispatch({ type: "sent", ref });
 			} finally {
@@ -141,6 +145,7 @@ export function useSuggestionVerbs({
 			invoke,
 			latest,
 			localRef,
+			sendSnapshotRef,
 			setSendingItemId,
 			signalInert,
 		],
@@ -259,9 +264,10 @@ export function useSuggestionVerbs({
 				itemId: used.itemId,
 				input: "key",
 			});
+			sendSnapshotRef.current = snapshotAtSend(latest.current);
 			dispatch({ type: "sent" });
 		},
-		[dispatch, invoke, localRef],
+		[dispatch, invoke, latest, localRef, sendSnapshotRef],
 	);
 
 	const move = useCallback(

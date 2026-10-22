@@ -39,6 +39,8 @@ export function defaultOptions(
 		waiting: false,
 		messages: [],
 		promptsInQueue: [],
+		pendingAttachments: [],
+		onAttachFiles: vi.fn(),
 		onSend: vi.fn(),
 		onUndoTurn: vi.fn(async () => undefined),
 		onRemoveQueuedPrompt: vi.fn(async (promptId: string) =>
@@ -69,6 +71,7 @@ function Harness({
 					composerInputRef={composerInputRef}
 					composerMenuOpen={false}
 					draft={draft}
+					refusesSend={() => false}
 					setDraft={setDraft}
 					suggestions={suggestions}
 				/>

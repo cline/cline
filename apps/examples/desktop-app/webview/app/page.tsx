@@ -2379,6 +2379,8 @@ function ChatThreadPane({
 		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
 		messages: displayedMessages,
 		promptsInQueue,
+		pendingAttachments,
+		onAttachFiles: handleAttachFiles,
 		onSend: handleSendSuggestion,
 		onUndoTurn: handleEditMessage,
 		onRemoveQueuedPrompt: removePromptInQueue,

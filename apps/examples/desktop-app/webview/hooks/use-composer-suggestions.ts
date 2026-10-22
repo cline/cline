@@ -20,6 +20,7 @@ import {
 import { exposedSuggestionMemory } from "@/hooks/composer-suggestions/exposed-memory";
 import {
 	findSentMessage,
+	type SendSnapshot,
 	samePrompt,
 } from "@/hooks/composer-suggestions/sent-prompt";
 import type {
@@ -57,6 +58,10 @@ export function useComposerSuggestions(
 	localRef.current = local;
 	const latest = useRef(options);
 	latest.current = options;
+	const sendSnapshotRef = useRef<SendSnapshot>({
+		runCount: 0,
+		attachments: [],
+	});
 
 	const { invoke, boundRef } = useSlotBinding({
 		enabled,
@@ -100,7 +105,8 @@ export function useComposerSuggestions(
 		return () => clearTimeout(timer);
 	}, [local.pendingSince, local.readyAt, local.staleUntil, now]);
 
-	const sentPrompt = local.sent?.prompt;
+	const sent = local.sent;
+	const sentPrompt = sent?.prompt;
 	const queuedSent = useMemo(
 		() =>
 			sentPrompt === undefined
@@ -112,10 +118,14 @@ export function useComposerSuggestions(
 	);
 	const sentMessage = useMemo(
 		() =>
-			sentPrompt === undefined
+			sent === undefined
 				? undefined
-				: findSentMessage(options.messages, sentPrompt),
-		[options.messages, sentPrompt],
+				: findSentMessage(
+						options.messages,
+						sent.prompt,
+						sendSnapshotRef.current.runCount,
+					),
+		[options.messages, sent],
 	);
 	const canUndo = Boolean(queuedSent || sentMessage);
 	const queued = options.promptsInQueue.length;
@@ -179,6 +189,7 @@ export function useComposerSuggestions(
 		lastSkip,
 		setLastSkip,
 		setSendingItemId,
+		sendSnapshotRef,
 	});
 	const undoSent = useUndoSent({
 		status,
@@ -187,6 +198,7 @@ export function useComposerSuggestions(
 		localRef,
 		latest,
 		dispatch,
+		sendSnapshotRef,
 	});
 
 	return useMemo<ComposerSuggestionsController>(

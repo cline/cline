@@ -197,6 +197,7 @@ describe("useSuggestionTrayKeys", () => {
 		expect(event.defaultPrevented).toBe(true);
 		expect(tray.options().onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
 		expect(tray.composer().value).toBe(SENT_PROMPT);
+		expect(tray.options().onAttachFiles).not.toHaveBeenCalled();
 		expect(actions("undo")).toEqual([]);
 		expect(tray.options().onUndoTurn).not.toHaveBeenCalled();
 	});
@@ -271,6 +272,85 @@ describe("useSuggestionTrayKeys", () => {
 		expect(toastMock).toHaveBeenCalledWith(
 			expect.objectContaining({ title: NOT_TAKEN_BACK }),
 		);
+	});
+
+	it("Ctrl+3 forks from a sent prompt that went with a file, never an earlier copy", async () => {
+		const onUndoTurn = vi.fn(async () => undefined);
+		const abort = vi.fn(async () => undefined);
+		const earlierTurns = [
+			userMessage("m-earlier", SENT_PROMPT, 1),
+			userMessage("m-between", "Now add a changelog entry", 2),
+		];
+		const tray = await mountReady({
+			abort,
+			onUndoTurn,
+			messages: earlierTurns,
+		});
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			status: "running",
+			messages: [
+				...earlierTurns,
+				userMessage("m-sent", `${SENT_PROMPT}\n\n[attached 1 file]`, 3),
+			],
+		});
+
+		await press(tray.composer(), UNDO);
+		await tray.update({ status: "cancelled" });
+		await settle(100);
+
+		expect(abort).toHaveBeenCalledTimes(1);
+		expect(onUndoTurn).toHaveBeenCalledTimes(1);
+		expect(onUndoTurn).toHaveBeenCalledWith("m-sent", SENT_PROMPT, 3);
+	});
+
+	it("Ctrl+3 is inert while only an earlier copy of the sent prompt exists", async () => {
+		const onUndoTurn = vi.fn(async () => undefined);
+		const abort = vi.fn(async () => undefined);
+		const tray = await mountReady({
+			abort,
+			onUndoTurn,
+			messages: [
+				userMessage("m-earlier", SENT_PROMPT, 1),
+				userMessage("m-between", "Now add a changelog entry", 2),
+			],
+		});
+		await sendFirstSuggestion(tray);
+		await tray.update({ status: "running" });
+
+		const event = await press(tray.composer(), UNDO);
+
+		expect(event.defaultPrevented).toBe(false);
+		expect(
+			tray.container.querySelector('[data-testid="suggestion-undo"]'),
+		).toBeNull();
+		expect(abort).not.toHaveBeenCalled();
+		expect(actions("undo")).toEqual([]);
+		expect(onUndoTurn).not.toHaveBeenCalled();
+	});
+
+	it("Ctrl+3 takes back a queued sent prompt that went with a file, and puts the file back", async () => {
+		const notes = new File(["hello"], "notes.txt");
+		const tray = await mountReady({ pendingAttachments: [notes] });
+		await sendFirstSuggestion(tray);
+		await tray.update({
+			pendingAttachments: [],
+			promptsInQueue: [
+				{
+					id: "q1",
+					prompt: `${SENT_PROMPT}\n\n[attached 1 file]`,
+					steer: false,
+				},
+			],
+		});
+
+		await press(tray.composer(), UNDO);
+
+		expect(tray.options().onRemoveQueuedPrompt).toHaveBeenCalledWith("q1");
+		expect(tray.composer().value).toBe(SENT_PROMPT);
+		expect(tray.options().onAttachFiles).toHaveBeenCalledExactlyOnceWith([
+			notes,
+		]);
 	});
 
 	it("takes a queued sent prompt back once when Undo is pressed again while the removal is in flight", async () => {

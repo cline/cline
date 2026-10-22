@@ -77,6 +77,7 @@ export function runSuggestionVerb(
 			controller.use(view.highlighted, input, composer);
 			return true;
 		case "send":
+			if (view.canSend && composer.refusesSend()) return true;
 			void controller.send(view, input);
 			return true;
 		case "skip":

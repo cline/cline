@@ -43,6 +43,7 @@ export type SuggestionTrayProps = {
 	suggestions: ComposerSuggestionsController;
 	draft: string;
 	setDraft: (value: string) => void;
+	refusesSend: () => boolean;
 	composerInputRef: RefObject<HTMLTextAreaElement | null>;
 	/** The slash or @ menu is open over the message box; the tray steps aside. */
 	composerMenuOpen: boolean;
@@ -156,6 +157,7 @@ export function SuggestionTray({
 	suggestions,
 	draft,
 	setDraft,
+	refusesSend,
 	composerInputRef,
 	composerMenuOpen,
 }: SuggestionTrayProps) {
@@ -176,6 +178,8 @@ export function SuggestionTray({
 	draftRef.current = draft;
 	const setDraftRef = useRef(setDraft);
 	setDraftRef.current = setDraft;
+	const refusesSendRef = useRef(refusesSend);
+	refusesSendRef.current = refusesSend;
 	const factsRef = useRef({ width, menuOpen: composerMenuOpen, dialogOpen });
 	factsRef.current = { width, menuOpen: composerMenuOpen, dialogOpen };
 	const movedByKeyRef = useRef(false);
@@ -196,6 +200,7 @@ export function SuggestionTray({
 					input.setSelectionRange(end, end);
 				}, 0);
 			},
+			refusesSend: () => refusesSendRef.current(),
 		}),
 		[composerInputRef],
 	);

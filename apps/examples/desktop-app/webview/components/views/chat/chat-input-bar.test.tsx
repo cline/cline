@@ -3459,23 +3459,27 @@ describe("ChatInputBar suggestion tray", () => {
 		prompt = "",
 		promptVersion = 0,
 		onSend = vi.fn(),
+		attachments = [],
+		model = "test-model",
 	}: {
 		suggestions: ComposerSuggestionsController;
 		variant?: "conversation" | "welcome";
 		prompt?: string;
 		promptVersion?: number;
 		onSend?: (prompt: string) => void;
+		attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
+		model?: string;
 	}) {
 		await act(async () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
-						attachments={[]}
+						attachments={attachments}
 						environmentId="local"
 						executionTarget="local"
 						gitBranch="main"
 						mode="act"
-						model="test-model"
+						model={model}
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={vi.fn()}
@@ -3611,6 +3615,95 @@ describe("ChatInputBar suggestion tray", () => {
 		expect(suggestions.submitted.mock.invocationCallOrder[0]).toBeLessThan(
 			onSend.mock.invocationCallOrder[0] ?? 0,
 		);
+	});
+
+	it("refuses the tray's Send, with the composer's reason, while the composer would refuse its own", async () => {
+		const suggestions = stubSuggestions();
+		const attachments = [{ id: "image", name: "photo.png", isImage: true }];
+		await renderWithSuggestions({
+			suggestions,
+			attachments,
+			model: "text-only",
+		});
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{ id: "text-only", name: "Text only", inputModalities: ["text"] },
+			]);
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[data-testid="suggestion-legend"] button[data-verb="send"]',
+				)
+				?.click();
+		});
+		await act(async () => {
+			container.querySelector("textarea")?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					cancelable: true,
+					code: "Digit1",
+					key: "!",
+					ctrlKey: true,
+					shiftKey: true,
+				}),
+			);
+		});
+
+		expect(suggestions.send).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledTimes(2);
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "This model doesn’t support image input",
+			}),
+		);
+		expect(container.textContent).toContain("photo.png");
+
+		await renderWithSuggestions({
+			suggestions,
+			attachments: [],
+			model: "text-only",
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[data-testid="suggestion-legend"] button[data-verb="send"]',
+				)
+				?.click();
+		});
+
+		expect(suggestions.send).toHaveBeenCalledTimes(1);
+	});
+
+	it("refuses the tray's Send while dictation is filling the box", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		const suggestions = stubSuggestions();
+		await renderWithSuggestions({ suggestions });
+		await vi.waitFor(() => {
+			expect(speechInputMockState.current).not.toBeNull();
+		});
+		await act(async () => {
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[data-testid="suggestion-legend"] button[data-verb="send"]',
+				)
+				?.click();
+		});
+
+		expect(suggestions.send).not.toHaveBeenCalled();
 	});
 
 	describe("one-key Send", () => {

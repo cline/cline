@@ -567,13 +567,23 @@ function ChatInputBarImpl({
 			steeringPromptRef.current = false;
 		}
 	};
-	const handleSend = useCallback(() => {
-		if (speechInputActive || readOnly) return;
+	const composerRefusesSend = useCallback(() => {
+		if (speechInputActive || readOnly) return true;
 		if (unsupportedDraftImageCount > 0) {
 			reportUnsupportedImages();
-			return;
+			return true;
 		}
-		if (needsCloudRepository || needsCloudModel) return;
+		return needsCloudRepository || needsCloudModel;
+	}, [
+		needsCloudRepository,
+		needsCloudModel,
+		readOnly,
+		speechInputActive,
+		unsupportedDraftImageCount,
+		reportUnsupportedImages,
+	]);
+	const handleSend = useCallback(() => {
+		if (composerRefusesSend()) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -586,18 +596,7 @@ function ChatInputBarImpl({
 		suggestions?.submitted(prompt);
 		setPromptInput("");
 		onSend(prompt);
-	}, [
-		needsCloudRepository,
-		needsCloudModel,
-		readOnly,
-		onSend,
-		promptInput,
-		setPromptInput,
-		speechInputActive,
-		suggestions,
-		unsupportedDraftImageCount,
-		reportUnsupportedImages,
-	]);
+	}, [composerRefusesSend, onSend, promptInput, setPromptInput, suggestions]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -1708,6 +1707,7 @@ function ChatInputBarImpl({
 					composerInputRef={promptInputRef}
 					composerMenuOpen={slashOpen || mentionOpen}
 					draft={promptInput}
+					refusesSend={composerRefusesSend}
 					setDraft={setPromptInput}
 					suggestions={suggestions}
 				/>

@@ -21,6 +21,7 @@ export type SuggestionComposer = {
 	draft(): string;
 	setDraft(value: string): void;
 	focus(): void;
+	refusesSend(): boolean;
 };
 
 /** What the tray's view depends on that only the composer knows. */
@@ -45,6 +46,10 @@ export type ComposerSuggestionsOptions = {
 	waiting: boolean;
 	messages: ChatMessage[];
 	promptsInQueue: readonly PromptInQueue[];
+	/** The files the composer's next send carries. */
+	pendingAttachments: readonly File[];
+	/** Puts files back on the composer, as a send that never left does. */
+	onAttachFiles: (files: File[]) => void;
 	/** Submits a one-key Send's prompt. It never came from the box, which may hold text typed during the verdict wait, so the box stays as it is. */
 	onSend: (prompt: string) => void;
 	/** Forks the session from before `runCount` with `content` as the new draft. */
