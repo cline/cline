@@ -210,6 +210,156 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it.each([
+		750, 2000,
+	])("bounds a pending organization lookup by the %ims discovery budget", async (timeoutMs) => {
+		vi.useFakeTimers();
+		const getOrganization = vi
+			.fn<() => Promise<string | undefined>>()
+			.mockResolvedValue("org-one");
+		const f = fixture({ getActiveOrganizationId: getOrganization });
+		let release!: (organizationId: string | undefined) => void;
+		let discovering: Promise<Record<string, unknown>[]> | undefined;
+		try {
+			await f.controller.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			});
+			await f.controller.listForDiscovery();
+			getOrganization.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						release = resolve;
+					}),
+			);
+			let settled = false;
+			discovering = f.controller
+				.listForDiscovery({ timeoutMs })
+				.then((rows) => {
+					settled = true;
+					return rows;
+				});
+			await vi.advanceTimersByTimeAsync(timeoutMs);
+			expect(settled).toBe(true);
+			expect(await discovering).toEqual([]);
+		} finally {
+			release?.("org-two");
+			await vi.runAllTimersAsync();
+			await discovering;
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("shares one discovery budget between organization resolution and listing", async () => {
+		vi.useFakeTimers();
+		let resolveOrganization!: (organizationId: string) => void;
+		const f = fixture({
+			getActiveOrganizationId: () =>
+				new Promise((resolve) => {
+					resolveOrganization = resolve;
+				}),
+		});
+		let resolveListing!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveListing = resolve;
+				}),
+		);
+		let settled = false;
+		const discovering = f.controller
+			.listForDiscovery({ timeoutMs: 750 })
+			.then((rows) => {
+				settled = true;
+				return rows;
+			});
+		try {
+			await vi.advanceTimersByTimeAsync(650);
+			resolveOrganization("org-two");
+			await vi.advanceTimersByTimeAsync(100);
+			expect(settled).toBe(true);
+			expect(await discovering).toEqual([]);
+		} finally {
+			resolveListing([]);
+			await vi.runAllTimersAsync();
+			await discovering;
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not reuse another organization's listing while the new listing times out", async () => {
+		let organizationId = "org-one";
+		const f = fixture({ getActiveOrganizationId: async () => organizationId });
+		try {
+			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+			organizationId = "org-two";
+			let finish!: (rows: CloudSessionRecord[]) => void;
+			f.api.list.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+			expect(await f.controller.listForDiscovery({ timeoutMs: 0 })).toEqual([]);
+			finish([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("starts discovery in the new organization without joining an old organization's pending listing", async () => {
+		let organizationId = "org-one";
+		const f = fixture({ getActiveOrganizationId: async () => organizationId });
+		let finish!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const oldListing = f.controller.listForDiscovery();
+		try {
+			await vi.waitFor(() =>
+				expect(f.api.list).toHaveBeenCalledWith("org-one"),
+			);
+			organizationId = "org-two";
+			f.api.list.mockResolvedValue([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+		} finally {
+			finish([structuredClone(record)]);
+			await oldListing;
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		undefined,
+		"org-one",
+	])("keeps newly created fallback rows in their creation scope (%s)", async (initialOrganization) => {
+		let organizationId: string | undefined = initialOrganization;
+		const f = fixture({ getActiveOrganizationId: async () => organizationId });
+		f.api.list.mockResolvedValue([]);
+		try {
+			await f.controller.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			});
+			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+			organizationId = initialOrganization ? undefined : "org-two";
+			await f.controller.refreshOrganization();
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+			// The original task and first-task preferences survive a sidebar scope change.
+			expect(f.controller.getCachedDiscoveryRecord(record.id)).toBeDefined();
+			organizationId = initialOrganization;
+			await f.controller.refreshOrganization();
+			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
 	it("refreshes an attached session title after an external rename", async () => {
 		const f = await attached();
 		await f.controller.updateTitle(record.id, "Desktop title");
@@ -879,6 +1029,45 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(accepted()).toHaveLength(1);
 		await f.controller.dispose();
 	});
+	it("prevents dispatch if beforeDispatch throws", async () => {
+		const f = await attached();
+		const previousTitle = f.controller.getSnapshot(record.id)?.title;
+		try {
+			await expect(
+				f.controller.send(
+					record.id,
+					"unsent",
+					undefined,
+					undefined,
+					undefined,
+					{
+						beforeDispatch: () => {
+							throw new Error("disk full");
+						},
+					},
+				),
+			).rejects.toThrow("disk full");
+			expect(
+				f.commands.some((command) => command.command === "session.send_input"),
+			).toBe(false);
+			expect(f.api.updateTitle).not.toHaveBeenCalled();
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(previousTitle);
+			expect(
+				f.controller.getSnapshot(record.id)?.record?.title,
+			).toBeUndefined();
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBeUndefined();
+			await f.controller.send(record.id, "accepted prompt");
+			expect(f.api.updateTitle).toHaveBeenCalledExactlyOnceWith(
+				record.id,
+				"accepted prompt",
+			);
+			expect(f.controller.getSnapshot(record.id)?.title).toBe(
+				"accepted prompt",
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("does not confirm a prompt cancelled before dispatch", async () => {
 		const f = await attached();
 		const original = f.command.getMockImplementation()!;
@@ -1088,6 +1277,8 @@ describe("CloudSessionController neutral host contract", () => {
 			autoApproveTools: false,
 			thinking: false,
 			reasoningEffort: "high" as const,
+			mode: "plan" as const,
+			workspaceRelativePath: "packages/app",
 		};
 		try {
 			await f.controller.create({
@@ -1103,7 +1294,13 @@ describe("CloudSessionController neutral host contract", () => {
 					f.commands.find((c) => c.command === "session.create")?.payload,
 				).toMatchObject({
 					metadata: { thinking: false, reasoningEffort: null },
-					sessionConfig: { thinking: false, reasoningEffort: "high" },
+					sessionConfig: {
+						thinking: false,
+						reasoningEffort: "high",
+						mode: "plan",
+						cwd: "/workspace/packages/app",
+					},
+					runtimeOptions: { mode: "plan" },
 				});
 			} else if (action === "discover") {
 				await f.controller.attach(record.id);

@@ -4,7 +4,8 @@ import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
-import { CloudSessionManager, type CloudSessionRecord } from "./cloud-sessions";
+import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
+import type { CloudSessionManager, CloudSessionRecord } from "./cloud-sessions";
 import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
@@ -60,16 +61,17 @@ function readEvents(ctx: SidecarContext): Array<{
 	);
 }
 
-function createSearchCloudManager(
+async function createSearchCloudManager(
 	ctx: SidecarContext,
 	list: () => Promise<CloudSessionRecord[]>,
-): CloudSessionManager {
+): Promise<CloudSessionManager> {
 	vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
-	return new CloudSessionManager(ctx, {
+	await createCloudSessionTestRuntime(ctx, {
 		api: { list } as never,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "token",
 	});
+	return ctx.cloudSessionManager as CloudSessionManager;
 }
 
 function cloudSearchRecord(
@@ -158,6 +160,23 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("reuses the installed session manager when a retried startup only failed its readiness sync", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		updateCapabilitiesMock.mockRejectedValueOnce(new Error("hub busy"));
+
+		await expect(initializeSessionManager(ctx)).rejects.toThrow("hub busy");
+		const installed = ctx.runtimeBindings.get("local");
+		expect(installed).toBeDefined();
+
+		await initializeSessionManager(ctx);
+		expect(createCoreMock).toHaveBeenCalledTimes(1);
+		expect(ctx.runtimeBindings.get("local")).toBe(installed);
+		expect(updateCapabilitiesMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("wires the desktop logger and telemetry through the shared Hub client", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
@@ -242,6 +261,33 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
+	it("records only local observer events, excluding cloud events projected through a local context", async () => {
+		const { createSidecarContext, ensureSharedHubClient, handleHubLiveEvent } =
+			await import("./context");
+		const { getHubStatus } = await import("./hub-admin");
+		const ctx = createSidecarContext("/workspace/project");
+		const client = await ensureSharedHubClient(ctx);
+		const observer = subscribeMock.mock.calls[0][0];
+		observer({
+			event: "hub.client.registered",
+			payload: { displayName: "Local client" },
+		});
+		// CloudSessionManager projects cloud hub events through this same handler
+		// with a local environment context; context identity is not event origin.
+		for (let i = 0; i < 105; i++) {
+			handleHubLiveEvent(ctx, {
+				event: "ui.notify",
+				payload: { title: "Cloud run", body: "Cloud content" },
+			});
+		}
+		const status = await getHubStatus(ctx, client);
+		expect(status.events).toHaveLength(1);
+		expect(status.events[0]).toMatchObject({
+			title: "Client connected",
+			detail: "Local client",
+		});
+	});
+
 	it("returns indexed search results without listing every session", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
@@ -270,7 +316,10 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -323,7 +372,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("cloud-out-of-scope", "generate an image"),
 		]);
 
@@ -368,7 +417,10 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -410,7 +462,10 @@ describe("Code sidecar runtime capabilities", () => {
 				sessionManager: { list } as never,
 				unsubscribeSessionEvents: () => {},
 			});
-			ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
+			ctx.cloudSessionManager = await createSearchCloudManager(
+				ctx,
+				async () => [],
+			);
 
 			const pending = handleCommand(ctx, "search_sessions", {
 				query: "generate",
@@ -448,7 +503,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, list);
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, list);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "UNIQUE-CLOUD-TITLE",
@@ -500,7 +555,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("shared", "match"),
 			cloudSearchRecord("cloud-2", "match second", "2026-01-03T00:00:00.000Z"),
 			cloudSearchRecord("cloud-3", "match third", "2026-01-02T00:00:00.000Z"),
@@ -546,7 +601,7 @@ describe("Code sidecar runtime capabilities", () => {
 				} as never,
 				unsubscribeSessionEvents: () => {},
 			});
-			ctx.cloudSessionManager = createSearchCloudManager(
+			ctx.cloudSessionManager = await createSearchCloudManager(
 				ctx,
 				async () => await new Promise<CloudSessionRecord[]>(() => {}),
 			);
@@ -578,7 +633,7 @@ describe("Code sidecar runtime capabilities", () => {
 			sessionManager: { list: vi.fn(async () => []) } as never,
 			unsubscribeSessionEvents: () => {},
 		});
-		ctx.cloudSessionManager = createSearchCloudManager(
+		ctx.cloudSessionManager = await createSearchCloudManager(
 			ctx,
 			() =>
 				new Promise((resolve) => {
@@ -1545,6 +1600,31 @@ describe("Code sidecar runtime capabilities", () => {
 						status: "pending_approval",
 					},
 				},
+			},
+		]);
+	});
+
+	it.each([
+		"schedule.execution_failed",
+		"schedule.execution_completed",
+	])("forwards %s without requiring an attached session", async (event) => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+		const payload = {
+			scheduleId: "schedule-1",
+			executionId: "execution-1",
+			errorMessage: "getaddrinfo ENOTFOUND api.cline.bot",
+		};
+
+		handleHubLiveEvent(ctx, { event, payload });
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: { name: event, payload: { environmentId: "local", ...payload } },
 			},
 		]);
 	});

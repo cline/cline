@@ -470,6 +470,60 @@ describe("auth/cline loginClineOAuth", () => {
 });
 
 describe("auth/cline completeClineDeviceAuth", () => {
+	it.each([
+		"authorization_pending",
+		"slow_down",
+	])("stops polling during %s when cancelled", async (error) => {
+		const controller = new AbortController();
+		const fetch = vi.fn(
+			async () => new Response(JSON.stringify({ error }), { status: 400 }),
+		);
+		globalThis.fetch = fetch as unknown as typeof globalThis.fetch;
+		const login = completeClineDeviceAuth({
+			deviceCode: "device-code",
+			expiresInSeconds: 300,
+			pollIntervalSeconds: 60,
+			apiBaseUrl: "https://example.test",
+			signal: controller.signal,
+		});
+		const rejected = expect(login).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(fetch).toHaveBeenCalledOnce();
+		controller.abort();
+		await rejected;
+		expect(fetch).toHaveBeenCalledOnce();
+	});
+
+	it("aborts an in-flight polling request", async () => {
+		const controller = new AbortController();
+		let requestSignal: AbortSignal | undefined;
+		globalThis.fetch = vi.fn(async (_url, init) => {
+			requestSignal = init?.signal as AbortSignal;
+			return await new Promise<Response>((_, reject) =>
+				requestSignal?.addEventListener(
+					"abort",
+					() => reject(requestSignal?.reason),
+					{ once: true },
+				),
+			);
+		});
+		const login = completeClineDeviceAuth({
+			deviceCode: "device-code",
+			expiresInSeconds: 300,
+			pollIntervalSeconds: 1,
+			apiBaseUrl: "https://example.test",
+			signal: controller.signal,
+		});
+		const rejected = expect(login).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		controller.abort();
+		await rejected;
+		expect(requestSignal?.aborted).toBe(true);
+	});
+
 	afterEach(() => {
 		vi.restoreAllMocks();
 		globalThis.fetch = ORIGINAL_FETCH;

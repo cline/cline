@@ -1090,10 +1090,12 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		// models.dev, the recommended-models feed via the live catalog, and
 		// the recommended-models feed again for the featured-tier overlay
 		// (separately cached; both caches are cold here).
+		const generatedId = Object.keys(
+			LlmsModels.getGeneratedModelsForProvider("cline-pass"),
+		).find((id) => id.startsWith("cline-pass/"));
 		expect(fetchMock).toHaveBeenCalledTimes(3);
-		expect(models.map((model) => model.id)).toContain(
-			"cline-pass/mimo-v2.5-pro",
-		);
+		expect(generatedId).toBeDefined();
+		expect(models.map((model) => model.id)).toContain(generatedId);
 		expect(models.map((model) => model.id)).not.toContain(
 			"vendor/live-openrouter-model",
 		);
@@ -2009,7 +2011,9 @@ describe("models.json model overlays", () => {
 			expect(provider).toMatchObject({
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
-				defaultModelId: CLINE_DEFAULT_MODEL_ID,
+				defaultModelId:
+					LlmsModels.GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+					CLINE_DEFAULT_MODEL_ID,
 			});
 
 			const { models } = await getLocalProviderModels("cline");

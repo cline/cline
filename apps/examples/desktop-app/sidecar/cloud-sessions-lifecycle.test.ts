@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
 import {
 	type CloudSessionApi,
 	CloudSessionError,
@@ -56,7 +57,7 @@ describe("CloudSessionManager lifecycle", () => {
 		const create = vi.fn(async () => {
 			throw new CloudSessionError("request_failed", message, undefined, 502);
 		});
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: { create } as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -71,7 +72,7 @@ describe("CloudSessionManager lifecycle", () => {
 		expect(create).toHaveBeenCalledOnce();
 	});
 
-	it("projects the outer remote-session id as the desktop session id", () => {
+	it("projects the outer remote-session id as the desktop session id", async () => {
 		expect(
 			cloudSessionToDiscoveryRecord({
 				...REMOTE_SESSION,
@@ -98,7 +99,7 @@ describe("CloudSessionManager lifecycle", () => {
 		});
 	});
 
-	it("treats a live session's future expiredAt as a TTL, not an end time", () => {
+	it("treats a live session's future expiredAt as a TTL, not an end time", async () => {
 		const alive = cloudSessionToDiscoveryRecord({
 			...REMOTE_SESSION,
 			expiredAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -124,7 +125,7 @@ describe("CloudSessionManager lifecycle", () => {
 			prompt: "Fix reconnect behavior\nwith a regression test",
 			attachedViaHub: true,
 		});
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
@@ -151,7 +152,7 @@ describe("CloudSessionManager lifecycle", () => {
 	] as const)("reconciles a %s session without a Hub connection", async (status) => {
 		const { ctx } = createContext();
 		const remote: CloudSessionRecord = { ...REMOTE_SESSION };
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				create: async () => ({
 					sessionId: remote.id,
@@ -216,7 +217,7 @@ describe("CloudSessionManager lifecycle", () => {
 					sandboxUrl: string;
 			  }) => void)
 			| undefined;
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				list: async () => [],
 				create: () => {
@@ -255,7 +256,7 @@ describe("CloudSessionManager lifecycle", () => {
 	it("keeps identical starts from separate chats independent", async () => {
 		const { ctx } = createContext();
 		let createCalls = 0;
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				list: async () => [],
 				create: async () => {
@@ -296,7 +297,7 @@ describe("CloudSessionManager lifecycle", () => {
 				? Promise.reject(new Error("Cloud list unavailable"))
 				: refresh.promise,
 		);
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				create: async () => ({
 					sessionId: "ses-created",
@@ -326,7 +327,6 @@ describe("CloudSessionManager lifecycle", () => {
 				expect.objectContaining({
 					sessionId: "ses-created",
 					origin: "cloud",
-					environmentId: "local",
 					prompt: "Fix this",
 				}),
 			]);
@@ -356,7 +356,7 @@ describe("CloudSessionManager lifecycle", () => {
 			if (result === "ready") return { status: "ready" };
 			throw new CloudSessionError(result, "Status check failed");
 		});
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				create: async () => ({
 					sessionId: "ses-created",
@@ -389,7 +389,7 @@ describe("CloudSessionManager lifecycle", () => {
 		const { ctx } = createContext();
 		let listCalls = 0;
 		let finishRefresh: ((value: CloudSessionRecord[]) => void) | undefined;
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				list: async () => {
 					listCalls += 1;
@@ -420,7 +420,7 @@ describe("CloudSessionManager lifecycle", () => {
 		const branchScopes: Array<string | undefined> = [];
 		let createInput: Record<string, unknown> | undefined;
 		const orgSession = { ...REMOTE_SESSION, id: "ses-org", title: undefined };
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				list: async (organizationId?: string) => {
 					listCalls.push(organizationId);
@@ -473,7 +473,7 @@ describe("CloudSessionManager lifecycle", () => {
 		let cachedScope = serverScope;
 		const lookupOptions: Array<{ fresh?: boolean } | undefined> = [];
 		let createInput: Record<string, unknown> | undefined;
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				list: async () => [],
 				create: async (input: Record<string, unknown>) => {
@@ -508,7 +508,7 @@ describe("CloudSessionManager lifecycle", () => {
 	it("does not silently bill personal credits when account scope lookup fails", async () => {
 		const { ctx } = createContext();
 		let createInput: Record<string, unknown> | undefined;
-		const manager = new CloudSessionManager(ctx, {
+		const manager = await createCloudSessionTestRuntime(ctx, {
 			api: {
 				list: async () => [],
 				create: async (input: Record<string, unknown>) => {

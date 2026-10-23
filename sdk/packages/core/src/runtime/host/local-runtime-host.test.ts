@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import {
@@ -218,6 +219,62 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("uses host connector authentication on startup and resume", async () => {
+		const settings = vi
+			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue(undefined);
+		const request = vi.fn(async () =>
+			Response.json({
+				data: {
+					sessionId: "meta-session",
+					tools: [
+						"COMPOSIO_SEARCH_TOOLS",
+						"COMPOSIO_MANAGE_CONNECTIONS",
+						"COMPOSIO_WAIT_FOR_CONNECTIONS",
+						"COMPOSIO_MULTI_EXECUTE_TOOL",
+					].map((slug) => ({
+						slug,
+						input_parameters: { type: "object", properties: {} },
+					})),
+				},
+			}),
+		);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			connectorsRequest: request,
+		});
+		const start: StartSessionInput = {
+			config: createConfig({
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [] },
+			interactive: true,
+			initialMessages: [{ role: "user", content: "saved conversation" }],
+		};
+		try {
+			const first = await manager.startSession(start);
+			expect(request).toHaveBeenCalledTimes(1);
+			await manager.stopSession(first.sessionId);
+			await manager.startSession({
+				...start,
+				config: { ...start.config, sessionId: first.sessionId },
+			});
+			expect(request).toHaveBeenCalledTimes(2);
+			expect(
+				settings.mock.calls.every(([provider]) => provider !== "cline"),
+			).toBe(true);
+		} finally {
+			await manager.dispose();
+			settings.mockRestore();
 		}
 	});
 
@@ -507,6 +564,80 @@ describe("LocalRuntimeHost", () => {
 				distinct_id: distinctId,
 			}),
 		);
+	});
+
+	it("labels prompts sent during a queued run but not the queued replay", async () => {
+		const sessionId = "sess-queued-input";
+		const capture = vi.fn();
+		const telemetry = { capture, captureRequired: vi.fn() } as never;
+		let busy = false;
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn(() => !busy),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest: createManifest(sessionId),
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ telemetry, sessionId }),
+				interactive: true,
+			}),
+		);
+		const session = (
+			manager as unknown as {
+				sessions: Map<
+					string,
+					{ drainingPendingPrompts: boolean; replayingQueuedPrompt?: boolean }
+				>;
+			}
+		).sessions.get(sessionId);
+		if (!session) throw new Error("session not started");
+		const inputSent = () =>
+			capture.mock.calls
+				.map(([e]) => e)
+				.filter((e) => e.event === "session.input_sent")
+				.map((e) => e.properties);
+
+		// The drain replays a queued prompt: only that input is unlabelled.
+		session.drainingPendingPrompts = true;
+		session.replayingQueuedPrompt = true;
+		await manager.runTurn({ sessionId, prompt: "continue" });
+		// The user reacts while that queued run is busy, and again just as
+		// it goes idle: both are fresh input and stay labelled.
+		busy = true;
+		await manager.runTurn({ sessionId, prompt: "are you stuck?" });
+		busy = false;
+		await manager.runTurn({ sessionId, prompt: "hello?" });
+
+		const [replay, whileBusy, whileIdle] = inputSent();
+		expect(replay).not.toHaveProperty("bumpKind");
+		expect(whileBusy).toMatchObject({ agentBusy: true, bumpKind: "probe" });
+		expect(whileIdle).toHaveProperty("bumpKind");
 	});
 
 	it("resolves OAuth credentials before creating the agent", async () => {
@@ -6473,6 +6604,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(initialMessages),
 				messages: initialMessages,
+				prepareProviderMessagesForApi: vi.fn(
+					async (messages: MessageWithMetadata[]) => messages,
+				),
 			});
 			const compact = vi.fn(
 				options.compact ??
@@ -6701,6 +6835,9 @@ describe("LocalRuntimeHost", () => {
 				shutdown: vi.fn().mockResolvedValue(undefined),
 				getMessages: vi.fn().mockReturnValue(liveMessages),
 				messages: liveMessages,
+				prepareProviderMessagesForApi: vi.fn(
+					async (messages: MessageWithMetadata[]) => messages,
+				),
 			});
 			const manager = new RuntimeHostUnderTest({
 				distinctId,
@@ -6769,6 +6906,12 @@ describe("LocalRuntimeHost", () => {
 					{ role: "user", content: "next" },
 				],
 			});
+			expect(
+				createAgent.mock.results[0]?.value.prepareProviderMessagesForApi,
+			).toHaveBeenCalledWith([
+				{ role: "user", content: "summary" },
+				{ role: "user", content: "next" },
+			]);
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}

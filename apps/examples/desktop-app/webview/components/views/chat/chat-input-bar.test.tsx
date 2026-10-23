@@ -7,6 +7,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -198,6 +199,7 @@ async function renderVoiceComposer({
 	readOnly = false,
 	executionTarget,
 	onAttachFiles = vi.fn(),
+	sessionId,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -211,13 +213,17 @@ async function renderVoiceComposer({
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
+	sessionId?: string;
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					environmentId="local"
+					workspaceRoot="/workspace/cline"
 					readOnly={readOnly}
 					executionTarget={executionTarget}
+					sessionId={sessionId}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
@@ -376,6 +382,162 @@ describe("ChatInputBar draft navigation", () => {
 });
 
 describe("ChatInputBar", () => {
+	it("retains skills and workflows when plugin discovery rejects", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands") throw new Error("hub unavailable");
+			return {
+				runtimeCommands: [
+					{
+						name: "publish-skill",
+						kind: "skill",
+						description: "Publish skill",
+					},
+					{
+						name: "publish-workflow",
+						kind: "workflow",
+						description: "Publish workflow",
+					},
+				],
+			};
+		});
+		await renderVoiceComposer({ prompt: "/publish", executionTarget: "local" });
+		expect(container.textContent).toContain("Publish skill");
+		expect(container.textContent).toContain("Publish workflow");
+	});
+
+	it("re-reads plugin commands when the slash menu reopens after a failure", async () => {
+		let available = false;
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			if (!available) throw new Error("hub connection lost");
+			return {
+				workspacePath: "/workspace/cline",
+				status: "ready",
+				commands: [{ name: "restored", description: "Recovered command" }],
+			};
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Plugin commands unavailable");
+		available = true;
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Recovered command");
+		expect(container.textContent).not.toContain("Plugin commands unavailable");
+	});
+
+	it("does not show another session's plugin commands", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(
+			async (name, payload) => {
+				if (name !== "list_plugin_commands") return {};
+				if ((payload as { sessionId?: string }).sessionId === "session-b")
+					throw new Error("hub connection closed");
+				return {
+					status: "ready",
+					commands: [{ name: "publish-a", description: "Session A plugin" }],
+				};
+			},
+		);
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-a",
+		});
+		expect(container.textContent).toContain("Session A plugin");
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-b",
+		});
+		expect(container.textContent).not.toContain("Session A plugin");
+	});
+
+	it("refreshes commands on reopen without resetting cached suggestions", async () => {
+		const updated = deferred<{
+			runtimeCommands: Array<{
+				name: string;
+				kind: "workflow";
+				description: string;
+			}>;
+		}>();
+		let instructionRequests = 0;
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name === "list_plugin_commands")
+					return {
+						status: "ready",
+						commands: [
+							{ name: "publish-plugin", description: "Plugin suggestion" },
+						],
+					};
+				if (name === "list_user_instruction_configs") {
+					instructionRequests++;
+					return instructionRequests === 1
+						? {
+								runtimeCommands: [
+									{
+										name: "publish-old",
+										kind: "skill",
+										description: "Old skill",
+									},
+								],
+							}
+						: updated.promise;
+				}
+				return {};
+			});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		expect(container.textContent).toContain("Plugin suggestion");
+		expect(instructionRequests).toBe(2);
+		expect(
+			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+		).toHaveLength(2);
+		await act(async () =>
+			updated.resolve({
+				runtimeCommands: [
+					{
+						name: "publish-new",
+						kind: "workflow",
+						description: "New workflow",
+					},
+				],
+			}),
+		);
+		expect(container.textContent).not.toContain("Old skill");
+		expect(container.textContent).toContain("New workflow");
+		expect(container.textContent).toContain("Plugin suggestion");
+	});
+
 	it("prevents sending from a read-only session", async () => {
 		const onSend = vi.fn();
 		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
@@ -634,7 +796,7 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("appends plugin commands after skills and workflows", () => {
+	it("gives plugin commands the same precedence as execution", () => {
 		expect(
 			buildUserInstructionSlashCommands(
 				{
@@ -647,7 +809,7 @@ describe("ChatInputBar", () => {
 				],
 			),
 		).toEqual([
-			{ name: "goal", description: "Skill command" },
+			{ name: "goal", description: "Set or clear a goal" },
 			{ name: "goal-status", description: "Plugin command" },
 		]);
 	});
