@@ -1367,7 +1367,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			"session.mcp_apps.call_tool",
 			{ sessionId, ...request },
 			sessionId,
-			{ timeoutMs: null },
+			{ timeoutMs: null, retryAfterDispatch: false },
 		);
 		if (!reply.ok) {
 			throw new Error(

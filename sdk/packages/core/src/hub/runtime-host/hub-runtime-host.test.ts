@@ -1953,7 +1953,7 @@ describe("HubRuntimeHost MCP Apps commands", () => {
 					arguments: { city: "Lisbon" },
 				},
 				"sess-1",
-				{ timeoutMs: null },
+				{ timeoutMs: null, retryAfterDispatch: false },
 			],
 		]);
 	});
