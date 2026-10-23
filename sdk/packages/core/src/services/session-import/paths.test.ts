@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	claudeCodeProjectsDir,
 	codexHomeDir,
+	cursorUserDir,
 	opencodeDataDir,
 	type SessionImportPathEnvironment,
 } from "./paths";
@@ -45,6 +46,9 @@ describe("Windows session import paths", () => {
 		expect(opencodeDataDir(environment)).toBe(
 			String.raw`C:\Users\Alice\.local\share\opencode`,
 		);
+		expect(cursorUserDir(environment)).toBe(
+			String.raw`C:\Users\Alice\AppData\Roaming\Cursor\User`,
+		);
 	});
 
 	it("falls back to HOMEDRIVE and HOMEPATH", () => {
@@ -55,6 +59,9 @@ describe("Windows session import paths", () => {
 
 		expect(codexHomeDir(environment)).toBe(
 			String.raw`D:\Profiles\Alice\.codex`,
+		);
+		expect(cursorUserDir(environment)).toBe(
+			String.raw`D:\Profiles\Alice\AppData\Roaming\Cursor\User`,
 		);
 	});
 
@@ -73,6 +80,22 @@ describe("Windows session import paths", () => {
 		expect(opencodeDataDir(environment)).toBe(String.raw`E:\XDG Data\opencode`);
 	});
 
+	it("uses APPDATA for the Cursor user dir and falls back to the profile", () => {
+		const withAppData = windowsEnvironment({
+			USERPROFILE: String.raw`C:\Users\Alice`,
+			APPDATA: String.raw`D:\Roaming`,
+		});
+		expect(cursorUserDir(withAppData)).toBe(String.raw`D:\Roaming\Cursor\User`);
+
+		const withoutAppData = windowsEnvironment({
+			USERPROFILE: String.raw`C:\Users\Alice`,
+			APPDATA: " ",
+		});
+		expect(cursorUserDir(withoutAppData)).toBe(
+			String.raw`C:\Users\Alice\AppData\Roaming\Cursor\User`,
+		);
+	});
+
 	it("supports a home at the drive root", () => {
 		const environment = windowsEnvironment({
 			HOMEDRIVE: "D:",
@@ -87,6 +110,9 @@ describe("Windows session import paths", () => {
 		environment.homeDir = String.raw`C:\RuntimeHome`;
 
 		expect(codexHomeDir(environment)).toBe(String.raw`C:\RuntimeHome\.codex`);
+		expect(cursorUserDir(environment)).toBe(
+			String.raw`C:\RuntimeHome\AppData\Roaming\Cursor\User`,
+		);
 	});
 
 	it("preserves whitespace in nonblank overrides", () => {
@@ -119,6 +145,9 @@ describe("Windows session import paths", () => {
 		expect(codexHomeDir(environment)).toBe(String.raw`C:\Users\Alice\.codex`);
 		expect(opencodeDataDir(environment)).toBe(
 			String.raw`C:\Users\Alice\.local\share\opencode`,
+		);
+		expect(cursorUserDir(environment)).toBe(
+			String.raw`C:\Users\Alice\AppData\Roaming\Cursor\User`,
 		);
 	});
 });
@@ -153,6 +182,7 @@ describe("POSIX session import paths", () => {
 		expect(opencodeDataDir(environment)).toBe(
 			"/home/alice/.local/share/opencode",
 		);
+		expect(cursorUserDir(environment)).toBe("/home/alice/.config/Cursor/User");
 	});
 
 	it("uses the home directory for default tool stores", () => {
@@ -165,6 +195,7 @@ describe("POSIX session import paths", () => {
 		expect(opencodeDataDir(environment)).toBe(
 			"/home/alice/.local/share/opencode",
 		);
+		expect(cursorUserDir(environment)).toBe("/home/alice/.config/Cursor/User");
 	});
 
 	it("preserves tool-specific overrides", () => {
@@ -177,5 +208,28 @@ describe("POSIX session import paths", () => {
 		expect(claudeCodeProjectsDir(environment)).toBe("/mnt/claude/projects");
 		expect(codexHomeDir(environment)).toBe("/mnt/codex");
 		expect(opencodeDataDir(environment)).toBe("/mnt/data/opencode");
+	});
+
+	it("uses XDG_CONFIG_HOME for the Cursor user dir and ignores a blank override", () => {
+		expect(
+			cursorUserDir(posixEnvironment({ XDG_CONFIG_HOME: "/mnt/config" })),
+		).toBe("/mnt/config/Cursor/User");
+		expect(cursorUserDir(posixEnvironment({ XDG_CONFIG_HOME: " \t " }))).toBe(
+			"/home/alice/.config/Cursor/User",
+		);
+	});
+});
+
+describe("darwin Cursor paths", () => {
+	it("uses Application Support for the user dir", () => {
+		const environment: SessionImportPathEnvironment = {
+			platform: "darwin",
+			homeDir: "/Users/alice",
+			env: { XDG_CONFIG_HOME: "/mnt/xdg" },
+			joinPath: posix.join,
+		};
+		expect(cursorUserDir(environment)).toBe(
+			"/Users/alice/Library/Application Support/Cursor/User",
+		);
 	});
 });
