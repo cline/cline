@@ -1,3 +1,13 @@
+export type { McpAppToolMeta, McpAppToolVisibility } from "./apps";
+export {
+	createMcpAppsClientCapabilities,
+	getMcpAppToolMeta,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
+	MCP_APP_MIME_TYPE,
+	MCP_APPS_EXTENSION_ID,
+} from "./apps";
 export type {
 	DefaultMcpServerClientFactoryOptions,
 	ProbeMcpServerConnectionOptions,
@@ -66,6 +76,9 @@ export type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpResourceContents,
+	McpResourceReadRequest,
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerClientFactory,
 	McpServerOAuthClientConfig,

@@ -42,17 +42,13 @@ const CLINE_PASS_MODEL_DEFAULTS = {
 	},
 } as const satisfies ModelCapabilities;
 
-function findORModelCapabilities(
+function findModelBySlug(
 	entry: ClineRecommendedModelEntry,
-	openRouterModels: Record<string, ModelInfo>,
-): ModelCapabilities {
-	if (!openRouterModels) {
-		return CLINE_PASS_MODEL_DEFAULTS;
-	}
-
+	modelsByName: Record<string, ModelInfo>,
+): ModelInfo | undefined {
 	const modelSlug = entry.id.split("/").at(-1) ?? entry.id;
 
-	return openRouterModels[modelSlug] || CLINE_PASS_MODEL_DEFAULTS;
+	return modelsByName[modelSlug];
 }
 
 // Cline-Pass models have only the model name (and not the lab),
@@ -71,18 +67,31 @@ function buildModelsNameMap(
 	return nameMap;
 }
 
+/**
+ * Builds the cline/cline-pass catalogs from the recommended-models payload,
+ * borrowing each entry's capabilities from the models.dev catalog. OpenRouter
+ * is the source of truth; Vercel AI Gateway is consulted only for entries
+ * OpenRouter doesn't list at all, since Cline's backend also routes
+ * Vercel-only models (e.g. free promotions).
+ */
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
-	openRouterModels: Record<string, ModelInfo>,
+	providerModels: Record<string, Record<string, ModelInfo>>,
 	options: { includeClineCloudModels?: boolean } = {},
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	const models: Record<string, ModelInfo> = {};
 	const clineModels: Record<string, ModelInfo> = {};
+	const openRouterModels = providerModels.openrouter ?? {};
 	const openRouterModelsByName = buildModelsNameMap(openRouterModels);
+	const vercelModels = providerModels["vercel-ai-gateway"] ?? {};
+	const vercelModelsByName = buildModelsNameMap(vercelModels);
 
 	clinePass.forEach((entry) => {
-		const capabilities = findORModelCapabilities(entry, openRouterModelsByName);
+		const capabilities =
+			findModelBySlug(entry, openRouterModelsByName) ??
+			findModelBySlug(entry, vercelModelsByName) ??
+			CLINE_PASS_MODEL_DEFAULTS;
 
 		models[entry.id] = {
 			// We should use the OR name, unless there is not one (like when using defaults)
@@ -99,8 +108,11 @@ export function normalizeClineRecommendedProviderModels(
 		includeInClinePass: boolean,
 	) => {
 		const capabilities =
-			openRouterModels?.[entry.id] ??
-			findORModelCapabilities(entry, openRouterModelsByName);
+			openRouterModels[entry.id] ??
+			findModelBySlug(entry, openRouterModelsByName) ??
+			vercelModels[entry.id] ??
+			findModelBySlug(entry, vercelModelsByName) ??
+			CLINE_PASS_MODEL_DEFAULTS;
 		// The recommended-models endpoint only sends slug-like names (e.g.
 		// "deepseek-v4-flash"), so prefer the OpenRouter catalog's display name
 		// for every free entry. Without this, the free overlay overwrites the
@@ -172,8 +184,8 @@ export async function fetchClineRecommendedModelsPayload(
 
 export async function fetchClineRecommendedProviderModels(
 	fetcher: typeof fetch = fetch,
-	openRouterModels: Record<string, ModelInfo>,
+	providerModels: Record<string, Record<string, ModelInfo>>,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const payload = await fetchClineRecommendedModelsPayload(fetcher);
-	return normalizeClineRecommendedProviderModels(payload, openRouterModels);
+	return normalizeClineRecommendedProviderModels(payload, providerModels);
 }

@@ -1,4 +1,5 @@
 import { type SpawnOptions, spawn } from "node:child_process";
+import { SKILLS_CLI_PACKAGE } from "@cline/core";
 
 export interface SkillCommandIo {
 	writeln: (text?: string) => void;
@@ -7,9 +8,9 @@ export interface SkillCommandIo {
 
 // `cline skill` is a thin wrapper around the open skills CLI
 // (https://www.npmjs.com/package/skills). We run it through `npx` so users
-// don't need a separate global install. Pin the version here if we ever need to
-// lock behavior to a known-good release.
-const SKILLS_PACKAGE = "skills@latest";
+// don't need a separate global install. The release is pinned in @cline/core
+// (sdk/packages/core/package.json) and bumped by Dependabot.
+const SKILLS_PACKAGE = SKILLS_CLI_PACKAGE;
 
 // Subcommands that write skill files into an agent's skills directory. For a
 // `cline skill` command we default these to Cline unless the user picked their

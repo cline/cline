@@ -271,6 +271,13 @@ describe("normalizeSdkBaseUrl", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
 
+	it("does not append a default path to OpenAI Compatible base URLs", () => {
+		expect(normalizeSdkBaseUrl("openai", "https://example.com")).toBe("https://example.com")
+		expect(normalizeSdkBaseUrl("openai", "http://localhost:8000/")).toBe("http://localhost:8000/")
+		expect(normalizeSdkBaseUrl("openai-compatible", "https://example.com")).toBe("https://example.com")
+		expect(normalizeSdkBaseUrl("openai", "https://example.com/v1")).toBe("https://example.com/v1")
+	})
+
 	it("inherits the AskSage default /server path when the custom URL has no path", () => {
 		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example")).toBe("https://asksage.internal.example/server")
 		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
@@ -1542,6 +1549,39 @@ describe("buildSessionConfig", () => {
 		// instead of a tool it does not have.
 		expect(planConfig.systemPrompt).not.toContain("switch_to_act_mode")
 		expect(planConfig.systemPrompt).toContain("Plan/Act toggle")
+	})
+
+	it("builds a coherent remote runtime model and platform snapshot", async () => {
+		const config = await buildSessionConfig({
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			runtime: {
+				modelSelection: { providerId: "cline", modelId: "fixture-cloud-model" },
+				platform: "linux",
+			},
+		})
+
+		expect(config).toMatchObject({
+			providerId: "cline",
+			modelId: "fixture-cloud-model",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "fixture-cloud-model",
+			},
+			extensionContext: {
+				workspace: {
+					rootPath: "/workspace",
+					cwd: "/workspace",
+					platform: "linux",
+					mode: "act",
+				},
+			},
+		})
+		expect(config.systemPrompt).toContain("# Plan / Act Modes")
 	})
 })
 

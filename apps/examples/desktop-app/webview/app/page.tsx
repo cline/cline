@@ -8,6 +8,7 @@ import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
+	Activity,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -17,7 +18,9 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubStartupScreen } from "@/components/hub-startup-screen";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { QuitHoldHandler } from "@/components/quit-hold-handler";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
@@ -54,11 +57,12 @@ import {
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useHubStartup } from "@/hooks/use-hub-startup";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -90,6 +94,11 @@ import {
 	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "@/lib/image-attachments";
+import {
+	areShortcutsSuspended,
+	matchesAccelerator,
+	useKeybindings,
+} from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
 import {
@@ -141,10 +150,7 @@ import {
 	type WorkIn,
 	writeWorkInToWindow,
 } from "@/lib/work-in-selection";
-import {
-	type RemoteWorkspaceEnvironment,
-	remoteWorkspaceEnvironmentFromContext,
-} from "@/lib/workspace-environment";
+import type { RemoteWorkspaceEnvironment } from "@/lib/workspace-environment";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -299,6 +305,32 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	const startup = useHubStartup();
+	const hubReady =
+		startup.transport === "connected" && startup.hub.state === "ready";
+	// Mount the app once the Hub is first ready, then hide it with Activity
+	// whenever the Hub is not ready. Hidden Activity content keeps its state
+	// (open conversations) but unmounts effects, so its dialogs, including
+	// portaled ones, release focus traps and body pointer-events.
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		if (hubReady) setLoaded(true);
+	}, [hubReady]);
+	return (
+		<>
+			{loaded ? (
+				<Activity mode={hubReady ? "visible" : "hidden"}>
+					<App />
+				</Activity>
+			) : null}
+			{hubReady ? null : <HubStartupScreen {...startup} />}
+			{/* Outside the gate: the startup mismatch check can fire before App mounts. */}
+			<HubUpdateRequiredDialog />
+		</>
+	);
+}
+
+function App() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
 	const { current: promptDrafts } = useRef(new Map<string, string>());
@@ -405,32 +437,27 @@ export default function Home() {
 		void syncDesktopWindowTitle();
 	}, []);
 
-	useEffect(() => {
-		let cancelled = false;
-		const revision = environmentSelectionRevision.current;
-		desktopClient
-			.invoke<ProcessContext>("get_process_context")
-			.then((context) => {
-				if (!cancelled && revision === environmentSelectionRevision.current) {
-					const remoteEnvironment =
-						remoteWorkspaceEnvironmentFromContext(context);
-					setActiveRemoteEnvironment(remoteEnvironment);
-					if (remoteEnvironment) {
-						dispatchApp({
-							type: "select-environment-draft",
-							threadId: makeThreadId(),
-							environmentId: remoteEnvironment.id,
-						});
-					}
+	useRemoteEnvironmentBootstrap(
+		environmentSelectionRevision,
+		useCallback(
+			(
+				remoteEnvironment: RemoteWorkspaceEnvironment | null,
+				isFirstLoad: boolean,
+			) => {
+				setActiveRemoteEnvironment(remoteEnvironment);
+				// Later loads follow a reconnect; a new draft would replace the
+				// conversation that is still open.
+				if (isFirstLoad && remoteEnvironment) {
+					dispatchApp({
+						type: "select-environment-draft",
+						threadId: makeThreadId(),
+						environmentId: remoteEnvironment.id,
+					});
 				}
-			})
-			.catch(() => {
-				// The chat bootstrap reports backend availability separately.
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
+			},
+			[],
+		),
+	);
 
 	useEffect(() => {
 		if (view !== "chat") return;
@@ -758,30 +785,32 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
-	// new session, and Cmd/Ctrl+, for settings.
+	// App shortcuts come from keybindings.json (Settings → Keybindings).
+	const keybindings = useKeybindings();
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (showOnboarding) {
+			if (showOnboarding || areShortcutsSuspended()) {
 				return;
 			}
-			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
-				return;
-			}
-			if (event.key === "n" || event.key === "N") {
+			if (matchesAccelerator(event, keybindings["new-session"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleNewThread();
-			} else if (event.key === "p" || event.key === "P") {
+			} else if (matchesAccelerator(event, keybindings["command-bar"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				setCommandBarOpen((current) => !current);
-			} else if (event.key === ",") {
+			} else if (matchesAccelerator(event, keybindings["open-settings"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleViewChange("settings");
 			}
 		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleNewThread, handleViewChange, showOnboarding]);
+		// Consume app shortcuts before React's local input handlers can act on
+		// the same event (for example, Mod+Enter submitting a prompt).
+		window.addEventListener("keydown", handleKeyDown, true);
+		return () => window.removeEventListener("keydown", handleKeyDown, true);
+	}, [handleNewThread, handleViewChange, keybindings, showOnboarding]);
 	const handleThreadStarted = useCallback(
 		(threadId: string, sessionId?: string) => {
 			dispatchApp({ type: "thread-started", threadId, sessionId });
@@ -856,6 +885,9 @@ export default function Home() {
 					case "open-settings":
 						handleViewChange("settings");
 						break;
+					case "open-keybindings":
+						handleSettingsSectionChange("Keybindings");
+						break;
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
 						break;
@@ -872,7 +904,12 @@ export default function Home() {
 						break;
 				}
 			}),
-		[handleNewThread, handleOpenSessionById, handleViewChange],
+		[
+			handleNewThread,
+			handleOpenSessionById,
+			handleSettingsSectionChange,
+			handleViewChange,
+		],
 	);
 
 	const historyWorkspacePaths = useMemo(
@@ -1055,7 +1092,7 @@ export default function Home() {
 				onOpenChange={setExportDiagnosticsOpen}
 				open={exportDiagnosticsOpen}
 			/>
-			<HubUpdateRequiredDialog />
+			<QuitHoldHandler bindings={keybindings} />
 			{whatsNew ? (
 				<WhatsNewDialog
 					onOpenChange={(open) => {
@@ -1276,20 +1313,8 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
-		// Reflect Settings changes without restarting or switching accounts.
-		const unsubscribe = desktopClient.subscribe(
-			"feature_flags_changed",
-			(payload) => {
-				if (!cancelled) {
-					setCloudAgentsFlagEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			},
-		);
 		return () => {
 			cancelled = true;
-			unsubscribe();
 			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
 		};
 	}, [accountUserId]);
@@ -1767,22 +1792,6 @@ function ChatThreadPane({
 		},
 		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
-
-	// Let the sidecar load the workspace's plugin sandbox now so the slash
-	// menu lists plugin commands without paying the cold spawn on first open.
-	useEffect(() => {
-		if (!activeWorkspaceCwd) {
-			return;
-		}
-		void desktopClient
-			.invoke("warm_plugin_commands", {
-				workspacePath: activeWorkspaceCwd,
-				environmentId,
-			})
-			.catch(() => {
-				// Best effort; the menu falls back to loading on open.
-			});
-	}, [activeWorkspaceCwd, environmentId]);
 
 	useEffect(() => {
 		void refreshGitBranch();
@@ -2533,6 +2542,7 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			sessionId={sessionId}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}

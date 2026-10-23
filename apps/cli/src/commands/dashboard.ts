@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveEmbeddedDashboard } from "../utils/embedded-dashboard";
 import { configureSandboxEnvironment } from "../utils/helpers";
 import open from "../utils/open";
 import { c } from "../utils/output";
@@ -97,47 +97,20 @@ function resolveDefaultWebviewDistDir(): string | undefined {
 	if (process.env[WEBVIEW_DIST_ENV]?.trim()) {
 		return undefined;
 	}
+	const embedded = resolveEmbeddedDashboard();
+	if (embedded) {
+		return embedded;
+	}
 
 	const moduleDir = dirname(fileURLToPath(import.meta.url));
 	const candidates = [
-		...resolveInstalledPlatformPackageWebviewCandidates(),
 		// Source checkout: apps/cli/src/commands/dashboard.ts
 		join(moduleDir, "../../../cline-hub/dist/webview"),
 		// Node bundle: apps/cli/dist/index.js
 		join(moduleDir, "cline-hub/webview"),
-		// Compiled platform package: apps/cli/dist/<platform>/bin/cline
-		join(dirname(process.execPath), "../cline-hub/webview"),
 	];
 
 	return candidates.find((candidate) => existsSync(candidate));
-}
-
-function resolveInstalledPlatformPackageWebviewCandidates(): string[] {
-	const packageName = resolvePlatformPackageName();
-	const starts = [
-		process.env.CLINE_WRAPPER_PATH
-			? dirname(process.env.CLINE_WRAPPER_PATH)
-			: undefined,
-		dirname(process.execPath),
-	].filter((value): value is string => !!value?.trim());
-	const candidates: string[] = [];
-	for (const start of starts) {
-		let current = start;
-		for (;;) {
-			candidates.push(
-				join(current, "node_modules", packageName, "cline-hub/webview"),
-			);
-			const parent = dirname(current);
-			if (parent === current) break;
-			current = parent;
-		}
-	}
-	return candidates;
-}
-
-function resolvePlatformPackageName(): string {
-	const platformName = platform() === "win32" ? "windows" : platform();
-	return `@cline/cli-${platformName}-${arch()}`;
 }
 
 async function startDefaultDashboardServer(): Promise<DashboardServerHandle> {

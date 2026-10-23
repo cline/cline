@@ -119,19 +119,13 @@ vi.mock("./bind-diagnostics", () => ({
 	describeAddressInUse: mockDescribeAddressInUse,
 }));
 
-const { mockAttributeUncaughtError, mockPluginPreload } = vi.hoisted(() => ({
-	mockAttributeUncaughtError: vi.fn(
-		(_error: unknown, _label?: string): unknown => undefined,
-	),
+const { mockPluginPreload } = vi.hoisted(() => ({
 	mockPluginPreload: vi.fn(async () => []),
 }));
 
 vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
 	resolvePluginExecutionMode: () =>
-		process.env.CLINE_PLUGIN_MODE === "sandbox" ||
-		process.env.CLINE_PLUGIN_MODE === "in_process"
-			? process.env.CLINE_PLUGIN_MODE
-			: "worker",
+		process.env.CLINE_PLUGIN_MODE === "sandbox" ? "sandbox" : "worker",
 	resolveAgentPluginPathsWithDiagnostics: () => ({
 		paths: [],
 		disabledPaths: [],
@@ -141,7 +135,6 @@ vi.mock("../../extensions/plugin/plugin-config-loader", () => ({
 
 vi.mock("../../extensions/plugin/plugin-registry", () => ({
 	getProcessPluginRegistry: () => ({
-		attributeUncaughtError: mockAttributeUncaughtError,
 		preload: mockPluginPreload,
 	}),
 }));
@@ -372,65 +365,6 @@ describe("hub daemon entry", () => {
 		});
 	});
 
-	it("keeps running when an uncaught error is attributed to a plugin", async () => {
-		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
-		tempDirs.push(cwd);
-		process.argv = ["node", "entry.js", "--cwd", cwd];
-		const handlers = new Map<string, (reason: unknown) => void>();
-		vi.spyOn(process, "on").mockImplementation(((
-			event: string,
-			handler: (reason: unknown) => void,
-		) => {
-			handlers.set(event, handler);
-			return process;
-		}) as never);
-		const stderr = vi
-			.spyOn(process.stderr, "write")
-			.mockImplementation(() => true);
-		const exitSpy = vi
-			.spyOn(process, "exit")
-			.mockImplementation(() => undefined as never);
-		const pluginError = new Error("plugin went wrong");
-		mockAttributeUncaughtError.mockImplementation((error) =>
-			error === pluginError
-				? {
-						name: "bad-plugin",
-						pluginPath: "/plugins/bad-plugin.ts",
-						state: "failed",
-					}
-				: undefined,
-		);
-
-		const { hubDaemonReady } = await import("./entry");
-		await hubDaemonReady;
-		expect(mockPluginPreload).toHaveBeenCalled();
-
-		handlers.get("unhandledRejection")?.(pluginError);
-		handlers.get("uncaughtException")?.(pluginError);
-		expect(mockAttributeUncaughtError).toHaveBeenCalledWith(
-			pluginError,
-			"unhandledRejection",
-		);
-		expect(mockAttributeUncaughtError).toHaveBeenCalledWith(
-			pluginError,
-			"uncaughtException",
-		);
-		expect(exitSpy).not.toHaveBeenCalled();
-		expect(
-			stderr.mock.calls.some(([line]) =>
-				String(line).includes('from plugin "bad-plugin"'),
-			),
-		).toBe(true);
-
-		// Errors that do not come from a plugin stay fatal.
-		handlers.get("uncaughtException")?.(new Error("hub bug"));
-		await vi.waitFor(() => {
-			expect(exitSpy).toHaveBeenCalledWith(1);
-		});
-		mockAttributeUncaughtError.mockReset();
-		mockAttributeUncaughtError.mockImplementation(() => undefined);
-	});
-
 	it("does not preload plugins in sandbox mode", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
@@ -451,10 +385,7 @@ describe("hub daemon entry", () => {
 		}
 	});
 
-	it.each([
-		"worker",
-		"in_process",
-	])("preloads plugin status in %s mode", async (mode) => {
+	it("preloads plugin status in worker mode", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);
 		process.argv = ["node", "entry.js", "--cwd", cwd];
@@ -462,14 +393,14 @@ describe("hub daemon entry", () => {
 		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 		mockPluginPreload.mockClear();
 		const previous = process.env.CLINE_PLUGIN_MODE;
-		process.env.CLINE_PLUGIN_MODE = mode;
+		delete process.env.CLINE_PLUGIN_MODE;
 		try {
 			const { hubDaemonReady } = await import("./entry");
 			await hubDaemonReady;
 			await new Promise((resolve) => setTimeout(resolve, 10));
-			// Worker mode preloads in throwaway workers, never in the hub.
+			// Preloads in throwaway workers, never in the hub.
 			expect(mockPluginPreload).toHaveBeenCalledWith(
-				expect.objectContaining({ isolation: mode }),
+				expect.objectContaining({ pluginPaths: [] }),
 			);
 		} finally {
 			if (previous === undefined) delete process.env.CLINE_PLUGIN_MODE;

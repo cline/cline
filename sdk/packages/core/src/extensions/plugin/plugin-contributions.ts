@@ -93,15 +93,14 @@ function emptyContributions(
 /**
  * Runs each plugin's `setup` with a collecting API, for settings surfaces
  * that list what plugins contribute without starting a session. Plugins load
- * the same way sessions load them: through the shared registry (in workers
- * by default, or in-process), so failures are recorded there like any
- * other, or through the subprocess sandbox when `CLINE_PLUGIN_MODE=sandbox`.
+ * the same way sessions load them: through the shared registry's workers, so
+ * failures are recorded there like any other, or through the subprocess
+ * sandbox when `CLINE_PLUGIN_MODE=sandbox`.
  */
 export async function collectPluginContributions(
 	input: CollectPluginContributionsInput,
 ): Promise<CollectPluginContributionsResult> {
-	const mode = resolvePluginExecutionMode(input.mode);
-	if (mode === "sandbox") {
+	if (resolvePluginExecutionMode(input.mode) === "sandbox") {
 		return collectSandboxedContributions(input);
 	}
 	const registry = input.registry ?? getProcessPluginRegistry();
@@ -110,7 +109,6 @@ export async function collectPluginContributions(
 		: undefined;
 	const setupFailures = new Map<string, SessionPluginIssue>();
 	const loaded = await registry.loadForSession({
-		isolation: mode,
 		pluginPaths: input.pluginPaths,
 		disabledPluginPaths: input.disabledPluginPaths,
 		discoveryFailures: input.discoveryFailures,

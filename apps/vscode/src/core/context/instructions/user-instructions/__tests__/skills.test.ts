@@ -814,6 +814,38 @@ describe("updateSkillMarkdownDisabledState", () => {
 	})
 })
 
+describe("updateSkillMarkdownDisabledState with the shared source-range editor", () => {
+	const lines = (...parts: string[]) => parts.join("\n")
+
+	it("re-enables a skill whose legacy enabled: false value is on the next line", () => {
+		const input = lines("---", "name: s", "description: d", "disabled: true", "enabled:", "  false", "---", "Body")
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(lines("---", "name: s", "description: d", "---", "Body"))
+	})
+
+	it("leaves matching text inside the description untouched", () => {
+		const input = lines(
+			"---",
+			"name: s",
+			'description: "first',
+			"  disabled: true",
+			'  last"',
+			"disabled: true",
+			"---",
+			"Body",
+		)
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.equal(lines("---", "name: s", 'description: "first', "  disabled: true", '  last"', "---", "Body"))
+		expect(parseYamlFrontmatter(output).data.description).to.equal("first disabled: true last")
+	})
+
+	it("keeps a comment on the disabled entry", () => {
+		const input = lines("---", "name: s", "description: d", "disabled: true # paused for review", "---", "Body")
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(
+			lines("---", "name: s", "description: d", "disabled: false # paused for review", "---", "Body"),
+		)
+	})
+})
+
 describe("setSkillDisabledInFrontmatter", () => {
 	let sandbox: sinon.SinonSandbox
 	let readFileStub: sinon.SinonStub
@@ -832,6 +864,23 @@ describe("setSkillDisabledInFrontmatter", () => {
 	})
 
 	afterEach(() => sandbox.restore())
+
+	it("does not report success when the edit leaves the skill disabled", async () => {
+		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		readFileStub
+			.withArgs(skillPath, "utf-8")
+			.resolves(["---", "name: s", "description: d", "disabled: true", "enabled:", "  false", "---", "Body"].join("\n"))
+
+		const ok = await setSkillDisabledInFrontmatter(skillPath, true)
+
+		if (ok) {
+			const written = String(writeFileStub.firstCall.args[1])
+			const data = parseYamlFrontmatter(written).data
+			expect(data.disabled !== true && data.enabled !== false).to.be.true
+		} else {
+			expect(writeFileStub.called).to.be.false
+		}
+	})
 
 	it("writes disabled: true to the SKILL.md when disabling a disk skill", async () => {
 		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
