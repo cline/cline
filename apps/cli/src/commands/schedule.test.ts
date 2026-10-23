@@ -960,3 +960,145 @@ describe("runScheduleCommand export", () => {
 		}
 	});
 });
+
+describe("runScheduleCommand integer options", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+		mockProviderSettings.lastUsed = undefined;
+		mockProviderSettings.providers = {};
+	});
+
+	const createArgs = [
+		"create",
+		"Health check",
+		"--cron",
+		"0 */6 * * *",
+		"--prompt",
+		"Run tests",
+		"--workspace",
+		"/tmp/workspace",
+		"--address",
+		"127.0.0.1:25463",
+	];
+
+	async function run(args: string[]): Promise<{
+		code: number;
+		errors: string[];
+	}> {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		const errors: string[] = [];
+		const code = await runScheduleCommand(args, {
+			writeln: () => {},
+			writeErr: (text: string) => {
+				errors.push(text);
+			},
+		});
+		return { code, errors };
+	}
+
+	it.each([
+		"1h",
+		"abc",
+		"0",
+		"1.5",
+	])("rejects create --timeout %j instead of falling back to 1", async (value) => {
+		const { code, errors } = await run([...createArgs, "--timeout", value]);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			`invalid integer value "${value}" (expected integer >= 1)`,
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it("rejects create --max-parallel with a numeric prefix", async () => {
+		const { code, errors } = await run([...createArgs, "--max-parallel", "2x"]);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			'invalid integer value "2x" (expected integer >= 1)',
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it("keeps valid create timeout and max-parallel values", async () => {
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_123" } },
+		});
+
+		const { code, errors } = await run([
+			...createArgs,
+			"--timeout",
+			"600",
+			"--max-parallel",
+			"3",
+		]);
+
+		expect(code).toBe(0);
+		expect(errors).toEqual([]);
+		expect(mockHubClientCommand).toHaveBeenCalledWith(
+			"schedule.create",
+			expect.objectContaining({ timeoutSeconds: 600, maxParallel: 3 }),
+		);
+	});
+
+	it.each([
+		"abc",
+		"30m",
+	])("rejects update --timeout %j instead of falling back to 1", async (value) => {
+		const { code, errors } = await run([
+			"update",
+			"sched_1",
+			"--timeout",
+			value,
+			"--address",
+			"127.0.0.1:25463",
+		]);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			`invalid integer value "${value}" (expected integer >= 1)`,
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it("rejects update --max-parallel with a numeric prefix", async () => {
+		const { code, errors } = await run([
+			"update",
+			"sched_1",
+			"--max-parallel",
+			"2x",
+			"--address",
+			"127.0.0.1:25463",
+		]);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			'invalid integer value "2x" (expected integer >= 1)',
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["list", "--limit", "10m"],
+		["history", "sched_1", "--limit", "1.5"],
+		["upcoming", "--limit", "1e3"],
+	])("rejects malformed %s limit values instead of using the default", async (...args: string[]) => {
+		const value = args.at(-1) ?? "";
+		const { code, errors } = await run([
+			...args,
+			"--address",
+			"127.0.0.1:25463",
+		]);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual([
+			`invalid integer value "${value}" (expected integer >= 1)`,
+		]);
+		expect(mockHubClientCommand).not.toHaveBeenCalled();
+	});
+});
