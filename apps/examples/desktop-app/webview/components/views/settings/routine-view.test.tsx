@@ -98,6 +98,43 @@ async function mount() {
 }
 
 describe("schedule execution updates", () => {
+	it.each([
+		false,
+		true,
+	])("opens the triggered session after a slow refresh (superseded: %s)", async (superseded) => {
+		const onOpenSession = vi.fn();
+		await act(async () =>
+			root.render(<RoutineSchedulesContent onOpenSession={onOpenSession} />),
+		);
+		await act(async () => vi.advanceTimersByTimeAsync(0));
+		const delayed = Promise.withResolvers<ReturnType<typeof overview>>();
+		invoke
+			.mockResolvedValueOnce({ execution: { executionId: "execution-1" } })
+			.mockReturnValueOnce(delayed.promise)
+			.mockResolvedValue(overview("success"));
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>(
+					'button[aria-label="Run Daily PR summary now"]',
+				)
+				?.click(),
+		);
+		expect(invoke).toHaveBeenCalledWith("trigger_routine_schedule", {
+			schedule_id: schedule.scheduleId,
+		});
+		if (superseded)
+			await act(async () => handlers.get("schedule.execution_completed")?.());
+		await act(async () => vi.advanceTimersByTimeAsync(16_000));
+		const response = {
+			...overview("running"),
+			lastExecutions: [
+				{ ...overview("running").lastExecutions[0], sessionId: "session-new" },
+			],
+		};
+		await act(async () => delayed.resolve(response));
+		expect(onOpenSession).toHaveBeenCalledExactlyOnceWith("session-new");
+		expect(container.textContent).toContain(superseded ? "success" : "running");
+	});
 	it("shows a failure received after loading Pending, even without a session", async () => {
 		await mount();
 		expect(container.textContent).toContain("pending");
