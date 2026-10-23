@@ -78,6 +78,7 @@ import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
+import { KeybindingsContent } from "./keybindings-view";
 import { VoiceInputContent } from "./voice-input-view";
 
 // Nav categories live in ./sections so the always-mounted sidebar can import
@@ -614,6 +615,8 @@ export function SettingsView({
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
+		) : activeNav === "Keybindings" ? (
+			<KeybindingsContent />
 		) : activeNav === "Customize" ? (
 			<CustomizeView
 				onOpenModelProviders={() => onNavigateSection("Providers")}

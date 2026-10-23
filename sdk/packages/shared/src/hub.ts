@@ -621,6 +621,8 @@ export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
+	| "cloud.command"
+	| "cloud.watch"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"
@@ -757,6 +759,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "cloud.event"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"
