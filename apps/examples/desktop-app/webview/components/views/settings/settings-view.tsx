@@ -1,5 +1,5 @@
 import { Switch } from "@cline/ui";
-import { Download, Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +67,8 @@ import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { DebugContent } from "./debug-view";
+import { HubPanel } from "./hub-panel";
 import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
@@ -77,6 +79,7 @@ import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
+import { KeybindingsContent } from "./keybindings-view";
 import { VoiceInputContent } from "./voice-input-view";
 
 // Nav categories live in ./sections so the always-mounted sidebar can import
@@ -616,6 +619,8 @@ export function SettingsView({
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
+		) : activeNav === "Keybindings" ? (
+			<KeybindingsContent />
 		) : activeNav === "Customize" ? (
 			<CustomizeView
 				onOpenModelProviders={() => onNavigateSection("Providers")}
@@ -639,7 +644,9 @@ export function SettingsView({
 		) : activeNav === "About" ? (
 			<AboutContent onOpenConnectors={() => onNavigateSection("Customize")} />
 		) : activeNav === "General" ? (
-			<GeneralSettingsContent onExportDiagnostics={onExportDiagnostics} />
+			<GeneralSettingsContent />
+		) : activeNav === "Debug" ? (
+			<DebugContent onExportDiagnostics={onExportDiagnostics} />
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
@@ -669,11 +676,7 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
 ];
 
-function GeneralSettingsContent({
-	onExportDiagnostics,
-}: {
-	onExportDiagnostics: () => void;
-}) {
+function GeneralSettingsContent() {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
@@ -1084,27 +1087,7 @@ function GeneralSettingsContent({
 						Replay
 					</Button>
 				</div>
-				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
-							Diagnostics
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Export app info, recent logs, and the metadata of sessions you
-							choose as a file you can attach when reporting a problem.
-						</p>
-					</div>
-					<Button
-						className="w-24 shrink-0"
-						onClick={onExportDiagnostics}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Download className="size-3" />
-						Export…
-					</Button>
-				</div>
+				<HubPanel />
 			</section>
 		</PageFrame>
 	);

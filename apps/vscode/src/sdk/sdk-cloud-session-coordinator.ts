@@ -29,7 +29,7 @@ import {
 	isPersistedCloudSessionId,
 	type RememberedCloudStatuses,
 } from "@shared/cloud/cloud-sessions"
-import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { ClineCloudProvisioningInfo, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { ShowMessageType } from "@shared/proto/host/window"
 import {
@@ -109,15 +109,17 @@ const STATUS_RESOLUTION_RETRY_MS = 30_000
 const STATUS_RESOLUTION_CONCURRENCY = 4
 const RECOMMENDED_MODELS_RETRY_MS = 30_000
 
-function provisioningPhaseText(phase: CloudProvisioningPhase, sandboxLabel: string): string | undefined {
-	switch (phase) {
-		case "cloning_repo":
-			return `Cloning ${sandboxLabel} into the cloud sandbox…`
-		case "agent_starting":
-			return "Starting the agent in the cloud sandbox…"
-		default:
-			return undefined
+function cloudProvisioningRow(
+	ts: number,
+	phase: ClineCloudProvisioningInfo["phase"],
+	repoContext: { repoUrl?: string; branch?: string },
+): ClineMessage {
+	const info: ClineCloudProvisioningInfo = {
+		phase,
+		repo: repoContext.repoUrl?.replace(/^https:\/\/github\.com\//, ""),
+		branch: repoContext.branch,
 	}
+	return { ts, type: "say", say: "cloud_provisioning", text: JSON.stringify(info), partial: false }
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
@@ -1085,15 +1087,7 @@ export class SdkCloudSessionCoordinator {
 			return true
 		}
 		const title = input.prompt.trim().split("\n")[0]?.trim().slice(0, 120) || input.prompt.trim()
-		const repoLabel = input.repoUrl.replace(/^https:\/\/github\.com\//, "")
-		const sandboxLabel = `${repoLabel}${input.branch ? ` (${input.branch})` : ""}`
-		const provisioningRow = (text: string): ClineMessage => ({
-			ts: startedAt + 1,
-			type: "say",
-			say: "text",
-			text,
-			partial: false,
-		})
+		const provisioningRow = (phase: ClineCloudProvisioningInfo["phase"]) => cloudProvisioningRow(startedAt + 1, phase, input)
 		const provisioningEvent = { type: "status", payload: { sessionId: provisionalId, status: "running" } } as const
 
 		this.options.messages.appendAndEmit(
@@ -1106,7 +1100,7 @@ export class SdkCloudSessionCoordinator {
 					...(input.images?.length ? { images: input.images } : {}),
 					partial: false,
 				},
-				provisioningRow(`Starting a cloud sandbox for ${sandboxLabel}…`),
+				provisioningRow("starting"),
 			],
 			provisioningEvent,
 		)
@@ -1131,11 +1125,10 @@ export class SdkCloudSessionCoordinator {
 				},
 				cancelSignal,
 				(phase) => {
-					const text = phase === shownPhase ? undefined : provisioningPhaseText(phase, sandboxLabel)
-					if (!text || isStale()) return
+					if (phase === shownPhase || (phase !== "cloning_repo" && phase !== "agent_starting") || isStale()) return
 					shownPhase = phase
 					// Same ts: the progress row is updated in place, not appended.
-					this.options.messages.appendAndEmit([provisioningRow(text)], provisioningEvent)
+					this.options.messages.appendAndEmit([provisioningRow(phase)], provisioningEvent)
 				},
 			)
 			sessionId = record.id
@@ -1428,7 +1421,7 @@ export class SdkCloudSessionCoordinator {
 		const startedAt = Date.now()
 		this.installTask(suspended.id).messageStateHandler.addMessages([
 			{ ts: startedAt, type: "say", say: "task", text: title, partial: false },
-			{ ts: startedAt + 1, type: "say", say: "text", text: "Resuming the cloud sandbox…", partial: false },
+			cloudProvisioningRow(startedAt + 1, "resuming", suspended.repoContext),
 		])
 		await this.options.postStateToWebview()
 		// Opened from History, the chat view (and this notice) stays covered until

@@ -33,10 +33,18 @@ const {
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
 	// Idle by default, so existing replacement cases are unaffected.
-	queryHubSessionActivity: vi.fn(async () => ({
-		activeSessionCount: 0,
-		participantClientCount: 0,
-	})),
+	queryHubSessionActivity: vi.fn(
+		async (): Promise<{
+			activeSessionCount: number;
+			participantClientCount: number;
+			activePluginRequests: number;
+			activeCloudCommands?: number;
+		}> => ({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 0,
+		}),
+	),
 	requestHubDrain: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
@@ -193,6 +201,7 @@ describe("ensureDetachedHubServer", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -349,28 +358,32 @@ describe("ensureDetachedHubServer", () => {
 	});
 
 	it("clears stale discovery when prewarm finds an unreachable discovered hub", async () => {
-		readHubDiscovery.mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "old-token",
-		});
-		probeHubServer
-			.mockResolvedValueOnce(undefined)
-			.mockResolvedValueOnce(undefined);
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+			});
+			probeHubServer
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined);
 
-		const { prewarmDetachedHubServer } = await import(".");
-		prewarmDetachedHubServer("/workspace");
-		await vi.waitFor(() => {
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
-		});
 
-		expect(withHubStartupLock).toHaveBeenCalledWith(
-			"/tmp/hub-discovery.json",
-			expect.any(Function),
-		);
-		expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
-			probeHubServer.mock.invocationCallOrder[0],
-		);
-		expect(spawn).toHaveBeenCalledOnce();
+			expect(withHubStartupLock).toHaveBeenCalledWith(
+				"/tmp/hub-discovery.json",
+				expect.any(Function),
+			);
+			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
+				probeHubServer.mock.invocationCallOrder[0],
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("retries a transient ETXTBSY spawn failure while prewarming the detached daemon", async () => {
@@ -500,6 +513,7 @@ describe("ensureDetachedHubServer", () => {
 			queryHubSessionActivity.mockResolvedValue({
 				activeSessionCount: 1,
 				participantClientCount: 1,
+				activePluginRequests: 0,
 			});
 			readHubDiscovery.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
@@ -545,6 +559,35 @@ describe("ensureDetachedHubServer", () => {
 		} finally {
 			kill.mockRestore();
 		}
+	});
+
+	it("attaches to an older hub that is provisioning a cloud session instead of retiring it", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 0,
+			activeCloudCommands: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "busy-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			pid: 12345,
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+
+		await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "busy-token",
+		});
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
 	});
 
 	it("reuses a healthy hub from a newer build without retiring it", async () => {
@@ -935,6 +978,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 0,
 			participantClientCount: 0,
+			activePluginRequests: 0,
 		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
@@ -961,6 +1005,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 2,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery
 			.mockResolvedValueOnce({
@@ -1022,6 +1067,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 3,
 			participantClientCount: 2,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
@@ -1049,6 +1095,32 @@ describe("upgradeManagedHub", () => {
 			"hub upgrade aborted",
 			{ off: true },
 		);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("leaves a hub provisioning a cloud session running when not forced", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+			activePluginRequests: 0,
+			activeCloudCommands: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 0 });
+
+		expect(result).toMatchObject({ outcome: "still_busy" });
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
 	});
@@ -1156,7 +1228,11 @@ describe("upgradeManagedHub", () => {
 	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {
 		queryHubSessionActivity
 			.mockRejectedValueOnce(new Error("session.list timed out"))
-			.mockResolvedValue({ activeSessionCount: 2, participantClientCount: 1 });
+			.mockResolvedValue({
+				activeSessionCount: 2,
+				participantClientCount: 1,
+				activePluginRequests: 0,
+			});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "old-token",
@@ -1262,6 +1338,7 @@ describe("upgradeManagedHub", () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,
 			participantClientCount: 1,
+			activePluginRequests: 0,
 		});
 		readHubDiscovery.mockResolvedValueOnce({
 			url: "ws://127.0.0.1:25463/hub",

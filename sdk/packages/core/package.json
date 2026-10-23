@@ -95,7 +95,8 @@
 		"@microsoft/mxc-sdk": "^1.0.0",
 		"@types/proxy-from-env": "^1.0.4",
 		"@types/ws": "^8.18.1",
-		"posthog-node": "^5.8.0"
+		"posthog-node": "^5.8.0",
+		"skills": "1.7.2"
 	},
 	"engines": {
 		"node": ">=22"
