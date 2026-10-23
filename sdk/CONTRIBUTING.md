@@ -143,7 +143,7 @@ Nightly release:
 gh workflow run cli-publish.yml -f publish_target=nightly
 ```
 
-Nightly also runs on a schedule. It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
+Nightly is manual only (no schedule). It publishes `X.Y.Z-nightly.TIMESTAMP` to npm with the `nightly` dist-tag and skips if there were no commits in the last 24 hours unless forced.
 
 ### Manual SDK Publish
 
@@ -185,7 +185,7 @@ bun pm ls @cline/core @cline/agents @cline/llms
 
 ### CI
 
-The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
+The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch only. Every CLI and SDK publish job waits for a reviewer to approve the run in the `PublishNPM` GitHub environment.
 
 ### Root Automation Scope
 
