@@ -213,7 +213,7 @@ export function useCloudSessions(input: {
 	]);
 
 	const toggleTarget = useCallback(() => {
-		if (sessionIdRef.current) {
+		if (sessionIdRef.current || sessionStatus) {
 			showToast(
 				"This chat runs in Cline Cloud. Clear it (Ctrl+L) to work locally.",
 			);
@@ -229,7 +229,7 @@ export function useCloudSessions(input: {
 		}
 		setTarget("cloud");
 		if (!selection) void pickRepository();
-	}, [pickRepository, selection, showToast, target]);
+	}, [pickRepository, selection, sessionStatus, showToast, target]);
 
 	const applySnapshot = useCallback(
 		(snapshot: CloudSessionSnapshot) => {
@@ -366,7 +366,8 @@ export function useCloudSessions(input: {
 		/** Prompts go to Cline Cloud rather than the local agent. */
 		active: !!client && target === "cloud",
 		hasRepository: !!selection,
-		hasSession: !!sessionId,
+		/** True from the first cloud submit, including while the sandbox is created. */
+		hasSession: !!sessionId || sessionStatus !== undefined,
 		toggleTarget: client ? toggleTarget : undefined,
 		pickRepository,
 		submit,
