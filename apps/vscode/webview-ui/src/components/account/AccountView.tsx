@@ -18,7 +18,7 @@ import { AccountWelcomeView } from "./AccountWelcomeView"
 import { ClinePassCard } from "./ClinePassCard"
 import { CreditBalance } from "./CreditBalance"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { convertProtoUsageTransactions, getClineUris, getMainRole } from "./helpers"
+import { convertProtoUsageTransactions, getClineUris, getMainRole, getPrivacySettingsUrl } from "./helpers"
 import { RemoteConfigToggle } from "./RemoteConfigToggle"
 
 type AccountViewProps = {
@@ -83,7 +83,9 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 	const activeAccount = useRef(dropdownValue)
 	activeAccount.current = dropdownValue
 	const isClineTester = useMemo(() => (email ? isClineInternalTester(email) : false), [email])
-	const clineUrl = appBaseUrl || "https://app.cline.bot"
+	const privacySettingsUrl = getPrivacySettingsUrl(clineUser)
+	const dashboardUrl = getClineUris(appBaseUrl, "dashboard")
+	const creditsUrl = getClineUris(appBaseUrl, "credits", dropdownValue === uid ? "account" : "organization")
 
 	const fetchCreditBalance = useCallback(
 		async (accountId: string) => {
@@ -207,14 +209,21 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 					<div className="w-full min-[225px]:w-1/2">
-						<VSCodeButtonLink appearance="primary" className="w-full" href={getClineUris(clineUrl, "dashboard").href}>
-							Dashboard
-						</VSCodeButtonLink>
+						{dashboardUrl && (
+							<VSCodeButtonLink appearance="primary" className="w-full" href={dashboardUrl}>
+								Dashboard
+							</VSCodeButtonLink>
+						)}
 					</div>
 					<VSCodeButton appearance="secondary" className="w-full min-[225px]:w-1/2" onClick={() => handleSignOut()}>
 						Log out
 					</VSCodeButton>
 				</div>
+				{privacySettingsUrl && (
+					<VSCodeButtonLink appearance="secondary" className="w-full mt-2" href={privacySettingsUrl}>
+						Privacy settings
+					</VSCodeButtonLink>
+				)}
 
 				<VSCodeDivider className="w-full my-6" />
 
@@ -226,7 +235,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<CreditBalance
 					balance={balance}
-					creditUrl={getClineUris(clineUrl, "credits", dropdownValue === uid ? "account" : "organization")}
+					creditUrl={creditsUrl}
 					fetchCreditBalance={() => fetchCreditBalance(dropdownValue)}
 					isLoading={isLoading || !!accountSwitch}
 					lastFetchTime={lastFetchTime}

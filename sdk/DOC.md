@@ -496,3 +496,44 @@ run returns.
 No message text leaves the client: `textSignature` and `session.input_sent`'s
 `bumpKind` are enums computed locally
 (`packages/core/src/services/telemetry/stall-signals.ts`).
+
+## Dashboard links
+
+`getClineDashboardUrl(path, appBaseUrl, client)` from `@cline/shared` (also
+exported for browsers) resolves a path into the Cline web app and attributes the
+client that opened it with `client=<ClientName>`, where `ClientName` is the type
+in `extensions/context.ts` (`cline-cli`, `cline-vscode`, `cline-jetbrains`,
+`cline-desktop`). The account views build their web app links with it, so every
+link in one view follows the same app URL and carries the same attribution. Pass
+the client explicitly: `getClineClientIdentity()` is process-local and holds
+display names for request headers (`"VSCode Extension"`), so webviews cannot
+read it.
+
+`new URL(path, base)` drops the base's own query string as soon as a non-empty
+path is supplied, so `client` is appended after the path is resolved; added to
+the base first, it would be lost.
+
+It returns `undefined` when the path or base URL is missing, the base URL is
+unusable, or the result would leave the app's origin, such as an absolute,
+protocol-relative, `javascript:`, `file:` or editor-scheme value. Hosts render no
+link in those cases.
+
+### Privacy settings link
+
+`GET /users/me` returns `dataPrivacyPath`, the Cline web app path where users
+manage their data use and Cline Bench preferences (for example
+`/dashboard/account?tab=privacy`). `ClineAccountUser.dataPrivacyPath` carries it,
+and servers that do not send it leave it undefined. Hosts pass it straight to
+`getClineDashboardUrl`.
+
+Account requests honour a provider `baseUrl` override, so the app URL has to be
+derived from the backend they actually hit rather than from `CLINE_ENVIRONMENT`
+alone. `resolveClineAppBaseUrl(apiBaseUrl)` from `@cline/shared` (also exported
+for browsers) returns the `appBaseUrl` of the environment whose `apiBaseUrl` has
+the same URL origin. It returns `undefined` for a backend no
+environment declares (a proxy or self-hosted host), which makes hosts hide the
+link instead of opening another environment's privacy settings.
+
+Switching the account backend while a host runs is not a supported flow, so a
+host resolves that app URL once at startup and keeps it. A backend change takes
+effect on the next restart.

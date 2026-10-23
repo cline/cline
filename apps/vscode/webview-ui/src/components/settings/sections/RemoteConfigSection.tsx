@@ -1,6 +1,8 @@
+import { getClineDashboardUrl } from "@cline/shared/browser"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
+import { getClineClientName } from "@/components/account/helpers"
 import { RemoteConfigToggle } from "@/components/account/RemoteConfigToggle"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -283,7 +285,12 @@ function PromptUploadingSection() {
 
 export function RemoteConfigSection({ renderSectionHeader }: RemoteConfigSectionProps) {
 	const { remoteConfigSettings, optOutOfRemoteConfig, remoteConfigAvailable } = useExtensionState()
-	const { activeOrganization } = useClineAuth()
+	const { clineUser, activeOrganization } = useClineAuth()
+	const organizationSettingsUrl = getClineDashboardUrl(
+		"dashboard/organization?tab=settings",
+		clineUser?.appBaseUrl,
+		getClineClientName(),
+	)
 
 	if (optOutOfRemoteConfig && remoteConfigAvailable) {
 		return (
@@ -302,8 +309,13 @@ export function RemoteConfigSection({ renderSectionHeader }: RemoteConfigSection
 			<BaseRemoteConfigSection renderSectionHeader={renderSectionHeader}>
 				<div className="flex flex-col justify-center gap-4">
 					<h3>
-						You haven't configured remote config yet. Do so through our{" "}
-						<VSCodeLink href="https://app.cline.bot/dashboard/organization?tab=settings">dashboard</VSCodeLink>.
+						You haven't configured remote config yet.
+						{organizationSettingsUrl && (
+							<>
+								{" "}
+								Do so through our <VSCodeLink href={organizationSettingsUrl}>dashboard</VSCodeLink>.
+							</>
+						)}
 					</h3>
 
 					<RefreshButton />

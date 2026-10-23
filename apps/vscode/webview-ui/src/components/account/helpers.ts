@@ -1,5 +1,12 @@
+import type { ClientName } from "@cline/shared/browser"
+import { getClineDashboardUrl } from "@cline/shared/browser"
 import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/ClineAccount"
 import type { UsageTransaction as ProtoUsageTransaction, UserOrganization } from "@shared/proto/cline/account"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import type { ClineUser } from "@/context/ClineAuthContext"
+
+export const getClineClientName = (): ClientName =>
+	PLATFORM_CONFIG.type === PlatformType.STANDALONE ? "cline-jetbrains" : "cline-vscode"
 
 export const getMainRole = (roles?: string[]) => {
 	if (!roles) {
@@ -16,18 +23,12 @@ export const getMainRole = (roles?: string[]) => {
 	return "Member"
 }
 
-export const getClineUris = (base: string, type: "dashboard" | "credits", route?: "account" | "organization") => {
-	const dashboard = new URL("dashboard", base)
-
-	if (type === "dashboard") {
-		return dashboard
-	}
-
-	const credits = new URL("/" + (route ?? "account"), dashboard)
-	credits.searchParams.set("tab", "credits")
-	credits.searchParams.set("redirect", "true")
-	return credits
-}
+export const getClineUris = (base: string | undefined, type: "dashboard" | "credits", route?: "account" | "organization") =>
+	getClineDashboardUrl(
+		type === "dashboard" ? "dashboard" : `/dashboard/${route ?? "account"}?tab=credits&redirect=true`,
+		base,
+		getClineClientName(),
+	)
 
 /**
  * Converts a protobuf UsageTransaction to a ClineAccount UsageTransaction
@@ -51,6 +52,9 @@ function convertProtoUsageTransaction(protoTransaction: ProtoUsageTransaction): 
 export function convertProtoUsageTransactions(protoTransactions: ProtoUsageTransaction[]): ClineAccountUsageTransaction[] {
 	return protoTransactions.map(convertProtoUsageTransaction)
 }
+
+export const getPrivacySettingsUrl = (user: Pick<ClineUser, "appBaseUrl" | "dataPrivacyPath"> | null) =>
+	getClineDashboardUrl(user?.dataPrivacyPath, user?.appBaseUrl, getClineClientName())
 
 export const isAdminOrOwner = (activeOrg: UserOrganization): boolean => {
 	return activeOrg.roles.findIndex((role) => role === "admin" || role === "owner") > -1

@@ -262,6 +262,83 @@ describe("loadClineAccountSnapshot", () => {
 			expect.any(Object),
 		);
 	});
+
+	it("links to the web app's privacy settings in the configured environment", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		const { getClineEnvironmentConfig } = await import("@cline/shared");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "harrison@cline.bot",
+			displayName: "Harrison",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		const appOrigin = new URL(getClineEnvironmentConfig().appBaseUrl).origin;
+		expect(snapshot.privacySettingsUrl).toBe(
+			`${appOrigin}/dashboard/account?tab=privacy&client=cline-cli`,
+		);
+	});
+
+	it("links to the web app that matches a provider backend override", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+			baseUrl: "https://core-api.staging.int.cline.bot",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "harrison@cline.bot",
+			displayName: "Harrison",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(snapshot.privacySettingsUrl).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=privacy&client=cline-cli",
+		);
+	});
+
+	it("hides the link when the provider backend has no matching web app", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+			baseUrl: "https://cline-proxy.example.com",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "harrison@cline.bot",
+			displayName: "Harrison",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [],
+			dataPrivacyPath: "/dashboard/account?tab=privacy",
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+
+		const snapshot = await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(snapshot.privacySettingsUrl).toBeUndefined();
+	});
 });
 
 describe("loadIndividualSubscriptionPlans", () => {
@@ -366,5 +443,44 @@ describe("isClineAccountCreditsErrorMessage", () => {
 		expect(
 			isClineAccountCreditsErrorMessage("insufficient balance on gateway"),
 		).toBe(false);
+	});
+});
+
+describe("getClineCreditsDashboardUrl", () => {
+	beforeEach(() => {
+		coreMocks.getProviderSettings.mockReset();
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it("opens the credits tab on the configured Cline environment's app", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+		const { getClineCreditsDashboardUrl } = await import("./cline-account");
+
+		expect(getClineCreditsDashboardUrl()).toBe(
+			"https://staging-app.cline.bot/dashboard/account?tab=credits&client=cline-cli",
+		);
+	});
+
+	it("follows a backend override to the environment that bills the account", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+		vi.stubEnv("CLINE_API_BASE_URL", "https://api.cline.bot");
+		const { getClineCreditsDashboardUrl } = await import("./cline-account");
+
+		expect(getClineCreditsDashboardUrl()).toBe(
+			"https://app.cline.bot/dashboard/account?tab=credits&client=cline-cli",
+		);
+	});
+
+	it("leaves the link out for a backend no environment declares", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			baseUrl: "https://cline-proxy.example.com",
+		});
+		const { getClineCreditsDashboardUrl } = await import("./cline-account");
+
+		expect(getClineCreditsDashboardUrl()).toBeUndefined();
 	});
 });

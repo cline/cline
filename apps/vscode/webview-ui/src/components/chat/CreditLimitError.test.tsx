@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import CreditLimitError from "./CreditLimitError"
 
 vi.mock("@/context/ClineAuthContext", () => ({
-	useClineAuth: () => ({ activeOrganization: undefined }),
+	useClineAuth: () => ({ clineUser: null, activeOrganization: undefined }),
 }))
 
 vi.mock("@/services/grpc-client", () => ({
@@ -23,5 +23,14 @@ describe("CreditLimitError", () => {
 		})
 
 		expect(retryFailedRequest).toHaveBeenCalledTimes(1)
+	})
+
+	it("keeps Buy Credits for API-key users when the error carries no buy credits URL", async () => {
+		render(<CreditLimitError currentBalance={0} message="Out of credits" />)
+
+		const link = await screen.findByText("Buy Credits")
+		expect(link.closest("a")?.getAttribute("href")).toBe(
+			"https://app.cline.bot/dashboard/account?tab=credits&redirect=true&client=cline-vscode&callback_url=https%3A%2F%2Fexample.com%2Fcallback",
+		)
 	})
 })

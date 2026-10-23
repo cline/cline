@@ -34,7 +34,7 @@ export function CloudOnboardingCard({
 	checking = false,
 }: {
 	variant: CloudOnboardingVariant;
-	onConnect: () => void;
+	onConnect?: () => void;
 	onRefresh: () => void;
 	onSignIn?: () => void;
 	onCancelSignIn?: () => void;
@@ -152,13 +152,13 @@ export function CloudOnboardingCard({
 								</Button>
 							)}
 						</>
-					) : (
+					) : onConnect ? (
 						<Button onClick={onConnect} size="sm">
 							<Github aria-hidden="true" className="size-3.5" />
 							{isNoRepositories ? "Manage repository access" : "Connect GitHub"}
 							<ExternalLink aria-hidden="true" className="size-3" />
 						</Button>
-					)}
+					) : null}
 					{isSignedOut ? null : (
 						<Button
 							disabled={checking}

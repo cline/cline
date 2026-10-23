@@ -1,5 +1,6 @@
 "use client";
 
+import { getClineDashboardUrl } from "@cline/shared/browser";
 import { AgentWelcomeHero, Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
@@ -35,10 +36,7 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import {
-	CLINE_DASHBOARD_URL,
-	getProviderApiKeyUrl,
-} from "@/lib/provider-key-urls";
+import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import {
 	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
@@ -52,9 +50,7 @@ import {
 } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 
-const CREATE_ACCOUNT_URL = "https://app.cline.bot";
-const CLINE_PASS_SUBSCRIBE_URL =
-	"https://app.cline.bot/onboarding/individual-plan";
+const CLINE_CLIENT_NAME = "cline-desktop";
 
 const CLINE_SIGN_IN_BENEFITS = [
 	"Regular free model promotions",
@@ -335,7 +331,12 @@ function ConnectStep({
 	onConnected: (connection: OnboardingConnection) => void;
 	onSkip: () => void;
 }) {
-	const { user, refreshAccount } = useAccount();
+	const { user, clineAppBaseUrl, refreshAccount } = useAccount();
+	const clineAppUrl = getClineDashboardUrl(
+		"/",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
 	const {
 		signIn: signInWithCline,
 		cancelSignIn: cancelSignInWithCline,
@@ -589,9 +590,9 @@ function ConnectStep({
 								>
 									Cancel
 								</Button>
-							) : (
+							) : clineAppUrl ? (
 								<Button
-									onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+									onClick={() => void openExternalUrl(clineAppUrl)}
 									size="md"
 									tone="neutral"
 									type="button"
@@ -599,7 +600,7 @@ function ConnectStep({
 								>
 									Sign up
 								</Button>
-							)}
+							) : null}
 						</div>
 					)}
 					{!user && signingIn && deviceUserCode ? (
@@ -679,18 +680,20 @@ function ConnectStep({
 											{clineKeySaving ? "Connecting..." : "Connect"}
 										</Button>
 									</div>
-									<Button
-										className="self-start -ml-1 mt-1"
-										disabled={clineKeySaving}
-										onClick={() => void openExternalUrl(CLINE_DASHBOARD_URL)}
-										size="xs"
-										tone="neutral"
-										type="button"
-										variant="ghost"
-									>
-										Find your key
-										<ExternalLink className="size-3" />
-									</Button>
+									{clineAppUrl ? (
+										<Button
+											className="self-start -ml-1 mt-1"
+											disabled={clineKeySaving}
+											onClick={() => void openExternalUrl(clineAppUrl)}
+											size="xs"
+											tone="neutral"
+											type="button"
+											variant="ghost"
+										>
+											Find your key
+											<ExternalLink className="size-3" />
+										</Button>
+									) : null}
 									{clineKeyError ? (
 										<p className="text-xs text-destructive" role="alert">
 											Failed to save API key: {clineKeyError}
@@ -980,6 +983,12 @@ function ImportHistoryStep({
  * the composer.
  */
 function ClineModelsSummary() {
+	const { clineAppBaseUrl } = useAccount();
+	const clinePassSubscribeUrl = getClineDashboardUrl(
+		"onboarding/individual-plan",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
 	const [freeModels, setFreeModels] = useState<
 		NonNullable<ClineRecommendedModelsResponse["free"]>
 	>([]);
@@ -1032,16 +1041,18 @@ function ClineModelsSummary() {
 						Kimi, and GLM.
 					</p>
 				</div>
-				<Button
-					onClick={() => void openExternalUrl(CLINE_PASS_SUBSCRIBE_URL)}
-					size="sm"
-					tone="neutral"
-					type="button"
-					variant="surface"
-				>
-					Get ClinePass
-					<ExternalLink className="size-3.5" />
-				</Button>
+				{clinePassSubscribeUrl ? (
+					<Button
+						onClick={() => void openExternalUrl(clinePassSubscribeUrl)}
+						size="sm"
+						tone="neutral"
+						type="button"
+						variant="surface"
+					>
+						Get ClinePass
+						<ExternalLink className="size-3.5" />
+					</Button>
+				) : null}
 			</div>
 		</div>
 	);

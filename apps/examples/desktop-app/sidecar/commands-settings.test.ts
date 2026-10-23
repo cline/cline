@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCloudSessionManager } from "./cloud-sessions";
 import { handleCommand } from "./commands";
-import { createSidecarContext } from "./context";
+import { createSidecarContext, resolveSidecarClineAppBaseUrl } from "./context";
 import {
 	getDesktopFeatureFlagsService,
 	resetDesktopFeatureFlagsForTesting,
@@ -208,5 +208,61 @@ describe("desktop settings commands", () => {
 		expect(cloud.models).toContainEqual(
 			expect.objectContaining({ id: "cline-cloud/cloud-only" }),
 		);
+	});
+});
+
+describe("get_cline_app_base_url", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	async function saveClineBaseUrl(baseUrl: string) {
+		const { ctx } = createContext();
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "account-token",
+			base_url: baseUrl,
+		});
+	}
+
+	it("resolves the web app of the sidecar's Cline environment", () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "staging");
+
+		expect(resolveSidecarClineAppBaseUrl()).toBe(
+			"https://staging-app.cline.bot",
+		);
+	});
+
+	it("follows a provider baseUrl override to the matching web app", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+		await saveClineBaseUrl("https://core-api.staging.int.cline.bot");
+
+		expect(resolveSidecarClineAppBaseUrl()).toBe(
+			"https://staging-app.cline.bot",
+		);
+	});
+
+	it("resolves no web app for a backend it cannot match", async () => {
+		vi.stubEnv("CLINE_ENVIRONMENT", "production");
+		await saveClineBaseUrl("https://cline-proxy.example.com");
+
+		expect(resolveSidecarClineAppBaseUrl()).toBeUndefined();
+	});
+
+	it("returns the app URL resolved at startup, for every environment context", async () => {
+		const { ctx } = createContext();
+		ctx.clineAppBaseUrl = "https://staging-app.cline.bot";
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			api_key: "account-token",
+			base_url: "https://cline-proxy.example.com",
+		});
+
+		await expect(
+			handleCommand(ctx, "get_cline_app_base_url", {}),
+		).resolves.toBe("https://staging-app.cline.bot");
+		await expect(
+			handleCommand(ctx, "get_cline_app_base_url", { environmentId: "ssh-1" }),
+		).resolves.toBe("https://staging-app.cline.bot");
 	});
 });

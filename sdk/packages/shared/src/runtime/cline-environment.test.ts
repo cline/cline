@@ -5,6 +5,7 @@ import {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineAppBaseUrl,
 	resolveClineEnvironment,
 } from "./cline-environment";
 
@@ -116,6 +117,34 @@ describe("getClineEnvironmentConfig", () => {
 		vi.stubGlobal("process", undefined);
 
 		expect(getClineEnvironmentConfig()).toBe(CLINE_ENVIRONMENTS.production);
+	});
+});
+
+describe("resolveClineAppBaseUrl", () => {
+	it("matches each configured backend to its web app, ignoring a trailing slash", () => {
+		for (const config of Object.values(CLINE_ENVIRONMENTS)) {
+			expect(resolveClineAppBaseUrl(config.apiBaseUrl)).toBe(config.appBaseUrl);
+			expect(resolveClineAppBaseUrl(`${config.apiBaseUrl}/`)).toBe(
+				config.appBaseUrl,
+			);
+		}
+	});
+
+	it("returns undefined when no configured backend matches", () => {
+		expect(
+			resolveClineAppBaseUrl("https://cline-proxy.example.com"),
+		).toBeUndefined();
+		expect(resolveClineAppBaseUrl("")).toBeUndefined();
+		expect(resolveClineAppBaseUrl("not a url")).toBeUndefined();
+		expect(resolveClineAppBaseUrl(undefined)).toBeUndefined();
+	});
+
+	it("ignores a path after the backend host", () => {
+		expect(
+			resolveClineAppBaseUrl(
+				"https://core-api.staging.int.cline.bot/some/path",
+			),
+		).toBe("https://staging-app.cline.bot");
 	});
 });
 

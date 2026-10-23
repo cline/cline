@@ -16,13 +16,24 @@ import {
 	saveLocalProviderOAuthCredentials,
 	type UserCurrentPlan,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getClineDashboardUrl,
+	getClineEnvironmentConfig,
+	resolveClineAppBaseUrl,
+} from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
-export const CLINE_CREDITS_DASHBOARD_URL =
-	"https://app.cline.bot/dashboard/account?tab=credits";
+// Follows the backend that rejected the request, not CLINE_ENVIRONMENT alone:
+// credits bought on another environment would not lift this balance.
+export function getClineCreditsDashboardUrl(): string | undefined {
+	return getClineDashboardUrl(
+		"dashboard/account?tab=credits",
+		resolveClineAppBaseUrl(resolveClineAccountBackend({}).apiBaseUrl),
+		"cline-cli",
+	);
+}
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "logger" | "providerId">;
 
@@ -35,6 +46,7 @@ export interface ClineAccountSnapshot {
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	displayedBalance: number;
+	privacySettingsUrl?: string;
 }
 
 export function formatClineCredits(value: number): string {
@@ -79,6 +91,29 @@ function resolveAccountApiBaseUrl(input: {
 		return configuredBaseUrl;
 	}
 	return getClineEnvironmentConfig().apiBaseUrl;
+}
+
+function resolveClineAccountBackend(input: {
+	clineApiBaseUrl?: string;
+	clineProviderSettings?: ProviderSettings;
+	providerSettingsManager?: ProviderSettingsManager;
+}): {
+	apiBaseUrl: string;
+	manager: ProviderSettingsManager;
+	settings: ProviderSettings | undefined;
+} {
+	const manager =
+		input.providerSettingsManager ?? new ProviderSettingsManager();
+	const settings =
+		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
+	return {
+		apiBaseUrl: resolveAccountApiBaseUrl({
+			clineApiBaseUrl: input.clineApiBaseUrl,
+			clineProviderSettings: settings,
+		}),
+		manager,
+		settings,
+	};
 }
 
 function resolveClineAccountAuthToken(input: {
@@ -137,25 +172,29 @@ export async function createClineAccountService(input: {
 	clineProviderSettings?: ProviderSettings;
 	providerSettingsManager?: ProviderSettingsManager;
 }): Promise<ClineAccountService | undefined> {
-	const manager =
-		input.providerSettingsManager ?? new ProviderSettingsManager();
-	const settings =
-		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
-	const apiBaseUrl = resolveAccountApiBaseUrl({
-		clineApiBaseUrl: input.clineApiBaseUrl,
-		clineProviderSettings: settings,
+	return createClineAccountServiceForBackend({
+		config: input.config,
+		...resolveClineAccountBackend(input),
 	});
+}
+
+async function createClineAccountServiceForBackend(input: {
+	config: ClineAccountConfig;
+	apiBaseUrl: string;
+	manager: ProviderSettingsManager;
+	settings: ProviderSettings | undefined;
+}): Promise<ClineAccountService | undefined> {
 	const authToken = await resolveValidClineAccountAuthToken({
 		config: input.config,
-		clineProviderSettings: settings,
-		manager,
-		apiBaseUrl,
+		clineProviderSettings: input.settings,
+		manager: input.manager,
+		apiBaseUrl: input.apiBaseUrl,
 	});
 	if (!authToken) {
 		return undefined;
 	}
 	return new ClineAccountService({
-		apiBaseUrl,
+		apiBaseUrl: input.apiBaseUrl,
 		getAuthToken: async () => authToken,
 	});
 }
@@ -165,7 +204,11 @@ export async function loadClineAccountSnapshot(input: {
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;
 }): Promise<ClineAccountSnapshot> {
-	const service = await createClineAccountService(input);
+	const backend = resolveClineAccountBackend(input);
+	const service = await createClineAccountServiceForBackend({
+		config: input.config,
+		...backend,
+	});
 	if (!service) {
 		throw new Error("No Cline account auth token found");
 	}
@@ -197,6 +240,11 @@ export async function loadClineAccountSnapshot(input: {
 		organizations,
 		activeOrganization,
 		displayedBalance,
+		privacySettingsUrl: getClineDashboardUrl(
+			user.dataPrivacyPath,
+			resolveClineAppBaseUrl(backend.apiBaseUrl),
+			"cline-cli",
+		),
 	};
 }
 

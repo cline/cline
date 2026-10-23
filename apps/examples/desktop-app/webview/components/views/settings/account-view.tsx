@@ -9,6 +9,7 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 } from "@cline/core";
+import { getClineDashboardUrl } from "@cline/shared/browser";
 import {
 	AlertCircle,
 	Building,
@@ -20,6 +21,7 @@ import {
 	Plus,
 	Receipt,
 	RefreshCw,
+	ShieldCheck,
 	User,
 	UserCircleIcon,
 } from "lucide-react";
@@ -33,14 +35,7 @@ import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 
-const DASHBOARD_URL = "https://app.cline.bot/dashboard";
-const USAGE_DASHBOARD_URL = "https://app.cline.bot/dashboard/usage";
-const USER_CREDITS_URL =
-	"https://app.cline.bot/dashboard/account?tab=credits&redirect=true";
-const ORGANIZATION_CREDITS_URL =
-	"https://app.cline.bot/dashboard/organization?tab=credits&redirect=true";
-const CREATE_ORGANIZATION_URL = "https://app.cline.bot/onboarding?step=1";
-const CREATE_ACCOUNT_URL = "https://app.cline.bot";
+const CLINE_CLIENT_NAME = "cline-desktop";
 
 function normalizeAccountViewError(error: unknown): Error {
 	const message = error instanceof Error ? error.message : String(error);
@@ -164,10 +159,49 @@ export function AccountView() {
 	const [activeTab, setActiveTab] = useState<"overview" | "usage" | "billing">(
 		"overview",
 	);
-	const { refreshAccount } = useAccount();
+	const { clineAppBaseUrl, refreshAccount } = useAccount();
+
+	// No resolved app (a proxy or self-hosted backend, or a lookup that has not
+	// answered yet) leaves these undefined, which hides each link rather than
+	// opening another environment.
+	const dashboardUrl = getClineDashboardUrl(
+		"dashboard",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
+	const usageDashboardUrl = getClineDashboardUrl(
+		"dashboard/usage",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
+	const userCreditsUrl = getClineDashboardUrl(
+		"dashboard/account?tab=credits&redirect=true",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
+	const organizationCreditsUrl = getClineDashboardUrl(
+		"dashboard/organization?tab=credits&redirect=true",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
+	const createAccountUrl = getClineDashboardUrl(
+		"/",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
+	const createOrganizationUrl = getClineDashboardUrl(
+		"onboarding?step=1",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
+	const privacySettingsUrl = getClineDashboardUrl(
+		user?.dataPrivacyPath,
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
 	const [balance, setBalance] = useState<ClineAccountBalance | null>(null);
 	const [organizationBalance, setOrganizationBalance] =
 		useState<ClineAccountOrganizationBalance | null>(null);
@@ -176,6 +210,7 @@ export function AccountView() {
 	>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
+	const overviewGenerationRef = useRef(0);
 	// Signed out is an expected state carried by a typed sidecar result (or a
 	// definitive auth error from older sidecars), tracked separately from
 	// failures so it renders the sign-in prompt instead of an error card.
@@ -218,6 +253,7 @@ export function AccountView() {
 
 	// -- Overview fetch --
 	const loadOverview = useCallback(async () => {
+		const generation = ++overviewGenerationRef.current;
 		setOverviewLoading(true);
 		setOverviewError(null);
 		try {
@@ -225,6 +261,7 @@ export function AccountView() {
 			// remaining account commands would just fail the same way, so they
 			// are never fired.
 			const userData = await fetchAccountUser();
+			if (overviewGenerationRef.current !== generation) return;
 			if (isClineAccountNotAuthenticatedResult(userData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -234,6 +271,7 @@ export function AccountView() {
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),
 			]);
+			if (overviewGenerationRef.current !== generation) return;
 			if (
 				isClineAccountNotAuthenticatedResult(balanceData) ||
 				isClineAccountNotAuthenticatedResult(orgsData)
@@ -247,6 +285,7 @@ export function AccountView() {
 			const organizationBalanceData = nextActiveOrganization
 				? await fetchOrganizationBalance(nextActiveOrganization.organizationId)
 				: null;
+			if (overviewGenerationRef.current !== generation) return;
 			if (isClineAccountNotAuthenticatedResult(organizationBalanceData)) {
 				resetAccountData();
 				setSignedOut(true);
@@ -258,6 +297,7 @@ export function AccountView() {
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
+			if (overviewGenerationRef.current !== generation) return;
 			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
 			if (isAccountAuthError(message)) {
@@ -266,7 +306,9 @@ export function AccountView() {
 				setOverviewError(message);
 			}
 		} finally {
-			setOverviewLoading(false);
+			if (overviewGenerationRef.current === generation) {
+				setOverviewLoading(false);
+			}
 		}
 	}, [resetAccountData]);
 
@@ -293,6 +335,11 @@ export function AccountView() {
 	const deviceUserCode = useOAuthUserCode(signingIn);
 
 	const signOut = async () => {
+		// Sign Out stays clickable while an overview fetch is in flight, so
+		// discard whatever that fetch returns: otherwise it puts the signed-out
+		// account back on screen.
+		overviewGenerationRef.current += 1;
+		setOverviewLoading(false);
 		setSigningOut(true);
 		try {
 			await desktopClient.invoke("save_provider_settings", {
@@ -440,6 +487,9 @@ export function AccountView() {
 	const displayedBalance = activeOrganization
 		? (organizationBalance?.balance ?? balance?.balance ?? null)
 		: (balance?.balance ?? null);
+	const creditsUrl = activeOrganization
+		? organizationCreditsUrl
+		: userCreditsUrl;
 
 	const tabs = ["overview", "usage", "billing"] as const;
 
@@ -492,19 +542,23 @@ export function AccountView() {
 						)}
 						{signingIn ? "Signing in" : "Sign in"}
 					</button>
-					<button
-						type="button"
-						disabled={cancelling}
-						onClick={() =>
-							void (signingIn
-								? cancelSignIn()
-								: openExternalUrl(CREATE_ACCOUNT_URL))
-						}
-						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
-					>
-						{signingIn ? "Cancel" : "Create account"}
-						{!signingIn && <ExternalLink className="h-4 w-4" />}
-					</button>
+					{(signingIn || createAccountUrl) && (
+						<button
+							type="button"
+							disabled={cancelling}
+							onClick={() => {
+								if (signingIn) {
+									void cancelSignIn();
+								} else if (createAccountUrl) {
+									void openExternalUrl(createAccountUrl);
+								}
+							}}
+							className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-60"
+						>
+							{signingIn ? "Cancel" : "Create account"}
+							{!signingIn && <ExternalLink className="h-4 w-4" />}
+						</button>
+					)}
 				</div>
 				{signInError && (
 					<p role="alert" className="text-sm text-destructive">
@@ -648,14 +702,28 @@ export function AccountView() {
 											Member since {formatDate(user.createdAt)}
 										</p>
 									</div>
-									<button
-										type="button"
-										title="Open dashboard"
-										onClick={() => void openExternalUrl(DASHBOARD_URL)}
-										className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-									>
-										<ExternalLink className="h-4 w-4" />
-									</button>
+									<div className="flex items-center gap-1">
+										{privacySettingsUrl && (
+											<button
+												type="button"
+												title="Privacy settings"
+												onClick={() => void openExternalUrl(privacySettingsUrl)}
+												className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+											>
+												<ShieldCheck className="h-4 w-4" />
+											</button>
+										)}
+										{dashboardUrl && (
+											<button
+												type="button"
+												title="Open dashboard"
+												onClick={() => void openExternalUrl(dashboardUrl)}
+												className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+											>
+												<ExternalLink className="h-4 w-4" />
+											</button>
+										)}
+									</div>
 								</div>
 							</div>
 
@@ -671,20 +739,16 @@ export function AccountView() {
 													: "Credits Balance"}
 											</h3>
 										</div>
-										<button
-											type="button"
-											onClick={() =>
-												void openExternalUrl(
-													activeOrganization
-														? ORGANIZATION_CREDITS_URL
-														: USER_CREDITS_URL,
-												)
-											}
-											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
-										>
-											<Plus className="h-3.5 w-3.5" />
-											Credit
-										</button>
+										{creditsUrl && (
+											<button
+												type="button"
+												onClick={() => void openExternalUrl(creditsUrl)}
+												className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+											>
+												<Plus className="h-3.5 w-3.5" />
+												Credit
+											</button>
+										)}
 									</div>
 									<div className="flex items-baseline gap-2">
 										<span className="text-3xl font-bold text-foreground">
@@ -709,16 +773,18 @@ export function AccountView() {
 											Organizations
 										</h3>
 									</div>
-									<button
-										type="button"
-										onClick={() =>
-											void openExternalUrl(CREATE_ORGANIZATION_URL)
-										}
-										className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
-									>
-										<Plus className="h-3.5 w-3.5" />
-										Create
-									</button>
+									{createOrganizationUrl && (
+										<button
+											type="button"
+											onClick={() =>
+												void openExternalUrl(createOrganizationUrl)
+											}
+											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
+										>
+											<Plus className="h-3.5 w-3.5" />
+											Create
+										</button>
+									)}
 								</div>
 								<div className="flex flex-col gap-2">
 									{renderAccountRow({
@@ -799,16 +865,18 @@ export function AccountView() {
 									))}
 								</div>
 							)}
-							<div className="flex justify-center border-t border-border px-4 py-3">
-								<button
-									type="button"
-									onClick={() => void openExternalUrl(USAGE_DASHBOARD_URL)}
-									className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
-								>
-									See More
-									<ExternalLink className="h-3.5 w-3.5" />
-								</button>
-							</div>
+							{usageDashboardUrl && (
+								<div className="flex justify-center border-t border-border px-4 py-3">
+									<button
+										type="button"
+										onClick={() => void openExternalUrl(usageDashboardUrl)}
+										className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+									>
+										See More
+										<ExternalLink className="h-3.5 w-3.5" />
+									</button>
+								</div>
+							)}
 						</div>
 					)}
 				</div>

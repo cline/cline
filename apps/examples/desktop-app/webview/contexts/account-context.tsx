@@ -7,6 +7,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -26,6 +27,10 @@ type AccountContextValue = {
 	accountReady: boolean;
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
+	/** The web app this environment's account lives in. Environment
+	 * configuration, not account state: it is resolved once and never follows
+	 * an account refresh. */
+	clineAppBaseUrl: string | undefined;
 	refreshAccount: () => Promise<void>;
 };
 
@@ -34,6 +39,7 @@ const AccountContext = createContext<AccountContextValue>({
 	accountReady: false,
 	organizations: [],
 	activeOrganization: null,
+	clineAppBaseUrl: undefined,
 	refreshAccount: async () => undefined,
 });
 
@@ -100,6 +106,23 @@ export function isSignedOutAccountError(error: unknown): boolean {
 export function AccountProvider({ children }: { children: React.ReactNode }) {
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
 	const [accountReady, setAccountReady] = useState(false);
+	const [clineAppBaseUrl, setClineAppBaseUrl] = useState<string>();
+
+	const appBaseUrlLoaded = useRef(false);
+
+	const loadAppBaseUrl = useCallback(async () => {
+		// The app URL is fixed for the app's lifetime, so a resolved value is kept
+		// and only a lookup that has not succeeded yet is retried.
+		if (appBaseUrlLoaded.current) return;
+		try {
+			setClineAppBaseUrl(
+				await desktopClient.invoke<string>("get_cline_app_base_url"),
+			);
+			appBaseUrlLoaded.current = true;
+		} catch {
+			// Account links stay hidden until a reconnect retries the lookup.
+		}
+	}, []);
 
 	const refreshAccount = useCallback(async () => {
 		try {
@@ -138,6 +161,15 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 		void refreshAccount();
 	}, [refreshAccount]);
 
+	useEffect(
+		() =>
+			desktopClient.subscribeTransportState((state) => {
+				if (state !== "connected") return;
+				void loadAppBaseUrl();
+			}),
+		[loadAppBaseUrl],
+	);
+
 	const value = useMemo<AccountContextValue>(() => {
 		const organizations = user?.organizations ?? [];
 		return {
@@ -146,9 +178,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 			organizations,
 			activeOrganization:
 				organizations.find((organization) => organization.active) ?? null,
+			clineAppBaseUrl,
 			refreshAccount,
 		};
-	}, [accountReady, refreshAccount, user]);
+	}, [accountReady, clineAppBaseUrl, refreshAccount, user]);
 
 	return (
 		<AccountContext.Provider value={value}>{children}</AccountContext.Provider>

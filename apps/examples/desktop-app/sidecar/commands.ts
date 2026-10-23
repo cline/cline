@@ -3237,6 +3237,9 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
+	if (command === "get_cline_app_base_url") {
+		return ctx.clineAppBaseUrl;
+	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)
 			? args.sessionIds.filter(

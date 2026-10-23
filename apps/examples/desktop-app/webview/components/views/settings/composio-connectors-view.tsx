@@ -1,5 +1,6 @@
 "use client";
 
+import { getClineDashboardUrl } from "@cline/shared/browser";
 import { GitHubIcon } from "@cline/ui";
 import {
 	CalendarDays,
@@ -47,7 +48,7 @@ import { cn } from "@/lib/utils";
 
 /** Shared connector browser for Customize and Marketplace. */
 
-const CREATE_ACCOUNT_URL = "https://app.cline.bot";
+const CLINE_CLIENT_NAME = "cline-desktop";
 
 /** How many catalog entries to show before asking the user to search. */
 const CATALOG_PREVIEW_COUNT = 24;
@@ -755,7 +756,12 @@ function ConnectorsUnavailable({
 	onRefresh: () => Promise<void>;
 	refreshing: boolean;
 }) {
-	const { user, accountReady, refreshAccount } = useAccount();
+	const { user, accountReady, clineAppBaseUrl, refreshAccount } = useAccount();
+	const createAccountUrl = getClineDashboardUrl(
+		"/",
+		clineAppBaseUrl,
+		CLINE_CLIENT_NAME,
+	);
 	const [signingIn, setSigningIn] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const deviceUserCode = useOAuthUserCode(signingIn);
@@ -838,15 +844,17 @@ function ConnectorsUnavailable({
 							)}
 							{signingIn ? "Waiting for browser…" : "Sign in"}
 						</Button>
-						<Button
-							onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							Create account
-							<ExternalLink className="size-4" />
-						</Button>
+						{createAccountUrl ? (
+							<Button
+								onClick={() => void openExternalUrl(createAccountUrl)}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Create account
+								<ExternalLink className="size-4" />
+							</Button>
+						) : null}
 					</div>
 				)}
 				{signingIn && deviceUserCode ? (

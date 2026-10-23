@@ -20,7 +20,14 @@ const { invoke, openExternalUrl } = vi.hoisted(() => ({
 	openExternalUrl: vi.fn(),
 }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
+	desktopClient: {
+		invoke,
+		subscribe: vi.fn(() => () => {}),
+		subscribeTransportState: vi.fn((handler: (state: string) => void) => {
+			handler("connected");
+			return () => {};
+		}),
+	},
 	openExternalUrl,
 }));
 
@@ -401,6 +408,9 @@ describe("OnboardingView", () => {
 			if (command === "get_feature_flags") {
 				return GITHUB_STEP_ENABLED_FLAGS;
 			}
+			if (command === "get_cline_app_base_url") {
+				return "https://staging-app.cline.bot";
+			}
 			if (command === "list_cline_recommended_models") {
 				return {
 					recommended: [],
@@ -441,7 +451,7 @@ describe("OnboardingView", () => {
 			buttonByText("Get ClinePass").click();
 		});
 		expect(openExternalUrl).toHaveBeenCalledWith(
-			"https://app.cline.bot/onboarding/individual-plan",
+			"https://staging-app.cline.bot/onboarding/individual-plan?client=cline-desktop",
 		);
 		const doneGrid = container.querySelector<HTMLElement>(
 			'[data-welcome-hero-variant="grid-only"]',
