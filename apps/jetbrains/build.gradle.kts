@@ -11,6 +11,12 @@ version = providers.gradleProperty("pluginVersion").get()
 
 kotlin {
 	jvmToolchain(21)
+	compilerOptions {
+		// Without this Kotlin re-declares every default method of implemented
+		// platform interfaces (e.g. ToolWindowFactory) as bridges, which the
+		// Plugin Verifier then reports as deprecated/internal API overrides.
+		freeCompilerArgs.add("-Xjvm-default=all")
+	}
 }
 
 repositories {
