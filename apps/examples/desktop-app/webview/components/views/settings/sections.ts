@@ -12,12 +12,19 @@ const ALL_SETTINGS_SECTIONS = [
 	"Keybindings",
 	"Channels",
 	"Schedules",
+	"CodeReviews",
 	"Import",
 	"Remote",
 	"Account",
 	"Debug",
 	"About",
 ] as const;
+
+// Sidebar labels for settings sections whose id is not presentable as-is.
+export const SETTINGS_SECTION_LABELS: Partial<Record<SettingsSection, string>> =
+	{
+		CodeReviews: "Code Reviews",
+	};
 
 // Customize is the unified hub for everything that extends Cline — skills,
 // MCP servers, plugins, rules, hooks, and tools. "Customize" is the installed
