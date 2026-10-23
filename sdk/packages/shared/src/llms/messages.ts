@@ -78,7 +78,9 @@ export interface ToolResultContent {
 	/** Name of the tool that generated this result */
 	name: string;
 	/** Result content (can be text or error) */
-	content: string | Array<TextContent | ImageContent | FileContent>;
+	content:
+		| string
+		| Array<TextContent | ImageContent | ImageRefContent | FileContent>;
 	/** Whether this result represents an error */
 	is_error?: boolean;
 }
@@ -112,11 +114,33 @@ export interface RedactedThinkingContent {
 }
 
 /**
+ * Reference to an image stored on disk beside the session data.
+ *
+ * Conversation history keeps blobs out of the transport: tool results carrying
+ * binary data are persisted as `image_ref` blocks pointing at content-addressed
+ * files under `<session-data>/<sessionId>/blobs/`. The model sees the raw image
+ * bytes on the turn the tool produced them; every later projection renders a
+ * short placeholder, and UI clients render the blob by fetching it on demand.
+ */
+export interface ImageRefContent {
+	type: "image_ref";
+	/** SHA-256 of the decoded image bytes; also the blob file stem. */
+	blobId: string;
+	/** MIME type (e.g., "image/png", "image/jpeg"). */
+	mediaType: string;
+	/** Decoded size in bytes, for display without touching the file. */
+	bytes: number;
+	/** Source path/URI the image was read from, when known. */
+	source?: string;
+}
+
+/**
  * Union of all content block types
  */
 export type ContentBlock =
 	| TextContent
 	| ImageContent
+	| ImageRefContent
 	| MediaContent
 	| ToolUseContent
 	| ToolResultContent

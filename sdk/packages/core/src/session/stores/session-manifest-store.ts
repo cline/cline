@@ -232,6 +232,7 @@ export class SessionManifestStore {
 			context: resolveMessagesFileContext(row),
 			messages: messages as StoredMessageWithMetadata[],
 			systemPrompt,
+			blobsDir: dirname(path),
 		});
 		const contents = `${JSON.stringify(payload, null, 2)}\n`;
 		mkdirSync(dirname(path), { recursive: true });

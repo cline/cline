@@ -11,6 +11,14 @@ export const IMAGE_OMITTED_PLACEHOLDER =
 export const IMAGE_UNSUPPORTED_PLACEHOLDER =
 	"[Image attached — this model cannot view images]";
 
+/**
+ * Substituted for `image_ref` blocks at request-build time. The raw image was
+ * already delivered to the model on the turn it was read; stored history keeps
+ * only a disk reference, so later requests carry the note instead of pixels.
+ */
+export const IMAGE_REF_PLACEHOLDER =
+	"[Image was read earlier and is stored on disk beside this session; its contents are not re-sent]";
+
 export const GeneratedMediaModalitySchema = z.enum([
 	"image",
 	"audio",

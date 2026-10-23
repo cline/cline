@@ -6,6 +6,7 @@ import {
 	type GeneratedMedia,
 	type GeneratedMediaModality,
 	IMAGE_OMITTED_PLACEHOLDER,
+	IMAGE_REF_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	imageBase64LengthForDecodedBytes,
 	type MediaBudgetState,
@@ -53,6 +54,13 @@ export type AiSdkFormatterPart =
 	| {
 			type: "media";
 			media: GeneratedMedia;
+	  }
+	| {
+			type: "image_ref";
+			blobId: string;
+			mediaType: string;
+			bytes: number;
+			source?: string;
 	  }
 	| {
 			type: "file";
@@ -104,7 +112,14 @@ export type AiSdkMessage = {
 
 type AiSdkContentBlock =
 	| { type: "text"; text: string }
-	| { type: "image"; data: string; mediaType: string };
+	| { type: "image"; data: string; mediaType: string }
+	| {
+			type: "image_ref";
+			blobId: string;
+			mediaType: string;
+			bytes: number;
+			source?: string;
+	  };
 type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
 
 /**
@@ -159,6 +174,13 @@ function isAiSdkContentBlockArray(
 		}
 		if (b.type === "image") {
 			return typeof b.data === "string" && typeof b.mediaType === "string";
+		}
+		if (b.type === "image_ref") {
+			return (
+				typeof b.blobId === "string" &&
+				typeof b.mediaType === "string" &&
+				typeof b.bytes === "number"
+			);
 		}
 		return false;
 	});
@@ -459,6 +481,12 @@ function stripImagesFromOutput(
 					mediaChanged = true;
 					continue;
 				}
+				if (obj.type === "image_ref") {
+					out.push(IMAGE_REF_PLACEHOLDER);
+					changed = true;
+					mediaChanged = true;
+					continue;
+				}
 				if (obj.type === "text" && typeof obj.text === "string") {
 					out.push(obj.text);
 					changed = true;
@@ -474,6 +502,13 @@ function stripImagesFromOutput(
 	}
 
 	const obj = value as Record<string, unknown>;
+	if (obj.type === "image_ref") {
+		return {
+			value: IMAGE_REF_PLACEHOLDER,
+			changed: true,
+			mediaChanged: true,
+		};
+	}
 	if (obj.type === "image") {
 		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
 			if (!hoistImages) {
@@ -572,6 +607,8 @@ export function toAiSdkToolResultOutput(
 					? supportsImages
 						? toToolResultImagePart(block, mediaState)
 						: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
+					: block.type === "image_ref"
+					? { type: "text", text: IMAGE_REF_PLACEHOLDER }
 					: { type: "text", text: sanitizeSurrogates(block.text) },
 			),
 		};
@@ -803,6 +840,14 @@ export function formatMessagesForAiSdk(
 							part.path,
 							sanitizeSurrogates(part.content),
 						),
+					});
+					break;
+				case "image_ref":
+					// Raw bytes were delivered on the turn the image arrived; the
+					// stored history carries only the disk reference now.
+					messageParts.push({
+						type: "text",
+						text: IMAGE_REF_PLACEHOLDER,
 					});
 					break;
 				case "tool-call":

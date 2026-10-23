@@ -14,7 +14,7 @@ import type {
 	ToolResultContent,
 	ToolUseContent,
 } from "@cline/shared";
-import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { EMPTY_CONTENT_TEXT, IMAGE_REF_PLACEHOLDER } from "@cline/shared";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 
 export function messageToAgentMessages(
@@ -201,6 +201,10 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			};
 		case "image":
 			return { type: "image", image: block.data, mediaType: block.mediaType };
+		case "image_ref":
+			// Raw pixels were delivered on the turn this image arrived; stored
+			// history carries the disk reference, so agent parts get the note.
+			return { type: "text", text: IMAGE_REF_PLACEHOLDER };
 		case "media":
 			return { type: "media", media: block.media };
 		case "file":
