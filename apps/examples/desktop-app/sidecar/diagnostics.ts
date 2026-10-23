@@ -21,7 +21,8 @@ export const DIAGNOSTICS_HUB_LOG_SCAN_BYTES = 16 * DIAGNOSTICS_LOG_TAIL_BYTES;
 
 // Clients poll these every few seconds. Their successful round trips filled
 // the whole hub tail with a few hours of nothing, pushing out the runs a
-// report is usually about. Failed polls are kept.
+// report is usually about. Only a start followed by its own successful end is
+// dropped: unfinished and failed requests keep both lines.
 const HUB_POLLING_COMMANDS = new Set([
 	"session.list",
 	"settings.list",
@@ -30,21 +31,30 @@ const HUB_POLLING_COMMANDS = new Set([
 	"schedule.list_executions",
 	"schedule.active",
 ]);
-const HUB_COMMAND_LINE =
-	/"message":"command\.(?:start|end)","command":"([^"]+)"/;
+const HUB_COMMAND_LINE = /"message":"command\.(start|end)","command":"([^"]+)"/;
+const HUB_REQUEST_KEY = /"requestId":"([^"]*)","clientId":"([^"]*)"/;
 
 export function dropHubPollingLines(text: string): string {
-	return text
-		.split("\n")
-		.filter((line) => {
-			const command = HUB_COMMAND_LINE.exec(line)?.[1];
-			return (
-				!command ||
-				!HUB_POLLING_COMMANDS.has(command) ||
-				line.includes('"ok":false')
-			);
-		})
-		.join("\n");
+	const lines = text.split("\n");
+	const dropped = new Set<number>();
+	// Some clients reuse request ids, so pair each end with the latest start.
+	const openStarts = new Map<string, number>();
+	lines.forEach((line, index) => {
+		const match = HUB_COMMAND_LINE.exec(line);
+		if (!match || !HUB_POLLING_COMMANDS.has(match[2])) return;
+		const ids = HUB_REQUEST_KEY.exec(line)?.slice(1).join(" ") ?? "";
+		const key = `${match[2]} ${ids}`;
+		if (match[1] === "start") {
+			openStarts.set(key, index);
+			return;
+		}
+		const start = openStarts.get(key);
+		openStarts.delete(key);
+		if (!line.includes('"ok":true')) return;
+		dropped.add(index);
+		if (start !== undefined) dropped.add(start);
+	});
+	return lines.filter((_, index) => !dropped.has(index)).join("\n");
 }
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;

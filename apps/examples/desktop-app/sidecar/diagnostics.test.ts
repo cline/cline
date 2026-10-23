@@ -138,10 +138,18 @@ describe("hub log polling filter", () => {
 			poll("run.start");
 		const kept = dropHubPollingLines(text);
 		expect(kept).not.toContain('"command":"schedule.active"');
-		expect(kept).toContain(
-			'"command":"session.list","requestId":"r","clientId":"c","durationMs":1,"ok":false',
-		);
+		// A failed poll keeps its start and its end.
+		expect(kept.match(/"command":"session\.list"/g)).toHaveLength(2);
+		expect(kept).toContain('"ok":false');
 		expect(kept.match(/"command":"run\.start"/g)).toHaveLength(2);
+	});
+
+	it("keeps the start of a poll that never finished", () => {
+		const unfinished = poll("session.list").split("\n")[0];
+		const kept = dropHubPollingLines(
+			`${poll("session.list")}${unfinished}\n${poll("settings.list")}`,
+		);
+		expect(kept.split("\n").filter(Boolean)).toEqual([unfinished]);
 	});
 
 	it("reaches past polling that would have filled the whole tail", () => {
