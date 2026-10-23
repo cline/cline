@@ -636,6 +636,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			sessionId: config.sessionId,
 			cwd: config.cwd,
 			apiKey: config.apiKey ?? "",
+			authMetadata: config.authMetadata,
 			baseUrl: config.baseUrl,
 			headers: config.headers,
 			providerConfig: config.providerConfig,

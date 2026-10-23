@@ -642,6 +642,7 @@ function resolveTraceSamplingKey(
 async function withAiSdkLangfuseTraceContext<T>(
 	enabled: boolean,
 	request: GatewayStreamRequest,
+	traceMetadata: Record<string, string> | undefined,
 	callback: () => T | Promise<T>,
 ): Promise<T> {
 	const metadata =
@@ -679,6 +680,7 @@ async function withAiSdkLangfuseTraceContext<T>(
 				...(typeof metadata.runId === "string"
 					? { runId: metadata.runId }
 					: {}),
+				...traceMetadata,
 			},
 		},
 		callback,
@@ -2432,6 +2434,7 @@ function createAiSdkProvider(
 				stream = await withAiSdkLangfuseTraceContext(
 					aiSdkTelemetry.isEnabled,
 					request,
+					provider.traceMetadata,
 					() =>
 						streamText({
 							model: withEmptyResponseRetry(
