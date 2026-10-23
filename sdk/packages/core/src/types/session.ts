@@ -29,8 +29,8 @@ export type ActiveSession = {
 	lastTurnEndedAt?: number;
 	/** Set when teardown starts; the host drops the session once it finishes. */
 	shuttingDown: boolean;
-	/** True from a turn's first await until it settles, including the pre-run work before the agent has a run. */
-	turnInFlight: boolean;
+	/** Turns between their first await and settling, including the pre-run work before the agent has a run. */
+	turnsInFlight: number;
 	/** The session row being created for the first turn, so teardown can land its status on it. */
 	persistInFlight?: Promise<void>;
 	interactive: boolean;
