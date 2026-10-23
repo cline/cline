@@ -749,13 +749,6 @@ jobs:
         run: bunx tauri build --bundles nsis $CONFIG_ARGS --config "$SIGN_CONF"
         env:
           CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
-          # Statically link the VC runtime so the exe does not import
-          # VCRUNTIME140.dll, which machines without the VC++ redistributable
-          # lack (CI runners have it, so nothing here would notice). tauri-build
-          # < 2.7 only does this when this is "true", and Tauri CLI >= 2.12 no
-          # longer sets it; drop it once tauri-build reads
-          # build.windows.staticVCRuntime (2.7+, defaults to true).
-          STATIC_VCRUNTIME: "true"
           # Telemetry inlined into the desktop backend at build time, same as macOS.
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
