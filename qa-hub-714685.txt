@@ -1,0 +1,3 @@
+Synthetic Desktop QA fixture.
+STAGED_MARKER=714685-staged
+UNSTAGED_MARKER=714685-worktree
