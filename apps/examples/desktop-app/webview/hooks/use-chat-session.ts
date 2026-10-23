@@ -598,6 +598,7 @@ export function useChatSession(environmentId: string) {
 	);
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
+	const statusRef = useRef<ChatSessionStatus>(status);
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
 	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
@@ -774,6 +775,9 @@ export function useChatSession(environmentId: string) {
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
+	useEffect(() => {
+		statusRef.current = status;
+	}, [status]);
 
 	const setWorkspacePath = useCallback((workspacePath: string): void => {
 		workspaceSelectionRequestRef.current += 1;
@@ -1866,6 +1870,7 @@ export function useChatSession(environmentId: string) {
 			}
 
 			if (payload.stream === "chat_queued_prompt_start") {
+				pendingDirectSendSessionIdsRef.current.delete(listeningSessionId);
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
 				failureTurnGenerationRef.current += 1;
@@ -2852,7 +2857,10 @@ export function useChatSession(environmentId: string) {
 				Boolean(activeSessionId) &&
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
-					BUSY_STATUSES.has(status));
+					BUSY_STATUSES.has(status) ||
+					BUSY_STATUSES.has(statusRef.current) ||
+					pendingDirectSendSessionIdsRef.current.has(activeSessionId) ||
+					promptsInQueueRef.current.length > 0);
 			if (shouldQueue && activeSessionId) {
 				queuedSubmission = new Promise<void>((resolve) => {
 					resolveQueuedSubmission = resolve;
@@ -3124,6 +3132,7 @@ export function useChatSession(environmentId: string) {
 			let abortedReconcileEpoch: number | undefined;
 			let replySuperseded = false;
 			let promptTaken = true;
+			let keepPendingDirectSendUntilTurnStart = false;
 			const failureOwnerCurrent = () =>
 				activeSessionIdRef.current === activeSessionId &&
 				failureGenerationAtSubmission === failureTurnGenerationRef.current;
@@ -3184,6 +3193,9 @@ export function useChatSession(environmentId: string) {
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
+					if (!shouldQueue) {
+						keepPendingDirectSendUntilTurnStart = true;
+					}
 					return true;
 				}
 
@@ -3613,7 +3625,9 @@ export function useChatSession(environmentId: string) {
 					clearAbortFallbackTimeout();
 				}
 				if (!shouldQueue) {
-					pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
+					if (!keepPendingDirectSendUntilTurnStart) {
+						pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
+					}
 					// If a queued successor already started, these refs belong to it.
 					if (
 						!replySuperseded &&
