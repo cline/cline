@@ -20,5 +20,10 @@ it("keeps the cloud link until dismissed or another handoff starts", () => {
 			sourceSessionId: "local",
 		}),
 	).toEqual({});
-	expect(cloudHandoffUiReducer(complete, start)).toEqual(state);
+	const preparing = cloudHandoffUiReducer(complete, {
+		type: "prepare",
+		sourceSessionId: "local",
+	});
+	expect(preparing.local).toMatchObject({ ...complete.local, preparing: true });
+	expect(cloudHandoffUiReducer(preparing, start)).toEqual(state);
 });

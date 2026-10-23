@@ -64,10 +64,20 @@ async function git(
 				child.stdin?.end(options.input);
 			}
 		});
-	} catch {
+	} catch (error) {
 		// Git errors can contain credential-bearing URLs or hook output.
+		const code =
+			error instanceof Error && "code" in error ? error.code : undefined;
+		const timedOut =
+			code === null &&
+			error instanceof Error &&
+			"killed" in error &&
+			error.killed === true;
+		const failure = timedOut
+			? `timed out after ${(options.timeout ?? 60_000) / 1_000} seconds`
+			: `failed${typeof code === "number" ? ` (exit code ${code})` : ""}. Check Git authentication, permissions, and repository state`;
 		throw new Error(
-			`Git ${args[0]} failed. Check Git authentication, permissions, and repository state.${options.hooksPath ? ` ${isolatedHookNotice}` : ""}`,
+			`Git ${args[0]} ${failure}.${options.hooksPath ? ` ${isolatedHookNotice}` : ""}`,
 		);
 	}
 }

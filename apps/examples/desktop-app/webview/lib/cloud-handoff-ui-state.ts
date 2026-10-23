@@ -25,6 +25,7 @@ type HandoffStatus =
 	  };
 
 export type CloudHandoffUiEntry = HandoffStatus & {
+	preparing?: true;
 	preparationFailure?: { message: string; draft: HandoffDraft };
 };
 
@@ -81,8 +82,14 @@ export function cloudHandoffUiReducer(
 					}
 				: state;
 		case "prepare":
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					...(current ?? { status: "progress", phase: "checking" }),
+					preparing: true,
+				},
+			};
 		case "start":
-			if (action.type === "prepare" && current) return state;
 			return {
 				...state,
 				[action.sourceSessionId]: { status: "progress", phase: "checking" },
@@ -93,6 +100,7 @@ export function cloudHandoffUiReducer(
 				...state,
 				[action.sourceSessionId]: {
 					status: "progress",
+					preparing: current.preparing,
 					preparationFailure: current.preparationFailure,
 					phase: action.phase,
 					message: action.message,
@@ -126,6 +134,10 @@ export function cloudHandoffUiReducer(
 								retryAttachments: action.retryAttachments,
 							}),
 					preparationFailure,
+					preparing:
+						action.type === "preparation_failed"
+							? undefined
+							: current?.preparing,
 				},
 			};
 		}
@@ -142,6 +154,7 @@ export function cloudHandoffUiReducer(
 				...state,
 				[action.sourceSessionId]: {
 					status: "complete",
+					preparing: current?.preparing,
 					sessionId: action.sessionId,
 					dashboardUrl: action.dashboardUrl,
 					message: action.message,

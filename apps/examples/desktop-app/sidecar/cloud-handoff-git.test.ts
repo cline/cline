@@ -23,6 +23,7 @@ const transport = vi.hoisted(() => ({
 	pushUrl: "https://github.com/cline/todo-app",
 	rejectPush: false,
 	rejectFetch: false,
+	rejection: new Error("rejected: synthetic-private-token"),
 	beforeFetch: () => {},
 }));
 vi.mock("node:child_process", async (original) => {
@@ -54,9 +55,7 @@ vi.mock("node:child_process", async (original) => {
 			(push >= 0 && transport.rejectPush) ||
 			(args[0] === "fetch" && transport.rejectFetch)
 		) {
-			queueMicrotask(() =>
-				callback(new Error("rejected: synthetic-private-token"), "", ""),
-			);
+			queueMicrotask(() => callback(transport.rejection, "", ""));
 			return { stdin: null };
 		}
 		const mapped = [...args];
@@ -83,6 +82,7 @@ beforeEach(() => {
 	transport.fetchUrl = transport.pushUrl = "https://github.com/cline/todo-app";
 	transport.rejectPush = false;
 	transport.rejectFetch = false;
+	transport.rejection = new Error("rejected: synthetic-private-token");
 	transport.beforeFetch = () => {};
 	git("init", "-b", "main");
 	git("config", "user.email", "qa@example.com");
@@ -187,11 +187,21 @@ describe("cloud handoff Git preparation", () => {
 		expect(git("ls-remote", "origin")).toBe(remoteRefs);
 	});
 
-	it("stops preparation when remote objects cannot be fetched", async () => {
+	it.each([
+		[{ code: 128 }, "Git fetch failed (exit code 128)"],
+		[{ code: null, killed: true }, "Git fetch timed out after 60 seconds"],
+		[
+			{ code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER", killed: true },
+			"Git fetch failed",
+		],
+	])("stops preparation with safe diagnostics when fetching fails (%j)", async (details, message) => {
 		transport.rejectFetch = true;
+		Object.assign(transport.rejection, details);
 		const refs = git("show-ref");
 		const index = git("write-tree");
-		await expect(inspectHandoffGit(repo)).rejects.toThrow("Git fetch failed");
+		const result = inspectHandoffGit(repo);
+		await expect(result).rejects.toThrow(message);
+		await expect(result).rejects.not.toThrow("synthetic-private-token");
 		expect(git("show-ref")).toBe(refs);
 		expect(git("write-tree")).toBe(index);
 		expect(git("status", "--porcelain")).toBe("");

@@ -28,6 +28,71 @@ function render(node: React.ReactNode) {
 }
 
 describe("CloudHandoffStatus", () => {
+	it.each([
+		"complete",
+		"failed",
+	] as const)("shows a new preparation after %s without losing the previous task or draft", (previous) => {
+		const draft = {
+			text: "Saved follow-up",
+			attachments: [new File(["image"], "test.png")],
+		};
+		let state = cloudHandoffUiReducer(
+			{},
+			previous === "complete"
+				? {
+						type: "complete",
+						sourceSessionId: "local",
+						sessionId: "cloud",
+						dashboardUrl: "https://app.cline.bot/agents/cloud",
+						unsentDraft: draft,
+					}
+				: {
+						type: "failed",
+						sourceSessionId: "local",
+						message: "Previous failure",
+						retryDraft: draft.text,
+						retryAttachments: draft.attachments,
+					},
+		);
+		const previousEntry = state.local;
+		state = cloudHandoffUiReducer(state, {
+			type: "prepare",
+			sourceSessionId: "local",
+		});
+		expect(state.local).toMatchObject({ ...previousEntry, preparing: true });
+		const status = () => (
+			<CloudHandoffStatus
+				state={state.local}
+				onOpenCloud={vi.fn()}
+				onRestoreDraft={vi.fn()}
+				onDismiss={vi.fn()}
+			/>
+		);
+		const view = render(status());
+		expect(view.textContent).toContain("Checking the local session");
+		expect(view.querySelector(".animate-spin")).not.toBeNull();
+		expect(view.textContent).not.toContain("Restore /cloud draft");
+		expect(view.textContent).not.toContain("with draft");
+		if (previous === "complete")
+			expect(view.textContent).toContain("Open cloud task");
+		state = cloudHandoffUiReducer(state, {
+			type: "preparation_failed",
+			sourceSessionId: "local",
+			message: "Cloud preparation cancelled.",
+			retryDraft: "Edited retry",
+			retryAttachments: draft.attachments,
+		});
+		act(() => root?.render(status()));
+		expect(view.querySelector(".animate-spin")).toBeNull();
+		expect(view.textContent).toContain("Restore /cloud draft");
+		if (previous === "complete") {
+			expect(state.local).toMatchObject({
+				sessionId: "cloud",
+				unsentDraft: draft,
+			});
+			expect(view.textContent).toContain("Open cloud task with draft");
+		}
+	});
 	it("offers explicit draft restoration once and keeps the task link", () => {
 		const draft = {
 			text: "Summary and follow-up",

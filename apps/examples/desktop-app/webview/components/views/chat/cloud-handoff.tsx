@@ -120,18 +120,20 @@ export function CloudHandoffStatus({
 	onRestoreDraft: (destination: "local" | "cloud") => void;
 	onDismiss: () => void;
 }) {
-	const pending = state.status === "progress";
+	const pending = state.preparing || state.status === "progress";
 	const canRestoreDraft =
 		state.status === "failed" ||
 		(state.status === "complete" && Boolean(state.unsentDraft));
 	const dashboardUrl = "dashboardUrl" in state ? state.dashboardUrl : undefined;
-	const label = pending
-		? state.message?.trim() || HANDOFF_PROGRESS_LABELS[state.phase]
-		: state.status === "complete"
-			? state.message
-				? "Check the cloud task"
-				: "Cloud task ready"
-			: "Cloud preparation stopped";
+	const label = state.preparing
+		? HANDOFF_PROGRESS_LABELS.checking
+		: state.status === "progress"
+			? state.message?.trim() || HANDOFF_PROGRESS_LABELS[state.phase]
+			: state.status === "complete"
+				? state.message
+					? "Check the cloud task"
+					: "Cloud task ready"
+				: "Cloud preparation stopped";
 	return (
 		<output
 			aria-live="polite"
@@ -195,7 +197,7 @@ export function CloudHandoffStatus({
 					)}
 				</div>
 			)}
-			{state.status !== "failed" && state.preparationFailure && (
+			{!pending && state.status !== "failed" && state.preparationFailure && (
 				<div className="space-y-2 pb-3">
 					<p className="break-words text-xs text-muted-foreground">
 						{state.preparationFailure.message}
