@@ -1108,7 +1108,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				(startsWithoutTurn ? "idle" : "running"),
 			aborting: false,
 			shuttingDown: false,
-			turnInFlight: false,
+			turnsInFlight: 0,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
 			compactionState: initialCompactionState,
@@ -1311,7 +1311,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (session.shuttingDown) {
 			throw new Error(`Session ${input.sessionId} is shutting down`);
 		}
-		const canStartRun = session.agent.canStartRun();
+		// A turn still preparing counts as busy, so a second send during that
+		// window is queued behind it instead of racing it to the agent.
+		const canStartRun = !this.hasActiveTurn(session);
 		const delivery =
 			input.delivery ??
 			(session.interactive && !canStartRun ? ("queue" as const) : undefined);
@@ -2049,17 +2051,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// The agent only knows about a run once executeAgentTurn starts it;
 		// the flag covers the preparation before that, so teardown treats a
 		// turn in that window as active instead of as an idle session.
-		session.turnInFlight = true;
+		session.turnsInFlight += 1;
 		try {
 			return await this.prepareAndRunTurn(session, input);
 		} finally {
-			session.turnInFlight = false;
+			session.turnsInFlight -= 1;
 		}
 	}
 
 	/** True while a turn is being prepared or the agent has a run in progress. */
 	private hasActiveTurn(session: ActiveSession): boolean {
-		return session.turnInFlight || !session.agent.canStartRun();
+		return session.turnsInFlight > 0 || !session.agent.canStartRun();
 	}
 
 	private async prepareAndRunTurn(
