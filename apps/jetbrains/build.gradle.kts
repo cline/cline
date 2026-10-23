@@ -57,6 +57,16 @@ tasks {
 		gradleVersion = providers.gradleProperty("gradleVersion").get()
 	}
 
+	processResources {
+		// The hub's client.register wants a client version; baking it in avoids
+		// touching the (internal) plugin-manager APIs at runtime.
+		val pluginVersion = providers.gradleProperty("pluginVersion")
+		inputs.property("pluginVersion", pluginVersion)
+		filesMatching("cline-plugin.properties") {
+			expand("pluginVersion" to pluginVersion.get())
+		}
+	}
+
 	test {
 		// Live hub integration tests self-skip when no hub is reachable; this
 		// keeps their output visible when one is.

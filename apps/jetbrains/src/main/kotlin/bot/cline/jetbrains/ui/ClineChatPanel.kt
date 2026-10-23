@@ -28,11 +28,11 @@ import com.intellij.openapi.util.Key
 import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
-import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.util.ui.HTMLEditorKitBuilder
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
@@ -108,7 +108,7 @@ class ClineChatPanel(private val project: Project, parentDisposable: Disposable)
 		border = JBUI.Borders.empty(6)
 	}
 	private val modeCombo = ComboBox(SessionMode.entries.toTypedArray()).apply {
-		renderer = SimpleListCellRenderer.create("") { it.label }
+		renderer = textListCellRenderer { it?.label ?: "" }
 		selectedItem = service.sessionMode
 		toolTipText = "Act runs tools; Plan only talks."
 	}
@@ -253,9 +253,11 @@ class ClineChatPanel(private val project: Project, parentDisposable: Disposable)
 				JBPopupFactory.getInstance()
 					.createPopupChooserBuilder(items)
 					.setTitle(ClineBundle.message("chat.sessions"))
-					.setRenderer(SimpleListCellRenderer.create<SessionSummary>("") { s ->
-						val tag = if (s.active) " [live]" else ""
-						"${s.title}$tag  —  ${s.model ?: ""}"
+					.setRenderer(textListCellRenderer<SessionSummary> { s ->
+						if (s == null) "" else {
+							val tag = if (s.active) " [live]" else ""
+							"${s.title}$tag  —  ${s.model ?: ""}"
+						}
 					})
 					.setItemChosenCallback { chosen -> service.openSession(chosen) }
 					.createPopup()

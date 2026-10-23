@@ -75,7 +75,7 @@ class TranscriptRenderer(private val showReasoning: () -> Boolean) {
 					sb.append("<div class=\"assistant\"><div class=\"label\">Cline</div>")
 					if (showReasoning() && (item.reasoning.isNotEmpty() || item.reasoningRedacted)) {
 						val reasoning = if (item.reasoning.isEmpty()) "(reasoning redacted by the provider)" else item.reasoning.toString()
-						sb.append("<div class=\"muted\"><i>")
+						sb.append("<div class=\"muted\"><span class=\"label\">Reasoning</span><br><i>")
 						sb.append(escape(reasoning.trim()).replace("\n", "<br>"))
 						sb.append("</i></div>")
 					}

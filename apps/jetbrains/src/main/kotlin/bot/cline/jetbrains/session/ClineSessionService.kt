@@ -21,12 +21,10 @@ import bot.cline.jetbrains.settings.ClineSettings
 import bot.cline.jetbrains.settings.SessionMode
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
-import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.util.concurrent.CompletableFuture
@@ -238,7 +236,11 @@ class ClineSessionService(private val project: Project) : Disposable {
 	}
 
 	private fun pluginVersion(): String =
-		PluginManager.getInstance().findEnabledPlugin(PluginId.getId("bot.cline.jetbrains.hub"))?.version ?: "dev"
+		runCatching {
+			javaClass.getResourceAsStream("/cline-plugin.properties")?.use { stream ->
+				java.util.Properties().apply { load(stream) }.getProperty("version")
+			}
+		}.getOrNull()?.takeIf { it.isNotBlank() && !it.startsWith("\$") } ?: "dev"
 
 	private fun handleEvent(event: HubEvent) {
 		val current = sessionId
