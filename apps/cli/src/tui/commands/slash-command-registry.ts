@@ -206,19 +206,19 @@ export function buildSlashCommandRegistry(input: {
 		});
 	}
 
+	for (const command of input.additionalSlashCommands ?? []) {
+		const entry = entryFromRuntimeCommand(command, "plugin");
+		if (entry) {
+			addEntry(byName, entry);
+		}
+	}
+
 	for (const command of input.workflowSlashCommands ?? []) {
 		const source =
 			command.kind === "skill" || command.kind === "workflow"
 				? command.kind
 				: "runtime";
 		const entry = entryFromRuntimeCommand(command, source);
-		if (entry) {
-			addEntry(byName, entry);
-		}
-	}
-
-	for (const command of input.additionalSlashCommands ?? []) {
-		const entry = entryFromRuntimeCommand(command, "plugin");
 		if (entry) {
 			addEntry(byName, entry);
 		}

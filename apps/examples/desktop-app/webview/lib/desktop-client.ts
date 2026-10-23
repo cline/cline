@@ -281,6 +281,7 @@ const NATIVE_COMMANDS = new Set([
 	"set_tray_status",
 	"relaunch_app",
 	"quit_app",
+	"set_quit_shortcut_native",
 ]);
 
 class DesktopClient {
