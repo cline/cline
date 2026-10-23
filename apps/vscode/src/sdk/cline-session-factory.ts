@@ -46,6 +46,7 @@ import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import { resolveLmStudioApiKey } from "./lm-studio-api-key"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
 import { nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-catalog/model-values"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -400,7 +401,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	cline: "clineApiKey",
 	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
-	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
 	fireworks: "fireworksApiKey",
@@ -556,6 +556,9 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		}
 	} catch {
 		Logger.warn(`[SessionFactory] Failed to read ${providerId} API key from providers.json`)
+	}
+	if (providerId === "lmstudio") {
+		return resolveLmStudioApiKey()
 	}
 
 	return undefined
@@ -1121,6 +1124,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
+	let providerHeaders: Record<string, string> | undefined
+	try {
+		const effectiveProviderConfig = createProviderConfigStore().read(parseProviderId(providerId))
+		providerHeaders = effectiveProviderConfig.headers ? { ...effectiveProviderConfig.headers } : undefined
+	} catch (error) {
+		Logger.warn(`[SessionFactory] Failed to resolve request headers for provider=${providerId}:`, error)
+	}
 	const client = await resolveClineRequestClientContext()
 	let knownModels: Awaited<ReturnType<typeof getModelsForProvider>> | undefined
 	try {
@@ -1163,6 +1173,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
 		...(apiLine !== undefined ? { apiLine } : {}),
+		...(providerHeaders ? { headers: providerHeaders } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		// Mirror the user's Max Output Tokens for consumers that build handlers
 		// straight from providerConfig — notably the compaction summarizer, which
@@ -1176,6 +1187,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		apiKey,
 		baseUrl,
+		...(providerHeaders ? { headers: providerHeaders } : {}),
 		providerConfig,
 		// Also expose the catalog at the top level: manual compaction
 		// (sdk-compaction.ts) budgets against config.knownModels[modelId] and

@@ -4,11 +4,18 @@ import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "./apiKeyMasking"
 interface UseProviderApiKeyFieldOptions {
 	apiKeyLength?: number
 	onApiKeyChange?: (apiKey: string) => void
+	onApiKeyWriteSuccess?: () => void
 	providerName: string
 	write: (patch: { apiKey: string }) => Promise<unknown>
 }
 
-export function useProviderApiKeyField({ apiKeyLength, onApiKeyChange, providerName, write }: UseProviderApiKeyFieldOptions) {
+export function useProviderApiKeyField({
+	apiKeyLength,
+	onApiKeyChange,
+	onApiKeyWriteSuccess,
+	providerName,
+	write,
+}: UseProviderApiKeyFieldOptions) {
 	const savedApiKeyMask = getSavedApiKeyMask(apiKeyLength)
 
 	// Intentionally no "config loaded" gate: keys typed while the provider
@@ -23,9 +30,11 @@ export function useProviderApiKeyField({ apiKeyLength, onApiKeyChange, providerN
 			}
 
 			onApiKeyChange?.(apiKey)
-			void write({ apiKey }).catch((err) => console.error(`Failed to update ${providerName} API key:`, err))
+			void write({ apiKey })
+				.then(() => onApiKeyWriteSuccess?.())
+				.catch((err) => console.error(`Failed to update ${providerName} API key:`, err))
 		},
-		[onApiKeyChange, providerName, savedApiKeyMask, write],
+		[onApiKeyChange, onApiKeyWriteSuccess, providerName, savedApiKeyMask, write],
 	)
 
 	return { savedApiKeyMask, handleApiKeyChange }

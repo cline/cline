@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@cline/shared"
-import { describe, expect, it, vi } from "vitest"
+import { assert, beforeEach, describe, expect, it, vi } from "vitest"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator, type ToolApprovalRequest } from "./sdk-interaction-coordinator"
@@ -20,6 +20,12 @@ vi.mock("@/integrations/misc/extract-text", () => ({
 }))
 
 describe("SdkInteractionCoordinator", () => {
+	beforeEach(() => {
+		vi.mocked(processFilesIntoText)
+			.mockReset()
+			.mockImplementation(async (files) => `Files attached by the user:\n\n${files.join("\n")}`)
+	})
+
 	it("emits a tool approval ask and resolves approval from askResponse state", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const messages = new SdkMessageCoordinator({ getTask: () => task })
@@ -221,6 +227,136 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
+	it("restores the exact pending interaction phase and message anchor", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: { path: "README.md" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		const approvalTs = task.messageStateHandler.getClineMessages()[0].ts
+		setTurnPhase.mockClear()
+
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("toolApproval")
+		expect(setTurnPhase).toHaveBeenCalledWith("awaiting_approval", approvalTs)
+
+		coordinator.clearPending("test complete")
+		await approvalPromise
+
+		const answerPromise = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(2))
+		const askTs = task.messageStateHandler.getClineMessages()[1].ts
+		setTurnPhase.mockClear()
+
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("askQuestion")
+		expect(setTurnPhase).toHaveBeenCalledWith("awaiting_followup", askTs)
+
+		coordinator.clearPending("test complete")
+		await answerPromise
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBeUndefined()
+	})
+
+	it("identifies only responses that resume a suspended interaction", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "read_files",
+			input: { path: "README.md" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.getPendingInteractionToResolve("messageResponse")).toBeUndefined()
+		const approval = coordinator.getPendingInteractionToResolve("yesButtonClicked")
+		assert(approval)
+		expect(approval.kind).toBe("toolApproval")
+		expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.identity).toBe(approval.identity)
+		expect(coordinator.resolvePendingInteraction(approval, undefined, "yesButtonClicked")).toBe(true)
+		await approvalPromise
+		expect(coordinator.resolvePendingInteraction(approval, undefined, "yesButtonClicked")).toBe(false)
+
+		const answerPromise = coordinator.handleAskQuestion("Continue?", [], undefined)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const question = coordinator.getPendingInteractionToResolve(undefined)
+		assert(question)
+		expect(coordinator.resolvePendingInteraction(question, "yes", undefined)).toBe(true)
+		await answerPromise
+		expect(coordinator.resolvePendingInteraction(question, "yes", undefined)).toBe(false)
+	})
+
+	it.each([
+		"toolApproval",
+		"askQuestion",
+	] as const)("invalidates captured %s responses after clearing or replacement", async (kind) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const recordApprovedToolMessage = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+			recordApprovedToolMessage,
+		})
+		const startInteraction = () =>
+			kind === "askQuestion"
+				? coordinator.handleAskQuestion("Continue?", [], undefined)
+				: coordinator.handleRequestToolApproval({
+						agentId: "agent",
+						conversationId: "conversation",
+						iteration: 1,
+						toolCallId: "same-tool-call",
+						toolName: "read_files",
+						input: { path: "README.md" },
+						policy: { autoApprove: false },
+					})
+		const original = startInteraction()
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.kind).toBe(kind))
+		const captured = coordinator.getPendingInteractionToResolve("yesButtonClicked")
+		assert(captured)
+		coordinator.clearPending("task changed")
+		await original
+		expect(coordinator.resolvePendingInteraction(captured, "old answer", "yesButtonClicked")).toBe(false)
+
+		// Even reused tool IDs or identical questions create a distinct pending promise.
+		const replacement = startInteraction()
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.kind).toBe(kind))
+		const current = coordinator.getPendingInteractionToResolve("yesButtonClicked")
+		assert(current)
+		expect(current.identity).not.toBe(captured.identity)
+		setTurnPhase.mockClear()
+		const messageCount = task.messageStateHandler.getClineMessages().length
+		expect(coordinator.resolvePendingInteraction(captured, "old answer", "yesButtonClicked")).toBe(false)
+		expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.identity).toBe(current.identity)
+		expect(setTurnPhase).not.toHaveBeenCalled()
+		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(messageCount)
+		expect(coordinator.resolvePendingInteraction(current, "new answer", "yesButtonClicked")).toBe(true)
+		await expect(replacement).resolves.toEqual(kind === "askQuestion" ? "new answer" : { approved: true })
+	})
+
 	it("records generic no-button approval denials for UI suppression", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordDeniedToolApproval = vi.fn()
@@ -416,6 +552,137 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(answerPromise).resolves.toBe("")
 	})
 
+	it.each(["Use the attached design", undefined])("forwards captured ask attachments with prompt %s", async (prompt) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+		const answerPromise = coordinator.handleAskQuestion("Which design?", [], undefined)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const captured = coordinator.getPendingInteractionToResolve(undefined)
+		assert(captured)
+		const askTs = task.messageStateHandler.getClineMessages()[0].ts
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("askQuestion")
+		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_followup", askTs)
+		const images = ["data:image/png;base64,c3ludGhldGlj"]
+		const files = ["/synthetic/design.md"]
+
+		expect(coordinator.resolvePendingInteraction(captured, prompt, "messageResponse", images, files)).toBe(true)
+		await expect(answerPromise).resolves.toEqual([
+			...(prompt ? [{ type: "text", text: prompt }] : []),
+			{ type: "image", mediaType: "image/png", data: "c3ludGhldGlj" },
+			{ type: "text", text: "Files attached by the user:\n\n/synthetic/design.md" },
+		])
+		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
+			say: "user_feedback",
+			text: prompt ?? "",
+			images,
+			files,
+		})
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBeUndefined()
+	})
+
+	it("rejects stale captured attachments without changing the successor ask or phase", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+		const original = coordinator.handleAskQuestion("Original?", [], undefined)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const stale = coordinator.getPendingInteractionToResolve(undefined)
+		assert(stale)
+		coordinator.clearPending("replaced")
+		await expect(original).resolves.toBe("")
+		const successor = coordinator.handleAskQuestion("Successor?", [], undefined)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const current = coordinator.getPendingInteractionToResolve(undefined)
+		assert(current)
+		const currentTs = task.messageStateHandler.getClineMessages()[1].ts
+		setTurnPhase.mockClear()
+
+		expect(
+			coordinator.resolvePendingInteraction(
+				stale,
+				"old",
+				"messageResponse",
+				["data:image/png;base64,b2xk"],
+				["/synthetic/old.md"],
+			),
+		).toBe(false)
+		expect(processFilesIntoText).not.toHaveBeenCalled()
+		expect(setTurnPhase).not.toHaveBeenCalled()
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(2)
+		expect(coordinator.getPendingInteractionToResolve(undefined)?.identity).toBe(current.identity)
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("askQuestion")
+		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_followup", currentTs)
+		expect(coordinator.resolvePendingInteraction(current, "new", "messageResponse")).toBe(true)
+		await expect(successor).resolves.toBe("new")
+	})
+
+	it.each([
+		"resolve",
+		"reject",
+	] as const)("does not revive cancelled attachment answers when extraction later %ss", async (outcome) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+		let finish!: (text: string) => void
+		let fail!: (error: Error) => void
+		vi.mocked(processFilesIntoText).mockImplementationOnce(
+			() =>
+				new Promise<string>((resolve, reject) => {
+					finish = resolve
+					fail = reject
+				}),
+		)
+		const settled = vi.fn()
+		const original = coordinator.handleAskQuestion("Original?", [], undefined)
+		void original.then(settled)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const captured = coordinator.getPendingInteractionToResolve(undefined)
+		assert(captured)
+		expect(
+			coordinator.resolvePendingInteraction(captured, "old", "messageResponse", undefined, ["/synthetic/slow.pdf"]),
+		).toBe(true)
+		expect(processFilesIntoText).toHaveBeenCalledWith(["/synthetic/slow.pdf"])
+		coordinator.clearPending("cancelled")
+		coordinator.clearPending("cancelled again")
+		await expect(original).resolves.toBe("")
+		expect(settled).toHaveBeenCalledExactlyOnceWith("")
+		const successor = coordinator.handleAskQuestion("Successor?", [], undefined)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const current = coordinator.getPendingInteractionToResolve(undefined)
+		assert(current)
+		const currentTs = task.messageStateHandler.getClineMessages()[2].ts
+		setTurnPhase.mockClear()
+
+		if (outcome === "resolve") finish("late old file")
+		else fail(new Error("synthetic extraction failure"))
+		await new Promise<void>((resolve) => setImmediate(resolve))
+		expect(settled).toHaveBeenCalledExactlyOnceWith("")
+		expect(coordinator.getPendingInteractionToResolve(undefined)?.identity).toBe(current.identity)
+		expect(setTurnPhase).not.toHaveBeenCalled()
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(3)
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBe("askQuestion")
+		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_followup", currentTs)
+		expect(coordinator.resolvePendingInteraction(current, "new", "messageResponse")).toBe(true)
+		await expect(successor).resolves.toBe("new")
+	})
+
 	it("accepts an ask_question response as soon as the ask is emitted", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const messages = new SdkMessageCoordinator({ getTask: () => task })
@@ -438,6 +705,38 @@ describe("SdkInteractionCoordinator", () => {
 		expect(accepted).toBe(true)
 		await expect(answer).resolves.toBe("yes")
 		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("captures the question identity and message anchor before emitting the ask", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn(() => new Promise<void>(() => {})),
+			setTurnPhase,
+		})
+		let accepted = false
+		messages.onSessionEvent(() => {
+			if (task.messageStateHandler.getClineMessages().length !== 1) return
+			const captured = coordinator.getPendingInteractionToResolve(undefined)
+			assert(captured)
+			expect(coordinator.restorePendingInteractionTurnPhase()).toBe("askQuestion")
+			expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_followup", task.messageStateHandler.getClineMessages()[0].ts)
+			accepted = coordinator.resolvePendingInteraction(captured, "Use the design", "messageResponse", undefined, [
+				"/synthetic/design.md",
+			])
+		})
+
+		const answer = coordinator.handleAskQuestion("Which design?", [], undefined)
+
+		expect(accepted).toBe(true)
+		await expect(answer).resolves.toEqual([
+			{ type: "text", text: "Use the design" },
+			{ type: "text", text: "Files attached by the user:\n\n/synthetic/design.md" },
+		])
+		expect(coordinator.restorePendingInteractionTurnPhase()).toBeUndefined()
 	})
 
 	it.each(["Task cancelled", "Task switched"])("settles ask_question during its state post on %s", async (reason) => {

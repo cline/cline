@@ -5,6 +5,7 @@ import type {
 	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
+	SuspendedSessionConnectionRuntimeService,
 } from "../runtime/host/runtime-host";
 import type {
 	PluginCommandsApi,
@@ -33,6 +34,7 @@ export type RuntimeHostServiceExtensions = RuntimeHost &
 		PendingPromptsRuntimeService &
 			SessionUsageRuntimeService &
 			SessionConnectionRuntimeService &
+			SuspendedSessionConnectionRuntimeService &
 			SessionModelRuntimeService
 	>;
 
