@@ -94,6 +94,21 @@ export class UnifiedSessionPersistenceService {
 		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 	}
 
+	async updateSessionModelSelection(
+		input: Pick<
+			PersistedSessionUpdateInput,
+			"sessionId" | "provider" | "model"
+		>,
+	): Promise<void> {
+		await this.manifestStore.resolveSessionRow(input.sessionId);
+		const result = await this.adapter.updateSession(input);
+		if (!result.updated) {
+			throw new Error(
+				`Cannot update model selection for unknown session: ${input.sessionId}`,
+			);
+		}
+	}
+
 	readSessionManifest(
 		sessionId: string,
 	): import("../models/session-manifest").SessionManifest | undefined {
