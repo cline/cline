@@ -180,6 +180,10 @@ Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
 features and cannot cross this RPC boundary. Hub-backed creation defaults to
 `"resumable"` sandboxes.
 
+Discovery caches, pending listing requests, and newly created fallback rows are
+scoped to their organization; switching the sidebar preserves other organizations’
+task state without displaying their rows.
+
 After a successful organization switch, `refreshOrganization()` invalidates the
 Hub's cached organization before fetching the current one. A fetch failure leaves
 the old cache invalidated. Account-switch success and desktop cleanup must not
