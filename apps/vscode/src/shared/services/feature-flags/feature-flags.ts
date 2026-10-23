@@ -20,6 +20,8 @@ export enum FeatureFlag {
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
 	// Rollout flag for Cline Cloud sessions (run a task in a hosted sandbox)
 	CLOUD_SESSIONS = "ext-cloud-sessions",
+	// Shows the "Only allow edits in project directory" setting (shared with the CLI and desktop app)
+	ONLY_ALLOW_PROJECT_EDITS = "only-allow-project-edits",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
@@ -32,6 +34,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM]: false,
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
 	[FeatureFlag.CLOUD_SESSIONS]: false,
+	[FeatureFlag.ONLY_ALLOW_PROJECT_EDITS]: false,
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)

@@ -1,6 +1,7 @@
-import { cpSync, existsSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { stageMxcRuntime } from "../../../../sdk/packages/core/scripts/stage-mxc-runtime";
 import {
 	compileCliBinary,
 	installOpenTuiNativeVariants,
@@ -148,6 +149,32 @@ const buildUniversalMacCli = async (): Promise<void> => {
 	await $`lipo -info ${outfile}`;
 };
 
+// Runtime for "Only allow edits in project directory", shipped as the bin/mxc
+// resource. macOS is skipped: its native files would sit unsigned under
+// Contents/Resources and fail notarization (see buildRemoteClis). The note
+// keeps the resource glob matching there.
+const stageProjectSandboxRuntime = async (
+	targetTriple: string,
+): Promise<void> => {
+	const destination = `${BIN_DIR}/mxc`;
+	const platform = targetTriple.includes("windows")
+		? "win32"
+		: targetTriple.includes("linux")
+			? "linux"
+			: undefined;
+	const arch = targetTriple.startsWith("aarch64") ? "arm64" : "x64";
+	const staged =
+		platform &&
+		(await stageMxcRuntime({ destination, targets: [{ platform, arch }] }));
+	if (!staged) {
+		mkdirSync(destination, { recursive: true });
+		writeFileSync(
+			`${destination}/README.txt`,
+			`The project sandbox runtime is not bundled for ${targetTriple}.\n`,
+		);
+	}
+};
+
 const hasOpenTuiNativeVariant = (os: string, arch: string): boolean =>
 	existsSync(`${REPO_ROOT}/node_modules/.bun`) &&
 	[
@@ -187,6 +214,7 @@ const main = async () => {
 		await compileDesktopCli(targetTriple);
 	}
 	await buildRemoteClis();
+	await stageProjectSandboxRuntime(targetTriple);
 };
 
 if (import.meta.main) {

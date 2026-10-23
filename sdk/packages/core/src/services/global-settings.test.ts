@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
+	isKeepChangesInProjectEnabledGlobally,
 	isModelToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
@@ -19,6 +20,7 @@ import {
 	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
+	setKeepChangesInProjectGlobally,
 	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
@@ -211,6 +213,24 @@ describe("global-settings", () => {
 
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = root;
 			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps project edit protection on when the settings file is unreadable", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+			setKeepChangesInProjectGlobally(true);
+			expect(isKeepChangesInProjectEnabledGlobally()).toBe(true);
+
+			await writeFile(settingsPath, "{torn write");
+			expect(isKeepChangesInProjectEnabledGlobally()).toBe(true);
+
+			setKeepChangesInProjectGlobally(false);
+			expect(isKeepChangesInProjectEnabledGlobally()).toBe(false);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

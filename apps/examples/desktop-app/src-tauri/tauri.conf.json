@@ -46,7 +46,8 @@
 			"icons/app/*.png",
 			"icons/app/macos/*.png",
 			"bin/remote-helpers/*",
-			"bin/desktop-backend/**/*"
+			"bin/desktop-backend/**/*",
+			"bin/mxc/**/*"
 		],
 		"icon": [
 			"icons/32x32.png",

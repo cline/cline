@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
@@ -28,6 +30,7 @@ import {
 import { HubStartup } from "./hub-startup";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
+import { linuxResourceCandidates } from "./remote-helper";
 import { startServer } from "./server";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
@@ -269,6 +272,31 @@ function runTelemetrySelfcheck(): void {
 	process.stdout.write(`${JSON.stringify(report)}\n`);
 }
 
+/**
+ * Points core at the sandbox runtime for "Only allow edits in project directory",
+ * which build-desktop-runtime stages into the bundle's bin/mxc resource. The
+ * Hub daemon the bundled CLI starts inherits this env.
+ */
+function configureProjectSandboxRuntime(): void {
+	if (process.env.CLINE_MXC_SDK_DIR) {
+		return;
+	}
+	// This backend runs on the bundled CLI, so execPath is that binary.
+	const executableDirectory = dirname(process.execPath);
+	const runtimePath = join("mxc", "node_modules", "@microsoft", "mxc-sdk");
+	const resource = join("bin", runtimePath);
+	const runtime = [
+		// Windows installs resources next to the CLI.
+		join(executableDirectory, resource),
+		// `tauri dev` runs the compiled CLI from src-tauri/bin.
+		join(executableDirectory, runtimePath),
+		...linuxResourceCandidates(executableDirectory, resource),
+	].find(existsSync);
+	if (runtime) {
+		process.env.CLINE_MXC_SDK_DIR = runtime;
+	}
+}
+
 async function runEntrypoint(): Promise<void> {
 	// The selfcheck only inspects build-time config and must not start anything.
 	if (process.argv.includes("--telemetry-selfcheck")) {
@@ -281,6 +309,7 @@ async function runEntrypoint(): Promise<void> {
 	disableCurrentDirectoryExecutableSearch();
 	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
+	configureProjectSandboxRuntime();
 	await main(cliPath);
 }
 

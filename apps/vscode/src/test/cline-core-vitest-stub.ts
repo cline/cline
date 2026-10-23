@@ -118,6 +118,12 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 	}
 }
 
+export function isKeepChangesInProjectEnabledGlobally(): boolean {
+	return false
+}
+
+export function setKeepChangesInProjectGlobally(_keepChangesInProject: boolean): void {}
+
 export {
 	CommandExitError,
 	CommandSpawnError,

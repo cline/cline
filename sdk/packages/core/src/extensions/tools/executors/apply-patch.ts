@@ -159,6 +159,26 @@ function extractFilesForOperations(
 	return [...files];
 }
 
+/**
+ * Every path a patch adds, updates, deletes, or moves to, parsed exactly as
+ * the executor parses them. Returns an empty list for malformed patches,
+ * which the executor rejects anyway.
+ */
+export function listPatchTargets(patchText: string): string[] {
+	let lines: readonly string[];
+	try {
+		lines = normalizePatchInput(patchText).lines;
+	} catch {
+		return [];
+	}
+	return extractFilesForOperations(lines, [
+		PATCH_MARKERS.ADD,
+		PATCH_MARKERS.UPDATE,
+		PATCH_MARKERS.DELETE,
+		PATCH_MARKERS.MOVE,
+	]);
+}
+
 function applyChunks(
 	content: string,
 	chunks: PatchChunk[],

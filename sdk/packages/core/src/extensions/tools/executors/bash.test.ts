@@ -10,10 +10,11 @@ import {
 	utimes,
 	writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { setKeepChangesInProjectGlobally } from "../../../services/global-settings";
 import {
 	CommandExitError,
 	CommandSpawnError,
@@ -21,6 +22,13 @@ import {
 	createShellExecutor,
 } from "./bash";
 import { RunCommandExecutionController } from "./run-command-execution-controller";
+
+// Keep a developer's own "Only allow edits in project directory" setting from
+// sandboxing these tests.
+process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+	tmpdir(),
+	`cline-bash-test-settings-${process.pid}.json`,
+);
 
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
@@ -1280,3 +1288,46 @@ describe("CommandSpawnError", () => {
 		expect((error as CommandSpawnError).missing).toBe("cwd");
 	});
 });
+
+// MXC's streaming spawn needs Node 24+ on Linux.
+const linuxSandboxToolsInstalled =
+	process.platform === "linux" &&
+	Number(process.versions.node.split(".")[0]) >= 24 &&
+	["bwrap", "slirp4netns", "iptables"].every(
+		(tool) => spawnSync("which", [tool]).status === 0,
+	);
+
+describe.skipIf(!linuxSandboxToolsInstalled)(
+	"createShellExecutor with only allow edits in project directory",
+	() => {
+		it("writes inside the project but not outside it", async () => {
+			const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			// Outside the temp folder and package caches, which are writable on
+			// their own, so only the project grant can allow the first write.
+			const root = await mkdtemp(join(homedir(), ".cline-sandbox-test-"));
+			const project = join(root, "project");
+			const outsideFile = join(root, "outside.txt");
+			await mkdir(project);
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(root, "settings.json");
+			setKeepChangesInProjectGlobally(true);
+			const shell = createShellExecutor({ timeoutMs: 20_000 });
+			try {
+				await expect(
+					shell("echo inside > file.txt && cat file.txt", project, ctx),
+				).resolves.toContain("inside");
+
+				const error = await shell(`touch ${outsideFile}`, project, ctx).catch(
+					(caught: unknown) => caught,
+				);
+				expect(error).toBeInstanceOf(CommandExitError);
+				expect((error as CommandExitError).output).toContain(
+					'"Only allow edits in project directory"',
+				);
+				expect(existsSync(outsideFile)).toBe(false);
+			} finally {
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = previousSettingsPath;
+				await rm(root, { recursive: true, force: true });
+			}
+		});
+	},
+);

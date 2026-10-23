@@ -4,7 +4,7 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
+import { isKeepChangesInProjectEnabledGlobally, isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
@@ -13,6 +13,7 @@ import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
 
@@ -46,6 +47,7 @@ export async function getStateToPostToWebview(controller: {
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const webSearchEnabled = isModelToolEnabledGlobally("web_search")
+	const keepChangesInProject = isKeepChangesInProjectEnabledGlobally()
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
@@ -126,6 +128,10 @@ export async function getStateToPostToWebview(controller: {
 		useAutoCondense,
 		compactionStrategy,
 		webSearchEnabled,
+		keepChangesInProject,
+		// Stays visible once on, so the setting can always be turned off again.
+		keepChangesInProjectAvailable:
+			keepChangesInProject || featureFlagsService.getBooleanFlagEnabled(FeatureFlag.ONLY_ALLOW_PROJECT_EDITS),
 		subagentsEnabled,
 		userInfo,
 		mcpMarketplaceEnabled,

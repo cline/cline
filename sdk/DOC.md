@@ -481,6 +481,44 @@ standalone adapters do this in the `errorCode` dimension, and use the bounded
 labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
 numeric exit is reported as `exitCode`.
 
+## Only allow edits in project directory
+
+`keepChangesInProject` in the shared global settings file (read with
+`isKeepChangesInProjectEnabledGlobally()`, written with
+`setKeepChangesInProjectGlobally()`) confines agent writes to the project. It
+is read on every command and edit, so toggling it applies immediately in every
+app that shares the settings file. If the file cannot be read (for example a
+torn write), the last value read stays in effect.
+
+While it is on:
+
+- `createShellExecutor` runs each command inside Microsoft's MXC sandbox
+  (`@microsoft/mxc-sdk`, an optional peer dependency). Commands can read the
+  filesystem (on Windows: the user profile, discovered toolchains, and the
+  project, because Windows containers are deny-by-default) but can only write
+  to the working directory, temp folders, and package manager caches. Network
+  stays on; Linux sandboxes cannot reach host loopback services.
+- Sandboxed commands cannot be released with "Proceed While Running"; they run
+  until they exit or time out.
+- A failure that looks like a write denial gets a note naming the setting so
+  the model can explain it to the user.
+- The `editor` and `apply_patch` tools refuse targets outside the project
+  (symlinks resolved), through a `beforeTool` extension that also covers
+  host-provided replacements of those tools.
+- If the sandbox cannot start, the command fails closed with
+  `CommandSpawnError` rather than running unprotected.
+
+Sandbox requirements: MXC's streaming spawn needs Node 24+ (on Windows 24.21+
+or 26.8+); Bun 1.4+ with the stream fix in
+`patches/@microsoft%2Fmxc-sdk@1.0.0.patch` applied (`patchedDependencies`),
+without which sandboxed commands fail closed under Bun; Linux needs `bwrap`,
+`slirp4netns`, and `iptables`;
+macOS 15+ on Apple silicon; Windows 11 24H2/25H2 with the August 2026 update.
+Bundled or compiled hosts cannot inline MXC because its FFI layer loads native
+files from disk. Stage it with `sdk/packages/core/scripts/stage-mxc-runtime.ts`
+and either ship it at `<package>/mxc` next to the executable's `bin/` or set
+`CLINE_MXC_SDK_DIR` to the staged `@microsoft/mxc-sdk` directory.
+
 ## Symlinked instruction files
 
 Rules and workflows can be symbolic links to regular files. Source paths and

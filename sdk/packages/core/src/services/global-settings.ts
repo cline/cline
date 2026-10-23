@@ -66,6 +66,7 @@ export const GlobalSettingsSchema = z
 		compactionEnabled: z.boolean().optional().catch(undefined),
 		planActMode: GlobalPlanActModeSchema.optional().catch(undefined),
 		toolAutoApprove: z.boolean().optional().catch(undefined),
+		keepChangesInProject: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		tools: ModelToolSettingsSchema,
@@ -81,6 +82,7 @@ export const GlobalSettingsSchema = z
 			compactionEnabled?: boolean;
 			planActMode?: GlobalPlanActMode;
 			toolAutoApprove?: boolean;
+			keepChangesInProject?: boolean;
 			tuiTheme?: string;
 			disabledTools?: string[];
 			tools?: ModelToolSettings;
@@ -101,6 +103,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.toolAutoApprove !== undefined) {
 			normalized.toolAutoApprove = settings.toolAutoApprove;
+		}
+		if (settings.keepChangesInProject !== undefined) {
+			normalized.keepChangesInProject = settings.keepChangesInProject;
 		}
 		if (settings.tuiTheme?.trim()) {
 			normalized.tuiTheme = settings.tuiTheme.trim();
@@ -331,6 +336,29 @@ export function setTuiThemeGlobally(tuiTheme: string): void {
 
 export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
 	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
+}
+
+/**
+ * When on, commands run in an OS sandbox that can only write inside the
+ * project, and file edits outside the project are refused.
+ */
+export function isKeepChangesInProjectEnabledGlobally(): boolean {
+	const cached = getCachedSettings();
+	// A torn or corrupt read (e.g. another app mid-write) falls back to
+	// defaults; keep the last value actually read so protection does not
+	// silently switch off.
+	if (!cached.loadFailed) {
+		lastReadKeepChangesInProject = cached.value.keepChangesInProject === true;
+	}
+	return lastReadKeepChangesInProject;
+}
+
+let lastReadKeepChangesInProject = false;
+
+export function setKeepChangesInProjectGlobally(
+	keepChangesInProject: boolean,
+): void {
+	writeGlobalSettings({ ...readGlobalSettings(), keepChangesInProject });
 }
 
 export function resolveDisabledToolNames(

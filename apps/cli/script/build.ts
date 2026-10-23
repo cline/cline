@@ -5,6 +5,7 @@ import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { $ } from "bun";
+import { stageMxcRuntime } from "../../../sdk/packages/core/scripts/stage-mxc-runtime";
 import {
 	parseBuildOptions,
 	shouldInstallNativeVariants,
@@ -179,6 +180,13 @@ for (const item of targets) {
 			process.exit(1);
 		}
 	}
+
+	// Runtime for "Only allow edits in project directory"; core finds it at
+	// <platform package>/mxc.
+	await stageMxcRuntime({
+		destination: join(cliDir, `dist/${dirName}/mxc`),
+		targets: [{ platform: item.os, arch: item.arch }],
+	});
 
 	// Generate platform package.json
 	await Bun.write(
