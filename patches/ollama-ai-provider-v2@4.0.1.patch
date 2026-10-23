@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244c0c03be1 100644
+index aafa72c4167302af45db22e41a227cbaf02f792f..4c8fc189f044073905905b1d80a342ca9fc52b72 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -154,7 +154,7 @@ function resolveOllamaThinkFlag({
@@ -65,8 +65,15 @@ index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244
                } catch (error) {
                  console.warn("Failed to parse NDJSON line:", error);
                }
-@@ -843,7 +859,7 @@ function convertToOllamaChatMessages({
-         }).map((part) => extractOllamaFileData(part.data));
+@@ -840,10 +856,13 @@ function convertToOllamaChatMessages({
+         const userText = content.filter((part) => part.type === "text").map((part) => part.text).join("");
+         const images = content.filter((part) => {
+           return part.type === "file" && part.mediaType.startsWith("image/");
+-        }).map((part) => extractOllamaFileData(part.data));
++        }).map((part) => {
++          const data = extractOllamaFileData(part.data);
++          return typeof data === "string" ? fileDataToBase64String(data) : data;
++        });
          messages.push({
            role: "user",
 -          content: userText.length > 0 ? userText : [],
@@ -74,7 +81,7 @@ index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244
            images: images.length > 0 ? images : void 0
          });
          break;
-@@ -904,6 +920,7 @@ function convertToOllamaChatMessages({
+@@ -904,6 +923,7 @@ function convertToOllamaChatMessages({
                messages.push({
                  role: "tool",
                  tool_call_id: toolResponse.toolCallId,
@@ -83,7 +90,7 @@ index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244
                });
                break;
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1fcd29838e 100644
+index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..9c4ea4ac9e3faeaeebb6707141dbb49fefaa5f3c 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -143,7 +143,7 @@ function resolveOllamaThinkFlag({
@@ -149,8 +156,15 @@ index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1f
                } catch (error) {
                  console.warn("Failed to parse NDJSON line:", error);
                }
-@@ -847,7 +863,7 @@ function convertToOllamaChatMessages({
-         }).map((part) => extractOllamaFileData(part.data));
+@@ -844,10 +860,13 @@ function convertToOllamaChatMessages({
+         const userText = content.filter((part) => part.type === "text").map((part) => part.text).join("");
+         const images = content.filter((part) => {
+           return part.type === "file" && part.mediaType.startsWith("image/");
+-        }).map((part) => extractOllamaFileData(part.data));
++        }).map((part) => {
++          const data = extractOllamaFileData(part.data);
++          return typeof data === "string" ? fileDataToBase64String(data) : data;
++        });
          messages.push({
            role: "user",
 -          content: userText.length > 0 ? userText : [],
@@ -158,7 +172,7 @@ index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1f
            images: images.length > 0 ? images : void 0
          });
          break;
-@@ -908,6 +924,7 @@ function convertToOllamaChatMessages({
+@@ -908,6 +927,7 @@ function convertToOllamaChatMessages({
                messages.push({
                  role: "tool",
                  tool_call_id: toolResponse.toolCallId,
