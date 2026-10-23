@@ -667,3 +667,32 @@ Native inline screenshots use validated browser-owned Blob URLs and show a fallb
 UX verification screenshots reuse canonical `GeneratedMedia` with `modality: "image"` and the supported raster media types. `source` supports inline `base64`, trusted host-resolved `url`, or stable `artifact` references. The screenshot's `id`, optional `name`, and `sizeBytes` are preserved. Hosts can pass screenshots directly to an existing generated-media/artifact renderer; there are no separate top-level `data` or `url` screenshot fields. Signed access URLs remain transient host state when using artifact references.
 
 UX screenshot renderers receive `presentation: "slide" | "thumbnail"`. Thumbnail rendering must be non-interactive, so hosts should keep retry controls in the main image and expanded view only. The shared generated-media renderer handles native image load failures, so expanded inline evidence also shows an unavailable state.
+
+## Pending prompts and session teardown
+
+Two host calls end a turn and they differ for prompts queued behind it.
+`abort(sessionId)` (the Stop/Cancel button) stops the in-flight turn and
+leaves the session alive and `idle`; queued prompts stay in the queue and
+drain once the abort settles, and a `delivery: "steer"` prompt sent to the
+idle session starts a turn. `stopSession(sessionId)`, `deleteSession(sessionId)`
+and `dispose()` tear the session down; nothing can reach it afterwards.
+
+- Once teardown has started, `runTurn` rejects for that session with
+  `Session <id> is shutting down`, for immediate, `queue` and `steer`
+  delivery alike. Before this it resolved `undefined`, which is also what an
+  accepted queued prompt returns, so a caller could not tell that the input
+  was lost. Hub clients receive the rejection as a failed `session.send_input`
+  command (and a `run.failed` event for it).
+- `SessionPendingPromptsEvent` (`pending_prompts`) has an optional
+  `discarded: SessionPendingPrompt[]`. It is present on the snapshot that
+  empties the queue when prompts leave it without being sent: on teardown, when
+  the user aborts a turn the queue itself started, and when a dequeued prompt
+  is stopped by teardown before the agent accepted it (that prompt was already
+  announced by `pending_prompt_submitted`, so the `discarded` entry with the
+  same `id` is how a client learns it never ran). Snapshots that only reorder
+  or remove prompts at the user's request carry no `discarded`. The hub
+  forwards the field unchanged. Hosts that let users recover typed text should
+  read it from this event; the queue itself is not persisted across teardown.
+- `session.pending_prompts_discarded` telemetry (`count`, `reason` of
+  `session_teardown` or `queue_abort`) is emitted alongside; it never carries
+  prompt text.
