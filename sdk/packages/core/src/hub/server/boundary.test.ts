@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	SessionAlreadyExistsError,
 	SessionNotFoundError,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -59,6 +60,114 @@ describe("HubServerTransport boundaries", () => {
 	function getContext(transport: HubServerTransport): HubTransportContext {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
+
+	it("resumes from persisted messages through the existing creation path", async () => {
+		const messages = [{ role: "user", content: "saved conversation" }];
+		const startSession = vi.fn().mockResolvedValue({ sessionId: "session-1" });
+		const readSessionMessages = vi.fn().mockResolvedValue(messages);
+		const transport = createTransport({
+			sessionHost: { startSession, readSessionMessages },
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				clientId: "resume-client",
+				payload: {
+					sessionConfig: { sessionId: "session-1", reasoningEffort: "high" },
+				},
+			});
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.session).toMatchObject({
+				sessionId: "session-1",
+				createdByClientId: "resume-client",
+			});
+			expect(readSessionMessages).toHaveBeenCalledWith("session-1");
+			expect(startSession).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages: messages,
+					config: expect.objectContaining({
+						sessionId: "session-1",
+						reasoningEffort: "high",
+					}),
+				}),
+			);
+			expect(reply.payload).not.toHaveProperty("messages");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		{ payload: {} },
+		{
+			payload: {
+				sessionConfig: { sessionId: "session-1" },
+				sessionId: "other",
+			},
+		},
+		{
+			payload: {
+				sessionConfig: { sessionId: "session-1" },
+				initialMessages: [],
+			},
+		},
+		{
+			payload: {
+				sessionConfig: { sessionId: "session-1" },
+				initialCompactionState: {},
+			},
+		},
+	])("rejects invalid resume input before starting: $payload", async ({
+		payload,
+	}) => {
+		const startSession = vi.fn();
+		const readSessionMessages = vi.fn();
+		const transport = createTransport({
+			sessionHost: { startSession, readSessionMessages },
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload,
+			});
+			expect(reply.error?.code).toBe("invalid_resume");
+			expect(startSession).not.toHaveBeenCalled();
+			expect(readSessionMessages).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it.each([
+		undefined,
+		[],
+	])("rejects unavailable saved resume history: %j", async (messages) => {
+		const startSession = vi.fn();
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				readSessionMessages: vi.fn().mockResolvedValue(messages),
+				...(messages === undefined
+					? { getSession: vi.fn().mockResolvedValue(undefined) }
+					: {}),
+			},
+		});
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.resume",
+				payload: { sessionConfig: { sessionId: "session-1" } },
+			});
+			expect(reply.error?.code).toBe(
+				messages === undefined ? "session_not_found" : "invalid_resume",
+			);
+			expect(startSession).not.toHaveBeenCalled();
+		} finally {
+			await transport.stop();
+		}
+	});
 
 	it("recovers an empty cloud snapshot set from a fresh daemon", async () => {
 		const transport = createTransport({ eventLog: false, runQueue: false });
@@ -1025,7 +1134,10 @@ describe("HubServerTransport boundaries", () => {
 		);
 	});
 
-	it("publishes capability-backed tools on the hub session stream", async () => {
+	it.each([
+		"session.create",
+		"session.resume",
+	] as const)("preserves capability-backed tools through %s and resume conflicts", async (command) => {
 		let capturedStartInput: StartSessionInput | undefined;
 		const startSession = vi.fn(
 			async (input: StartSessionInput): Promise<StartSessionResult> => {
@@ -1075,7 +1187,9 @@ describe("HubServerTransport boundaries", () => {
 				deleteSession: vi.fn(),
 				updateSession: vi.fn(),
 				dispatchHookEvent: vi.fn(),
-				readSessionMessages: vi.fn(),
+				readSessionMessages: vi
+					.fn()
+					.mockResolvedValue([{ role: "user", content: "saved" }]),
 			} as never,
 		});
 		const events: HubEventEnvelope[] = [];
@@ -1084,12 +1198,13 @@ describe("HubServerTransport boundaries", () => {
 		const reply = await transport.handleCommand({
 			version: "v1",
 			requestId: "req-create",
-			command: "session.create",
+			command,
 			clientId: "client-1",
 			payload: {
 				workspaceRoot: "/tmp/project",
 				cwd: "/tmp/project",
 				sessionConfig: {
+					sessionId: "123-saved-session",
 					providerId: "cline",
 					modelId: "test-model",
 					cwd: "/tmp/project",
@@ -1111,7 +1226,22 @@ describe("HubServerTransport boundaries", () => {
 
 		expect(reply.ok).toBe(true);
 		const sessionId = capturedStartInput?.config.sessionId?.trim() || "";
-		expect(sessionId).toMatch(/^[0-9]/);
+		expect(sessionId).toBe("123-saved-session");
+		if (command === "session.resume") {
+			startSession.mockRejectedValueOnce(
+				new SessionAlreadyExistsError(sessionId),
+			);
+			const duplicate = await transport.handleCommand({
+				version: "v1",
+				command,
+				clientId: "client-2",
+				payload: { sessionConfig: { sessionId } },
+			});
+			expect(duplicate.error?.code).toBe("session_already_exists");
+			expect(
+				getContext(transport).sessionState.get(sessionId)?.createdByClientId,
+			).toBe("client-1");
+		}
 		const askQuestion =
 			capturedStartInput?.capabilities?.toolExecutors?.askQuestion;
 		if (!askQuestion) {

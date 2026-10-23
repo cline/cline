@@ -153,7 +153,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import { SessionNotFoundError } from "./runtime-host";
+import {
+	SessionAlreadyExistsError,
+	SessionNotFoundError,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -300,6 +303,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly connectorsRequest?: ConnectorsRequest;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly startingSessions = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -492,33 +499,53 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const isReadOnlyResumeStart =
-			requestedSessionId.length > 0 &&
-			(input.initialMessages?.length ?? 0) > 0 &&
-			!input.prompt?.trim();
-		const hasRequestedWorkspace = Boolean(
-			input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
-		);
-		const existingResumeManifest =
-			isReadOnlyResumeStart && !hasRequestedWorkspace
-				? await this.invokeOptionalValue<SessionManifest>(
-						"readSessionManifest",
-						sessionId,
-					)
-				: undefined;
-		const config = existingResumeManifest
-			? {
-					...input.config,
-					cwd: existingResumeManifest.cwd,
-					workspaceRoot: existingResumeManifest.workspace_root,
-				}
-			: await resolveStartSessionWorkspace(input.config);
-		return await this.startResolvedSession(
-			{ ...input, config },
-			sessionId,
-			requestedSessionId.length > 0,
-			existingResumeManifest,
-		);
+		for (;;) {
+			const pending = this.startingSessions.get(sessionId);
+			if (!pending) break;
+			await pending.catch(() => undefined);
+		}
+		if (
+			input.localRuntime?.rejectExistingSession &&
+			this.sessions.has(sessionId)
+		) {
+			throw new SessionAlreadyExistsError(sessionId);
+		}
+		// Reserve the ID before initialization can yield to another start.
+		const starting = Promise.resolve().then(async () => {
+			const isReadOnlyResumeStart =
+				requestedSessionId.length > 0 &&
+				(input.initialMessages?.length ?? 0) > 0 &&
+				!input.prompt?.trim();
+			const hasRequestedWorkspace = Boolean(
+				input.config.cwd?.trim() || input.config.workspaceRoot?.trim(),
+			);
+			const existingResumeManifest =
+				isReadOnlyResumeStart && !hasRequestedWorkspace
+					? await this.invokeOptionalValue<SessionManifest>(
+							"readSessionManifest",
+							sessionId,
+						)
+					: undefined;
+			const config = existingResumeManifest
+				? {
+						...input.config,
+						cwd: existingResumeManifest.cwd,
+						workspaceRoot: existingResumeManifest.workspace_root,
+					}
+				: await resolveStartSessionWorkspace(input.config);
+			return await this.startResolvedSession(
+				{ ...input, config },
+				sessionId,
+				requestedSessionId.length > 0,
+				existingResumeManifest,
+			);
+		});
+		this.startingSessions.set(sessionId, starting);
+		try {
+			return await starting;
+		} finally {
+			this.startingSessions.delete(sessionId);
+		}
 	}
 
 	private async startResolvedSession(

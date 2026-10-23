@@ -1,3 +1,4 @@
+import type { MessageWithMetadata } from "@cline/llms";
 import type {
 	ClientContext,
 	HubCommandEnvelope,
@@ -359,6 +360,43 @@ export async function handleSessionCreate(
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
 			: "";
+	let initialMessages = Array.isArray(payload.initialMessages)
+		? (payload.initialMessages as MessageWithMetadata[])
+		: undefined;
+	if (envelope.command === "session.resume") {
+		if (
+			!requestedSessionId ||
+			(envelope.sessionId !== undefined &&
+				envelope.sessionId.trim() !== requestedSessionId) ||
+			(payload.sessionId !== undefined &&
+				payload.sessionId !== requestedSessionId) ||
+			Object.hasOwn(payload, "initialMessages") ||
+			Object.hasOwn(payload, "initialCompactionState")
+		) {
+			return errorReply(
+				envelope,
+				"invalid_resume",
+				"session.resume requires a matching saved session id and no supplied history",
+			);
+		}
+		if (!(await ctx.sessionHost.getSession(requestedSessionId))) {
+			return errorReply(
+				envelope,
+				"session_not_found",
+				`Unknown session: ${requestedSessionId}`,
+			);
+		}
+		const savedMessages =
+			await ctx.sessionHost.readSessionMessages(requestedSessionId);
+		if (savedMessages.length === 0) {
+			return errorReply(
+				envelope,
+				"invalid_resume",
+				"The saved conversation is empty or unavailable",
+			);
+		}
+		initialMessages = savedMessages;
+	}
 	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
@@ -405,11 +443,10 @@ export async function handleSessionCreate(
 			Object.keys(metadata as Record<string, unknown>).length > 0
 				? (metadata as Record<string, unknown>)
 				: undefined,
-		initialMessages: Array.isArray(payload.initialMessages)
-			? (payload.initialMessages as never[])
-			: undefined,
+		initialMessages,
 		initialCompactionState,
 		localRuntime: {
+			rejectExistingSession: envelope.command === "session.resume",
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
 				loadPrivateOnAuth: true,
