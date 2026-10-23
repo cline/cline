@@ -4391,6 +4391,53 @@ describe("LocalRuntimeHost", () => {
 		});
 	}
 
+	for (const gesture of ["stopSession", "dispose"] as const) {
+		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
+			const sessionId = `sess-resumed-${gesture}-while-preparing`;
+			const f = createPreparingTurnFixture(sessionId, {
+				holdFirstRunningWrite: true,
+				resumedStatus: "completed",
+			});
+			await f.manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						telemetry: { capture: f.capture } as never,
+					}),
+					interactive: true,
+					initialMessages: [
+						{ role: "user", content: "earlier" },
+						{ role: "assistant", content: "done" },
+					] as never,
+				}),
+			);
+			expect(await f.manager.getSession(sessionId)).toMatchObject({
+				status: "completed",
+			});
+
+			// The follow-up is parked in its running write while the manifest
+			// status still reads completed from before the resume.
+			const followUp = f.manager.runTurn({ sessionId, prompt: "follow-up" });
+			await f.held;
+			const ending =
+				gesture === "dispose"
+					? f.manager.dispose()
+					: f.manager.stopSession(sessionId);
+			f.release();
+			await ending;
+			await expect(followUp).resolves.toMatchObject({
+				finishReason: "aborted",
+			});
+
+			expect(f.statuses()).toEqual(["running", "cancelled"]);
+			expect(f.endReasons).toEqual([
+				gesture === "dispose" ? "disposed" : "stopped",
+			]);
+			expect(f.telemetryEvents()).not.toContain("task.completed");
+			expect(f.agent.run).not.toHaveBeenCalled();
+		});
+	}
+
 	it("records cancelled when the host is disposed while a session's next turn is still preparing", async () => {
 		const sessionId = "sess-dispose-while-next-turn-prepares";
 		const f = createPreparingTurnFixture(sessionId, {
