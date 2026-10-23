@@ -554,6 +554,71 @@ describe("RuntimeEventAdapter — tool lifecycle", () => {
 		]);
 	});
 
+	// Tools such as read_files / search_codebase / fetch_web_content report
+	// failure inside their `ToolOperationResult[]` payload and leave the
+	// envelope unflagged, so the error must be derived from the payload.
+	it("derives content_end error from a failed tool payload when isError is unset", () => {
+		const toolCall = makeToolCall({ toolCallId: "call_read" });
+		const out = adapter.translate({
+			type: "tool-finished",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			toolCall,
+			message: {
+				id: "msg_tool",
+				role: "tool",
+				createdAt: 1_700_000_000_000,
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_read",
+						toolName: "read_file",
+						output: [
+							{
+								query: "/tmp/missing.txt",
+								result: "",
+								error:
+									"Error reading file: ENOENT: no such file or directory, statx '/tmp/missing.txt'",
+								success: false,
+							},
+						],
+					},
+				],
+			},
+		});
+		expect(out).toHaveLength(1);
+		const event = out[0] as { error?: string };
+		expect(event.error).toContain("ENOENT");
+	});
+
+	it("leaves content_end error unset when every payload operation succeeded", () => {
+		const toolCall = makeToolCall({ toolCallId: "call_ok" });
+		const out = adapter.translate({
+			type: "tool-finished",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			toolCall,
+			message: {
+				id: "msg_tool",
+				role: "tool",
+				createdAt: 1_700_000_000_000,
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_ok",
+						toolName: "read_file",
+						output: [
+							{ query: "/tmp/a.txt", result: "contents", success: true },
+						],
+					},
+				],
+			},
+		});
+		expect(out).toHaveLength(1);
+		const event = out[0] as { error?: string };
+		expect(event.error).toBeUndefined();
+	});
+
 	it("maps tool-finished with tracked timing → content_end(tool) with durationMs", () => {
 		vi.useFakeTimers();
 		try {
