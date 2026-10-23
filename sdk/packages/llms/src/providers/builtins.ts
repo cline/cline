@@ -1035,7 +1035,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		description: "Z.AI's coding-focused models",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "tools"],
-		defaultModelId: "glm-5.2",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },

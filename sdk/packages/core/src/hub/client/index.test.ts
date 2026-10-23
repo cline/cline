@@ -1593,6 +1593,18 @@ describe("hasActiveHubSessions", () => {
 		).toBe(false);
 	});
 
+	it("counts active cloud commands without attached sessions", async () => {
+		const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+			"."
+		);
+		expect(hasActiveHubSessions({ sessions: [], activeCloudCommands: 1 })).toBe(
+			true,
+		);
+		expect(
+			summarizeHubSessionActivity({ sessions: [], activeCloudCommands: 2 }),
+		).toMatchObject({ activeSessionCount: 0, activeCloudCommands: 2 });
+	});
+
 	const payload = (sessions: unknown[]) => ({ sessions });
 
 	it("is idle for an empty or malformed list", async () => {
