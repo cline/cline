@@ -4391,6 +4391,41 @@ describe("LocalRuntimeHost", () => {
 		});
 	}
 
+	it("runs a prompt queued behind a session's initial turn once that turn completes", async () => {
+		const sessionId = "sess-queue-behind-initial-turn";
+		// A prompted start begins as running, so the hold is the session row
+		// creation the initial turn performs before it reaches the agent.
+		const f = createPreparingTurnFixture(sessionId, { holdRowCreation: true });
+		// The second prompt arrives while the initial turn is still preparing;
+		// there is no later runTurn to drain it.
+		const starting = f.manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+				prompt: "first",
+			}),
+		);
+		await f.held;
+		await expect(
+			f.manager.runTurn({ sessionId, prompt: "second" }),
+		).resolves.toBeUndefined();
+		expect(
+			(await f.manager.pendingPrompts.list({ sessionId })).map(
+				(prompt) => prompt.prompt,
+			),
+		).toEqual(["second"]);
+
+		f.release();
+		await expect(starting).resolves.toMatchObject({
+			result: { finishReason: "completed" },
+		});
+		await vi.waitFor(async () => {
+			expect(f.agent.continue).toHaveBeenCalledTimes(1);
+			expect(await f.manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+		expect(f.submitted).toEqual(["second"]);
+	});
+
 	for (const gesture of ["stopSession", "dispose"] as const) {
 		it(`records cancelled when a resumed completed session is ${gesture === "dispose" ? "disposed" : "stopped"} while its follow-up turn is still preparing`, async () => {
 			const sessionId = `sess-resumed-${gesture}-while-preparing`;
