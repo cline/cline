@@ -2646,7 +2646,7 @@ function ChatThreadPane({
 								onNewThread={onNewThread}
 								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
 								filesOpen={filesPanelVisible}
-								pullRequest={pullRequestSource}
+								pullRequest={isCloudSession ? undefined : pullRequestSource}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
 								status={headerStatus}

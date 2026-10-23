@@ -54,11 +54,7 @@ afterEach(async () => {
 });
 async function render(cwd = "/repo", branch = "feature") {
 	await act(async () =>
-		root.render(
-			<PullRequestMenu cwd={cwd} branch={branch}>
-				<button type="button">Files</button>
-			</PullRequestMenu>,
-		),
+		root.render(<PullRequestMenu cwd={cwd} branch={branch} />),
 	);
 }
 function trigger() {
@@ -86,9 +82,8 @@ async function select(text: string) {
 	await act(async () => menuItem(text).click());
 }
 
-it("joins a PR menu to the files toggle and opens the PR", async () => {
+it("opens the PR from the menu", async () => {
 	await render();
-	expect(container.textContent).toContain("Files");
 	expect(trigger()?.getAttribute("aria-label")).toBe(
 		"Pull request #42: Conflicts",
 	);
@@ -220,10 +215,10 @@ it("copies the branch name", async () => {
 	expect(writeText).toHaveBeenCalledWith("feature");
 });
 
-it("renders only the toggle without a PR or compare form", async () => {
+it("renders nothing without a PR or compare form", async () => {
 	invoke.mockResolvedValue({ ...data, pullRequest: null, createUrl: null });
 	await render();
-	expect(container.textContent).toBe("Files");
+	expect(container.textContent).toBe("");
 	expect(trigger()).toBeNull();
 });
 
@@ -239,7 +234,7 @@ it("discards late responses after switching workspaces", async () => {
 	await render();
 	await render("/other");
 	await act(async () => finish(data));
-	expect(container.textContent).toBe("Files");
+	expect(container.textContent).toBe("");
 });
 
 it("refreshes and replaces stale status with an actionable error on failure", async () => {
@@ -306,7 +301,7 @@ it("hides a formerly working menu when GitHub becomes unavailable", async () => 
 it("does not fetch for a non-repository", async () => {
 	await render("/repo", "no-git");
 	expect(invoke).not.toHaveBeenCalled();
-	expect(container.textContent).toBe("Files");
+	expect(container.textContent).toBe("");
 });
 
 function telemetryEvents() {

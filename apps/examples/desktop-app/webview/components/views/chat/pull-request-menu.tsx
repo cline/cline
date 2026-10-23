@@ -18,7 +18,7 @@ import {
 	TriangleAlert,
 	X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -92,36 +92,20 @@ function CheckStateIcon({ state }: { state: PullRequestCheck["state"] }) {
 	return <CircleMinus className="text-muted-foreground" />;
 }
 
-/**
- * Joins a pull request menu onto the header's changes control (`children`)
- * while the branch has a PR or GitHub can open one; otherwise renders the
- * control alone.
- */
+/** Header button for the branch's pull request; hidden when there is nothing to show. */
 export function PullRequestMenu({
 	cwd,
 	branch,
-	children,
 }: {
 	cwd: string;
 	branch: string | null;
-	children: ReactNode;
 }) {
 	// Remount on workspace/branch changes so another repository's PR never flashes.
-	if (!cwd || !branch || branch === "no-git") return children;
-	return (
-		<WorkspacePullRequestMenu key={`${cwd}:${branch}`} cwd={cwd}>
-			{children}
-		</WorkspacePullRequestMenu>
-	);
+	if (!cwd || !branch || branch === "no-git") return null;
+	return <WorkspacePullRequestMenu key={`${cwd}:${branch}`} cwd={cwd} />;
 }
 
-function WorkspacePullRequestMenu({
-	cwd,
-	children,
-}: {
-	cwd: string;
-	children: ReactNode;
-}) {
+function WorkspacePullRequestMenu({ cwd }: { cwd: string }) {
 	const [data, setData] = useState<PullRequestStatus | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const refresh = useRef<() => void>(() => {});
@@ -213,7 +197,7 @@ function WorkspacePullRequestMenu({
 	}
 
 	const pr = data?.pullRequest;
-	if (!error && !pr && !data?.createUrl) return children;
+	if (!error && !pr && !data?.createUrl) return null;
 
 	const status = pr ? getMergeStatus(pr) : null;
 	const ci = summarizeChecks(pr?.checks ?? []);
@@ -225,195 +209,184 @@ function WorkspacePullRequestMenu({
 			: "Create a pull request";
 
 	return (
-		<div className="flex h-7 items-stretch rounded-md ring-1 ring-border ring-inset [&>button:first-child]:rounded-r-none">
-			{children}
-			<span aria-hidden="true" className="my-1.5 w-px bg-border" />
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						aria-label={triggerLabel}
-						className="h-7 gap-1.5 rounded-l-none px-2 text-xs text-muted-foreground hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
-						id="pull-request-menu"
-						size="sm"
-						title={pr?.title ?? triggerLabel}
-						type="button"
-						variant="ghost"
-					>
-						{error && !pr ? (
-							<TriangleAlert className="size-3.5 text-yellow-500" />
-						) : (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					aria-label={triggerLabel}
+					className="h-7 gap-1.5 px-2 text-xs text-muted-foreground transition-colors hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
+					id="pull-request-menu"
+					size="sm"
+					title={pr?.title ?? triggerLabel}
+					type="button"
+					variant="ghost"
+				>
+					{error && !pr ? (
+						<TriangleAlert className="size-3.5 text-yellow-500" />
+					) : (
+						<PrIcon
+							className={cn(
+								"size-3.5",
+								status ? toneColors[status.tone] : undefined,
+							)}
+						/>
+					)}
+					{pr ? (
+						<span className="font-mono text-foreground">#{pr.number}</span>
+					) : null}
+					{pr?.state === "OPEN" && ci !== "none" ? (
+						<span
+							aria-hidden="true"
+							className={cn("size-1.5 rounded-full", checkDotColors[ci])}
+							data-state={ci}
+						/>
+					) : null}
+					<ChevronDown className="size-3" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-72">
+				{pr && status ? (
+					<>
+						<div className="flex gap-2.5 px-2 py-1.5">
 							<PrIcon
 								className={cn(
-									"size-3.5",
-									status ? toneColors[status.tone] : undefined,
+									"mt-0.5 size-4 shrink-0",
+									toneColors[status.tone],
 								)}
 							/>
-						)}
-						{pr ? (
-							<span className="font-mono text-foreground">#{pr.number}</span>
-						) : null}
-						{pr?.state === "OPEN" && ci !== "none" ? (
-							<span
-								aria-hidden="true"
-								className={cn("size-1.5 rounded-full", checkDotColors[ci])}
-								data-state={ci}
-							/>
-						) : null}
-						<ChevronDown className="size-3" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" className="w-72">
-					{pr && status ? (
-						<>
-							<div className="flex gap-2.5 px-2 py-1.5">
-								<PrIcon
-									className={cn(
-										"mt-0.5 size-4 shrink-0",
-										toneColors[status.tone],
-									)}
-								/>
-								<div className="min-w-0">
-									<p className="line-clamp-2 text-sm font-medium">{pr.title}</p>
-									<p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-										<span className="font-mono">#{pr.number}</span>
-										<span aria-hidden="true">·</span>
-										<span className={toneColors[status.tone]}>
-											{status.label}
+							<div className="min-w-0">
+								<p className="line-clamp-2 text-sm font-medium">{pr.title}</p>
+								<p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+									<span className="font-mono">#{pr.number}</span>
+									<span aria-hidden="true">·</span>
+									<span className={toneColors[status.tone]}>
+										{status.label}
+									</span>
+									<span aria-hidden="true">·</span>
+									<span className="font-mono tabular-nums">
+										<span className="text-chart-2">
+											+{pr.additions.toLocaleString()}
+										</span>{" "}
+										<span className="text-destructive">
+											-{pr.deletions.toLocaleString()}
 										</span>
-										<span aria-hidden="true">·</span>
-										<span className="font-mono tabular-nums">
-											<span className="text-chart-2">
-												+{pr.additions.toLocaleString()}
-											</span>{" "}
-											<span className="text-destructive">
-												-{pr.deletions.toLocaleString()}
-											</span>
-										</span>
-									</p>
-								</div>
+									</span>
+								</p>
 							</div>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onSelect={() => {
-									trackPullRequestEvent("open_clicked", data);
-									void open(pr.url);
-								}}
-							>
-								<GitHubIcon />
-								Open on GitHub
-								<ArrowUpRight className="ml-auto" />
-							</DropdownMenuItem>
-							{pr.checks.length > 0 ? (
-								<DropdownMenuSub
-									onOpenChange={(isOpen) => {
-										if (isOpen) trackPullRequestEvent("checks_expanded", data);
-									}}
-								>
-									<DropdownMenuSubTrigger>
-										<span
-											aria-hidden="true"
-											className="flex size-4 items-center justify-center"
-										>
-											<span
-												className={cn(
-													"size-2 rounded-full",
-													checkDotColors[ci],
-												)}
-											/>
-										</span>
-										{checksLabel(pr.checks)}
-									</DropdownMenuSubTrigger>
-									{/* Portaled so the main menu's scroll container doesn't clip it. */}
-									<DropdownMenuPortal>
-										<DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">
-											{[...pr.checks]
-												.sort(
-													(a, b) => checkOrder[a.state] - checkOrder[b.state],
-												)
-												.map((check, index) => (
-													<DropdownMenuItem
-														disabled={!check.url}
-														// biome-ignore lint/suspicious/noArrayIndexKey: check names repeat across matrix jobs.
-														key={`${check.name}:${index}`}
-														onSelect={() => {
-															if (!check.url) return;
-															trackPullRequestEvent("check_clicked", data);
-															void open(check.url);
-														}}
-													>
-														<CheckStateIcon state={check.state} />
-														<span className="min-w-0 flex-1 truncate">
-															{check.name}
-														</span>
-														<span className="text-xs text-muted-foreground">
-															{check.state}
-														</span>
-													</DropdownMenuItem>
-												))}
-										</DropdownMenuSubContent>
-									</DropdownMenuPortal>
-								</DropdownMenuSub>
-							) : (
-								<DropdownMenuItem disabled>
-									<CircleMinus />
-									No checks
-								</DropdownMenuItem>
-							)}
-						</>
-					) : error ? (
-						<>
-							<p className="px-2 py-1.5 text-xs text-muted-foreground">
-								{error}
-							</p>
-							<DropdownMenuItem
-								onSelect={() => {
-									errorDismissed.current = true;
-									setError(null);
-								}}
-							>
-								<X />
-								Dismiss
-							</DropdownMenuItem>
-						</>
-					) : data?.createUrl ? (
-						<>
-							<p className="px-2 py-1.5 text-xs text-muted-foreground">
-								No pull request for this branch yet.
-							</p>
-							<DropdownMenuItem
-								onSelect={() => {
-									trackPullRequestEvent("create_clicked", data);
-									if (data.createUrl) void open(data.createUrl);
-								}}
-								title="Open GitHub’s comparison form for this branch. Push your commits before submitting."
-							>
-								<GitPullRequestCreateArrow />
-								Create pull request
-								<ArrowUpRight className="ml-auto" />
-							</DropdownMenuItem>
-						</>
-					) : null}
-					<DropdownMenuSeparator />
-					{data?.branch ? (
-						<DropdownMenuItem onSelect={() => void copyBranch(data.branch)}>
-							<Copy />
-							Copy branch name
+						</div>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onSelect={() => {
+								trackPullRequestEvent("open_clicked", data);
+								void open(pr.url);
+							}}
+						>
+							<GitHubIcon />
+							Open on GitHub
+							<ArrowUpRight className="ml-auto" />
 						</DropdownMenuItem>
-					) : null}
-					<DropdownMenuItem
-						disabled={loading}
-						onSelect={(event) => {
-							// Stay open so the refreshed status replaces the stale one in place.
-							event.preventDefault();
-							trackPullRequestEvent("refresh_clicked", data);
-							refresh.current();
-						}}
-					>
-						<RefreshCw className={cn(loading && "animate-spin")} />
-						Refresh status
+						{pr.checks.length > 0 ? (
+							<DropdownMenuSub
+								onOpenChange={(isOpen) => {
+									if (isOpen) trackPullRequestEvent("checks_expanded", data);
+								}}
+							>
+								<DropdownMenuSubTrigger>
+									<span
+										aria-hidden="true"
+										className="flex size-4 items-center justify-center"
+									>
+										<span
+											className={cn("size-2 rounded-full", checkDotColors[ci])}
+										/>
+									</span>
+									{checksLabel(pr.checks)}
+								</DropdownMenuSubTrigger>
+								{/* Portaled so the main menu's scroll container doesn't clip it. */}
+								<DropdownMenuPortal>
+									<DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">
+										{[...pr.checks]
+											.sort((a, b) => checkOrder[a.state] - checkOrder[b.state])
+											.map((check, index) => (
+												<DropdownMenuItem
+													disabled={!check.url}
+													// biome-ignore lint/suspicious/noArrayIndexKey: check names repeat across matrix jobs.
+													key={`${check.name}:${index}`}
+													onSelect={() => {
+														if (!check.url) return;
+														trackPullRequestEvent("check_clicked", data);
+														void open(check.url);
+													}}
+												>
+													<CheckStateIcon state={check.state} />
+													<span className="min-w-0 flex-1 truncate">
+														{check.name}
+													</span>
+													<span className="text-xs text-muted-foreground">
+														{check.state}
+													</span>
+												</DropdownMenuItem>
+											))}
+									</DropdownMenuSubContent>
+								</DropdownMenuPortal>
+							</DropdownMenuSub>
+						) : (
+							<DropdownMenuItem disabled>
+								<CircleMinus />
+								No checks
+							</DropdownMenuItem>
+						)}
+					</>
+				) : error ? (
+					<>
+						<p className="px-2 py-1.5 text-xs text-muted-foreground">{error}</p>
+						<DropdownMenuItem
+							onSelect={() => {
+								errorDismissed.current = true;
+								setError(null);
+							}}
+						>
+							<X />
+							Dismiss
+						</DropdownMenuItem>
+					</>
+				) : data?.createUrl ? (
+					<>
+						<p className="px-2 py-1.5 text-xs text-muted-foreground">
+							No pull request for this branch yet.
+						</p>
+						<DropdownMenuItem
+							onSelect={() => {
+								trackPullRequestEvent("create_clicked", data);
+								if (data.createUrl) void open(data.createUrl);
+							}}
+							title="Open GitHub’s comparison form for this branch. Push your commits before submitting."
+						>
+							<GitPullRequestCreateArrow />
+							Create pull request
+							<ArrowUpRight className="ml-auto" />
+						</DropdownMenuItem>
+					</>
+				) : null}
+				<DropdownMenuSeparator />
+				{data?.branch ? (
+					<DropdownMenuItem onSelect={() => void copyBranch(data.branch)}>
+						<Copy />
+						Copy branch name
 					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</div>
+				) : null}
+				<DropdownMenuItem
+					disabled={loading}
+					onSelect={(event) => {
+						// Stay open so the refreshed status replaces the stale one in place.
+						event.preventDefault();
+						trackPullRequestEvent("refresh_clicked", data);
+						refresh.current();
+					}}
+				>
+					<RefreshCw className={cn(loading && "animate-spin")} />
+					Refresh status
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
