@@ -1512,7 +1512,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.stopped",
 			properties: { sessionId },
 		});
-		if (session.interactive && !isNonTerminalSessionStatus(session.status)) {
+		if (
+			session.interactive &&
+			!isNonTerminalSessionStatus(session.status) &&
+			!this.hasActiveTurn(session)
+		) {
 			await this.releaseSessionRuntime(session, "session_stop");
 			return;
 		}
@@ -1542,7 +1546,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
-				session.interactive && !isNonTerminalSessionStatus(session.status)
+				session.interactive &&
+				!isNonTerminalSessionStatus(session.status) &&
+				!this.hasActiveTurn(session)
 					? this.releaseSessionRuntime(session, reason)
 					: session.interactive && !this.hasActiveTurn(session)
 						? this.shutdownSession(session, {
