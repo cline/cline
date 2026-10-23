@@ -89,6 +89,7 @@ function fixture() {
 			send: vi.fn(async () => ({ sessionId: "ses-one", ok: true })),
 			restoreCreationOptions: vi.fn(async () => {}),
 			listForDiscovery: vi.fn(async () => [{ sessionId: "ses-one" }]),
+			invalidateDiscoveryCache: vi.fn(),
 			dispose: vi.fn(async () => {}),
 		};
 		return { controller, emit: (event: CloudSessionEvent) => emit(event) };
@@ -158,6 +159,17 @@ function fixture() {
 }
 
 describe("hub-owned cloud sessions", () => {
+	it("preserves discovery cache options across the cloud RPC boundary", async () => {
+		const f = fixture();
+		const viewer = f.viewer();
+		const options = { timeoutMs: 2_000, maxAgeMs: 30_000 };
+		await viewer.listForDiscovery(options);
+		expect(f.controllers[0]?.controller.listForDiscovery).toHaveBeenCalledWith(
+			options,
+		);
+		await viewer.dispose();
+	});
+
 	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
 		const f = fixture();
 		const viewer = f.viewer();
@@ -595,6 +607,10 @@ describe("hub cloud credentials", () => {
 		const controller = service["controller"]!;
 		const getOrganization = controller["options"].getActiveOrganizationId!;
 		expect(await getOrganization()).toBe("org-one");
+		const list = vi
+			.spyOn(controller["options"].api, "list")
+			.mockResolvedValue([]);
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
 		if (reason === "failed refresh") {
 			fetch.mockRejectedValueOnce(new Error("organization request failed"));
 			await expect(command(service, "refreshOrganization", [])).rejects.toThrow(
@@ -605,6 +621,9 @@ describe("hub cloud credentials", () => {
 			{ organizationId: "org-two", active: true },
 		] as never);
 		expect(await getOrganization()).toBe("org-two");
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
+		expect(list).toHaveBeenCalledTimes(2);
+		expect(list).toHaveBeenLastCalledWith("org-two");
 		expect(service["controller"]).toBe(controller);
 	});
 
@@ -633,8 +652,15 @@ describe("hub cloud credentials", () => {
 		expect(await getOrganization()).toBe("org-one");
 		expect(await getOrganization()).toBe("org-one");
 		expect(fetch).toHaveBeenCalledOnce();
+		const list = vi
+			.spyOn(controller["options"].api, "list")
+			.mockResolvedValue([]);
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
 		await command(service, "refreshOrganization", []);
 		expect(await getOrganization()).toBe("org-two");
+		await command(service, "listForDiscovery", [{ maxAgeMs: 30_000 }]);
+		expect(list).toHaveBeenCalledTimes(2);
+		expect(list).toHaveBeenLastCalledWith("org-two");
 		expect(service["controller"]).toBe(controller);
 		expect(fetch).toHaveBeenCalledTimes(2);
 	});
@@ -692,6 +718,7 @@ describe("hub cloud credentials", () => {
 						emit = listener;
 					},
 					dispose: async () => {},
+					invalidateDiscoveryCache: () => {},
 				}) as unknown as CloudSessionController,
 		});
 		services.push(service);
@@ -771,6 +798,7 @@ describe("persisted cloud account scope", () => {
 				const controller = {
 					subscribe: vi.fn(),
 					dispose: vi.fn(async () => {}),
+					invalidateDiscoveryCache: vi.fn(),
 				};
 				created.push(controller);
 				return controller as unknown as CloudSessionController;
@@ -802,7 +830,11 @@ describe("persisted cloud account scope", () => {
 			provider: "cline",
 			auth: { accountId: "same-account", accessToken },
 		}));
-		const controller = { subscribe: vi.fn(), dispose: vi.fn(async () => {}) };
+		const controller = {
+			subscribe: vi.fn(),
+			dispose: vi.fn(async () => {}),
+			invalidateDiscoveryCache: vi.fn(),
+		};
 		const createController = vi.fn(
 			() => controller as unknown as CloudSessionController,
 		);

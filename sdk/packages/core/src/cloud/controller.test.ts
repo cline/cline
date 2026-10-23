@@ -259,6 +259,45 @@ describe("CloudSessionController neutral host contract", () => {
 		}
 	});
 
+	it("does not cache an old list that completes after organization invalidation", async () => {
+		const f = fixture();
+		let complete!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const old = f.controller.list();
+		await vi.waitFor(() => expect(f.api.list).toHaveBeenCalledOnce());
+		await f.controller.refreshOrganization();
+		f.api.list.mockResolvedValue([
+			{ ...record, id: "ses-current", title: "Current organization" },
+		]);
+		await f.controller.list();
+		let finishStatus!: (result: { status: string }) => void;
+		f.api.status.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishStatus = resolve;
+				}),
+		);
+		complete([
+			{ ...record, status: "provisioning", title: "Previous organization" },
+		]);
+		await vi.waitFor(() => expect(f.api.status).toHaveBeenCalledOnce());
+		expect(
+			(await f.controller.listForDiscovery({ maxAgeMs: 30_000 }))[0]?.metadata,
+		).toMatchObject({ title: "Current organization" });
+		finishStatus({ status: "ready" });
+		await old;
+		expect(
+			(await f.controller.listForDiscovery({ maxAgeMs: 30_000 }))[0]?.metadata,
+		).toMatchObject({ title: "Current organization" });
+		expect(f.api.list).toHaveBeenCalledTimes(4);
+		await f.controller.dispose();
+	});
+
 	it("joins a pending discovery refresh even while the previous cache is fresh", async () => {
 		const f = fixture();
 		await f.controller.listForDiscovery();

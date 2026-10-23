@@ -141,6 +141,7 @@ a refresh. Pending refreshes retain their existing `timeoutMs` budget behavior.
 Cached discovery still projects current live state and locally created sessions.
 Desktop uses a 30-second window for combined history lists; local discovery,
 cloud search, and session-open reads keep their existing refresh behavior.
+Organization refreshes and returning Hub viewers invalidate discovery freshness.
 
 ### Hub-owned cloud viewers
 
@@ -193,7 +194,6 @@ the old cache invalidated. Account-switch success and desktop cleanup must not
 depend on this optional refresh; cloud-disabled hosts skip it. A new viewer's
 watch also invalidates the cache, covering switches made while the Hub was
 unreachable without interrupting existing cloud work.
-
 
 ## Experimental cloud handoff
 
