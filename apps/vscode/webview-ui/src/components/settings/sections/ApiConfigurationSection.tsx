@@ -37,7 +37,7 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 				{showCloud && (
 					<div
 						aria-label="Model settings for"
-						className="inline-flex self-start rounded-sm border border-input-foreground/20 p-0.5 mb-1"
+						className="inline-flex self-start rounded-lg border border-input-foreground/20 p-1 mb-1"
 						role="radiogroup">
 						<TargetButton
 							active={!isCloud}
