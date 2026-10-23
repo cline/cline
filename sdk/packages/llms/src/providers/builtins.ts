@@ -1131,6 +1131,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsFactory: () => ({}),
 		defaults: { baseUrl: "https://api.asksage.ai/server" },
 	},
+	{
+	    id: "fikraapi",
+	    name: "Fikra API",
+		description: "Fikra API Platform",
+		family: "openai-compatible",
+	    capabilities: ["prompt-cache", "reasoning"],
+		defaultModelId: "deepseek-v4.1-flash",
+	    apiKeyEnv: ["FIKRA_API_KEY"],
+		modelsProviderId: "fikraapi",
+		defaults: { baseUrl: "https://api.fikraapi.co.ke/v1" },
+  	},
 ];
 
 /**
