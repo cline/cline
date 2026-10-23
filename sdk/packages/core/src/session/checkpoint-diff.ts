@@ -50,46 +50,43 @@ function resolveGitPath(cwd: string, relativePath: string): string {
 	return absolutePath;
 }
 
-interface TreeBlob {
-	oid: string;
-	size: number;
-}
-
-async function listTreeBlobs(
+async function catFileBatch(
 	cwd: string,
-	treeish: string,
-): Promise<Map<string, TreeBlob>> {
-	const blobs = new Map<string, TreeBlob>();
-	const output = await runGit(cwd, ["ls-tree", "-r", "-l", "-z", treeish]);
-	for (const entry of parseNulList(output)) {
-		const tab = entry.indexOf("\t");
-		const [, type, oid, size] = entry.slice(0, tab).split(/\s+/);
-		if (type === "blob") {
-			blobs.set(entry.slice(tab + 1), { oid, size: Number(size) });
-		}
-	}
-	return blobs;
+	mode: "--batch" | "--batch-check",
+	oids: string[],
+): Promise<Buffer> {
+	const pending = execFile("git", ["-C", cwd, "cat-file", mode], {
+		windowsHide: true,
+		maxBuffer: Number.POSITIVE_INFINITY,
+		encoding: "buffer",
+	});
+	pending.child.stdin?.end(`${oids.join("\n")}\n`);
+	return (await pending).stdout;
 }
 
-// Reads all blobs through one `git cat-file --batch` process; spawning a git
+// Reads all blobs through `git cat-file` batch processes; spawning a git
 // process per file floods the host with processes in workspaces with many
-// untracked files (e.g. build output that is not gitignored).
+// untracked files (e.g. build output that is not gitignored). Blobs over
+// MAX_GIT_OUTPUT are skipped and compare as empty.
 async function readBlobs(
 	cwd: string,
 	oids: Iterable<string>,
 ): Promise<Map<string, string>> {
 	const contents = new Map<string, string>();
-	const input = [...new Set(oids)].join("\n");
-	if (!input) {
+	const unique = [...new Set(oids)];
+	if (unique.length === 0) {
 		return contents;
 	}
-	const pending = execFile("git", ["-C", cwd, "cat-file", "--batch"], {
-		windowsHide: true,
-		maxBuffer: Number.POSITIVE_INFINITY,
-		encoding: "buffer",
-	});
-	pending.child.stdin?.end(`${input}\n`);
-	const { stdout } = await pending;
+	const sizes = (await catFileBatch(cwd, "--batch-check", unique))
+		.toString("utf8")
+		.split("\n");
+	const readable = unique.filter(
+		(_, index) => Number(sizes[index]?.split(" ")[2]) <= MAX_GIT_OUTPUT,
+	);
+	if (readable.length === 0) {
+		return contents;
+	}
+	const stdout = await catFileBatch(cwd, "--batch", readable);
 	let offset = 0;
 	while (offset < stdout.length) {
 		const headerEnd = stdout.indexOf(0x0a, offset);
@@ -121,34 +118,47 @@ async function readWorktreeFile(
 async function listCheckpointUntrackedBlobs(
 	cwd: string,
 	ref: string,
-): Promise<Map<string, TreeBlob>> {
+): Promise<Map<string, string>> {
 	// Untracked-at-snapshot files live in the stash commit's third parent.
 	// Plain commit checkpoints (and stashes without untracked files) have no
 	// third parent, so treat failure as "none".
+	const blobs = new Map<string, string>();
 	try {
-		return await listTreeBlobs(cwd, `${ref}^3`);
-	} catch {
-		return new Map();
-	}
+		const output = await runGit(cwd, ["ls-tree", "-r", "-z", `${ref}^3`]);
+		for (const entry of parseNulList(output)) {
+			const tab = entry.indexOf("\t");
+			const [, type, oid] = entry.slice(0, tab).split(" ");
+			if (type === "blob") {
+				blobs.set(entry.slice(tab + 1), oid);
+			}
+		}
+	} catch {}
+	return blobs;
 }
 
-async function listChangedPaths(
+// Maps each tracked path that differs from the checkpoint to its blob in the
+// checkpoint tree, or undefined when the checkpoint has no blob there.
+async function listTrackedChanges(
 	cwd: string,
 	ref: string,
-	checkpointUntracked: Map<string, TreeBlob>,
-): Promise<string[]> {
-	const [trackedOutput, untrackedOutput] = await Promise.all([
-		runGit(cwd, ["diff", "--name-only", "-z", ref, "--"]),
-		runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
+): Promise<Map<string, string | undefined>> {
+	const output = await runGit(cwd, [
+		"diff",
+		"--raw",
+		"-z",
+		"--no-abbrev",
+		"--no-renames",
+		ref,
+		"--",
 	]);
-	const paths = new Set([
-		...parseNulList(trackedOutput),
-		...parseNulList(untrackedOutput),
-		// Include files untracked at snapshot time so ones deleted since then
-		// still show up; unchanged ones are filtered out by content equality.
-		...checkpointUntracked.keys(),
-	]);
-	return [...paths].sort((a, b) => a.localeCompare(b));
+	const changes = new Map<string, string | undefined>();
+	const fields = parseNulList(output);
+	for (let index = 0; index + 1 < fields.length; index += 2) {
+		const [oldMode, , oldOid] = fields[index].slice(1).split(" ");
+		const hasBlob = oldMode !== "000000" && oldMode !== "160000";
+		changes.set(fields[index + 1], hasBlob ? oldOid : undefined);
+	}
+	return changes;
 }
 
 export function createCheckpointComparePlan(input: {
@@ -186,22 +196,31 @@ export async function buildCheckpointWorkspaceDiff(
 ): Promise<CheckpointContentDiff[]> {
 	const { ref } = checkpoint;
 	await runGit(cwd, ["cat-file", "-e", `${ref}^{tree}`]);
-	const [checkpointTracked, checkpointUntracked] = await Promise.all([
-		listTreeBlobs(cwd, ref),
-		listCheckpointUntrackedBlobs(cwd, ref),
-	]);
-	const changedPaths = await listChangedPaths(cwd, ref, checkpointUntracked);
+	const [trackedChanges, untrackedOutput, checkpointUntracked] =
+		await Promise.all([
+			listTrackedChanges(cwd, ref),
+			runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
+			listCheckpointUntrackedBlobs(cwd, ref),
+		]);
+	const changedPaths = [
+		...new Set([
+			...trackedChanges.keys(),
+			...parseNulList(untrackedOutput),
+			// Include files untracked at snapshot time so ones deleted since then
+			// still show up; unchanged ones are filtered out by content equality.
+			...checkpointUntracked.keys(),
+		]),
+	].sort((a, b) => a.localeCompare(b));
 	const checkpointOids = new Map<string, string>();
 	for (const relativePath of changedPaths) {
 		// Stash-shaped checkpoints keep files that were untracked at snapshot
 		// time in a third-parent commit (see createWorktreeStashCommit), not in
 		// the stash commit's own tree. Fall back to it so pre-existing
 		// untracked files don't falsely appear as newly added.
-		const blob =
-			checkpointTracked.get(relativePath) ??
-			checkpointUntracked.get(relativePath);
-		if (blob && blob.size <= MAX_GIT_OUTPUT) {
-			checkpointOids.set(relativePath, blob.oid);
+		const oid =
+			trackedChanges.get(relativePath) ?? checkpointUntracked.get(relativePath);
+		if (oid) {
+			checkpointOids.set(relativePath, oid);
 		}
 	}
 	const checkpointContents = await readBlobs(cwd, checkpointOids.values());
