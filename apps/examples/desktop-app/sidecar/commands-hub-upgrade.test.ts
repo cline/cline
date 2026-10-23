@@ -273,3 +273,23 @@ describe("hub_session_activity command", () => {
 		).rejects.toThrow("unsupported_command");
 	});
 });
+
+describe("hub_build_mismatch command", () => {
+	it("answers the mismatch the last broadcast showed, for a view that was not listening", async () => {
+		const { handleCommand } = await import("./commands");
+		const ctx = createContext();
+		await expect(handleCommand(ctx, "hub_build_mismatch", {})).resolves.toEqual(
+			ctx.hubBuildMismatch,
+		);
+
+		ctx.hubBuildMismatch = missingPluginUi;
+		await expect(handleCommand(ctx, "hub_build_mismatch", {})).resolves.toEqual(
+			missingPluginUi,
+		);
+
+		ctx.hubBuildMismatch = null;
+		await expect(
+			handleCommand(ctx, "hub_build_mismatch", {}),
+		).resolves.toBeNull();
+	});
+});

@@ -254,6 +254,12 @@ export function SuggestionTray({
 	useEffect(() => {
 		reportView(view, onScreen);
 	});
+	// Hidden behind the Hub startup screen or unmounted, the tray is off
+	// screen, so that time never counts toward a set's exposure.
+	useEffect(
+		() => () => suggestionsRef.current.reportView({ mode: "hidden" }, false),
+		[],
+	);
 
 	const usedSet = suggestions.local.used !== undefined;
 	const hadDraftRef = useRef(draft.trim() !== "");

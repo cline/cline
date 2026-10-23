@@ -71,7 +71,8 @@ export function HubCapabilityNotice({ className }: { className?: string }) {
 	const primaryButtonRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
-		return desktopClient.subscribe("hub_build_mismatch", (payload) => {
+		let listening = true;
+		const show = (payload: unknown) => {
 			if (payload !== null && (!payload || typeof payload !== "object")) {
 				return;
 			}
@@ -83,7 +84,20 @@ export function HubCapabilityNotice({ className }: { className?: string }) {
 					? current
 					: { kind: "offer" },
 			);
-		});
+		};
+		const unsubscribe = desktopClient.subscribe("hub_build_mismatch", show);
+		// The app mounts once the Hub is ready and is hidden while it is not, so
+		// the startup check and the replay on connect can both land before this
+		// listens. The read answers on the same connection after any broadcast
+		// already sent, so a later broadcast still overrides it.
+		desktopClient.invoke("hub_build_mismatch").then(
+			(payload) => listening && show(payload),
+			() => undefined,
+		);
+		return () => {
+			listening = false;
+			unsubscribe();
+		};
 	}, []);
 
 	// Disabling the pressed button while the Hub is read or restarted drops

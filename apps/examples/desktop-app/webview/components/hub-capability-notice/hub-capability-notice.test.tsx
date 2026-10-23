@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode } from "react";
+import { Activity, act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
@@ -91,10 +91,14 @@ async function click(label: string) {
 
 /** Answers the notice's sidecar commands; each answer is a value or a pending promise. */
 function answerCommands(answers: {
+	current?: () => Promise<unknown>;
 	activity?: () => Promise<unknown>;
 	upgrade?: () => Promise<unknown>;
 }) {
 	invoke.mockImplementation(async (command: string) => {
+		if (command === "hub_build_mismatch") {
+			return await (answers.current?.() ?? null);
+		}
 		if (command === "hub_session_activity") {
 			return await (answers.activity?.() ?? { activeSessionCount: 0 });
 		}
@@ -115,8 +119,11 @@ function deferred<T>() {
 	return { promise, resolve, reject };
 }
 
+/** The restart flow's commands; the read when the notice starts listening has its own tests. */
 function invokedCommands(): string[] {
-	return invoke.mock.calls.map(([command]) => command as string);
+	return invoke.mock.calls
+		.map(([command]) => command as string)
+		.filter((command) => command !== "hub_build_mismatch");
 }
 
 /** A stand-in for the chat composer, which takes focus requests by window event. */
@@ -179,6 +186,51 @@ describe("HubCapabilityNotice", () => {
 
 		expect(notice()?.textContent).toContain(
 			"Restarting interrupts any work in progress in Cline apps that use the Hub, including this one.",
+		);
+	});
+
+	it("shows a mismatch broadcast before it was listening", async () => {
+		answerCommands({ current: async () => missingPluginUi });
+		await render(<HubCapabilityNotice />);
+
+		expect(notice()?.textContent).toContain(
+			"Plugin suggestions are off for this Cline Hub",
+		);
+	});
+
+	it("lets a broadcast after its read override it", async () => {
+		answerCommands({ current: async () => missingPluginUi });
+		await render(<HubCapabilityNotice />);
+		await emit(null);
+
+		expect(notice()).toBeNull();
+	});
+
+	it("reads the mismatch again when the app is shown after the Hub came back", async () => {
+		let current: unknown = null;
+		answerCommands({ current: async () => current });
+		await render(
+			<Activity mode="visible">
+				<HubCapabilityNotice />
+			</Activity>,
+		);
+		expect(notice()).toBeNull();
+
+		await render(
+			<Activity mode="hidden">
+				<HubCapabilityNotice />
+			</Activity>,
+		);
+		current = missingPluginUi;
+		await emit(missingPluginUi);
+		await render(
+			<Activity mode="visible">
+				<HubCapabilityNotice />
+			</Activity>,
+		);
+
+		expect(notice()?.textContent).toContain(
+			"Plugin suggestions are off for this Cline Hub",
 		);
 	});
 

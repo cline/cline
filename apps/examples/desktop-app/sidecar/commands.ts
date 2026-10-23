@@ -139,6 +139,7 @@ import {
 	broadcastHubBuildMismatch,
 	DESKTOP_REQUIRED_HUB_CAPABILITIES,
 	refreshHubCapabilityNotice,
+	visibleHubBuildMismatch,
 } from "./hub-capability";
 import { isHubIndependentCommand } from "./hub-startup";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
@@ -2271,6 +2272,11 @@ export async function handleCommand(
 	}
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
+	// The current `hub_build_mismatch` broadcast, for a view that was not
+	// listening when it was sent.
+	if (command === "hub_build_mismatch") {
+		return visibleHubBuildMismatch(ctx);
+	}
 	// Read fresh when the person asks to restart the Hub, so the interruption
 	// they confirm is the one the restart causes. Includes this app's chats.
 	if (command === "hub_session_activity") {

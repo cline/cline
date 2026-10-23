@@ -211,6 +211,21 @@ describe("useComposerSuggestions", () => {
 		expect(onSend).toHaveBeenCalledWith(ITEMS[0]?.prompt);
 	});
 
+	it("counts no exposure for the time the app hid the tray behind the Hub startup screen", async () => {
+		scriptHub({ states: READY_R1 });
+		const tray = await mountTray();
+		await settle(200);
+		await tray.setVisible(false);
+		await settle(5_000);
+		await tray.setVisible(true);
+		expect(invokedActions("exposed")).toEqual([]);
+
+		await settle(399);
+		expect(invokedActions("exposed")).toEqual([]);
+		await settle(1);
+		expect(exposedRevisions()).toEqual(["r1"]);
+	});
+
 	it("clears the stale line at staleUntil, after a refused Use emptied the box", async () => {
 		scriptHub({
 			states: READY_R1,

@@ -1,5 +1,5 @@
 import type { PluginUiStateEnvelope } from "@cline/shared/browser";
-import { act, useRef, useState } from "react";
+import { Activity, act, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, vi } from "vitest";
 import { SuggestionTray } from "@/components/views/chat/suggestion-tray/suggestion-tray";
@@ -101,6 +101,8 @@ export type MountedTray = {
 	composer(): HTMLTextAreaElement;
 	controller(): ComposerSuggestionsController;
 	update(changes: Partial<ComposerSuggestionsOptions>): Promise<void>;
+	/** Hides or shows the pane as the app does while the Hub is not ready. */
+	setVisible(visible: boolean): Promise<void>;
 	unmount(): Promise<void>;
 };
 
@@ -117,8 +119,13 @@ export async function mountTray(
 		...defaultOptions(() => options.promptsInQueue),
 		...changes,
 	};
+	let visible = true;
 	const render = () =>
-		root.render(<Harness controllerRef={controllerRef} options={options} />);
+		root.render(
+			<Activity mode={visible ? "visible" : "hidden"}>
+				<Harness controllerRef={controllerRef} options={options} />
+			</Activity>,
+		);
 	await act(async () => render());
 	await settle();
 	const tray: MountedTray = {
@@ -128,6 +135,11 @@ export async function mountTray(
 		controller: () => controllerRef.current as ComposerSuggestionsController,
 		async update(next) {
 			options = { ...options, ...next };
+			await act(async () => render());
+			await settle();
+		},
+		async setVisible(next) {
+			visible = next;
 			await act(async () => render());
 			await settle();
 		},
