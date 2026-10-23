@@ -405,6 +405,37 @@ describe("AuthService", () => {
 			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
 		})
 
+		it("keeps a still-valid token when the refresh fails on the network", async () => {
+			// The buffer fires five minutes before expiry. A network failure in
+			// that window used to return null, which downstream reads as "not
+			// signed in" — and the user is told to re-authenticate over a
+			// failure that had nothing to do with their credentials (#14113).
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) + 60, // inside the buffer, not expired
+			})
+			testAccess(authService)._authenticated = true
+			// A transient failure throws; only an invalid grant returns null.
+			vi.mocked(getValidClineCredentials).mockRejectedValue(new Error("fetch failed"))
+
+			const token = await authService.getAuthToken()
+
+			expect(token).toBe("workos:test-access-token")
+			expect(testAccess(authService)._authenticated).toBe(true)
+		})
+
+		it("returns null when the refresh fails on the network and the token has expired", async () => {
+			// The accept control for the case above: once the token really is
+			// past its expiry there is nothing usable to send, network failure
+			// or not.
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) - 100, // expired
+			})
+			testAccess(authService)._authenticated = true
+			vi.mocked(getValidClineCredentials).mockRejectedValue(new Error("fetch failed"))
+
+			expect(await authService.getAuthToken()).toBeNull()
+		})
+
 		it("still rejects a token that comes back from refresh already expired", async () => {
 			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
 				expiresAt: Math.floor(Date.now() / 1000) - 100, // already expired
