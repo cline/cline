@@ -247,6 +247,7 @@ describe("hub_session_activity command", () => {
 			activeSessionCount: 2,
 			participantClientCount: 2,
 			activePluginRequests: 0,
+			activeCloudCommands: 0,
 		});
 		expect(hubCommand).toHaveBeenCalledWith("session.list", { limit: 500 });
 	});

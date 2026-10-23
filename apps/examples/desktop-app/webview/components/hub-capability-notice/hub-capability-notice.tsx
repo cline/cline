@@ -38,10 +38,19 @@ function readActivity(value: unknown): HubSessionActivity | null {
 	if (!value || typeof value !== "object") {
 		return null;
 	}
-	const { activeSessionCount, participantClientCount, activePluginRequests } =
-		value as HubSessionActivity;
+	const {
+		activeSessionCount,
+		participantClientCount,
+		activePluginRequests,
+		activeCloudCommands,
+	} = value as HubSessionActivity;
 	return typeof activeSessionCount === "number"
-		? { activeSessionCount, participantClientCount, activePluginRequests }
+		? {
+				activeSessionCount,
+				participantClientCount,
+				activePluginRequests,
+				activeCloudCommands,
+			}
 		: null;
 }
 

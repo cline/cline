@@ -30,12 +30,21 @@ export type HubSessionActivity = {
 	activeSessionCount?: number;
 	participantClientCount?: number;
 	activePluginRequests?: number;
+	activeCloudCommands?: number;
 };
 
 export function hubHasNothingToInterrupt(
 	activity: HubSessionActivity | null,
 ): boolean {
-	return activity?.activeSessionCount === 0 && !activity.activePluginRequests;
+	return (
+		activity?.activeSessionCount === 0 &&
+		!activity.activePluginRequests &&
+		!activity.activeCloudCommands
+	);
+}
+
+function counted(count: number, one: string, many: string): string {
+	return count === 1 ? one : `${count} ${many}`;
 }
 
 /** Said before any reading: the restart's cost does not depend on one. */
@@ -51,10 +60,21 @@ export function describeHubRestartInterruption(
 ): string {
 	const sessions = activity?.activeSessionCount;
 	const pluginRequests = activity?.activePluginRequests ?? 0;
-	if (sessions === 0 && pluginRequests > 0) {
-		return pluginRequests === 1
-			? "The Hub is running a plugin command. Restarting interrupts it."
-			: `The Hub is running ${pluginRequests} plugin commands. Restarting interrupts them.`;
+	const cloudCommands = activity?.activeCloudCommands ?? 0;
+	if (sessions === 0 && pluginRequests + cloudCommands > 0) {
+		const running = [
+			pluginRequests > 0 &&
+				counted(pluginRequests, "a plugin command", "plugin commands"),
+			cloudCommands > 0 &&
+				counted(
+					cloudCommands,
+					"a cloud session command",
+					"cloud session commands",
+				),
+		]
+			.filter(Boolean)
+			.join(" and ");
+		return `The Hub is running ${running}. Restarting interrupts ${pluginRequests + cloudCommands === 1 ? "it" : "them"}.`;
 	}
 	if (typeof sessions !== "number" || sessions <= 0) {
 		return `Cline couldn't check what the Hub is serving. ${HUB_RESTART_COST}`;

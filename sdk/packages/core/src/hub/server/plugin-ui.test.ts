@@ -402,10 +402,15 @@ describe("plugins.ui hub commands", () => {
 			false,
 		);
 
+		// Every new subscriber also gets the Hub's cloud snapshot; only UI state matters here.
 		const scoped: HubEventEnvelope[] = [];
 		const global: HubEventEnvelope[] = [];
-		transport.subscribe("late", (event) => scoped.push(event), { sessionId });
-		transport.subscribe("late-global", (event) => global.push(event));
+		const keepUiState =
+			(into: HubEventEnvelope[]) => (event: HubEventEnvelope) => {
+				if (event.event === "plugins.ui.state") into.push(event);
+			};
+		transport.subscribe("late", keepUiState(scoped), { sessionId });
+		transport.subscribe("late-global", keepUiState(global));
 		await vi.waitFor(() => expect(scoped).toHaveLength(1));
 		expect(scoped[0]).toMatchObject({
 			event: "plugins.ui.state",

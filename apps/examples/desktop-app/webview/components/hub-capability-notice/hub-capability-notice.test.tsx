@@ -317,6 +317,26 @@ describe("HubCapabilityNotice", () => {
 		);
 	});
 
+	it("asks before interrupting a cloud session command the Hub is running", async () => {
+		answerCommands({
+			activity: async () => ({
+				activeSessionCount: 0,
+				participantClientCount: 0,
+				activePluginRequests: 0,
+				activeCloudCommands: 1,
+			}),
+		});
+		await render(<HubCapabilityNotice />);
+		await emit(missingPluginUi);
+
+		await click("Restart Hub");
+
+		expect(invokedCommands()).toEqual(["hub_session_activity"]);
+		expect(notice()?.textContent).toContain(
+			"The Hub is running a cloud session command. Restarting interrupts it.",
+		);
+	});
+
 	it("leaves the Hub running when the person cancels the confirmation", async () => {
 		answerCommands({ activity: async () => ({ activeSessionCount: 1 }) });
 		await render(<HubCapabilityNotice />);
