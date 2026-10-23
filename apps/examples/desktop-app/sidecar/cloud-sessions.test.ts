@@ -6,6 +6,7 @@ import {
 	reconnectCloudSessionTestViewer,
 } from "./cloud-session-test-runtime";
 import {
+	CloudSendError,
 	type CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
@@ -378,7 +379,10 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 		const sending = viewer.send("ses-outer", "Next turn");
 		const outcome = failure
-			? expect(sending).rejects.toThrow("Preferences unavailable")
+			? expect(sending).rejects.toMatchObject({
+					message: "Preferences unavailable",
+					dispatched: false,
+				})
 			: expect(sending).resolves.toMatchObject({ ok: true });
 		expect(
 			hub.commands.some(({ command }) => command === "session.send_input"),
@@ -386,6 +390,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		if (failure) restoring.reject(new Error("Preferences unavailable"));
 		else restoring.resolve();
 		await outcome;
+		if (failure) await expect(sending).rejects.toBeInstanceOf(CloudSendError);
 		expect(
 			hub.commands.some(({ command }) => command === "session.send_input"),
 		).toBe(!failure);

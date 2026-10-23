@@ -2,6 +2,7 @@ import {
 	type CloudCreationOptions,
 	type CloudHubConnection,
 	type CloudHubScope,
+	CloudSendError,
 	type CloudSessionEvent,
 	type CreateCloudSessionInput,
 	HubCloudSessionClient,
@@ -192,7 +193,12 @@ export class CloudSessionManager extends HubCloudSessionClient {
 						: {}),
 				},
 				scope,
-			);
+			).catch((error: unknown) => {
+				throw new CloudSendError(
+					error instanceof Error ? error.message : String(error),
+					false,
+				);
+			});
 		try {
 			return await super.send(id, prompt, delivery, modelId, images, scope);
 		} finally {

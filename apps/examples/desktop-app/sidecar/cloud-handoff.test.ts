@@ -181,6 +181,32 @@ async function fixture() {
 }
 
 describe("summary cloud handoff", () => {
+	it("preserves the prepared prompt when cloud preferences cannot be restored", async () => {
+		const f = await fixture();
+		await f.prepare();
+		f.ctx.liveSessions.set("ses-target", {
+			config: { autoApproveTools: false },
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			status: "idle",
+			startedAt: 1,
+		});
+		vi.spyOn(f.viewer, "restoreCreationOptions").mockRejectedValueOnce(
+			new Error("Preferences unavailable"),
+		);
+		const result = await f.handoff({
+			...f.request,
+			nextCommand: "Add tests",
+			attachments: { userImages: [image] },
+		});
+		expect(f.send).not.toHaveBeenCalled();
+		expect(result).toMatchObject({
+			warningKind: "unqueued",
+			unsentPrompt:
+				"Search form: implemented. Next: add tests.\n\nNext instruction from the user:\nAdd tests",
+		});
+	});
 	it("returns a missed completion before preparing another cloud task", async () => {
 		const f = await fixture();
 		await f.prepare();
