@@ -312,4 +312,103 @@ describe("createEditorExecutor", () => {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	// A trailing newline terminates the last line rather than starting a new one,
+	// but `split` still yields an empty trailing segment. Counting it accepted —
+	// and advertised in the message below — a boundary one past the end, which
+	// wrote a blank line instead of appending (github.com/cline/cline/issues/13545).
+	it("appends at the EOF boundary of a newline-terminated file without a blank line", async () => {
+		await withTempFile("one\ntwo\n", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+
+			// read_files reports two lines for this file, so line_count + 1 = 3 is
+			// the append boundary. 4 is not a line boundary at all.
+			await expect(
+				editor(
+					{ path: filePath, new_text: "tail", insert_line: 4 },
+					dir,
+					context,
+				),
+			).rejects.toThrow(
+				"Invalid insert_line: 4. insert_line must be a positive one-based boundary line in the range 1-3. Use 3 to append at EOF.",
+			);
+
+			// The boundary the message names has to be the one that appends.
+			await editor(
+				{ path: filePath, new_text: "tail", insert_line: 3 },
+				dir,
+				context,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\ntwo\ntail\n",
+			);
+		});
+	});
+
+	it("counts a single trailing newline as the end of the last line", async () => {
+		await withTempFile("only\n", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+
+			await expect(
+				editor(
+					{ path: filePath, new_text: "next", insert_line: 3 },
+					dir,
+					context,
+				),
+			).rejects.toThrow(/range 1-2\. Use 2 to append at EOF\./);
+
+			await editor(
+				{ path: filePath, new_text: "next", insert_line: 2 },
+				dir,
+				context,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"only\nnext\n",
+			);
+		});
+	});
+
+	it("keeps CRLF endings and the trailing newline when appending at EOF", async () => {
+		await withTempFile("one\r\ntwo\r\n", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+
+			await expect(
+				editor(
+					{ path: filePath, new_text: "tail", insert_line: 4 },
+					dir,
+					context,
+				),
+			).rejects.toThrow(/range 1-3\. Use 3 to append at EOF\./);
+
+			await editor(
+				{ path: filePath, new_text: "tail", insert_line: 3 },
+				dir,
+				context,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\r\ntwo\r\ntail\r\n",
+			);
+		});
+	});
+
+	it("offers line_count + 1 as the only boundary for an empty file", async () => {
+		await withTempFile("", async (filePath, dir) => {
+			const editor = createEditorExecutor();
+
+			await expect(
+				editor(
+					{ path: filePath, new_text: "first", insert_line: 2 },
+					dir,
+					context,
+				),
+			).rejects.toThrow(/range 1-1\. Use 1 to append at EOF\./);
+
+			await editor(
+				{ path: filePath, new_text: "first", insert_line: 1 },
+				dir,
+				context,
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("first\n");
+		});
+	});
 });
