@@ -29,6 +29,8 @@ const AUTO_APPROVE_PREVIEW_LINGER_MS = 1_500
  */
 const PREVIEW_OPEN_TIMEOUT_MS = 5_000
 
+class EditorTextMismatchError extends Error {}
+
 export interface SdkDiffEditCoordinatorOptions {
 	/** Workspace root used to resolve relative tool paths. */
 	getCwd: () => Promise<string>
@@ -77,6 +79,7 @@ interface DiffEditSession {
  */
 export class SdkDiffEditCoordinator {
 	private readonly sessions = new Map<string, DiffEditSession>()
+	private readonly preflightEditorErrors = new Map<string, EditorTextMismatchError>()
 	private readonly fallbackEditorExecutor: EditorExecutor
 	private readonly fallbackApplyPatchExecutor: ApplyPatchExecutor
 	private readonly autoApprovePreviewLingerMs: number
@@ -91,12 +94,14 @@ export class SdkDiffEditCoordinator {
 
 	/**
 	 * Opens the diff preview for an edit tool BEFORE its approval ask is shown, so the
-	 * user decides while looking at the actual change. Never throws; on any failure the
-	 * approval flow proceeds without a preview and the executor still applies the edit.
+	 * user decides while looking at the actual change. Never throws. A known stale or
+	 * ambiguous replacement returns `"skip"` so the model receives its canonical
+	 * no-write error without an approval ask; other failures fall back to approval
+	 * without a preview.
 	 */
-	async openForApproval(toolCallId: string, toolName: string, input: unknown): Promise<void> {
+	async openForApproval(toolCallId: string, toolName: string, input: unknown): Promise<undefined | "skip"> {
 		if (this.options.isBackgroundEditEnabled() || this.sessions.has(toolCallId)) {
-			return
+			return undefined
 		}
 		try {
 			if (toolName === "editor") {
@@ -105,9 +110,14 @@ export class SdkDiffEditCoordinator {
 				await this.openPatchPreview(toolCallId, input as ApplyPatchInput)
 			}
 		} catch (error) {
+			if (error instanceof EditorTextMismatchError) {
+				this.preflightEditorErrors.set(toolCallId, error)
+				return "skip"
+			}
 			Logger.warn(`[SdkDiffEditCoordinator] Failed to open diff preview for ${toolName}: ${error}`)
 			await this.discardPreview(toolCallId)
 		}
+		return undefined
 	}
 
 	/**
@@ -117,6 +127,11 @@ export class SdkDiffEditCoordinator {
 	 */
 	async executeEditorTool(input: EditFileInput, cwd: string, context: AgentToolContext): Promise<string> {
 		const toolCallId = context.toolCallId ?? ""
+		const preflightError = this.preflightEditorErrors.get(toolCallId)
+		if (preflightError) {
+			this.preflightEditorErrors.delete(toolCallId)
+			throw preflightError
+		}
 		const hadPreApprovalPreview = this.sessions.has(toolCallId)
 		try {
 			if (!hadPreApprovalPreview && !this.options.isBackgroundEditEnabled()) {
@@ -218,6 +233,7 @@ export class SdkDiffEditCoordinator {
 
 	/** Closes one preview (reject / abort / edit applied). Never throws; unknown ids are a no-op. */
 	async discardPreview(toolCallId: string): Promise<void> {
+		this.preflightEditorErrors.delete(toolCallId)
 		const session = this.sessions.get(toolCallId)
 		this.sessions.delete(toolCallId)
 		if (!session?.preview) {
@@ -232,6 +248,7 @@ export class SdkDiffEditCoordinator {
 
 	/** Closes every open preview. Called on turn end, task end, and controller dispose. */
 	async discardAllPreviews(reason: string): Promise<void> {
+		this.preflightEditorErrors.clear()
 		if (this.sessions.size === 0) {
 			return
 		}
@@ -420,10 +437,10 @@ export function computeNewEditorContent(
 	const normalizedNewText = normalizeLineEndings(input.new_text ?? "", eol)
 	const occurrences = normalizedOldText.length === 0 ? 0 : originalContent.split(normalizedOldText).length - 1
 	if (occurrences === 0) {
-		throw new Error(`No replacement performed: text not found in ${filePath}.`)
+		throw new EditorTextMismatchError(`No replacement performed: text not found in ${filePath}.`)
 	}
 	if (occurrences > 1) {
-		throw new Error(`No replacement performed: multiple occurrences of text found in ${filePath}.`)
+		throw new EditorTextMismatchError(`No replacement performed: multiple occurrences of text found in ${filePath}.`)
 	}
 	// Replacer function so "$"-sequences in new_text are inserted literally, as the executor does.
 	return originalContent.replace(normalizedOldText, () => normalizedNewText)
