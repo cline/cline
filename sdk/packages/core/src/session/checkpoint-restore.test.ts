@@ -300,6 +300,42 @@ describe("applyCheckpointToWorktree", () => {
 		expect(git(dir, ["rev-parse", "HEAD"])).toBe(checkpointRef);
 	});
 
+	it("refuses to start a restore while .gitignore has uncommitted changes", async () => {
+		writeFileSync(join(dir, ".gitignore"), "", "utf8");
+		git(dir, ["add", ".gitignore"]);
+		git(dir, ["commit", "-m", "track gitignore"]);
+
+		writeFileSync(join(dir, ".gitignore"), "scratch/\n", "utf8");
+		mkdirSync(join(dir, "scratch", "data"), { recursive: true });
+		writeFileSync(
+			join(dir, "scratch", "data", "payload.txt"),
+			"critical content\n",
+			"utf8",
+		);
+		expect(git(dir, ["check-ignore", "scratch/data/payload.txt"])).toBe(
+			"scratch/data/payload.txt",
+		);
+
+		await expect(beginWorktreeRestoreTransaction(dir)).rejects.toThrow(
+			/while a \.gitignore file has uncommitted changes/,
+		);
+		await expect(
+			applyCheckpointToWorktree(dir, {
+				ref: git(dir, ["rev-parse", "HEAD"]),
+				createdAt: Date.now(),
+				runCount: 1,
+				kind: "commit",
+			}),
+		).rejects.toThrow(/while a \.gitignore file has uncommitted changes/);
+
+		// Refusing before the temporary stash preserves both the ignore rule and
+		// the ignored data it protects.
+		expect(readFileSync(join(dir, ".gitignore"), "utf8")).toBe("scratch/\n");
+		expect(
+			readFileSync(join(dir, "scratch", "data", "payload.txt"), "utf8"),
+		).toBe("critical content\n");
+	});
+
 	it("rolls back HEAD plus staged, unstaged, and untracked changes", async () => {
 		writeFileSync(join(dir, "tracked.txt"), "existing stash\n", "utf8");
 		git(dir, ["stash", "push", "--message", "existing user stash"]);
