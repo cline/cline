@@ -210,6 +210,84 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it.each([
+		750, 2000,
+	])("bounds a pending organization lookup by the %ims discovery budget", async (timeoutMs) => {
+		vi.useFakeTimers();
+		const getOrganization = vi
+			.fn<() => Promise<string | undefined>>()
+			.mockResolvedValue("org-one");
+		const f = fixture({ getActiveOrganizationId: getOrganization });
+		let release!: (organizationId: string | undefined) => void;
+		let discovering: Promise<Record<string, unknown>[]> | undefined;
+		try {
+			await f.controller.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			});
+			await f.controller.listForDiscovery();
+			getOrganization.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						release = resolve;
+					}),
+			);
+			let settled = false;
+			discovering = f.controller
+				.listForDiscovery({ timeoutMs })
+				.then((rows) => {
+					settled = true;
+					return rows;
+				});
+			await vi.advanceTimersByTimeAsync(timeoutMs);
+			expect(settled).toBe(true);
+			expect(await discovering).toEqual([]);
+		} finally {
+			release?.("org-two");
+			await vi.runAllTimersAsync();
+			await discovering;
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("shares one discovery budget between organization resolution and listing", async () => {
+		vi.useFakeTimers();
+		let resolveOrganization!: (organizationId: string) => void;
+		const f = fixture({
+			getActiveOrganizationId: () =>
+				new Promise((resolve) => {
+					resolveOrganization = resolve;
+				}),
+		});
+		let resolveListing!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveListing = resolve;
+				}),
+		);
+		let settled = false;
+		const discovering = f.controller
+			.listForDiscovery({ timeoutMs: 750 })
+			.then((rows) => {
+				settled = true;
+				return rows;
+			});
+		try {
+			await vi.advanceTimersByTimeAsync(650);
+			resolveOrganization("org-two");
+			await vi.advanceTimersByTimeAsync(100);
+			expect(settled).toBe(true);
+			expect(await discovering).toEqual([]);
+		} finally {
+			resolveListing([]);
+			await vi.runAllTimersAsync();
+			await discovering;
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not reuse another organization's listing while the new listing times out", async () => {
 		let organizationId = "org-one";
 		const f = fixture({ getActiveOrganizationId: async () => organizationId });

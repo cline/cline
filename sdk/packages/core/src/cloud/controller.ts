@@ -929,32 +929,42 @@ export class CloudSessionController {
 	async listForDiscovery(
 		options: { timeoutMs?: number } = {},
 	): Promise<JsonRecord[]> {
-		const organizationId = await this.resolveActiveOrganizationId();
-		let refresh =
-			this.discoveryRefresh?.organizationId === organizationId
-				? this.discoveryRefresh?.promise
+		let resolvedScope: { organizationId: string | undefined } | undefined;
+		const refresh = (async () => {
+			const organizationId = await this.resolveActiveOrganizationId();
+			resolvedScope = { organizationId };
+			let listing =
+				this.discoveryRefresh?.organizationId === organizationId
+					? this.discoveryRefresh?.promise
+					: undefined;
+			if (!listing) {
+				const promise = this.listInOrganization(organizationId).finally(() => {
+					if (this.discoveryRefresh?.promise === promise)
+						this.discoveryRefresh = undefined;
+				});
+				this.discoveryRefresh = { organizationId, promise };
+				listing = promise;
+			}
+			return { organizationId, records: await listing };
+		})();
+		const cachedResult = () =>
+			resolvedScope
+				? {
+						organizationId: resolvedScope.organizationId,
+						records:
+							this.lastListedOrganizationId === resolvedScope.organizationId
+								? this.lastListedSessions
+								: [],
+					}
 				: undefined;
-		if (!refresh) {
-			const promise = this.listInOrganization(organizationId).finally(() => {
-				if (this.discoveryRefresh?.promise === promise)
-					this.discoveryRefresh = undefined;
-			});
-			this.discoveryRefresh = { organizationId, promise };
-			refresh = promise;
-		}
-		const cachedRecords = () =>
-			this.lastListedOrganizationId === organizationId
-				? this.lastListedSessions
-				: [];
-		let records = cachedRecords();
+		let result: Awaited<typeof refresh> | undefined;
 		if (options.timeoutMs === undefined) {
-			records = await refresh;
+			result = await refresh;
 		} else {
 			let timeout: ReturnType<typeof setTimeout> | undefined;
-			const result = await Promise.race([
-				refresh.then(
-					(value) => ({ value }),
-					(error) => {
+			try {
+				result = await Promise.race([
+					refresh.catch((error) => {
 						if (
 							!(
 								error instanceof CloudSessionError &&
@@ -965,19 +975,22 @@ export class CloudSessionController {
 								error,
 							});
 						}
-						return { value: cachedRecords() };
-					},
-				),
-				new Promise<{ value: CloudSessionRecord[] }>((resolve) => {
-					timeout = setTimeout(
-						() => resolve({ value: cachedRecords() }),
-						Math.max(0, options.timeoutMs ?? 0),
-					);
-				}),
-			]);
-			if (timeout) clearTimeout(timeout);
-			records = result.value;
+						return cachedResult();
+					}),
+					new Promise<ReturnType<typeof cachedResult>>((resolve) => {
+						timeout = setTimeout(
+							() => resolve(cachedResult()),
+							Math.max(0, options.timeoutMs ?? 0),
+						);
+					}),
+				]);
+			} finally {
+				if (timeout !== undefined) clearTimeout(timeout);
+			}
 		}
+		// Personal is a known scope with an undefined id; an unresolved scope is not.
+		if (!result) return [];
+		const { organizationId, records } = result;
 
 		const recordsById = new Map(
 			[
