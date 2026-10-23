@@ -1204,6 +1204,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 					await this.finalizeSingleRun(active, result.finishReason);
 				} else {
 					await this.completeInteractiveTurn(active, result.finishReason);
+					// Prompts queued behind the initial turn drain the same way
+					// runTurn drains them after a later turn.
+					if (result.finishReason !== "error") {
+						queueMicrotask(() => {
+							void this.pendingPromptsController.drain(sessionId);
+						});
+					}
 				}
 			}
 		} catch (error) {
