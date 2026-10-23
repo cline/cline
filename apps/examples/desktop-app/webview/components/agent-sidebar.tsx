@@ -20,6 +20,7 @@ import {
 	GitFork,
 	Import,
 	Info,
+	Keyboard,
 	Loader2,
 	Mic,
 	Network,
@@ -100,6 +101,7 @@ import {
 	productNameForVersion,
 } from "@/lib/app-channel";
 import { desktopClient } from "@/lib/desktop-client";
+import { formatAccelerator, useKeybindings } from "@/lib/keybindings";
 import {
 	ALL_SESSION_SOURCES,
 	filterSessionsBySource,
@@ -156,6 +158,7 @@ const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Providers: Plug,
 	Voice: Mic,
+	Keybindings: Keyboard,
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
@@ -285,7 +288,7 @@ export function AgentSidebar({
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
-	/** Opens the global session search command bar (also bound to Cmd/Ctrl+P). */
+	/** Opens the global session search command bar. */
 	onOpenSearch?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
@@ -294,6 +297,9 @@ export function AgentSidebar({
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
 }) {
+	const keybindings = useKeybindings();
+	const searchKey = keybindings["command-bar"].key;
+	const searchHint = searchKey ? formatAccelerator(searchKey) : null;
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
 	const { user, activeOrganization } = useAccount();
@@ -909,7 +915,11 @@ export function AgentSidebar({
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
 								onClick={onOpenSearch}
-								title="Search sessions (Cmd/Ctrl+P)"
+								title={
+									searchHint
+										? `Search sessions (${searchHint})`
+										: "Search sessions"
+								}
 								type="button"
 								variant="sidebarItem"
 							>

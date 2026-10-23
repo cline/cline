@@ -435,10 +435,17 @@ export class CloudSessionController {
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
 	// Retain new sessions until discovery has observed them at least once.
-	private readonly unlistedSessions = new Map<string, CloudSessionRecord>();
+	private readonly unlistedSessions = new Map<
+		string,
+		{ record: CloudSessionRecord; organizationId: string | undefined }
+	>();
 	private readonly pendingInitialTasks: Map<string, CloudCreationOptions>;
 	private lastListedSessions: CloudSessionRecord[] = [];
-	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
+	private lastListedOrganizationId?: string;
+	private discoveryRefresh?: {
+		organizationId: string | undefined;
+		promise: Promise<CloudSessionRecord[]>;
+	};
 	private readonly unconfirmedInnerCreates = new Set<string>();
 	private readonly createRequests = new Map<
 		string,
@@ -700,6 +707,14 @@ export class CloudSessionController {
 	}
 
 	async list(): Promise<CloudSessionRecord[]> {
+		return await this.listInOrganization(
+			await this.resolveActiveOrganizationId(),
+		);
+	}
+
+	private async listInOrganization(
+		organizationId: string | undefined,
+	): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		const currentTitle = (id: string) =>
 			this.sessions.get(id)?.title ?? this.knownSessions.get(id)?.title;
@@ -719,12 +734,12 @@ export class CloudSessionController {
 				session.title = title ?? session.title;
 			}
 		};
-		const organizationId = await this.resolveActiveOrganizationId();
 		const listed = (await this.options.api.list(organizationId)).map(
 			(session) => this.preserveConnectedRuntimeModel(session),
 		);
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
 		// Keep canonical rows available while their status checks run.
+		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = listed;
 		for (const session of listed) {
 			preserveLocalTitle(session);
@@ -733,9 +748,9 @@ export class CloudSessionController {
 		}
 		// Omission can be a listing race; only a definitive status error drops a fallback.
 		await Promise.all(
-			Array.from(this.unlistedSessions.keys(), (sessionId) =>
-				this.getCrossScopeDiscoveryRecord(sessionId),
-			),
+			Array.from(this.unlistedSessions.entries())
+				.filter(([, pending]) => pending.organizationId === organizationId)
+				.map(([sessionId]) => this.getCrossScopeDiscoveryRecord(sessionId)),
 		);
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
@@ -801,6 +816,7 @@ export class CloudSessionController {
 				}
 			}
 		}
+		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = scoped;
 		for (const record of scoped)
 			if (this.sessions.has(record.id)) this.publishSnapshot(record.id);
@@ -836,6 +852,10 @@ export class CloudSessionController {
 				...(cwd ? { cwd } : {}),
 			},
 		};
+	}
+
+	async refreshOrganization(): Promise<void> {
+		await this.resolveActiveOrganizationId({ fresh: true });
 	}
 
 	private async resolveActiveOrganizationId(options?: {
@@ -909,24 +929,42 @@ export class CloudSessionController {
 	async listForDiscovery(
 		options: { timeoutMs?: number } = {},
 	): Promise<JsonRecord[]> {
-		const refresh =
-			this.discoveryRefresh ??
-			this.list().finally(() => {
-				if (this.discoveryRefresh === refresh) {
-					this.discoveryRefresh = undefined;
-				}
-			});
-		this.discoveryRefresh = refresh;
-
-		let records = this.lastListedSessions;
+		let resolvedScope: { organizationId: string | undefined } | undefined;
+		const refresh = (async () => {
+			const organizationId = await this.resolveActiveOrganizationId();
+			resolvedScope = { organizationId };
+			let listing =
+				this.discoveryRefresh?.organizationId === organizationId
+					? this.discoveryRefresh?.promise
+					: undefined;
+			if (!listing) {
+				const promise = this.listInOrganization(organizationId).finally(() => {
+					if (this.discoveryRefresh?.promise === promise)
+						this.discoveryRefresh = undefined;
+				});
+				this.discoveryRefresh = { organizationId, promise };
+				listing = promise;
+			}
+			return { organizationId, records: await listing };
+		})();
+		const cachedResult = () =>
+			resolvedScope
+				? {
+						organizationId: resolvedScope.organizationId,
+						records:
+							this.lastListedOrganizationId === resolvedScope.organizationId
+								? this.lastListedSessions
+								: [],
+					}
+				: undefined;
+		let result: Awaited<typeof refresh> | undefined;
 		if (options.timeoutMs === undefined) {
-			records = await refresh;
+			result = await refresh;
 		} else {
 			let timeout: ReturnType<typeof setTimeout> | undefined;
-			const result = await Promise.race([
-				refresh.then(
-					(value) => ({ value }),
-					(error) => {
+			try {
+				result = await Promise.race([
+					refresh.catch((error) => {
 						if (
 							!(
 								error instanceof CloudSessionError &&
@@ -937,25 +975,30 @@ export class CloudSessionController {
 								error,
 							});
 						}
-						return { value: this.lastListedSessions };
-					},
-				),
-				new Promise<{ value: CloudSessionRecord[] }>((resolve) => {
-					timeout = setTimeout(
-						() => resolve({ value: this.lastListedSessions }),
-						Math.max(0, options.timeoutMs ?? 0),
-					);
-				}),
-			]);
-			if (timeout) clearTimeout(timeout);
-			records = result.value;
+						return cachedResult();
+					}),
+					new Promise<ReturnType<typeof cachedResult>>((resolve) => {
+						timeout = setTimeout(
+							() => resolve(cachedResult()),
+							Math.max(0, options.timeoutMs ?? 0),
+						);
+					}),
+				]);
+			} finally {
+				if (timeout !== undefined) clearTimeout(timeout);
+			}
 		}
+		// Personal is a known scope with an undefined id; an unresolved scope is not.
+		if (!result) return [];
+		const { organizationId, records } = result;
 
 		const recordsById = new Map(
-			[...this.unlistedSessions.values(), ...records].map((record) => [
-				record.id,
-				record,
-			]),
+			[
+				...Array.from(this.unlistedSessions.values())
+					.filter((pending) => pending.organizationId === organizationId)
+					.map((pending) => pending.record),
+				...records,
+			].map((record) => [record.id, record]),
 		);
 		const listed = [...recordsById.values()].map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
@@ -1175,7 +1218,7 @@ export class CloudSessionController {
 			updatedAt: new Date().toISOString(),
 		};
 		this.knownSessions.set(record.id, record);
-		this.unlistedSessions.set(record.id, record);
+		this.unlistedSessions.set(record.id, { record, organizationId });
 		// REST does not round-trip these client-side first-task preferences.
 		const {
 			autoApproveTools,

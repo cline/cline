@@ -32,6 +32,7 @@ const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
 const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
+const KEYBINDINGS_MENU_ID: &str = "keybindings";
 const CHECK_FOR_UPDATES_MENU_ID: &str = "check-for-updates";
 const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
 #[cfg(any(target_os = "macos", test))]
@@ -48,6 +49,7 @@ const VIEW_ZOOM_RESET_MENU_ID: &str = "view-zoom-reset";
 enum DesktopAction {
     NewSession,
     OpenSettings,
+    OpenKeybindings,
     CheckForUpdates,
     ExportDiagnostics,
     ZoomIn,
@@ -982,6 +984,26 @@ fn relaunch_app(app: tauri::AppHandle, backend_state: State<'_, Arc<DesktopBacke
     app.restart();
 }
 
+/// The native Cmd+Q accelerator quits instantly, so the webview releases it
+/// while a hold-to-quit keybinding is active and handles the key itself.
+#[tauri::command]
+fn set_quit_shortcut_native(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        app.run_on_main_thread(move || {
+            if let Err(error) = set_macos_quit_key_equivalent(enabled) {
+                eprintln!("[menu] failed updating the Quit shortcut: {error}");
+            }
+        })
+        .map_err(|error| error.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, enabled);
+        Ok(())
+    }
+}
+
 /// Quit the app. Used by the "Cline Hub update required" flow when the user
 /// chooses to keep the older running Hub (and its live sessions) and update
 /// later. The run-loop Exit handler stops the sidecar.
@@ -1296,6 +1318,7 @@ fn show_session_notification(
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<DesktopAction> {
     match menu_id {
+        KEYBINDINGS_MENU_ID => Some(DesktopAction::OpenKeybindings),
         EXPORT_DIAGNOSTICS_MENU_ID => Some(DesktopAction::ExportDiagnostics),
         VIEW_ZOOM_IN_MENU_ID => Some(DesktopAction::ZoomIn),
         VIEW_ZOOM_OUT_MENU_ID => Some(DesktopAction::ZoomOut),
@@ -1316,6 +1339,15 @@ fn setup_application_menu(
         (check_for_updates, menu.items()?.first())
     {
         app_menu.insert_items(&[check_for_updates], 1)?;
+    }
+    // "Keybindings…" sits next to Settings… in the application menu.
+    if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.first() {
+        let keybindings =
+            MenuItem::with_id(app, KEYBINDINGS_MENU_ID, "Keybindings…", true, None::<&str>)?;
+        // The default macOS menu has no Settings item, so sit right below
+        // About (and "Check for Updates…" when present).
+        let position = if check_for_updates.is_some() { 2 } else { 1 };
+        app_menu.insert_items(&[&keybindings], position)?;
     }
     let zoom_in = MenuItem::with_id(app, VIEW_ZOOM_IN_MENU_ID, "Zoom In", true, None::<&str>)?;
     let zoom_out = MenuItem::with_id(
@@ -1341,6 +1373,8 @@ fn setup_application_menu(
         true,
         None::<&str>,
     )?;
+    let help_keybindings =
+        MenuItem::with_id(app, KEYBINDINGS_MENU_ID, "Keybindings…", true, None::<&str>)?;
     let mut help_menu = None;
     let mut view_menu = None;
     for item in menu.items()? {
@@ -1362,13 +1396,14 @@ fn setup_application_menu(
     }
 
     if let Some(help_menu) = help_menu {
+        help_menu.append(&help_keybindings)?;
         help_menu.append(&export_diagnostics)?;
     } else {
         menu.append(&Submenu::with_items(
             app,
             "Help",
             true,
-            &[&export_diagnostics],
+            &[&help_keybindings, &export_diagnostics],
         )?)?;
     }
 
@@ -1419,6 +1454,35 @@ fn set_macos_menu_key_equivalent(
     item.setKeyEquivalent(&NSString::from_str(key_equivalent));
     item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn set_macos_quit_key_equivalent(enabled: bool) -> Result<(), String> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSEventModifierFlags};
+    use objc2_foundation::NSString;
+
+    let mtm = MainThreadMarker::new().ok_or("must run on the main thread")?;
+    let main_menu = NSApplication::sharedApplication(mtm)
+        .mainMenu()
+        .ok_or("main menu not found")?;
+    let app_menu = main_menu
+        .itemAtIndex(0)
+        .and_then(|item| item.submenu())
+        .ok_or("application menu not found")?;
+    // The Quit item is the one carrying (or, once released, formerly carrying)
+    // the terminate: action; match it by its title instead.
+    for index in 0..app_menu.numberOfItems() {
+        let Some(item) = app_menu.itemAtIndex(index) else {
+            continue;
+        };
+        if item.title().to_string().starts_with("Quit") {
+            item.setKeyEquivalent(&NSString::from_str(if enabled { "q" } else { "" }));
+            item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
+            return Ok(());
+        }
+    }
+    Err("Quit menu item not found".to_string())
 }
 
 fn setup_tray_icon(
@@ -1637,7 +1701,8 @@ fn main() {
             drain_desktop_actions,
             set_tray_status,
             relaunch_app,
-            quit_app
+            quit_app,
+            set_quit_shortcut_native
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -1796,6 +1861,14 @@ mod tests {
         assert_eq!(
             serde_json::to_value(DesktopAction::ExportDiagnostics).unwrap(),
             serde_json::json!({ "type": "export-diagnostics" })
+        );
+        assert_eq!(
+            application_menu_action(KEYBINDINGS_MENU_ID),
+            Some(DesktopAction::OpenKeybindings)
+        );
+        assert_eq!(
+            serde_json::to_value(DesktopAction::OpenKeybindings).unwrap(),
+            serde_json::json!({ "type": "open-keybindings" })
         );
         assert_eq!(application_menu_action("unknown"), None);
     }
