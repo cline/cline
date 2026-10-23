@@ -2,6 +2,7 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
 import { CloudTaskBadge } from "@/components/cloud/CloudTaskBadge"
+import { SubscriptionUsage } from "@/components/common/SubscriptionUsage"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -259,6 +260,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							tokensOut={tokensOut}
 							useAutoCondense={false} // Disable auto-condense configuration in UI for now
 						/>
+						{!currentCloudTask && <SubscriptionUsage providerId={modeFields.apiProvider} />}
 					</div>
 				)}
 			</div>

@@ -1315,6 +1315,43 @@ describe("sdk-gateway", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it.each([
+		"openai-codex",
+		"openai-codex-cli",
+		"openai-native",
+	])("captures response quota only for direct openai-codex (%s)", async (providerId) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", text: "Hello" },
+				{
+					type: "finish-step",
+					response: { headers: { "x-codex-primary-used-percent": "18" } },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId, apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "gpt-5.5",
+				messages: baseMessages,
+			}),
+		);
+		const quota = events.filter((event) => event.type === "subscription-usage");
+		expect(quota).toHaveLength(providerId === "openai-codex" ? 1 : 0);
+		if (quota[0]) {
+			expect(quota[0].usage.windows).toEqual([
+				{ id: "primary", usedPercent: 18 },
+			]);
+			expect(quota[0].usage.capturedAt).toEqual(expect.any(Number));
+		}
+		expect(events).toContainEqual({ type: "text-delta", text: "Hello" });
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
 	it("emits generated image files from multimodal language model streams", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

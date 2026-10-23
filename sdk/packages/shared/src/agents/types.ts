@@ -15,6 +15,7 @@ import type {
 	AgentRuntimeHooks,
 	AgentTool,
 	ProviderErrorClass,
+	SubscriptionUsageSnapshot,
 } from "../agent";
 import type { ExtensionContext } from "../extensions/context";
 import type {
@@ -70,6 +71,7 @@ export type AgentEvent =
 	| AgentIterationEndEvent
 	| AgentNoticeEvent
 	| AgentUsageEvent
+	| AgentSubscriptionUsageEvent
 	| AgentDoneEvent
 	| AgentErrorEvent;
 
@@ -153,6 +155,12 @@ export interface AgentIterationEndEvent extends AgentEventMetadata {
 	hadToolCalls: boolean;
 	/** Number of tool calls in this iteration */
 	toolCallCount: number;
+}
+
+export interface AgentSubscriptionUsageEvent extends AgentEventMetadata {
+	type: "subscription_usage";
+	usage: SubscriptionUsageSnapshot;
+	runStartedAt: number;
 }
 
 export interface AgentUsageEvent extends AgentEventMetadata {

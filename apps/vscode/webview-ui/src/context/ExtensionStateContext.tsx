@@ -469,6 +469,12 @@ export const ExtensionStateContextProvider: React.FC<{
 							// newer phase (e.g. "streaming") and hide the Cancel button. Falls back to
 							// undefined for classic/legacy state.
 							stateData.turnState = replicaRef.current.turnState
+							// A delayed state packet must not restore quota after an auth/session clear.
+							stateData.subscriptionUsage =
+								(stateData.epoch ?? 0) === replicaRef.current.epoch &&
+								(stateData.stateVersion ?? 0) === replicaRef.current.stateVersion
+									? (stateData.subscriptionUsage ?? null)
+									: (prevState.subscriptionUsage ?? null)
 
 							const newState = {
 								...stateData,
