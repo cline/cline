@@ -17,6 +17,7 @@ import {
 	captureCompactionSkipped,
 	captureExtensionActivated,
 	captureGitSnapshot,
+	captureMarketplaceInstall,
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
@@ -1097,4 +1098,40 @@ test("scheduler telemetry allowlists diagnostics and tolerates capture failures"
 	});
 	expect(() => captureScheduleRun(telemetry, input)).not.toThrow();
 	expect(() => captureScheduleRun(undefined, input)).not.toThrow();
+});
+
+describe("captureMarketplaceInstall", () => {
+	test("emits desktop.marketplace.install with only the defined fields", () => {
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as Parameters<
+			typeof captureMarketplaceInstall
+		>[0];
+
+		captureMarketplaceInstall(telemetry, {
+			type: "skill",
+			outcome: "failed",
+			method: "github-download",
+			cli_failure: "git-missing",
+			fallback_failed: true,
+		});
+		captureMarketplaceInstall(telemetry, { type: "mcp", outcome: "installed" });
+
+		expect(CORE_TELEMETRY_EVENTS.DESKTOP.MARKETPLACE_INSTALL).toBe(
+			"desktop.marketplace.install",
+		);
+		expect(capture).toHaveBeenNthCalledWith(1, {
+			event: "desktop.marketplace.install",
+			properties: {
+				type: "skill",
+				outcome: "failed",
+				method: "github-download",
+				cli_failure: "git-missing",
+				fallback_failed: true,
+			},
+		});
+		expect(capture).toHaveBeenNthCalledWith(2, {
+			event: "desktop.marketplace.install",
+			properties: { type: "mcp", outcome: "installed" },
+		});
+	});
 });
