@@ -2519,6 +2519,11 @@ function ChatThreadPane({
 		],
 	);
 
+	const pullRequestSource = useMemo(
+		() => ({ cwd: resolvedWorkspaceRoot, branch: gitBranch }),
+		[resolvedWorkspaceRoot, gitBranch],
+	);
+
 	// Fetch the panel's code as soon as a session could show it, so the first
 	// toggle opens it without waiting on the chunk.
 	const mayBrowseFiles =
@@ -2641,6 +2646,7 @@ function ChatThreadPane({
 								onNewThread={onNewThread}
 								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
 								filesOpen={filesPanelVisible}
+								pullRequest={pullRequestSource}
 								onRenameTitle={handleRenameTitle}
 								renamingTitle={renamingSession}
 								status={headerStatus}
