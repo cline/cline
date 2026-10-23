@@ -2115,6 +2115,7 @@ export class CloudSessionController {
 					throw error;
 				}
 			}
+			this.discoveryGeneration++;
 			this.lastListedSessions = this.lastListedSessions.filter(
 				(record) => record.id !== outerSessionId,
 			);

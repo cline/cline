@@ -234,7 +234,7 @@ describe("CloudSessionController neutral host contract", () => {
 			);
 			let settled = false;
 			discovering = f.controller
-				.listForDiscovery({ timeoutMs })
+				.listForDiscovery({ timeoutMs, maxAgeMs: 30_000 })
 				.then((rows) => {
 					settled = true;
 					return rows;
@@ -292,7 +292,9 @@ describe("CloudSessionController neutral host contract", () => {
 		let organizationId = "org-one";
 		const f = fixture({ getActiveOrganizationId: async () => organizationId });
 		try {
-			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+			expect(
+				await f.controller.listForDiscovery({ maxAgeMs: 30_000 }),
+			).toHaveLength(1);
 			organizationId = "org-two";
 			let finish!: (rows: CloudSessionRecord[]) => void;
 			f.api.list.mockImplementationOnce(
@@ -301,9 +303,13 @@ describe("CloudSessionController neutral host contract", () => {
 						finish = resolve;
 					}),
 			);
-			expect(await f.controller.listForDiscovery({ timeoutMs: 0 })).toEqual([]);
+			expect(
+				await f.controller.listForDiscovery({ timeoutMs: 0, maxAgeMs: 30_000 }),
+			).toEqual([]);
 			finish([]);
-			expect(await f.controller.listForDiscovery()).toEqual([]);
+			expect(await f.controller.listForDiscovery({ maxAgeMs: 30_000 })).toEqual(
+				[],
+			);
 		} finally {
 			await f.controller.dispose();
 		}
@@ -487,6 +493,29 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.listForDiscovery({ maxAgeMs: 30_000 }),
 		).toHaveLength(fails ? 1 : 0);
 		expect(f.api.list).toHaveBeenCalledTimes(1);
+		await f.controller.dispose();
+	});
+
+	it("does not cache a list that completes after a session was deleted", async () => {
+		const f = fixture();
+		await f.controller.listForDiscovery();
+		let complete!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const pending = f.controller.listForDiscovery();
+		await vi.waitFor(() => expect(f.api.list).toHaveBeenCalledTimes(2));
+		await f.controller.delete(record.id);
+		f.api.list.mockResolvedValue([]);
+		complete([record]);
+		await pending;
+		expect(await f.controller.listForDiscovery({ maxAgeMs: 30_000 })).toEqual(
+			[],
+		);
+		expect(f.api.list).toHaveBeenCalledTimes(3);
 		await f.controller.dispose();
 	});
 
