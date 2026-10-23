@@ -5,7 +5,10 @@ import {
 	upgradeManagedHub,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { formatDisplayUserInput } from "@cline/shared";
+import {
+	formatDisplayUserInput,
+	type ToolApprovalRequest,
+} from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -62,6 +65,7 @@ import { ThemeProvider } from "./hooks/theme-provider";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
 import { useAutocomplete } from "./hooks/use-autocomplete";
+import { useCloudSessions } from "./hooks/use-cloud-sessions";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
 import { useMcpManager } from "./hooks/use-mcp-manager";
@@ -314,8 +318,37 @@ function App(props: TuiProps) {
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 
+	const requestToolApprovalRef = useRef<
+		ReturnType<typeof useRuntimeDialogBridge>["requestToolApproval"] | null
+	>(null);
+	const requestCloudToolApproval = useCallback(
+		(request: ToolApprovalRequest) =>
+			requestToolApprovalRef.current?.(request) ??
+			Promise.resolve({ approved: false }),
+		[],
+	);
+	const cloud = useCloudSessions({
+		client: props.cloudSessions,
+		dialog,
+		termHeight,
+		cwd: props.config.cwd,
+		localBranch: repoStatus.branch,
+		providerId: props.config.providerId,
+		modelId: props.config.modelId,
+		autoApproveAll: session.autoApproveAll,
+		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
+		loadClineAccount: props.loadClineAccount,
+		onAccountChange: props.onAccountChange,
+		requestToolApproval: requestCloudToolApproval,
+		replaceEntries: session.replaceEntries,
+		showToast,
+		refocusTextarea: () => refocusTextareaRef.current(),
+	});
+	const resetCloudSession = cloud.reset;
+
 	const clearConversation = useCallback(async () => {
 		const shouldRestartSession = session.hasSubmitted;
+		resetCloudSession();
 		session.clearEntries();
 		session.setHasSubmitted(false);
 		if (!shouldRestartSession) {
@@ -335,7 +368,7 @@ function App(props: TuiProps) {
 		} finally {
 			refocusTextareaRef.current();
 		}
-	}, [props, session]);
+	}, [props, resetCloudSession, session]);
 
 	const openCheckpointRestore = useCallback(async () => {
 		if (checkpointRestoreInFlightRef.current) {
@@ -869,7 +902,7 @@ function App(props: TuiProps) {
 		autocomplete,
 		slashCommandRegistry,
 		handleSlashCommand,
-		onSubmit: props.onSubmit,
+		onSubmit: cloud.active ? cloud.submit : props.onSubmit,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
@@ -897,6 +930,7 @@ function App(props: TuiProps) {
 		setUiMode: session.setUiMode,
 		refocusTextarea: promptInput.refocusTextarea,
 	});
+	requestToolApprovalRef.current = runtimeBridge.requestToolApproval;
 	const runtimeInteraction = runtimeBridge.interaction;
 	const isRuntimeInteractionOpen = runtimeInteraction !== null;
 	const saveQueuedPromptEdit = useCallback(
@@ -929,8 +963,17 @@ function App(props: TuiProps) {
 			promoteQueuedPrompt(selectedQueuedPromptId);
 			return;
 		}
+		if (
+			cloud.active &&
+			!cloud.hasRepository &&
+			!promptInput.getCurrentInputText().trimStart().startsWith("/")
+		) {
+			void cloud.pickRepository();
+			return;
+		}
 		promptInput.handleSubmit();
 	}, [
+		cloud,
 		editingQueuedPromptId,
 		promoteQueuedPrompt,
 		promptInput,
@@ -988,9 +1031,12 @@ function App(props: TuiProps) {
 		getCurrentInputText: promptInput.getCurrentInputText,
 		setInputKey: promptInput.setInputKey,
 		setInputValue: promptInput.setInputValue,
-		onAbort: props.onAbort,
+		onAbort: cloud.hasSession ? cloud.abort : props.onAbort,
 		onExit: exitCline,
 		onToggleMode: toggleMode,
+		onToggleCloudTarget: cloud.toggleTarget,
+		onChangeCloudRepo:
+			cloud.active && !cloud.hasSession ? cloud.pickRepository : undefined,
 		onClearConversation: clearConversation,
 		onRestoreCheckpoint: openCheckpointRestore,
 		onOpenCommandPalette: openCommandPalette,
@@ -1019,6 +1065,7 @@ function App(props: TuiProps) {
 		onLargeTextPaste: promptInput.handleLargeTextPaste,
 		onInputFocusRequest: focusPromptInput,
 		repoStatus,
+		cloud: cloud.statusBar,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
 		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,

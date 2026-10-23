@@ -125,6 +125,20 @@ export function resolveModelMaxInputTokens(config: {
 	return undefined;
 }
 
+export interface StatusBarCloud {
+	target: "local" | "cloud";
+	repoFullName?: string;
+	branch?: string;
+	/** Cloud sessions run on a Cline cloud model, not the local selection. */
+	modelName?: string;
+	/** Set once this chat's cloud session starts, which locks the target. */
+	sessionStatus?: string;
+}
+
+function truncateEnd(text: string, max: number): string {
+	return text.length > max ? `${text.slice(0, Math.max(0, max - 3))}...` : text;
+}
+
 export interface StatusBarProps {
 	providerId: string;
 	modelId: string;
@@ -142,11 +156,12 @@ export interface StatusBarProps {
 	} | null;
 	onToggleMode?: () => void;
 	variant?: "home" | "chat";
+	/** Omitted when cloud sessions are unavailable. */
+	cloud?: StatusBarCloud;
 }
 
 export function StatusBar(props: StatusBarProps) {
 	const {
-		modelId,
 		totalTokens,
 		totalCost,
 		maxInputTokens,
@@ -156,7 +171,12 @@ export function StatusBar(props: StatusBarProps) {
 		gitBranch,
 		gitDiffStats,
 		onToggleMode,
+		cloud,
 	} = props;
+	const modelId =
+		cloud?.target === "cloud" && cloud.modelName
+			? cloud.modelName
+			: props.modelId;
 
 	const { width } = useTerminalDimensions();
 	const theme = useTheme();
@@ -254,18 +274,48 @@ export function StatusBar(props: StatusBarProps) {
 
 			{!firstRowFits && <text fg="gray">{renderContextText(false)}</text>}
 
-			<text fg={defaultFg}>
-				{truncatedPath}
-				{hasGitDiff && (
-					<span fg="gray">
-						{" | "}
-						{gitDiffStats.files} file
-						{gitDiffStats.files !== 1 ? "s" : ""}{" "}
-						<span fg={successColor}>+{gitDiffStats.additions}</span>{" "}
-						<span fg="red">-{gitDiffStats.deletions}</span>
-					</span>
-				)}
-			</text>
+			{cloud?.target === "cloud" ? (
+				<text fg={defaultFg}>
+					<span fg={actAccent}>☁ </span>
+					{cloud.repoFullName ? (
+						truncateEnd(
+							`${cloud.repoFullName}${cloud.branch ? ` · ${cloud.branch}` : ""}`,
+							avail - 2 - (cloud.sessionStatus ? 0 : 9),
+						)
+					) : (
+						<span fg={planAccent}>Choose a repository…</span>
+					)}
+					{!cloud.sessionStatus && <span fg="gray"> (Ctrl+K)</span>}
+				</text>
+			) : (
+				<text fg={defaultFg}>
+					{truncatedPath}
+					{hasGitDiff && (
+						<span fg="gray">
+							{" | "}
+							{gitDiffStats.files} file
+							{gitDiffStats.files !== 1 ? "s" : ""}{" "}
+							<span fg={successColor}>+{gitDiffStats.additions}</span>{" "}
+							<span fg="red">-{gitDiffStats.deletions}</span>
+						</span>
+					)}
+				</text>
+			)}
+
+			{cloud &&
+				(cloud.sessionStatus ? (
+					<text fg={actAccent}>{cloud.sessionStatus}</text>
+				) : (
+					<text fg="gray">
+						<span fg={cloud.target === "local" ? actAccent : "gray"}>
+							{cloud.target === "local" ? "●" : "○"} Local
+						</span>{" "}
+						<span fg={cloud.target === "cloud" ? actAccent : "gray"}>
+							{cloud.target === "cloud" ? "●" : "○"} Cloud
+						</span>{" "}
+						(Ctrl+O)
+					</text>
+				))}
 
 			{autoApproveAll ? (
 				<text fg={defaultFg}>
