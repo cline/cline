@@ -300,7 +300,7 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("temperature");
 	});
 
-	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+	it("seeds tool calling and reasoning when capabilities are synthesized purely from boolean flags", async () => {
 		const parsed = parseModelsFile({
 			version: 1,
 			providers: {
@@ -335,6 +335,16 @@ describe("models registry parsing", () => {
 							operation: "image-generation",
 							capabilities: ["images"],
 						},
+						// Only a vision flag (what a settings UI's Supports Images
+						// tick writes) must not read as a reasoning denial.
+						"vision-only": {
+							supportsVision: true,
+						},
+						// An explicit denial survives the seeding.
+						"no-reasoning": {
+							supportsVision: true,
+							supportsReasoning: false,
+						},
 					},
 				},
 			},
@@ -355,9 +365,17 @@ describe("models registry parsing", () => {
 		);
 		expect(models.bare).not.toHaveProperty("capabilities");
 		expect(models["partial-list"]?.capabilities).toEqual(
-			expect.arrayContaining(["prompt-cache", "tools"]),
+			expect.arrayContaining(["prompt-cache", "reasoning", "tools"]),
 		);
 		expect(models["image-gen"]?.capabilities).not.toContain("tools");
+		expect(models["image-gen"]?.capabilities).not.toContain("reasoning");
+		expect(models["vision-only"]?.capabilities).toEqual(
+			expect.arrayContaining(["images", "reasoning", "tools"]),
+		);
+		expect(models["no-reasoning"]?.capabilities).toEqual(
+			expect.arrayContaining(["images", "tools"]),
+		);
+		expect(models["no-reasoning"]?.capabilities).not.toContain("reasoning");
 	});
 
 	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
