@@ -33,7 +33,7 @@ export async function readRepoStatus(cwd: string): Promise<RepoStatus> {
 			// Prevent a console window from flashing on Windows.
 			windowsHide: true,
 		}),
-		execFileAsync("git", ["-C", cwd, "diff", "--shortstat"], {
+		execFileAsync("git", ["-C", cwd, "diff", "--shortstat", "HEAD"], {
 			encoding: "utf8",
 			windowsHide: true,
 		}),
