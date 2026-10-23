@@ -182,7 +182,10 @@ features and cannot cross this RPC boundary. Hub-backed creation defaults to
 
 Discovery caches, pending listing requests, and newly created fallback rows are
 scoped to their organization; switching the sidebar preserves other organizations’
-task state without displaying their rows.
+task state without displaying their rows. Discovery’s `timeoutMs` covers both
+organization resolution and listing. If the organization is still unknown at
+the deadline, discovery returns no cloud rows; cached rows are used only after
+establishing their matching organization.
 
 After a successful organization switch, `refreshOrganization()` invalidates the
 Hub's cached organization before fetching the current one. A fetch failure leaves
