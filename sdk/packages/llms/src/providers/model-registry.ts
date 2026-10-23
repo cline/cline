@@ -64,6 +64,12 @@ export function getProviderCollectionSync(
 	return getProviderFromCache(providerId);
 }
 
+export function getBuiltInProviderCollectionSync(
+	providerId: string,
+): ModelCollection | undefined {
+	return PROVIDER_CACHE.get(providerId);
+}
+
 export async function getProviderCollection(
 	providerId: string,
 ): Promise<ModelCollection | undefined> {

@@ -19,6 +19,7 @@ import {
 
 export function useOnboardingKeyboard(input: {
 	step: OnboardingStep;
+	isDialogOpen: boolean;
 	onExit: () => void;
 	oauthProvider: string;
 	activeProviderId: string;
@@ -65,10 +66,18 @@ export function useOnboardingKeyboard(input: {
 	useKeyboard((key) => {
 		if (input.step === "done") return;
 
+		// Handled before the dialog guard below: the standalone `cline auth` TUI
+		// has no other Ctrl+C handler, so a dialog must not swallow the exit.
 		if (key.ctrl && key.name === "c") {
 			input.onExit();
 			return;
 		}
+
+		// A provider-owned dialog (e.g. the aimlapi.com sign-up) draws over the
+		// onboarding screen and runs its own key handling. This subscription is
+		// global rather than focus-scoped, so it has to stand down or every
+		// keystroke would be handled twice.
+		if (input.isDialogOpen) return;
 
 		if (key.name === "escape") {
 			if (input.step === "oauth_pending") {

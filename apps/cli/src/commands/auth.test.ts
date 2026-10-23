@@ -115,7 +115,7 @@ await listLocalProviders(manager);
 const runtime = await loadAuthTuiRuntime();
 if (typeof runtime.createCliRenderer !== "function") throw new Error("missing createCliRenderer");
 if (typeof runtime.createRoot !== "function") throw new Error("missing createRoot");
-if (typeof runtime.OnboardingView !== "function") throw new Error("missing OnboardingView");
+if (typeof runtime.OnboardingApp !== "function") throw new Error("missing OnboardingApp");
 `;
 
 		const result = spawnSync(

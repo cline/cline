@@ -44,6 +44,7 @@ import {
 } from "ai";
 import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
+import { wrapFetchForAimlapiAttribution } from "./aimlapi/attribution";
 import {
 	createStreamErrorTelemetry,
 	isTimeoutReason,
@@ -2247,10 +2248,13 @@ function createAiSdkProvider(
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
+						fetch: wrapFetchForAimlapiAttribution(
+							wrapFetchForStickySession(
+								wrapFetchForProviderRequestCapture(config.fetch, request),
+								request,
+								context,
+							),
+							request.providerId,
 						),
 					},
 					context,

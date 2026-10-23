@@ -10,6 +10,8 @@ import {
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
+import { useTerminalDimensions } from "@opentui/react";
+import { useDialog, useDialogState } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isChatProviderModel } from "../../../utils/chat-models";
 import {
@@ -30,6 +32,7 @@ import {
 	loadCurrentUserPlanFromProviderSettings,
 	loadIndividualSubscriptionPlansFromProviderSettings,
 } from "../../cline-account";
+import { runAimlapiOnboarding } from "../../components/dialogs/aimlapi-onboarding";
 import {
 	buildFeaturedModelEntries,
 	type ClineModelPickerEntry,
@@ -98,6 +101,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			}),
 		[],
 	);
+	const dialog = useDialog();
+	const isDialogOpen = useDialogState((s: { isOpen: boolean }) => s.isOpen);
+	const { height: termHeight } = useTerminalDimensions();
 	const [step, setStep] = useState<OnboardingStep>("menu");
 	const [menuSelected, setMenuSelected] = useState(0);
 	const [oauthProvider, setOauthProvider] = useState("");
@@ -164,6 +170,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	);
 
 	const providerList = useSearchableList(providerItems);
+	// The provider picker's search box is an uncontrolled `focused` input, so it
+	// loses focus to any dialog drawn over it. Bumping this key remounts the
+	// picker to take focus back once the dialog closes.
+	const [providerPickerKey, setProviderPickerKey] = useState(0);
+	const providerListRef = useRef(providerList);
+	providerListRef.current = providerList;
 
 	// Model catalog for selected provider
 	const [modelEntries, setModelEntries] = useState<ModelEntry[]>([]);
@@ -514,10 +526,49 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			});
 	}, []);
 
+	const aimlapiFlowRef = useRef(false);
+
+	// aimlapi.com ships a guided sign-up (email code or pasted key, balance check,
+	// optional top-up) that provisions the key itself, so the provider list hands
+	// off to that dialog flow instead of the generic API-key form. Same flow the
+	// in-session `/model` provider change runs.
+	const startAimlapiOnboarding = useCallback(() => {
+		if (aimlapiFlowRef.current) return;
+		aimlapiFlowRef.current = true;
+		runAimlapiOnboarding(dialog, providerSettingsManager, termHeight)
+			.then((saved) => {
+				if (!saved) {
+					// Backed out: stay on the provider list, but remount it so the
+					// search box regains focus and its cleared text matches the filter.
+					providerListRef.current.setSearch("");
+					setProviderPickerKey((k) => k + 1);
+					return;
+				}
+				// Mirrors saveByoConfig: one `user.provider_configured` event once the
+				// credentials are persisted. The flow saves a default model too, but
+				// onboarding still runs its own model picker next.
+				captureProviderConfigured(getCliTelemetryService(), "aimlapi");
+				transitionToModelPicker("aimlapi");
+			})
+			.catch(() => {
+				providerListRef.current.setSearch("");
+				setProviderPickerKey((k) => k + 1);
+			})
+			.finally(() => {
+				aimlapiFlowRef.current = false;
+			});
+	}, [dialog, providerSettingsManager, termHeight, transitionToModelPicker]);
+
 	const selectProvider = useCallback(
 		(providerId: string) => {
 			const provider = providers.find((p) => p.id === providerId);
 			if (!provider) return;
+			if (provider.id === "aimlapi") {
+				setActiveProviderId(provider.id);
+				setActiveProviderName(provider.name);
+				startAimlapiOnboarding();
+				return;
+			}
 			if (provider.isOAuth) {
 				if (isOnboardingOAuthProviderId(provider.id)) {
 					startOAuthFlow(provider.id);
@@ -592,7 +643,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setByoFocusedField(firstField ?? "apiKey");
 			setStep("byo_apikey");
 		},
-		[providers, startOAuthFlow, refreshLocalCliStatus, providerSettingsManager],
+		[
+			providers,
+			startOAuthFlow,
+			startAimlapiOnboarding,
+			refreshLocalCliStatus,
+			providerSettingsManager,
+		],
 	);
 
 	const recheckLocalCli = useCallback(() => {
@@ -795,6 +852,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	useOnboardingKeyboard({
 		step,
+		isDialogOpen,
 		onExit: props.onExit,
 		oauthProvider,
 		activeProviderId,
@@ -896,6 +954,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		modelsLoading,
 		oauthProvider,
 		providerList,
+		providerPickerKey,
 		providersLoading,
 		recommendedLoading: recommended.loading,
 		saveByoConfig,

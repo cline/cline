@@ -20,6 +20,7 @@ export {
 	filterOpenAICodexModels,
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
+	getBuiltInProviderCollectionSync,
 	getGeneratedModelsForProvider,
 	getModelOverridesForProvider,
 	getModelsForProvider,
@@ -37,6 +38,7 @@ export {
 	unregisterProvider,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
+export * from "./providers/aimlapi";
 export {
 	type ProviderUsageCostDisplay,
 	resolveProviderUsageCostDisplay,
