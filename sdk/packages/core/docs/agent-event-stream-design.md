@@ -481,11 +481,34 @@ port) lands in Phase 2; until then the framer/validator are exercised by
 tests, and the wrapper exists so the producer side of the contract is
 pinned before any consumer ports.
 
-**Phase 2 — assembler + first consumer.** Implement the assembler
-(`@cline/core`). Port the **CLI terminal renderer** first (smallest,
-lowest risk: `apps/cli/src/utils/events.ts`), then ACP. Differential
-test: replay recorded sessions through old and new paths, compare
-rendered output.
+**Phase 2 status: implemented (CLI port; ACP moved).** `@cline/core`
+carries `stream-assembler.ts` — the consumer-side instance of the v2
+tables: push-based consumer API (SessionConsumer/TurnConsumer/sinks),
+delivery contract (seq order, close-last, children-before-turn-close),
+the live set, repairs (stale-epoch drop, orphan drop, force-close)
+reported via `onDiagnostic`, and the `onIdle` quiescence edge. Its tests
+extend the property loop (100 seeds: zero diagnostics, one idle per
+turn) and pin each repair. The CLI terminal renderer
+(`apps/cli/src/utils/events.ts`) is the first frame consumer: the v1
+switch and its module-level parser state are gone; `handleEvent` frames
+via `AgentEventFramer` and drives `CliFrameRenderer` sinks. Fidelity is
+proven two ways: the new differential harness (100 seeds × 2 verbosity
+modes, byte-identical stdout/stderr, plus handcrafted edges —
+ask_question, redacted reasoning, tool errors, status notices) and the
+pre-existing `events.test.ts` behavioral suite, which now runs against
+the frame path unchanged. The harness whitelists exactly one intended
+divergence (P6 made visible: `done(reason:"error")` renders as an
+error, not v1's fake "finished" banner). Framer amendments forced by
+rendering fidelity: `NoticeBody.metadata` (compaction labels),
+turn-close `iterations` (verbose run summary), an empty delta for
+redacted-with-no-text reasoning (the `[redacted]` marker moment), and
+id-less tool open/close pairing (type-legal v1 input). The old v1
+renderer lives as `agent-renderer-v1.reference.ts`, the differential
+baseline, deleted in Phase 5. JSON mode is byte-identical and
+untouched. **ACP port moved to the next PR**: `session-updates.ts` is
+a separate surface with its own wiring; delivering the CLI port +
+harness first keeps this PR's risk surface small, and the assembler
+API is now proven by a real consumer before the second port.
 
 **Phase 3 — VSCode.** Port message-translator onto the assembler.
 MessageTranslatorState's parser fields delete; ClineMessage mapping
