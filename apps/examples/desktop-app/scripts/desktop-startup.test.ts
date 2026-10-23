@@ -419,6 +419,9 @@ test.each([
 				PATH: root,
 				JITI_FS_CACHE: "false",
 				CLINE_PLUGIN_MODE: mode,
+				// Cold Windows runners can take more than the 4s default to start a
+				// sandbox child; this test covers resource loading, not startup time.
+				CLINE_PLUGIN_IMPORT_TIMEOUT_MS: "20000",
 				CLINE_TEST_PLUGIN_RESULT_PATH: marker,
 				TMPDIR: root,
 				CLINE_NO_AUTO_UPDATE: "1",
