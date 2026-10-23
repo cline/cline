@@ -2776,6 +2776,62 @@ describe("sdk-gateway", () => {
 	});
 
 	it.each([
+		{
+			timeoutPhase: "before_reply",
+			parts: [],
+			message:
+				"The model provider stopped responding before it started its reply.",
+		},
+		{
+			timeoutPhase: "mid_reply",
+			parts: [{ type: "text-delta", text: "Now I will" }],
+			message:
+				"The model provider stopped responding partway through its reply.",
+		},
+	])("explains a provider that went silent ($timeoutPhase)", async ({
+		timeoutPhase,
+		parts,
+		message,
+	}) => {
+		// Bun's fetch gives up on a silent provider with this native error.
+		const error = new DOMException("The operation timed out.", "TimeoutError");
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield* parts;
+				throw error;
+			})(),
+		});
+		const { telemetry, capture } = createTelemetryMock();
+		const gateway = createGateway({
+			telemetry,
+			logger: { error: vi.fn(), log: vi.fn() },
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: `${message} Send a message to continue, or switch models if this keeps happening.`,
+			// Retry decisions are unchanged: a timeout alone is not retried.
+			errorRetryable: false,
+		});
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				error_type: "TimeoutError",
+				error_message: "The operation timed out.",
+				timeoutPhase,
+			}),
+		});
+	});
+
+	it.each([
 		"AbortError",
 		"TimeoutError",
 	])("classifies %s cancellation independently of provider failure", async (name) => {

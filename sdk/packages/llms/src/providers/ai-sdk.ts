@@ -1487,6 +1487,29 @@ interface CapturedStreamError {
 	reported?: boolean;
 	requestId?: string;
 	baseMessage: string;
+	/** For a timeout: whether the provider went silent before or during its reply. */
+	timeoutPhase?: "before_reply" | "mid_reply";
+}
+
+/**
+ * A native timeout means the runtime stopped waiting on a silent provider
+ * (Bun's fetch gives up after 300 s). Tell the user what happened in plain
+ * words; telemetry keeps the raw error text in `baseMessage`. Updated in
+ * place so `reportError` still recognises an already-reported failure.
+ */
+function describeProviderTimeout(
+	captured: CapturedStreamError,
+	sawVisibleContent: boolean,
+): void {
+	captured.timeoutPhase = sawVisibleContent ? "mid_reply" : "before_reply";
+	const what =
+		captured.timeoutPhase === "mid_reply"
+			? "The model provider stopped responding partway through its reply."
+			: "The model provider stopped responding before it started its reply.";
+	captured.message = appendRequestId(
+		`${what} Send a message to continue, or switch models if this keeps happening.`,
+		captured.requestId,
+	);
 }
 
 function captureStreamError(
@@ -2035,6 +2058,9 @@ async function* emitAiSdkEvents(
 		};
 	}
 
+	if (streamError && isTimeoutReason(streamError.error)) {
+		describeProviderTimeout(streamError, sawVisibleContent);
+	}
 	if (streamError) await reportError?.(streamError);
 
 	const finishRequestId = requestId ?? streamError?.requestId;
@@ -2234,6 +2260,7 @@ function createAiSdkProvider(
 						aiSdkCallId: getAiSdkCallId?.(),
 						errorPhase: captured.phase,
 						errorTurnRetryable: captured.retryable,
+						timeoutPhase: captured.timeoutPhase,
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
