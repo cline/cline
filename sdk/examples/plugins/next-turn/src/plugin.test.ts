@@ -327,6 +327,21 @@ test("a Skip on the last row sent before the previous skip's set arrives is refu
 	expect(tray.ids()).toEqual(["r1:review_diff", "r1:next_step"]);
 });
 
+test("a late Skip for a row New set already paged past leaves the page's rows in view", async () => {
+	const tray = connect();
+	await tray.afterRun(run("completed", [edited]));
+	await tray.act({ verb: "refresh", revision: "r1", cause: "new_set" });
+	expect(tray.ids()).toEqual(["r1:review_diff", "r1:wrap_up", "r1:next_step"]);
+
+	expect(
+		await tray.act({ verb: "skip", revision: "r1", itemId: "r1:verify" }),
+	).toEqual(ok);
+	expect(tray.ids()).toEqual(["r1:review_diff", "r1:wrap_up", "r1:next_step"]);
+
+	await tray.act({ verb: "unskip", revision: "r3", itemId: "r1:verify" });
+	expect(tray.ids()).toEqual(["r1:verify", "r1:review_diff", "r1:wrap_up"]);
+});
+
 test("Undo skip restores the row after a new set, until the next turn", async () => {
 	const tray = connect();
 	await tray.afterRun(run("completed", [edited, failedCommand]));

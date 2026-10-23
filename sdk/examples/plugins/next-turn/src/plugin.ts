@@ -275,6 +275,9 @@ export function createNextTurnPlugin(): AgentPlugin {
 				if (!facts) return stale();
 				const row = rowOf(facts, action.itemId);
 				if (!row) return stale();
+				// A row skipped from a set already paged past sits before the cursor, so the page steps back to keep its rows.
+				const at = offered(facts).findIndex((r) => r.kind === row.kind);
+				if (at >= 0 && at < cursor) cursor -= 1;
 				skipped.add(row.kind);
 				publish();
 				return { outcome: "ok" };
