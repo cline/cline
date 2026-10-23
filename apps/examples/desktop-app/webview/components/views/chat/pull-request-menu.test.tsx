@@ -100,10 +100,26 @@ it("joins a PR menu to the files toggle and opens the PR", async () => {
 	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.url);
 });
 
-it("lists checks in a submenu and opens a check", async () => {
+it("lists checks in a submenu, failures first, and opens a check", async () => {
+	invoke.mockResolvedValue({
+		...data,
+		pullRequest: {
+			...data.pullRequest,
+			checks: [
+				{ name: "Lint", state: "success" },
+				...(data.pullRequest?.checks ?? []),
+			],
+		},
+	});
 	await render();
 	await openMenu();
-	await select("1 of 1 checks failed");
+	await select("1 of 2 checks failed");
+	const checks = [
+		...document.body.querySelectorAll(
+			'[data-slot="dropdown-menu-sub-content"] [role="menuitem"]',
+		),
+	].map((item) => item.textContent);
+	expect(checks).toEqual(["Testsfailure", "Lintsuccess"]);
 	await select("Tests");
 	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest!.checks[0].url);
 });
