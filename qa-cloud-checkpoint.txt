@@ -1,0 +1,2 @@
+Synthetic cloud handoff QA fixture.
+Tracked baseline: QA_BASE_E0CA196.
