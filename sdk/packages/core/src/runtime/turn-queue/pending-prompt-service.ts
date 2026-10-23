@@ -337,6 +337,7 @@ export class PendingPromptsController {
 			session.shuttingDown ||
 			session.aborting ||
 			session.drainingPendingPrompts ||
+			session.turnsInFlight > 0 ||
 			!session.agent.canStartRun()
 		) {
 			return;
@@ -356,7 +357,9 @@ export class PendingPromptsController {
 		) {
 			return;
 		}
-		if (!session.agent.canStartRun()) {
+		// A turn that is still preparing has no run the agent knows about yet;
+		// draining into it would start a second turn.
+		if (session.turnsInFlight > 0 || !session.agent.canStartRun()) {
 			return;
 		}
 		const { entry: next } = this.service.shiftNext(session);

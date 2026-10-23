@@ -4215,9 +4215,16 @@ describe("LocalRuntimeHost", () => {
 		options: {
 			holdRowCreation?: boolean;
 			holdSecondRunningWrite?: boolean;
+			holdFirstRunningWrite?: boolean;
+			resumedStatus?: "completed";
 		} = {},
 	) {
-		const manifest = createManifest(sessionId);
+		const manifest = {
+			...createManifest(sessionId),
+			...(options.resumedStatus
+				? { status: options.resumedStatus, interactive: true }
+				: {}),
+		};
 		let releaseHold: (() => void) | undefined;
 		let markHeld: (() => void) | undefined;
 		const held = new Promise<void>((resolve) => {
@@ -4240,10 +4247,16 @@ describe("LocalRuntimeHost", () => {
 				};
 			}),
 			persistSessionMessages: vi.fn(),
+			...(options.resumedStatus
+				? { readSessionManifest: vi.fn().mockReturnValue(manifest) }
+				: {}),
 			updateSessionStatus: vi.fn(async (_sessionId: string, status: string) => {
 				if (status === "running") {
 					runningWrites += 1;
-					if (options.holdSecondRunningWrite && runningWrites === 2) {
+					if (
+						(options.holdSecondRunningWrite && runningWrites === 2) ||
+						(options.holdFirstRunningWrite && runningWrites === 1)
+					) {
 						await hold();
 					}
 				}
@@ -4275,8 +4288,12 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 		const endReasons: string[] = [];
+		const submitted: string[] = [];
 		manager.subscribe((event) => {
 			if (event.type === "ended") endReasons.push(event.payload.reason);
+			if (event.type === "pending_prompt_submitted") {
+				submitted.push(event.payload.prompt);
+			}
 		});
 		const statuses = () =>
 			sessionService.updateSessionStatus.mock.calls.map((call) => call[1]);
@@ -4290,6 +4307,7 @@ describe("LocalRuntimeHost", () => {
 			held,
 			release: () => releaseHold?.(),
 			endReasons,
+			submitted,
 			statuses,
 			telemetryEvents,
 		};
@@ -4327,6 +4345,51 @@ describe("LocalRuntimeHost", () => {
 		expect(f.telemetryEvents()).not.toContain("task.completed");
 		expect(f.agent.continue).not.toHaveBeenCalled();
 	});
+
+	for (const delivery of [undefined, "queue" as const]) {
+		it(`queues a prompt sent while another turn is still preparing (delivery: ${delivery ?? "default"}) and runs it afterwards`, async () => {
+			const sessionId = `sess-send-during-prep-${delivery ?? "default"}`;
+			const f = createPreparingTurnFixture(sessionId, {
+				holdFirstRunningWrite: true,
+			});
+			await f.manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// Turn A is parked in its pre-run status write: the agent has no run
+			// yet, so a second send must not race it to the agent.
+			const first = f.manager.runTurn({ sessionId, prompt: "first" });
+			await f.held;
+			const second = await f.manager.runTurn({
+				sessionId,
+				prompt: "second",
+				...(delivery ? { delivery } : {}),
+			});
+			expect(second).toBeUndefined();
+			expect(
+				(await f.manager.pendingPrompts.list({ sessionId })).map(
+					(prompt) => prompt.prompt,
+				),
+			).toEqual(["second"]);
+			expect(f.agent.run).not.toHaveBeenCalled();
+			expect(f.agent.continue).not.toHaveBeenCalled();
+			// The drain must leave it alone until A settles: no submitted
+			// announcement, and no bouncing between drain and the queue.
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(f.submitted).toEqual([]);
+
+			f.release();
+			await expect(first).resolves.toMatchObject({ finishReason: "completed" });
+			await vi.waitFor(async () => {
+				expect(f.agent.continue).toHaveBeenCalledTimes(1);
+				expect(await f.manager.pendingPrompts.list({ sessionId })).toEqual([]);
+			});
+			expect(f.agent.run).toHaveBeenCalledTimes(1);
+			expect(f.submitted).toEqual(["second"]);
+		});
+	}
 
 	it("records cancelled when the host is disposed while a session's next turn is still preparing", async () => {
 		const sessionId = "sess-dispose-while-next-turn-prepares";
