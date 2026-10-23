@@ -697,7 +697,7 @@ function ChatInputBarImpl({
 	const slashLoading = pluginLoading || instructionLoading;
 	const slashError = pluginError ?? instructionError;
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-	const commandCatalogRequestKeyRef = useRef<string | null>(null);
+	const loadedCommandCatalogKeyRef = useRef<string | null>(null);
 	useEffect(() => {
 		setKnownSlashCommands(slashCommands.map((command) => command.name));
 	}, [slashCommands]);
@@ -1069,12 +1069,11 @@ function ChatInputBarImpl({
 	// settles independently so one failure cannot hide the other.
 	useEffect(() => {
 		const catalogKey = `${environmentId}\u0000${workspaceRoot}\u0000${sessionId ?? ""}`;
-		if (!slashOpen && commandCatalogRequestKeyRef.current === catalogKey) {
+		if (!slashOpen && loadedCommandCatalogKeyRef.current === catalogKey) {
 			setInstructionLoading(false);
 			setPluginLoading(false);
 			return;
 		}
-		commandCatalogRequestKeyRef.current = catalogKey;
 		let cancelled = false;
 		setInstructionLoading(true);
 		setPluginLoading(true);
@@ -1085,6 +1084,9 @@ function ChatInputBarImpl({
 			})
 			.then((response) => {
 				if (cancelled) return;
+				// Marked on arrival rather than on request: a cancelled load (e.g.
+				// a StrictMode effect replay) must not count as loaded.
+				loadedCommandCatalogKeyRef.current = catalogKey;
 				setInstructionResponse({ workspaceRoot, environmentId, response });
 				setInstructionError(undefined);
 			})

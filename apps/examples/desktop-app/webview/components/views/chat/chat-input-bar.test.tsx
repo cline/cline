@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, type MouseEvent as ReactMouseEvent } from "react";
+import {
+	act,
+	Fragment,
+	type MouseEvent as ReactMouseEvent,
+	StrictMode,
+} from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
@@ -200,6 +205,7 @@ async function renderVoiceComposer({
 	executionTarget,
 	onAttachFiles = vi.fn(),
 	sessionId,
+	strictMode = false,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -214,47 +220,51 @@ async function renderVoiceComposer({
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 	sessionId?: string;
+	strictMode?: boolean;
 } = {}) {
+	const Wrapper = strictMode ? StrictMode : Fragment;
 	await act(async () => {
 		root.render(
-			<WorkspaceProvider value={workspaceValue}>
-				<ChatInputBar
-					environmentId="local"
-					workspaceRoot="/workspace/cline"
-					readOnly={readOnly}
-					executionTarget={executionTarget}
-					sessionId={sessionId}
-					attachments={attachments}
-					gitBranch="main"
-					hasRunningAgents={hasRunningAgents}
-					mode="act"
-					model={model}
-					onAbort={onAbort}
-					onAttachFiles={onAttachFiles}
-					onEditPromptInQueue={vi.fn()}
-					onListGitBranches={vi.fn(async () => ({
-						current: "main",
-						branches: ["main"],
-					}))}
-					onModeToggle={vi.fn()}
-					onModelChange={vi.fn()}
-					onPromptInputChange={onPromptInputChange}
-					onProviderChange={vi.fn()}
-					onReasoningChange={vi.fn()}
-					onRemoveAttachment={vi.fn()}
-					onRemovePromptInQueue={vi.fn()}
-					onSend={onSend}
-					onSteerPromptInQueue={vi.fn()}
-					onSwitchGitBranch={vi.fn(async () => true)}
-					promptDraft={{ version: promptVersion, value: prompt }}
-					promptsInQueue={[]}
-					provider="cline"
-					reasoningEffort="low"
-					status={status}
-					summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
-					thinking
-				/>
-			</WorkspaceProvider>,
+			<Wrapper>
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						environmentId="local"
+						workspaceRoot="/workspace/cline"
+						readOnly={readOnly}
+						executionTarget={executionTarget}
+						sessionId={sessionId}
+						attachments={attachments}
+						gitBranch="main"
+						hasRunningAgents={hasRunningAgents}
+						mode="act"
+						model={model}
+						onAbort={onAbort}
+						onAttachFiles={onAttachFiles}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={onPromptInputChange}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={onSend}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: promptVersion, value: prompt }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status={status}
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>
+			</Wrapper>,
 		);
 		await Promise.resolve();
 	});
@@ -481,21 +491,25 @@ describe("ChatInputBar", () => {
 			invoke.mock.calls.filter(
 				([name]) => name === "list_user_instruction_configs",
 			).length;
+		// StrictMode replays the mount effect; the cancelled first load must not
+		// count as loaded (Next dev renders the app this way).
 		await renderVoiceComposer({
 			prompt: "/publish-skill ship it",
 			executionTarget: "local",
+			strictMode: true,
 		});
 		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
-		expect(instructionRequests()).toBe(1);
 		const chip = container.querySelector("[aria-hidden] span");
 		expect(chip?.textContent).toBe("/publish-skill");
 
+		const loadsBeforeMenu = instructionRequests();
 		await renderVoiceComposer({
 			prompt: "/pub",
 			promptVersion: 1,
 			executionTarget: "local",
+			strictMode: true,
 		});
-		expect(instructionRequests()).toBe(2);
+		expect(instructionRequests()).toBeGreaterThan(loadsBeforeMenu);
 	});
 
 	it("refreshes commands on reopen without resetting cached suggestions", async () => {
