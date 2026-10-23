@@ -116,7 +116,7 @@ it("lists checks in a submenu, failures first, and opens a check", async () => {
 	].map((item) => item.textContent);
 	expect(checks).toEqual(["Testsfailure", "Lintsuccess"]);
 	await select("Tests");
-	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest!.checks[0].url);
+	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.checks[0].url);
 });
 
 it.each<{

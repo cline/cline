@@ -177,8 +177,8 @@ function WorkspacePullRequestMenu({ cwd }: { cwd: string }) {
 		} catch {
 			toast({
 				variant: "destructive",
-				title: "Could not open GitHub",
-				description: "Try again from the pull request menu.",
+				title: "Could not open the link",
+				description: "Your browser did not open. Try again.",
 			});
 		}
 	}
