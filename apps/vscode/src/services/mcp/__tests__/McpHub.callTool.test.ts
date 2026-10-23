@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import sinon from "sinon"
+import type { McpTool } from "@/shared/mcp"
 import { McpHub } from "../McpHub"
 
 /**
@@ -45,7 +46,13 @@ function createMockTelemetryService() {
  * re-implementation.
  */
 function createMcpHub(
-	options: { client?: ReturnType<typeof createMockClient>; serverName?: string; disabled?: boolean; config?: string } = {},
+	options: {
+		client?: ReturnType<typeof createMockClient>
+		serverName?: string
+		disabled?: boolean
+		config?: string
+		tools?: McpTool[]
+	} = {},
 ) {
 	const client = options.client ?? createMockClient()
 	const serverName = options.serverName ?? "test-server"
@@ -57,6 +64,7 @@ function createMcpHub(
 			config: options.config ?? JSON.stringify({ type: "stdio", command: "test", timeout: 60 }),
 			status: "connected",
 			disabled: options.disabled ?? false,
+			tools: options.tools,
 		},
 		client,
 		transport: {},
@@ -393,6 +401,59 @@ describe("McpHub.callTool", () => {
 
 			const startedArgKeys = telemetryService.captureMcpToolCall.firstCall.args[5]
 			startedArgKeys.should.deepEqual(["url", "timeout"])
+		})
+	})
+
+	// ── Tool-name validation ────────────────────────────────────────────
+
+	describe("tool-name validation", () => {
+		const sampleTools: McpTool[] = [
+			{ name: "list_pages", description: "List all pages" },
+			{ name: "navigate_page", description: "Navigate to a URL" },
+		]
+
+		it("should dispatch to the server when the tool name matches the catalog", async () => {
+			const { hub, client } = createMcpHub({ tools: sampleTools })
+
+			await hub.callTool("test-server", "list_pages", undefined, "ulid-v01")
+
+			client.request.calledOnce.should.be.true()
+		})
+
+		it("should throw a corrective error listing available tools when the name is unknown", async () => {
+			const { hub } = createMcpHub({ tools: sampleTools })
+
+			let threw = false
+			try {
+				await hub.callTool("test-server", "search", undefined, "ulid-v02")
+			} catch (error: any) {
+				threw = true
+				error.message.should.containEql('Tool "search" does not exist on server "test-server"')
+				error.message.should.containEql("Available tools: list_pages, navigate_page")
+			}
+			threw.should.be.true()
+		})
+
+		it("should not validate when the tool catalog has not been loaded yet", async () => {
+			const { hub, client } = createMcpHub({ tools: undefined })
+
+			await hub.callTool("test-server", "any_tool", undefined, "ulid-v03")
+
+			client.request.calledOnce.should.be.true()
+		})
+
+		it("should reject any tool name when the catalog is loaded but empty", async () => {
+			const { hub } = createMcpHub({ tools: [] })
+
+			let threw = false
+			try {
+				await hub.callTool("test-server", "any_tool", undefined, "ulid-v04")
+			} catch (error: any) {
+				threw = true
+				error.message.should.containEql('Tool "any_tool" does not exist on server "test-server"')
+				error.message.should.containEql("The server has no tools available.")
+			}
+			threw.should.be.true()
 		})
 	})
 
