@@ -926,6 +926,11 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.aiand.com/v1" },
 	},
 	{
+		id: "umans-ai",
+		name: "Umans AI",
+		description: "Frontier open coding models the day they drop, zero data retention",
+	},
+	{
 		id: "aihubmix",
 		name: "AI Hub Mix",
 		description: "AI model aggregator",

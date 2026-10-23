@@ -457,6 +457,26 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("keeps Umans AI connection settings and default model from models.dev", () => {
+		const generated = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "umans-ai",
+		);
+		const builtin = BUILTIN_SPECS.find((spec) => spec.id === "umans-ai");
+
+		expect(generated).toBeDefined();
+		expect(builtin).toEqual({
+			...generated,
+			description: "Frontier open coding models the day they drop, zero data retention",
+		});
+	});
+
+	it("serves the Umans AI default model from the catalog instead of the stub fallback", async () => {
+		const provider = await getProvider("umans-ai");
+		const models = await getModelsForProvider("umans-ai");
+
+		expect(models[provider?.defaultModelId ?? ""]?.pricing).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
