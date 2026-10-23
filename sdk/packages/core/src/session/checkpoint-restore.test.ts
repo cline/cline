@@ -9,11 +9,20 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+} from "vitest";
 import {
 	type CheckpointEntry,
 	createCheckpointHooks,
 } from "../hooks/checkpoint-hooks";
+import type { SessionRecord } from "../types/sessions";
 import {
 	applyCheckpointToWorktree,
 	beginWorktreeRestoreTransaction,
@@ -22,6 +31,50 @@ import {
 	trimMessagesBeforeUserRun,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
+import { SessionVersioningService } from "./session-versioning-service";
+
+// Snapshot scratch indexes live under the Cline data dir; keep test runs out
+// of the real ~/.cline.
+let isolatedDataDir = "";
+let previousDataDir: string | undefined;
+beforeAll(() => {
+	previousDataDir = process.env.CLINE_DATA_DIR;
+	isolatedDataDir = mkdtempSync(join(tmpdir(), "checkpoint-restore-data-"));
+	process.env.CLINE_DATA_DIR = isolatedDataDir;
+});
+afterAll(() => {
+	if (previousDataDir === undefined) {
+		delete process.env.CLINE_DATA_DIR;
+	} else {
+		process.env.CLINE_DATA_DIR = previousDataDir;
+	}
+	rmSync(isolatedDataDir, { recursive: true, force: true });
+});
+
+/**
+ * Restores a workspace through the same path hosts use: the safety snapshot,
+ * the checkpoint apply, and the commit that discards the safety snapshot.
+ */
+async function restoreWorkspaceThroughService(
+	cwd: string,
+	checkpoint: CheckpointEntry,
+): Promise<void> {
+	const session = {
+		sessionId: "restore-session",
+		cwd,
+		metadata: { checkpoint: { latest: checkpoint, history: [checkpoint] } },
+	} as unknown as SessionRecord;
+	await new SessionVersioningService().restoreCheckpoint({
+		sessionId: "restore-session",
+		checkpointRunCount: checkpoint.runCount,
+		cwd,
+		restore: { messages: false, workspace: true },
+		getSession: async () => session,
+		readMessages: async () => {
+			throw new Error("messages should not be read");
+		},
+	});
+}
 
 function git(cwd: string, args: string[]): string {
 	return execFileSync("git", ["-C", cwd, ...args], {
@@ -359,6 +412,74 @@ describe("applyCheckpointToWorktree", () => {
 				"refs/cline/restore-transactions",
 			]),
 		).toBe("");
+	});
+
+	it("leaves default-excluded untracked files untouched through a full restore", async () => {
+		// Excluded files are never in the snapshot, so restore must neither
+		// delete them nor move them into its safety snapshot, which commit
+		// discards.
+		writeFileSync(join(dir, "keep.txt"), "checkpoint\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-excluded");
+
+		writeFileSync(join(dir, "keep.txt"), "later\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "remove me\n", "utf8");
+		writeFileSync(join(dir, "recording.mp4"), "video bytes", "utf8");
+
+		await restoreWorkspaceThroughService(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "keep.txt"), "utf8")).toBe("checkpoint\n");
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
+		expect(readFileSync(join(dir, "recording.mp4"), "utf8")).toBe(
+			"video bytes",
+		);
+	});
+
+	it("rewinds an excluded-type file that a checkpoint from before exclusions captured", async () => {
+		// Checkpoints created before this change can hold a .mp4 in their
+		// untracked snapshot. Now that .mp4 is excluded, cleanup leaves the
+		// current file in place, and re-creating the snapshot's copy must not
+		// fail with "already exists".
+		writeFileSync(join(dir, "clip.mp4"), "old frames", "utf8");
+		writeFileSync(join(dir, "notes.txt"), "old notes\n", "utf8");
+		git(dir, [
+			"stash",
+			"push",
+			"--include-untracked",
+			"--message",
+			"cline checkpoint session=before-exclusions run=1",
+		]);
+		const ref = git(dir, ["rev-parse", "stash@{0}"]);
+		git(dir, ["stash", "pop"]);
+		expect(git(dir, ["ls-tree", "-r", "--name-only", `${ref}^3`])).toContain(
+			"clip.mp4",
+		);
+
+		writeFileSync(join(dir, "clip.mp4"), "new frames", "utf8");
+		writeFileSync(join(dir, "notes.txt"), "new notes\n", "utf8");
+
+		await restoreWorkspaceThroughService(dir, {
+			ref,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "stash",
+		});
+
+		expect(readFileSync(join(dir, "clip.mp4"), "utf8")).toBe("old frames");
+		expect(readFileSync(join(dir, "notes.txt"), "utf8")).toBe("old notes\n");
+	});
+
+	it("restores a captured untracked file that has since become ignored", async () => {
+		// Same failure class without the defaults: a file captured by the
+		// checkpoint and ignored afterwards blocked the restore.
+		writeFileSync(join(dir, "data.txt"), "v1\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-ignore-drift");
+
+		writeFileSync(join(dir, ".git", "info", "exclude"), "data.txt\n", "utf8");
+		writeFileSync(join(dir, "data.txt"), "v2\n", "utf8");
+
+		await restoreWorkspaceThroughService(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "data.txt"), "utf8")).toBe("v1\n");
 	});
 
 	it("carries checkpoint metadata through the restored run", () => {
