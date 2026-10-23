@@ -175,11 +175,6 @@ export function createTerminalTab(cwd: string): TerminalTab {
 		macOptionIsMeta: true,
 		theme: readTerminalTheme(),
 	});
-	// Let the panel toggle shortcut reach the app's window handler instead of
-	// being swallowed as terminal input.
-	term.attachCustomKeyEventHandler(
-		(event) => !(event.ctrlKey && event.code === "Backquote"),
-	);
 	const fit = new FitAddon();
 	term.loadAddon(fit);
 	const element = document.createElement("div");

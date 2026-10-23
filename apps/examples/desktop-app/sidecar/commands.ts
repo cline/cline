@@ -2,8 +2,10 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readdirSync,
+	readlinkSync,
 	realpathSync,
 	rmSync,
 	statSync,
@@ -132,6 +134,13 @@ import {
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { getHubStatus, restartHub } from "./hub-admin";
+import { isHubIndependentCommand } from "./hub-startup";
+import {
+	readKeybindings,
+	resolveKeybindingsPath,
+	writeKeybindings,
+} from "./keybindings";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
@@ -161,10 +170,12 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { listPluginCommands } from "./plugin-commands";
 import {
-	getPluginCommandService,
-	warmPluginCommandService,
-} from "./plugin-commands";
+	listProjectEntries,
+	readLocalProjectFile,
+	readProjectFile,
+} from "./project-files";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -184,6 +195,14 @@ import {
 	readSessionMessages,
 } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
+import {
+	getCommitDetails,
+	getCommitFileDiff,
+	getGitFileDiff,
+	getSourceControlState,
+	parseSourceControlAction,
+	runSourceControlAction,
+} from "./source-control";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -865,6 +884,61 @@ async function runGit(
 		encoding: "utf8",
 	}).catch(() => undefined);
 	return result?.stdout;
+}
+
+// Unlike runGit, failures surface: source control actions need git's own
+// explanation (nothing to commit, rejected push, ...) shown to the user.
+// The app cannot answer a terminal prompt, so git must fail instead of
+// waiting on one. Background runs also refuse GUI credential prompts.
+const NON_INTERACTIVE_GIT_ENV = { GIT_TERMINAL_PROMPT: "0" };
+const BACKGROUND_GIT_ENV = {
+	...NON_INTERACTIVE_GIT_ENV,
+	GCM_INTERACTIVE: "never",
+	GIT_ASKPASS: "echo",
+	SSH_ASKPASS: "echo",
+};
+const BACKGROUND_GIT_TIMEOUT_MS = 30_000;
+
+async function runGitStrict(
+	ctx: SidecarContext,
+	binding: ReturnType<typeof getRuntimeBinding>,
+	cwd: string,
+	args: string[],
+	options: { background?: boolean } = {},
+): Promise<string> {
+	const env = options.background ? BACKGROUND_GIT_ENV : NON_INTERACTIVE_GIT_ENV;
+	if (binding.kind === "ssh") {
+		const remote = ctx.remoteEnvironments;
+		if (!remote) throw new Error("Remote environment service is unavailable");
+		const result = await remote.run(binding.environmentId, {
+			command: "env",
+			args: [
+				...Object.entries(env).map(([key, value]) => `${key}=${value}`),
+				"git",
+				...args,
+			],
+			cwd,
+		});
+		return result.stdout;
+	}
+	try {
+		const result = await execFileAsync("git", args, {
+			cwd,
+			encoding: "utf8",
+			env: { ...process.env, ...env },
+			maxBuffer: 16 * 1024 * 1024,
+			...(options.background ? { timeout: BACKGROUND_GIT_TIMEOUT_MS } : {}),
+		});
+		return result.stdout;
+	} catch (error) {
+		const stderr =
+			error && typeof error === "object" && "stderr" in error
+				? String((error as { stderr?: unknown }).stderr ?? "").trim()
+				: "";
+		throw new Error(
+			stderr || (error instanceof Error ? error.message : String(error)),
+		);
+	}
 }
 
 async function currentGitBranch(
@@ -1879,6 +1953,20 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	if (command === "retry_hub") {
+		ctx.hubStartup?.start();
+		return ctx.hubStartup?.status ?? null;
+	}
+	// The transport is published before the Hub is ready. Hold Hub-backed
+	// commands until startup settles, as they waited for the transport before.
+	if (ctx.hubStartup && !isHubIndependentCommand(command)) {
+		await ctx.hubStartup.waitUntilSettled();
+		// Its close cleanup already ran, so nothing could cancel work (such as a
+		// browser sign-in) started for a connection that left while waiting.
+		if (options?.connection && !ctx.wsClients.has(options.connection)) {
+			throw new Error("The connection closed while Cline Hub was starting.");
+		}
+	}
 	const explicitEnvironment = requestedEnvironmentId(args);
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);
@@ -2071,6 +2159,22 @@ export async function handleCommand(
 			typeof args?.path === "string" ? args.path : undefined,
 		);
 	}
+	// Project explorer. The desktop UI picks the workspace it browses (the
+	// same connection that selects workspaces via validate/pick), so the root
+	// is a coherence check for the tree rather than a sandbox; raw file access
+	// is limited to that trusted connection, like agenda task execution.
+	if (command === "list_project_entries" || command === "read_project_file") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("project files require a trusted desktop connection");
+		}
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const root = String(args?.workspaceRoot ?? "").trim();
+		if (!root) throw new Error("workspaceRoot is required");
+		const path = String(args?.path ?? "").trim() || root;
+		return command === "list_project_entries"
+			? await listProjectEntries(ctx, binding, root, path)
+			: await readProjectFile(ctx, binding, root, path);
+	}
 
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -2229,6 +2333,20 @@ export async function handleCommand(
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
+	}
+
+	if (command === "get_hub_status") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub status requires a trusted desktop connection");
+		}
+		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
+	}
+	if (command === "restart_hub") {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub restart requires a trusted desktop connection");
+		}
+		await restartHub(ctx, await ensureSharedHubClient(ctx));
+		return await getHubStatus(ctx, await ensureSharedHubClient(ctx));
 	}
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
@@ -2800,6 +2918,16 @@ export async function handleCommand(
 			accountService,
 		);
 		if (operation === "switchAccount") {
+			if (isCloudAgentsEnabled()) {
+				try {
+					await getCloudSessionManager(ctx).refreshOrganization();
+				} catch (error) {
+					ctx.logger?.error?.(
+						"Failed to refresh cloud organization after account switch",
+						{ error },
+					);
+				}
+			}
 			await resetCloudSessionManager(ctx);
 			// The sidebar must re-scope immediately (personal ⇄ org), not on
 			// the next 12s poll.
@@ -3210,6 +3338,25 @@ export async function handleCommand(
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
+	if (command === "get_keybindings") {
+		return readKeybindings();
+	}
+	if (command === "set_keybindings") {
+		const saved = writeKeybindings(args?.keybindings);
+		broadcastEvent(ctx, "keybindings_changed", saved);
+		return saved;
+	}
+	if (command === "open_keybindings_file") {
+		// Create the file when missing so there is something to edit, but never
+		// rewrite an existing one: a malformed file reads as empty bindings and
+		// writing that back would wipe what the user is opening it to fix.
+		const filePath = resolveKeybindingsPath();
+		if (!existsSync(filePath)) {
+			writeKeybindings(readKeybindings());
+		}
+		openFileInEditor(filePath);
+		return { path: filePath };
+	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)
 			? args.sessionIds.filter(
@@ -3457,6 +3604,123 @@ export async function handleCommand(
 		}
 		return { environmentId: binding.environmentId, branch };
 	}
+	// Source control for the workspace panel. Mutations and worktree reads
+	// share the file explorer's trusted-connection gate.
+	if (
+		command === "get_source_control_state" ||
+		command === "get_git_file_diff" ||
+		command === "get_commit_details" ||
+		command === "run_source_control_action"
+	) {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("source control requires a trusted desktop connection");
+		}
+		const binding = getCommandRuntimeBinding(ctx, args);
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: binding.workspaceRoot;
+		// Status, numstat, and `git show` paths are all repository-root
+		// relative, so every call after discovery runs from the root even when
+		// the workspace is a subfolder of the repository.
+		const root = (
+			await runGitStrict(ctx, binding, cwd, [
+				"rev-parse",
+				"--show-toplevel",
+			]).catch(() => "")
+		).trim();
+		const git = (gitArgs: string[]) =>
+			runGitStrict(ctx, binding, root || cwd, gitArgs);
+		if (command === "get_source_control_state") {
+			return await getSourceControlState(git, binding.environmentId, {
+				readUntracked:
+					binding.kind === "local" && root
+						? async (path) =>
+								readLocalProjectFile(root, join(root, path)).content
+						: undefined,
+			});
+		}
+		if (!root) throw new Error("Not a git repository");
+		const commit = typeof args?.commit === "string" ? args.commit.trim() : "";
+		if (command === "get_commit_details") {
+			return await getCommitDetails(git, binding.environmentId, commit);
+		}
+		if (command === "get_git_file_diff") {
+			// Git's filename as-is: leading or trailing spaces are part of it.
+			const path = String(args?.path ?? "");
+			if (!path) throw new Error("path is required");
+			const originalPath =
+				typeof args?.originalPath === "string" && args.originalPath
+					? args.originalPath
+					: undefined;
+			if (commit) {
+				return await getCommitFileDiff(
+					git,
+					binding.environmentId,
+					commit,
+					path,
+					originalPath,
+				);
+			}
+			return await getGitFileDiff(
+				git,
+				async (relative, { symlink }) => {
+					const absolute =
+						binding.kind === "local"
+							? join(root, relative)
+							: posix.join(root, relative);
+					// Git stores a symlink as its target text, so the preview compares
+					// that rather than the contents of whatever the link points at.
+					if (binding.kind === "local") {
+						const stat = lstatSync(absolute, { throwIfNoEntry: false });
+						// A deleted file has nothing on the working side.
+						if (!stat) return { content: "", truncated: false };
+						if (stat.isSymbolicLink()) {
+							return { content: readlinkSync(absolute), truncated: false };
+						}
+					} else if (symlink && ctx.remoteEnvironments) {
+						const link = await ctx.remoteEnvironments
+							.run(binding.environmentId, {
+								command: "readlink",
+								args: ["--", absolute],
+							})
+							.catch(() => null);
+						if (link) {
+							return {
+								content: link.stdout.replace(/\n$/, ""),
+								truncated: false,
+							};
+						}
+					}
+					try {
+						const file = await readProjectFile(ctx, binding, root, absolute);
+						return { content: file.content, truncated: file.truncated };
+					} catch (error) {
+						if (
+							binding.kind === "ssh" &&
+							/no such file/i.test(error instanceof Error ? error.message : "")
+						) {
+							return { content: "", truncated: false };
+						}
+						throw error;
+					}
+				},
+				binding.environmentId,
+				path,
+				args?.staged === true,
+				originalPath,
+			);
+		}
+		const action = parseSourceControlAction(args?.action);
+		await runSourceControlAction(
+			action.type === "fetch"
+				? (gitArgs) =>
+						runGitStrict(ctx, binding, root, gitArgs, { background: true })
+				: git,
+			action,
+		);
+		return { environmentId: binding.environmentId };
+	}
 	if (command === "list_git_branches") {
 		const binding = getCommandRuntimeBinding(ctx, args);
 		const branches = await listGitBranches(
@@ -3542,22 +3806,17 @@ export async function handleCommand(
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
 		);
 	}
-	if (command === "warm_plugin_commands") {
-		// The webview reports whichever local workspace it has adopted so the
-		// plugin sandbox is loaded before the slash menu first needs it.
-		const binding = getCommandRuntimeBinding(ctx, args);
-		const workspacePath = String(args?.workspacePath ?? "").trim();
-		if (binding.kind === "local" && workspacePath) {
-			warmPluginCommandService(ctx, workspacePath);
-		}
-		return { environmentId: binding.environmentId };
-	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu
 		// only offers commands that can actually run there.
 		const workspacePath =
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
-		return await getPluginCommandService(ctx, workspacePath).listCommands();
+		return await listPluginCommands(
+			ctx,
+			workspacePath,
+			typeof args?.sessionId === "string" ? args.sessionId : undefined,
+			requestedEnvironmentId(args),
+		);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

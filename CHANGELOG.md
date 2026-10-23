@@ -1,5 +1,25 @@
 # Changelog
 
+## [4.1.25]
+
+### Added
+
+- Cline Cloud sessions, rolling out gradually: run a task in a hosted sandbox on a GitHub repo and branch you pick. Turn it on in Settings. Cloud tasks show in Recent and History with their status, notify you when they finish, and keep running after you close your editor.
+
+### Changed
+
+- With no model chosen, the Cline provider now uses Gemini 4 Argon, the new first model in Cline's recommended list. OpenRouter stays on Claude Sonnet 5.5.
+- Refreshed the model catalog. Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- Long requests to local models (LM Studio, Ollama) no longer fail after 5 minutes of silence with `terminated: BodyTimeoutError` while the server is still processing a large prompt.
+- OpenAI Compatible base URLs are used exactly as entered. A host-only URL like `https://abc.com` used to get `/v1` added silently. Host-only URLs saved by earlier versions get `/v1` added once, so existing setups keep working.
+- Images and files attached to an answer to one of Cline's questions now reach the model instead of being dropped.
+- When a provider error interrupts a response mid-stream, Cline retries it up to 3 times before failing the turn.
+- In JetBrains, the Run task card stays above the Auto-approve bar.
+- Auto Compact and its strategy setting sit together again in Feature settings.
+
 ## [4.1.24]
 
 ### Changed

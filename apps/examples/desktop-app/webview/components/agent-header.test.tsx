@@ -103,6 +103,62 @@ describe("AgentHeader title editor", () => {
 	});
 });
 
+describe("AgentHeader project files toggle", () => {
+	it("is absent when the session has no browsable workspace", async () => {
+		await act(async () => {
+			root.render(<AgentHeader status="running" title="S" />);
+		});
+		expect(container.querySelector("#toggle-project-files")).toBeNull();
+	});
+
+	it("reflects the open state and toggles on click", async () => {
+		const onToggleFiles = vi.fn();
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					filesOpen
+					onToggleFiles={onToggleFiles}
+					status="running"
+					title="S"
+				/>,
+			);
+		});
+		const toggle = container.querySelector<HTMLButtonElement>(
+			"#toggle-project-files",
+		);
+		expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+		expect(toggle?.getAttribute("aria-label")).toBe("Hide project files");
+		await act(async () => {
+			toggle?.click();
+		});
+		expect(onToggleFiles).toHaveBeenCalledTimes(1);
+	});
+
+	it("carries the session's line counts and replaces the old diff pill", async () => {
+		const onToggleFiles = vi.fn();
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					diff={{ additions: 9, deletions: 2 }}
+					onToggleFiles={onToggleFiles}
+					status="running"
+					title="S"
+				/>,
+			);
+		});
+		const toggle = container.querySelector("#toggle-project-files");
+		expect(toggle?.textContent).toBe("+9-2");
+		expect(toggle?.getAttribute("aria-label")).toBe(
+			"Show project files: 9 additions, 2 deletions",
+		);
+		expect(container.querySelector("#diff-stats")).toBeNull();
+		await act(async () => {
+			toggle?.click();
+		});
+		expect(onToggleFiles).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("AgentHeader agent activity", () => {
 	const renderHeader = async (
 		agentActivity?: Parameters<typeof AgentHeader>[0]["agentActivity"],
@@ -113,6 +169,7 @@ describe("AgentHeader agent activity", () => {
 				<AgentHeader
 					agentActivity={agentActivity}
 					diff={diff}
+					onToggleFiles={vi.fn()}
 					status="running"
 					title="S"
 				/>,
@@ -135,9 +192,7 @@ describe("AgentHeader agent activity", () => {
 		).toBeNull();
 	});
 
-	it("shows the total with a per-state breakdown beside the diff stats", async () => {
-		// The diff button only renders once there are additions, so give it some
-		// to assert the pill's placement relative to it.
+	it("shows the total with a per-state breakdown beside the files toggle", async () => {
 		const activity = await renderHeader(
 			{
 				total: 5,
@@ -156,15 +211,16 @@ describe("AgentHeader agent activity", () => {
 		// total, running, completed, failed, stalled
 		expect(activity?.textContent).toBe("51211");
 
-		const diffStats = container.querySelector("#diff-stats");
-		expect(diffStats).not.toBeNull();
-		// The pill sits immediately before the diff button in the actions row.
-		expect(activity?.nextElementSibling).toBe(diffStats);
+		const toggle = container.querySelector("#toggle-project-files");
+		// The pill sits immediately before the files toggle, which carries the
+		// session's line counts.
+		expect(activity?.nextElementSibling).toBe(toggle);
+		expect(toggle?.textContent).toBe("+3-1");
 	});
 
 	it("still shows agents when there is no diff to show", async () => {
-		// The diff button hides itself at zero additions; the agent pill is
-		// independent of it and must not disappear along with it.
+		// Without changes the toggle is a bare icon; the agent pill is
+		// independent of the counts and must not disappear with them.
 		const activity = await renderHeader({
 			total: 1,
 			running: 1,
@@ -174,6 +230,9 @@ describe("AgentHeader agent activity", () => {
 			unresolved: 0,
 		});
 		expect(activity).not.toBeNull();
+		expect(container.querySelector("#toggle-project-files")?.textContent).toBe(
+			"",
+		);
 		expect(container.querySelector("#diff-stats")).toBeNull();
 	});
 
@@ -494,7 +553,7 @@ describe("AgentHeader subagent session badge", () => {
 		expect(badge?.disabled).toBe(true);
 	});
 
-	it("coexists with the agent pill and diff stats", async () => {
+	it("coexists with the agent pill and the files toggle's counts", async () => {
 		const badge = await renderHeader({
 			parentSession: { sessionId: "root1" },
 			onOpenParentSession: vi.fn(),
@@ -507,9 +566,12 @@ describe("AgentHeader subagent session badge", () => {
 				unresolved: 0,
 			},
 			diff: { additions: 2, deletions: 1 },
+			onToggleFiles: vi.fn(),
 		});
 		expect(badge).not.toBeNull();
 		expect(container.querySelector("#agent-activity")).not.toBeNull();
-		expect(container.querySelector("#diff-stats")).not.toBeNull();
+		expect(container.querySelector("#toggle-project-files")?.textContent).toBe(
+			"+2-1",
+		);
 	});
 });

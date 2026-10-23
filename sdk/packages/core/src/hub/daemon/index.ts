@@ -10,9 +10,11 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	getClineClientIdentity,
 	isBunEmbeddedModulePath,
 	isHubDaemonProcess,
 	resolveClineBuildEnv,
+	withHubLauncherIdentity,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
@@ -297,7 +299,11 @@ export async function hubHasLiveSessions(
 			record.url,
 			record.authToken,
 		);
-		return activity.activeSessionCount > 0;
+		return (
+			activity.activeSessionCount > 0 ||
+			(activity.activePluginRequests ?? 0) > 0 ||
+			(activity.activeCloudCommands ?? 0) > 0
+		);
 	} catch {
 		return false;
 	}
@@ -465,11 +471,28 @@ function resolveLaunchCommand(
 		],
 		cwd: workspaceRoot,
 		env: {
-			...withResolvedClineBuildEnv(process.env),
+			// Record which client's build is starting this shared daemon. An
+			// embedding host that already stamped the launcher (the desktop app
+			// running `cline-cli hub ensure`) keeps its own identity; otherwise
+			// this process's client identity (cline-cli, cline-acp, ...) is used.
+			...withHubLauncherIdentity(
+				withResolvedClineBuildEnv(process.env),
+				resolveSelfLauncherIdentity(),
+			),
 			CLINE_NO_INTERACTIVE: "1",
 			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
 		},
 	};
+}
+
+function resolveSelfLauncherIdentity():
+	| { client: string; version?: string; transport: "local" }
+	| undefined {
+	const identity = getClineClientIdentity();
+	const client = identity?.name?.trim();
+	return client
+		? { client, version: identity?.version, transport: "local" }
+		: undefined;
 }
 
 function isTextFileBusyError(error: unknown): boolean {
@@ -946,12 +969,18 @@ export async function upgradeManagedHub(
 	// Only an observed-zero reading ends the window before the deadline.
 	// (Checks at least once so waitForIdleMs: 0 still observes an idle hub.)
 	let observedSessionCount: number | undefined;
+	let observedBackgroundRequests: number | undefined;
 	for (;;) {
 		try {
-			observedSessionCount = (
-				await queryHubSessionActivity(record.url, record.authToken)
-			).activeSessionCount;
-			if (observedSessionCount === 0) {
+			const activity = await queryHubSessionActivity(
+				record.url,
+				record.authToken,
+			);
+			observedSessionCount = activity.activeSessionCount;
+			observedBackgroundRequests =
+				(activity.activePluginRequests ?? 0) +
+				(activity.activeCloudCommands ?? 0);
+			if (observedSessionCount === 0 && observedBackgroundRequests === 0) {
 				break;
 			}
 		} catch {
@@ -964,7 +993,8 @@ export async function upgradeManagedHub(
 			setTimeout(resolve, HUB_UPGRADE_IDLE_POLL_MS),
 		);
 	}
-	const confirmedIdle = observedSessionCount === 0;
+	const confirmedIdle =
+		observedSessionCount === 0 && observedBackgroundRequests === 0;
 	// Without force, only a positively idle hub may be replaced: a busy or
 	// unanswerable hub is handed back un-drained. With force, the user has
 	// already consented to interrupting the sessions the prompt showed them,

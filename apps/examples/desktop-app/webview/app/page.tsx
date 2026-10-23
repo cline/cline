@@ -8,6 +8,7 @@ import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
+	Activity,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -17,7 +18,9 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubStartupScreen } from "@/components/hub-startup-screen";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import { QuitHoldHandler } from "@/components/quit-hold-handler";
 import { SessionCommandBar } from "@/components/session-command-bar";
 import {
 	AlertDialog,
@@ -55,11 +58,12 @@ import {
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useHubStartup } from "@/hooks/use-hub-startup";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -95,6 +99,12 @@ import {
 	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "@/lib/image-attachments";
+import {
+	areShortcutsSuspended,
+	formatAccelerator,
+	matchesAccelerator,
+	useKeybindings,
+} from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
 import {
@@ -153,10 +163,8 @@ import {
 	type WorkIn,
 	writeWorkInToWindow,
 } from "@/lib/work-in-selection";
-import {
-	type RemoteWorkspaceEnvironment,
-	remoteWorkspaceEnvironmentFromContext,
-} from "@/lib/workspace-environment";
+import type { RemoteWorkspaceEnvironment } from "@/lib/workspace-environment";
+import { readWorkspacePanelWidth } from "@/lib/workspace-panel";
 import {
 	filterWorkspacePaths,
 	isTaskWorktreePath,
@@ -194,6 +202,15 @@ const SessionsView = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+// xterm.js is only needed once the panel opens.
+const TerminalPanel = dynamic(
+	() =>
+		import("@/components/terminal-panel").then(
+			(module) => module.TerminalPanel,
+		),
+	{ ssr: false },
+);
+
 const OnboardingView = dynamic(
 	() =>
 		import("@/components/views/onboarding/onboarding-view").then(
@@ -205,21 +222,23 @@ const OnboardingView = dynamic(
 	},
 );
 
-// xterm.js is only needed once the panel opens.
-const TerminalPanel = dynamic(
-	() =>
-		import("@/components/terminal-panel").then(
-			(module) => module.TerminalPanel,
-		),
-	{ ssr: false },
-);
+const loadProjectFilesPanel = () =>
+	import("@/components/views/chat/project-files-panel");
 
-const DiffView = dynamic(
-	() =>
-		import("@/components/views/chat/diff-view").then(
-			(module) => module.DiffView,
+const ProjectFilesPanel = dynamic(
+	() => loadProjectFilesPanel().then((module) => module.ProjectFilesPanel),
+	{
+		// Holds the panel's grid cell at its final width while the chunk loads;
+		// an empty cell would let the composer flow into it for a few frames.
+		loading: () => (
+			<aside
+				aria-hidden
+				className="col-start-2 row-span-2 row-start-1 border-l border-border bg-background"
+				style={{ width: readWorkspacePanelWidth() }}
+			/>
 		),
-	{ loading: viewLoading, ssr: false },
+		ssr: false,
+	},
 );
 
 function makeThreadId(): string {
@@ -320,6 +339,32 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	const startup = useHubStartup();
+	const hubReady =
+		startup.transport === "connected" && startup.hub.state === "ready";
+	// Mount the app once the Hub is first ready, then hide it with Activity
+	// whenever the Hub is not ready. Hidden Activity content keeps its state
+	// (open conversations) but unmounts effects, so its dialogs, including
+	// portaled ones, release focus traps and body pointer-events.
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		if (hubReady) setLoaded(true);
+	}, [hubReady]);
+	return (
+		<>
+			{loaded ? (
+				<Activity mode={hubReady ? "visible" : "hidden"}>
+					<App />
+				</Activity>
+			) : null}
+			{hubReady ? null : <HubStartupScreen {...startup} />}
+			{/* Outside the gate: the startup mismatch check can fire before App mounts. */}
+			<HubUpdateRequiredDialog />
+		</>
+	);
+}
+
+function App() {
 	const [initialThreadId] = useState(makeThreadId);
 	// Outlive keyed chat panes without re-rendering the app on every keystroke.
 	const { current: promptDrafts } = useRef(new Map<string, string>());
@@ -471,32 +516,27 @@ export default function Home() {
 		void syncDesktopWindowTitle();
 	}, []);
 
-	useEffect(() => {
-		let cancelled = false;
-		const revision = environmentSelectionRevision.current;
-		desktopClient
-			.invoke<ProcessContext>("get_process_context")
-			.then((context) => {
-				if (!cancelled && revision === environmentSelectionRevision.current) {
-					const remoteEnvironment =
-						remoteWorkspaceEnvironmentFromContext(context);
-					setActiveRemoteEnvironment(remoteEnvironment);
-					if (remoteEnvironment) {
-						dispatchApp({
-							type: "select-environment-draft",
-							threadId: makeThreadId(),
-							environmentId: remoteEnvironment.id,
-						});
-					}
+	useRemoteEnvironmentBootstrap(
+		environmentSelectionRevision,
+		useCallback(
+			(
+				remoteEnvironment: RemoteWorkspaceEnvironment | null,
+				isFirstLoad: boolean,
+			) => {
+				setActiveRemoteEnvironment(remoteEnvironment);
+				// Later loads follow a reconnect; a new draft would replace the
+				// conversation that is still open.
+				if (isFirstLoad && remoteEnvironment) {
+					dispatchApp({
+						type: "select-environment-draft",
+						threadId: makeThreadId(),
+						environmentId: remoteEnvironment.id,
+					});
 				}
-			})
-			.catch(() => {
-				// The chat bootstrap reports backend availability separately.
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
+			},
+			[],
+		),
+	);
 
 	useEffect(() => {
 		if (view !== "chat") return;
@@ -824,44 +864,44 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
-	// new session, Cmd/Ctrl+, for settings, and Ctrl+` for the terminal.
+	// App shortcuts come from keybindings.json (Settings → Keybindings).
+	const keybindings = useKeybindings();
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			if (showOnboarding) {
+			if (showOnboarding || areShortcutsSuspended()) {
 				return;
 			}
-			if (
-				terminalAvailable &&
-				event.ctrlKey &&
-				!event.metaKey &&
-				!event.altKey &&
-				event.code === "Backquote"
-			) {
+			if (matchesAccelerator(event, keybindings["new-session"].key)) {
 				event.preventDefault();
-				handleToggleTerminal();
-				return;
-			}
-			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
-				return;
-			}
-			if (event.key === "n" || event.key === "N") {
-				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleNewThread();
-			} else if (event.key === "p" || event.key === "P") {
+			} else if (matchesAccelerator(event, keybindings["command-bar"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				setCommandBarOpen((current) => !current);
-			} else if (event.key === ",") {
+			} else if (matchesAccelerator(event, keybindings["open-settings"].key)) {
 				event.preventDefault();
+				event.stopImmediatePropagation();
 				handleViewChange("settings");
+			} else if (
+				terminalAvailable &&
+				matchesAccelerator(event, keybindings["toggle-terminal"].key)
+			) {
+				// Capture phase, so this also wins while focus is inside xterm.
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				handleToggleTerminal();
 			}
 		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
+		// Consume app shortcuts before React's local input handlers can act on
+		// the same event (for example, Mod+Enter submitting a prompt).
+		window.addEventListener("keydown", handleKeyDown, true);
+		return () => window.removeEventListener("keydown", handleKeyDown, true);
 	}, [
 		handleNewThread,
 		handleToggleTerminal,
 		handleViewChange,
+		keybindings,
 		showOnboarding,
 		terminalAvailable,
 	]);
@@ -939,6 +979,9 @@ export default function Home() {
 					case "open-settings":
 						handleViewChange("settings");
 						break;
+					case "open-keybindings":
+						handleSettingsSectionChange("Keybindings");
+						break;
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
 						break;
@@ -955,7 +998,12 @@ export default function Home() {
 						break;
 				}
 			}),
-		[handleNewThread, handleOpenSessionById, handleViewChange],
+		[
+			handleNewThread,
+			handleOpenSessionById,
+			handleSettingsSectionChange,
+			handleViewChange,
+		],
 	);
 
 	const historyWorkspacePaths = useMemo(
@@ -1107,6 +1155,11 @@ export default function Home() {
 													? {
 															open: terminalPanel.open,
 															height: terminalPanel.height,
+															shortcut: keybindings["toggle-terminal"].key
+																? formatAccelerator(
+																		keybindings["toggle-terminal"].key,
+																	)
+																: undefined,
 															onToggle: handleToggleTerminal,
 															onClose: handleCloseTerminal,
 															onHeightChange: handleTerminalHeightChange,
@@ -1149,7 +1202,7 @@ export default function Home() {
 				onOpenChange={setExportDiagnosticsOpen}
 				open={exportDiagnosticsOpen}
 			/>
-			<HubUpdateRequiredDialog />
+			<QuitHoldHandler bindings={keybindings} />
 			{whatsNew ? (
 				<WhatsNewDialog
 					onOpenChange={(open) => {
@@ -1263,6 +1316,8 @@ function ChatThreadPane({
 	terminal?: {
 		open: boolean;
 		height: number;
+		/** Display form of the toggle shortcut; undefined when unbound. */
+		shortcut?: string;
 		onToggle: () => void;
 		onClose: () => void;
 		onHeightChange: (height: number) => void;
@@ -1321,7 +1376,11 @@ function ChatThreadPane({
 		setWorkInSelection(next);
 		writeWorkInToWindow(next);
 	}, []);
-	const [showDiffView, setShowDiffView] = useState(false);
+	const [showFilesPanel, setShowFilesPanel] = useState(false);
+	const toggleFilesPanel = useCallback(
+		() => setShowFilesPanel((current) => !current),
+		[],
+	);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -1490,6 +1549,9 @@ function ChatThreadPane({
 		terminal !== undefined &&
 		!isCloudSession &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const terminalTitle = terminal?.shortcut
+		? `Toggle terminal (${terminal.shortcut})`
+		: "Toggle terminal";
 	const terminalToggle =
 		terminalEnabled && terminal ? (
 			<Button
@@ -1501,7 +1563,7 @@ function ChatThreadPane({
 				)}
 				onClick={terminal.onToggle}
 				size="sm"
-				title="Toggle terminal (Ctrl+`)"
+				title={terminalTitle}
 				type="button"
 				variant="ghost"
 			>
@@ -1884,22 +1946,6 @@ function ChatThreadPane({
 		[environmentId, onPickRemoteWorkspaceDirectory, remoteEnvironment],
 	);
 
-	// Let the sidecar load the workspace's plugin sandbox now so the slash
-	// menu lists plugin commands without paying the cold spawn on first open.
-	useEffect(() => {
-		if (!activeWorkspaceCwd) {
-			return;
-		}
-		void desktopClient
-			.invoke("warm_plugin_commands", {
-				workspacePath: activeWorkspaceCwd,
-				environmentId,
-			})
-			.catch(() => {
-				// Best effort; the menu falls back to loading on open.
-			});
-	}, [activeWorkspaceCwd, environmentId]);
-
 	useEffect(() => {
 		void refreshGitBranch();
 		if (!activeWorkspaceCwd) {
@@ -2238,7 +2284,6 @@ function ChatThreadPane({
 			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
-			setShowDiffView(false);
 			void reset();
 		} catch (error) {
 			const description =
@@ -2316,7 +2361,6 @@ function ChatThreadPane({
 			});
 			if (target === "cloud") {
 				setPendingAttachments([]);
-				setShowDiffView(false);
 			}
 		},
 		[
@@ -2469,7 +2513,6 @@ function ChatThreadPane({
 			? undefined
 			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
-	const hasDiffChanges = summary.additions + summary.deletions > 0;
 	const headerDiff = useMemo(
 		() => ({
 			additions: summary.additions,
@@ -2477,11 +2520,6 @@ function ChatThreadPane({
 		}),
 		[summary.additions, summary.deletions],
 	);
-	const handleOpenDiff = useCallback(() => {
-		if (summary.additions + summary.deletions > 0) {
-			setShowDiffView(true);
-		}
-	}, [summary.additions, summary.deletions]);
 
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
@@ -2596,12 +2634,6 @@ function ChatThreadPane({
 		],
 	);
 
-	useEffect(() => {
-		if (!hasDiffChanges) {
-			setShowDiffView(false);
-		}
-	}, [hasDiffChanges]);
-
 	const resolvedWorkspaceRoot = config.workspaceRoot || config.cwd || "";
 	const workspaceContextValue = useMemo(
 		() => ({
@@ -2623,6 +2655,19 @@ function ChatThreadPane({
 			selectChat,
 		],
 	);
+
+	const pullRequestSource = useMemo(
+		() => ({ cwd: resolvedWorkspaceRoot, branch: gitBranch }),
+		[resolvedWorkspaceRoot, gitBranch],
+	);
+
+	// Fetch the panel's code as soon as a session could show it, so the first
+	// toggle opens it without waiting on the chunk.
+	const mayBrowseFiles =
+		!isCloudSession && Boolean(resolvedWorkspaceRoot) && !isWelcomeState;
+	useEffect(() => {
+		if (mayBrowseFiles) void loadProjectFilesPanel();
+	}, [mayBrowseFiles]);
 
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
@@ -2649,6 +2694,7 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			sessionId={sessionId}
 			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}
@@ -2691,6 +2737,10 @@ function ChatThreadPane({
 		cloudSessionError?.code === "github_not_connected"
 			? cloudSessionError.connectUrl
 			: undefined;
+	// Cloud runs have no reachable workspace, and the welcome state has no
+	// session to browse alongside yet.
+	const canBrowseFiles = mayBrowseFiles;
+	const filesPanelVisible = canBrowseFiles && showFilesPanel;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -2700,7 +2750,11 @@ function ChatThreadPane({
 					className={
 						isWelcomeState
 							? "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-							: "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: filesPanelVisible
+								? // The panel is placed explicitly in column 2 spanning both
+									// rows, so the transcript and composer auto-flow into column 1.
+									"grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+								: "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 					}
 					disabled={isCloudSessionExpired}
 					description={
@@ -2730,7 +2784,9 @@ function ChatThreadPane({
 									diff={isCloudSession ? undefined : headerDiff}
 									onDeleteSession={requestDeleteSession}
 									onNewThread={onNewThread}
-									onOpenDiff={handleOpenDiff}
+									onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
+									filesOpen={filesPanelVisible}
+									pullRequest={isCloudSession ? undefined : pullRequestSource}
 									onRenameTitle={handleRenameTitle}
 									renamingTitle={renamingSession}
 									status={headerStatus}
@@ -2739,6 +2795,7 @@ function ChatThreadPane({
 										terminalEnabled ? terminal?.onToggle : undefined
 									}
 									terminalOpen={terminalEnabled && terminal?.open}
+									terminalShortcut={terminal?.shortcut}
 								/>
 							</div>
 						</WindowTitleBarContent>
@@ -2751,13 +2808,6 @@ function ChatThreadPane({
 							displayedMessages.length === 0 ? (
 								// Keep opening an existing cloud session visually continuous.
 								<CloudProvisioningPane phase="Opening session..." />
-							) : showDiffView && !isCloudSession ? (
-								<DiffView
-									cwd={config.cwd || config.workspaceRoot}
-									environmentId={environmentId}
-									fileDiffs={fileDiffs}
-									onClose={() => setShowDiffView(false)}
-								/>
 							) : (
 								<ChatMessages
 									onAnswerAskQuestion={handleAnswerAskQuestion}
@@ -2848,6 +2898,15 @@ function ChatThreadPane({
 							terminalEnabled && terminal?.open ? terminal.height : 0
 						}
 					/>
+					{filesPanelVisible ? (
+						<ProjectFilesPanel
+							cwd={config.cwd || config.workspaceRoot}
+							environmentId={environmentId}
+							fileDiffs={fileDiffs}
+							onClose={toggleFilesPanel}
+							workspaceRoot={resolvedWorkspaceRoot}
+						/>
+					) : null}
 				</AttachmentDropZone>
 				{terminalEnabled && terminal?.open ? (
 					<TerminalPanel

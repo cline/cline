@@ -1,5 +1,7 @@
 name: sdk-publish
 
+# Manual dispatch only. Every publish (nightly included) waits for approval on
+# the PublishNPM environment, so a cron run would just sit waiting every day.
 on:
   workflow_dispatch:
     inputs:
@@ -20,9 +22,6 @@ on:
         description: 'Required when channel=latest. Type "publish" to confirm release publish.'
         required: false
         type: string
-  schedule:
-    # Run nightly at 2:00 AM UTC
-    - cron: "0 2 * * *"
 
 defaults:
   run:
@@ -51,6 +50,9 @@ jobs:
           !endsWith(github.actor, '[bot]')
         )
       )
+    # npm trusted publishing for the SDK packages requires this environment,
+    # so a publish only happens after a PublishNPM reviewer approves the run.
+    environment: PublishNPM
     runs-on: ubuntu-latest
 
     steps:
@@ -60,15 +62,8 @@ jobs:
       - name: Determine publish channel
         id: channel
         env:
-          EVENT_NAME: ${{ github.event_name }}
           INPUT_CHANNEL: ${{ inputs.channel }}
-        run: |
-          # Default to nightly for scheduled runs
-          if [ "$EVENT_NAME" = "schedule" ]; then
-            echo "channel=nightly" >> $GITHUB_OUTPUT
-          else
-            echo "channel=$INPUT_CHANNEL" >> $GITHUB_OUTPUT
-          fi
+        run: echo "channel=$INPUT_CHANNEL" >> $GITHUB_OUTPUT
 
       - name: Check for recent commits
         id: check_commits

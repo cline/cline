@@ -1,5 +1,7 @@
 "use client";
 
+import type { PluginCommandCatalog } from "@cline/core";
+
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
@@ -73,7 +75,6 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-import { PullRequestBar } from "./pull-request-bar";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
@@ -120,11 +121,6 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{ name: "team", description: "Start the task with an agent team" },
 ];
 
-// Last known user commands, kept across composer instances so reopening the
-// slash menu paints instantly (stale-while-revalidate); the fetch that
-// follows still picks up newly installed skills and workflows.
-let cachedSlashCommands: SlashCommand[] | null = null;
-
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
 	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
@@ -135,27 +131,23 @@ export function buildUserInstructionSlashCommands(
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	const result = commands.flatMap((command) => {
-		const name = command.name;
-		if (!name || seen.has(name)) {
-			return [];
-		}
-		seen.add(name);
-		return [
-			{
-				name,
-				description:
-					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
-			},
-		];
-	});
+	const result: SlashCommand[] = [];
 	for (const command of pluginCommands) {
 		if (!command.name || seen.has(command.name)) continue;
 		seen.add(command.name);
 		result.push({
 			name: command.name,
 			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	for (const command of commands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description:
+				command.description?.trim() ||
+				`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
 		});
 	}
 	return result;
@@ -305,6 +297,7 @@ export function buildWorkspaceFileSearchKey(
 }
 
 type ChatInputBarProps = {
+	sessionId?: string | null;
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
@@ -354,7 +347,12 @@ type ChatInputBarProps = {
 	};
 };
 
+// Below this composer width the full settings row no longer fits, so the
+// provider/model pickers collapse into a menu.
+const COMPACT_COMPOSER_WIDTH = 512;
+
 function ChatInputBarImpl({
+	sessionId,
 	environmentId,
 	variant = "conversation",
 	readOnly = false,
@@ -391,6 +389,21 @@ function ChatInputBarImpl({
 	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
+	// The composer compacts by its own width rather than the window's: beside
+	// the workspace panel it can be narrow in a wide window, and a container
+	// query would turn the settings row into the containing block for the
+	// compact menu's full-screen click-away layer.
+	const composerRef = useRef<HTMLDivElement | null>(null);
+	const [compact, setCompact] = useState(false);
+	useEffect(() => {
+		const element = composerRef.current;
+		if (!element || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(([entry]) => {
+			if (entry) setCompact(entry.contentRect.width < COMPACT_COMPOSER_WIDTH);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, []);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -655,10 +668,50 @@ function ChatInputBarImpl({
 		executionTarget === "local" &&
 		slashKey !== null &&
 		dismissedSlashKey !== slashKey;
-	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
-	);
-	const [slashLoading, setSlashLoading] = useState(false);
+	const [instructionResponse, setInstructionResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		response: UserInstructionConfigResponse;
+	}>();
+	const [pluginResponse, setPluginResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		sessionId?: string;
+		commands: SlashCommand[];
+	}>();
+	const slashCommands = useMemo(() => {
+		const current = <
+			T extends { workspaceRoot: string; environmentId: string },
+		>(
+			target: T | undefined,
+		) =>
+			target?.workspaceRoot === workspaceRoot &&
+			target.environmentId === environmentId
+				? target
+				: undefined;
+		return [
+			...BUILTIN_SLASH_COMMANDS,
+			...buildUserInstructionSlashCommands(
+				current(instructionResponse)?.response ?? {},
+				// A session's plugins can differ from the workspace catalog.
+				pluginResponse?.sessionId === (sessionId ?? undefined)
+					? (current(pluginResponse)?.commands ?? [])
+					: [],
+			),
+		];
+	}, [
+		instructionResponse,
+		pluginResponse,
+		workspaceRoot,
+		environmentId,
+		sessionId,
+	]);
+	const [pluginLoading, setPluginLoading] = useState(false);
+	const [instructionLoading, setInstructionLoading] = useState(false);
+	const [pluginError, setPluginError] = useState<string>();
+	const [instructionError, setInstructionError] = useState<string>();
+	const slashLoading = pluginLoading || instructionLoading;
+	const slashError = pluginError ?? instructionError;
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 
 	useEffect(() => {
@@ -1012,45 +1065,64 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Reload user commands whenever the slash menu opens so newly installed or
-	// edited skills and workflows are reflected without remounting the chat UI.
+	// Refresh user and plugin commands whenever the slash menu opens, keeping
+	// the last results while fetching so suggestions do not flash away. Each
+	// request settles independently so one failure cannot hide the other.
 	useEffect(() => {
 		if (!slashOpen) {
+			setInstructionLoading(false);
+			setPluginLoading(false);
 			return;
 		}
 		let cancelled = false;
-		// Only show the loading row when there is nothing cached to show.
-		setSlashLoading(cachedSlashCommands === null);
-		Promise.all([
-			desktopClient.invoke<UserInstructionConfigResponse>(
-				"list_user_instruction_configs",
-				{ workspacePath: workspaceRoot },
-			),
-			desktopClient
-				.invoke<SlashCommand[]>("list_plugin_commands", {
-					workspacePath: workspaceRoot,
-				})
-				.catch((): SlashCommand[] => []),
-		])
-			.then(([response, pluginCommands]) => {
+		setInstructionLoading(true);
+		setPluginLoading(true);
+		desktopClient
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs", {
+				workspacePath: workspaceRoot,
+				environmentId,
+			})
+			.then((response) => {
 				if (cancelled) return;
-				const next = [
-					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response, pluginCommands),
-				];
-				cachedSlashCommands = next;
-				setSlashCommands(next);
+				setInstructionResponse({ workspaceRoot, environmentId, response });
+				setInstructionError(undefined);
 			})
 			.catch(() => {
-				// Keep built-in commands on error.
+				if (!cancelled) setInstructionError("Instruction commands unavailable");
 			})
 			.finally(() => {
-				if (!cancelled) setSlashLoading(false);
+				if (!cancelled) setInstructionLoading(false);
+			});
+		desktopClient
+			.invoke<PluginCommandCatalog>("list_plugin_commands", {
+				workspacePath: workspaceRoot,
+				environmentId,
+				sessionId: sessionId ?? undefined,
+			})
+			.then((catalog) => {
+				if (cancelled) return;
+				setPluginResponse({
+					workspaceRoot,
+					environmentId,
+					sessionId: sessionId ?? undefined,
+					commands: catalog.commands,
+				});
+				setPluginError(
+					catalog.status === "error"
+						? "Plugin commands unavailable"
+						: undefined,
+				);
+			})
+			.catch(() => {
+				if (!cancelled) setPluginError("Plugin commands unavailable");
+			})
+			.finally(() => {
+				if (!cancelled) setPluginLoading(false);
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen, workspaceRoot]);
+	}, [slashOpen, workspaceRoot, environmentId, sessionId]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
@@ -1107,9 +1179,13 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<AgentComposer variant={variant}>
+		<AgentComposer
+			className="group/composer"
+			data-compact={compact || undefined}
+			ref={composerRef}
+			variant={variant}
+		>
 			{/* Input area */}
-			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
@@ -1128,7 +1204,7 @@ function ChatInputBarImpl({
 								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
-										: "No matching commands"}
+										: (slashError ?? "No matching commands")}
 								</div>
 							) : (
 								<>
@@ -1481,7 +1557,7 @@ function ChatInputBarImpl({
 
 			{/* Composer settings */}
 			<AgentComposerSettings>
-				<AgentComposerSettingsGroup>
+				<AgentComposerSettingsGroup className="group-data-[compact]/composer:flex-none">
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1543,7 +1619,7 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0">
+					<div className="min-w-0 group-data-[compact]/composer:shrink-0">
 						<ModelSelector
 							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
@@ -1571,7 +1647,7 @@ function ChatInputBarImpl({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden group-data-[compact]/composer:size-7 group-data-[compact]/composer:shrink-0 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
 								cloudSettingsLocked
@@ -1582,7 +1658,7 @@ function ChatInputBarImpl({
 							}
 						>
 							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
+							<span className="group-data-[compact]/composer:sr-only">
 								<SelectValue>{effortLabel}</SelectValue>
 							</span>
 						</SelectTrigger>
@@ -1598,7 +1674,7 @@ function ChatInputBarImpl({
 
 				{/* Reserve room for the model and thinking controls so a long
 				    branch name can't squeeze the model name out entirely. */}
-				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] max-[560px]:max-w-none">
+				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] group-data-[compact]/composer:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -2243,12 +2319,12 @@ const ModelSelector = memo(function ModelSelector({
 		);
 	}
 	return (
-		<div className="relative min-w-0 text-sm">
+		<div className="relative min-w-0 text-sm group-data-[compact]/composer:shrink-0">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 group-data-[compact]/composer:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
@@ -2261,11 +2337,11 @@ const ModelSelector = memo(function ModelSelector({
 				<>
 					<button
 						aria-label="Close model selector"
-						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
+						className="fixed inset-0 z-40 hidden cursor-default opacity-0 group-data-[compact]/composer:block"
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none group-data-[compact]/composer:block">
 						<div className="space-y-1">
 							<div className="text-xs font-medium text-muted-foreground">
 								Provider
@@ -2287,7 +2363,7 @@ const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
+			<div className="flex min-w-0 items-center gap-0.5 group-data-[compact]/composer:hidden">
 				{/* Wide enough for the longest built-in provider names ("Cline
 				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
 				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>

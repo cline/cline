@@ -778,7 +778,13 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
 		id: "opencode-go",
 		docsUrl: "https://opencode.ai/docs/go/",
-		defaults: { headers: { "User-Agent": "Cline/SDK" } },
+		defaults: {
+			// models.dev lists the OpenAI-only path (/inference/go/openai/v1),
+			// which 404s on /messages. Routing appends per-model protocol
+			// endpoints, so pin the shared root that serves all of them.
+			baseUrl: "https://opencode.ai/inference/go/v1",
+			headers: { "User-Agent": "Cline/SDK" },
+		},
 		metadata: {
 			routing: { modelApiProtocol: true },
 			stickySession: {
@@ -1029,7 +1035,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		description: "Z.AI's coding-focused models",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "tools"],
-		defaultModelId: "glm-5.2",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
@@ -1243,7 +1249,9 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "Google Gemini",
 		description: "Google Gemini API",
 		family: "google",
-		modelToolCapabilities: NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
+		// No native Google Search: free-tier keys have no grounding quota on
+		// Gemini 3+ (every request fails with 429), and Gemini 2.x cannot
+		// combine it with function tools, so the AI SDK drops Cline's tools.
 		popular: 45,
 		capabilities: ["reasoning", "prompt-cache"],
 		apiKeyEnv: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],

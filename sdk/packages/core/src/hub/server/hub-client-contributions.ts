@@ -508,6 +508,7 @@ function createToolProxies(
 const STREAMING_EVENT_TYPES = new Set<AgentRuntimeEvent["type"]>([
 	"assistant-text-delta",
 	"assistant-reasoning-delta",
+	"tool-call-delta",
 	"tool-updated",
 ]);
 
