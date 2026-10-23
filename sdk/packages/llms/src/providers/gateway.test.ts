@@ -1037,8 +1037,10 @@ describe("sdk-gateway", () => {
 			expect.objectContaining({
 				type: "finish",
 				reason: "error",
-				error:
-					'Provider adapter for "compatible-with-search" does not implement requested model tool(s): web_search.',
+				failure: expect.objectContaining({
+					message:
+						'Provider adapter for "compatible-with-search" does not implement requested model tool(s): web_search.',
+				}),
 			}),
 		);
 		expect(streamTextSpy).not.toHaveBeenCalled();
@@ -1406,7 +1408,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			error: "Generated media must contain valid base64",
+			failure: { message: "Generated media must contain valid base64" },
 		});
 	});
 
@@ -1444,7 +1446,9 @@ describe("sdk-gateway", () => {
 			type: "finish",
 			reason: "error",
 			requestId: "req_abc123",
-			error: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+			failure: {
+				message: "Unauthorized: re-authenticate (Request ID: req_abc123)",
+			},
 		});
 	});
 
@@ -1506,7 +1510,9 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
+			failure: {
+				message: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
+			},
 		});
 	});
 
@@ -1646,10 +1652,11 @@ describe("sdk-gateway", () => {
 			{
 				type: "finish",
 				reason: "error",
-				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
-				errorClass: "unknown",
-				errorRetryable: false,
-				errorReported: false,
+				failure: expect.objectContaining({
+					message: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
+					classification: "unknown",
+					retryable: false,
+				}),
 			},
 		]);
 	});
@@ -2426,9 +2433,11 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			error:
-				'Model tool "image_generation" call is missing a valid tool-call ID',
-			errorClass: "unknown",
+			failure: {
+				message:
+					'Model tool "image_generation" call is missing a valid tool-call ID',
+				classification: "unknown",
+			},
 		});
 	});
 
@@ -2481,10 +2490,12 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({
 			type: "finish",
 			reason: "error",
-			error: "OpenAI image generation tool returned no supported image output",
-			errorClass: "unknown",
-			errorRetryable: false,
-			errorReported: false,
+			failure: expect.objectContaining({
+				message:
+					"OpenAI image generation tool returned no supported image output",
+				classification: "unknown",
+				retryable: false,
+			}),
 		});
 	});
 
@@ -2701,10 +2712,11 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({
 			type: "finish",
 			reason: "error",
-			error: "Invalid API key",
-			errorClass: "unknown",
-			errorRetryable: false,
-			errorReported: false,
+			failure: expect.objectContaining({
+				message: "Invalid API key",
+				classification: "unknown",
+				retryable: false,
+			}),
 		});
 	});
 
@@ -2767,8 +2779,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			error: error.message,
-			errorReported: true,
+			failure: { message: error.message },
 		});
 		expect(
 			capture.mock.calls.filter(([call]) => call.event === "sdk.error"),
@@ -2849,10 +2860,7 @@ describe("sdk-gateway", () => {
 			maxRetries: 3,
 			streamRetries: 3,
 		});
-		expect(events.at(-1)).toMatchObject({
-			reason: "error",
-			errorRetryable: false,
-		});
+		expect(events.at(-1)).toMatchObject({ reason: "error" });
 	});
 
 	it("records the extracted provider message for AI SDK stream errors", async () => {
@@ -2899,7 +2907,7 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("marks the finish event as reported so the agent loop skips the same failure", async () => {
+	it("reports standalone gateway failures once at the terminal boundary", async () => {
 		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
 			statusCode: 429,
 		});
@@ -2928,8 +2936,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			error: "Upstream returned HTTP 429",
-			errorReported: true,
+			failure: { message: "Upstream returned HTTP 429" },
 		});
 		const sdkErrors = capture.mock.calls.filter(
 			([call]) => (call as { event: string }).event === "sdk.error",
@@ -2937,7 +2944,7 @@ describe("sdk-gateway", () => {
 		expect(sdkErrors).toHaveLength(1);
 	});
 
-	it("does not mark the finish event as reported when telemetry is unavailable", async () => {
+	it("preserves the original structured error when telemetry is unavailable", async () => {
 		const rawError = Object.assign(new Error("Upstream returned HTTP 429"), {
 			statusCode: 429,
 		});
@@ -2961,8 +2968,8 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		const finish = events.at(-1) as { errorReported?: boolean };
-		expect(finish.errorReported).not.toBe(true);
+		const finish = events.at(-1);
+		expect(finish?.type === "finish" && finish.failure?.cause).toBe(rawError);
 	});
 
 	it("rate-limits identical stream failures per process", async () => {
@@ -3106,10 +3113,11 @@ describe("sdk-gateway", () => {
 			{
 				type: "finish",
 				reason: "error",
-				error: "Invalid API key",
-				errorClass: "unknown",
-				errorRetryable: false,
-				errorReported: false,
+				failure: expect.objectContaining({
+					message: "Invalid API key",
+					classification: "unknown",
+					retryable: false,
+				}),
 			},
 		]);
 	});
@@ -3148,10 +3156,11 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({
 			type: "finish",
 			reason: "error",
-			error: "prompt is too long: 213462 tokens > 200000 maximum",
-			errorClass: "context_window_exceeded",
-			errorRetryable: false,
-			errorReported: false,
+			failure: expect.objectContaining({
+				message: "prompt is too long: 213462 tokens > 200000 maximum",
+				classification: "context_window_exceeded",
+				retryable: false,
+			}),
 		});
 	});
 
@@ -3186,10 +3195,11 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({
 			type: "finish",
 			reason: "error",
-			error: "Instructions are required",
-			errorClass: "unknown",
-			errorRetryable: false,
-			errorReported: false,
+			failure: expect.objectContaining({
+				message: "Instructions are required",
+				classification: "unknown",
+				retryable: false,
+			}),
 		});
 	});
 
@@ -5150,7 +5160,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({
 			type: "finish",
 			reason: "tool-calls",
-			error: undefined,
+			failure: undefined,
 		});
 	});
 
