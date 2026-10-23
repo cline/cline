@@ -443,6 +443,7 @@ export class CloudSessionController {
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private lastListedOrganizationId?: string;
 	private lastListedAt?: number;
+	private discoveryGeneration = 0;
 	private discoveryRefresh?: {
 		organizationId: string | undefined;
 		promise: Promise<CloudSessionRecord[]>;
@@ -717,6 +718,7 @@ export class CloudSessionController {
 		organizationId: string | undefined,
 	): Promise<CloudSessionRecord[]> {
 		if (this.disposed) throw new Error("Cloud session controller was disposed");
+		const generation = this.discoveryGeneration;
 		const currentTitle = (id: string) =>
 			this.sessions.get(id)?.title ?? this.knownSessions.get(id)?.title;
 		const titlesBeforeRefresh = new Map(
@@ -742,6 +744,7 @@ export class CloudSessionController {
 		// Keep canonical rows available while their status checks run.
 		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = listed;
+		this.lastListedAt = undefined;
 		for (const session of listed) {
 			preserveLocalTitle(session);
 			this.knownSessions.set(session.id, session);
@@ -819,7 +822,8 @@ export class CloudSessionController {
 		}
 		this.lastListedOrganizationId = organizationId;
 		this.lastListedSessions = scoped;
-		this.lastListedAt = Date.now();
+		this.lastListedAt =
+			generation === this.discoveryGeneration ? Date.now() : undefined;
 		for (const record of scoped)
 			if (this.sessions.has(record.id)) this.publishSnapshot(record.id);
 		return immutableCopy(scoped);
@@ -856,7 +860,13 @@ export class CloudSessionController {
 		};
 	}
 
+	invalidateDiscoveryCache(): void {
+		this.lastListedAt = undefined;
+		this.discoveryGeneration++;
+	}
+
 	async refreshOrganization(): Promise<void> {
+		this.invalidateDiscoveryCache();
 		await this.resolveActiveOrganizationId({ fresh: true });
 	}
 
