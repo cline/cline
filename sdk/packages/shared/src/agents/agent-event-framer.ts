@@ -43,6 +43,41 @@ export interface AgentEventFramerOptions {
 	agentPath?: string[];
 	/** Starting epoch. Defaults to 0; use `bumpEpoch()` thereafter. */
 	startEpoch?: number;
+	/** Shared (epoch, seq) source. When provided (SessionFramer), this
+	 * framer stamps frames from the session-wide sequence so interleaved
+	 * agent streams keep one resumable counter; epoch changes then go
+	 * through the sequencer's owner, not this framer. */
+	sequencer?: FrameSequencer;
+}
+
+/** The session-wide (epoch, seq) authority. One per session, shared by
+ * every per-agent-path framer (design: "one counter across all scopes"). */
+export interface FrameSequencer {
+	epoch(): number;
+	nextSeq(): number;
+	lastSeq(): number;
+	bumpEpoch(): void;
+}
+
+class InternalFrameSequencer implements FrameSequencer {
+	private epochValue: number;
+	private seqValue = 0;
+	constructor(startEpoch: number) {
+		this.epochValue = startEpoch;
+	}
+	epoch(): number {
+		return this.epochValue;
+	}
+	nextSeq(): number {
+		this.seqValue += 1;
+		return this.seqValue;
+	}
+	lastSeq(): number {
+		return this.seqValue;
+	}
+	bumpEpoch(): void {
+		this.epochValue += 1;
+	}
 }
 
 interface OpenTool {
@@ -51,8 +86,7 @@ interface OpenTool {
 
 export class AgentEventFramer {
 	private readonly agentPath: string[];
-	private epoch: number;
-	private seq = 0;
+	private readonly sequencer: FrameSequencer;
 	private turnCounter = 0;
 	private blockCounter = 0;
 	private currentTurnId: string | undefined;
@@ -65,17 +99,20 @@ export class AgentEventFramer {
 
 	constructor(options: AgentEventFramerOptions = {}) {
 		this.agentPath = options.agentPath ?? ["root"];
-		this.epoch = options.startEpoch ?? 0;
+		this.sequencer =
+			options.sequencer ??
+			new InternalFrameSequencer(options.startEpoch ?? 0);
 	}
 
-	/** Host's conversation fence: task switch, cancel, reinit. */
+	/** Host's conversation fence: task switch, cancel, reinit. With an
+	 * external sequencer this must be called on the owning SessionFramer. */
 	bumpEpoch(): void {
-		this.epoch += 1;
+		this.sequencer.bumpEpoch();
 	}
 
 	/** Frames emitted so far (resumable-after-N cursor). */
 	get lastSeq(): number {
-		return this.seq;
+		return this.sequencer.lastSeq();
 	}
 
 	/** Frame a single v1 event into zero or more v2 frames. */
@@ -443,11 +480,10 @@ export class AgentEventFramer {
 		scope: StreamFrame["scope"],
 		body: FrameBody,
 	): void {
-		this.seq += 1;
 		const frame: StreamFrame = {
 			v: FRAME_SCHEMA_VERSION,
-			epoch: this.epoch,
-			seq: this.seq,
+			epoch: this.sequencer.epoch(),
+			seq: this.sequencer.nextSeq(),
 			scope,
 			...body,
 		};
@@ -589,4 +625,95 @@ function finishReasonToOutcome(
 		}
 	}
 }
+
+// =============================================================================
+// SessionFramer — multiplexed framing across agent paths
+// =============================================================================
+
+/**
+ * The session-level framer (Phase 3a): routes each agent's events to a
+ * per-path `AgentEventFramer` while all paths share one (epoch, seq)
+ * authority, so interleaved agent streams keep a single resumable
+ * counter (design: "one counter across all scopes"). The root path is
+ * `["root"]`; deeper paths (sub-agents, teammates) come from the
+ * session-event projector. `frameEvent` is the root-path entry point
+ * and behaves exactly like a standalone AgentEventFramer.
+ */
+export class SessionFramer {
+	private readonly sequencer: FrameSequencer;
+	private readonly streams = new Map<string, AgentEventFramer>();
+
+	constructor(options: { startEpoch?: number } = {}) {
+		// Reuse the framer's internal sequencer through a root instance:
+		// one authority, owned here.
+		this.sequencer = new InternalFrameSequencer(options.startEpoch ?? 0);
+	}
+
+	/** Frame an event for the root agent (same as AgentEventFramer). */
+	frameEvent(event: AgentEvent): StreamFrame[] {
+		return this.frameRoutedEvent(["root"], event);
+	}
+
+	/** Frame a sequence of root-agent events. */
+	frameAll(events: readonly AgentEvent[]): StreamFrame[] {
+		const out: StreamFrame[] = [];
+		for (const event of events) {
+			out.push(...this.frameEvent(event));
+		}
+		return out;
+	}
+
+	/** Frame an event for the agent at `agentPath` (root first). */
+	frameRoutedEvent(agentPath: string[], event: AgentEvent): StreamFrame[] {
+		const pathKey = agentPath.join("/");
+		// Scope tree rule 3 (design, Grammar): when this event closes the
+		// path's turn, the producer emits descendant agents' closes first
+		// — deepest first — instead of leaving them for the consumer's
+		// assembler to repair. Emitted BEFORE framing the event so the
+		// shared sequencer stamps in emission order.
+		const closesTurn =
+			event.type === "done" ||
+			(event.type === "error" && !event.recoverable);
+		const out: StreamFrame[] = [];
+		if (closesTurn) {
+			for (const key of [...this.streams.keys()]
+				.filter((candidate) => candidate.startsWith(`${pathKey}/`))
+				.sort((a, b) => b.length - a.length)) {
+				out.push(...this.streams.get(key)?.fence() ?? []);
+			}
+		}
+		out.push(...this.streamFor(agentPath).frameEvent(event));
+		return out;
+	}
+
+	/** Close open scopes on every path (host fence without a terminal). */
+	fence(): StreamFrame[] {
+		const out: StreamFrame[] = [];
+		for (const framer of this.streams.values()) {
+			out.push(...framer.fence());
+		}
+		return out;
+	}
+
+	/** The host's conversation fence: task switch, cancel, reinit. */
+	bumpEpoch(): void {
+		this.sequencer.bumpEpoch();
+	}
+
+	/** Frames emitted so far across all paths (resumable-after-N). */
+	get lastSeq(): number {
+		return this.sequencer.lastSeq();
+	}
+
+	private streamFor(agentPath: string[]): AgentEventFramer {
+		const key = agentPath.join("/");
+		let framer = this.streams.get(key);
+		if (framer === undefined) {
+			framer = new AgentEventFramer({ agentPath, sequencer: this.sequencer });
+			this.streams.set(key, framer);
+		}
+		return framer;
+	}
+}
+
 
