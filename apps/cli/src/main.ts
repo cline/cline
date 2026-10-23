@@ -1140,11 +1140,15 @@ export async function runCli(): Promise<void> {
 		// redundant fstat work). `stdinHasPipedInput` also checks `isTTY`, but callers may hit
 		// inconsistent state in tests or embedded hosts.
 		if (!process.stdin.isTTY && stdinHasPipedInput() && !args.interactive) {
+			// A pipe nobody closes keeps us here, so leave a trace in the log.
+			loggerAdapter.core.log("Reading piped stdin until EOF");
 			const chunks: Buffer[] = [];
 			for await (const chunk of process.stdin) {
 				chunks.push(chunk as Buffer);
 			}
-			const pipedInput = Buffer.concat(chunks).toString("utf-8").trim();
+			const piped = Buffer.concat(chunks);
+			loggerAdapter.core.log("Piped stdin closed", { bytes: piped.length });
+			const pipedInput = piped.toString("utf-8").trim();
 
 			if (pipedInput) {
 				const prompt = args.prompt
