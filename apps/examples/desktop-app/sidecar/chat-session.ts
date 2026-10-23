@@ -63,6 +63,13 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
+import {
+	claimPluginReload,
+	emitPluginFailureNotices,
+	failedPluginIssues,
+	pluginReloads,
+} from "./plugin-reload";
+import { desktopUiSlots, reattachPluginUiViewers } from "./plugin-ui";
 import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -473,6 +480,7 @@ function createLiveSession(
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
+		pluginsStale: overrides?.pluginsStale,
 		queuedAttachmentFiles: overrides?.queuedAttachmentFiles,
 		consumedAttachmentFiles: overrides?.consumedAttachmentFiles,
 	};
@@ -1106,12 +1114,14 @@ async function handleStart(
 		providerId: String(coreConfig.providerId ?? ""),
 		modelId: String(coreConfig.modelId ?? ""),
 	});
+	const uiSlots = desktopUiSlots(binding);
 	const startResult = await manager.start({
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(config),
+		...(uiSlots ? { uiSlots } : {}),
 		sessionMetadata:
 			binding.kind === "ssh"
 				? {
@@ -1148,6 +1158,9 @@ async function handleStart(
 	);
 	ctx.liveSessions.set(sessionId, session);
 	ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+	// A chat reopened from history attached before the hub held it, so the
+	// viewer it recorded then never reached this start's epoch.
+	reattachPluginUiViewers(ctx, manager, sessionId);
 	return {
 		sessionId,
 		cwd,
@@ -1165,9 +1178,9 @@ async function handleStart(
 function pluginWarningsOf(
 	issues: ReadonlyArray<SessionPluginIssue> | undefined,
 ): { pluginWarnings?: string[] } {
-	const pluginWarnings = (issues ?? [])
-		.filter((issue) => issue.state === "failed")
-		.map(formatSessionPluginIssue);
+	const pluginWarnings = failedPluginIssues(issues).map(
+		formatSessionPluginIssue,
+	);
 	return pluginWarnings.length > 0 ? { pluginWarnings } : {};
 }
 
@@ -1237,6 +1250,7 @@ async function handleAttach(
 				existing?.title,
 			endedAt: isoTimestampToMs(session.endedAt),
 			attachedViaHub: true,
+			pluginsStale: existing?.pluginsStale,
 			// Preserve tracked attachment files so re-attach (called on every
 			// webview hydrate) does not orphan materialized files still awaiting
 			// cleanup.
@@ -1271,6 +1285,7 @@ async function startRebuiltSession(
 	const projectedMessages = compactionState
 		? projectSessionCompactionState(compactionState, messages)
 		: undefined;
+	const uiSlots = desktopUiSlots(getSessionRuntimeBinding(ctx, sessionId));
 	const restarted = await manager.start({
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig(
@@ -1296,12 +1311,15 @@ async function startRebuiltSession(
 				}
 			: {}),
 		toolPolicies: resolveToolPolicies(config),
+		...(uiSlots ? { uiSlots } : {}),
 	});
 	if (restarted.sessionId !== sessionId) {
 		throw new Error(
 			`Provider switch changed session id from ${sessionId} to ${restarted.sessionId}`,
 		);
 	}
+	emitPluginFailureNotices(ctx, sessionId, restarted.pluginIssues);
+	reattachPluginUiViewers(ctx, manager, sessionId);
 }
 
 async function rebuildSessionForProviderChange(
@@ -1623,12 +1641,47 @@ async function recoverSessionAfterHubLoss(
 	return outcome;
 }
 
+/**
+ * True only when the Hub confirms the chat has no queued prompts. Asks the Hub
+ * directly because ClineCore's list turns a Hub error reply into an empty
+ * queue.
+ */
+async function isPromptQueueEmpty(
+	binding: SessionRuntimeBinding,
+	sessionId: string,
+): Promise<boolean> {
+	const reply = await binding.hubClient
+		.command("session.pending_prompts", { sessionId })
+		.catch(() => undefined);
+	const prompts = reply?.ok ? reply.payload?.prompts : undefined;
+	return Array.isArray(prompts) && prompts.length === 0;
+}
+
 async function handleSend(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	while (pluginReloads.has(sessionId)) await pluginReloads.get(sessionId);
+	const session = ctx.liveSessions.get(sessionId);
+	const releasePluginReload =
+		session?.pluginsStale && !session.busy && !request.delivery
+			? claimPluginReload(sessionId)
+			: undefined;
+	try {
+		return await sendPrompt(ctx, request, sessionId, releasePluginReload);
+	} finally {
+		releasePluginReload?.();
+	}
+}
+
+async function sendPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	releasePluginReload: (() => void) | undefined,
+): Promise<unknown> {
 	const prompt = request.prompt?.trim() ?? "";
 	const hasAttachments =
 		(request.attachments?.userImages?.length ?? 0) > 0 ||
@@ -1718,6 +1771,14 @@ async function handleSend(
 					prompt,
 					request.config?.mode ?? session?.config?.mode,
 				));
+	if (!releasePluginReload) {
+		while (pluginReloads.has(sessionId)) await pluginReloads.get(sessionId);
+	}
+	// A restart replaces the Hub session together with the prompts queued on
+	// it, so a chat with queued prompts keeps its old plugins until they drain.
+	const queueAllowsPluginReload =
+		releasePluginReload !== undefined &&
+		(await isPromptQueueEmpty(binding, sessionId));
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -1736,6 +1797,8 @@ async function handleSend(
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
 	);
+	const reloadsPlugins =
+		queueAllowsPluginReload && ownsBusyState && session?.pluginsStale === true;
 	if (session) {
 		if (ownsBusyState) {
 			session.prompt = prompt;
@@ -1746,9 +1809,14 @@ async function handleSend(
 			session.transitioningProvider = true;
 		}
 	}
+	if (!reloadsPlugins) releasePluginReload?.();
 	try {
-		if ((request.config || binding.kind === "ssh") && nextConfig) {
-			if (providerChanged && session) {
+		if (session && nextConfig && (providerChanged || reloadsPlugins)) {
+			// Cleared before the restart so a plugin added while it runs, which
+			// the restarted session may not have loaded, keeps the chat stale.
+			const pluginsWereStale = session.pluginsStale === true;
+			session.pluginsStale = false;
+			try {
 				await rebuildSessionForProviderChange(
 					ctx,
 					binding,
@@ -1756,7 +1824,15 @@ async function handleSend(
 					session.config,
 					nextConfig,
 				);
-			} else if (
+			} catch (error) {
+				if (pluginsWereStale) session.pluginsStale = true;
+				throw error;
+			}
+			session.config = nextConfig;
+			session.attachedViaHub = false;
+			releasePluginReload?.();
+		} else if ((request.config || binding.kind === "ssh") && nextConfig) {
+			if (
 				binding.kind === "ssh" ||
 				!session ||
 				session.attachedViaHub ||
@@ -1789,9 +1865,6 @@ async function handleSend(
 			}
 			if (session) {
 				session.config = nextConfig;
-				if (providerChanged) {
-					session.attachedViaHub = false;
-				}
 			}
 		}
 
@@ -2171,6 +2244,7 @@ async function handleForkUnlocked(
 			? readExplicitSystemPrompt(forkConfig)
 			: await resolveSystemPrompt(forkConfig);
 	let newSessionId = "";
+	const uiSlots = desktopUiSlots(binding);
 	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig(
@@ -2186,6 +2260,7 @@ async function handleForkUnlocked(
 		interactive: true,
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
+		...(uiSlots ? { uiSlots } : {}),
 	};
 	// Sessions without a checkpoint at or before the edited run (imported
 	// transcripts, checkpoints disabled) have no workspace state to roll back,
@@ -2329,6 +2404,7 @@ async function handleRestoreCheckpoint(
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
 		// Updated once restore() returns; read lazily by the mistake-limit prompt.
 		let restoredSessionId = sourceSessionId;
+		const uiSlots = desktopUiSlots(binding);
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
 			checkpointRunCount: runCount,
@@ -2351,6 +2427,7 @@ async function handleRestoreCheckpoint(
 				source: SessionSource.DESKTOP,
 				interactive: true,
 				toolPolicies: resolveToolPolicies(config),
+				...(uiSlots ? { uiSlots } : {}),
 			},
 		});
 		const sessionId = restored.sessionId;

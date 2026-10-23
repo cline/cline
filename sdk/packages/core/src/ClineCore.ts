@@ -9,6 +9,7 @@ import {
 import {
 	createClineCorePendingPromptsApi,
 	createClineCorePluginCommandsApi,
+	createClineCorePluginUiApi,
 	createClineCoreSettingsApi,
 	type RuntimeHostServiceExtensions,
 } from "./cline-core/runtime-services";
@@ -50,6 +51,7 @@ import {
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 import type { PluginCommandsApi } from "./services/plugin-command-api";
+import type { PluginUiApi } from "./services/plugin-ui-api";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
 import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import {
@@ -105,6 +107,8 @@ export class ClineCore {
 	readonly pluginCommands: PluginCommandsApi;
 	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
+	/** Plugin UI slots of this core's sessions; state changes arrive as `plugin_ui_state` events through `subscribe`. */
+	readonly pluginUi: PluginUiApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly capabilities: RuntimeCapabilities | undefined;
@@ -144,6 +148,7 @@ export class ClineCore {
 		this.settings = createClineCoreSettingsApi(host);
 		this.pluginCommands = createClineCorePluginCommandsApi(host);
 		this.pendingPrompts = createClineCorePendingPromptsApi(host);
+		this.pluginUi = createClineCorePluginUiApi(host);
 		this.automation = new ClineCoreAutomationController(() => {
 			if (!this.automationService) {
 				throw new Error(

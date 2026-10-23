@@ -10,6 +10,10 @@ import type {
 	PluginCommandsApi,
 	PluginCommandsRuntimeService,
 } from "../services/plugin-command-api";
+import type {
+	PluginUiApi,
+	PluginUiRuntimeService,
+} from "../services/plugin-ui-api";
 import {
 	type ClineCoreSettingsApi,
 	type CoreSettingsListInput,
@@ -33,7 +37,8 @@ export type RuntimeHostServiceExtensions = RuntimeHost &
 		PendingPromptsRuntimeService &
 			SessionUsageRuntimeService &
 			SessionConnectionRuntimeService &
-			SessionModelRuntimeService
+			SessionModelRuntimeService &
+			PluginUiRuntimeService
 	>;
 
 export function createClineCoreSettingsApi(
@@ -96,5 +101,29 @@ export function createClineCorePluginCommandsApi(
 	return {
 		list: (target) => service().list(target),
 		run: (input) => service().run(input),
+	};
+}
+
+/**
+ * Hosts call this for every session, so it never throws: a host without
+ * plugin UI (a cloud session, an older hub) has no slots and no viewers.
+ */
+export function createClineCorePluginUiApi(host: RuntimeHost): PluginUiApi {
+	const service = () => (host as RuntimeHostServiceExtensions).pluginUi;
+	return {
+		async get(input) {
+			try {
+				return (await service()?.get(input)) ?? [];
+			} catch {
+				return [];
+			}
+		},
+		async invoke(input) {
+			try {
+				return (await service()?.invoke(input)) ?? { outcome: "unavailable" };
+			} catch {
+				return { outcome: "unavailable" };
+			}
+		},
 	};
 }

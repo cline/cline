@@ -74,7 +74,7 @@ import {
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
 import {
-	applyBedrockCachePointToLastUserMessage,
+	applyBedrockCachePoints,
 	shouldApplyBedrockCachePoint,
 } from "./routing/bedrock-cache-point";
 import {
@@ -411,7 +411,7 @@ function buildAiSdkRequestMessages(
 	}) as Array<Record<string, unknown>>;
 
 	if (shouldApplyBedrockCachePoint(request, context)) {
-		applyBedrockCachePointToLastUserMessage(aiMessages);
+		applyBedrockCachePoints(aiMessages);
 		return aiMessages;
 	}
 

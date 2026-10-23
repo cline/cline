@@ -22,6 +22,17 @@ import {
 import { installParentDisconnectGuard } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { importPluginModule } from "./plugin-module-import";
 import {
+	createPluginUiSlots,
+	type PluginUiActionHandler,
+	type PluginUiContext,
+	type PluginUiSlotRegistration,
+} from "./plugin-sandbox-bootstrap-ui";
+import {
+	assertValidPluginSetupCtx,
+	hasValidStringArray,
+	isObject,
+} from "./plugin-sandbox-validation";
+import {
 	matchesPluginManifestTargeting,
 	type PluginTargeting,
 } from "./plugin-targeting";
@@ -97,6 +108,7 @@ interface PluginApi {
 	registerProvider(provider: PluginProvider): void;
 	registerAutomationEventType(eventType: PluginAutomationEventType): void;
 	registerMcpServer(server: AgentExtensionMcpServer): void;
+	registerUiSlot?(slot: PluginUiSlotRegistration): void;
 }
 
 interface PluginSetupCtx {
@@ -116,6 +128,7 @@ interface PluginSetupCtx {
 		error(message: string, metadata?: Record<string, unknown>): void;
 	};
 	telemetry?: PluginTelemetryBridge;
+	ui?: PluginUiContext;
 }
 
 /**
@@ -213,6 +226,7 @@ interface PluginDescriptor {
 		providers: ContributionDescriptor[];
 		automationEventTypes: AutomationEventTypeDescriptor[];
 		mcpServers: AgentExtensionMcpServer[];
+		uiSlots: Array<{ id: string; slot: string }>;
 		shortcuts?: ContributionDescriptor[];
 		flags?: ContributionDescriptor[];
 	};
@@ -269,6 +283,7 @@ interface PluginState {
 		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
 		rules: Map<string, () => string | Promise<string>>;
 		messageBuilders: Map<string, PluginMessageBuilder["build"]>;
+		ui: Map<string, PluginUiActionHandler>;
 	};
 }
 
@@ -289,16 +304,6 @@ type LoadedPluginResult =
 			type: "failure";
 			failure: PluginInitializationFailure;
 	  };
-
-function isObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
-function hasValidStringArray(value: unknown): value is string[] {
-	return (
-		Array.isArray(value) && value.every((entry) => typeof entry === "string")
-	);
-}
 
 function assertValidPluginModule(
 	plugin: unknown,
@@ -327,40 +332,6 @@ function assertValidPluginModule(
 	}
 }
 
-function assertValidPluginSetupCtx(
-	ctx: unknown,
-): asserts ctx is PluginSetupCtx {
-	if (!isObject(ctx)) {
-		throw new Error("Plugin setup context must be an object");
-	}
-	if (ctx.session !== undefined && !isObject(ctx.session)) {
-		throw new Error("Plugin setup context session must be an object");
-	}
-	if (ctx.client !== undefined && !isObject(ctx.client)) {
-		throw new Error("Plugin setup context client must be an object");
-	}
-	if (ctx.user !== undefined && !isObject(ctx.user)) {
-		throw new Error("Plugin setup context user must be an object");
-	}
-	if (ctx.workspaceInfo !== undefined && !isObject(ctx.workspaceInfo)) {
-		throw new Error("Plugin setup context workspaceInfo must be an object");
-	}
-	if (ctx.automation !== undefined && !isObject(ctx.automation)) {
-		throw new Error("Plugin setup context automation must be an object");
-	}
-	if (
-		ctx.automation !== undefined &&
-		typeof ctx.automation.ingestEvent !== "function"
-	) {
-		throw new Error(
-			"Plugin setup context automation.ingestEvent must be a function",
-		);
-	}
-	if (ctx.logger !== undefined && !isObject(ctx.logger)) {
-		throw new Error("Plugin setup context logger must be an object");
-	}
-}
-
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -368,6 +339,12 @@ function assertValidPluginSetupCtx(
 let pluginCounter = 0;
 const pluginState = new Map<string, PluginState>();
 const contributionCounters = new Map<string, number>();
+/**
+ * Set once `dispose` starts. Idle reclaim disposes a worker whose session is
+ * still live, and the re-initialized worker's setup publishes again, so UI
+ * updates made by cleanup must not reach that session.
+ */
+let disposing = false;
 
 // ---------------------------------------------------------------------------
 // IPC helpers
@@ -446,11 +423,34 @@ function emitEvent(name: string, payload?: unknown): void {
 
 /**
  * Internal events (never forwarded to the session): progress updates for a
- * tool call, and the end of a plugin's import so the host can tell an import
- * failure from a setup failure. Keep in sync with plugin-sandbox.ts.
+ * tool call, the end of a plugin's import so the host can tell an import
+ * failure from a setup failure, and a plugin's UI slot state. Keep in sync
+ * with plugin-sandbox.ts.
  */
+const RESERVED_EVENT_PREFIX = "__cline_";
 const TOOL_UPDATE_EVENT = "__cline_tool_update";
 const SETUP_STARTED_EVENT = "__cline_setup_started";
+const UI_STATE_EVENT = "__cline_ui_state";
+
+/**
+ * The emitter plugins reach. Internal event names belong to the bootstrap's
+ * own closures, so a plugin cannot forge tool progress or UI state through it.
+ */
+function createPluginEventEmitter(
+	pluginName?: string,
+): (name: string, payload?: unknown) => void {
+	return (name, payload) => {
+		if (typeof name === "string" && name.startsWith(RESERVED_EVENT_PREFIX)) {
+			emitEvent("plugin_log", {
+				level: "debug",
+				pluginName,
+				message: `Refused to emit the reserved event "${name}"`,
+			});
+			return;
+		}
+		emitEvent(name, payload);
+	};
+}
 
 /** A tool's definition fields as plain data (functions dropped). */
 function toolDefinitionData(tool: PluginTool): Record<string, unknown> {
@@ -481,7 +481,9 @@ function withTimeout<T>(
 }
 
 // Expose event emitter to plugins.
-(globalThis as Record<string, unknown>).__clinePluginHost = { emitEvent };
+(globalThis as Record<string, unknown>).__clinePluginHost = {
+	emitEvent: createPluginEventEmitter(),
+};
 
 /**
  * Session workspace env — populated by `initialize()` and available to any
@@ -657,6 +659,8 @@ async function loadPluginDescriptor(args: {
 	policy?: PluginPolicy;
 	/** Names the policy may use besides the plugin's own (its file name). */
 	policyNames?: string[];
+	/** The session's slot catalog; the slot API is offered only when it is non-empty. */
+	uiSlots?: readonly string[];
 }): Promise<LoadedPluginResult> {
 	let plugin: PluginModule | undefined;
 	const disposers: PluginState["disposers"] = [];
@@ -679,6 +683,7 @@ async function loadPluginDescriptor(args: {
 		) {
 			return { type: "policy_disabled", name: plugin.name };
 		}
+		const pluginName = plugin.name;
 
 		const contributions: PluginDescriptor["contributions"] = {
 			tools: [],
@@ -688,6 +693,7 @@ async function loadPluginDescriptor(args: {
 			providers: [],
 			automationEventTypes: [],
 			mcpServers: [],
+			uiSlots: [],
 			shortcuts: [],
 			flags: [],
 		};
@@ -696,7 +702,20 @@ async function loadPluginDescriptor(args: {
 			commands: new Map(),
 			rules: new Map(),
 			messageBuilders: new Map(),
+			ui: new Map(),
 		};
+		const uiSlots = args.uiSlots?.length
+			? createPluginUiSlots({
+					pluginName,
+					slots: args.uiSlots,
+					handlers: handlers.ui,
+					contributions: contributions.uiSlots,
+					nextContributionId: () => makeId(args.pluginId, "ui"),
+					isDisposing: () => disposing,
+					emitLog: (payload) => emitEvent("plugin_log", payload),
+					emitUiState: (payload) => emitEvent(UI_STATE_EVENT, payload),
+				})
+			: undefined;
 
 		const api: PluginApi = {
 			registerTool: (tool) => {
@@ -764,6 +783,7 @@ async function loadPluginDescriptor(args: {
 			registerMcpServer: (server) => {
 				contributions.mcpServers.push(server);
 			},
+			...(uiSlots ? { registerUiSlot: uiSlots.registerUiSlot } : {}),
 		};
 
 		if (typeof plugin.setup === "function") {
@@ -773,7 +793,7 @@ async function loadPluginDescriptor(args: {
 			try {
 				const setupCtx = {
 					...args.setupCtxBase,
-					emitEvent,
+					emitEvent: createPluginEventEmitter(pluginName),
 					onDispose: (cleanup: () => void | Promise<void>) => {
 						if (typeof cleanup === "function") disposers.push(cleanup);
 					},
@@ -795,6 +815,7 @@ async function loadPluginDescriptor(args: {
 								},
 							}
 						: {}),
+					...(uiSlots ? { ui: uiSlots.ui } : {}),
 				};
 				assertValidPluginSetupCtx(setupCtx);
 				const setup = plugin.setup.bind(plugin);
@@ -876,10 +897,13 @@ async function initialize(args: {
 	setupTimeoutMs?: number;
 	policy?: PluginPolicy;
 	policyNames?: Record<string, string[]>;
+	/** The session's slot catalog: the slots its host renders that this core knows. */
+	uiSlots?: string[];
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
 	contributionCounters.clear();
+	disposing = false;
 
 	// Apply the session's working directory so that process.cwd() and relative
 	// path resolution inside plugins reflect the correct workspace, not the
@@ -940,6 +964,7 @@ async function initialize(args: {
 				policyNames: args.policyNames?.[pluginPath],
 				loggerEnabled: args.loggerEnabled,
 				telemetryEnabled: args.telemetryEnabled,
+				uiSlots: hasValidStringArray(args.uiSlots) ? args.uiSlots : undefined,
 			});
 		}),
 	);
@@ -1032,7 +1057,7 @@ async function executeTool(args: {
 	const context = {
 		...sanitizeObject(args.context),
 		signal: controller.signal,
-		emitEvent,
+		emitEvent: createPluginEventEmitter(state.plugin.name),
 		emitUpdate: (update: unknown) => {
 			if (callId) emitEvent(TOOL_UPDATE_EVENT, { callId, update });
 		},
@@ -1055,6 +1080,7 @@ async function abortToolCall(args: {
 
 /** Runs every plugin's `ctx.onDispose` cleanup, newest first. */
 async function dispose(): Promise<void> {
+	disposing = true;
 	for (const state of pluginState.values()) {
 		await runDisposers(state.plugin.name, state.disposers);
 	}
@@ -1093,6 +1119,21 @@ async function executeCommand(args: {
 	return await handler(args.input);
 }
 
+/** Unlike a command, an unknown UI slot is an error: the host maps it to `rejected`. */
+async function invokeUiSlot(args: {
+	pluginId: string;
+	contributionId: string;
+	action: unknown;
+	context: unknown;
+}): Promise<unknown> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.handlers.ui.get(args.contributionId);
+	if (typeof handler !== "function") {
+		throw new Error("Unknown sandbox UI slot contribution");
+	}
+	return await handler(args.action, args.context);
+}
+
 async function buildMessages(args: {
 	pluginId: string;
 	contributionId: string;
@@ -1129,6 +1170,7 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	abortToolCall,
 	dispose,
 	executeCommand,
+	invokeUiSlot,
 	buildMessages,
 	resolveRuleContent,
 };

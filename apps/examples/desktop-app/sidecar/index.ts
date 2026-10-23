@@ -25,6 +25,11 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import {
+	broadcastHubBuildMismatch,
+	DESKTOP_REQUIRED_HUB_CAPABILITIES,
+	hubBuildWatchCallbacks,
+} from "./hub-capability";
 import { HubStartup } from "./hub-startup";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
@@ -192,18 +197,12 @@ async function main(desktopCliPath?: string) {
 	});
 
 	// Another Cline installation (e.g. an updated CLI) can replace the shared
-	// Hub daemon while this app is running. Surface that to the webview so it
-	// can prompt the user to update and restart.
+	// Hub daemon while this app is running, and a Hub of the same release can
+	// predate the plugin suggestion tray. Surface either to the webview so it
+	// can prompt the user to update or restart the Hub.
 	watchManagedHubBuildMismatch({
-		onMismatch: (mismatch) => {
-			ctx.hubBuildMismatch = mismatch;
-			observability.logger.log("Managed hub build mismatch detected", {
-				hubBuildId: mismatch.hubBuildId,
-				hubCoreVersion: mismatch.hubCoreVersion,
-				reason: mismatch.reason,
-			});
-			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
-		},
+		requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
+		...hubBuildWatchCallbacks(ctx),
 	});
 	// A wildcard bind isn't a dialable address; advertise loopback instead.
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
@@ -234,7 +233,9 @@ async function main(desktopCliPath?: string) {
 	// hosts keep protocol-only compatibility and must not show update prompts.
 	function checkStartupHubBuildMismatch(): void {
 		if (process.env.CLINE_HUB_PORT?.trim()) return;
-		void checkManagedHubBuildMismatch()
+		void checkManagedHubBuildMismatch({
+			requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
+		})
 			.then((mismatch) => {
 				if (!mismatch || ctx.hubBuildMismatch) {
 					return;
@@ -246,9 +247,10 @@ async function main(desktopCliPath?: string) {
 						hubBuildId: mismatch.hubBuildId,
 						hubCoreVersion: mismatch.hubCoreVersion,
 						reason: mismatch.reason,
+						missingCapabilities: mismatch.missingCapabilities,
 					},
 				);
-				broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+				broadcastHubBuildMismatch(ctx);
 			})
 			.catch(() => undefined);
 	}

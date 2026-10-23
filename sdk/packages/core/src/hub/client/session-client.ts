@@ -22,6 +22,12 @@ import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { NodeHubClient } from "../client";
 import { createHubPluginCommandsApi } from "./plugin-commands";
+import {
+	createHubPluginUiApi,
+	type HubPluginUiApi,
+	type HubPluginUiStreamHandlers,
+	streamHubPluginUi,
+} from "./plugin-ui";
 
 type ScheduleClientRecord = Record<string, unknown> & {
 	metadata?: Record<string, unknown>;
@@ -288,6 +294,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
 	readonly pluginCommands: PluginCommandsApi;
+	readonly pluginUi: HubPluginUiApi;
 
 	constructor(options: HubSessionClientOptions) {
 		this.client = new NodeHubClient({
@@ -301,6 +308,8 @@ export class HubSessionClient {
 			metadata: options.metadata,
 		});
 		this.pluginCommands = createHubPluginCommandsApi(this.client);
+		this.pluginUi = createHubPluginUiApi(this.client);
+		this.client.onRegistered(() => this.pluginUi.onRegistered());
 	}
 
 	async connect(): Promise<void> {
@@ -324,6 +333,7 @@ export class HubSessionClient {
 	}
 
 	async dispose(): Promise<void> {
+		this.pluginUi.forgetAll();
 		await this.client.dispose();
 	}
 
@@ -679,6 +689,19 @@ export class HubSessionClient {
 			);
 		});
 		return unsubscribe;
+	}
+
+	/**
+	 * The session's slot states: each slot's current one once connected and
+	 * again after every reconnect, then every live push. A current state can
+	 * arrive after a newer push, so order them by `(epoch, seq)`. Attach
+	 * through `pluginUi` to make the plugin serve them.
+	 */
+	streamPluginUi(
+		input: { sessionId: string },
+		handlers: HubPluginUiStreamHandlers,
+	): () => void {
+		return streamHubPluginUi(this.client, this.pluginUi, input, handlers);
 	}
 
 	async createSchedule(

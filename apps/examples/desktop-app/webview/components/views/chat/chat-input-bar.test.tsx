@@ -1,11 +1,27 @@
 // @vitest-environment jsdom
 
-import { act, type MouseEvent as ReactMouseEvent } from "react";
+import {
+	type ComposerSuggestionItem,
+	createSuggestionsLocal,
+	deriveSuggestionsView,
+	reduceSuggestionsLocal,
+	SUGGESTION_BREAKPOINTS,
+} from "@cline/shared/browser";
+import { act, type MouseEvent as ReactMouseEvent, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	type Mock,
+	vi,
+} from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import type { ComposerSuggestionsController } from "@/hooks/composer-suggestions/types";
+import { type RestorePrompt, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -260,20 +276,41 @@ async function renderVoiceComposer({
 	});
 }
 
+/** A chat pane's draft and send wiring as page.tsx has it, with the real store and composer. */
 function DraftComposer({
 	drafts,
 	threadId,
 	sendPrompt,
+	suggestions,
+	composerKey,
 }: {
 	drafts: Map<string, string>;
 	threadId: string;
 	sendPrompt?: (prompt: string) => Promise<boolean>;
+	/** A new key remounts the composer inside the same pane, as the transport loader does. */
+	composerKey?: string;
+	/** Builds the tray's controller around the pane's one-key Send. */
+	suggestions?: (
+		sendSuggestion: (prompt: string) => Promise<void>,
+	) => ComposerSuggestionsController;
 }) {
-	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
-		usePromptDraft(drafts, threadId);
+	const {
+		promptDraft,
+		handlePromptInputChange,
+		clearPromptForSend,
+		holdPromptForSend,
+	} = usePromptDraft(drafts, threadId);
+	const send = async (prompt: string, takeDraft: () => RestorePrompt) => {
+		const restorePrompt = takeDraft();
+		if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
+	};
+	const [controller] = useState(() =>
+		suggestions?.((prompt) => send(prompt, holdPromptForSend)),
+	);
 	return (
 		<WorkspaceProvider value={workspaceValue}>
 			<ChatInputBar
+				key={composerKey}
 				environmentId="local"
 				attachments={[]}
 				gitBranch="main"
@@ -293,10 +330,7 @@ function DraftComposer({
 				onReasoningChange={vi.fn()}
 				onRemoveAttachment={vi.fn()}
 				onRemovePromptInQueue={vi.fn()}
-				onSend={async (prompt) => {
-					const restorePrompt = clearPromptForSend();
-					if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
-				}}
+				onSend={(prompt) => send(prompt, clearPromptForSend)}
 				onSteerPromptInQueue={vi.fn()}
 				onSwitchGitBranch={vi.fn(async () => true)}
 				promptDraft={promptDraft}
@@ -304,6 +338,7 @@ function DraftComposer({
 				provider="cline"
 				reasoningEffort="low"
 				status="idle"
+				suggestions={controller}
 				summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
 				thinking
 			/>
@@ -3331,5 +3366,479 @@ describe("ChatInputBar token ring", () => {
 		);
 		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+	});
+});
+
+describe("ChatInputBar suggestion tray", () => {
+	const suggestion: ComposerSuggestionItem = {
+		id: "verify",
+		label: "Verify",
+		tone: "check",
+		icon: "verify",
+		prompt: "Run the tests and fix what fails",
+		sendable: true,
+	};
+
+	/** A controller over the real view model with one ready set, whose Use fills and focuses the box as the real one does. */
+	function stubSuggestions(enabled = true): ComposerSuggestionsController & {
+		use: Mock<ComposerSuggestionsController["use"]>;
+		submitted: Mock<ComposerSuggestionsController["submitted"]>;
+	} {
+		const local = [
+			{ type: "bind", sessionId: "session-1" },
+			{
+				type: "state",
+				now: 0,
+				envelope: {
+					sessionId: "session-1",
+					slot: "composer.suggestions",
+					plugin: "composer-suggestions",
+					epoch: 1,
+					seq: 1,
+					state: {
+						status: "ready",
+						title: "Next",
+						revision: "r1",
+						items: [suggestion],
+						canRefresh: false,
+					},
+				},
+			},
+			{ type: "view", ready: true, now: 0 },
+		].reduce(
+			(current, event) =>
+				reduceSuggestionsLocal(
+					current,
+					event as Parameters<typeof reduceSuggestionsLocal>[1],
+				),
+			createSuggestionsLocal(),
+		);
+		return {
+			enabled,
+			busy: false,
+			local,
+			now: 0,
+			canUnskip: false,
+			view: (facts, at = Date.now()) =>
+				deriveSuggestionsView(local, {
+					draft: facts.draft.trim() ? facts.draft : "",
+					busy: false,
+					blocked: facts.menuOpen || facts.dialogOpen,
+					queued: 0,
+					canUndo: false,
+					width: facts.width,
+					breakpoints: SUGGESTION_BREAKPOINTS.desktop,
+					now: at,
+				}),
+			reportView: vi.fn(),
+			move: vi.fn(),
+			highlight: vi.fn(),
+			use: vi.fn<ComposerSuggestionsController["use"]>(
+				(item, _input, composer) => {
+					composer.setDraft(item.prompt);
+					composer.focus();
+				},
+			),
+			send: vi.fn(async () => undefined),
+			skip: vi.fn(),
+			refresh: vi.fn(),
+			unskip: vi.fn(),
+			collapse: vi.fn(),
+			hideForChat: vi.fn(),
+			show: vi.fn(),
+			clear: vi.fn(),
+			undoSent: vi.fn(async () => undefined),
+			submitted: vi.fn<ComposerSuggestionsController["submitted"]>(),
+			draftCleared: vi.fn(),
+		};
+	}
+
+	async function renderWithSuggestions({
+		suggestions,
+		variant = "conversation",
+		prompt = "",
+		promptVersion = 0,
+		onSend = vi.fn(),
+		attachments = [],
+		model = "test-model",
+	}: {
+		suggestions: ComposerSuggestionsController;
+		variant?: "conversation" | "welcome";
+		prompt?: string;
+		promptVersion?: number;
+		onSend?: (prompt: string) => void;
+		attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
+		model?: string;
+	}) {
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={attachments}
+						environmentId="local"
+						executionTarget="local"
+						gitBranch="main"
+						mode="act"
+						model={model}
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={onSend}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: promptVersion, value: prompt }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						suggestions={suggestions}
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant={variant}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+	}
+
+	function tray(): Element | null {
+		return container.querySelector('[data-testid="suggestion-tray"]');
+	}
+
+	beforeEach(() => {
+		vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Win32");
+	});
+
+	it("sits above a conversation's message box only while the controller is enabled", async () => {
+		await renderWithSuggestions({ suggestions: stubSuggestions() });
+		const region = tray();
+		const textarea = container.querySelector("textarea");
+		expect(region?.querySelector('[role="option"]')?.textContent).toContain(
+			"Verify",
+		);
+		expect(
+			region && textarea
+				? region.compareDocumentPosition(textarea) &
+						Node.DOCUMENT_POSITION_FOLLOWING
+				: 0,
+		).toBeTruthy();
+
+		await renderWithSuggestions({
+			suggestions: stubSuggestions(),
+			variant: "welcome",
+		});
+		expect(
+			container.querySelector('[data-testid="suggestion-tray-root"]'),
+		).toBeNull();
+
+		await renderWithSuggestions({ suggestions: stubSuggestions(false) });
+		expect(
+			container.querySelector('[data-testid="suggestion-tray-root"]'),
+		).toBeNull();
+	});
+
+	it("Ctrl+1 fills and focuses the composer's own message box", async () => {
+		const suggestions = stubSuggestions();
+		await renderWithSuggestions({ suggestions });
+
+		await act(async () => {
+			document.body.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					cancelable: true,
+					code: "Digit1",
+					key: "1",
+					ctrlKey: true,
+				}),
+			);
+		});
+
+		const textarea = container.querySelector("textarea");
+		expect(suggestions.use).toHaveBeenCalledWith(
+			suggestion,
+			"key",
+			expect.anything(),
+		);
+		expect(textarea?.value).toBe(suggestion.prompt);
+		expect(document.activeElement).toBe(textarea);
+	});
+
+	it("steps aside while the slash menu is open over the message box", async () => {
+		await renderWithSuggestions({
+			suggestions: stubSuggestions(),
+			prompt: "draft",
+		});
+		expect(tray()?.textContent).toContain("clear the message box");
+
+		await renderWithSuggestions({
+			suggestions: stubSuggestions(),
+			prompt: "/",
+			promptVersion: 1,
+		});
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+		expect(tray()).toBeNull();
+	});
+
+	it("tells the tray what Enter submits before sending it", async () => {
+		const suggestions = stubSuggestions();
+		const onSend = vi.fn<(prompt: string) => void>();
+		await renderWithSuggestions({
+			suggestions,
+			prompt: suggestion.prompt,
+			onSend,
+		});
+
+		await act(async () => {
+			container
+				.querySelector("textarea")
+				?.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+				);
+		});
+
+		expect(suggestions.submitted).toHaveBeenCalledWith(suggestion.prompt);
+		expect(onSend).toHaveBeenCalledWith(suggestion.prompt);
+		expect(suggestions.submitted.mock.invocationCallOrder[0]).toBeLessThan(
+			onSend.mock.invocationCallOrder[0] ?? 0,
+		);
+	});
+
+	it("refuses the tray's Send, with the composer's reason, while the composer would refuse its own", async () => {
+		const suggestions = stubSuggestions();
+		const attachments = [{ id: "image", name: "photo.png", isImage: true }];
+		await renderWithSuggestions({
+			suggestions,
+			attachments,
+			model: "text-only",
+		});
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{ id: "text-only", name: "Text only", inputModalities: ["text"] },
+			]);
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[data-testid="suggestion-legend"] button[data-verb="send"]',
+				)
+				?.click();
+		});
+		await act(async () => {
+			container.querySelector("textarea")?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					cancelable: true,
+					code: "Digit1",
+					key: "!",
+					ctrlKey: true,
+					shiftKey: true,
+				}),
+			);
+		});
+
+		expect(suggestions.send).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledTimes(2);
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "This model doesn’t support image input",
+			}),
+		);
+		expect(container.textContent).toContain("photo.png");
+
+		await renderWithSuggestions({
+			suggestions,
+			attachments: [],
+			model: "text-only",
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[data-testid="suggestion-legend"] button[data-verb="send"]',
+				)
+				?.click();
+		});
+
+		expect(suggestions.send).toHaveBeenCalledTimes(1);
+	});
+
+	it("refuses the tray's Send while dictation is filling the box", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		const suggestions = stubSuggestions();
+		await renderWithSuggestions({ suggestions });
+		await vi.waitFor(() => {
+			expect(speechInputMockState.current).not.toBeNull();
+		});
+		await act(async () => {
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>(
+					'[data-testid="suggestion-legend"] button[data-verb="send"]',
+				)
+				?.click();
+		});
+
+		expect(suggestions.send).not.toHaveBeenCalled();
+	});
+
+	describe("one-key Send", () => {
+		let drafts: Map<string, string>;
+		beforeEach(() => {
+			drafts = new Map();
+		});
+
+		/** A pane whose tray Send submits the highlighted prompt once the plugin's verdict, `verdict()`, lands. */
+		function renderPane(
+			sendPrompt: (prompt: string) => Promise<boolean>,
+			{
+				verdict = async () => undefined,
+				composerKey,
+			}: { verdict?: () => Promise<void>; composerKey?: string } = {},
+		) {
+			return act(async () => {
+				root.render(
+					<DraftComposer
+						composerKey={composerKey}
+						drafts={drafts}
+						sendPrompt={sendPrompt}
+						suggestions={(sendSuggestion) => ({
+							...stubSuggestions(),
+							send: async (view) => {
+								await verdict();
+								await sendSuggestion(view.highlighted.prompt);
+							},
+						})}
+						threadId="A"
+					/>,
+				);
+			});
+		}
+
+		/** Shift+Ctrl+1. */
+		function pressSend() {
+			return act(async () => {
+				document.body.dispatchEvent(
+					new KeyboardEvent("keydown", {
+						bubbles: true,
+						cancelable: true,
+						code: "Digit1",
+						key: "!",
+						ctrlKey: true,
+						shiftKey: true,
+					}),
+				);
+			});
+		}
+
+		async function typeIntoBox(value: string) {
+			const textarea = container.querySelector("textarea");
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set;
+			await act(async () => {
+				setValue?.call(textarea, value);
+				textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+		}
+
+		it("leaves text typed during the verdict wait in the box", async () => {
+			const verdict = deferred<void>();
+			const sendPrompt = vi.fn(async (_prompt: string) => true);
+			await renderPane(sendPrompt, { verdict: () => verdict.promise });
+			await pressSend();
+			await typeIntoBox("also update the changelog");
+
+			await act(async () => verdict.resolve());
+
+			expect(sendPrompt).toHaveBeenCalledWith(suggestion.prompt);
+			expect(container.querySelector("textarea")?.value).toBe(
+				"also update the changelog",
+			);
+			expect(drafts.get("A")).toBe("also update the changelog");
+		});
+
+		it("puts a failed send's prompt back into the box it left empty", async () => {
+			const verdict = deferred<void>();
+			await renderPane(async () => false, { verdict: () => verdict.promise });
+			await pressSend();
+
+			await act(async () => verdict.resolve());
+
+			expect(container.querySelector("textarea")?.value).toBe(
+				suggestion.prompt,
+			);
+		});
+
+		describe("when the composer remounts after the send", () => {
+			function failOnceThenSend() {
+				return vi
+					.fn<(prompt: string) => Promise<boolean>>()
+					.mockResolvedValueOnce(false)
+					.mockResolvedValue(true);
+			}
+
+			it("does not bring back a restored prompt the user cleared and then sent", async () => {
+				const sendPrompt = failOnceThenSend();
+				await renderPane(sendPrompt);
+				await pressSend();
+				expect(container.querySelector("textarea")?.value).toBe(
+					suggestion.prompt,
+				);
+				await typeIntoBox("");
+				await pressSend();
+				expect(sendPrompt).toHaveBeenCalledTimes(2);
+
+				await renderPane(sendPrompt, { composerKey: "remounted" });
+
+				expect(container.querySelector("textarea")?.value).toBe("");
+			});
+
+			it("shows the text typed during the verdict wait, not the sent prompt", async () => {
+				const sendPrompt = failOnceThenSend();
+				const secondVerdict = deferred<void>();
+				const verdicts = [Promise.resolve(), secondVerdict.promise];
+				await renderPane(sendPrompt, {
+					verdict: () => verdicts.shift() ?? Promise.resolve(),
+				});
+				await pressSend();
+				await typeIntoBox("");
+				await pressSend();
+				await typeIntoBox("also update the changelog");
+				await act(async () => secondVerdict.resolve());
+				expect(sendPrompt).toHaveBeenCalledTimes(2);
+
+				await renderPane(sendPrompt, { composerKey: "remounted" });
+
+				expect(container.querySelector("textarea")?.value).toBe(
+					"also update the changelog",
+				);
+			});
+		});
 	});
 });

@@ -1,5 +1,8 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
+/** Puts a failed send's prompt back, but only into a box that is empty and untouched since the send. */
+export type RestorePrompt = (value: string) => boolean;
+
 /**
  * Keeps drafts outside the keyed chat pane so navigation can safely unmount it.
  * Keystrokes only update the ref/cache; external edits also update the composer.
@@ -45,10 +48,9 @@ export function usePromptDraft(drafts: Map<string, string>, threadId: string) {
 		},
 		[handlePromptInputChange],
 	);
-	const clearPromptForSend = useCallback(() => {
-		setPromptInput("");
+	const restorePromptIfUntouched = useCallback((): RestorePrompt => {
 		const revision = revisionRef.current;
-		return (value: string): boolean => {
+		return (value) => {
 			if (
 				!mountedRef.current ||
 				revisionRef.current !== revision ||
@@ -60,6 +62,25 @@ export function usePromptDraft(drafts: Map<string, string>, threadId: string) {
 			return true;
 		};
 	}, [setPromptInput]);
+	/**
+	 * For a send whose prompt did not come from the box: leaves the box as it is.
+	 * The draft takes the box's text under the same version, so the composer does
+	 * not re-apply it, but a remounted composer starts from that text and not from
+	 * an older injected draft, which may be a prompt already sent.
+	 */
+	const holdPromptForSend = useCallback((): RestorePrompt => {
+		const held = promptInputRef.current;
+		if (mountedRef.current) {
+			setPromptDraft((prev) =>
+				prev.value === held ? prev : { version: prev.version, value: held },
+			);
+		}
+		return restorePromptIfUntouched();
+	}, [restorePromptIfUntouched]);
+	const clearPromptForSend = useCallback((): RestorePrompt => {
+		setPromptInput("");
+		return restorePromptIfUntouched();
+	}, [restorePromptIfUntouched, setPromptInput]);
 
 	return {
 		promptInputRef,
@@ -67,5 +88,6 @@ export function usePromptDraft(drafts: Map<string, string>, threadId: string) {
 		setPromptInput,
 		handlePromptInputChange,
 		clearPromptForSend,
+		holdPromptForSend,
 	};
 }

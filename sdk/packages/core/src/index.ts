@@ -714,6 +714,12 @@ export {
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
 export type {
+	PluginUiApi,
+	PluginUiHostApi,
+	PluginUiHostRuntimeService,
+	PluginUiRuntimeService,
+} from "./services/plugin-ui-api";
+export type {
 	PluginUninstallOptions,
 	PluginUninstallResult,
 } from "./services/plugin-uninstall";
@@ -1043,6 +1049,10 @@ export {
 	truncateCommandOutput,
 } from "./extensions/tools";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
+export {
+	createHubPluginUiApi,
+	type HubPluginUiApi,
+} from "./hub/client/plugin-ui";
 export * from "./remote/remote-environments";
 export { ensureLoginShellPath } from "./remote/shell-path";
 export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
@@ -1057,6 +1067,7 @@ export {
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./services/llms/cline-recommended-models";
+export { createAgentModelFromConfig } from "./services/llms/handler-factory";
 export {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,

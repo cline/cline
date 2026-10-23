@@ -18,6 +18,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubCapabilityNotice } from "@/components/hub-capability-notice/hub-capability-notice";
 import { HubStartupScreen } from "@/components/hub-startup-screen";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { QuitHoldHandler } from "@/components/quit-hold-handler";
@@ -59,9 +60,10 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useComposerSuggestions } from "@/hooks/use-composer-suggestions";
 import { useHubStartup } from "@/hooks/use-hub-startup";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
-import { usePromptDraft } from "@/hooks/use-prompt-draft";
+import { type RestorePrompt, usePromptDraft } from "@/hooks/use-prompt-draft";
 import { useRemoteEnvironmentBootstrap } from "@/hooks/use-remote-environment-bootstrap";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -985,6 +987,7 @@ function App() {
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
+							<HubCapabilityNotice className="mx-4 my-2 shrink-0" />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
 									<SessionsView
@@ -1244,6 +1247,7 @@ function ChatThreadPane({
 	}, [onThreadStarted, sessionId, threadId]);
 	const {
 		clearPromptForSend,
+		holdPromptForSend,
 		promptDraft,
 		setPromptInput,
 		handlePromptInputChange,
@@ -1930,7 +1934,7 @@ function ChatThreadPane({
 	);
 
 	const handleSend = useCallback(
-		async (prompt: string) => {
+		async (prompt: string, takeDraft: () => RestorePrompt) => {
 			const trimmed = prompt.trim();
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
@@ -1939,10 +1943,7 @@ function ChatThreadPane({
 				return;
 			}
 			onThreadStarted?.(threadId);
-			// Also clear the injected draft: the composer cleared its local copy,
-			// but a stale non-empty draft would repopulate the input if the
-			// composer remounts (e.g. a transport blip re-showing the loader).
-			const restorePrompt = clearPromptForSend();
+			const restorePrompt = takeDraft();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			const promptTaken = await sendPrompt(trimmed, toSend, {
@@ -1956,7 +1957,6 @@ function ChatThreadPane({
 			}
 		},
 		[
-			clearPromptForSend,
 			config.repoUrl,
 			handleAttachFiles,
 			isCloudSession,
@@ -2344,9 +2344,16 @@ function ChatThreadPane({
 			}),
 		[providerCredentials, setConfig],
 	);
+	// A typed send also clears the injected draft: the composer cleared its
+	// local copy, but a stale non-empty draft would repopulate the input if the
+	// composer remounts (e.g. a transport blip re-showing the loader).
 	const handleSendPrompt = useCallback(
-		(prompt: string) => void handleSend(prompt),
-		[handleSend],
+		(prompt: string) => void handleSend(prompt, clearPromptForSend),
+		[clearPromptForSend, handleSend],
+	);
+	const handleSendSuggestion = useCallback(
+		(prompt: string) => void handleSend(prompt, holdPromptForSend),
+		[handleSend, holdPromptForSend],
 	);
 
 	const firstUserMessage = messages.find(
@@ -2399,6 +2406,23 @@ function ChatThreadPane({
 		!displayedError &&
 		!isProvisioningCloudSession &&
 		!historySession;
+	const composerSuggestions = useComposerSuggestions({
+		enabled:
+			environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID && !isCloudSession,
+		environmentId,
+		sessionId: displayedSessionId,
+		status: displayedStatus,
+		loadingChat: displayedIsSwitching,
+		waiting: pendingToolApprovals.length > 0 || pendingAskQuestions.length > 0,
+		messages: displayedMessages,
+		promptsInQueue,
+		pendingAttachments,
+		onAttachFiles: handleAttachFiles,
+		onSend: handleSendSuggestion,
+		onUndoTurn: handleEditMessage,
+		onRemoveQueuedPrompt: removePromptInQueue,
+		abort,
+	});
 	const isSessionActive =
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
@@ -2577,6 +2601,7 @@ function ChatThreadPane({
 			status={status}
 			summary={summary}
 			thinking={config.thinking}
+			suggestions={composerSuggestions}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
 	);

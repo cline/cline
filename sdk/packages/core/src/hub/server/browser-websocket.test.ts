@@ -145,6 +145,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 				workspaceRoot: resolve("/server-workspace"),
 				cwd: resolve("/server-workspace/project"),
 			},
+			connectionId: expect.any(String),
 		});
 
 		socket.emitMessage(
@@ -289,6 +290,75 @@ describe("BrowserWebSocketHubAdapter", () => {
 				cwd: resolve("/second-workspace/project"),
 			},
 			crossWorkspace: true,
+			connectionId: expect.any(String),
+		});
+	});
+
+	it("scopes the registered authority to its socket and names that socket when it closes", async () => {
+		const transport = {
+			command: vi.fn(
+				async (
+					envelope: HubCommandEnvelope,
+					_authority?: HubConnectionAuthority | null,
+				) => ({
+					version: "v1" as const,
+					requestId: envelope.requestId,
+					ok: true,
+				}),
+			),
+			subscribe: vi.fn(),
+		};
+		const adapter = new BrowserWebSocketHubAdapter(transport);
+		const register = (socket: ReturnType<typeof createSocket>) => {
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						command: "client.register",
+						requestId: "register",
+						clientId: "client-1",
+						payload: { clientId: "client-1", clientType: "test" },
+					},
+				}),
+			);
+		};
+		const first = createSocket();
+		const second = createSocket();
+		adapter.attach(first);
+		adapter.attach(second);
+		register(first);
+		register(second);
+		await vi.waitFor(() => {
+			expect(first.sent).toHaveLength(1);
+			expect(second.sent).toHaveLength(1);
+		});
+		for (const socket of [first, second]) {
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						command: "plugins.ui.get",
+						requestId: "get",
+						clientId: "client-1",
+					},
+				}),
+			);
+		}
+		await vi.waitFor(() => expect(transport.command).toHaveBeenCalledTimes(4));
+		const firstConnection = transport.command.mock.calls[2]?.[1]?.connectionId;
+		const secondConnection = transport.command.mock.calls[3]?.[1]?.connectionId;
+		expect(firstConnection).toEqual(expect.any(String));
+		expect(secondConnection).toEqual(expect.any(String));
+		expect(firstConnection).not.toBe(secondConnection);
+
+		first.emitClose();
+		expect(transport.command).toHaveBeenLastCalledWith({
+			version: "v1",
+			command: "client.unregister",
+			clientId: "client-1",
+			payload: { connectionId: firstConnection },
 		});
 	});
 

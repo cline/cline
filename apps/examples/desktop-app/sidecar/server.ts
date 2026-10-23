@@ -3,16 +3,18 @@ import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
+import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
-import { abandonComposioConnectsForOwner } from "./composio";
+import { visibleHubBuildMismatch } from "./hub-capability";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
+import { releasePluginUiViewer } from "./plugin-ui";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -367,11 +369,12 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 			if (ctx.hubStartup) {
 				ws.send(encodeSidecarEvent("hub_status", ctx.hubStartup.status));
 			}
-			// Replay a pending mismatch so webviews that connect (or reload)
-			// after detection still prompt the user to update and restart.
-			if (ctx.hubBuildMismatch) {
-				ws.send(encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch));
-			}
+			// Replay the current mismatch, null included: a webview that
+			// reconnects in place keeps its notice mounted, so it needs the
+			// withdrawal it missed as much as a mismatch detected meanwhile.
+			ws.send(
+				encodeSidecarEvent("hub_build_mismatch", visibleHubBuildMismatch(ctx)),
+			);
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {
 			let request: DesktopTransportRequest;
@@ -403,6 +406,7 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
+			releasePluginUiViewer(ctx, ws);
 			cancelSidecarToolApprovalsForOwner(ctx, ws);
 			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			// Browser OAuth flows are interactive: if the connection that started

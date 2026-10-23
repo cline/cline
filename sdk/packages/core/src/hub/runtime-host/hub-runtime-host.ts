@@ -25,6 +25,7 @@ import {
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isGeneratedMedia,
 	isHubToolExecutorName,
+	readPluginUiEnvelope,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
@@ -84,6 +85,7 @@ import {
 	restartLocalHubIfIdleAfterStartupTimeout,
 } from "../client";
 import { createHubPluginCommandsApi } from "../client/plugin-commands";
+import { createHubPluginUiApi } from "../client/plugin-ui";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -768,6 +770,10 @@ export class HubRuntimeHost implements RuntimeHost {
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
 	public readonly pluginCommands: PluginCommandsApi;
+	public readonly pluginUi = createHubPluginUiApi(
+		{ command: (...args) => this.client.command(...args) },
+		{ beforeCommand: (sessionId) => this.ensureSessionSubscription(sessionId) },
+	);
 	private client: NodeHubClient;
 	private readonly clientOptions: Omit<HubClientOptions, "url">;
 	private readonly clientContext?: { workspaceRoot?: string; cwd?: string };
@@ -817,7 +823,9 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	private createClient(url: string): NodeHubClient {
-		return new NodeHubClient({ ...this.clientOptions, url });
+		const client = new NodeHubClient({ ...this.clientOptions, url });
+		client.onRegistered(() => this.pluginUi.onRegistered());
+		return client;
 	}
 
 	private async replaceClient(url: string): Promise<void> {
@@ -915,6 +923,7 @@ export class HubRuntimeHost implements RuntimeHost {
 							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
 						}
 					: {}),
+				...(input.uiSlots?.length ? { uiSlots: [...input.uiSlots] } : {}),
 				initialMessages: input.initialMessages,
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
@@ -1074,6 +1083,9 @@ export class HubRuntimeHost implements RuntimeHost {
 												startConfig.plugins as Record<string, unknown>,
 											),
 										}
+									: {}),
+								...(startConfig.uiSlots?.length
+									? { uiSlots: [...startConfig.uiSlots] }
 									: {}),
 								...(startConfig.initialCompactionState
 									? {
@@ -1335,6 +1347,7 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async dispose(): Promise<void> {
+		this.pluginUi.forgetAll();
 		for (const [sessionId, unsubscribe] of this.sessionSubscriptions) {
 			unsubscribe();
 			try {
@@ -1596,6 +1609,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.get(target)?.();
 		this.sessionSubscriptions.delete(target);
 		this.agentDoneEmittedForCurrentRunBySession.delete(target);
+		this.pluginUi.forget(target);
 	}
 
 	private resolveCapabilities(input: StartSessionInput): RuntimeCapabilities {
@@ -2017,6 +2031,13 @@ export class HubRuntimeHost implements RuntimeHost {
 							: [],
 					},
 				});
+				return;
+			}
+			case "plugins.ui.state": {
+				const envelope = readPluginUiEnvelope(event.payload);
+				if (envelope?.sessionId === sessionId) {
+					this.events.emit({ type: "plugin_ui_state", payload: envelope });
+				}
 				return;
 			}
 			case "session.pending_prompt_submitted": {

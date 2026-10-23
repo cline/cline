@@ -388,6 +388,43 @@ describe("NodeHubClient", () => {
 
 			await client.dispose();
 		});
+
+		it("runs onRegistered listeners after every registration, once the subscriptions are re-sent", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			client.subscribe(() => {}, { sessionId: "session-1" });
+			const framesAtRegistration: unknown[][] = [];
+			const stop = client.onRegistered(() => {
+				const socket = MockWebSocket.instances.at(-1);
+				framesAtRegistration.push([...(socket?.sentFrames ?? [])]);
+			});
+			client.onRegistered(() => {
+				throw new Error("listener failure");
+			});
+			const subscribeFrame = {
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+				sessionId: "session-1",
+			};
+			try {
+				await client.connect();
+				expect(framesAtRegistration).toHaveLength(1);
+				expect(framesAtRegistration[0]).toContainEqual(subscribeFrame);
+
+				MockWebSocket.instances[0]?.emit("close", { code: 1006, reason: "" });
+				await client.connect();
+				expect(MockWebSocket.instances).toHaveLength(2);
+				expect(framesAtRegistration).toHaveLength(2);
+				expect(framesAtRegistration[1]).toContainEqual(subscribeFrame);
+
+				stop();
+				MockWebSocket.instances[1]?.emit("close", { code: 1006, reason: "" });
+				await client.connect();
+				expect(framesAtRegistration).toHaveLength(2);
+			} finally {
+				await client.dispose();
+			}
+		});
 	});
 
 	describe("timeouts", () => {
