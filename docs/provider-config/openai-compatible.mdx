@@ -36,6 +36,21 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 
 **Note:** If you are using a different OpenAI-compatible provider (such as Together AI, Anyscale, etc.), the available model IDs will differ. Always refer to your specific provider's documentation for their supported model names and any unique configuration details.
 
+### Token Market
+
+[Token Market](https://www.tokensmarket.ai/) provides OpenAI-compatible access to models from multiple providers through a unified API endpoint.
+
+#### Quickstart
+
+1. Create a workspace API key by following the [Token Market API Key guide](https://www.tokensmarket.ai/docs/api-examples/api-key).
+2. In Cline settings, select **OpenAI Compatible** as the API Provider.
+3. Set **Base URL** to `https://api.tokensmarket.ai/v1`. Do not append `/chat/completions`.
+4. Paste your Token Market API key.
+5. Enter a currently available model ID from the [Token Market Model Market](https://www.tokensmarket.ai/models).
+6. Click **Verify** to test and save the connection.
+
+For provider-specific notes and the current Cline interface, see the [Token Market Cline guide](https://www.tokensmarket.ai/docs/scenarios/cline).
+
 ### v0 (Vercel SDK) in Cline:
 
 -   For developers working with v0, their [AI SDK documentation](https://vercel.com/docs/v0/cline) provides valuable insights and examples for integrating various models, many of which are OpenAI-compatible. This can be a helpful resource for understanding how to structure calls and manage configurations when using Cline with services deployed on or integrated with Vercel.
