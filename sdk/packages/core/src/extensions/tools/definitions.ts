@@ -827,8 +827,14 @@ export function createSkillsTool(
  * An empty answer (dismissed, timed out, session torn
  * down) is an error so the model never assumes an answer the user did not give.
  */
-function validateAskQuestionAnswer(answer: string): string {
-	if (!answer.trim()) {
+function validateAskQuestionAnswer(
+	answer: Awaited<ReturnType<AskQuestionExecutor>>,
+): Awaited<ReturnType<AskQuestionExecutor>> {
+	const answered =
+		typeof answer === "string"
+			? answer.trim()
+			: answer.some((part) => part.type === "image" || part.text.trim());
+	if (!answered) {
 		throw new Error(
 			"The user did not answer. Do not assume an answer: make a reasonable choice and say so, or stop and report what you need.",
 		);

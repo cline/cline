@@ -289,6 +289,8 @@ describe("default ask_question tool", () => {
 	it.each([
 		"",
 		"   ",
+		[],
+		[{ type: "text" as const, text: "  " }],
 	])("errors instead of returning empty answer %j", async (answer) => {
 		const askTool = createDefaultTools({
 			executors: { askQuestion: async () => answer },
@@ -300,6 +302,21 @@ describe("default ask_question tool", () => {
 				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
 			),
 		).rejects.toThrow("The user did not answer");
+	});
+
+	it("accepts an answer with only an attachment", async () => {
+		const answer = [
+			{ type: "image" as const, mediaType: "image/png", data: "abc" },
+		];
+		const askTool = createDefaultTools({
+			executors: { askQuestion: async () => answer },
+			enableAskQuestion: true,
+		}).find((tool) => tool.name === "ask_question");
+		const result = await askTool?.execute(
+			{ question: "Which?", options: ["a", "b"] },
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+		expect(result).toEqual(answer);
 	});
 });
 
