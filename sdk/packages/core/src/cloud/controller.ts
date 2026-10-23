@@ -438,6 +438,7 @@ export class CloudSessionController {
 	private readonly unlistedSessions = new Map<string, CloudSessionRecord>();
 	private readonly pendingInitialTasks: Map<string, CloudCreationOptions>;
 	private lastListedSessions: CloudSessionRecord[] = [];
+	private lastListedAt?: number;
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly unconfirmedInnerCreates = new Set<string>();
 	private readonly createRequests = new Map<
@@ -802,6 +803,7 @@ export class CloudSessionController {
 			}
 		}
 		this.lastListedSessions = scoped;
+		this.lastListedAt = Date.now();
 		for (const record of scoped)
 			if (this.sessions.has(record.id)) this.publishSnapshot(record.id);
 		return immutableCopy(scoped);
@@ -907,21 +909,29 @@ export class CloudSessionController {
 	}
 
 	async listForDiscovery(
-		options: { timeoutMs?: number } = {},
+		options: { timeoutMs?: number; maxAgeMs?: number } = {},
 	): Promise<JsonRecord[]> {
+		if (this.disposed) throw new Error("Cloud session controller was disposed");
+		const maxAgeMs = options.maxAgeMs ?? 0;
+		const cacheIsFresh =
+			maxAgeMs > 0 &&
+			this.lastListedAt !== undefined &&
+			Date.now() - this.lastListedAt < maxAgeMs;
 		const refresh =
 			this.discoveryRefresh ??
-			this.list().finally(() => {
-				if (this.discoveryRefresh === refresh) {
-					this.discoveryRefresh = undefined;
-				}
-			});
+			(cacheIsFresh
+				? undefined
+				: this.list().finally(() => {
+						if (this.discoveryRefresh === refresh) {
+							this.discoveryRefresh = undefined;
+						}
+					}));
 		this.discoveryRefresh = refresh;
 
 		let records = this.lastListedSessions;
-		if (options.timeoutMs === undefined) {
+		if (refresh && options.timeoutMs === undefined) {
 			records = await refresh;
-		} else {
+		} else if (refresh) {
 			let timeout: ReturnType<typeof setTimeout> | undefined;
 			const result = await Promise.race([
 				refresh.then(
@@ -2007,6 +2017,12 @@ export class CloudSessionController {
 			if (record) {
 				record.title = title;
 			}
+			const listed = this.lastListedSessions.find(
+				(session) => session.id === outerSessionId,
+			);
+			if (listed) {
+				listed.title = title;
+			}
 			const live = this.sessions.get(outerSessionId);
 			if (live) {
 				live.title = title;
@@ -2044,6 +2060,9 @@ export class CloudSessionController {
 					throw error;
 				}
 			}
+			this.lastListedSessions = this.lastListedSessions.filter(
+				(record) => record.id !== outerSessionId,
+			);
 			this.knownSessions.delete(outerSessionId);
 			this.unlistedSessions.delete(outerSessionId);
 			this.pendingInitialTasks.delete(outerSessionId);

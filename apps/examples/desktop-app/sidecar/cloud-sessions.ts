@@ -65,7 +65,7 @@ export class CloudSessionManager extends CloudSessionController {
 		});
 	}
 	override async listForDiscovery(
-		options: { timeoutMs?: number } = {},
+		options: Parameters<CloudSessionController["listForDiscovery"]>[0] = {},
 	): Promise<Record<string, unknown>[]> {
 		return (await super.listForDiscovery(options)).map((record) => ({
 			...record,
