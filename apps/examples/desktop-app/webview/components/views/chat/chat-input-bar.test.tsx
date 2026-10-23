@@ -465,6 +465,39 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Session A plugin");
 	});
 
+	it("loads commands up front so a skill chips before the menu opens", async () => {
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) =>
+				name === "list_plugin_commands"
+					? { status: "ready", commands: [] }
+					: {
+							runtimeCommands: [
+								{ name: "publish-skill", kind: "skill", description: "" },
+							],
+						},
+			);
+		const instructionRequests = () =>
+			invoke.mock.calls.filter(
+				([name]) => name === "list_user_instruction_configs",
+			).length;
+		await renderVoiceComposer({
+			prompt: "/publish-skill ship it",
+			executionTarget: "local",
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		expect(instructionRequests()).toBe(1);
+		const chip = container.querySelector("[aria-hidden] span");
+		expect(chip?.textContent).toBe("/publish-skill");
+
+		await renderVoiceComposer({
+			prompt: "/pub",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(instructionRequests()).toBe(2);
+	});
+
 	it("refreshes commands on reopen without resetting cached suggestions", async () => {
 		const updated = deferred<{
 			runtimeCommands: Array<{
