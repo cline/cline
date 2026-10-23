@@ -210,6 +210,78 @@ function resumableFixture(status = "ready") {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("does not reuse another organization's listing while the new listing times out", async () => {
+		let organizationId = "org-one";
+		const f = fixture({ getActiveOrganizationId: async () => organizationId });
+		try {
+			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+			organizationId = "org-two";
+			let finish!: (rows: CloudSessionRecord[]) => void;
+			f.api.list.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+			expect(await f.controller.listForDiscovery({ timeoutMs: 0 })).toEqual([]);
+			finish([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("starts discovery in the new organization without joining an old organization's pending listing", async () => {
+		let organizationId = "org-one";
+		const f = fixture({ getActiveOrganizationId: async () => organizationId });
+		let finish!: (rows: CloudSessionRecord[]) => void;
+		f.api.list.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const oldListing = f.controller.listForDiscovery();
+		try {
+			await vi.waitFor(() =>
+				expect(f.api.list).toHaveBeenCalledWith("org-one"),
+			);
+			organizationId = "org-two";
+			f.api.list.mockResolvedValue([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+		} finally {
+			finish([structuredClone(record)]);
+			await oldListing;
+			await f.controller.dispose();
+		}
+	});
+
+	it.each([
+		undefined,
+		"org-one",
+	])("keeps newly created fallback rows in their creation scope (%s)", async (initialOrganization) => {
+		let organizationId: string | undefined = initialOrganization;
+		const f = fixture({ getActiveOrganizationId: async () => organizationId });
+		f.api.list.mockResolvedValue([]);
+		try {
+			await f.controller.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			});
+			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+			organizationId = initialOrganization ? undefined : "org-two";
+			await f.controller.refreshOrganization();
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+			expect(await f.controller.listForDiscovery()).toEqual([]);
+			// The original task and first-task preferences survive a sidebar scope change.
+			expect(f.controller.getCachedDiscoveryRecord(record.id)).toBeDefined();
+			organizationId = initialOrganization;
+			await f.controller.refreshOrganization();
+			expect(await f.controller.listForDiscovery()).toHaveLength(1);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+
 	it("refreshes an attached session title after an external rename", async () => {
 		const f = await attached();
 		await f.controller.updateTitle(record.id, "Desktop title");
