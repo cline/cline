@@ -2028,6 +2028,21 @@ describe("stdinHasPipedInput", () => {
 		expect(stdinHasPipedInput()).toBe(true);
 	});
 
+	it("counts a socket only when allowSocket is set", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: undefined,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => false,
+			isFile: () => false,
+			isSocket: () => true,
+		} as unknown as ReturnType<typeof fstatSync>);
+		const { stdinHasPipedInput } = await import("./main");
+		expect(stdinHasPipedInput()).toBe(false);
+		expect(stdinHasPipedInput({ allowSocket: true })).toBe(true);
+	});
+
 	it("returns false in headless/CI (not TTY, not pipe, not file)", async () => {
 		Object.defineProperty(process.stdin, "isTTY", {
 			value: undefined,
