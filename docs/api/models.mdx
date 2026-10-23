@@ -28,7 +28,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "minimax/minimax-m2.5",
+    "model": "cline-free/nemotron-3.5-super-vl",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
@@ -50,7 +50,7 @@ Models with reasoning support include most Claude, Gemini 2.5, and Grok 3 models
 | Best coding performance | `anthropic/claude-sonnet-4-6` |
 | Long document analysis | `google/gemini-2.5-pro` (1M context) |
 | Fast, cheap responses | `deepseek/deepseek-chat` |
-| Free experimentation | `minimax/minimax-m2.5` |
+| Free experimentation | `cline-free/nemotron-3.5-super-vl` |
 | Multi-modal (text + images) | `openai/gpt-4o` or `anthropic/claude-sonnet-4-6` |
 | Complex reasoning | Any model with reasoning support |
 

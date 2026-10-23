@@ -545,12 +545,16 @@ describe("built-in provider metadata", () => {
 				routing: {
 					reasoning: {
 						format: "minimax-thinking",
-						routes: [
+						routes: expect.arrayContaining([
 							expect.objectContaining({
 								matcher: "model-id",
 								modelId: "MiniMax-M3",
 							}),
-						],
+							expect.objectContaining({
+								matcher: "model-id",
+								modelId: "MiniMax-M3.1-Flash",
+							}),
+						]),
 					},
 				},
 			},

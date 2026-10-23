@@ -1286,7 +1286,6 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		family: "bedrock",
 		popular: 30,
 		capabilities: ["reasoning", "prompt-cache"],
-		defaultModelId: "minimax.minimax-m2.5",
 		apiKeyEnv: [
 			"AWS_BEARER_TOKEN_BEDROCK",
 			"AWS_REGION",
@@ -1312,6 +1311,12 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		},
 		metadata: MINIMAX_THINKING_ROUTING_METADATA,
 	},
+	...(
+		["minimax-cn", "minimax-coding-plan", "minimax-cn-coding-plan"] as const
+	).map((id) => ({
+		id,
+		metadata: MINIMAX_THINKING_ROUTING_METADATA,
+	})),
 	{
 		id: "opencode",
 		name: "OpenCode",

@@ -53,7 +53,7 @@ describe("bedrock cache-point routing", () => {
 	});
 
 	it("does not resolve for non-anthropic bedrock models", () => {
-		const request = makeRequest("minimax.minimax-m2.5");
+		const request = makeRequest("amazon.nova-2-lite-v1:0");
 		expect(
 			resolveBedrockCachePointRoute(request, makeContext()),
 		).toBeUndefined();

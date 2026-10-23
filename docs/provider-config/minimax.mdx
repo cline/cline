@@ -3,7 +3,7 @@ title: "MiniMax"
 description: "Learn how to configure and use MiniMax provider with Cline."
 ---
 
-MiniMax provides AI models with large context windows and competitive pricing, featuring the MiniMax-M2 series.
+MiniMax provides MiniMax-M3.1-Flash and MiniMax-M3, with 1M context windows and automatic prompt caching.
 
 **Website:** [https://www.minimax.io/](https://www.minimax.io/)
 
@@ -25,6 +25,10 @@ MiniMax provides AI models with large context windows and competitive pricing, f
 
 ### Tips and Notes
 
--   **Large Context:** All models support 192K token context windows.
--   **Reasoning Support:** M2.7 and M2.5 support extended thinking/reasoning for complex tasks.
--   **Pricing:** Check the [MiniMax pricing page](https://www.minimax.io/platform/document/pricing) for current rates.
+-   **Default Model:** MiniMax-M3.1-Flash. MiniMax-M3 remains available.
+-   **Context and Output:** Both models support a 1M context window. The [Anthropic-compatible API](https://platform.minimax.io/docs/api-reference/text-chat-anthropic.md) accepts `max_tokens` from 1 through 524,288 and recommends 131,072.
+-   **Flash Thinking:** Always adaptive. Choose `low`, `medium`, `high`, `xhigh`, or `max` effort; the default is `max`. Flash cannot disable thinking and does not accept `service_tier`.
+-   **M3 Thinking:** Supports adaptive or disabled thinking; effort does not affect M3.
+-   **Input:** Both APIs support text, image, and video. Cline's Anthropic adapter currently exposes text and image input; MiniMax video blocks are not supported by this adapter.
+-   **Caching:** Automatic prompt caching is supported; explicit Anthropic `cache_control` markers are not.
+-   **Pricing:** Flash costs $0.15 input / $0.60 output / $0.015 cache read per million tokens. M3 Standard costs $0.30 / $1.20 / $0.06 at input lengths up to 512K, and $0.60 / $2.40 / $0.12 above 512K. M3 Priority costs 1.5 times Standard; Cline's flat estimates use the Standard rate for inputs up to 512k and can underestimate higher-context or Priority requests. The published threshold is retained as `512k` because the pricing page does not define its integer expansion. See [official pricing](https://platform.minimax.io/docs/pricing/overview).

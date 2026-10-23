@@ -6,6 +6,11 @@ import {
 	resolveReasoningBudgetFromRatio,
 } from "@cline/shared";
 import {
+	isDirectMiniMaxProvider,
+	MINIMAX_EFFORTS,
+	MINIMAX_FLASH_MODEL_ID,
+} from "../../catalog/catalog-minimax";
+import {
 	getModelReasoningControls,
 	isClaudeFableModelId,
 	normalizeReasoningEffort,
@@ -41,6 +46,29 @@ export function normalizeReasoningRequest(
 	const reasoning = request.reasoning;
 	if (!reasoning) {
 		return request;
+	}
+
+	if (isDirectMiniMaxProvider(request.providerId)) {
+		if (request.modelId === MINIMAX_FLASH_MODEL_ID) {
+			return {
+				...request,
+				reasoning: {
+					enabled: true,
+					effort: reasoning.effort
+						? normalizeReasoningEffort(reasoning.effort, MINIMAX_EFFORTS)
+						: "max",
+				},
+			};
+		}
+		if (request.modelId === "MiniMax-M3") {
+			return {
+				...request,
+				reasoning:
+					reasoning.enabled === undefined
+						? undefined
+						: { enabled: reasoning.enabled },
+			};
+		}
 	}
 
 	// Cline routes Claude through an OpenRouter-compatible backend. Vercel's
