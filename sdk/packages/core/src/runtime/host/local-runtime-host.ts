@@ -892,6 +892,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			onAuthError,
 			knownModels: providerConfig.knownModels,
 			providerConfig,
+			serviceTier: configWithProvider.serviceTier ?? providerConfig.serviceTier,
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
@@ -1765,6 +1766,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (updates.headers !== undefined) session.config.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			session.config.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "serviceTier")) {
+			session.config.serviceTier = updates.serviceTier ?? undefined;
+		}
 		if (Object.hasOwn(updates, "reasoningEffort")) {
 			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
 		}
@@ -1780,6 +1784,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		const delegatedUpdates = {
+			...(Object.hasOwn(updates, "serviceTier")
+				? { serviceTier: updates.serviceTier ?? undefined }
+				: {}),
 			...(updates.providerId !== undefined
 				? { providerId: updates.providerId }
 				: {}),

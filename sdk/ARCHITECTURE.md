@@ -1,5 +1,15 @@
 # Cline SDK Architecture
 
+## ChatGPT subscription Fast settings
+
+- `serviceTier` is independent of thinking and reasoning effort.
+- Only `openai-codex` encodes `"priority"`; other providers send no tier override.
+- An absent tier in effective request settings sends no override.
+- In live updates, `null` clears the tier; omission preserves the current value.
+- The preference is provider-wide, persists across launches and Codex model
+  changes, and is inherited by delegated agents. Backend availability is not
+  guaranteed.
+
 This document is the architecture source of truth for the Cline SDK repository. It describes how the system is organized, how components interact, and the design principles that guide development decisions.
 
 **Who should read this?**
