@@ -604,6 +604,7 @@ export class AgentRuntime {
 	private modelSteerController?: AbortController;
 	private readonly telemetryProviderId?: string;
 	private readonly telemetryModelId?: string;
+	private modelRequestId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		this.telemetryProviderId =
@@ -795,6 +796,7 @@ export class AgentRuntime {
 
 		this.abortController = new AbortController();
 		this.state.runId = createUID("run");
+		this.modelRequestId = undefined;
 		this.state.status = "running";
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
@@ -1768,6 +1770,13 @@ export class AgentRuntime {
 		let request = prepared.request;
 
 		this.throwIfAborted();
+		this.modelRequestId = createUID("model_request", 21);
+		request = {
+			...request,
+			options: mergeModelOptions(request.options, {
+				metadata: { modelRequestId: this.modelRequestId },
+			}),
+		};
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
 			durationMs: getTaskLifecycleDurationMs(),
 			phase: "provider_request_started",
@@ -1789,6 +1798,7 @@ export class AgentRuntime {
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
 		const modelToolActivities = new Map<string, AgentModelToolActivity>();
+		let lastToolCallDeltaAt = 0;
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
@@ -1926,6 +1936,17 @@ export class AgentRuntime {
 							assembly.inputText,
 							event.inputText,
 						);
+					}
+					// Only a progress signal: at most once a second, since each event
+					// copies the whole conversation and a large file write streams
+					// thousands of argument chunks.
+					if (Date.now() - lastToolCallDeltaAt >= 1_000) {
+						lastToolCallDeltaAt = Date.now();
+						await this.emit({
+							type: "tool-call-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+						});
 					}
 					break;
 				}
@@ -2158,6 +2179,7 @@ export class AgentRuntime {
 		const sessionId = trimNonEmpty(this.config.sessionId);
 		captureTaskLifecycleEvent(this.config.telemetry, {
 			event,
+			modelRequestId: this.modelRequestId,
 			sessionId,
 			ulid: sessionId,
 			agentId: this.state.agentId,
@@ -2744,6 +2766,7 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							modelRequestId: this.modelRequestId,
 							...(this.state.lastFinishReason
 								? { finishReason: this.state.lastFinishReason }
 								: {}),
@@ -2762,7 +2785,18 @@ export class AgentRuntime {
 			case "assistant-text-delta":
 			case "assistant-reasoning-delta":
 			case "assistant-media":
+			case "tool-call-delta":
 			case "tool-updated":
+				break;
+			case "run-finished":
+			case "run-failed":
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: {
+						...(metadata as TelemetryProperties),
+						...this.config.runEndTelemetryProperties?.(),
+					},
+				});
 				break;
 			default:
 				this.config.telemetry?.capture({

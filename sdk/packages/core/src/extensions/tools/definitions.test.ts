@@ -566,6 +566,30 @@ describe("run_commands tool description", () => {
 		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
 	});
 
+	it.each([
+		["powershell.exe", true],
+		["pwsh.exe", true],
+		["/usr/bin/pwsh", false],
+	])("tells %s how PowerShell escapes quotes", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).toContain(
+			'PowerShell escapes with a backtick (`), not a backslash: inside double quotes, \\" ends the string.',
+		);
+		expect(description).toContain("Remove-Item -LiteralPath instead of cmd /c");
+		expect(description).toContain("-WhatIf");
+	});
+
+	it.each([
+		["cmd", true],
+		["C:\\Program Files\\Git\\bin\\bash.exe", true],
+		["wsl", true],
+		["/bin/bash", false],
+	])("keeps PowerShell quoting guidance out of %s", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).not.toContain("backtick");
+		expect(description).not.toContain("Remove-Item");
+	});
+
 	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
 		const description = buildRunCommandsDescription("cmd", true);
 		expect(description).toContain("Commands run through cmd.exe");
@@ -1915,6 +1939,51 @@ describe("zod schema conversion", () => {
 });
 
 describe("default editor tool", () => {
+	it("publishes old_text as an optional string without null", () => {
+		const tool = createEditorTool(async () => "patched");
+		const schema = tool.inputSchema as {
+			required?: string[];
+			properties?: Record<string, { type?: string | string[] }>;
+		};
+
+		expect(schema.required).not.toContain("old_text");
+		expect(schema.properties?.old_text?.type).toBe("string");
+	});
+
+	it.each([
+		{ name: "creating a missing file", insert_line: undefined, query: "edit" },
+		{ name: "inserting a line", insert_line: 1, query: "insert" },
+	])("normalizes null old_text when $name", async ({ insert_line, query }) => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const result = await tool.execute(
+			{
+				path: "/tmp/example.ts",
+				// @ts-expect-error Models may send null despite the advertised string schema.
+				old_text: null,
+				new_text: "created",
+				insert_line,
+			},
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(result).toEqual({
+			query: `${query}:/tmp/example.ts`,
+			result: "patched",
+			success: true,
+		});
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				path: "/tmp/example.ts",
+				old_text: undefined,
+				new_text: "created",
+				insert_line,
+			}),
+			process.cwd(),
+			expect.anything(),
+		);
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({

@@ -19,7 +19,9 @@ import type {
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { NodeHubClient } from "../client";
+import { createHubPluginCommandsApi } from "./plugin-commands";
 
 type ScheduleClientRecord = Record<string, unknown> & {
 	metadata?: Record<string, unknown>;
@@ -285,6 +287,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 
 export class HubSessionClient {
 	private readonly client: NodeHubClient;
+	readonly pluginCommands: PluginCommandsApi;
 
 	constructor(options: HubSessionClientOptions) {
 		this.client = new NodeHubClient({
@@ -297,6 +300,7 @@ export class HubSessionClient {
 			cwd: options.cwd,
 			metadata: options.metadata,
 		});
+		this.pluginCommands = createHubPluginCommandsApi(this.client);
 	}
 
 	async connect(): Promise<void> {
@@ -377,11 +381,15 @@ export class HubSessionClient {
 				apiKey: request.apiKey,
 			},
 			toolPolicies: request.toolPolicies,
+			...(request.plugins ? { plugins: request.plugins } : {}),
 		});
 		const row = extractSessionRow(reply.payload);
 		if (!row?.sessionId) {
 			throw new Error("hub session create returned no session id");
 		}
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as ChatStartSessionResponse["pluginIssues"])
+			: undefined;
 		return {
 			sessionId: row.sessionId,
 			startResult: {
@@ -389,6 +397,7 @@ export class HubSessionClient {
 				manifestPath: "",
 				messagesPath: row.messagesPath ?? "",
 			},
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -544,6 +553,7 @@ export class HubSessionClient {
 								apiKey: request.apiKey,
 							},
 							toolPolicies: request.toolPolicies,
+							...(request.plugins ? { plugins: request.plugins } : {}),
 						}
 					: {}),
 			},

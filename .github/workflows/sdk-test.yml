@@ -104,6 +104,10 @@ jobs:
                   bun -F @cline/code test:sidecar
                   bun -F @cline/code test:sidecar-startup
 
+            - name: Run Windows compiled plugin resource tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'windows-latest' }}
+              run: bun -F @cline/code test:sidecar-startup --test-name-pattern "standalone CLI"
+
             - name: Run Desktop Settings UI Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
               run: bun -F @cline/code test:settings-ui

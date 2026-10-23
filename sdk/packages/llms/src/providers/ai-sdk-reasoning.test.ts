@@ -6,6 +6,7 @@ import type {
 import { describe, expect, it } from "vitest";
 import { buildAiSdkStreamConfig } from "./ai-sdk";
 import {
+	reconcilePortableReasoning,
 	resolvePortableReasoning,
 	withoutPortableReasoning,
 } from "./routing/portable-reasoning";
@@ -35,12 +36,23 @@ describe("resolvePortableReasoning", () => {
 		expect(resolvePortableReasoning(request(reasoning))).toBe(expected);
 	});
 
-	it("leaves an exact token budget to provider-specific options", () => {
+	it("keeps the effort beside an exact budget for providers that cannot take one", () => {
 		expect(
 			resolvePortableReasoning(
 				request({ enabled: true, effort: "high", budgetTokens: 12_000 }),
 			),
-		).toBeUndefined();
+		).toBe("high");
+	});
+
+	it("leaves an exact budget in the request for provider rules", () => {
+		const budget = request({
+			enabled: true,
+			effort: "high",
+			budgetTokens: 12_000,
+		});
+		expect(withoutPortableReasoning(budget).reasoning).toEqual(
+			budget.reasoning,
+		);
 	});
 
 	it("gives explicit disable precedence over an exact token budget", () => {
@@ -57,6 +69,66 @@ describe("resolvePortableReasoning", () => {
 			providerId: "custom-provider",
 		});
 		expect(normalized.reasoning).toEqual({ enabled: false });
+	});
+
+	it("disables reasoning on providers without a native toggle", () => {
+		expect(
+			resolvePortableReasoning({
+				...request({ enabled: false }),
+				providerId: "custom-provider",
+			}),
+		).toBe("none");
+	});
+
+	it("leaves a disable alone for providers that own reasoning natively", () => {
+		expect(
+			resolvePortableReasoning({
+				...request({ enabled: false }),
+				providerId: "mistral",
+			}),
+		).toBeUndefined();
+	});
+
+	it("skips the disable for a model known not to reason", () => {
+		const context = {
+			model: { id: "llama", capabilities: ["text"] },
+		} as unknown as GatewayProviderContext;
+		expect(
+			resolvePortableReasoning(
+				{ ...request({ enabled: false }), providerId: "custom-provider" },
+				{ context },
+			),
+		).toBeUndefined();
+	});
+
+	it("keeps a disable for native provider rules", () => {
+		const disable = { ...request({ enabled: false }), providerId: "zai" };
+		expect(withoutPortableReasoning(disable).reasoning).toEqual({
+			enabled: false,
+		});
+	});
+
+	it("defers to a native provider control", () => {
+		expect(
+			reconcilePortableReasoning("none", {
+				zai: { thinking: { type: "disabled" } },
+			}),
+		).toBeUndefined();
+		expect(
+			reconcilePortableReasoning("none", {
+				"custom-provider": { strictJsonSchema: false },
+			}),
+		).toBe("none");
+		expect(
+			reconcilePortableReasoning("high", {
+				google: { thinkingConfig: { thinkingBudget: 4096 } },
+			}),
+		).toBeUndefined();
+		expect(
+			reconcilePortableReasoning("high", {
+				"custom-provider": { strictJsonSchema: false },
+			}),
+		).toBe("high");
 	});
 
 	it("omits reasoning when the caller has no explicit intent", () => {
@@ -113,7 +185,7 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 	] as const)("snaps %o to %s for a verbatim adapter", (reasoning, expected) => {
 		expect(
 			resolvePortableReasoning(
-				{ ...request(reasoning), providerId: "nvidia" },
+				{ ...request(reasoning), providerId: "custom-provider" },
 				wire("openai-compatible", kimiK3),
 			),
 		).toBe(expected);
@@ -144,18 +216,18 @@ describe("resolvePortableReasoning against an advertised effort ladder", () => {
 	] as const)("keeps the requested level for a model with %s", (_label, options) => {
 		expect(
 			resolvePortableReasoning(
-				{ ...request({ effort: "medium" }), providerId: "nvidia" },
+				{ ...request({ effort: "medium" }), providerId: "custom-provider" },
 				wire("openai-compatible", options),
 			),
 		).toBe("medium");
 	});
 
-	it("does not touch an explicit disable", () => {
+	it("sends no disable to a model whose catalog has no off option", () => {
 		expect(
 			resolvePortableReasoning(
 				request({ enabled: false }),
 				wire("openai-compatible", kimiK3),
 			),
-		).toBe("none");
+		).toBeUndefined();
 	});
 });

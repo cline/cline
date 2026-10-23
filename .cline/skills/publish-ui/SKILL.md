@@ -22,8 +22,8 @@ Release `@cline/ui` independently from the Cline SDK runtime packages.
 - The workflow runs only by manual dispatch. Every release attempt runs the UI
   quality checks before publishing and requires `confirm_publish=publish` from
   `main`.
-- The publish job and npm trust relationship use the protected `Publish`
-  environment.
+- The publish job and npm trust relationship use the protected `PublishNPM`
+  environment; the run waits for a reviewer to approve it before publishing.
 - Every npm publication needs a new semver version; npm versions are immutable.
 - Always ask before pushing commits, triggering the publish workflow, changing
   npm trust settings, or running a local publish command.

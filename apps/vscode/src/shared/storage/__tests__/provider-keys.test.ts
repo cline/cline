@@ -15,8 +15,13 @@ describe("Provider key mapping", () => {
 		// Dynamic providers that route through openrouter share its default.
 		const openrouterDefault = getProviderDefaultModelId("openrouter")
 		expect(openrouterDefault).to.be.a("string")
-		expect(getProviderDefaultModelId("cline")).to.equal(openrouterDefault)
 		expect(getProviderDefaultModelId("together")).to.equal(openrouterDefault)
+	})
+
+	it("uses the SDK-declared default (first recommended model) for cline", () => {
+		const expectedDefault = getProviderCollectionSync("cline")?.provider.defaultModelId ?? ""
+		expect(expectedDefault).to.not.equal("")
+		expect(getProviderDefaultModelId("cline")).to.equal(expectedDefault)
 	})
 
 	it("returns an empty string for local-only providers", () => {

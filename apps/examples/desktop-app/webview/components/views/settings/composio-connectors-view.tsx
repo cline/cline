@@ -39,8 +39,8 @@ import type {
 	ComposioIntegrationSummary,
 	ComposioToolkitSlug,
 } from "@/lib/composio-types";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
+import { openExternalUrl } from "@/lib/desktop-client";
+import { runProviderOAuthLogin } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 import { cn } from "@/lib/utils";
@@ -306,19 +306,21 @@ export function ComposioConnectorsView({
 		onCatalogCountChange?.(catalog?.length ?? null);
 	}, [catalog, onCatalogCountChange]);
 
-	const installedEntries = useMemo<ComposioCatalogToolkit[]>(
-		() =>
-			(status?.integrations ?? [])
-				.filter((integration) => integration.status !== "not_connected")
-				.map((integration) => ({
-					slug: integration.toolkit,
-					name: integration.name,
-					description: integration.description,
-					logo: integration.logo,
-					recommended: integration.recommended,
-				})),
-		[status],
-	);
+	const installedEntries = useMemo<ComposioCatalogToolkit[]>(() => {
+		const catalogBySlug = new Map(
+			(catalog ?? []).map((entry) => [entry.slug, entry]),
+		);
+		return (status?.integrations ?? [])
+			.filter((integration) => integration.status !== "not_connected")
+			.map((integration) => ({
+				...catalogBySlug.get(integration.toolkit),
+				slug: integration.toolkit,
+				name: integration.name,
+				description: integration.description,
+				logo: integration.logo,
+				recommended: integration.recommended,
+			}));
+	}, [status, catalog]);
 	// Customize's Browse section lists only what is not installed yet, like
 	// the other Customize tabs; the Marketplace lists the whole catalog.
 	const entries = useMemo<ComposioCatalogToolkit[]>(() => {
@@ -762,13 +764,7 @@ function ConnectorsUnavailable({
 		setSigningIn(true);
 		setError(null);
 		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				// The browser round-trip routinely outlives the default command
-				// deadline; the sidecar bounds the flow by device-code expiry.
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
+			await runProviderOAuthLogin("cline");
 			invalidateProviderCatalogCache();
 			await Promise.all([refreshAccount(), onRefresh()]);
 		} catch (err) {
@@ -950,8 +946,7 @@ function ConnectorCard({
 	onOpenDetails: () => void;
 }) {
 	const status = summary?.status ?? "not_connected";
-	const toolCount =
-		status === "connected" ? summary?.toolNames?.length : entry.toolsCount;
+	const toolCount = entry.toolsCount;
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
 		<div
@@ -1144,10 +1139,6 @@ function ConnectorDetailDialog({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const status = summary?.status ?? "not_connected";
-	const toolNames = summary?.toolNames ?? [];
-	// A connected connector reports what new sessions actually get, even zero;
-	// the catalog total only describes connectors that aren't installed.
-	const isConnected = status === "connected";
 	return (
 		<Dialog onOpenChange={onOpenChange} open={entry !== null}>
 			{/* Fixed dimensions so every connector opens the same-sized window;
@@ -1201,34 +1192,10 @@ function ConnectorDetailDialog({
 										</dd>
 									</>
 								) : null}
-								{isConnected || typeof entry.toolsCount === "number" ? (
+								{typeof entry.toolsCount === "number" ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
-										<dd className="text-foreground">
-											{isConnected ? (
-												<>
-													{toolNames.length}{" "}
-													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-														available in new sessions
-													</span>
-												</>
-											) : (
-												entry.toolsCount
-											)}
-										</dd>
-										{isConnected && toolNames.length > 0 ? (
-											<dd className="col-span-2 mb-3 mt-1">
-												<ul className="flex flex-wrap gap-1.5">
-													{toolNames.map((name) => (
-														<li key={name}>
-															<Badge className="font-normal" variant="outline">
-																{name}
-															</Badge>
-														</li>
-													))}
-												</ul>
-											</dd>
-										) : null}
+										<dd className="text-foreground">{entry.toolsCount}</dd>
 									</>
 								) : null}
 							</dl>

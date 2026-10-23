@@ -10,16 +10,30 @@ import type {
 	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
+	AgentToolContext,
 	Message,
 	PluginSetupContext,
 	WorkspaceInfo,
 } from "@cline/shared";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
+import { WorkerSandbox } from "../../runtime/tools/worker-sandbox";
+import { markPluginCommand } from "./plugin-command-origin";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
+import {
+	getPluginSandboxLauncher,
+	resolvePluginRuntimeDirectory,
+} from "./plugin-runtime";
 import type { PluginTargeting } from "./plugin-targeting";
 
 export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
+
+/**
+ * Absolute path to a compiled `plugin-sandbox-bootstrap.js`, for hosts that
+ * ship it somewhere this module cannot find on its own (an app bundle's
+ * resources directory).
+ */
+export const CLINE_PLUGIN_BOOTSTRAP_PATH_ENV = "CLINE_PLUGIN_BOOTSTRAP_PATH";
 export const DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 export type SandboxedPluginSetupContext = Pick<
@@ -27,8 +41,19 @@ export type SandboxedPluginSetupContext = Pick<
 	"session" | "client" | "user" | "workspaceInfo" | "logger"
 >;
 
+/**
+ * Where sandboxed plugins run. `subprocess` spawns a `node`/`bun` child and
+ * needs one on PATH; `worker` runs a worker thread inside the host runtime.
+ */
+export type PluginSandboxTransport = "subprocess" | "worker";
+
+/** The call/shutdown surface both sandbox transports share. */
+type SandboxChannel = Pick<SubprocessSandbox, "call" | "shutdown">;
+
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
+	/** Defaults to `subprocess`. */
+	transport?: PluginSandboxTransport;
 	exportName?: string;
 	/**
 	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
@@ -46,6 +71,23 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	 */
 	idleTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/** Worker transport only: the worker ended on its own (crash, exit). */
+	onUnexpectedExit?: (error: Error) => void;
+	/**
+	 * Limit for each plugin's `setup()`, timed inside the sandbox and
+	 * separately from the import. When set, the initialize call may take
+	 * `importTimeoutMs + setupTimeoutMs`.
+	 */
+	setupTimeoutMs?: number;
+	/** A plugin finished importing and its `setup()` is starting. */
+	onSetupStarted?: (pluginPath: string) => void;
+	/**
+	 * Session plugin policy, applied inside the sandbox after each plugin is
+	 * imported (when its own name is known) and before its `setup()` runs.
+	 */
+	policy?: Record<string, { enabled?: boolean } | undefined>;
+	/** Per plugin path: other names the policy may use (its file name). */
+	policyNames?: Record<string, string[]>;
 	/**
 	 * The session's working directory. Forwarded to the sandbox subprocess so
 	 * that `process.cwd()` returns the correct path inside the sandbox even
@@ -87,7 +129,19 @@ type SandboxedContributionDescriptor = {
 	timeoutMs?: number;
 	retryable?: boolean;
 	metadata?: Record<string, unknown>;
+	/** Tools: the rest of the tool definition (lifecycle, executionMode, ...). */
+	definition?: Record<string, unknown>;
 };
+
+/**
+ * Internal sandbox events, never forwarded to the session. Keep in sync with
+ * plugin-sandbox-bootstrap.ts.
+ */
+const TOOL_UPDATE_EVENT = "__cline_tool_update";
+const SETUP_STARTED_EVENT = "__cline_setup_started";
+
+/** Progress callbacks of tool calls in flight, by call id. */
+type ToolUpdateRoutes = Map<string, (update: unknown) => void>;
 
 type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
 	id: string;
@@ -122,6 +176,7 @@ type SandboxedPluginDescriptor = {
 
 type SandboxedInitializeResult = {
 	plugins: SandboxedPluginDescriptor[];
+	disabledByPolicy?: Array<{ pluginPath: string; name: string }>;
 } & PluginLoadDiagnostics;
 
 function normalizeDescriptor(
@@ -207,7 +262,7 @@ export function selectBootstrapCandidate(options: {
 	sourceBootstrapPath: string;
 	installedCandidates: Array<string | undefined>;
 	exists?: (path: string) => boolean;
-}): { file: string } | { sourcePath: string } {
+}): { file: string } | { sourcePath: string } | undefined {
 	const exists = options.exists ?? existsSync;
 	for (const candidate of options.siblingCandidates) {
 		if (exists(candidate)) return { file: candidate };
@@ -218,37 +273,56 @@ export function selectBootstrapCandidate(options: {
 	for (const candidate of options.installedCandidates) {
 		if (candidate && exists(candidate)) return { file: candidate };
 	}
-	return { sourcePath: options.sourceBootstrapPath };
+	return undefined;
 }
 
 /**
- * Resolve the bootstrap for the sandbox subprocess.
+ * Resolve the bootstrap for the sandbox worker or subprocess, or `undefined`
+ * when this host ships none.
  *
  * In production (bundled), the compiled `.js` file lives next to this module
  * and can be passed directly as a file to spawn. In development/test
  * (unbundled, where only the `.ts` source exists), we load the TypeScript
  * bootstrap through jiti from an inline script.
  */
-function resolveBootstrap(): { file: string } | { script: string } {
+function resolveBootstrap():
+	| { file: string }
+	| { script: string; sourcePath: string }
+	| undefined {
 	const dir = dirname(fileURLToPath(import.meta.url));
 	const requireFromHere = createRequire(import.meta.url);
 	// In dev, the bootstrap sits next to this file in src/extensions/.
 	// In production, the main bundle is at dist/ and the bootstrap is emitted
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
+	const configured = process.env[CLINE_PLUGIN_BOOTSTRAP_PATH_ENV]?.trim();
+	if (configured && existsSync(configured)) {
+		return { file: configured };
+	}
+	const sourceBootstrapPath = join(dir, "plugin-sandbox-bootstrap.ts");
+	// Source hosts must execute the current bootstrap and module importer,
+	// even when an earlier SDK build left a packaged runtime on disk.
+	const runtimeDirectory = existsSync(sourceBootstrapPath)
+		? undefined
+		: resolvePluginRuntimeDirectory();
+	if (runtimeDirectory)
+		return { file: join(runtimeDirectory, "plugin-sandbox-bootstrap.js") };
 	const selected = selectBootstrapCandidate({
 		siblingCandidates: [
 			join(dir, "plugin-sandbox-bootstrap.js"),
+			// Hosts whose package.json is not `"type": "module"` (the VS Code
+			// extension) ship it as .mjs so Node loads it as ESM.
+			join(dir, "plugin-sandbox-bootstrap.mjs"),
 			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
 		],
-		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
+		sourceBootstrapPath,
 		installedCandidates: [
 			resolveBootstrapFromWrapper(),
 			resolveBootstrapFromExecutable(),
 		],
 	});
-	if ("file" in selected) {
+	if (!selected || "file" in selected) {
 		return selected;
 	}
 	const tsPath = selected.sourcePath;
@@ -259,6 +333,7 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		// Fall back to bare specifier and let runtime resolution handle it.
 	}
 	return {
+		sourcePath: tsPath,
 		script: [
 			`const createJiti = require(${JSON.stringify(jitiSpecifier)});`,
 			`const jiti = createJiti(${JSON.stringify(tsPath)}, { cache: false, requireCache: false, esmResolve: true, interopDefault: false });`,
@@ -270,7 +345,70 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	};
 }
 
-const BOOTSTRAP = resolveBootstrap();
+let resolvedBootstrap: ReturnType<typeof resolveBootstrap> | undefined;
+let bootstrapUnavailableForTests = false;
+
+/**
+ * Resolved on first use, not at import, so a host can set
+ * `CLINE_PLUGIN_BOOTSTRAP_PATH` after loading this module. A host that ships
+ * no bootstrap cannot run plugins at all: plugin code never runs on a host's
+ * main thread, so the load fails instead.
+ */
+function getBootstrap(): NonNullable<ReturnType<typeof resolveBootstrap>> {
+	if (bootstrapUnavailableForTests) {
+		throw new PluginBootstrapMissingError();
+	}
+	resolvedBootstrap ??= resolveBootstrap();
+	if (!resolvedBootstrap) {
+		throw new PluginBootstrapMissingError();
+	}
+	return resolvedBootstrap;
+}
+
+/**
+ * @internal Test hook: behave as a host that ships no bootstrap. Tests run
+ * from source, where the `.ts` bootstrap always resolves.
+ */
+export function setPluginBootstrapUnavailableForTests(
+	unavailable: boolean,
+): void {
+	bootstrapUnavailableForTests = unavailable;
+}
+
+/** This build ships no `plugin-sandbox-bootstrap.js`, so no plugin can run. */
+export class PluginBootstrapMissingError extends Error {
+	constructor() {
+		super(
+			"This build does not ship plugin-sandbox-bootstrap.js, so plugins cannot run. " +
+				`Set ${CLINE_PLUGIN_BOOTSTRAP_PATH_ENV} to a copy of the file, or reinstall Cline.`,
+		);
+		this.name = "PluginBootstrapMissingError";
+	}
+}
+
+/**
+ * The result of a sandbox load when the host ships no bootstrap: every plugin
+ * is reported failed at import with the same error, so listings and session
+ * starts show the cause instead of silently dropping the plugins.
+ */
+function pluginBootstrapMissingResult(
+	pluginPaths: ReadonlyArray<string>,
+	error: PluginBootstrapMissingError,
+): Awaited<ReturnType<typeof loadSandboxedPlugins>> {
+	return {
+		extensions: [],
+		pluginPaths: [],
+		disabledByPolicy: [],
+		warnings: [],
+		failures: pluginPaths.map((pluginPath) => ({
+			pluginPath,
+			phase: "load" as const,
+			message: error.message,
+			stack: error.stack,
+		})),
+		shutdown: async () => {},
+	};
+}
 
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
@@ -311,6 +449,8 @@ export async function loadSandboxedPlugins(
 	{
 		extensions: AgentConfig["extensions"];
 		pluginPaths: string[];
+		/** Plugins the `policy` turned off; their setup did not run. */
+		disabledByPolicy: Array<{ pluginPath: string; name: string }>;
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
@@ -319,20 +459,66 @@ export async function loadSandboxedPlugins(
 		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
 		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
 	);
-	const sandbox = new SubprocessSandbox({
-		name: "plugin-sandbox",
-		...("file" in BOOTSTRAP
-			? { bootstrapFile: BOOTSTRAP.file }
-			: { bootstrapScript: BOOTSTRAP.script }),
-		idleTimeoutMs,
-		onEvent: options.onEvent,
-	});
+	let resolved: ReturnType<typeof getBootstrap>;
+	try {
+		resolved = getBootstrap();
+	} catch (error) {
+		if (error instanceof PluginBootstrapMissingError) {
+			return pluginBootstrapMissingResult(options.pluginPaths, error);
+		}
+		throw error;
+	}
+	const bootstrap =
+		"file" in resolved
+			? { bootstrapFile: resolved.file }
+			: { bootstrapScript: resolved.script };
 	const importTimeoutMs = withTimeoutFallback(
 		options.importTimeoutMs,
 		4000,
 		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
 	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
+	const setupTimeoutMs =
+		options.setupTimeoutMs === undefined
+			? undefined
+			: withTimeoutFallback(options.setupTimeoutMs, 4000);
+	const initTimeoutMs = importTimeoutMs + (setupTimeoutMs ?? 0);
+	const toolUpdates: ToolUpdateRoutes = new Map();
+	const onEvent = (event: { name: string; payload?: unknown }) => {
+		const payload = event.payload as Record<string, unknown> | undefined;
+		if (event.name === TOOL_UPDATE_EVENT) {
+			toolUpdates.get(String(payload?.callId))?.(payload?.update);
+			return;
+		}
+		if (event.name === SETUP_STARTED_EVENT) {
+			options.onSetupStarted?.(String(payload?.pluginPath));
+			return;
+		}
+		options.onEvent?.(event);
+	};
+	// One sandbox per call: each session gets its own process or worker.
+	const sandbox: SandboxChannel =
+		options.transport === "worker"
+			? new WorkerSandbox({
+					name: "plugin-worker",
+					...bootstrap,
+					idleTimeoutMs,
+					onEvent,
+					onUnexpectedExit: options.onUnexpectedExit,
+					// Runs ctx.onDispose cleanup before an idle reclaim or shutdown.
+					disposeMethod: "dispose",
+					disposeTimeoutMs: hookTimeoutMs,
+				})
+			: new SubprocessSandbox({
+					name: "plugin-sandbox",
+					launcher:
+						"bootstrapFile" in bootstrap
+							? getPluginSandboxLauncher()
+							: undefined,
+					...bootstrap,
+					idleTimeoutMs,
+					onEvent,
+				});
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
 		60_000,
@@ -349,6 +535,9 @@ export async function loadSandboxedPlugins(
 		workspaceInfo: options.workspaceInfo,
 		loggerEnabled: Boolean(options.logger),
 		telemetryEnabled: options.telemetryAvailable === true,
+		setupTimeoutMs,
+		policy: options.policy,
+		policyNames: options.policyNames,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -356,7 +545,7 @@ export async function loadSandboxedPlugins(
 	let reinitPromise: Promise<void> | undefined;
 	const reinitialize = (): Promise<void> => {
 		reinitPromise ??= sandbox
-			.call<void>("initialize", initArgs, { timeoutMs: importTimeoutMs })
+			.call<void>("initialize", initArgs, { timeoutMs: initTimeoutMs })
 			.finally(() => {
 				reinitPromise = undefined;
 			});
@@ -368,7 +557,7 @@ export async function loadSandboxedPlugins(
 		initialized = await sandbox.call<SandboxedInitializeResult>(
 			"initialize",
 			initArgs,
-			{ timeoutMs: importTimeoutMs },
+			{ timeoutMs: initTimeoutMs },
 		);
 	} catch (error) {
 		await sandbox.shutdown().catch(() => {
@@ -391,6 +580,7 @@ export async function loadSandboxedPlugins(
 						descriptor,
 						contributionTimeoutMs,
 						reinitialize,
+						toolUpdates,
 					);
 					registerCommands(
 						api,
@@ -430,6 +620,7 @@ export async function loadSandboxedPlugins(
 
 	return {
 		extensions,
+		disabledByPolicy: initialized.disabledByPolicy ?? [],
 		failures: initialized.failures,
 		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {
@@ -444,8 +635,8 @@ export async function loadSandboxedPlugins(
 // ---------------------------------------------------------------------------
 
 /**
- * Tool contexts and hook payloads cross the sandbox process boundary over
- * JSON IPC, so they must survive JSON.stringify. Host code must not place
+ * Tool contexts and hook payloads cross the sandbox boundary over JSON IPC
+ * (subprocess) or structured clone (worker), so they must be plain data. Host code must not place
  * live host objects (telemetry services, sockets, abort signals) on them,
  * but a single offender would otherwise fail every sandboxed call — the
  * telemetry service on toolContextMetadata did exactly that ("JSON.stringify
@@ -460,7 +651,11 @@ function isSerializationError(error: unknown): boolean {
 	//      "JSON.stringify cannot serialize BigInt."
 	// Node: "Converting circular structure to JSON" /
 	//       "Do not know how to serialize a BigInt"
-	return /cyclic|circular|bigint/i.test(message);
+	// Worker: DataCloneError "... could not be cloned" (Node) /
+	//         "The object can not be cloned" (Bun)
+	return /cyclic|circular|bigint|can ?not be cloned|could not be cloned/i.test(
+		message,
+	);
 }
 
 /**
@@ -548,15 +743,21 @@ async function callWithSerializableFallback<T>(
 	}
 }
 
+let toolCallCounter = 0;
+
 function registerTools(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
+	toolUpdates: ToolUpdateRoutes,
 ): void {
 	for (const td of descriptor.contributions?.tools ?? []) {
 		const tool: AgentTool = {
+			// The full definition (lifecycle, executionMode, resultPolicy, ...)
+			// so the runtime treats the tool as the plugin declared it.
+			...(td.definition ?? {}),
 			name: td.name,
 			description: td.description ?? "",
 			inputSchema: (td.inputSchema ?? {
@@ -565,7 +766,33 @@ function registerTools(
 			}) as AgentTool["inputSchema"],
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
-			execute: async (input: unknown, context: unknown) => {
+			execute: async (input: unknown, context: AgentToolContext) => {
+				// The live parts of the context cannot cross the boundary. The
+				// sandbox rebuilds them: an abort signal driven by `abortToolCall`,
+				// progress updates routed back by call id, and session events
+				// (which already reach the session through the sandbox's events).
+				const {
+					signal,
+					emitUpdate,
+					emitEvent: _emitEvent,
+					...plainContext
+				} = context ?? ({} as AgentToolContext);
+				const callId = `${descriptor.pluginId}:${++toolCallCounter}`;
+				if (emitUpdate) toolUpdates.set(callId, emitUpdate);
+				const onAbort = () => {
+					sandbox
+						.call("abortToolCall", {
+							callId,
+							reason:
+								signal?.reason instanceof Error
+									? signal.reason.message
+									: undefined,
+						})
+						.catch(() => {
+							// The call may already have finished.
+						});
+				};
+				signal?.addEventListener("abort", onAbort, { once: true });
 				// The fallback must cover the whole IPC payload: `input` can be
 				// rewritten by beforeTool hooks or programmatic callers, so it is
 				// just as capable of smuggling a non-serializable value as the
@@ -575,39 +802,38 @@ function registerTools(
 						input: unknown;
 						context: unknown;
 					};
+					const callArgs = () => ({
+						pluginId: descriptor.pluginId,
+						contributionId: td.id,
+						input: sandboxInput,
+						context: sandboxContext,
+						callId,
+						aborted: signal?.aborted === true,
+					});
 					try {
-						return await sandbox.call(
-							"executeTool",
-							{
-								pluginId: descriptor.pluginId,
-								contributionId: td.id,
-								input: sandboxInput,
-								context: sandboxContext,
-							},
-							{ timeoutMs },
-						);
+						return await sandbox.call("executeTool", callArgs(), {
+							timeoutMs: td.timeoutMs ?? timeoutMs,
+						});
 					} catch (error) {
 						if (!isUnknownPluginIdError(error)) {
 							throw error;
 						}
 						await reinitialize();
-						return await sandbox.call(
-							"executeTool",
-							{
-								pluginId: descriptor.pluginId,
-								contributionId: td.id,
-								input: sandboxInput,
-								context: sandboxContext,
-							},
-							{ timeoutMs },
-						);
+						return await sandbox.call("executeTool", callArgs(), {
+							timeoutMs: td.timeoutMs ?? timeoutMs,
+						});
 					}
 				};
-				return await callWithSerializableFallback(
-					invoke,
-					{ input, context },
-					(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
-				);
+				try {
+					return await callWithSerializableFallback(
+						invoke,
+						{ input, context: plainContext },
+						(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
+					);
+				} finally {
+					signal?.removeEventListener("abort", onAbort);
+					toolUpdates.delete(callId);
+				}
 			},
 		};
 		api.registerTool(tool);
@@ -616,49 +842,51 @@ function registerTools(
 
 function registerCommands(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
 ): void {
 	for (const cd of descriptor.contributions?.commands ?? []) {
-		api.registerCommand({
-			name: cd.name,
-			description: cd.description,
-			handler: async (input: string) => {
-				try {
-					return await sandbox.call<AgentExtensionCommandResult>(
-						"executeCommand",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: cd.id,
-							input,
-						},
-						{ timeoutMs },
-					);
-				} catch (error) {
-					if (!isUnknownPluginIdError(error)) {
-						throw error;
+		api.registerCommand(
+			markPluginCommand({
+				name: cd.name,
+				description: cd.description,
+				handler: async (input: string) => {
+					try {
+						return await sandbox.call<AgentExtensionCommandResult>(
+							"executeCommand",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: cd.id,
+								input,
+							},
+							{ timeoutMs },
+						);
+					} catch (error) {
+						if (!isUnknownPluginIdError(error)) {
+							throw error;
+						}
+						await reinitialize();
+						return await sandbox.call<AgentExtensionCommandResult>(
+							"executeCommand",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: cd.id,
+								input,
+							},
+							{ timeoutMs },
+						);
 					}
-					await reinitialize();
-					return await sandbox.call<AgentExtensionCommandResult>(
-						"executeCommand",
-						{
-							pluginId: descriptor.pluginId,
-							contributionId: cd.id,
-							input,
-						},
-						{ timeoutMs },
-					);
-				}
-			},
-		});
+				},
+			}),
+		);
 	}
 }
 
 function registerRules(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
@@ -731,7 +959,7 @@ function registerSimpleContributions(
 
 function registerMessageBuilders(
 	api: AgentExtensionApi,
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
@@ -786,7 +1014,7 @@ function isMessageArray(value: unknown): value is Message[] {
 }
 
 function makeHookHandler(
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	pluginId: string,
 	hookName: string,
 	timeoutMs: number,
@@ -819,7 +1047,7 @@ function makeHookHandler(
 }
 
 function createSandboxRuntimeHooks(
-	sandbox: SubprocessSandbox,
+	sandbox: SandboxChannel,
 	descriptor: SandboxedPluginDescriptor,
 	hookTimeoutMs: number,
 	reinitialize: () => Promise<void>,

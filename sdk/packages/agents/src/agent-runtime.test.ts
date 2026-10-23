@@ -3283,6 +3283,87 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("correlates model request starts with issued requests and assigns new IDs per request", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel(
+			[0, 1].map(() => () => [
+				{ type: "text-delta", text: "hello" } as AgentModelEvent,
+				{ type: "finish", reason: "stop" } as AgentModelEvent,
+			]),
+		);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			sessionId: "session-test",
+		});
+		await runtime.run("first");
+		await runtime.continue("second");
+		const starts = capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) => call.event === TASK_PROVIDER_REQUEST_STARTED_EVENT);
+		expect(starts).toHaveLength(2);
+		const ids = model.requests.map(
+			(request) =>
+				(request.options?.metadata as Record<string, unknown>).modelRequestId,
+		);
+		expect(ids.every((id) => typeof id === "string")).toBe(true);
+		expect(new Set(ids).size).toBe(2);
+		expect(starts.map((event) => event.properties.modelRequestId)).toEqual(ids);
+		for (const event of capture.mock.calls
+			.map(([call]) => call)
+			.filter((call) =>
+				[
+					TASK_PROVIDER_STREAM_STARTED_EVENT,
+					TASK_FIRST_CHUNK_RECEIVED_EVENT,
+				].includes(call.event),
+			)) {
+			expect(ids).toContain(event.properties.modelRequestId);
+		}
+	});
+
+	it("reports tool-argument streaming as progress and merges host run-end properties", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const tool = createEchoTool();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call-1",
+					toolName: "echo",
+					inputText: '{"text":',
+				},
+				{ type: "tool-call-delta", toolCallId: "call-1", inputText: '"hi"}' },
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [tool],
+			telemetry,
+			runEndTelemetryProperties: () => ({ maxIdleMs: 42 }),
+		});
+		const eventTypes: string[] = [];
+		runtime.subscribe((event) => eventTypes.push(event.type));
+
+		await runtime.run("Hi");
+
+		// Two chunks within a second report progress once.
+		expect(eventTypes.filter((type) => type === "tool-call-delta")).toHaveLength(
+			1,
+		);
+		const events = capture.mock.calls.map(([input]) => input);
+		expect(events.some((input) => input.event === "agent.tool-call-delta")).toBe(
+			false,
+		);
+		expect(
+			events.find((input) => input.event === "agent.run-finished")?.properties,
+		).toEqual(expect.objectContaining({ maxIdleMs: 42, status: "completed" }));
+	});
+
 	it("captures task lifecycle telemetry around a successful model stream", async () => {
 		const { capture, telemetry } = createTelemetryMock();
 		const model = new ScriptedModel([

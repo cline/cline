@@ -1,5 +1,52 @@
 # Cline CLI Changelog
 
+## 3.0.73
+
+- GPT-6 models (such as `gpt-6-sol` and `gpt-6.1-sol`) work on OpenAI and Azure OpenAI-compatible endpoints. Before, every request was rejected because Cline sent `max_tokens` instead of `max_completion_tokens`
+- With no model chosen, the Cline provider uses Claude Sonnet 5.5 again, which is back at the top of Cline's recommended list
+- Refreshed the model catalog. Adds the CommandCode and Reflection providers. Default models change for 302.AI (Gemini 4 Argon), Eden AI and Prime Inference (Muse Spark Open), CoreWeave (Reflection Beam 1.0), NanoGPT, Pioneer (Nemotron 3.5 Super VL), and Scaleway (DeepSeek V4.1 Flash)
+
+## 3.0.72
+
+- Plugins now run in a worker instead of directly inside the hub. If this build can't run plugins, Cline says so in `cline config tools`, `cline hub plugins`, and the session-start warnings instead of quietly running them inside the hub. `CLINE_PLUGIN_MODE=in_process` is no longer supported; use `worker` (the default) or `sandbox`
+- When a provider error interrupts a response mid-stream, Cline retries it up to 3 times before failing the turn
+- Failed model requests now log the provider's request id, which makes support tickets easier to trace
+- `cline hub ensure` and `cline hub start` gain `--json` (prints the hub URL and auth token), `--allow-port-fallback`, `--no-connectors`, and `--login-shell-path`. `cline hub` accepts `--discovery-path` to use a dedicated discovery record
+- `cline hub` commands no longer count as a CLI activation in usage stats
+- With no model chosen, the Cline provider now uses Gemini 4 Argon, the new first model in Cline's recommended list
+- Refreshed the model catalog. Adds the Boundless and Standard Compute providers, and SambaNova now comes from the catalog with MiniMax M3 as its default. The Cline recommended list adds Gemini 4 Argon and drops Grok 4.7, and the Cline free list replaces Step 5 Preview with Nemotron 3.5 Super VL. OpenCode Go no longer lists MiniMax M2.7. Default models change for Cortecs, CrossModel, Eden AI, Google Gemini, GitHub Copilot, Google Vertex AI, LLM Gateway, Ofox, OpenCode Go, and Prime Inference (Gemini 4 Argon), Fireworks AI, Nebius Token Factory, and Requesty (Muse Spark Open), CoreWeave, DigitalOcean, NanoGPT, and Nvidia (Nemotron 3.5 Super VL), Aixy and Neon (Claude Haiku 5.5), Agnes AI, Ambient, IteraCompute, Poe, Scaleway, and SenseNova
+
+## 3.0.71
+
+- Plugins now load inside the hub instead of a separate node or bun process, so the CLI no longer needs a JavaScript runtime on your PATH to run plugins. A plugin that fails to load no longer silently loses its tools: Cline prints a warning naming the plugin and the error, `cline config tools --json` lists it as a `plugin_failure` entry, and the new `cline hub plugins` shows each plugin's status and last error (`--reload <plugin>` re-imports one without restarting the hub). Set `CLINE_PLUGIN_MODE=sandbox` to keep the old subprocess behavior
+- `--thinking` now applies in ACP mode (`--acp`). Before, ACP sessions always ran with reasoning off
+- `cline hook` accepts `agent_error` events. Before, it exited with an error and no response
+- A provider API key set in the environment (such as `OPENROUTER_API_KEY`) now counts as configured at startup, for providers that read a single environment variable. Before, the TUI asked you to set up the provider anyway
+- With no model chosen, the Cline provider now uses the first model in Cline's recommended list (Claude Sonnet 5.5)
+- Turning reasoning off now works on every provider. Models that can't turn it off keep their default, and level-only Gemini models no longer reject the request with a thinking-budget error
+- Screenshots and other images no longer inflate the token estimate, which made auto-compaction run long before the conversation was near its limit
+- Auto-compaction uses the selected model's context window when the catalog entry has none
+- Scheduled runs: queued runs now start instead of staying pending forever, a run whose model call fails (for example, a retired model) is marked failed with the error, and after downtime only the latest missed occurrence of a schedule runs instead of every one back to back
+- Rule files that are symlinks now load
+- Skills in `.claude/skills` are now discovered
+- The editor tool no longer receives null in place of the text to replace from some models
+- Refreshed the model catalog. Adds the AI/ML API, LowRouter, and Prime Inference providers. The v0 provider now offers only its default model, `v0-1.5-md`, and OpenCode Go uses its new `https://opencode.ai/inference/go/v1` endpoint. The Cline free list adds Step 5 Preview. Default models change for 302.AI, CrossModel, Cortecs, DigitalOcean, NEAR AI Cloud, and Ofox (Claude Haiku 5.5), DevPass (LLM Gateway), LLM Gateway, and Meta (Muse Wonder 1.0), Aixy (GPT-6.1 Sol), CloudFerro Sherlock and Moark (GLM 5.3), Ambient, NanoGPT, Neuralwatt, and Novita AI
+
+## 3.0.70
+
+- Commit message generation and tasks with reasoning off no longer fail with a 400 error on GPT-6 Astra, GPT-6.1 Sol, Claude Fable 5 or Claude Opus 5.5
+- Cline no longer exits about 3 seconds after an MCP server or hook quits before reading all of its input
+- Settings migrated from the VS Code extension no longer add an empty SAP AI Core provider
+- `cline mcp add` keeps your `--header` values when it opens the setup wizard. Before, accepting the prefilled answers saved a remote server without its headers (for example, `Authorization`). The wizard now asks for one header per prompt and validates each one the same way as `--yes`
+- `cline dashboard` is now `cline hub dashboard`. The old command still works as a hidden alias
+- A bare `cline hub` prints its subcommands
+- `cline doctor log` opens the file set by `CLINE_LOG_PATH` when that variable is set
+- `cline --help` is corrected: `--retries` shows its real default of 3 (it said 6), and `--thinking` explains that it falls back to the level picked in `/model`
+- A bare `--retries` with no count is now rejected with an error instead of crashing
+- Options that were accepted but never did anything are removed and now fail with "unknown option": `cline history --page`, and `cline schedule create`/`update` `--autonomous`, `--no-autonomous`, `--idle-timeout`, `--poll-interval` and `--delivery-channel`. Remove them from scripts. Existing schedules saved with them still load
+- `cline schedule create`, `update` and `import` reject a delivery that could never be posted, such as `--delivery-adapter` without `--delivery-thread` or an adapter that isn't a known connector. Before, the schedule was saved and its results were silently never posted. Errors name the flag or `--metadata-json` path to fix
+- Refreshed the model catalog. Adds Claude Haiku 5.5. Default models change for Google Vertex AI (Claude Sonnet 5.5 → Claude Haiku 5.5), Cortecs, DevPass (LLM Gateway), Eden AI, GitHub Copilot, LLM Gateway, NanoGPT, OpenCode Go, Requesty, and Vivgrid (most now Claude Haiku 5.5)
+
 ## 3.0.69
 
 - MCP servers launched with `npx` or `uvx` on Windows now load. They often took longer than the 3-second startup limit and were silently dropped, so their tools never showed up. The default is now 10 seconds

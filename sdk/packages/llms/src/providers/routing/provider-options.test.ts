@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
-import { resolvePortableReasoning } from "./portable-reasoning";
+import {
+	reconcilePortableReasoning,
+	resolvePortableReasoning,
+} from "./portable-reasoning";
 import {
 	composeAiSdkProviderOptions,
 	mergeProviderOptionPatches,
@@ -295,14 +298,12 @@ type Case = {
 function runCases(cases: ReadonlyArray<Case>) {
 	it.each(cases)("$name", ({ request, context, expect: expectations }) => {
 		const gatewayRequest = makeRequest(request);
-		const result = composeAiSdkProviderOptions(
-			gatewayRequest,
-			makeContext({
-				providerId: request.providerId,
-				modelId: request.modelId,
-				...context,
-			}),
-		);
+		const gatewayContext = makeContext({
+			providerId: request.providerId,
+			modelId: request.modelId,
+			...context,
+		});
+		const result = composeAiSdkProviderOptions(gatewayRequest, gatewayContext);
 		const providerOptionsKey = toProviderOptionsKey(request.providerId);
 		if (
 			inferProviderOptionsTarget(request.providerId) === "openai-compatible" &&
@@ -311,7 +312,12 @@ function runCases(cases: ReadonlyArray<Case>) {
 			expect(result).not.toHaveProperty(request.providerId);
 			expect(result[providerOptionsKey]).toBeDefined();
 		}
-		if (resolvePortableReasoning(gatewayRequest)) {
+		if (
+			reconcilePortableReasoning(
+				resolvePortableReasoning(gatewayRequest, { context: gatewayContext }),
+				result,
+			)
+		) {
 			for (const bucket of Object.values(result)) {
 				for (const key of [
 					"effort",
@@ -2235,15 +2241,18 @@ describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
 			modelId: "accounts/fireworks/models/kimi-k3",
 			reasoning,
 		});
-		const result = composeAiSdkProviderOptions(
-			gatewayRequest,
-			makeContext({
-				providerId: "fireworks",
-				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoningOptions,
-			}),
-		);
-		if (resolvePortableReasoning(gatewayRequest)) {
+		const gatewayContext = makeContext({
+			providerId: "fireworks",
+			modelId: "accounts/fireworks/models/kimi-k3",
+			reasoningOptions,
+		});
+		const result = composeAiSdkProviderOptions(gatewayRequest, gatewayContext);
+		if (
+			reconcilePortableReasoning(
+				resolvePortableReasoning(gatewayRequest, { context: gatewayContext }),
+				result,
+			)
+		) {
 			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
 			expect(result.fireworks).not.toHaveProperty("thinking");
 			return;

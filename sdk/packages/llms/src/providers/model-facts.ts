@@ -247,7 +247,8 @@ export function isQwenModel(options: {
 }
 
 // OpenAI reasoning-era chat models: the o-series (o1/o3/o4, including -mini,
-// -pro, and dated variants) and the gpt-5 family (including gpt-5-chat).
+// -pro, and dated variants) and gpt-5 and every later single-digit family
+// (gpt-5-chat, gpt-5.6-sol, gpt-6-sol, gpt-6.1-sol, ...).
 // These models diverge from classic chat-completions parameter rules — most
 // importantly they reject `max_tokens` and require `max_completion_tokens`.
 // Detection is an id-pattern fallback (mirroring the legacy extension's
@@ -257,11 +258,13 @@ export function isQwenModel(options: {
 // match, while namespaced ids like "openai/o3-mini" do.
 //
 // Maintenance:
-// - If OpenAI ships a new family with the same parameter rules (e.g. gpt-6),
-//   add a pattern here and cases to the positive/negative lists in
-//   `vendors/openai-compatible.test.ts`. The failure mode until then is the
-//   loud, self-describing OpenAI 400 ("'max_tokens' is not supported with
-//   this model. Use 'max_completion_tokens' instead."), not silent breakage.
+// - New gpt families up to gpt-9 match without changes. The version digit
+//   stays single on purpose: two digits would match Azure's `gpt-35-turbo`.
+//   For a new family outside this pattern, add one here and cases to the
+//   positive/negative lists in `vendors/openai-compatible.test.ts`. The
+//   failure mode until then is the loud, self-describing OpenAI 400
+//   ("'max_tokens' is not supported with this model. Use
+//   'max_completion_tokens' instead."), not silent breakage.
 // - Keep the boundary anchoring on BOTH sides of each pattern; loosening it
 //   risks renaming the parameter for unrelated third-party models.
 // - Only `withMaxCompletionTokensForReasoningModels` in
@@ -269,8 +272,8 @@ export function isQwenModel(options: {
 //   `@ai-sdk/openai-compatible` maps `max_completion_tokens` itself (as
 //   `@ai-sdk/openai` already does), delete that transform and this helper.
 const OPENAI_O_SERIES_MODEL_ID_PATTERN = /(^|[^a-z0-9])o[134](?=$|[^a-z0-9])/;
-const OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN =
-	/(^|[^a-z0-9])gpt-?5(?=$|[^a-z0-9])/;
+const OPENAI_GPT5_AND_LATER_MODEL_ID_PATTERN =
+	/(^|[^a-z0-9])gpt-?[5-9](?=$|[^a-z0-9])/;
 
 export function isOpenAIReasoningEraModelId(
 	modelId: string | undefined,
@@ -282,7 +285,7 @@ export function isOpenAIReasoningEraModelId(
 
 	return (
 		OPENAI_O_SERIES_MODEL_ID_PATTERN.test(normalized) ||
-		OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN.test(normalized)
+		OPENAI_GPT5_AND_LATER_MODEL_ID_PATTERN.test(normalized)
 	);
 }
 

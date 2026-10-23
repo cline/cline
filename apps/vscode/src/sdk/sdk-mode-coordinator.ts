@@ -111,12 +111,29 @@ export class SdkModeCoordinator {
 	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
+		// Decide under the rebuild lock, after any session start in flight has
+		// settled. Starts and rebuilds detach the outgoing session before the
+		// replacement is active, so a toggle that looked during that window
+		// would see no session, flip only the setting, and leave the session
+		// that finishes starting on the other mode's tools.
+		return this.options.rebuilds.runExclusive(async () => {
+			await this.options.sessions.waitForSessionStarts()
+			return this.performTogglePlanActMode(modeToSwitchTo, chatContent)
+		})
+	}
+
+	private async performTogglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
-		if (currentMode === modeToSwitchTo) {
+		const activeSession = this.options.sessions.getActiveSession()
+		// Cloud sessions are Act-only; the webview disables the toggle, this
+		// guards the keyboard shortcut and any other caller.
+		if (activeSession?.sdkHost && "isCloud" in activeSession.sdkHost) {
+			return false
+		}
+		if (currentMode === modeToSwitchTo && (activeSession?.mode ?? modeToSwitchTo) === modeToSwitchTo) {
 			return false
 		}
 
-		const activeSession = this.options.sessions.getActiveSession()
 		if (activeSession) {
 			// awaiting_followup is also used for non-plan turns, so it is not
 			// sufficient evidence that the user has a plan to approve. Require the
@@ -145,7 +162,7 @@ export class SdkModeCoordinator {
 			const userImages = chatContent?.images?.length ? chatContent.images : undefined
 			const userFiles = chatContent?.files?.length ? chatContent.files : undefined
 			const hasUserContent = !!(userPrompt || userImages || userFiles)
-			const continuationSent = await this.rebuildSessionForMode(modeToSwitchTo, {
+			const continuationSent = await this.performRebuildSessionForMode(modeToSwitchTo, {
 				autoContinue,
 				userContinuationPrompt: autoContinue ? userPrompt : undefined,
 				userImages: autoContinue ? userImages : undefined,
@@ -186,11 +203,19 @@ export class SdkModeCoordinator {
 			userFiles?: string[]
 		},
 	): Promise<boolean> {
-		const previousMode = this.options.stateManager.getGlobalSettingsKey("mode")
+		const activeSession = this.options.sessions.getActiveSession()
+		// The mode the model is actually running under. Rolling back to it keeps
+		// the toggle coherent with the session's tools, and it is the "from" side
+		// of the mode notice.
+		const previousMode = activeSession?.mode ?? this.options.stateManager.getGlobalSettingsKey("mode")
 		this.options.stateManager.setGlobalState("mode", newMode)
 
-		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
+			await this.options.postStateToWebview()
+			return false
+		}
+		if (activeSession.mode === newMode) {
+			// Only the setting had drifted; the session already has this mode's tools.
 			await this.options.postStateToWebview()
 			return false
 		}
@@ -214,6 +239,17 @@ export class SdkModeCoordinator {
 
 		if (wasRunning) {
 			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
+		}
+
+		// The replacement is seeded from the session's messages, which miss a
+		// prompt until its turn ends: a toggle right after a send (one made while
+		// the task was starting) aborts before Core has added it. If the turn is
+		// still in flight, keep the session, which gets the prompt when the turn
+		// ends, and the mode it was built for.
+		if (!(await this.options.sessions.waitForTurnSend(activeSession))) {
+			this.options.stateManager.setGlobalState("mode", previousMode)
+			await this.options.postStateToWebview()
+			return false
 		}
 
 		let autoContinueStarted = false

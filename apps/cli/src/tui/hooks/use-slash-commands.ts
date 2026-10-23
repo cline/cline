@@ -10,9 +10,15 @@ import type { TuiProps } from "../types";
 export function useSlashCommands(input: {
 	workflowSlashCommands: TuiProps["workflowSlashCommands"];
 	loadAdditionalSlashCommands: TuiProps["loadAdditionalSlashCommands"];
+	subscribeAdditionalSlashCommands: TuiProps["subscribeAdditionalSlashCommands"];
 	canFork: boolean;
 }) {
-	const { workflowSlashCommands, loadAdditionalSlashCommands, canFork } = input;
+	const {
+		workflowSlashCommands,
+		loadAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands,
+		canFork,
+	} = input;
 	const [additionalSlashCommands, setAdditionalSlashCommands] = useState<
 		TuiProps["workflowSlashCommands"] | undefined
 	>(loadAdditionalSlashCommands ? [] : undefined);
@@ -23,21 +29,24 @@ export function useSlashCommands(input: {
 			return;
 		}
 		let cancelled = false;
-		void loadAdditionalSlashCommands()
-			.then((commands) => {
-				if (!cancelled) {
-					setAdditionalSlashCommands(commands);
-				}
-			})
-			.catch(() => {
-				if (!cancelled) {
-					setAdditionalSlashCommands([]);
-				}
-			});
+		let requestId = 0;
+		const refresh = () => {
+			const id = ++requestId;
+			void loadAdditionalSlashCommands()
+				.then((commands) => {
+					if (!cancelled && id === requestId)
+						setAdditionalSlashCommands(commands);
+				})
+				// Keep the last catalog; the next refresh tries again.
+				.catch(() => {});
+		};
+		refresh();
+		const unsubscribe = subscribeAdditionalSlashCommands?.(refresh);
 		return () => {
 			cancelled = true;
+			unsubscribe?.();
 		};
-	}, [loadAdditionalSlashCommands]);
+	}, [loadAdditionalSlashCommands, subscribeAdditionalSlashCommands]);
 
 	const registry = useMemo(() => {
 		return buildSlashCommandRegistry({
