@@ -396,6 +396,83 @@ describe("UnifiedSessionPersistenceService", () => {
 		15_000,
 	);
 
+	const expectReconcileKeepsLastActivityTime = async (
+		service: Pick<
+			CoreSessionService,
+			"createRootSessionWithArtifacts" | "listSessions"
+		>,
+	) => {
+		const sessionId = "stale-idle-session";
+		const lastActivityAt = "2026-09-28T18:00:00.000Z";
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			vi.setSystemTime(new Date(lastActivityAt));
+			const artifacts = await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: 999_999_999,
+				interactive: true,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "hello",
+				status: "idle",
+				startedAt: "2026-09-28T17:00:00.000Z",
+			});
+
+			// The host process died overnight; the next listing reconciles it.
+			vi.setSystemTime(new Date("2026-09-29T09:00:00.000Z"));
+			const rows = await service.listSessions(10);
+
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "failed",
+				endedAt: lastActivityAt,
+				updatedAt: lastActivityAt,
+			});
+			const manifest = JSON.parse(
+				readFileSync(artifacts.manifestPath, "utf8"),
+			) as Record<string, unknown>;
+			expect(manifest.ended_at).toBe(lastActivityAt);
+			expect(manifest.metadata).toMatchObject({
+				terminal_marker_at: "2026-09-29T09:00:00.000Z",
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	};
+
+	sqliteIt(
+		"keeps the last activity time when reconciling a dead idle session",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "stale-idle-reconcile-db-"));
+			const sessionsDir = mkdtempSync(
+				join(tmpdir(), "stale-idle-reconcile-sessions-"),
+			);
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			await expectReconcileKeepsLastActivityTime(
+				new CoreSessionService(store, { sessionArtifactsDir: sessionsDir }),
+			);
+		},
+		15_000,
+	);
+
+	it("keeps the last activity time when reconciling a dead idle file-backed session", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "stale-idle-reconcile-"));
+		tempDirs.push(sessionsDir);
+
+		await expectReconcileKeepsLastActivityTime(
+			new FileSessionService(sessionsDir),
+		);
+	});
+
 	sqliteIt(
 		"persists teammate task metadata in the file envelope and usage on messages",
 		async () => {
