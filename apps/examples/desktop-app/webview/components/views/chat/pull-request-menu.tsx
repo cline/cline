@@ -24,6 +24,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuPortal,
 	DropdownMenuSeparator,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
@@ -57,6 +58,8 @@ const checkDotColors = {
 	failure: "bg-red-500",
 	skipped: "bg-muted-foreground",
 };
+
+const checkOrder = { failure: 0, pending: 1, success: 2, skipped: 3 };
 
 function pullRequestIcon(pr: PullRequest) {
 	if (pr.state === "MERGED") return GitMerge;
@@ -283,7 +286,7 @@ function WorkspacePullRequestMenu({
 												+{pr.additions.toLocaleString()}
 											</span>{" "}
 											<span className="text-destructive">
-												−{pr.deletions.toLocaleString()}
+												-{pr.deletions.toLocaleString()}
 											</span>
 										</span>
 									</p>
@@ -320,28 +323,35 @@ function WorkspacePullRequestMenu({
 										</span>
 										{checksLabel(pr.checks)}
 									</DropdownMenuSubTrigger>
-									<DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">
-										{pr.checks.map((check, index) => (
-											<DropdownMenuItem
-												disabled={!check.url}
-												// biome-ignore lint/suspicious/noArrayIndexKey: check names repeat across matrix jobs.
-												key={`${check.name}:${index}`}
-												onSelect={() => {
-													if (!check.url) return;
-													trackPullRequestEvent("check_clicked", data);
-													void open(check.url);
-												}}
-											>
-												<CheckStateIcon state={check.state} />
-												<span className="min-w-0 flex-1 truncate">
-													{check.name}
-												</span>
-												<span className="text-xs text-muted-foreground">
-													{check.state}
-												</span>
-											</DropdownMenuItem>
-										))}
-									</DropdownMenuSubContent>
+									{/* Portaled so the main menu's scroll container doesn't clip it. */}
+									<DropdownMenuPortal>
+										<DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">
+											{[...pr.checks]
+												.sort(
+													(a, b) => checkOrder[a.state] - checkOrder[b.state],
+												)
+												.map((check, index) => (
+													<DropdownMenuItem
+														disabled={!check.url}
+														// biome-ignore lint/suspicious/noArrayIndexKey: check names repeat across matrix jobs.
+														key={`${check.name}:${index}`}
+														onSelect={() => {
+															if (!check.url) return;
+															trackPullRequestEvent("check_clicked", data);
+															void open(check.url);
+														}}
+													>
+														<CheckStateIcon state={check.state} />
+														<span className="min-w-0 flex-1 truncate">
+															{check.name}
+														</span>
+														<span className="text-xs text-muted-foreground">
+															{check.state}
+														</span>
+													</DropdownMenuItem>
+												))}
+										</DropdownMenuSubContent>
+									</DropdownMenuPortal>
 								</DropdownMenuSub>
 							) : (
 								<DropdownMenuItem disabled>
