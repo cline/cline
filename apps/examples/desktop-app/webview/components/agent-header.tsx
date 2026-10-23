@@ -49,7 +49,7 @@ type AgentHeaderProps = {
 	/** Omit when the session has no browsable workspace (e.g. cloud runs). */
 	onToggleFiles?: () => void;
 	filesOpen?: boolean;
-	/** Where to look up the branch's pull request; it joins the files toggle as a menu. */
+	/** Where to look up the branch's pull request for the PR menu button. */
 	pullRequest?: { cwd: string; branch: string | null };
 	showSessionActions?: boolean;
 	status?: ChatSessionStatus;
@@ -130,34 +130,6 @@ function AgentHeaderImpl({
 
 	const triggerDeleteSession = () => onDeleteSession?.();
 
-	const filesToggle = onToggleFiles ? (
-		<Button
-			aria-label={`${filesOpen ? "Hide" : "Show"} project files${
-				hasChanges ? `: ${additions} additions, ${deletions} deletions` : ""
-			}`}
-			aria-pressed={filesOpen}
-			className={cn(
-				"text-muted-foreground transition-colors hover:text-foreground",
-				hasChanges && "h-7 gap-1.5 px-2",
-				filesOpen && "bg-secondary text-foreground",
-			)}
-			id="toggle-project-files"
-			onClick={onToggleFiles}
-			size={hasChanges ? "sm" : "icon-sm"}
-			title={filesOpen ? "Hide project files" : "Show project files"}
-			type="button"
-			variant="ghost"
-		>
-			<FolderTree className="size-4" />
-			{hasChanges ? (
-				<span className="flex items-center gap-1 font-mono text-xs">
-					<span className="text-chart-2">+{additions}</span>
-					<span className="text-destructive">-{deletions}</span>
-				</span>
-			) : null}
-		</Button>
-	) : null;
-
 	return (
 		<AgentConversationHeader
 			className="max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
@@ -174,16 +146,41 @@ function AgentHeaderImpl({
 						/>
 						{/* One control for changes: it opens the workspace panel (which
 						    lands on the first diff) and carries the session's line counts. */}
-						{filesToggle && pullRequest ? (
+						{onToggleFiles ? (
+							<Button
+								aria-label={`${filesOpen ? "Hide" : "Show"} project files${
+									hasChanges
+										? `: ${additions} additions, ${deletions} deletions`
+										: ""
+								}`}
+								aria-pressed={filesOpen}
+								className={cn(
+									"text-muted-foreground transition-colors hover:text-foreground",
+									hasChanges && "h-7 gap-1.5 px-2",
+									filesOpen && "bg-secondary text-foreground",
+								)}
+								id="toggle-project-files"
+								onClick={onToggleFiles}
+								size={hasChanges ? "sm" : "icon-sm"}
+								title={filesOpen ? "Hide project files" : "Show project files"}
+								type="button"
+								variant="ghost"
+							>
+								<FolderTree className="size-4" />
+								{hasChanges ? (
+									<span className="flex items-center gap-1 font-mono text-xs">
+										<span className="text-chart-2">+{additions}</span>
+										<span className="text-destructive">-{deletions}</span>
+									</span>
+								) : null}
+							</Button>
+						) : null}
+						{pullRequest ? (
 							<PullRequestMenu
 								branch={pullRequest.branch}
 								cwd={pullRequest.cwd}
-							>
-								{filesToggle}
-							</PullRequestMenu>
-						) : (
-							filesToggle
-						)}
+							/>
+						) : null}
 						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}
