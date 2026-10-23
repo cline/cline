@@ -461,10 +461,9 @@ export class Controller {
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
-
-				this.postStateToWebview().catch((err) => {
-					Logger.error("[SdkController] Failed to post state after turn:", err)
-				})
+				// The session-event coordinator posts the authoritative terminal state (phase,
+				// messages, and lifecycle) when it receives turnComplete/sessionEnded. Posting
+				// again here races a second full ExtensionState snapshot after that update.
 			},
 			onSendError: async (error, sessionId) => {
 				// A turn failed — the UI shows error recovery (Retry / Sign In / Add Credits).
@@ -766,11 +765,7 @@ export class Controller {
 		this.mcpHub.setToolListChangeCallback(() => this.mcpTools.handleToolListChanged())
 
 		// Initialize gRPC bridge
-		this.grpcBridge = new WebviewGrpcBridge(this.messageTranslatorState)
-
-		// Wire the bridge to the controller's getStateToPostToWebview()
-		// so state updates include messages, currentTaskItem, and task history
-		this.grpcBridge.setGetStateFn(() => this.getStateToPostToWebview())
+		this.grpcBridge = new WebviewGrpcBridge()
 
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
