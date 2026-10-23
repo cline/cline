@@ -906,6 +906,7 @@ export class HubRuntimeHost implements RuntimeHost {
 					...(input.localRuntime?.configExtensions
 						? { configExtensions: input.localRuntime.configExtensions }
 						: {}),
+					...(input.resumed ? { resumed: true } : {}),
 				},
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,

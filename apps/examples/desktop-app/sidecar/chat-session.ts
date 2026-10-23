@@ -1110,7 +1110,7 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages ? { initialMessages } : {}),
+		...(initialMessages ? { initialMessages, resumed: true } : {}),
 		toolPolicies: resolveToolPolicies(config),
 		sessionMetadata:
 			binding.kind === "ssh"
