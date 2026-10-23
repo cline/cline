@@ -13,6 +13,8 @@ const rendererMock = vi.hoisted(() => ({
 	setTerminalTitle: vi.fn(),
 }));
 
+const createCliRendererMock = vi.hoisted(() => vi.fn(async () => rendererMock));
+
 const rootMock = vi.hoisted(() => ({
 	render: vi.fn(),
 	unmount: vi.fn(),
@@ -23,7 +25,7 @@ const reactMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@opentui/core", () => ({
-	createCliRenderer: vi.fn(async () => rendererMock),
+	createCliRenderer: createCliRendererMock,
 }));
 
 vi.mock("@opentui/react", () => ({
@@ -53,6 +55,7 @@ describe("renderOpenTui", () => {
 		rootMock.unmount.mockReset();
 		reactMock.createRoot.mockReset();
 		reactMock.createRoot.mockReturnValue(rootMock);
+		createCliRendererMock.mockClear();
 	});
 
 	it("destroys the renderer when root creation fails", async () => {
@@ -132,5 +135,43 @@ describe("renderOpenTui", () => {
 		await Promise.resolve();
 
 		expect(rendererMock.setTerminalTitle).not.toHaveBeenCalled();
+	});
+
+	it("enables mouse capture by default", async () => {
+		const { renderOpenTui } = await import("./index");
+		await renderOpenTui({} as TuiProps);
+
+		expect(createCliRendererMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				useMouse: true,
+				enableMouseMovement: true,
+			}),
+		);
+	});
+
+	it("disables mouse capture when mouse: false is passed in props", async () => {
+		const { renderOpenTui } = await import("./index");
+		await renderOpenTui({ mouse: false } as TuiProps);
+
+		expect(createCliRendererMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				useMouse: false,
+				enableMouseMovement: false,
+			}),
+		);
+	});
+
+	it("disables mouse capture when config.mouse is false", async () => {
+		const { renderOpenTui } = await import("./index");
+		await renderOpenTui({
+			config: { mouse: false },
+		} as unknown as TuiProps);
+
+		expect(createCliRendererMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				useMouse: false,
+				enableMouseMovement: false,
+			}),
+		);
 	});
 });

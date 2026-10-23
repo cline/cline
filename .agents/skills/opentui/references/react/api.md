@@ -124,6 +124,25 @@ function GameControls() {
 - `eventType: "press" | "release" | "repeat"`
 - `repeated: boolean` - Key is being held
 
+### usePaste(handler)
+
+Handle bracketed-paste events. Receives a `PasteEvent` with raw bytes; decode
+with `decodePasteBytes` from `@opentui/core`.
+
+```tsx
+import { usePaste } from "@opentui/react"
+import { decodePasteBytes } from "@opentui/core"
+
+function App() {
+  usePaste((event) => {
+    const text = decodePasteBytes(event.bytes)
+    console.log("Pasted:", text)
+  })
+
+  return <text>Paste something</text>
+}
+```
+
 ### useOnResize(callback)
 
 Handle terminal resize events.

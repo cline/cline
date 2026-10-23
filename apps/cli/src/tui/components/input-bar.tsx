@@ -1,11 +1,15 @@
 import {
 	decodePasteBytes,
 	type KeyEvent,
+	MouseButton,
+	type MouseEvent,
 	type PasteEvent,
 	stripAnsiSequences,
 	type TextareaRenderable,
 } from "@opentui/core";
+import { useKeyboard } from "@opentui/react";
 import { useCallback, useRef } from "react";
+import { readTextFromSystemClipboard } from "../utils/clipboard";
 import {
 	readClipboardImageDataUrl,
 	readImagePasteAttachment,
@@ -178,29 +182,100 @@ export function InputBar(props: InputBarProps) {
 		[insertAtomicText, insertImageAttachment],
 	);
 
-	const handleKeyDown = useCallback(
-		(event: KeyEvent) => {
-			if (!event.ctrl || event.name !== "v" || !onImagePasteRef.current) {
+	const isPastingRef = useRef(false);
+	const pasteFromClipboard = useCallback(async () => {
+		if (isPastingRef.current) return;
+		isPastingRef.current = true;
+		try {
+			props.onFocusRequest?.();
+			inputRef.current?.focus();
+
+			if (onImagePasteRef.current) {
+				const dataUrl = await readClipboardImageDataUrl();
+				if (dataUrl) {
+					insertImageAttachment(dataUrl);
+					return;
+				}
+			}
+
+			const text = await readTextFromSystemClipboard();
+			if (!text) return;
+
+			if (shouldCompactPastedText(text) && onLargeTextPasteRef.current) {
+				const marker = onLargeTextPasteRef.current(text);
+				insertAtomicText(marker);
 				return;
 			}
 
-			void readClipboardImageDataUrl().then((dataUrl) => {
-				if (!dataUrl) return;
-				event.preventDefault();
-				insertImageAttachment(dataUrl);
+			const ta = inputRef.current;
+			if (!ta) return;
+			ta.insertText(text);
+			queueMicrotask(() => {
+				const plainText = inputRef.current?.plainText ?? "";
+				onContentChangeRef.current(plainText);
+				emitVisualCursorChange();
 			});
+		} finally {
+			setTimeout(() => {
+				isPastingRef.current = false;
+			}, 100);
+		}
+	}, [
+		emitVisualCursorChange,
+		inputRef,
+		insertAtomicText,
+		insertImageAttachment,
+		props.onFocusRequest,
+	]);
+
+	useKeyboard((key) => {
+		if (
+			key.ctrl &&
+			(key.name === "v" || key.name === "V" || key.sequence === "\x16")
+		) {
+			void pasteFromClipboard();
+		}
+	});
+
+	const handleKeyDown = useCallback(
+		(event: KeyEvent) => {
+			if (
+				event.ctrl &&
+				(event.name === "v" || event.name === "V" || event.sequence === "\x16")
+			) {
+				event.preventDefault();
+				void pasteFromClipboard();
+				return;
+			}
 		},
-		[insertImageAttachment],
+		[pasteFromClipboard],
+	);
+
+	const handleMouseDown = useCallback(
+		(event: MouseEvent) => {
+			props.onFocusRequest?.();
+			inputRef.current?.focus();
+			if (
+				event.button === MouseButton.RIGHT ||
+				event.button === MouseButton.MIDDLE
+			) {
+				event.preventDefault();
+				event.stopPropagation();
+				void pasteFromClipboard();
+			}
+		},
+		[inputRef, pasteFromClipboard, props.onFocusRequest],
 	);
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input.
 		<box
 			flexDirection="row"
 			alignItems="flex-start"
 			border={["top", "bottom"]}
 			borderStyle="single"
 			borderColor={ruleColor}
-			onMouseDown={props.onFocusRequest}
+			onMouseDown={handleMouseDown}
 		>
 			<text fg={accent}>
 				<strong>{"❯"}</strong>
@@ -210,6 +285,7 @@ export function InputBar(props: InputBarProps) {
 					key={inputKey}
 					ref={textareaRefCallback as React.RefCallback<never>}
 					initialValue={initialValue}
+					onMouseDown={handleMouseDown}
 					onContentChange={() => {
 						queueMicrotask(() => {
 							const text = inputRef.current?.plainText ?? "";

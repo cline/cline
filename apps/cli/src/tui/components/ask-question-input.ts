@@ -1,4 +1,4 @@
-import type { KeyEvent } from "@opentui/core";
+import { type KeyEvent, stripAnsiSequences } from "@opentui/core";
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, {
 	granularity: "grapheme",
@@ -25,4 +25,10 @@ export function getPrintableKeyText(key: PrintableKeyEvent): string | null {
 export function removeLastGrapheme(text: string): string {
 	const lastSegment = Array.from(graphemeSegmenter.segment(text)).at(-1);
 	return text.slice(0, lastSegment?.index ?? 0);
+}
+
+export function normalizePastedAnswer(text: string): string {
+	return stripAnsiSequences(text)
+		.replace(/\s*[\r\n]+\s*/g, " ")
+		.trim();
 }
