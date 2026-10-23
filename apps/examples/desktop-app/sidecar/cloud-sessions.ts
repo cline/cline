@@ -39,7 +39,7 @@ export class CloudSessionManager extends HubCloudSessionClient {
 		});
 	}
 	override async listForDiscovery(
-		options: { timeoutMs?: number } = {},
+		options: Parameters<HubCloudSessionClient["listForDiscovery"]>[0] = {},
 	): Promise<Record<string, unknown>[]> {
 		return (await super.listForDiscovery(options)).map((record) => ({
 			...record,
