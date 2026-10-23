@@ -13,6 +13,10 @@ import {
 	createCheckpointHooks,
 	deleteCheckpointRefs,
 } from "./checkpoint-hooks";
+import { resolveRunCheckpoint } from "../session/checkpoint-records";
+
+/** Metadata after at least one successful checkpoint, when `latest` is set. */
+type RecordedCheckpoints = CheckpointMetadata & { latest: CheckpointEntry };
 
 const execFile = promisify(execFileCallback);
 
@@ -112,7 +116,7 @@ describe("createCheckpointHooks", () => {
 			await writeFile(join(cwd, "note.txt"), "run-one\n", "utf8");
 			await runCheckpointHooks(hooks);
 
-			const first = metadata?.checkpoint as CheckpointMetadata;
+			const first = metadata?.checkpoint as RecordedCheckpoints;
 			expect(first.history).toHaveLength(1);
 			expect(first.latest.runCount).toBe(1);
 			expect(first.latest.ref).toMatch(/^[0-9a-f]{40}$/);
@@ -122,7 +126,7 @@ describe("createCheckpointHooks", () => {
 				messages: [userMessage("first request"), userMessage("second request")],
 			});
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.latest.runCount).toBe(2);
 			expect(checkpoint.history).toHaveLength(2);
 			expect(
@@ -151,7 +155,7 @@ describe("createCheckpointHooks", () => {
 			await writeFile(join(cwd, "created.txt"), "snapshot-content\n", "utf8");
 			await runCheckpointHooks(hooks);
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.latest.kind).toBe("stash");
 			const ref = checkpoint.latest.ref;
 			// The snapshot carries a third parent whose tree holds the untracked
@@ -192,7 +196,7 @@ describe("createCheckpointHooks", () => {
 				messagesBeforeRun: [userMessage("first request")],
 			});
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint?.history).toHaveLength(1);
 			expect(checkpoint.latest.runCount).toBe(1);
 		} finally {
@@ -224,7 +228,7 @@ describe("createCheckpointHooks", () => {
 			messages: transcript,
 			messagesBeforeRun: transcript,
 		});
-		expect((metadata?.checkpoint as CheckpointMetadata).latest.ref).toBe(
+		expect((metadata?.checkpoint as RecordedCheckpoints).latest.ref).toBe(
 			"ref-1",
 		);
 
@@ -237,7 +241,7 @@ describe("createCheckpointHooks", () => {
 			messages: resumed,
 			messagesBeforeRun: resumed,
 		});
-		expect((metadata?.checkpoint as CheckpointMetadata).latest.ref).toBe(
+		expect((metadata?.checkpoint as RecordedCheckpoints).latest.ref).toBe(
 			"ref-1",
 		);
 	});
@@ -306,7 +310,7 @@ describe("createCheckpointHooks", () => {
 
 			await runCheckpointHooks(hooks);
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.history).toHaveLength(1);
 			expect(checkpoint.latest.kind).toBe("commit");
 			expect(checkpoint.latest.ref).toMatch(/^[0-9a-f]{40}$/);
@@ -330,13 +334,13 @@ describe("createCheckpointHooks", () => {
 
 			await runCheckpointHooks(hooks);
 
-			const first = metadata?.checkpoint as CheckpointMetadata;
+			const first = metadata?.checkpoint as RecordedCheckpoints;
 			expect(first.history).toHaveLength(1);
 			expect(first.latest.kind).toBe("commit");
 
 			await runCheckpointHooks(hooks);
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.history).toHaveLength(1);
 			expect(checkpoint.latest.runCount).toBe(1);
 		} finally {
@@ -357,10 +361,11 @@ describe("createCheckpointHooks", () => {
 				},
 			});
 
-			// First turn: no git repo yet, so no checkpoint is written.
+			// First turn: no git repo yet, so the turn records why it has no
+			// checkpoint instead of one.
 			await writeFile(join(cwd, "note.txt"), "before-init\n", "utf8");
 			await runCheckpointHooks(hooks);
-			expect(metadata?.checkpoint).toBeUndefined();
+			expect(resolveRunCheckpoint({ metadata }, 1).status).toBe("failed");
 
 			// The user initializes git mid-session.
 			await runGit(cwd, "init");
@@ -376,10 +381,12 @@ describe("createCheckpointHooks", () => {
 				messages: [userMessage("first request"), userMessage("second request")],
 			});
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.history).toHaveLength(1);
 			expect(checkpoint.latest.runCount).toBe(2);
 			expect(checkpoint.latest.kind).toBe("stash");
+			// The first turn keeps its explanation.
+			expect(resolveRunCheckpoint({ metadata }, 1).status).toBe("failed");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
@@ -427,7 +434,7 @@ describe("createCheckpointHooks", () => {
 		await runCheckpointHooks(hooks, { parentAgentId: "agent_root" });
 		await runCheckpointHooks(hooks);
 
-		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+		const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 		expect(checkpoint.latest.runCount).toBe(1);
 		expect(checkpoint.history.map((entry) => entry.runCount)).toEqual([1]);
 	});
@@ -457,7 +464,7 @@ describe("createCheckpointHooks", () => {
 				],
 			});
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.latest.runCount).toBe(3);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
@@ -508,7 +515,7 @@ describe("createCheckpointHooks", () => {
 			],
 		});
 
-		const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+		const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 		expect(checkpoint.latest).toMatchObject({
 			ref: "new-three",
 			runCount: 3,
@@ -553,7 +560,7 @@ describe("createCheckpointHooks", () => {
 
 		expect(createCheckpoint).toHaveBeenCalledTimes(1);
 		expect(
-			(metadata?.checkpoint as CheckpointMetadata).history.map(
+			(metadata?.checkpoint as RecordedCheckpoints).history.map(
 				(entry) => entry.runCount,
 			),
 		).toEqual([1]);
@@ -594,6 +601,92 @@ describe("createCheckpointHooks", () => {
 		expect(
 			createCheckpoint.mock.calls.map(([input]) => input.runCount),
 		).toEqual([1, 2]);
+	});
+
+	it("records why a workspace without git history gets no checkpoint", async () => {
+		const notRepo = await mkdtemp(join(tmpdir(), "core-checkpoint-nogit-"));
+		const noCommits = await mkdtemp(join(tmpdir(), "core-checkpoint-empty-"));
+		await runGit(noCommits, "init");
+		try {
+			for (const [cwd, expected] of [
+				[notRepo, /not a git repository/],
+				[noCommits, /no commits yet/],
+			] as const) {
+				let metadata: Record<string, unknown> | undefined;
+				const hooks = createCheckpointHooks({
+					cwd,
+					sessionId: "sess_unsupported",
+					readSessionMetadata: async () => metadata,
+					writeSessionMetadata: async (next) => {
+						metadata = next;
+					},
+				});
+
+				await runCheckpointHooks(hooks);
+
+				expect(resolveRunCheckpoint({ metadata }, 1)).toEqual({
+					status: "failed",
+					errorMessage: expect.stringMatching(expected),
+				});
+			}
+		} finally {
+			await rm(notRepo, { recursive: true, force: true });
+			await rm(noCommits, { recursive: true, force: true });
+		}
+	});
+
+	it("records a failure, then rethrows, when a custom checkpoint throws", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_custom_throw",
+			createCheckpoint: () => {
+				throw new Error("hub client unavailable");
+			},
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (next) => {
+				metadata = next;
+			},
+		});
+
+		await expect(runCheckpointHooks(hooks)).rejects.toThrow(
+			"hub client unavailable",
+		);
+		expect(resolveRunCheckpoint({ metadata }, 1).status).toBe("failed");
+	});
+
+	it("keeps a recorded failure when a reopened session resumes the same run", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const createCheckpoint = vi.fn(
+			({ runCount }: { runCount: number }): CheckpointEntry | undefined =>
+				createCheckpoint.mock.calls.length === 1
+					? undefined
+					: { ref: `ref-${runCount}`, createdAt: 1, runCount },
+		);
+		const makeHooks = () =>
+			createCheckpointHooks({
+				cwd: "/tmp",
+				sessionId: "sess_reopen_failed",
+				createCheckpoint,
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+		const transcript = [userMessage("first request")];
+		await runCheckpointHooks(makeHooks(), {
+			messages: transcript,
+			messagesBeforeRun: transcript,
+		});
+		// Resuming must not snapshot the workspace the failed run already mutated.
+		await runCheckpointHooks(makeHooks(), {
+			messages: transcript,
+			messagesBeforeRun: transcript,
+		});
+
+		expect(createCheckpoint).toHaveBeenCalledTimes(1);
+		expect(resolveRunCheckpoint({ metadata }, 1).status).toBe("failed");
 	});
 
 	it("emits one checkpoint.snapshot event per snapshot attempt without file paths", async () => {
@@ -657,7 +750,7 @@ describe("createCheckpointHooks", () => {
 			await writeFile(join(cwd, "b.txt"), "b\n", "utf8");
 			await runCheckpointHooks(hooks);
 
-			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const first = (metadata?.checkpoint as RecordedCheckpoints).latest;
 			const firstTree = await runGit(
 				cwd,
 				"ls-tree",
@@ -676,7 +769,7 @@ describe("createCheckpointHooks", () => {
 				messages: [userMessage("first request"), userMessage("second request")],
 			});
 
-			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const second = (metadata?.checkpoint as RecordedCheckpoints).latest;
 			expect(second.runCount).toBe(2);
 			const secondTree = await runGit(
 				cwd,
@@ -740,7 +833,7 @@ describe("createCheckpointHooks", () => {
 
 			await runCheckpointHooks(hooks);
 
-			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			const checkpoint = metadata?.checkpoint as RecordedCheckpoints;
 			expect(checkpoint.latest.kind).toBe("stash");
 			const tree = await runGit(
 				cwd,
@@ -783,7 +876,7 @@ describe("createCheckpointHooks", () => {
 			});
 			await runCheckpointHooks(hooks);
 
-			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const first = (metadata?.checkpoint as RecordedCheckpoints).latest;
 			expect(first.kind).toBe("stash");
 			expect(await runGit(cwd, "ls-tree", `${first.ref}^3`)).toMatch(
 				/160000 commit [0-9a-f]{40}\tsub/,
@@ -795,7 +888,7 @@ describe("createCheckpointHooks", () => {
 			await runCheckpointHooks(hooks, {
 				messages: [userMessage("first request"), userMessage("second request")],
 			});
-			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const second = (metadata?.checkpoint as RecordedCheckpoints).latest;
 			expect(second.runCount).toBe(2);
 			expect(await runGit(cwd, "ls-tree", `${second.ref}^3`)).toMatch(
 				/160000 commit [0-9a-f]{40}\tsub/,
@@ -828,7 +921,7 @@ describe("createCheckpointHooks", () => {
 
 			await writeFile(join(cwd, "data.txt"), "before", "utf8");
 			await runCheckpointHooks(hooks);
-			const first = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const first = (metadata?.checkpoint as RecordedCheckpoints).latest;
 			expect(await runGit(cwd, "show", `${first.ref}^3:data.txt`)).toBe(
 				"before",
 			);
@@ -837,7 +930,7 @@ describe("createCheckpointHooks", () => {
 			await runCheckpointHooks(hooks, {
 				messages: [userMessage("first request"), userMessage("second request")],
 			});
-			const second = (metadata?.checkpoint as CheckpointMetadata).latest;
+			const second = (metadata?.checkpoint as RecordedCheckpoints).latest;
 			expect(second.runCount).toBe(2);
 			expect(await runGit(cwd, "show", `${second.ref}^3:data.txt`)).toBe(
 				"after!",

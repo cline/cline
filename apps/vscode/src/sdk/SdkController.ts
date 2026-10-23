@@ -11,13 +11,14 @@ import {
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
-	findCheckpointForRun,
+	explainCheckpointUnsupported,
 	getProviderAuthStorageId,
 	loadRulesForSystemPromptFromRecords,
 	type PreparedRemoteConfigCoreIntegration,
 	type RuleConfig,
 	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
+	resolveRunCheckpoint,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
@@ -31,6 +32,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import type { WorkspaceCheckpointAvailability } from "@shared/proto-conversions/checkpoints/workspace-checkpoint-availability"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -1834,10 +1836,8 @@ export class Controller {
 				this.taskHistory.findHistoryItem(currentTask.taskId).catch(() => undefined),
 			])
 			const workspaceCheckpoint =
-				checkpointRunCount === undefined
-					? undefined
-					: findCheckpointForRun(readSessionCheckpointHistory(sessionRecord), checkpointRunCount)
-			if (input.restoreWorkspace && !workspaceCheckpoint) {
+				checkpointRunCount === undefined ? undefined : resolveRunCheckpoint(sessionRecord, checkpointRunCount)
+			if (input.restoreWorkspace && workspaceCheckpoint?.status !== "available") {
 				throw new Error("No workspace checkpoint is available for this message")
 			}
 			const cwd =
@@ -2075,25 +2075,27 @@ export class Controller {
 
 	/**
 	 * Whether Reset Code can restore the workspace from the user message with
-	 * the given ts. Answered when the user opens the message for editing, so
-	 * the checkpoint written for the latest turn is visible. The message is
-	 * mapped to its run the same way editMessageAndRegenerate maps it, so a
-	 * positive answer means that edit will find the checkpoint too.
+	 * the given ts, and if not, core's explanation of why. Answered when the
+	 * user opens the message for editing, so the checkpoint written for the
+	 * latest turn is visible. The message is mapped to its run, and the run to
+	 * its checkpoint, the same way editMessageAndRegenerate does, so a positive
+	 * answer means that edit will find the checkpoint too.
 	 *
 	 * After a window reload the latest task is shown from history without a
 	 * live session; then, as in editMessageAndRegenerate, a temporary host is
 	 * created for the read and disposed afterwards.
 	 */
-	async hasWorkspaceCheckpointForMessage(messageTs: number): Promise<boolean> {
+	async getWorkspaceCheckpointAvailability(messageTs: number): Promise<WorkspaceCheckpointAvailability> {
+		const unknownCause = { exists: false, errorMessage: undefined } as const
 		const activeSession = this.sessions.getActiveSession()
 		const currentTask = this.task
 		if (!currentTask) {
-			return false
+			return unknownCause
 		}
 		const clineMessages = currentTask.messageStateHandler.getClineMessages()
 		const targetIndex = clineMessages.findIndex((message) => message.ts === messageTs)
 		if (targetIndex === -1 || getCheckpointRunCountForMessage(clineMessages, targetIndex) === undefined) {
-			return false
+			return unknownCause
 		}
 		const userOrdinal = clineMessages.slice(0, targetIndex + 1).filter(isVisibleCheckpointUserMessage).length
 		const sessionId = activeSession?.sessionId ?? currentTask.taskId
@@ -2105,17 +2107,24 @@ export class Controller {
 				readCurrentMessages(sessionHost, sessionId) as Promise<SdkUserMessage[]>,
 			])
 			const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
-			if (sdkIndex === -1) {
-				return false
+			const runCount = sdkIndex === -1 ? undefined : getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
+			if (runCount === undefined) {
+				return unknownCause
 			}
-			const runCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
-			return (
-				runCount !== undefined &&
-				findCheckpointForRun(readSessionCheckpointHistory(sessionRecord), runCount) !== undefined
-			)
+			const runCheckpoint = resolveRunCheckpoint(sessionRecord, runCount)
+			if (runCheckpoint.status === "available") {
+				return { exists: true }
+			}
+			if (runCheckpoint.status === "failed") {
+				return { exists: false, errorMessage: runCheckpoint.errorMessage }
+			}
+			// Turns from before failures were recorded: the workspace as it is now
+			// is the best available explanation.
+			const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (await this.getWorkspaceRoot())
+			return { exists: false, errorMessage: await explainCheckpointUnsupported(cwd) }
 		} catch (error) {
 			Logger.debug(`[SdkController] Failed to resolve workspace checkpoint for message ${messageTs}: ${error}`)
-			return false
+			return unknownCause
 		} finally {
 			try {
 				await tempHost?.dispose("workspaceCheckpointForMessage")

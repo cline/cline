@@ -2,12 +2,12 @@ import { execFile as execFileCallback } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { promisify } from "node:util";
-import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
 import {
+	type CheckpointEntry,
 	findCheckpointForRun,
 	readSessionCheckpointHistory,
-} from "./checkpoint-restore";
+} from "./checkpoint-records";
 
 const execFile = promisify(execFileCallback);
 const MAX_GIT_OUTPUT = 50 * 1024 * 1024;

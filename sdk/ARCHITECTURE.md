@@ -136,6 +136,7 @@ Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
 - `session/fork-metadata` owns fork ancestry and removal of inherited handoff markers; hosts retain title, transcript, and workspace-restore policies.
+- `session/checkpoint-records` owns the per-run checkpoint record in `metadata.checkpoint`: each user turn ends with a checkpoint entry or a `CheckpointFailure` whose `errorMessage` hosts show as-is. `resolveRunCheckpoint` is the one rule for which snapshot a run restores to: its own checkpoint; nothing, if its snapshot failed (an earlier checkpoint would also undo the turns in between); otherwise, for runs with no record, the nearest earlier checkpoint. Chat-only restores ignore failures, since they leave files alone. Restored and edited sessions inherit both lists up to the restored run.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
 - `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Hosts own transfer orchestration, source locks, persistence, feature gating, and draft recovery.
 - The cloud controller resumes suspended sessions and restores saved tasks.

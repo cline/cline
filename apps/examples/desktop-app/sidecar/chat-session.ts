@@ -9,7 +9,6 @@ import {
 	createContextCompactionPrepareTurn,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
-	findCheckpointForRun,
 	formatSessionPluginIssue,
 	getCoreBuiltinToolCatalog,
 	isSessionNotFoundError,
@@ -18,8 +17,8 @@ import {
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
-	readSessionCheckpointHistory,
 	resolveProviderApiKeyFromSettings,
+	resolveRunCheckpoint,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -2187,16 +2186,14 @@ async function handleForkUnlocked(
 		sessionMetadata: forkMetadata,
 		toolPolicies: resolveToolPolicies(forkConfig),
 	};
-	// Sessions without a checkpoint at or before the edited run (imported
-	// transcripts, checkpoints disabled) have no workspace state to roll back,
-	// so fork the trimmed messages onto the current workspace instead of
-	// failing the edit.
+	// Sessions without a usable checkpoint for the edited run (imported
+	// transcripts, checkpoints disabled, or a run whose snapshot failed) have
+	// no workspace state to roll back, so fork the trimmed messages onto the
+	// current workspace instead of failing the edit.
 	const canRestoreWorkspace =
 		forkBeforeRunCount !== undefined &&
-		findCheckpointForRun(
-			readSessionCheckpointHistory({ metadata: sourceMetadata }),
-			forkBeforeRunCount,
-		) !== undefined;
+		resolveRunCheckpoint({ metadata: sourceMetadata }, forkBeforeRunCount)
+			.status === "available";
 	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
 		const cwd =
 			restoreWorkspacePath ||
