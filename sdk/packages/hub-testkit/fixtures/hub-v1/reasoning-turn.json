@@ -158,7 +158,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -181,6 +180,7 @@
 							}
 						}
 					},
+					"sequence": 2,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -264,7 +264,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -323,6 +322,7 @@
 						"clientId": "<client_1>",
 						"requestId": "<request_3>"
 					},
+					"sequence": 3,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -340,6 +340,7 @@
 					"payload": {
 						"iteration": 1
 					},
+					"sequence": 4,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -358,6 +359,7 @@
 						"redacted": false,
 						"text": "Let me "
 					},
+					"sequence": 5,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -376,6 +378,7 @@
 						"redacted": false,
 						"text": "think."
 					},
+					"sequence": 6,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -393,6 +396,7 @@
 					"payload": {
 						"reasoning": "Let me think."
 					},
+					"sequence": 7,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -410,6 +414,7 @@
 					"payload": {
 						"text": "Answer."
 					},
+					"sequence": 8,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -427,6 +432,7 @@
 					"payload": {
 						"text": "Answer."
 					},
+					"sequence": 9,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -446,6 +452,7 @@
 						"iteration": 1,
 						"toolCallCount": 0
 					},
+					"sequence": 10,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -505,16 +512,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "think first",
-									"role": "user"
-								},
-								{
-									"content": "Answer.",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -537,6 +534,7 @@
 							}
 						}
 					},
+					"sequence": 11,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -594,16 +592,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "think first",
-									"role": "user"
-								},
-								{
-									"content": "Answer.",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"

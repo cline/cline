@@ -172,6 +172,8 @@ export async function startTestHub(
 		pathname: "/hub",
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		scheduleOptions: { dbPath: ":memory:" },
+		eventLog: { dbPath: ":memory:" },
+		runQueue: { dbPath: ":memory:" },
 		sessionHost: runtimeHost as never,
 	});
 

@@ -96,6 +96,7 @@
 					"payload": {
 						"text": "part two"
 					},
+					"sequence": 23,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -113,6 +114,7 @@
 					"payload": {
 						"text": "part two"
 					},
+					"sequence": 24,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -163,6 +165,7 @@
 							"totalCost": 0
 						}
 					},
+					"sequence": 25,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -182,6 +185,7 @@
 						"iteration": 1,
 						"toolCallCount": 0
 					},
+					"sequence": 26,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -241,16 +245,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "stream in two parts",
-									"role": "user"
-								},
-								{
-									"content": "part one part two",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -273,6 +267,7 @@
 							}
 						}
 					},
+					"sequence": 27,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"

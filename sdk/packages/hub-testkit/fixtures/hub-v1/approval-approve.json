@@ -158,7 +158,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -181,6 +180,7 @@
 							}
 						}
 					},
+					"sequence": 2,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -264,7 +264,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -323,6 +322,7 @@
 						"clientId": "<client_1>",
 						"requestId": "<request_3>"
 					},
+					"sequence": 3,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -340,6 +340,7 @@
 					"payload": {
 						"iteration": 1
 					},
+					"sequence": 4,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -361,6 +362,7 @@
 						"toolCallId": "<toolCall_1>",
 						"toolName": "bash"
 					},
+					"sequence": 5,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -390,6 +392,7 @@
 						"toolCallId": "<toolCall_1>",
 						"toolName": "bash"
 					},
+					"sequence": 6,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -428,6 +431,7 @@
 						"approved": true,
 						"reason": "looks safe"
 					},
+					"sequence": 7,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -447,6 +451,7 @@
 						"toolCallId": "<toolCall_1>",
 						"toolName": "bash"
 					},
+					"sequence": 8,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -480,6 +485,7 @@
 					"payload": {
 						"text": "ran it"
 					},
+					"sequence": 9,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -497,6 +503,7 @@
 					"payload": {
 						"text": "ran it"
 					},
+					"sequence": 10,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -516,6 +523,7 @@
 						"iteration": 1,
 						"toolCallCount": 1
 					},
+					"sequence": 11,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -583,40 +591,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "run echo",
-									"role": "user"
-								},
-								{
-									"content": [
-										{
-											"id": "call-1",
-											"input": {
-												"command": "echo hi"
-											},
-											"name": "bash",
-											"type": "tool_use"
-										}
-									],
-									"role": "assistant"
-								},
-								{
-									"content": [
-										{
-											"content": "\"hi\\n\"",
-											"is_error": false,
-											"tool_use_id": "call-1",
-											"type": "tool_result"
-										}
-									],
-									"role": "user"
-								},
-								{
-									"content": "ran it",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -639,6 +613,7 @@
 							}
 						}
 					},
+					"sequence": 12,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -704,40 +679,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "run echo",
-									"role": "user"
-								},
-								{
-									"content": [
-										{
-											"id": "call-1",
-											"input": {
-												"command": "echo hi"
-											},
-											"name": "bash",
-											"type": "tool_use"
-										}
-									],
-									"role": "assistant"
-								},
-								{
-									"content": [
-										{
-											"content": "\"hi\\n\"",
-											"is_error": false,
-											"tool_use_id": "call-1",
-											"type": "tool_result"
-										}
-									],
-									"role": "user"
-								},
-								{
-									"content": "ran it",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"

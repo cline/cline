@@ -36,6 +36,24 @@ afterEach(async () => {
 });
 
 describe("hub protocol v1 contract", () => {
+	it("isolates event cursors between test hubs", async () => {
+		const cursors: Array<number | undefined> = [];
+		for (let index = 0; index < 2; index++) {
+			const hub = await openHub({
+				script: [{ kind: "text", chunks: ["done"] }],
+			});
+			const client = await hub.connectClient();
+			await client.subscribeReady();
+			const sessionId = await client.createSession();
+			await client.sendInput(sessionId, "say done");
+			const completed = await client.waitForEvent("run.completed");
+			expect(completed.sequence).toBeGreaterThan(0);
+			cursors.push(completed.sequence);
+		}
+		expect(cursors).toHaveLength(2);
+		expect(cursors[0]).toBe(cursors[1]);
+	});
+
 	it("register-handshake: the register reply advertises the hub's protocol range and capabilities", async () => {
 		const hub = await openHub({});
 		const client = await hub.connectClient({ clientId: "client-handshake" });

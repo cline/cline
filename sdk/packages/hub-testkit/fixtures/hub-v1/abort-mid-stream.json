@@ -158,7 +158,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -181,6 +180,7 @@
 							}
 						}
 					},
+					"sequence": 2,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -264,7 +264,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -323,6 +322,7 @@
 						"clientId": "<client_1>",
 						"requestId": "<request_3>"
 					},
+					"sequence": 3,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -340,6 +340,7 @@
 					"payload": {
 						"iteration": 1
 					},
+					"sequence": 4,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -357,6 +358,7 @@
 					"payload": {
 						"text": "one "
 					},
+					"sequence": 5,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -374,6 +376,7 @@
 					"payload": {
 						"text": "two "
 					},
+					"sequence": 6,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -391,6 +394,7 @@
 					"payload": {
 						"text": "one two "
 					},
+					"sequence": 7,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -429,6 +433,7 @@
 						"iteration": 1,
 						"toolCallCount": 0
 					},
+					"sequence": 8,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -503,16 +508,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "stream then stall",
-									"role": "user"
-								},
-								{
-									"content": "user cancelled",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"
@@ -535,6 +530,7 @@
 							}
 						}
 					},
+					"sequence": 9,
 					"sessionId": "<session_1>",
 					"timestamp": 0,
 					"version": "v1"
@@ -592,16 +588,6 @@
 								"conversationId": "<conversation_1>",
 								"isSubagent": false
 							},
-							"messages": [
-								{
-									"content": "stream then stall",
-									"role": "user"
-								},
-								{
-									"content": "user cancelled",
-									"role": "assistant"
-								}
-							],
 							"model": {
 								"modelId": "testkit-model",
 								"providerId": "testkit"

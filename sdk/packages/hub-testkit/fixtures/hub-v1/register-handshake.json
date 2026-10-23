@@ -60,7 +60,12 @@
 							"approval.list_pending",
 							"connector.start",
 							"connector.stop",
-							"connector.supervised"
+							"connector.supervised",
+							"run.enqueue",
+							"run.list",
+							"hub.drain",
+							"hub.status",
+							"stream.replay"
 						],
 						"clientId": "<client_1>",
 						"protocol": {
