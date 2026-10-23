@@ -99,6 +99,25 @@ class HubDiscoveryTest {
 	}
 
 	@Test
+	fun `locates a bare command in well-known install dirs when PATH misses it`() {
+		val home = tmp.newFolder("home7").toPath()
+		val bunBin = home.resolve(".bun/bin")
+		Files.createDirectories(bunBin)
+		val exe = bunBin.resolve("cline")
+		Files.writeString(exe, "#!/bin/sh\n")
+		exe.toFile().setExecutable(true)
+
+		val emptyPath = tmp.newFolder("emptybin").toString()
+		val discovery = HubDiscovery(env = mapOf("PATH" to emptyPath), homeDir = home)
+		assertEquals(exe.toString(), discovery.locateExecutable("cline"))
+		assertNull("unknown commands stay unresolved", discovery.locateExecutable("definitely-missing"))
+
+		// When PATH already resolves the name, the bare name is kept (null = no rewrite).
+		val onPath = HubDiscovery(env = mapOf("PATH" to bunBin.toString()), homeDir = home)
+		assertNull(onPath.locateExecutable("cline"))
+	}
+
+	@Test
 	fun `url helpers`() {
 		assertEquals("ws://127.0.0.1:25463/hub", normalizeWsUrl("http://127.0.0.1:25463/hub"))
 		assertEquals("wss://example.com/hub", normalizeWsUrl("https://example.com/hub"))

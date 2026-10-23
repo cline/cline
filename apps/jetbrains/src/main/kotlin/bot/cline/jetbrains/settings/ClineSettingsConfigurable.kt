@@ -1,6 +1,8 @@
 package bot.cline.jetbrains.settings
 
 import bot.cline.jetbrains.ClineBundle
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBPasswordField
@@ -17,8 +19,7 @@ class ClineSettingsConfigurable : BoundConfigurable(ClineBundle.message("setting
 	private var loadedToken: String = ""
 
 	override fun createPanel(): DialogPanel {
-		loadedToken = settings.authTokenOverride ?: ""
-		tokenField.text = loadedToken
+		loadTokenAsync()
 		return panel {
 			group(ClineBundle.message("settings.group.hub")) {
 				row(ClineBundle.message("settings.cliCommand")) {
@@ -83,14 +84,25 @@ class ClineSettingsConfigurable : BoundConfigurable(ClineBundle.message("setting
 		super.apply()
 		val token = enteredToken()
 		if (token != loadedToken) {
-			settings.authTokenOverride = token
 			loadedToken = token
+			// The credential store may block (keyring/KWallet), so never touch it on the EDT.
+			ApplicationManager.getApplication().executeOnPooledThread { settings.authTokenOverride = token }
 		}
 	}
 
 	override fun reset() {
 		super.reset()
-		loadedToken = settings.authTokenOverride ?: ""
-		tokenField.text = loadedToken
+		loadTokenAsync()
+	}
+
+	private fun loadTokenAsync() {
+		val app = ApplicationManager.getApplication()
+		app.executeOnPooledThread {
+			val token = settings.authTokenOverride ?: ""
+			app.invokeLater({
+				loadedToken = token
+				tokenField.text = token
+			}, ModalityState.any())
+		}
 	}
 }

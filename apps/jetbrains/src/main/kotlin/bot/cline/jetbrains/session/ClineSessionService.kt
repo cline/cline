@@ -3,6 +3,7 @@ package bot.cline.jetbrains.session
 import bot.cline.jetbrains.hub.HubClient
 import bot.cline.jetbrains.hub.HubClientListener
 import bot.cline.jetbrains.hub.HubClientOptions
+import bot.cline.jetbrains.hub.HubCommandException
 import bot.cline.jetbrains.hub.HubConnectionState
 import bot.cline.jetbrains.hub.HubDiscovery
 import bot.cline.jetbrains.hub.HubEndpoint
@@ -30,6 +31,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /** A row in the session picker, from `session.list`. */
@@ -107,6 +110,9 @@ class ClineSessionService(private val project: Project) : Disposable {
 	@Volatile var sessionModel: String? = null
 		private set
 	@Volatile private var connecting: CompletableFuture<HubClient>? = null
+	@Volatile private var reconnectAttempt = 0
+	@Volatile private var reconnectTask: ScheduledFuture<*>? = null
+	@Volatile private var disposed = false
 
 	val isRunning: Boolean get() = transcript.running
 	val workspaceRoot: String? get() = project.basePath
@@ -118,13 +124,21 @@ class ClineSessionService(private val project: Project) : Disposable {
 
 	// ---------------------------------------------------------------- connection
 
-	/** Discovers (or starts, via the CLI) a hub and connects. Idempotent while connected. */
+	/**
+	 * Discovers (or starts, via the CLI) a hub and connects. Idempotent while
+	 * connected. `force` drops the current connection and re-runs discovery,
+	 * which is also what the automatic reconnect does so that a restarted
+	 * daemon (new port/token) is picked up.
+	 */
 	fun connect(force: Boolean = false): CompletableFuture<HubClient> {
 		synchronized(this) {
 			val existing = clientRef.get()
 			if (!force && existing != null && existing.isConnected) return CompletableFuture.completedFuture(existing)
 			connecting?.let { if (!force && !it.isDone) return it }
+			reconnectTask?.cancel(false)
+			reconnectTask = null
 			if (force) {
+				reconnectAttempt = 0
 				clientRef.getAndSet(null)?.let { runCatching { it.close() } }
 			}
 			val future = CompletableFuture.supplyAsync({ resolveAndOpen() }, executor)
@@ -134,9 +148,29 @@ class ClineSessionService(private val project: Project) : Disposable {
 					connectionError = unwrap(error)
 					connectionState = HubConnectionState.DISCONNECTED
 					notifyConnection()
+					scheduleReconnect()
 				}
 			}
 			return future
+		}
+	}
+
+	/**
+	 * Exponential backoff (1s … 30s) for a handful of attempts; after that the
+	 * user has to press Reconnect, which resets the counter.
+	 */
+	private fun scheduleReconnect() {
+		synchronized(this) {
+			if (disposed || reconnectTask != null || reconnectAttempt >= MAX_AUTO_RECONNECTS) return
+			val delaySeconds = minOf(1L shl minOf(reconnectAttempt, 5), 30L)
+			reconnectAttempt++
+			reconnectTask = AppExecutorUtil.getAppScheduledExecutorService().schedule({
+				synchronized(this) { reconnectTask = null }
+				if (!disposed && connectionState != HubConnectionState.CONNECTED) {
+					clientRef.getAndSet(null)?.let { runCatching { it.close() } }
+					connect()
+				}
+			}, delaySeconds, TimeUnit.SECONDS)
 		}
 	}
 
@@ -165,15 +199,27 @@ class ClineSessionService(private val project: Project) : Disposable {
 				workspaceRoot = workspaceRoot,
 				cwd = workspaceRoot,
 				metadata = mapOf("project" to project.name),
+				// Reconnection is owned by this service (see scheduleReconnect) so
+				// that it goes through discovery again instead of reusing a socket
+				// URL and token that may belong to a daemon that no longer exists.
+				autoReconnect = false,
 			),
 		)
 		client.addListener(object : HubClientListener {
 			override fun onEvent(event: HubEvent) = handleEvent(event)
 			override fun onConnectionStateChanged(state: HubConnectionState, error: Throwable?) {
-				if (clientRef.get() !== client && state != HubConnectionState.CONNECTED) return
+				if (clientRef.get() !== client) return
 				connectionState = state
 				connectionError = error
 				notifyConnection()
+				if (state == HubConnectionState.DISCONNECTED && error != null) {
+					if (transcript.running) {
+						transcript.markRunning(false)
+						transcript.addNotice("Lost connection to the Cline Hub: ${error.message}", NoticeLevel.WARNING)
+						notifyTranscript()
+					}
+					scheduleReconnect()
+				}
 			}
 		})
 		clientRef.getAndSet(client)?.let { runCatching { it.close() } }
@@ -184,6 +230,7 @@ class ClineSessionService(private val project: Project) : Disposable {
 			client.close()
 			throw unwrap(e)
 		}
+		reconnectAttempt = 0
 		connectionState = HubConnectionState.CONNECTED
 		connectionError = null
 		notifyConnection()
@@ -236,14 +283,25 @@ class ClineSessionService(private val project: Project) : Disposable {
 		transcript.addUserMessage(text)
 		transcript.markRunning(true)
 		notifyTranscript()
+		val payload = jsonObject {
+			addProperty("prompt", text)
+			addProperty("mode", mode.wireValue)
+		}
 		return connect()
 			.thenCompose { client -> ensureSession(client).thenApply { id -> client to id } }
 			.thenCompose { (client, id) ->
-				val payload = jsonObject {
-					addProperty("prompt", text)
-					addProperty("mode", mode.wireValue)
-				}
 				client.command("session.send_input", payload, id, timeoutMs = null)
+					.exceptionallyCompose { error ->
+						val root = unwrap(error)
+						// The daemon keeps finished sessions on disk only; after a hub
+						// restart the session must be re-created from its history before
+						// it can take input again (this is how the CLI resumes).
+						if (root is HubCommandException && root.code == "session_not_found") {
+							resumeSession(client, id).thenCompose { client.command("session.send_input", payload, id, timeoutMs = null) }
+						} else {
+							CompletableFuture.failedFuture(root)
+						}
+					}
 			}
 			.handle { reply, error ->
 				if (error != null) {
@@ -274,6 +332,11 @@ class ClineSessionService(private val project: Project) : Disposable {
 		sessionId?.let { return CompletableFuture.completedFuture(it) }
 		return createSession(client, existingSessionId = null, initialMessages = null)
 	}
+
+	/** Re-creates a persisted session in the hub from its stored messages, keeping its id. */
+	private fun resumeSession(client: HubClient, id: String): CompletableFuture<String> =
+		client.command("session.messages", jsonObject { addProperty("sessionId", id) }, id)
+			.thenCompose { reply -> createSession(client, id, reply.payload?.arrayOrNull("messages") ?: JsonArray()) }
 
 	private fun createSession(client: HubClient, existingSessionId: String?, initialMessages: JsonArray?): CompletableFuture<String> {
 		val settings = ClineSettings.getInstance()
@@ -418,11 +481,18 @@ class ClineSessionService(private val project: Project) : Disposable {
 	}
 
 	override fun dispose() {
+		disposed = true
+		synchronized(this) {
+			reconnectTask?.cancel(false)
+			reconnectTask = null
+		}
 		clientRef.getAndSet(null)?.let { runCatching { it.close() } }
 		listeners.clear()
 	}
 
 	companion object {
+		private const val MAX_AUTO_RECONNECTS = 8
+
 		fun getInstance(project: Project): ClineSessionService = project.getService(ClineSessionService::class.java)
 	}
 }

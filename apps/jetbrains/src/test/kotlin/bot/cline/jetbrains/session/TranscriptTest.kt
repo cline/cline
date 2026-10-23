@@ -55,6 +55,26 @@ class TranscriptTest {
 	}
 
 	@Test
+	fun `reasoning finished after assistant finished does not duplicate the bubble`() {
+		// Real hub ordering for the final message of a turn (see capture: assistant.finished seq 423, reasoning.finished seq 424).
+		val t = Transcript()
+		t.apply(event("run.started"))
+		t.apply(event("reasoning.delta", """{"text":"I will answer.","redacted":false}"""))
+		t.apply(event("assistant.delta", """{"text":"The file says hi."}"""))
+		t.apply(event("usage.updated", """{"totals":{"inputTokens":1,"outputTokens":1,"totalCost":0}}"""))
+		t.apply(event("assistant.finished", """{"text":"The file says hi."}"""))
+		t.apply(event("reasoning.finished", """{"reasoning":"I will answer."}"""))
+		t.apply(event("agent.done", """{"reason":"completed","text":"The file says hi."}"""))
+		t.apply(event("run.completed", """{"reason":"completed"}"""))
+
+		assertEquals(1, t.items.size)
+		val assistant = t.items.single() as TranscriptItem.AssistantMessage
+		assertEquals("The file says hi.", assistant.text.toString())
+		assertEquals("I will answer.", assistant.reasoning.toString())
+		assertFalse(assistant.streaming)
+	}
+
+	@Test
 	fun `tool calls split assistant bubbles and collect streamed output`() {
 		val t = Transcript()
 		t.apply(event("run.started"))

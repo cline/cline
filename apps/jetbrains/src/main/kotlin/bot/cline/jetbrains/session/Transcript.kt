@@ -191,7 +191,7 @@ class Transcript {
 			}
 			"assistant.finished" -> {
 				val text = p.stringOrNull("text")
-				val assistant = openAssistantOrNull() ?: if (!text.isNullOrEmpty()) openAssistant() else return false
+				val assistant = openAssistantOrNull() ?: lastAssistantOrNull() ?: if (!text.isNullOrEmpty()) openAssistant() else return false
 				if (!text.isNullOrEmpty()) {
 					assistant.text.setLength(0)
 					assistant.text.append(text)
@@ -207,7 +207,10 @@ class Transcript {
 			}
 			"reasoning.finished" -> {
 				val reasoning = p.stringOrNull("reasoning")
-				val assistant = openAssistantOrNull() ?: if (!reasoning.isNullOrEmpty()) openAssistant() else return false
+				// The hub publishes `reasoning.finished` after `assistant.finished` for the
+				// same message, so fall back to the just-closed bubble instead of opening
+				// a new one that would duplicate the reasoning.
+				val assistant = openAssistantOrNull() ?: lastAssistantOrNull() ?: if (!reasoning.isNullOrEmpty()) openAssistant() else return false
 				if (!reasoning.isNullOrEmpty()) {
 					assistant.reasoning.setLength(0)
 					assistant.reasoning.append(reasoning)
@@ -362,6 +365,10 @@ class Transcript {
 
 	private fun openAssistantOrNull(): TranscriptItem.AssistantMessage? =
 		(_items.lastOrNull() as? TranscriptItem.AssistantMessage)?.takeIf { it.streaming }
+
+	/** The most recent assistant bubble when it is still the last item (closed or not). */
+	private fun lastAssistantOrNull(): TranscriptItem.AssistantMessage? =
+		_items.lastOrNull() as? TranscriptItem.AssistantMessage
 
 	private fun openAssistant(): TranscriptItem.AssistantMessage =
 		openAssistantOrNull() ?: TranscriptItem.AssistantMessage(nextId("assistant")).also { _items.add(it) }

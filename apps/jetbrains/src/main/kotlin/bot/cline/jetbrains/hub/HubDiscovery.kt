@@ -169,7 +169,30 @@ class HubDiscovery(
 	 * `{"url": ..., "authToken": ...}`.
 	 */
 	fun ensureViaCli(cliCommand: String, workspaceRoot: String?): HubEndpoint {
-		val command = buildCliCommand(cliCommand, listOf("hub", "ensure", "--json") + (workspaceRoot?.let { listOf("--cwd", it) } ?: emptyList()))
+		val cwdArgs = workspaceRoot?.let { listOf("--cwd", it) } ?: emptyList()
+		// `--login-shell-path` makes the daemon inherit the user's login-shell PATH,
+		// which matters when the IDE was launched from a dock/launcher. Older CLIs
+		// do not know the flag, so fall back to a plain `ensure` in that case.
+		val first = runCli(cliCommand, listOf("hub", "ensure", "--json", "--login-shell-path") + cwdArgs, workspaceRoot)
+		val result = if (first.exitCode != 0 && first.stderr.contains("unknown option", ignoreCase = true)) {
+			runCli(cliCommand, listOf("hub", "ensure", "--json") + cwdArgs, workspaceRoot)
+		} else {
+			first
+		}
+		val parsed = parseEnsureOutput(result.stdout)
+		if (result.exitCode != 0 || parsed == null) {
+			val detail = result.stderr.trim().ifEmpty { result.stdout.trim() }
+			throw HubTransportException(
+				"`$cliCommand hub ensure` failed (exit ${result.exitCode})." + if (detail.isNotEmpty()) "\n$detail" else "",
+			)
+		}
+		return parsed
+	}
+
+	private class CliResult(val exitCode: Int, val stdout: String, val stderr: String)
+
+	private fun runCli(cliCommand: String, args: List<String>, workspaceRoot: String?): CliResult {
+		val command = buildCliCommand(cliCommand, args)
 		val builder = ProcessBuilder(command).redirectErrorStream(false)
 		workspaceRoot?.let { root -> File(root).takeIf { it.isDirectory }?.let { builder.directory(it) } }
 		val process = try {
@@ -194,14 +217,7 @@ class HubDiscovery(
 		}
 		outReader.join(2_000)
 		errReader.join(2_000)
-		val parsed = parseEnsureOutput(stdout.toString())
-		if (process.exitValue() != 0 || parsed == null) {
-			val detail = stderr.toString().trim().ifEmpty { stdout.toString().trim() }
-			throw HubTransportException(
-				"`$cliCommand hub ensure` failed (exit ${process.exitValue()})." + if (detail.isNotEmpty()) "\n$detail" else "",
-			)
-		}
-		return parsed
+		return CliResult(process.exitValue(), stdout.toString(), stderr.toString())
 	}
 
 	fun resolve(options: Options): HubEndpoint {
@@ -209,7 +225,10 @@ class HubDiscovery(
 			return HubEndpoint(normalizeWsUrl(url), options.authTokenOverride?.trim()?.takeIf { it.isNotEmpty() }, "settings override")
 		}
 		findRunningHub(options.discoveryPathOverride)?.let { return it }
-		return ensureViaCli(options.cliCommand, options.workspaceRoot)
+		val started = ensureViaCli(options.cliCommand, options.workspaceRoot)
+		// The CLI only prints url/token; enrich with /health so the UI can show the core version.
+		val health = probe(started.url) ?: return started
+		return started.copy(coreVersion = health.stringOrNull("coreVersion"), pid = health.longOrNull("pid"))
 	}
 
 	data class Options(
@@ -229,14 +248,46 @@ class HubDiscovery(
 	}
 
 	private fun buildCliCommand(cliCommand: String, args: List<String>): List<String> {
-		val parts = splitCommand(cliCommand)
+		val parts = splitCommand(cliCommand).toMutableList()
 		val isWindows = System.getProperty("os.name").lowercase().contains("win")
-		return if (isWindows && parts.size == 1 && !parts[0].contains('\\') && !parts[0].contains('/')) {
+		val bareName = parts.size == 1 && !parts[0].contains('\\') && !parts[0].contains('/')
+		if (bareName && !isWindows) {
+			locateExecutable(parts[0])?.let { parts[0] = it }
+		}
+		return if (isWindows && bareName) {
 			// `cline` on Windows is `cline.cmd`; ProcessBuilder needs a shell for that.
 			listOf("cmd.exe", "/c", parts[0]) + args
 		} else {
 			parts + args
 		}
+	}
+
+	/**
+	 * IDEs launched from a dock or desktop launcher often get a minimal PATH
+	 * without the user's Node/npm bin directories, so when a bare command is
+	 * not on PATH look in the places global npm/bun/volta installs end up.
+	 */
+	internal fun locateExecutable(name: String): String? {
+		val pathDirs = (env["PATH"] ?: "").split(File.pathSeparatorChar).filter { it.isNotBlank() }
+		val onPath = pathDirs.asSequence().map { Paths.get(it, name) }.firstOrNull { Files.isExecutable(it) }
+		if (onPath != null) return null // PATH already resolves it; keep the bare name.
+		val candidates = mutableListOf<Path>()
+		listOf("/usr/local/bin", "/opt/homebrew/bin", "/usr/bin").forEach { candidates.add(Paths.get(it, name)) }
+		listOf(".bun/bin", ".npm-global/bin", ".volta/bin", ".local/bin", "node_modules/.bin").forEach { candidates.add(homeDir.resolve(it).resolve(name)) }
+		env["BUN_INSTALL"]?.takeIf { it.isNotBlank() }?.let { candidates.add(Paths.get(it, "bin", name)) }
+		env["VOLTA_HOME"]?.takeIf { it.isNotBlank() }?.let { candidates.add(Paths.get(it, "bin", name)) }
+		listOfNotNull(env["NVM_DIR"]?.takeIf { it.isNotBlank() }?.let { Paths.get(it) }, homeDir.resolve(".nvm"))
+			.map { it.resolve("versions").resolve("node") }
+			.filter { Files.isDirectory(it) }
+			.forEach { nodeVersions ->
+				runCatching {
+					Files.list(nodeVersions).use { versions ->
+						versions.sorted(compareByDescending<Path> { it.fileName.toString() }).forEach { candidates.add(it.resolve("bin").resolve(name)) }
+					}
+				}
+			}
+		env["NODE_PATH"]?.takeIf { it.isNotBlank() }?.split(File.pathSeparatorChar)?.forEach { candidates.add(Paths.get(it, ".bin", name)) }
+		return candidates.firstOrNull { Files.isExecutable(it) }?.toString()
 	}
 
 	/** Splits a user-provided command line on whitespace, honoring simple quotes. */
