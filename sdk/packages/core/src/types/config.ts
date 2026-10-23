@@ -260,6 +260,7 @@ export interface CoreSessionConfig
 	 */
 	sessionId?: string;
 	workspaceRoot?: string;
+	enableSubmitAndExit?: boolean;
 	systemPrompt: string;
 	teamName?: string;
 	missionLogIntervalSteps?: number;
