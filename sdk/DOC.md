@@ -121,6 +121,10 @@ The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
 The callback does not confirm acceptance.
+`createAndSend(input, images?)` combines creation and the initial prompt, returning
+`{ target, send }`. A failed `send` includes `dispatched`; only `false` means the
+prompt can be retried on that target. Through `HubCloudSessionClient`, the operation survives viewer
+disconnects. A lost reply raises `request_unconfirmed`; check cloud tasks before retrying.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

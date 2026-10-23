@@ -5,6 +5,7 @@ import type { CloudSessionController } from "./controller";
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
 export const CLOUD_HUB_OPERATIONS = [
 	"create",
+	"createAndSend",
 	"attach",
 	"send",
 	"abort",
@@ -33,6 +34,21 @@ export const cloudSendFailureSchema = z.object({
 	detail: z.string().optional(),
 });
 export type CloudSendFailure = z.infer<typeof cloudSendFailureSchema>;
+
+export function serializeCloudSendFailure(
+	error: unknown,
+	dispatched: boolean,
+): CloudSendFailure {
+	return {
+		dispatched,
+		message: error instanceof Error ? error.message : String(error),
+		...(error instanceof Error &&
+		"detail" in error &&
+		typeof error.detail === "string"
+			? { detail: error.detail }
+			: {}),
+	};
+}
 
 export class CloudSendError extends Error {
 	constructor(

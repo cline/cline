@@ -20,6 +20,10 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
+import {
+	type CloudSendFailure,
+	serializeCloudSendFailure,
+} from "./hub-protocol";
 import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
@@ -1043,6 +1047,36 @@ export class CloudSessionController {
 		});
 		this.createRequests.set(key, creating);
 		return await creating;
+	}
+
+	async createAndSend(
+		input: Omit<CreateCloudSessionInput, "handoff"> & { initialPrompt: string },
+		images?: string[],
+	): Promise<{
+		target: CloudSessionAttachment;
+		send:
+			| Awaited<ReturnType<CloudSessionController["send"]>>
+			| CloudSendFailure;
+	}> {
+		const target = await this.create(input);
+		let dispatched = false;
+		try {
+			const send = await this.send(
+				target.sessionId,
+				input.initialPrompt,
+				undefined,
+				input.modelId,
+				images,
+				{
+					beforeDispatch: () => {
+						dispatched = true;
+					},
+				},
+			);
+			return { target, send };
+		} catch (error) {
+			return { target, send: serializeCloudSendFailure(error, dispatched) };
+		}
 	}
 
 	private trackProvisioningController(

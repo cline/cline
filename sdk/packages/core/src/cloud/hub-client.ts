@@ -1,6 +1,6 @@
 import type { HubEventEnvelope, HubReplyEnvelope } from "@cline/shared";
 import type { NodeHubClient } from "../hub/client";
-import type { CloudSessionRecord } from "./api";
+import { CloudSessionError, type CloudSessionRecord } from "./api";
 import {
 	type CloudHubArgs,
 	type CloudHubOperation,
@@ -155,12 +155,11 @@ export class HubCloudSessionClient {
 			scope.serviceId === this.serviceId &&
 			scope.scopeGeneration === this.scopeGeneration;
 		let dispatched = false;
-		const reply = await client.command(
-			"cloud.command",
-			{ operation, args, scope },
-			undefined,
-			{
-				timeoutMs: ["create", "send", "attach"].includes(operation)
+		const reply = await client
+			.command("cloud.command", { operation, args, scope }, undefined, {
+				timeoutMs: ["create", "createAndSend", "send", "attach"].includes(
+					operation,
+				)
 					? null
 					: undefined,
 				beforeDispatch: () => {
@@ -175,8 +174,21 @@ export class HubCloudSessionClient {
 				onDispatch: () => {
 					dispatched = true;
 				},
-			},
-		);
+			})
+			.catch((error: unknown) => {
+				// Cloud and Hub entrypoints bundle separate error constructors.
+				const rejected =
+					error instanceof Error &&
+					error.name === "HubCommandError" &&
+					"code" in error &&
+					error.code !== "hub_command_timeout";
+				if (operation === "createAndSend" && dispatched && !rejected)
+					throw new CloudSessionError(
+						"request_unconfirmed",
+						"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
+					);
+				throw error;
+			});
 		this.checkReply(reply);
 		if (
 			!isCurrentScope() ||
@@ -201,6 +213,13 @@ export class HubCloudSessionClient {
 		scope?: CloudHubScope,
 	): Promise<CloudHubResult<"create">> {
 		return this.call("create", [input], scope);
+	}
+	createAndSend(
+		input: CloudHubArgs<"createAndSend">[0],
+		images?: string[],
+		scope?: CloudHubScope,
+	): Promise<CloudHubResult<"createAndSend">> {
+		return this.call("createAndSend", [input, images], scope);
 	}
 	attach(...args: CloudHubArgs<"attach">): Promise<CloudHubResult<"attach">> {
 		return this.call("attach", args);

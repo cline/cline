@@ -2,7 +2,7 @@ import {
 	CloudSessionController,
 	type CloudSessionControllerOptions,
 } from "@cline/core/cloud";
-import { HubCloudSessionService } from "@cline/core/hub";
+import { HubCloudSessionService, HubCommandError } from "@cline/core/hub";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach } from "vitest";
 import { CloudSessionManager } from "./cloud-sessions";
@@ -79,11 +79,19 @@ export async function createCloudSessionTestRuntime(
 				const result =
 					command === "cloud.watch"
 						? service.watch()
-						: await service.command(
-								String(serialized?.operation),
-								serialized?.args,
-								serialized?.scope,
-							);
+						: await service
+								.command(
+									String(serialized?.operation),
+									serialized?.args,
+									serialized?.scope,
+								)
+								.catch((error: unknown) => {
+									throw new HubCommandError(
+										command,
+										undefined,
+										error instanceof Error ? error.message : String(error),
+									);
+								});
 				return {
 					version: "v1",
 					ok: true,

@@ -133,7 +133,7 @@ export function CloudHandoffStatus({
 				? state.message
 					? "Check the cloud task"
 					: "Cloud task ready"
-				: "Cloud preparation stopped";
+				: "Cloud handoff needs attention";
 	return (
 		<output
 			aria-live="polite"

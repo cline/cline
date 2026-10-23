@@ -35,6 +35,33 @@ function harness() {
 }
 
 describe("summary handoff lifecycle", () => {
+	it("keeps the draft and warns to check cloud tasks when submission has no known target", async () => {
+		const h = harness();
+		const attachments = [new File(["image"], "image.png")];
+		const handoffAttemptId = h.start(attachments);
+		const message =
+			"The cloud task may have started. Check your cloud tasks before submitting this draft again.";
+		await h.lifecycle.onRpcRejected("local", {
+			handoffAttemptId,
+			error: new Error(
+				`CLOUD_SESSION_ERROR:${JSON.stringify({ code: "request_unconfirmed", message })}`,
+			),
+			nextCommand: "Continue",
+			sourceAttachments: attachments,
+		});
+		expect(h.state().local).toMatchObject({
+			status: "failed",
+			message,
+			retryDraft: "Continue",
+			retryAttachments: attachments,
+		});
+		expect(h.toast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Check cloud tasks",
+				description: message,
+			}),
+		);
+	});
 	it.each([
 		false,
 		true,

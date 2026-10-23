@@ -112,7 +112,13 @@ async function fixture() {
 		startedAt: 1,
 	});
 	const cloud = await createCloudSessionTestRuntime(ctx, {
-		api: {} as CloudSessionApi,
+		api: {
+			create: vi.fn(async () => ({
+				sessionId: "ses-target",
+				status: "ready",
+				sandboxUrl: "",
+			})),
+		} as unknown as CloudSessionApi,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "synthetic",
 	});
@@ -122,18 +128,7 @@ async function fixture() {
 			{ id: modelId, catalogId: "cline-cloud", name: "Test" },
 		]);
 	vi.spyOn(cloud, "prepareHandoffRepository").mockResolvedValue({});
-	const create = vi.spyOn(cloud, "create").mockResolvedValue({
-		sessionId: "ses-target",
-		status: "idle",
-		origin: "cloud",
-		executionTarget: "cloud",
-		provider: "cline",
-		model: modelId,
-		repoUrl: git.repoUrl,
-		branch: git.branch,
-		cwd: "/workspace/packages/app",
-		workspaceRoot: "/workspace",
-	});
+	const create = vi.spyOn(cloud, "create");
 	const send = vi.spyOn(cloud, "send").mockImplementation(async (...args) => {
 		args[5]?.beforeDispatch?.();
 		return { sessionId: "ses-target", ok: true };
@@ -181,32 +176,6 @@ async function fixture() {
 }
 
 describe("summary cloud handoff", () => {
-	it("preserves the prepared prompt when cloud preferences cannot be restored", async () => {
-		const f = await fixture();
-		await f.prepare();
-		f.ctx.liveSessions.set("ses-target", {
-			config: { autoApproveTools: false },
-			messages: [],
-			promptsInQueue: [],
-			busy: false,
-			status: "idle",
-			startedAt: 1,
-		});
-		vi.spyOn(f.viewer, "restoreCreationOptions").mockRejectedValueOnce(
-			new Error("Preferences unavailable"),
-		);
-		const result = await f.handoff({
-			...f.request,
-			nextCommand: "Add tests",
-			attachments: { userImages: [image] },
-		});
-		expect(f.send).not.toHaveBeenCalled();
-		expect(result).toMatchObject({
-			warningKind: "unqueued",
-			unsentPrompt:
-				"Search form: implemented. Next: add tests.\n\nNext instruction from the user:\nAdd tests",
-		});
-	});
 	it("returns a missed completion before preparing another cloud task", async () => {
 		const f = await fixture();
 		await f.prepare();
@@ -453,11 +422,23 @@ describe("summary cloud handoff", () => {
 				const event = JSON.parse(raw).event;
 				if (
 					event?.name === "cloud_handoff_progress" &&
-					["summarizing", "checking"].includes(event.payload.phase)
+					["summarizing", "checking", "provisioning"].includes(
+						event.payload.phase,
+					)
 				)
 					preparationProgress.push(event.payload);
 			},
 		} as unknown as SidecarWebSocketClient);
+		f.send.mockImplementation(async (...args) => {
+			expect(preparationProgress).toContainEqual(
+				expect.objectContaining({
+					phase: "provisioning",
+					sessionId: "ses-target",
+				}),
+			);
+			args[5]?.beforeDispatch?.();
+			return { sessionId: "ses-target", ok: true };
+		});
 		await f.prepare();
 		const result = await f.handoff({
 			...f.request,
@@ -479,6 +460,11 @@ describe("summary cloud handoff", () => {
 			expect.objectContaining({
 				handoffAttemptId: "attempt-1",
 				phase: "checking",
+			}),
+			expect.objectContaining({
+				handoffAttemptId: "attempt-1",
+				phase: "provisioning",
+				sessionId: "ses-target",
 			}),
 		]);
 		expect(f.create).toHaveBeenCalledWith(
@@ -657,11 +643,13 @@ describe("summary cloud handoff", () => {
 		} as unknown as SidecarWebSocketClient);
 		await f.prepare();
 		if (dispatched === undefined) {
-			const send = f.viewer.send.bind(f.viewer);
-			vi.spyOn(f.viewer, "send").mockImplementation(async (...args) => {
-				await send(...args);
-				throw new Error("Reply lost after send");
-			});
+			const createAndSend = f.viewer.createAndSend.bind(f.viewer);
+			vi.spyOn(f.viewer, "createAndSend").mockImplementation(
+				async (...args) => {
+					await createAndSend(...args);
+					throw new Error("Reply lost after send");
+				},
+			);
 		} else {
 			f.send.mockImplementation(async (...args) => {
 				if (dispatched) args[5]?.beforeDispatch?.();

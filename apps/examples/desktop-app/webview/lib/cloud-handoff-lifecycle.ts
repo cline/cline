@@ -46,6 +46,7 @@ function handoffError(error: unknown) {
 	return {
 		message: humanizeCloudHandoffError(parsed?.message ?? raw),
 		connectUrl: parsed?.connectUrl,
+		unconfirmed: parsed?.code === "request_unconfirmed",
 	};
 }
 
@@ -206,7 +207,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				});
 				return;
 			}
-			const { message, connectUrl } = handoffError(ctx.error);
+			const { message, connectUrl, unconfirmed } = handoffError(ctx.error);
 			effects.dispatch({
 				type: "failed",
 				sourceSessionId,
@@ -215,7 +216,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				retryAttachments: ctx.sourceAttachments,
 			});
 			effects.toast({
-				title: "Handoff failed",
+				title: unconfirmed ? "Check cloud tasks" : "Handoff failed",
 				description: message,
 				variant: "destructive",
 				connectUrl,

@@ -6,10 +6,11 @@ import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { CloudSessionApi } from "../../cloud/api";
 import { CloudSessionController } from "../../cloud/controller";
-import type {
-	CloudHubOperation,
-	CloudHubScope,
-	CloudSendFailure,
+import {
+	type CloudHubOperation,
+	type CloudHubScope,
+	type CloudSendFailure,
+	serializeCloudSendFailure,
 } from "../../cloud/hub-protocol";
 import type {
 	CloudSessionEvent,
@@ -31,19 +32,22 @@ const creationOptions = z.object({
 	thinking: z.boolean().optional(),
 	reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
 });
+const createInput = creationOptions
+	.extend({
+		sandboxType: z.enum(["standard", "resumable"]).optional(),
+		requestId: id.optional(),
+		modelId: id,
+		repoUrl: id,
+		initialPrompt: z.string().optional(),
+		branch: id.optional(),
+		organizationId: id.nullable().optional(),
+	})
+	.strict();
 const schemas = {
-	create: z.tuple([
-		creationOptions
-			.extend({
-				sandboxType: z.enum(["standard", "resumable"]).optional(),
-				requestId: id.optional(),
-				modelId: id,
-				repoUrl: id,
-				initialPrompt: z.string().optional(),
-				branch: id.optional(),
-				organizationId: id.nullable().optional(),
-			})
-			.strict(),
+	create: z.tuple([createInput]),
+	createAndSend: z.tuple([
+		createInput.extend({ initialPrompt: id }),
+		z.array(z.string()).nullish(),
 	]),
 	attach: z.tuple([id, creationOptions.nullish()]),
 	send: z.tuple([
@@ -340,7 +344,7 @@ export class HubCloudSessionService {
 		const normalized = args.map((value) =>
 			value === null ? undefined : value,
 		);
-		if (name === "create") {
+		if (name === "create" || name === "createAndSend") {
 			const input = normalized[0] as { sandboxType?: string };
 			input.sandboxType ??= "resumable";
 		}
@@ -370,15 +374,7 @@ export class HubCloudSessionService {
 			} catch (error) {
 				if (name !== "send") throw error;
 				outcome = {
-					sendFailure: {
-						dispatched,
-						message: error instanceof Error ? error.message : String(error),
-						...(error instanceof Error &&
-						"detail" in error &&
-						typeof error.detail === "string"
-							? { detail: error.detail }
-							: {}),
-					},
+					sendFailure: serializeCloudSendFailure(error, dispatched),
 				};
 			}
 			this.checkScope();

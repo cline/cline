@@ -336,41 +336,51 @@ async function handleHandoffOnce(
 			: {}),
 		reasoningEffort: readReasoningEffort(config.reasoningEffort),
 	};
-	const target = await cloud.create(
-		{
-			requestId: request.handoffAttemptId?.trim() || randomUUID(),
-			repoUrl: plan.repoUrl,
-			branch: plan.branch,
-			modelId,
-			organizationId: organizationId ?? null,
-			...initialTask,
-			initialPrompt: command,
-		},
-		scope,
-	);
-	const sessionId = target.sessionId;
-	const dashboardUrl = buildCloudHandoffDashboardUrl(
-		getClineEnvironmentConfig().appBaseUrl,
-		sessionId,
-	);
+	let sessionId: string | undefined;
+	const unsubscribe = cloud.subscribe((event) => {
+		if (
+			sessionId ||
+			event.type !== "snapshot" ||
+			cloud.scope?.serviceId !== scope.serviceId ||
+			cloud.scope?.scopeGeneration !== scope.scopeGeneration ||
+			event.snapshot.record?.repoContext.repoUrl !== plan.repoUrl ||
+			event.snapshot.record.repoContext.branch !== plan.branch
+		)
+			return;
+		// Each approved plan has its own generated branch.
+		sessionId = event.sessionId;
+		emitProgress("provisioning", "Preparing the cloud workspace.", sessionId);
+	});
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	try {
-		emitProgress("provisioning", "Preparing the cloud workspace.", sessionId);
-		const result = await cloud.send(
-			sessionId,
-			command,
-			undefined,
-			modelId,
+		const result = await cloud.createAndSend(
+			{
+				requestId: request.handoffAttemptId?.trim() || randomUUID(),
+				repoUrl: plan.repoUrl,
+				branch: plan.branch,
+				modelId,
+				organizationId: organizationId ?? null,
+				...initialTask,
+				initialPrompt: command,
+			},
 			images,
 			scope,
 		);
-		if (result.recoveredAfterDisconnect) {
+		sessionId = result.target.sessionId;
+		if ("dispatched" in result.send)
+			throw new CloudSendError(
+				result.send.message,
+				result.send.dispatched,
+				result.send.detail,
+			);
+		if (result.send.recoveredAfterDisconnect) {
 			warningKind = "unconfirmed";
 			warning =
 				"The cloud connection was interrupted. Check the conversation before resending.";
 		}
 	} catch (error) {
+		if (!sessionId) throw error;
 		warningKind =
 			error instanceof CloudSendError && !error.dispatched
 				? "unqueued"
@@ -381,8 +391,14 @@ async function handleHandoffOnce(
 				: "The cloud workspace was created, but the prompt was not sent. Keep Cline open to retry; closing it loses the unsent draft and may require a new cloud task.";
 		if (error instanceof CloudSendError && error.detail)
 			warning = `${error.detail} ${warning}`;
+	} finally {
+		unsubscribe();
 	}
 	assertHandoffAccount(ctx, cloud, scope);
+	const dashboardUrl = buildCloudHandoffDashboardUrl(
+		getClineEnvironmentConfig().appBaseUrl,
+		sessionId,
+	);
 	const result = {
 		sourceSessionId,
 		sessionId,

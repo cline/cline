@@ -104,6 +104,7 @@ export type CloudErrorCode =
 	| "session_not_found"
 	| "session_expired"
 	| "session_failed"
+	| "request_unconfirmed"
 	| "request_failed";
 
 export class CloudSessionError extends Error {
