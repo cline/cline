@@ -1,0 +1,65 @@
+<idea-plugin>
+	<id>bot.cline.jetbrains.hub</id>
+	<name>Cline (Hub)</name>
+	<vendor url="https://cline.bot">Cline</vendor>
+
+	<description><![CDATA[
+		<p>Cline inside JetBrains IDEs, powered directly by the local <b>Cline Hub</b> daemon.</p>
+		<p>The plugin speaks the hub's native WebSocket protocol: it discovers (or starts, via the
+		Cline CLI) the hub on your machine, creates sessions scoped to the open project, streams the
+		agent's reasoning, text and tool activity live, and lets you approve or reject tool calls.
+		Sessions are shared with the CLI, the VS Code extension and the hub dashboard.</p>
+		<p>Requires the <code>cline</code> CLI on your PATH (or configure its location in
+		<i>Settings | Tools | Cline (Hub)</i>).</p>
+	]]></description>
+
+	<depends>com.intellij.modules.platform</depends>
+
+	<resource-bundle>messages.ClineBundle</resource-bundle>
+
+	<extensions defaultExtensionNs="com.intellij">
+		<toolWindow
+			id="Cline"
+			anchor="right"
+			icon="bot.cline.jetbrains.ClineIcons.ToolWindow"
+			factoryClass="bot.cline.jetbrains.ui.ClineToolWindowFactory"/>
+
+		<applicationService serviceImplementation="bot.cline.jetbrains.settings.ClineSettings"/>
+		<projectService serviceImplementation="bot.cline.jetbrains.session.ClineSessionService"/>
+
+		<applicationConfigurable
+			parentId="tools"
+			instance="bot.cline.jetbrains.settings.ClineSettingsConfigurable"
+			id="bot.cline.jetbrains.settings"
+			displayName="Cline (Hub)"/>
+
+		<notificationGroup id="Cline" displayType="BALLOON"/>
+	</extensions>
+
+	<actions>
+		<group id="Cline.ActionGroup" text="Cline" popup="true" icon="bot.cline.jetbrains.ClineIcons.Cline">
+			<add-to-group group-id="ToolsMenu" anchor="last"/>
+			<action id="Cline.OpenToolWindow"
+				class="bot.cline.jetbrains.actions.OpenClineToolWindowAction"
+				text="Open Cline"
+				description="Show the Cline tool window"/>
+			<action id="Cline.NewSession"
+				class="bot.cline.jetbrains.actions.NewSessionAction"
+				text="New Cline Session"
+				description="Start a fresh Cline session for this project"/>
+			<action id="Cline.ReconnectHub"
+				class="bot.cline.jetbrains.actions.ReconnectHubAction"
+				text="Reconnect to Cline Hub"
+				description="Re-discover the local Cline Hub and reconnect"/>
+		</group>
+
+		<action id="Cline.AddSelectionToChat"
+			class="bot.cline.jetbrains.actions.AddSelectionToChatAction"
+			text="Add to Cline Chat"
+			description="Insert the selected code into the Cline prompt"
+			icon="bot.cline.jetbrains.ClineIcons.Cline">
+			<add-to-group group-id="EditorPopupMenu" anchor="first"/>
+			<keyboard-shortcut keymap="$default" first-keystroke="ctrl shift L"/>
+		</action>
+	</actions>
+</idea-plugin>
