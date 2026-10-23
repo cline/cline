@@ -1,6 +1,6 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
 import { CLINE_DEFAULT_MODEL_ID, registerDisposable } from "@cline/shared";
@@ -272,6 +272,13 @@ export async function runCli(): Promise<void> {
 			() => {
 				ctx.startupTarget = "config";
 			},
+			() => {
+				const additionalHooksDir =
+					configCmd.opts().hooksDir?.trim() ||
+					program.opts().hooksDir?.trim() ||
+					process.env.CLINE_HOOKS_DIR?.trim();
+				return additionalHooksDir ? resolve(additionalHooksDir) : undefined;
+			},
 		);
 		return configCmd;
 	};
@@ -281,12 +288,19 @@ export async function runCli(): Promise<void> {
 		.description("Show current configuration")
 		.option("--json", "Output as JSON")
 		.option("--config <dir>", "configuration directory")
+		.option(
+			"--hooks-dir <path>",
+			"Directory path to additional hooks for runtime hook injection",
+		)
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
 			const realCmd = await createConfigRuntimeCommand();
 			realCmd.setOptionValue("json", cmd.opts().json);
+			if (cmd.opts().hooksDir) {
+				realCmd.setOptionValue("hooksDir", cmd.opts().hooksDir);
+			}
 			await realCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
@@ -779,9 +793,9 @@ export async function runCli(): Promise<void> {
 			`${c.dim}[warn] ignoring invalid --retries value "${args.invalidRetries}" (expected integer >= 1)${c.reset}`,
 		);
 	}
-	if (args.hooksDir?.trim()) {
-		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
-	}
+	const additionalHooksDir =
+		args.hooksDir?.trim() || process.env.CLINE_HOOKS_DIR?.trim();
+	const hooksDir = additionalHooksDir ? resolve(additionalHooksDir) : undefined;
 	if (args.prompt && !args.interactive) {
 		if (program.args.length > 1 || !promptArgLooksQuoted(program.args[0])) {
 			writePromptArgError(program.args);
@@ -815,6 +829,7 @@ export async function runCli(): Promise<void> {
 				thinkingExplicitlySet: args.thinkingExplicitlySet,
 				reasoningEffort: args.reasoningEffort,
 			}),
+			hooksDir,
 		});
 		return;
 	}
@@ -1091,6 +1106,7 @@ export async function runCli(): Promise<void> {
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,
+			hooksDir,
 			cwd,
 			workspaceRoot,
 			extensionContext: {
