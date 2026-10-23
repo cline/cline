@@ -24,6 +24,7 @@ import {
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
 	isGeneratedMedia,
 	isHubToolExecutorName,
+	resolveRootSessionId,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
@@ -1530,7 +1531,14 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async dispatchHookEvent(_payload: HookEventPayload): Promise<void> {
-		await this.client.command("session.hook", { payload: _payload });
+		const sessionId = resolveRootSessionId(_payload.sessionContext);
+		if (!sessionId) {
+			throw new Error("A forwarded hook event requires a root session id.");
+		}
+		await this.client.command("session.hook", {
+			sessionId,
+			payload: _payload,
+		});
 	}
 
 	subscribe(

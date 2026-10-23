@@ -12,6 +12,7 @@ const ENV_KEYS = [
 	CLINE_ENVIRONMENT_ENV,
 	CLINE_ENVIRONMENT_OVERRIDE_ENV,
 	"CLINE_API_BASE_URL",
+	"CLINE_RELAY_URL",
 ] as const;
 
 const originalEnvValues = Object.fromEntries(

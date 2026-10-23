@@ -8,6 +8,7 @@ export interface ClineEnvironmentConfig {
 	readonly appBaseUrl: string;
 	readonly apiBaseUrl: string;
 	readonly mcpBaseUrl: string;
+	readonly relayBaseUrl: string;
 	readonly workOsClientId: string;
 }
 
@@ -19,6 +20,7 @@ export const CLINE_ENVIRONMENTS: Readonly<
 		appBaseUrl: "https://app.cline.bot",
 		apiBaseUrl: "https://api.cline.bot",
 		mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+		relayBaseUrl: "https://session.cline.bot",
 		workOsClientId: "client_01K3A541FN8TA3EPPHTD2325AR",
 	},
 	staging: {
@@ -26,6 +28,7 @@ export const CLINE_ENVIRONMENTS: Readonly<
 		appBaseUrl: "https://staging-app.cline.bot",
 		apiBaseUrl: "https://core-api.staging.int.cline.bot",
 		mcpBaseUrl: "https://core-api.staging.int.cline.bot/v1/mcp",
+		relayBaseUrl: "https://session.staging.cline.bot",
 		workOsClientId: "client_01K3A5415VF6QBQBG3XYCW91G6",
 	},
 	local: {
@@ -33,6 +36,7 @@ export const CLINE_ENVIRONMENTS: Readonly<
 		appBaseUrl: "http://localhost:3000",
 		apiBaseUrl: "http://localhost:7777",
 		mcpBaseUrl: "http://localhost:7777/v1/mcp",
+		relayBaseUrl: "http://127.0.0.1:4610",
 		workOsClientId: "client_01K6XQAY7JK6T5HXVSZW2S5VYK",
 	},
 };
@@ -93,6 +97,9 @@ function applyConfigOverrides(
 			apiBaseUrl: env.CLINE_API_BASE_URL,
 			mcpBaseUrl: `${env.CLINE_API_BASE_URL}/v1/mcp`,
 		};
+	}
+	if (env.CLINE_RELAY_URL) {
+		config = { ...config, relayBaseUrl: env.CLINE_RELAY_URL };
 	}
 
 	return config;

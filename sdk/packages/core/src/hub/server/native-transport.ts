@@ -21,8 +21,8 @@ export interface NativeHubTransport {
 	/** See {@link HubCommandTransport.replayEventsAfter}. */
 	replayEventsAfter?(
 		sinceSequence: number,
-		options: { sessionId?: string; limit: number },
-	): HubEventEnvelope[];
+		options: { sessionId?: string; clientId?: string; limit: number },
+	): HubEventEnvelope[] | Promise<HubEventEnvelope[]>;
 }
 
 export class NativeHubTransportAdapter implements HubCommandTransport {
@@ -45,8 +45,8 @@ export class NativeHubTransportAdapter implements HubCommandTransport {
 
 	replayEventsAfter(
 		sinceSequence: number,
-		options: { sessionId?: string; limit: number },
-	): HubEventEnvelope[] {
+		options: { sessionId?: string; clientId?: string; limit: number },
+	): HubEventEnvelope[] | Promise<HubEventEnvelope[]> {
 		return this.transport.replayEventsAfter?.(sinceSequence, options) ?? [];
 	}
 }

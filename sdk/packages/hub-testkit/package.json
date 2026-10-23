@@ -1,0 +1,35 @@
+{
+	"name": "@cline/hub-testkit",
+	"version": "0.0.66",
+	"description": "Deterministic contract-test harness and fixture recorder for the Cline Hub protocol v1",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/hub-testkit"
+	},
+	"private": true,
+	"internal": true,
+	"type": "module",
+	"main": "src/index.ts",
+	"types": "src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./replay": "./src/replay.ts",
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"typecheck": "bun tsc --noEmit",
+		"test": "bun run test:unit",
+		"test:unit": "vitest run --config vitest.config.ts",
+		"record": "HUB_TESTKIT_UPDATE_FIXTURES=1 vitest run --config vitest.config.ts src/contract.test.ts",
+		"record:verify": "vitest run --config vitest.config.ts src/contract.test.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@cline/core": "workspace:*",
+		"@cline/hub-client": "workspace:*",
+		"@cline/shared": "workspace:*"
+	}
+}

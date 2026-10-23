@@ -111,6 +111,8 @@ export function createInteractiveSessionRuntime(input: {
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
 }) {
+	const forceLocalBackend =
+		input.config.mode === "yolo" || input.config.sandbox === true;
 	let sessionManager: CliCore | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
@@ -147,16 +149,12 @@ export function createInteractiveSessionRuntime(input: {
 			return sessionManager;
 		}
 		const manager = await createCliCore({
-			// Interactive startup must never wait for a detached hub daemon to boot.
-			// `auto` uses an already-compatible hub when one is immediately available,
-			// but falls back to the local runtime while the hub is prewarmed in the
-			// background. Forcing `hub` here routes through `ensureCompatibleLocalHubUrl`,
-			// which can poll for up to the hub startup timeout before the TUI is usable.
-			// Yolo and sandbox modes must stay fully local and must not prewarm or reuse
-			// the shared daemon hub.
-			backendMode: "auto",
-			forceLocalBackend:
-				input.config.mode === "yolo" || input.config.sandbox === true,
+			// Normal interactive sessions are hub-owned so /handoff exposes the exact
+			// live session instead of a similarly named session in another runtime.
+			// Explicit yolo/sandbox sessions remain deliberately local and therefore
+			// are not remotely controllable.
+			backendMode: forceLocalBackend ? "local" : "hub",
+			forceLocalBackend,
 			capabilities: {
 				toolExecutors: {
 					askQuestion: (question, options) => {
@@ -921,6 +919,7 @@ export function createInteractiveSessionRuntime(input: {
 		abortAll,
 		cleanup,
 		getActiveSessionId: () => activeSessionId,
+		isHubBacked: () => !forceLocalBackend,
 		isShutdownRequested: () => shutdownRequested,
 	};
 }

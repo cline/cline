@@ -1,6 +1,7 @@
 import type { AgentMessage } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
+import type { ToolPolicy } from "./llms/tools";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 import type {
 	AgendaAutomationPolicy,
@@ -38,6 +39,7 @@ export type HubCapabilityName =
 	| "task.automation.set"
 	| "settings.get"
 	| "settings.set"
+	| "approval.list_pending"
 	| "connector.start"
 	| "connector.stop"
 	| "connector.supervised"
@@ -47,6 +49,15 @@ export type HubCapabilityName =
 	| "hub.status"
 	| "stream.replay";
 
+/**
+ * The single list of commands a hub advertises. Both advertisement points read
+ * it — the `client.register` reply and the `/version` endpoint — because two
+ * hand-maintained lists drifted: `/version` omitted `approval.list_pending`
+ * while the register reply contained nothing else, so `hasCapability` answered
+ * "no" for baseline commands the hub had always supported.
+ *
+ * Extend this when a new optional command lands, and nowhere else.
+ */
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
 	"client.list",
@@ -68,6 +79,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.automation.set",
 	"settings.get",
 	"settings.set",
+	"approval.list_pending",
 	"connector.start",
 	"connector.stop",
 	"connector.supervised",
@@ -77,6 +89,17 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"hub.status",
 	"stream.replay",
 ];
+
+/**
+ * Protocol version assumed for a client that sends none in `client.register`.
+ *
+ * Clients predating the handshake are still accepted, but not by skipping the
+ * compatibility check: they are pinned to the oldest protocol the hub knows and
+ * range-checked like everybody else. That keeps the legacy allowance bounded — a
+ * future hub that drops `v1` support refuses them with `incompatible_protocol`
+ * instead of silently accepting a client it cannot talk to.
+ */
+export const LEGACY_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 
 export interface HubProtocolMetadata {
 	protocolVersion: string;
@@ -99,9 +122,14 @@ function parseHubProtocolNumber(
 	return Number.parseInt(match[1] ?? "", 10);
 }
 
+/**
+ * `clientProtocolVersion` is a plain string because it also arrives off the wire
+ * (`client.register`), where a future or malformed client can send anything;
+ * unparsable values are reported as `missing_protocol`.
+ */
 export function isHubProtocolCompatible(
 	hub: HubProtocolMetadata,
-	clientProtocolVersion: HubProtocolVersion = CURRENT_HUB_PROTOCOL_VERSION,
+	clientProtocolVersion: string = CURRENT_HUB_PROTOCOL_VERSION,
 ): HubCompatibilityResult {
 	const hubProtocol = parseHubProtocolNumber(hub.protocolVersion);
 	const clientProtocol = parseHubProtocolNumber(clientProtocolVersion);
@@ -116,6 +144,40 @@ export function isHubProtocolCompatible(
 		clientProtocol <= maxClientProtocol
 		? { compatible: true }
 		: { compatible: false, reason: "unsupported_protocol" };
+}
+
+/**
+ * Error code returned by `client.register` when the client advertised a protocol
+ * version outside the hub's supported client range. Not retryable: the client
+ * has to be upgraded (or downgraded), so clients must not reconnect-loop on it.
+ */
+export const HUB_INCOMPATIBLE_PROTOCOL_ERROR_CODE = "incompatible_protocol";
+
+/**
+ * `error.details` of an `incompatible_protocol` reply. Every field is optional
+ * because it is parsed from the wire; the hub always populates all four. Declared
+ * as a type (not an interface) so it stays assignable to the envelope's
+ * `Record<string, unknown>` details slot without a cast.
+ */
+export type HubIncompatibleProtocolDetails = {
+	serverProtocolVersion?: string;
+	minClientProtocolVersion?: string;
+	maxClientProtocolVersion?: string;
+	/** Version the client advertised. Absent means the hub could not read one. */
+	clientProtocolVersion?: string;
+};
+
+/**
+ * Reply payload of `client.register`. `protocol` and `capabilities` were added
+ * after `clientId`, so a client talking to an older hub sees them absent and
+ * must treat that as "no handshake information" rather than an error — read it
+ * as `Partial<HubClientRegisterResult>`.
+ */
+export interface HubClientRegisterResult {
+	clientId: string;
+	protocol: HubProtocolMetadata;
+	/** Commands this hub build answers beyond the v1 baseline. */
+	capabilities: string[];
 }
 
 export type HubActorKind = "client" | "peerHub";
@@ -233,6 +295,14 @@ export interface SessionRecord {
 	 */
 	participants: SessionParticipant[];
 	activeRunId?: string;
+	/**
+	 * Provider/model the session is configured to run with. Typed here (they have
+	 * always also traveled in `metadata`) so clients need not dig through an
+	 * untyped blob to render the current model. Updated by
+	 * `session.update_connection`, announced via `session.updated`.
+	 */
+	provider?: string;
+	model?: string;
 	runtimeOptions?: HubSessionRuntimeOptions;
 	metadata?: Record<string, JsonValue | undefined>;
 	runtimeSession?: {
@@ -558,6 +628,7 @@ export type HubCommandName =
 	| "hub.status"
 	| "approval.request"
 	| "approval.respond"
+	| "approval.list_pending"
 	| "capability.request"
 	| "capability.progress"
 	| "capability.respond"
@@ -933,6 +1004,146 @@ export interface HubApprovalRespondInput {
 	approvalId: string;
 	approved: boolean;
 	payload?: Record<string, JsonValue | undefined>;
+}
+
+/**
+ * Error code returned by `approval.respond` when the approval id is not
+ * pending: it was already answered, cancelled, or never existed. Callers should
+ * treat all three the same way — drop the approval from their UI.
+ */
+export const HUB_APPROVAL_ALREADY_RESOLVED_ERROR_CODE = "already_resolved";
+
+/**
+ * Error code returned when the calling client has no relationship to the
+ * session a command targets — it neither created the session nor attached to it.
+ * Used by `approval.respond`; clients should treat it as "not yours", not as a
+ * transient failure to retry.
+ *
+ * A client that legitimately needs access asks for it explicitly with
+ * `session.attach`; there is no implicit grant for untracked sessions.
+ */
+export const HUB_NOT_AUTHORIZED_ERROR_CODE = "not_authorized";
+
+/**
+ * Error code returned when a command names a `clientId` other than the one its
+ * connection registered. The hub binds a connection to the identity it
+ * registered with, so naming somebody else's id is refused instead of dispatched
+ * — a client cannot act as another client by relabelling its envelopes.
+ *
+ * Not retryable: reconnect and register as yourself. Omitting `clientId`
+ * entirely is always safe, since the hub then fills in the bound identity.
+ */
+export const HUB_CLIENT_ID_MISMATCH_ERROR_CODE = "client_id_mismatch";
+
+/**
+ * Error code returned when an identity-bound command (approvals, session
+ * attach/detach) arrives on a connection that has not completed
+ * `client.register`. Authorization for those commands is derived from the
+ * connection's registered identity, so there is nothing to check against yet.
+ *
+ * Fixed by registering first; every `HubClient` does that before its first
+ * command.
+ */
+export const HUB_NOT_REGISTERED_ERROR_CODE = "not_registered";
+
+/**
+ * Error code returned when `client.register` names a `clientId` that another
+ * *live* connection already holds. A hub identity is single-occupancy: two
+ * sockets sharing one id would share its session participation, so the second
+ * one could answer the first one's approvals and, on disconnect, unregister it.
+ *
+ * Retryable only in the sense that the incumbent may go away: the hub hands the
+ * id over as soon as the previous socket is closed or has failed its heartbeat,
+ * which is what makes an ordinary reconnect (same id, new socket, after a drop)
+ * succeed. A client that gets this code while its own previous socket is still
+ * healthy is either racing itself or impersonating somebody.
+ */
+export const HUB_CLIENT_ID_IN_USE_ERROR_CODE = "client_id_in_use";
+
+/**
+ * Error code returned when a frame's `kind` is recognized but its shape is not
+ * usable — e.g. a `command` frame with no `envelope`, or an envelope with no
+ * `command` name. Sent only when the frame carried a `requestId` to reply to;
+ * otherwise the frame is dropped with a log line, since there is no request to
+ * answer.
+ */
+export const HUB_INVALID_FRAME_ERROR_CODE = "invalid_frame";
+
+/**
+ * `reason` carried by the `approval.resolved` event and the tool result when a
+ * pending approval expired before anyone answered it.
+ */
+export const HUB_APPROVAL_TIMEOUT_REASON = "approval_timeout";
+
+/**
+ * Default lifetime of a pending tool approval. A hub that waits forever leaks a
+ * parked run (and its promise) per abandoned approval, so unanswered approvals
+ * auto-deny at this age unless the hub server overrides it.
+ */
+export const DEFAULT_HUB_APPROVAL_TIMEOUT_MS = 15 * 60 * 1000;
+
+/**
+ * Largest single websocket frame either side of the hub protocol will accept.
+ *
+ * Both ends enforce it: the client drops an oversized inbound frame, and the hub
+ * server passes it to `ws` as `maxPayload` so an oversized *inbound* frame is
+ * refused at the transport instead of being buffered. `ws` defaults to 100 MiB,
+ * which on an authenticated-but-hostile connection is a cheap way to make the
+ * hub allocate two orders of magnitude more memory than any real frame needs.
+ *
+ * Sized for the largest thing the protocol legitimately carries: a session
+ * snapshot with a full transcript.
+ */
+export const HUB_MAX_FRAME_BYTES = 8 * 1024 * 1024;
+
+/**
+ * A tool approval the hub is still waiting on.
+ *
+ * This is the payload of the `approval.requested` event and the element type of
+ * the `approval.list_pending` reply, so a client that connected after the event
+ * was published (a mobile app opened from a push notification, a reconnecting
+ * UI) can recover the same information and respond to it.
+ *
+ * Pending approvals are in-memory only: after a hub restart
+ * `approval.list_pending` reports an empty list rather than an error.
+ */
+export interface PendingApprovalInfo {
+	/** Stable id to pass back to `approval.respond`. */
+	approvalId: string;
+	sessionId: string;
+	agentId: string;
+	conversationId: string;
+	iteration: number;
+	toolCallId: string;
+	toolName: string;
+	/** Tool input serialized as JSON (`"null"` when there was no input). */
+	inputJson: string;
+	policy: ToolPolicy;
+	/** Agenda task that owns the session, when this approval came from one. */
+	agendaTaskId?: string;
+	/** Epoch ms when the hub started waiting for a response. */
+	createdAt: number;
+	/**
+	 * Epoch ms after which the hub auto-denies the approval with reason
+	 * {@link HUB_APPROVAL_TIMEOUT_REASON}. Always set by hubs that implement
+	 * approval expiry; absent from older hubs, which wait indefinitely.
+	 */
+	expiresAt?: number;
+}
+
+/**
+ * Payload of `approval.list_pending`. Omit `sessionId` to list every pending
+ * approval the calling client is authorized to see — the hub scopes the reply to
+ * sessions the client created or attached to, so omitting it is not a way to
+ * observe another client's approvals.
+ */
+export interface HubApprovalListPendingInput {
+	sessionId?: string;
+}
+
+/** Reply payload of `approval.list_pending`, oldest approval first. */
+export interface HubApprovalListPendingResult {
+	approvals: PendingApprovalInfo[];
 }
 
 export interface HubCapabilityRequestInput {

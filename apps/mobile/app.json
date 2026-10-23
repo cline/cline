@@ -1,0 +1,72 @@
+{
+	"expo": {
+		"name": "Cline",
+		"slug": "cline-code",
+		"version": "0.0.2",
+		"scheme": "clinecode",
+		"icon": "./assets/icon.png",
+		"orientation": "default",
+		"userInterfaceStyle": "automatic",
+		"backgroundColor": "#fcfcfd",
+		"newArchEnabled": true,
+		"ios": {
+			"bundleIdentifier": "bot.cline.app",
+			"supportsTablet": true,
+			"buildNumber": "6"
+		},
+		"android": {
+			"package": "bot.cline.app",
+			"edgeToEdgeEnabled": true,
+			"adaptiveIcon": {
+				"foregroundImage": "./assets/adaptive-icon.png",
+				"backgroundColor": "#241f21"
+			},
+			"versionCode": 1
+		},
+		"web": {
+			"output": "static",
+			"favicon": "./assets/icon.png"
+		},
+		"plugins": [
+			"expo-router",
+			"expo-secure-store",
+			[
+				"expo-image-picker",
+				{
+					"photosPermission": "Allow Cline to attach images from your photo library.",
+					"microphonePermission": "Allow Cline to hear the coding request you dictate."
+				}
+			],
+			[
+				"expo-speech-recognition",
+				{
+					"microphonePermission": "Allow Cline to hear the coding request you dictate.",
+					"speechRecognitionPermission": "Allow Cline to convert your dictated coding request into editable text."
+				}
+			],
+			"expo-video",
+			[
+				"expo-audio",
+				{
+					"microphonePermission": "Allow Cline to hear the request you dictate."
+				}
+			],
+			[
+				"expo-splash-screen",
+				{
+					"backgroundColor": "#fcfcfd",
+					"image": "./assets/splash-mark-light.png",
+					"imageWidth": 291,
+					"resizeMode": "contain",
+					"dark": {
+						"backgroundColor": "#121216",
+						"image": "./assets/splash-mark.png"
+					}
+				}
+			]
+		],
+		"experiments": {
+			"typedRoutes": true
+		}
+	}
+}

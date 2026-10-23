@@ -1,0 +1,79 @@
+{
+	"schema": "hub-v1-fixture@1",
+	"generatedBy": "synthetic-hub-fixture",
+	"scenario": "register-handshake",
+	"description": "client.register advertises protocolVersion and the reply carries the hub's protocol range + capabilities",
+	"frames": [
+		{
+			"direction": "out",
+			"label": "client.register",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "client.register",
+					"payload": {
+						"actorKind": "client",
+						"clientId": "<client_1>",
+						"clientType": "hub-testkit",
+						"displayName": "hub-testkit",
+						"protocolVersion": "v1",
+						"transport": "native",
+						"workspaceContext": {
+							"cwd": "/testkit/workspace",
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply client.register",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"capabilities": [
+							"client.register",
+							"client.list",
+							"session.create",
+							"session.list",
+							"session.get",
+							"session.run",
+							"session.abort",
+							"schedule.create",
+							"schedule.list",
+							"task.create",
+							"task.list",
+							"task.get",
+							"task.update",
+							"task.approve",
+							"task.cancel",
+							"task.run",
+							"task.automation.get",
+							"task.automation.set",
+							"settings.get",
+							"settings.set",
+							"approval.list_pending",
+							"connector.start",
+							"connector.stop",
+							"connector.supervised"
+						],
+						"clientId": "<client_1>",
+						"protocol": {
+							"maxClientProtocolVersion": "v1",
+							"minClientProtocolVersion": "v1",
+							"protocolVersion": "v1"
+						}
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		}
+	]
+}

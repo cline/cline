@@ -9,6 +9,7 @@ export type CommandPaletteAction =
 	| "compact"
 	| "skills"
 	| "fork"
+	| "handoff"
 	| "undo"
 	| "clear"
 	| "history"
@@ -107,6 +108,13 @@ const ACTION_ITEMS: Array<{
 		description: "Branch the current conversation into a new session",
 		keywords: ["fork", "session", "branch"],
 		requiresFork: true,
+	},
+	{
+		action: "handoff",
+		label: "Hand Off To Phone",
+		shortcut: "Opt+D",
+		description: "Show a QR that opens this session on your phone",
+		keywords: ["handoff", "phone", "mobile", "qr", "device", "remote"],
 	},
 	{
 		action: "undo",

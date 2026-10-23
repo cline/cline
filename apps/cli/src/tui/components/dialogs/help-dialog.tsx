@@ -183,6 +183,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-handoff",
+		key: "/handoff",
+		desc: "Hand this session to your phone (QR + deep link)",
+	},
+	{
+		kind: "entry",
 		id: "c-undo",
 		key: "/undo",
 		desc: "Restore to a previous checkpoint",

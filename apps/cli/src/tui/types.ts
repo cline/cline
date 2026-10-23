@@ -10,6 +10,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
+import type { HandoffResult } from "../commands/handoff";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import type {
 	PendingPromptSnapshot,
@@ -213,6 +214,12 @@ export interface TuiProps {
 	) => Promise<string>;
 	onDeleteHistorySession: (sessionId: string) => Promise<boolean>;
 	onCompact: () => Promise<InteractiveCompactionResult>;
+	/**
+	 * Mints a handoff offer for the session currently on screen. Optional so hosts
+	 * that never expose a hub (tests, embeddings) can omit it; `/handoff` then says
+	 * so instead of failing.
+	 */
+	onHandoff?: () => Promise<HandoffResult>;
 	onFork: () => Promise<
 		| {
 				forkedFromSessionId: string;

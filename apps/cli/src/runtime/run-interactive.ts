@@ -8,6 +8,7 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core";
 import { formatModeSwitchNotice } from "@cline/shared";
+import { createSessionHandoffRunner } from "../commands/handoff";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
 import { exportHistorySession } from "../session/history-export";
@@ -842,6 +843,19 @@ export async function runInteractive(
 		onFork: async () => {
 			await sessionRuntime.ensureReady();
 			return await sessionRuntime.forkCurrentSession();
+		},
+		// `/handoff`: the whole point is that the phone lands in the session on
+		// screen, so the session id is read from the runtime at invocation time.
+		onHandoff: async () => {
+			await sessionRuntime.ensureReady();
+			if (!sessionRuntime.isHubBacked()) {
+				throw new Error(
+					"Remote control is unavailable in yolo or sandbox mode. Start a normal Cline session and run /handoff there.",
+				);
+			}
+			return await createSessionHandoffRunner(
+				() => sessionRuntime.getActiveSessionId().trim() || undefined,
+			)();
 		},
 		getCheckpointData: async () => {
 			await sessionRuntime.ensureReady();

@@ -9,6 +9,7 @@ import type {
 } from "@cline/shared";
 import {
 	createSessionId,
+	HUB_NOT_AUTHORIZED_ERROR_CODE,
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
@@ -27,6 +28,7 @@ import {
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
 import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
+import type { SessionRecord } from "../../../types/sessions";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
@@ -36,14 +38,18 @@ import { toHubSessionRecord } from "../hub-session-records";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	asPlainRecord,
+	canClientAccessSession,
 	ensureSessionParticipant,
 	ensureSessionState,
 	errorReply,
+	extractClientId,
 	extractSessionId,
 	type HubTransportContext,
+	isClientRelatedToSession,
 	okReply,
 	readCoreSessionSnapshot,
 	readHubSessionRecord,
+	resolveActorClientId,
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
@@ -233,12 +239,47 @@ export function resolveSessionAutoApproveTools(
 	return runtimeOptions.autoApproveTools === true;
 }
 
+type RuntimeToolPolicies = Record<
+	string,
+	{ autoApprove?: boolean; enabled?: boolean }
+>;
+
+function resolveRuntimeToolPolicies(
+	toolPolicies: unknown,
+	runtimeOptions: Record<string, unknown>,
+	forceApprovalRequests: boolean,
+): RuntimeToolPolicies | undefined {
+	const requested =
+		toolPolicies &&
+		typeof toolPolicies === "object" &&
+		!Array.isArray(toolPolicies)
+			? (JSON.parse(JSON.stringify(toolPolicies)) as RuntimeToolPolicies)
+			: runtimeOptions.autoApproveTools === true
+				? { "*": { autoApprove: true } }
+				: undefined;
+	if (!forceApprovalRequests) {
+		return requested;
+	}
+	const gated: RuntimeToolPolicies = {};
+	for (const [name, policy] of Object.entries(requested ?? {})) {
+		if (policy && typeof policy === "object" && !Array.isArray(policy)) {
+			gated[name] = { ...policy, autoApprove: false };
+		}
+	}
+	gated["*"] = { ...(gated["*"] ?? {}), autoApprove: false };
+	return gated;
+}
+
 function authorizeSessionCompactionAccess(input: {
 	sessionId: string;
 	ctx: HubTransportContext;
 	clientId: string;
 	envelope: HubCommandEnvelope;
+	machineOwner?: boolean;
 }): HubReplyEnvelope | undefined {
+	if (input.machineOwner) {
+		return undefined;
+	}
 	const ownerClientId = getCapabilityOwnerClientId(input.ctx, input.sessionId);
 	if (!ownerClientId) {
 		return errorReply(
@@ -263,6 +304,7 @@ export async function handleSessionCreate(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	options: { forceApprovalRequests?: boolean } = {},
 ): Promise<HubReplyEnvelope> {
 	const startedAt = performance.now();
 	const baseLogContext = {
@@ -310,10 +352,9 @@ export async function handleSessionCreate(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
-	metadata.autoApproveTools = resolveSessionAutoApproveTools(
-		payload.toolPolicies,
-		runtimeOptions,
-	);
+	metadata.autoApproveTools = options.forceApprovalRequests
+		? false
+		: resolveSessionAutoApproveTools(payload.toolPolicies, runtimeOptions);
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
 			? (payload.modelSelection as Record<string, unknown>)
@@ -324,7 +365,7 @@ export async function handleSessionCreate(
 			: typeof payload.cwd === "string" && payload.cwd.trim()
 				? payload.cwd.trim()
 				: undefined;
-	const clientId = envelope.clientId?.trim() || "hub-client";
+	const clientId = resolveActorClientId(envelope);
 	const clientContributions = parseHubClientContributions(
 		runtimeOptions.clientContributions,
 	);
@@ -476,17 +517,11 @@ export async function handleSessionCreate(
 				sessionConfig?.teamName ??
 				(typeof metadata.teamName === "string" ? metadata.teamName : undefined),
 		},
-		toolPolicies:
-			payload.toolPolicies &&
-			typeof payload.toolPolicies === "object" &&
-			!Array.isArray(payload.toolPolicies)
-				? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
-						string,
-						{ autoApprove?: boolean; enabled?: boolean }
-					>)
-				: runtimeOptions.autoApproveTools === true
-					? { "*": { autoApprove: true } }
-					: undefined,
+		toolPolicies: resolveRuntimeToolPolicies(
+			payload.toolPolicies,
+			runtimeOptions,
+			options.forceApprovalRequests === true,
+		),
 	});
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
@@ -535,6 +570,7 @@ export async function handleSessionRestore(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	options: { forceApprovalRequests?: boolean } = {},
 ): Promise<HubReplyEnvelope> {
 	const payload =
 		envelope.payload && typeof envelope.payload === "object"
@@ -607,16 +643,15 @@ export async function handleSessionRestore(
 		} else if (runtimeOptions.checkpointEnabled === true) {
 			metadata.checkpointEnabled = true;
 		}
-		metadata.autoApproveTools = resolveSessionAutoApproveTools(
-			payload.toolPolicies,
-			runtimeOptions,
-		);
+		metadata.autoApproveTools = options.forceApprovalRequests
+			? false
+			: resolveSessionAutoApproveTools(payload.toolPolicies, runtimeOptions);
 
 		const modelSelection =
 			payload.modelSelection && typeof payload.modelSelection === "object"
 				? (payload.modelSelection as Record<string, unknown>)
 				: {};
-		const clientId = envelope.clientId?.trim() || "hub-client";
+		const clientId = resolveActorClientId(envelope);
 		const clientContributions = parseHubClientContributions(
 			runtimeOptions.clientContributions,
 		);
@@ -767,17 +802,11 @@ export async function handleSessionRestore(
 								? metadata.teamName
 								: undefined),
 					},
-					toolPolicies:
-						payload.toolPolicies &&
-						typeof payload.toolPolicies === "object" &&
-						!Array.isArray(payload.toolPolicies)
-							? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
-									string,
-									{ autoApprove?: boolean; enabled?: boolean }
-								>)
-							: runtimeOptions.autoApproveTools === true
-								? { "*": { autoApprove: true } }
-								: undefined,
+					toolPolicies: resolveRuntimeToolPolicies(
+						payload.toolPolicies,
+						runtimeOptions,
+						options.forceApprovalRequests === true,
+					),
 				};
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
@@ -844,9 +873,26 @@ export async function handleSessionRestore(
 	}
 }
 
+/**
+ * Make the caller a participant of a session.
+ *
+ * Attach is the authorization ceiling for everything session-scoped: being a
+ * participant is what `isClientRelatedToSession` checks, so `approval.respond`,
+ * `approval.list_pending` and event delivery all inherit whatever attach lets
+ * through. It used to check only that the session existed, which made every other
+ * session ACL advisory — register under any id, attach to any session, answer that
+ * session's approvals.
+ *
+ * It is now identity-bound (a caller with no `clientId` is refused; the websocket
+ * adapter additionally guarantees that id is the one the connection registered)
+ * and authorized through {@link HubTransportContext.authorizeAttach}. See
+ * {@link HubSessionTrustModel} for what the built-in rule permits and why a
+ * loopback hub is allowed to be more permissive than a reachable one.
+ */
 export async function handleSessionAttach(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
+	options: { machineOwner?: boolean } = {},
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	if (!sessionId) {
@@ -854,6 +900,27 @@ export async function handleSessionAttach(
 			envelope,
 			"invalid_session_attach",
 			"session.attach requires a session id",
+		);
+	}
+	const clientId = extractClientId(envelope);
+	const authorized =
+		canClientAccessSession(ctx, sessionId, clientId, options) ||
+		(await ctx.authorizeAttach({
+			sessionId,
+			clientId,
+			client: clientId ? ctx.clients.get(clientId) : undefined,
+			related: isClientRelatedToSession(ctx, sessionId, clientId),
+			allowedClientIds: ctx.attachAllowlist,
+			trustModel: ctx.sessionTrustModel,
+		}));
+	if (!authorized) {
+		// Deliberately indistinguishable from "no such session" in what it reveals:
+		// an unauthorized caller learns nothing about which sessions exist.
+		return errorReply(
+			envelope,
+			HUB_NOT_AUTHORIZED_ERROR_CODE,
+			`Client ${clientId || "(anonymous)"} is not authorized to attach to session ${sessionId}.`,
+			{ sessionId },
 		);
 	}
 	const session = await readHubSessionRecord(ctx, sessionId);
@@ -864,12 +931,7 @@ export async function handleSessionAttach(
 			`Unknown session: ${sessionId}`,
 		);
 	}
-	ensureSessionParticipant(
-		ctx,
-		sessionId,
-		envelope.clientId?.trim() || "hub-client",
-		"participant",
-	);
+	ensureSessionParticipant(ctx, sessionId, clientId, "participant");
 	const attachedSession = await readHubSessionRecord(ctx, sessionId);
 	ctx.publish(
 		ctx.buildEvent(
@@ -893,7 +955,7 @@ export async function handleSessionDetach(
 			"session.detach requires a session id",
 		);
 	}
-	const clientId = envelope.clientId?.trim() || "hub-client";
+	const clientId = resolveActorClientId(envelope);
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
@@ -974,6 +1036,7 @@ export async function handleSessionMessages(
 export async function handleSessionCompactionGet(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
+	options: { machineOwner?: boolean } = {},
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	if (!sessionId) {
@@ -991,12 +1054,13 @@ export async function handleSessionCompactionGet(
 			`Unknown session: ${sessionId}`,
 		);
 	}
-	const clientId = envelope.clientId?.trim() || "hub-client";
+	const clientId = resolveActorClientId(envelope);
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,
 		ctx,
 		clientId,
 		envelope,
+		...options,
 	});
 	if (unauthorized) {
 		return unauthorized;
@@ -1008,15 +1072,39 @@ export async function handleSessionCompactionGet(
 export async function handleSessionList(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
+	options: { machineOwner?: boolean } = {},
 ): Promise<HubReplyEnvelope> {
 	const limit =
 		typeof envelope.payload?.limit === "number" ? envelope.payload.limit : 200;
-	const records = await ctx.sessionHost.listSessions(limit, {
-		rootOnly: envelope.payload?.rootOnly === true,
-	});
-	const sessions = records.map((session) =>
-		toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
-	);
+	const clientId = extractClientId(envelope);
+	const machineOwner =
+		options.machineOwner || ctx.sessionTrustModel === "loopback-single-owner";
+	const rootOnly = envelope.payload?.rootOnly === true;
+	const records = machineOwner
+		? await ctx.sessionHost.listSessions(limit, { rootOnly })
+		: (
+				await Promise.all(
+					[...ctx.sessionState.keys()]
+						.filter((sessionId) =>
+							canClientAccessSession(ctx, sessionId, clientId, options),
+						)
+						.map((sessionId) => ctx.sessionHost.getSession(sessionId)),
+				)
+			)
+				.filter((session): session is SessionRecord => session !== undefined)
+				.filter(
+					(session) =>
+						!rootOnly || (!session.isSubagent && !session.parentSessionId),
+				)
+				.sort((left, right) => right.startedAt.localeCompare(left.startedAt))
+				.slice(0, limit);
+	const sessions = records
+		.filter((session) =>
+			canClientAccessSession(ctx, session.sessionId, clientId, options),
+		)
+		.map((session) =>
+			toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
+		);
 	return okReply(envelope, {
 		sessions,
 	});
@@ -1101,12 +1189,19 @@ export async function handleSessionUpdateConnection(
 	const payload = asPlainRecord(envelope.payload);
 	const updates = readSessionConnectionUpdate(payload?.updates);
 	await updateSessionConnection.call(ctx.sessionHost, sessionId, updates);
+	// Announce like `session.update` does: a phone and a terminal watching the
+	// same session must both see a model change, whichever of them made it.
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (session) {
+		ctx.publish(ctx.buildEvent("session.updated", { session }, sessionId));
+	}
 	return okReply(envelope, { sessionId, updated: true });
 }
 
 export async function handleSessionCompactionUpdate(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
+	options: { machineOwner?: boolean } = {},
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
 	if (!sessionId) {
@@ -1116,7 +1211,7 @@ export async function handleSessionCompactionUpdate(
 			"session.compaction.update requires a session id",
 		);
 	}
-	const clientId = envelope.clientId?.trim() || "hub-client";
+	const clientId = resolveActorClientId(envelope);
 	const session = await readHubSessionRecord(ctx, sessionId);
 	if (!session) {
 		return errorReply(
@@ -1130,6 +1225,7 @@ export async function handleSessionCompactionUpdate(
 		ctx,
 		clientId,
 		envelope,
+		...options,
 	});
 	if (unauthorized) {
 		return unauthorized;

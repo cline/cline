@@ -1,0 +1,18 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		// Internal package: typechecked only, never emitted, so no rootDir/outDir.
+		// `@cline/core` has no committed dist, so the hub surface is typed from
+		// source — which also keeps the testkit honest against the live server.
+		"noEmit": true,
+		"declaration": false,
+		"declarationMap": false,
+		"lib": ["ES2022", "DOM"],
+		"types": ["node"],
+		"paths": {
+			"@cline/core/hub": ["../core/src/hub/index.ts"]
+		}
+	},
+	"include": ["src/**/*", "vitest.config.ts"],
+	"exclude": ["node_modules", "dist"]
+}

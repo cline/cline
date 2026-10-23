@@ -1,0 +1,38 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ESNext", "DOM"],
+		"jsx": "react-jsx",
+		"types": ["node", "react"],
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": false,
+		"noEmit": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": [
+		"app/**/*.ts",
+		"app/**/*.tsx",
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"scripts/**/*.ts",
+		"*.config.ts",
+		".expo/types/**/*.ts",
+		"expo-env.d.ts"
+	],
+	"exclude": ["node_modules", ".expo", "android", "ios"],
+	"extends": "expo/tsconfig.base"
+}

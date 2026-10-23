@@ -1,0 +1,15 @@
+# This flow clears app data; run only against an explicitly selected disposable simulator.
+appId: bot.cline.app
+name: Fresh install welcome and cloud-only onboarding
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Cline"
+- assertVisible: "Build software your way"
+- tapOn: "Get started"
+- assertVisible: "Set up Cline"
+- assertVisible: "Sign in to Cline"
+- assertNotVisible: "My computer"
+- assertNotVisible: "Advanced connection"
+- assertNotVisible: "Scan handoff QR"
+- takeScreenshot: cloud-only-onboarding

@@ -317,3 +317,23 @@ describe("slash command registry", () => {
 		).toContain("account");
 	});
 });
+
+describe("handoff slash command", () => {
+	it("registers /handoff alongside the other local commands", () => {
+		const registry = buildSlashCommandRegistry({ canFork: false });
+
+		expect(resolveSlashCommand(registry, "handoff")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			description: "Hand this session to your phone",
+			visible: true,
+			selectable: true,
+		});
+		// Unlike /fork it does not need an existing message: you can hand off an
+		// empty session and start dictating on the phone.
+		expect(
+			getVisibleSystemSlashCommands(registry).map((command) => command.name),
+		).toContain("handoff");
+		expect(resolveSlashCommand(registry, "/HANDOFF")?.name).toBe("handoff");
+	});
+});

@@ -1,0 +1,55 @@
+{
+	"schema": "hub-v1-fixture@1",
+	"generatedBy": "synthetic-hub-fixture",
+	"scenario": "incompatible-register",
+	"description": "client.register advertising an unsupported protocolVersion -> incompatible_protocol error reply with the supported client range",
+	"frames": [
+		{
+			"direction": "out",
+			"label": "client.register",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "client.register",
+					"payload": {
+						"actorKind": "client",
+						"clientId": "<client_1>",
+						"clientType": "hub-testkit",
+						"displayName": "hub-testkit",
+						"protocolVersion": "v99",
+						"transport": "native",
+						"workspaceContext": {
+							"cwd": "/testkit/workspace",
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply client.register",
+			"frame": {
+				"envelope": {
+					"error": {
+						"code": "incompatible_protocol",
+						"details": {
+							"clientProtocolVersion": "v99",
+							"maxClientProtocolVersion": "v1",
+							"minClientProtocolVersion": "v1",
+							"serverProtocolVersion": "v1"
+						},
+						"message": "Hub protocol v1 does not support client protocol v99 (supported client protocol range: v1..v1)."
+					},
+					"ok": false,
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		}
+	]
+}

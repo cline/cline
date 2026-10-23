@@ -162,7 +162,9 @@ describe("Hub agenda task vertical slice", () => {
 			} as never,
 		});
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("observer", (event) => {
+		// Approval events are session-scoped. The task creator owns the generated
+		// session; an unrelated observer must not receive (or answer) its approval.
+		transport.subscribe("desktop", (event) => {
 			events.push(event);
 			if (
 				event.event === "approval.requested" &&
@@ -182,6 +184,20 @@ describe("Hub agenda task vertical slice", () => {
 		await transport.start();
 
 		try {
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "desktop",
+				payload: {
+					clientId: "desktop",
+					clientType: "desktop",
+					transport: "native",
+					workspaceContext: {
+						workspaceRoot: canonicalChatWorkspace,
+						cwd: canonicalChatWorkspace,
+					},
+				},
+			});
 			sessions.set("origin-session", {
 				sessionId: "origin-session",
 				metadata: { autoApproveTools: true },

@@ -1,7 +1,11 @@
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
-import { buildHubEvent, type HubTransportContext } from "./context";
+import {
+	buildHubEvent,
+	defaultAuthorizeAttach,
+	type HubTransportContext,
+} from "./context";
 import { handleRunAbort, handleSessionInput } from "./run-handlers";
 
 function createContext(
@@ -15,6 +19,9 @@ function createContext(
 		pendingApprovals: new Map(),
 		pendingCapabilityRequests: new Map(),
 		suppressNextTerminalEventBySession: new Map(),
+		sessionTrustModel: "session-scoped" as const,
+		attachAllowlist: new Set<string>(),
+		authorizeAttach: defaultAuthorizeAttach,
 		activeRpcTurnCountBySession: new Map(),
 		sessionHost: {
 			startSession: vi.fn(),

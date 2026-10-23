@@ -2,8 +2,10 @@ import type * as LlmsProviders from "@cline/llms";
 import type {
 	AgentMode,
 	AgentResult,
+	HubModelCatalog,
 	RuntimeConfigExtensionKind,
 } from "@cline/shared";
+import { isSessionNotFoundError } from "@cline/shared";
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
@@ -22,34 +24,14 @@ import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import type { ConnectionUpdate } from "../config/connection-update";
 
-export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
-
-export class SessionNotFoundError extends Error {
-	readonly code = SESSION_NOT_FOUND_ERROR_CODE;
-
-	constructor(
-		readonly sessionId?: string,
-		message?: string,
-	) {
-		super(
-			message ??
-				(sessionId ? `session not found: ${sessionId}` : "session not found"),
-		);
-		this.name = "SessionNotFoundError";
-	}
-}
-
-export function isSessionNotFoundError(
-	error: unknown,
-): error is SessionNotFoundError {
-	return (
-		error instanceof SessionNotFoundError ||
-		(typeof error === "object" &&
-			error !== null &&
-			"code" in error &&
-			(error as { code?: unknown }).code === SESSION_NOT_FOUND_ERROR_CODE)
-	);
-}
+// Canonical definitions now live in @cline/shared so platform-agnostic clients
+// (e.g. @cline/hub-client) can throw/detect them without depending on core.
+// Re-exported here for back-compat with existing core importers.
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+} from "@cline/shared";
 
 function errorMessageOf(error: unknown): string {
 	if (error instanceof Error) {
@@ -330,6 +312,15 @@ export interface SessionConnectionRuntimeService {
 		sessionId: string,
 		updates: SessionConnectionUpdate,
 	): Promise<void>;
+}
+
+/**
+ * Optional runtime service: the model catalog this host can run sessions with.
+ * The read half of model selection — `session.update_connection` is the write
+ * half — so a remote client can offer a picker instead of a blind text field.
+ */
+export interface ModelCatalogRuntimeService {
+	listModelCatalog(): Promise<HubModelCatalog>;
 }
 
 export interface CommandExecutionRuntimeService {

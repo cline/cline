@@ -21,6 +21,7 @@ export type LocalSlashCommandName =
 	| "compact"
 	| "skills"
 	| "fork"
+	| "handoff"
 	| "undo"
 	| "clear"
 	| "history"
@@ -93,6 +94,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 		description: "Create a named fork of the current session",
 	},
 	{
+		name: "handoff",
+		description: "Hand this session to your phone",
+	},
+	{
 		name: "undo",
 		description: "Restore to a previous checkpoint",
 	},
@@ -124,6 +129,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"compact",
 	"skills",
 	"fork",
+	"handoff",
 	"undo",
 	"clear",
 	"team",

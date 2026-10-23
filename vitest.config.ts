@@ -5,10 +5,13 @@ export default defineConfig({
 		projects: [
 			"sdk/packages/agents/vitest.config.ts",
 			"sdk/packages/core/vitest.config.ts",
+			"sdk/packages/hub-client/vitest.config.ts",
+			"sdk/packages/hub-testkit/vitest.config.ts",
 			"sdk/packages/llms/vitest.config.ts",
 			"sdk/packages/shared/vitest.config.ts",
 			"sdk/packages/ui/vitest.config.ts",
 			"apps/cli/vitest.config.ts",
+			"apps/mobile/vitest.config.ts",
 			"apps/examples/vscode/vitest.config.ts",
 		],
 	},

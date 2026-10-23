@@ -1,0 +1,44 @@
+{
+	"name": "@cline/hub-relay",
+	"version": "0.0.66",
+	"description": "Blind-pipe relay that brokers phone<->laptop-hub Cline Hub connections without inbound ports (stand-in for the production Cline relay)",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/hub-relay"
+	},
+	"private": true,
+	"internal": true,
+	"type": "module",
+	"main": "src/index.ts",
+	"types": "src/index.ts",
+	"exports": {
+		".": {
+			"react-native": "./src/client/index.ts",
+			"browser": "./src/client/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./client": "./src/client/index.ts",
+		"./server": "./src/server/index.ts",
+		"./host": "./src/host/index.ts",
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"typecheck": "bun tsc --noEmit",
+		"test": "bun run test:unit",
+		"test:unit": "vitest run --config vitest.config.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"ws": "^8.20.0"
+	},
+	"devDependencies": {
+		"@cline/hub-client": "workspace:*",
+		"@cline/hub-pairing": "workspace:*",
+		"@cline/hub-testkit": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"@types/ws": "^8.18.1"
+	}
+}

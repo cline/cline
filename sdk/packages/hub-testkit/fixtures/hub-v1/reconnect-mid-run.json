@@ -1,0 +1,340 @@
+{
+	"schema": "hub-v1-fixture@1",
+	"generatedBy": "synthetic-hub-fixture",
+	"scenario": "reconnect-mid-run",
+	"description": "disconnect mid-stream, reconnect + session.messages hydrate converges on the uninterrupted terminal transcript",
+	"frames": [
+		{
+			"direction": "out",
+			"label": "client.register",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "client.register",
+					"payload": {
+						"actorKind": "client",
+						"clientId": "<client_1>",
+						"clientType": "hub-testkit",
+						"displayName": "hub-testkit",
+						"protocolVersion": "v1",
+						"transport": "native",
+						"workspaceContext": {
+							"cwd": "/testkit/workspace",
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply client.register",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"clientId": "<client_1>"
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "stream.subscribe",
+			"frame": {
+				"clientId": "<client_1>",
+				"kind": "stream.subscribe",
+				"sessionId": "<session_1>"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "approval.list_pending",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "approval.list_pending",
+					"payload": {
+						"sessionId": "<session_1>"
+					},
+					"requestId": "<request_2>",
+					"sessionId": "<session_1>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply approval.list_pending",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"approvals": []
+					},
+					"requestId": "<request_2>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "assistant.delta",
+			"frame": {
+				"envelope": {
+					"event": "assistant.delta",
+					"eventId": "<event_1>",
+					"payload": {
+						"text": "part two"
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "assistant.finished",
+			"frame": {
+				"envelope": {
+					"event": "assistant.finished",
+					"eventId": "<event_2>",
+					"payload": {
+						"text": "part two"
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "usage.updated",
+			"frame": {
+				"envelope": {
+					"event": "usage.updated",
+					"eventId": "<event_3>",
+					"payload": {
+						"agent": {
+							"agentId": "<agent_1>",
+							"conversationId": "<conversation_1>",
+							"kind": "lead"
+						},
+						"aggregateUsage": {
+							"cacheReadTokens": 0,
+							"cacheWriteTokens": 0,
+							"inputTokens": 5,
+							"outputTokens": 7,
+							"totalCost": 0
+						},
+						"delta": {
+							"cacheReadTokens": 0,
+							"cacheWriteTokens": 0,
+							"inputTokens": 5,
+							"outputTokens": 7,
+							"totalCost": 0
+						},
+						"sessionId": "<session_1>",
+						"totals": {
+							"cacheReadTokens": 0,
+							"cacheWriteTokens": 0,
+							"inputTokens": 5,
+							"outputTokens": 7,
+							"totalCost": 0
+						},
+						"usage": {
+							"cacheReadTokens": 0,
+							"cacheWriteTokens": 0,
+							"inputTokens": 5,
+							"outputTokens": 7,
+							"totalCost": 0
+						}
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "iteration.finished",
+			"frame": {
+				"envelope": {
+					"event": "iteration.finished",
+					"eventId": "<event_4>",
+					"payload": {
+						"hadToolCalls": false,
+						"iteration": 1,
+						"toolCallCount": 0
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "run.completed",
+			"frame": {
+				"envelope": {
+					"event": "run.completed",
+					"eventId": "<event_5>",
+					"payload": {
+						"reason": "completed",
+						"result": {
+							"durationMs": 0,
+							"endedAt": "<ts>",
+							"finishReason": "completed",
+							"iterations": 1,
+							"messages": [],
+							"model": {
+								"id": "testkit-model",
+								"provider": "testkit"
+							},
+							"startedAt": "<ts>",
+							"text": "part one part two",
+							"toolCalls": [],
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 5,
+								"outputTokens": 7,
+								"totalCost": 0
+							}
+						},
+						"snapshot": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 5,
+								"outputTokens": 7,
+								"totalCost": 0
+							},
+							"capabilities": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"createdAt": "<ts>",
+							"endedAt": null,
+							"exitCode": null,
+							"interactive": true,
+							"lineage": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"isSubagent": false
+							},
+							"messages": [
+								{
+									"content": "stream in two parts",
+									"role": "user"
+								},
+								{
+									"content": "part one part two",
+									"role": "assistant"
+								}
+							],
+							"model": {
+								"modelId": "testkit-model",
+								"providerId": "testkit"
+							},
+							"sessionId": "<session_1>",
+							"source": "core",
+							"status": "completed",
+							"updatedAt": "<ts>",
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 5,
+								"outputTokens": 7,
+								"totalCost": 0
+							},
+							"version": 1,
+							"workspace": {
+								"cwd": "/testkit/workspace",
+								"root": "/testkit/workspace"
+							}
+						}
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "session.messages",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "session.messages",
+					"payload": {
+						"sessionId": "<session_1>"
+					},
+					"requestId": "<request_3>",
+					"sessionId": "<session_1>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply session.messages",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"messages": [
+							{
+								"content": "stream in two parts",
+								"role": "user"
+							},
+							{
+								"content": "part one part two",
+								"role": "assistant"
+							}
+						],
+						"sessionId": "<session_1>"
+					},
+					"requestId": "<request_3>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		}
+	],
+	"outcome": {
+		"hydratedMatchesUninterrupted": true,
+		"messages": [
+			{
+				"content": "stream in two parts",
+				"role": "user"
+			},
+			{
+				"content": "part one part two",
+				"role": "assistant"
+			}
+		]
+	}
+}

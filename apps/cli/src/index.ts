@@ -35,6 +35,13 @@ if (!isMainThread) {
 	// fatal rejection handler first would make expected abort rejections exit it.
 	registerClineClientIdentity("cline-cli");
 	void import("@cline/core/hub/daemon-entry");
+} else if (process.env.CLINE_REMOTE_HOST_PROCESS === "1") {
+	void import("./commands/remote-host-daemon").then(({ runRemoteHostDaemon }) =>
+		runRemoteHostDaemon().catch((error) => {
+			writeErr(error instanceof Error ? error.message : String(error));
+			process.exitCode = 1;
+		}),
+	);
 } else {
 	// Same reasoning as the daemon sentinel above: consume the supervised-connector
 	// marker so the processes an agent session spawns cannot inherit it and mistake

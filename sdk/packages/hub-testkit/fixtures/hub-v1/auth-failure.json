@@ -1,0 +1,11 @@
+{
+	"schema": "hub-v1-fixture@1",
+	"generatedBy": "synthetic-hub-fixture",
+	"scenario": "auth-failure",
+	"description": "wrong hub-subprotocol credential -> upgrade rejected -> typed HubTransportError, no frames exchanged",
+	"frames": [],
+	"outcome": {
+		"code": "hub_connect_failed",
+		"name": "HubTransportError"
+	}
+}

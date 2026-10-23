@@ -15,6 +15,9 @@ import {
 	captureSdkError,
 	createSessionId,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	HUB_NOT_AUTHORIZED_ERROR_CODE,
+	parseHookEventPayload,
+	resolveRootSessionId,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
@@ -47,10 +50,11 @@ import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import type { HubConnectionAuthority } from "./command-transport";
 import {
+	cancelPendingApprovals,
+	handleApprovalListPending,
 	handleApprovalRespond,
 	pendingApprovalEvents,
 	requestToolApproval as requestToolApprovalHandler,
-	resolvePendingApproval,
 } from "./handlers/approval-handlers";
 import {
 	cancelPendingCapabilityRequests,
@@ -59,6 +63,7 @@ import {
 	handleCapabilityRespond,
 	requestCapability as requestCapabilityHandler,
 } from "./handlers/capability-handlers";
+import { handleCatalogList } from "./handlers/catalog-handlers";
 import {
 	handleClientList,
 	handleClientRegister,
@@ -68,6 +73,12 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	canClientAccessSession,
+	canClientObserveEvent,
+	defaultAuthorizeAttach,
+	errorReply,
+	extractClientId,
+	extractSessionId,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
@@ -141,6 +152,39 @@ const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"tools",
 	"mcp",
 ]);
+
+/** Commands that target one existing session and must pass its ACL. */
+const SESSION_ACCESS_COMMANDS = new Set<HubCommandEnvelope["command"]>([
+	"session.restore",
+	"session.detach",
+	"session.get",
+	"session.messages",
+	"session.update",
+	"session.update_connection",
+	"session.compaction.get",
+	"session.compaction.update",
+	"session.pending_prompts",
+	"session.update_pending_prompt",
+	"session.remove_pending_prompt",
+	"session.delete",
+	"session.hook",
+	"run.start",
+	"session.send_input",
+	"run.enqueue",
+	"run.abort",
+	"run.proceed_while_running",
+	"capability.request",
+]);
+
+function existingSessionTarget(envelope: HubCommandEnvelope): string {
+	if (!SESSION_ACCESS_COMMANDS.has(envelope.command)) return "";
+	const explicit = extractSessionId(envelope);
+	if (explicit || envelope.command !== "session.hook") return explicit;
+	// v1 hook senders predate the top-level routing field. Recover the same root
+	// from their validated payload so the central ACL still runs before dispatch.
+	const hook = parseHookEventPayload(envelope.payload?.payload);
+	return hook ? (resolveRootSessionId(hook.sessionContext) ?? "") : "";
+}
 
 function isPayloadObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -272,6 +316,19 @@ export class HubServerTransport implements NativeHubTransport {
 	private draining = false;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		if (
+			options.approvalTimeoutMs !== undefined &&
+			!(
+				Number.isFinite(options.approvalTimeoutMs) &&
+				options.approvalTimeoutMs > 0
+			)
+		) {
+			// Silently falling back to the 15-minute default hid a misconfigured
+			// (or unit-confused) value behind approvals that outlive their run.
+			throw new Error(
+				`Hub approvalTimeoutMs must be a positive number of milliseconds; received ${String(options.approvalTimeoutMs)}.`,
+			);
+		}
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
@@ -302,6 +359,14 @@ export class HubServerTransport implements NativeHubTransport {
 			pendingCapabilityRequests: this.pendingCapabilityRequests,
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
+			approvalTimeoutMs: options.approvalTimeoutMs,
+			sessionTrustModel: options.sessionTrustModel ?? "session-scoped",
+			attachAllowlist: new Set(
+				(options.attachAllowlist ?? [])
+					.map((clientId) => clientId.trim())
+					.filter((clientId) => clientId !== ""),
+			),
+			authorizeAttach: options.authorizeAttach ?? defaultAuthorizeAttach,
 			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
 			telemetry: options.telemetry,
 			sessionTools: this.sessionTools,
@@ -499,7 +564,14 @@ export class HubServerTransport implements NativeHubTransport {
 			},
 			{ mode: "task", trigger: "agenda_task" },
 		);
-		const clientId = requestedByClientId?.trim() || "agenda-task-manager";
+		// A policy-triggered run has no command caller, but its user-created task
+		// still has an owner. Keep that owner on the generated session so approval
+		// events reach the same trusted surface that created the work; never broaden
+		// an approval to every connected client merely because it was automated.
+		const clientId =
+			requestedByClientId?.trim() ||
+			task.createdBy.clientId?.trim() ||
+			"agenda-task-manager";
 		const reply = await handleSessionCreate(
 			this.ctx,
 			{
@@ -714,12 +786,15 @@ export class HubServerTransport implements NativeHubTransport {
 			clearInterval(this.eventLogPruneTimer);
 			this.eventLogPruneTimer = undefined;
 		}
-		for (const approvalId of this.pendingApprovals.keys()) {
-			resolvePendingApproval(this.ctx, approvalId, {
-				approved: false,
-				reason: "Hub shutting down before approval was resolved.",
-			});
-		}
+		// `cancelPendingApprovals` rather than a bare resolve: `approval.resolved` is
+		// documented to fire exactly once per approval, and a shutdown that answered
+		// them silently made that zero times — leaving every client showing an
+		// approval the hub had already denied.
+		cancelPendingApprovals(
+			this.ctx,
+			() => true,
+			"Hub shutting down before approval was resolved.",
+		);
 		cancelPendingCapabilityRequests(
 			this.ctx,
 			() => true,
@@ -764,7 +839,11 @@ export class HubServerTransport implements NativeHubTransport {
 							}
 						: undefined
 					: (authority ?? undefined);
-			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
+			const reply = await this.dispatchCommand(
+				envelope,
+				effectiveAuthority,
+				authority === undefined,
+			);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -783,9 +862,30 @@ export class HubServerTransport implements NativeHubTransport {
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority,
+		trustedInProcess = false,
 	): Promise<HubReplyEnvelope> {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
+		}
+		const targetSessionId = existingSessionTarget(envelope);
+		if (
+			targetSessionId &&
+			!canClientAccessSession(
+				this.ctx,
+				targetSessionId,
+				extractClientId(envelope),
+				{
+					machineOwner:
+						trustedInProcess || authority?.pairedDevice !== undefined,
+				},
+			)
+		) {
+			return errorReply(
+				envelope,
+				HUB_NOT_AUTHORIZED_ERROR_CODE,
+				`Client ${extractClientId(envelope) || "(anonymous)"} is not authorized to access session ${targetSessionId}.`,
+				{ sessionId: targetSessionId },
+			);
 		}
 		if (isAgendaTaskCommand(envelope.command)) {
 			return await this.taskCommands.handleCommand(envelope, authority);
@@ -817,6 +917,9 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					{
+						forceApprovalRequests: authority?.pairedDevice !== undefined,
+					},
 				);
 			case "session.restore":
 				return await handleSessionRestore(
@@ -824,9 +927,14 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					{
+						forceApprovalRequests: authority?.pairedDevice !== undefined,
+					},
 				);
 			case "session.attach":
-				return await handleSessionAttach(this.ctx, envelope);
+				return await handleSessionAttach(this.ctx, envelope, {
+					machineOwner: authority?.pairedDevice !== undefined,
+				});
 			case "session.detach":
 				return await handleSessionDetach(this.ctx, envelope);
 			case "session.get":
@@ -834,9 +942,14 @@ export class HubServerTransport implements NativeHubTransport {
 			case "session.messages":
 				return await handleSessionMessages(this.ctx, envelope);
 			case "session.compaction.get":
-				return await handleSessionCompactionGet(this.ctx, envelope);
+				return await handleSessionCompactionGet(this.ctx, envelope, {
+					machineOwner: authority?.pairedDevice !== undefined,
+				});
 			case "session.list":
-				return await handleSessionList(this.ctx, envelope);
+				return await handleSessionList(this.ctx, envelope, {
+					machineOwner:
+						trustedInProcess || authority?.pairedDevice !== undefined,
+				});
 			case "session.search":
 				return await handleSessionSearch(this.ctx, envelope);
 			case "session.update":
@@ -844,7 +957,11 @@ export class HubServerTransport implements NativeHubTransport {
 			case "session.update_connection":
 				return await handleSessionUpdateConnection(this.ctx, envelope);
 			case "session.compaction.update":
-				return await handleSessionCompactionUpdate(this.ctx, envelope);
+				return await handleSessionCompactionUpdate(this.ctx, envelope, {
+					machineOwner: authority?.pairedDevice !== undefined,
+				});
+			case "catalog.list":
+				return await handleCatalogList(this.ctx, envelope);
 			case "session.pending_prompts":
 				return await handleSessionPendingPrompts(this.ctx, envelope);
 			case "session.steer_first_pending_prompt":
@@ -884,7 +1001,10 @@ export class HubServerTransport implements NativeHubTransport {
 				if (!this.runQueue) {
 					return okReply(envelope, { runs: [] });
 				}
-				return handleRunList(envelope, this.runQueue);
+				return handleRunList(this.ctx, envelope, this.runQueue, {
+					machineOwner:
+						trustedInProcess || authority?.pairedDevice !== undefined,
+				});
 			}
 			case "hub.drain":
 				return this.handleHubDrain(envelope);
@@ -897,7 +1017,9 @@ export class HubServerTransport implements NativeHubTransport {
 			case "capability.request":
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":
-				return await handleApprovalRespond(this.ctx, envelope);
+				return await handleApprovalRespond(this.ctx, envelope, authority);
+			case "approval.list_pending":
+				return handleApprovalListPending(this.ctx, envelope);
 			case "capability.respond":
 				return handleCapabilityRespond(this.ctx, envelope);
 			case "capability.progress":
@@ -1098,18 +1220,62 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	/** Durable events after a cursor — the adapter's replay source. */
-	replayEventsAfter(
+	async replayEventsAfter(
 		sinceSequence: number,
-		options: { sessionId?: string; limit: number },
-	): HubEventEnvelope[] {
+		options: { sessionId?: string; clientId?: string; limit: number },
+	): Promise<HubEventEnvelope[]> {
 		if (!this.eventLog) {
 			return [];
 		}
-		return this.eventLog.listAfter(
-			sinceSequence,
-			{ sessionId: options.sessionId },
-			options.limit,
-		);
+		if (!options.clientId) {
+			return this.eventLog.listAfter(
+				sinceSequence,
+				{ sessionId: options.sessionId },
+				options.limit,
+			);
+		}
+		if (
+			options.sessionId &&
+			!canClientAccessSession(this.ctx, options.sessionId, options.clientId)
+		) {
+			return [];
+		}
+		// Filtering after one limited database page can hide an authorized event
+		// behind unrelated traffic. Scan bounded raw pages until this caller's page
+		// is full or the retained log is exhausted. The event log itself is capped at
+		// 200k rows, matching this 1,000 × 200 upper bound.
+		const visible: HubEventEnvelope[] = [];
+		let cursor = sinceSequence;
+		const rawPageSize = 200;
+		for (
+			let pages = 0;
+			pages < 1_000 && visible.length < options.limit;
+			pages++
+		) {
+			const raw = this.eventLog.listAfter(
+				cursor,
+				{ sessionId: options.sessionId },
+				rawPageSize,
+			);
+			if (raw.length === 0) break;
+			for (const event of raw) {
+				if (typeof event.sequence === "number") {
+					cursor = Math.max(cursor, event.sequence);
+				}
+				if (canClientObserveEvent(this.ctx, options.clientId, event)) {
+					visible.push(event);
+					if (visible.length >= options.limit) break;
+				}
+			}
+			if (raw.length < rawPageSize) break;
+			// The ACL may need to walk past unrelated retained traffic. Keep the
+			// complete/correct scan, but yield between bounded slices so a reconnect
+			// cannot monopolize the daemon's event loop.
+			if ((pages + 1) % 5 === 0) {
+				await new Promise<void>((resolveYield) => setTimeout(resolveYield, 0));
+			}
+		}
+		return visible;
 	}
 
 	lastEventSequence(): number {
@@ -1127,7 +1293,11 @@ export class HubServerTransport implements NativeHubTransport {
 		this.listeners.set(clientId, current);
 		// Re-issue pending approvals so a (re)connecting client can answer a
 		// request raised while it was away instead of leaving the turn parked.
-		const pending = pendingApprovalEvents(this.ctx, options?.sessionId);
+		const pending = pendingApprovalEvents(
+			this.ctx,
+			options?.sessionId,
+			clientId,
+		);
 		if (pending.length > 0) {
 			queueMicrotask(() => {
 				const listeners = this.listeners.get(clientId);
@@ -1175,6 +1345,14 @@ export class HubServerTransport implements NativeHubTransport {
 		);
 	}
 
+	/**
+	 * Fan an event out to the listeners allowed to see it.
+	 *
+	 * Two filters, both required: the listener's own `sessionId` scope (what it
+	 * asked for) and {@link canClientObserveEvent} (what its client may be told).
+	 * The second one is the ACL — without it the listener map was just a routing
+	 * table and every subscriber received every session's traffic.
+	 */
 	private publish(event: HubEventEnvelope): void {
 		// Durability before delivery: append to the event log and fan out the
 		// sequence-stamped envelope, so live listeners and replaying clients
@@ -1189,7 +1367,10 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			}
 		}
-		for (const entries of this.listeners.values()) {
+		for (const [clientId, entries] of this.listeners.entries()) {
+			if (!canClientObserveEvent(this.ctx, clientId, event)) {
+				continue;
+			}
 			for (const entry of entries) {
 				if (entry.sessionId && entry.sessionId !== event.sessionId) {
 					continue;

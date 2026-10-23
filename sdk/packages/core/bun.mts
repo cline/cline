@@ -52,6 +52,31 @@ const buildConfig = {
 	},
 } as const;
 
+/**
+ * Entrypoints that must stay loadable by non-Node bundlers (Metro/React Native).
+ *
+ * They are built with `target: "node"` like everything else, so nothing in the
+ * bundler stops a `node:` import from being emitted — the RN entry only stays
+ * clean because the Node-only code paths tree-shake away. A future eager import
+ * would otherwise surface as a Metro *resolve* failure in the app, far from this
+ * build. Assert on the emitted output instead.
+ */
+const RUNTIME_NEUTRAL_OUTPUTS = new Set(["cline-device-entry.js"]);
+
+const NODE_SPECIFIER_PATTERN = /["'`]node:[a-z_/.-]+["'`]/g;
+
+async function assertRuntimeNeutralOutput(path: string): Promise<void> {
+	const source = await Bun.file(path).text();
+	const offenders = [...new Set(source.match(NODE_SPECIFIER_PATTERN) ?? [])];
+	if (offenders.length > 0) {
+		console.error(
+			`Runtime-neutral entrypoint ${path} imports Node builtins: ${offenders.join(", ")}.\n` +
+				"React Native/Metro cannot resolve these. Keep the Node-only code paths behind lazy imports.",
+		);
+		process.exit(1);
+	}
+}
+
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
 		entrypoints: [
@@ -75,6 +100,18 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	{
 		entrypoints: ["./src/hub/daemon/entry.ts"],
 		outdir: "./dist/hub/daemon",
+		...buildConfig,
+	},
+	// The on-disk pairing store, exported separately because the CLI writes offers
+	// into the same tree the hub daemon reads them from.
+	{
+		entrypoints: ["./src/hub/pairing/index.ts"],
+		outdir: "./dist/hub/pairing",
+		...buildConfig,
+	},
+	{
+		entrypoints: ["./src/auth/cline-device-entry.ts"],
+		outdir: "./dist/auth",
 		...buildConfig,
 	},
 	{
@@ -107,6 +144,13 @@ for (const config of builds) {
 	if (result.logs.length > 0) {
 		for (const log of result.logs) {
 			console.warn(log);
+		}
+	}
+
+	for (const output of result.outputs) {
+		const name = output.path.split("/").pop() ?? "";
+		if (RUNTIME_NEUTRAL_OUTPUTS.has(name)) {
+			await assertRuntimeNeutralOutput(output.path);
 		}
 	}
 }

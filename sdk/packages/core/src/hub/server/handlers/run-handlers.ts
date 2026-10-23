@@ -4,6 +4,7 @@ import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
+import { resolveRootSessionId } from "@cline/shared";
 import { parseHookEventPayload } from "../../../hooks";
 import {
 	isSessionNotFoundError,
@@ -411,6 +412,15 @@ export async function handleSessionHook(
 			envelope,
 			"invalid_hook_payload",
 			"session.hook requires a valid hook event payload",
+		);
+	}
+	const sessionId = extractSessionId(envelope);
+	const rootSessionId = resolveRootSessionId(parsed.sessionContext);
+	if (!rootSessionId || (sessionId && sessionId !== rootSessionId)) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"session.hook requires its sessionId to match its root session",
 		);
 	}
 	await ctx.sessionHost.dispatchHookEvent(parsed);

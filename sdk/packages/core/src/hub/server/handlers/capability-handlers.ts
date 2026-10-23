@@ -82,8 +82,13 @@ export function handleCapabilityProgress(
 		// ack quietly instead of capability_not_found spam.
 		return okReply(envelope, { requestId, ignored: true });
 	}
+	// On websocket traffic this id is the one the connection registered: the
+	// adapter refuses capability commands before registration and rejects an
+	// envelope naming anybody else, so the comparison below is against an
+	// authenticated identity rather than a self-declared one. An empty id matches
+	// no target and is refused rather than compared.
 	const responderClientId = envelope.clientId?.trim() || "";
-	if (responderClientId !== pending.targetClientId) {
+	if (!responderClientId || responderClientId !== pending.targetClientId) {
 		return errorReply(
 			envelope,
 			"capability_wrong_client",
@@ -215,8 +220,13 @@ export function handleCapabilityRespond(
 		// already resolved the request. Treat as a no-op success.
 		return okReply(envelope, { requestId, ignored: true });
 	}
+	// On websocket traffic this id is the one the connection registered: the
+	// adapter refuses capability commands before registration and rejects an
+	// envelope naming anybody else, so the comparison below is against an
+	// authenticated identity rather than a self-declared one. An empty id matches
+	// no target and is refused rather than compared.
 	const responderClientId = envelope.clientId?.trim() || "";
-	if (responderClientId !== pending.targetClientId) {
+	if (!responderClientId || responderClientId !== pending.targetClientId) {
 		return errorReply(
 			envelope,
 			"capability_wrong_client",

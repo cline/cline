@@ -4,12 +4,136 @@ import {
 	completeClineDeviceAuth,
 	getValidClineCredentials,
 	loginClineOAuth,
+	startClineDeviceAuth,
 } from "./cline";
 
 const PROVIDER_OPTIONS = {
 	apiBaseUrl: "https://auth.example.com",
 };
 const ORIGINAL_FETCH = globalThis.fetch;
+
+describe("auth/cline startClineDeviceAuth", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		globalThis.fetch = ORIGINAL_FETCH;
+	});
+
+	it("accepts a host-selected WorkOS client id", async () => {
+		let requestBody = "";
+		globalThis.fetch = vi.fn(async (_url, init) => {
+			requestBody = String(init?.body ?? "");
+			return new Response(
+				JSON.stringify({
+					device_code: "device-code",
+					user_code: "ABCD-1234",
+					verification_uri: "https://workos.test/device",
+					expires_in: 300,
+					interval: 5,
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		}) as unknown as typeof fetch;
+
+		await startClineDeviceAuth({ workOsClientId: "client_mobile_staging" });
+
+		expect(new URLSearchParams(requestBody).get("client_id")).toBe(
+			"client_mobile_staging",
+		);
+	});
+
+	it("derives the client id from a known api base instead of the ambient env", async () => {
+		let requestBody = "";
+		globalThis.fetch = vi.fn(async (_url, init) => {
+			requestBody = String(init?.body ?? "");
+			return new Response(JSON.stringify(DEVICE_AUTHORIZATION_RESPONSE), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		}) as unknown as typeof fetch;
+
+		// No `workOsClientId`: the old fallback read the production-by-default
+		// ambient config, silently pairing a PROD client with a STAGING api base.
+		await startClineDeviceAuth({ apiBaseUrl: STAGING_API_BASE_URL });
+
+		expect(new URLSearchParams(requestBody).get("client_id")).toBe(
+			STAGING_CLIENT_ID,
+		);
+	});
+
+	it("rejects a production client id paired with the staging api base", async () => {
+		const fetchMock = vi.fn();
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		await expect(
+			startClineDeviceAuth({
+				apiBaseUrl: STAGING_API_BASE_URL,
+				workOsClientId: PRODUCTION_CLIENT_ID,
+			}),
+		).rejects.toThrow(/environment mismatch/i);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("honours a WorkOS API base override", async () => {
+		let requestUrl = "";
+		globalThis.fetch = vi.fn(async (url) => {
+			requestUrl = String(url);
+			return new Response(JSON.stringify(DEVICE_AUTHORIZATION_RESPONSE), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		}) as unknown as typeof fetch;
+
+		await startClineDeviceAuth({
+			workOsClientId: "client_mobile_staging",
+			workOsBaseUrl: "https://workos.test",
+		});
+
+		expect(requestUrl).toBe(
+			"https://workos.test/user_management/authorize/device",
+		);
+	});
+
+	it("clamps an absurd expires_in and interval from the authorization response", async () => {
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						...DEVICE_AUTHORIZATION_RESPONSE,
+						expires_in: Number.MAX_SAFE_INTEGER,
+						interval: 86_400,
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+		) as unknown as typeof fetch;
+
+		const authorization = await startClineDeviceAuth({
+			workOsClientId: "client_mobile_staging",
+		});
+
+		expect(authorization.expiresInSeconds).toBe(30 * 60);
+		expect(authorization.pollIntervalSeconds).toBe(60);
+	});
+});
+
+const STAGING_API_BASE_URL = "https://core-api.staging.int.cline.bot";
+const STAGING_CLIENT_ID = "client_01K3A5415VF6QBQBG3XYCW91G6";
+const PRODUCTION_API_BASE_URL = "https://api.cline.bot";
+const PRODUCTION_CLIENT_ID = "client_01K3A541FN8TA3EPPHTD2325AR";
+
+const DEVICE_AUTHORIZATION_RESPONSE = {
+	device_code: "device-code",
+	user_code: "ABCD-1234",
+	verification_uri: "https://workos.test/device",
+	expires_in: 300,
+	interval: 5,
+};
+
+function workOsErrorResponse(error: string, status = 400): Response {
+	return new Response(JSON.stringify({ error }), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
 
 function toBase64Url(value: string): string {
 	return Buffer.from(value, "utf8").toString("base64url");
@@ -476,22 +600,23 @@ describe("auth/cline completeClineDeviceAuth", () => {
 	});
 
 	it("includes the request ID when device polling fails", async () => {
-		globalThis.fetch = vi.fn(
-			async () =>
-				new Response(
-					JSON.stringify({
-						error: "access_denied",
-						error_description: "authorization denied",
-					}),
-					{
-						status: 403,
-						headers: {
-							"Content-Type": "application/json",
-							"x-request-id": "req-device-poll",
-						},
+		let requestBody = "";
+		globalThis.fetch = vi.fn(async (_url, init) => {
+			requestBody = String(init?.body ?? "");
+			return new Response(
+				JSON.stringify({
+					error: "access_denied",
+					error_description: "authorization denied",
+				}),
+				{
+					status: 403,
+					headers: {
+						"Content-Type": "application/json",
+						"x-request-id": "req-device-poll",
 					},
-				),
-		) as unknown as typeof fetch;
+				},
+			);
+		}) as unknown as typeof fetch;
 		const capture = vi.fn();
 
 		await expect(
@@ -501,13 +626,155 @@ describe("auth/cline completeClineDeviceAuth", () => {
 				pollIntervalSeconds: 1,
 				apiBaseUrl: "https://api.cline.bot",
 				telemetry: { capture } as never,
+				workOsClientId: "client_mobile_staging",
 			}),
 		).rejects.toThrow("authorization denied");
+		expect(new URLSearchParams(requestBody).get("client_id")).toBe(
+			"client_mobile_staging",
+		);
 		expect(capture).toHaveBeenCalledWith(
 			expect.objectContaining({
 				event: "user.auth_failed",
 				properties: expect.objectContaining({ request_id: "req-device-poll" }),
 			}),
 		);
+	});
+
+	it("rejects a staging api base combined with the production client id", async () => {
+		const fetchMock = vi.fn();
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		await expect(
+			completeClineDeviceAuth({
+				deviceCode: "device-code",
+				expiresInSeconds: 300,
+				pollIntervalSeconds: 1,
+				apiBaseUrl: STAGING_API_BASE_URL,
+				workOsClientId: PRODUCTION_CLIENT_ID,
+			}),
+		).rejects.toThrow(/environment mismatch/i);
+		// Never polled: no token can be minted against the wrong environment.
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects a production api base combined with the staging client id", async () => {
+		const fetchMock = vi.fn();
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		await expect(
+			completeClineDeviceAuth({
+				deviceCode: "device-code",
+				expiresInSeconds: 300,
+				pollIntervalSeconds: 1,
+				apiBaseUrl: PRODUCTION_API_BASE_URL,
+				workOsClientId: STAGING_CLIENT_ID,
+			}),
+		).rejects.toThrow(/environment mismatch/i);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("derives the client id from the api base when none is passed", async () => {
+		let requestBody = "";
+		globalThis.fetch = vi.fn(async (_url, init) => {
+			requestBody = String(init?.body ?? "");
+			return workOsErrorResponse("access_denied", 403);
+		}) as unknown as typeof fetch;
+
+		await expect(
+			completeClineDeviceAuth({
+				deviceCode: "device-code",
+				expiresInSeconds: 300,
+				pollIntervalSeconds: 1,
+				apiBaseUrl: STAGING_API_BASE_URL,
+			}),
+		).rejects.toThrow();
+
+		expect(new URLSearchParams(requestBody).get("client_id")).toBe(
+			STAGING_CLIENT_ID,
+		);
+	});
+
+	it("polls the WorkOS API base override", async () => {
+		let requestUrl = "";
+		globalThis.fetch = vi.fn(async (url) => {
+			requestUrl = String(url);
+			return workOsErrorResponse("access_denied", 403);
+		}) as unknown as typeof fetch;
+
+		await expect(
+			completeClineDeviceAuth({
+				deviceCode: "device-code",
+				expiresInSeconds: 300,
+				pollIntervalSeconds: 1,
+				apiBaseUrl: STAGING_API_BASE_URL,
+				workOsClientId: STAGING_CLIENT_ID,
+				workOsBaseUrl: "https://workos.test",
+			}),
+		).rejects.toThrow();
+
+		expect(requestUrl).toBe("https://workos.test/user_management/authenticate");
+	});
+
+	it("clamps an absurd expiry and poll interval handed to the poll loop", async () => {
+		vi.useFakeTimers();
+		try {
+			const fetchMock = vi.fn(async () =>
+				workOsErrorResponse("authorization_pending"),
+			);
+			globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+			const pending = completeClineDeviceAuth({
+				deviceCode: "device-code",
+				// A hostile/malformed response would have kept this loop alive for
+				// ~285 millennia, one poll per day.
+				expiresInSeconds: Number.MAX_SAFE_INTEGER,
+				pollIntervalSeconds: 86_400,
+				apiBaseUrl: STAGING_API_BASE_URL,
+				workOsClientId: STAGING_CLIENT_ID,
+			});
+			const assertion = expect(pending).rejects.toThrow(/timed out/i);
+
+			// Expiry clamps to 30 minutes, so the loop is done well inside 31.
+			await vi.advanceTimersByTimeAsync(31 * 60 * 1000);
+			await assertion;
+
+			// Interval clamps to 60s: ~30 polls in 30 minutes, not a single one.
+			expect(fetchMock.mock.calls.length).toBeGreaterThan(20);
+			expect(fetchMock.mock.calls.length).toBeLessThan(40);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("backs off by 5 seconds on slow_down, per RFC 8628", async () => {
+		vi.useFakeTimers();
+		try {
+			const pollTimes: number[] = [];
+			let calls = 0;
+			globalThis.fetch = vi.fn(async () => {
+				pollTimes.push(Date.now());
+				calls += 1;
+				return calls === 1
+					? workOsErrorResponse("slow_down")
+					: workOsErrorResponse("access_denied", 403);
+			}) as unknown as typeof fetch;
+
+			const pending = completeClineDeviceAuth({
+				deviceCode: "device-code",
+				expiresInSeconds: 300,
+				pollIntervalSeconds: 5,
+				apiBaseUrl: STAGING_API_BASE_URL,
+				workOsClientId: STAGING_CLIENT_ID,
+			});
+			const assertion = expect(pending).rejects.toThrow();
+			await vi.advanceTimersByTimeAsync(60_000);
+			await assertion;
+
+			expect(pollTimes).toHaveLength(2);
+			// 5s interval + the RFC's 5s increment, not the old +1s.
+			expect((pollTimes[1] as number) - (pollTimes[0] as number)).toBe(10_000);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

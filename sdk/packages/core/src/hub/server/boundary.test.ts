@@ -22,6 +22,7 @@ import {
 	type HubTransportContext,
 } from "./handlers/context";
 import { projectSessionEvent } from "./handlers/session-event-projector";
+import type { HubRunQueue } from "./hub-run-queue";
 
 describe("HubServerTransport boundaries", () => {
 	function createTransport(options: Record<string, unknown> = {}) {
@@ -29,6 +30,10 @@ describe("HubServerTransport boundaries", () => {
 		return new HubServerTransport({
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 			scheduleOptions: { dbPath: ":memory:" },
+			// What `startHubWebSocketServer` selects for a loopback bind host, which
+			// is how every local hub runs. The conservative model is exercised in
+			// "HubServerTransport event scoping" / "session.attach authorization".
+			sessionTrustModel: "loopback-single-owner",
 			sessionHost: {
 				subscribe: vi.fn(),
 				startSession: vi.fn(),
@@ -475,6 +480,62 @@ describe("HubServerTransport boundaries", () => {
 		});
 	});
 
+	it("forces paired-device sessions through the machine approval callback", async () => {
+		let capturedStartInput: StartSessionInput | undefined;
+		const startSession = vi.fn(async (input: StartSessionInput) => {
+			capturedStartInput = input;
+			return { sessionId: "session-paired", result: undefined } as never;
+		});
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-paired",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+			},
+		});
+		const authority = {
+			clientId: "phone-1",
+			pairedDevice: {
+				deviceId: "device-1",
+				approvalPolicy: {
+					read: "auto",
+					write: "ask",
+					execute: "ask",
+				} as const,
+			},
+		};
+
+		await transport.handleCommand(
+			{
+				version: "v1",
+				requestId: "req-paired-create",
+				command: "session.create",
+				clientId: "phone-1",
+				payload: {
+					sessionConfig: { sessionId: "session-paired" },
+					runtimeOptions: { autoApproveTools: true },
+					toolPolicies: {
+						"*": { autoApprove: true },
+						run_commands: { autoApprove: true, enabled: true },
+					},
+				},
+			},
+			authority,
+		);
+
+		expect(capturedStartInput?.toolPolicies).toEqual({
+			"*": { autoApprove: false },
+			run_commands: { autoApprove: false, enabled: true },
+		});
+		expect(capturedStartInput?.sessionMetadata?.autoApproveTools).toBe(false);
+	});
+
 	it("denies non-interactive approval requests immediately", async () => {
 		const transport = createTransport();
 		const ctx = getContext(transport);
@@ -835,6 +896,9 @@ describe("HubServerTransport boundaries", () => {
 				version: "v1",
 				requestId: "req-1",
 				command: "approval.respond",
+				// Approvals are scoped to the session's creator/participants and the
+				// wire always carries the caller's id, so the envelope names it here.
+				clientId: "client-1",
 				payload: {
 					approvalId,
 					approved: true,
@@ -850,6 +914,150 @@ describe("HubServerTransport boundaries", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("recovers pending approvals over approval.list_pending", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-1", "creator", {
+			interactive: true,
+		});
+		const listPending = () =>
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-list",
+				command: "approval.list_pending",
+				clientId: "client-1",
+			});
+
+		// A hub that just started has nothing pending: approvals are in-memory, so
+		// a restart is reported as an empty list rather than an error.
+		await expect(listPending()).resolves.toMatchObject({
+			ok: true,
+			payload: { approvals: [] },
+		});
+
+		const resultPromise = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+
+		const listed = await listPending();
+		const approvals = listed.payload?.approvals as Array<
+			Record<string, unknown>
+		>;
+		expect(approvals).toHaveLength(1);
+		expect(approvals[0]).toMatchObject({
+			sessionId: "session-1",
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			inputJson: JSON.stringify({ commands: ["echo hi"] }),
+			createdAt: expect.any(Number),
+		});
+		const approvalId = approvals[0]?.approvalId as string;
+		expect(approvalId).toMatch(/^approval_/);
+
+		const respond = () =>
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-respond",
+				command: "approval.respond",
+				clientId: "client-1",
+				payload: { approvalId, approved: true },
+			});
+		await expect(respond()).resolves.toMatchObject({ ok: true });
+		await expect(resultPromise).resolves.toMatchObject({ approved: true });
+		await expect(listPending()).resolves.toMatchObject({
+			payload: { approvals: [] },
+		});
+		await expect(respond()).resolves.toMatchObject({
+			ok: false,
+			error: { code: "already_resolved", details: { approvalId } },
+		});
+	});
+
+	it("keeps approvals answerable only by clients that attach after a full disconnect", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-1", "creator", {
+			interactive: true,
+		});
+		const resultPromise = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+		const approvalId = [...ctx.pendingApprovals.keys()][0] ?? "";
+		expect(approvalId).toMatch(/^approval_/);
+
+		// The last participant disconnects, which drops the session's whole state.
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-unregister",
+			command: "client.unregister",
+			clientId: "client-1",
+		});
+		expect(ctx.sessionState.has("session-1")).toBe(false);
+
+		// A client that has not attached cannot see or answer the approval.
+		await expect(
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-list-lurker",
+				command: "approval.list_pending",
+				clientId: "lurker-1",
+			}),
+		).resolves.toMatchObject({ ok: true, payload: { approvals: [] } });
+		await expect(
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-respond-lurker",
+				command: "approval.respond",
+				clientId: "lurker-1",
+				payload: { approvalId, approved: true },
+			}),
+		).resolves.toMatchObject({
+			ok: false,
+			error: { code: "not_authorized" },
+		});
+		expect(ctx.pendingApprovals.has(approvalId)).toBe(true);
+
+		// Attaching rebuilds the participant record from the dropped state.
+		await expect(
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-attach",
+				command: "session.attach",
+				clientId: "mobile-1",
+				payload: { sessionId: "session-1" },
+			}),
+		).resolves.toMatchObject({ ok: true });
+		await expect(
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-respond-mobile",
+				command: "approval.respond",
+				clientId: "mobile-1",
+				payload: { approvalId, approved: true, reason: "approved on mobile" },
+			}),
+		).resolves.toMatchObject({ ok: true });
+		await expect(resultPromise).resolves.toEqual({
+			approved: true,
+			reason: "approved on mobile",
+		});
 	});
 
 	it("replays a pending approval to a client that (re)subscribes after it was raised", async () => {
@@ -894,11 +1102,13 @@ describe("HubServerTransport boundaries", () => {
 			toolCallId: "call-1",
 		});
 
+		ensureSessionParticipant(ctx, "session-1", "late-client", "participant");
 		const approvalId = requested?.payload?.approvalId as string;
 		await handleApprovalRespond(ctx, {
 			version: "v1",
 			requestId: "req-late",
 			command: "approval.respond",
+			clientId: "late-client",
 			payload: { approvalId, approved: true },
 		});
 		await expect(resultPromise).resolves.toEqual({
@@ -2269,5 +2479,775 @@ describe("HubServerTransport boundaries", () => {
 				},
 			},
 		});
+	});
+});
+
+describe("HubServerTransport event scoping", () => {
+	function createTransport(options: Record<string, unknown> = {}) {
+		return new HubServerTransport({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			} as never,
+			...options,
+		});
+	}
+
+	function getContext(transport: HubServerTransport): HubTransportContext {
+		return (transport as unknown as { ctx: HubTransportContext }).ctx;
+	}
+
+	it("never fans a session's events out to an unrelated client", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator", {
+			interactive: true,
+		});
+		const seenByB: string[] = [];
+		transport.subscribe("client-b", (event) => seenByB.push(event.event));
+		const seenByA: string[] = [];
+		transport.subscribe("client-a", (event) => seenByA.push(event.event));
+
+		void requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["rm -rf /"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+
+		// approval.requested carries the full tool input.
+		expect(seenByA).toContain("approval.requested");
+		expect(seenByB).toEqual([]);
+	});
+
+	it("does not reissue a pending approval to an unrelated subscriber", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator");
+		const pending = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["printenv"] },
+			policy: { autoApprove: false },
+		});
+		for (let i = 0; i < 20 && ctx.pendingApprovals.size === 0; i += 1) {
+			await Promise.resolve();
+		}
+		const seen: HubEventEnvelope[] = [];
+		transport.subscribe("client-b", (event) => seen.push(event));
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(seen).toEqual([]);
+
+		const approvalId = [...ctx.pendingApprovals.keys()][0] ?? "";
+		await handleApprovalRespond(ctx, {
+			version: "v1",
+			requestId: "req-cleanup",
+			command: "approval.respond",
+			clientId: "client-a",
+			payload: { approvalId, approved: false },
+		});
+		await pending;
+	});
+
+	it("filters durable replay through the same session ACL", async () => {
+		const transport = createTransport({
+			eventLog: { dbPath: ":memory:" },
+			runQueue: false,
+		});
+		await transport.start();
+		try {
+			const ctx = getContext(transport);
+			ensureSessionState(ctx, "session-1", "client-a", "creator");
+			(
+				transport as unknown as {
+					publish(event: HubEventEnvelope): void;
+				}
+			).publish({
+				version: "v1",
+				event: "assistant.delta",
+				eventId: "hevt_secret",
+				sessionId: "session-1",
+				timestamp: Date.now(),
+				payload: { text: "secret" },
+			});
+
+			await expect(
+				transport.replayEventsAfter(0, { clientId: "client-b", limit: 10 }),
+			).resolves.toEqual([]);
+			ensureSessionState(ctx, "session-2", "client-b", "creator");
+			(
+				transport as unknown as {
+					publish(event: HubEventEnvelope): void;
+				}
+			).publish({
+				version: "v1",
+				event: "assistant.delta",
+				eventId: "hevt_visible",
+				sessionId: "session-2",
+				timestamp: Date.now(),
+				payload: { text: "visible" },
+			});
+			await expect(
+				transport.replayEventsAfter(0, { clientId: "client-b", limit: 1 }),
+			).resolves.toMatchObject([{ eventId: "hevt_visible" }]);
+			await expect(
+				transport.replayEventsAfter(0, { clientId: "client-a", limit: 10 }),
+			).resolves.toHaveLength(1);
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("delivers enumerated global hub lifecycle events to every listener", async () => {
+		const transport = createTransport();
+		const seen: string[] = [];
+		transport.subscribe("client-b", (event) => seen.push(event.event));
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-register",
+			command: "client.register",
+			clientId: "client-a",
+			payload: { clientId: "client-a" },
+		});
+
+		expect(seen).toContain("hub.client.registered");
+	});
+
+	it("drops a session event nobody is related to instead of defaulting to allow", () => {
+		const transport = createTransport();
+		const seen: string[] = [];
+		transport.subscribe("client-b", (event) => seen.push(event.event));
+
+		(
+			transport as unknown as {
+				publish: (event: HubEventEnvelope) => void;
+			}
+		).publish({
+			version: "v1",
+			event: "assistant.delta",
+			eventId: "hevt_1",
+			sessionId: "session-untracked",
+			timestamp: 0,
+			payload: { text: "secret" },
+		});
+
+		expect(seen).toEqual([]);
+	});
+
+	it("delivers session events to a client on a hub configured as single-owner", async () => {
+		const transport = createTransport({
+			sessionTrustModel: "loopback-single-owner",
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator", {
+			interactive: true,
+		});
+		const seen: string[] = [];
+		transport.subscribe("client-b", (event) => seen.push(event.event));
+
+		void requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+
+		expect(seen).toContain("approval.requested");
+	});
+});
+
+describe("HubServerTransport session.attach authorization", () => {
+	function createTransport(options: Record<string, unknown> = {}) {
+		const { sessionHost: sessionHostOverride, ...transportOptions } = options;
+		return new HubServerTransport({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+				...((sessionHostOverride as Record<string, unknown> | undefined) ?? {}),
+			} as never,
+			...transportOptions,
+		});
+	}
+
+	function getContext(transport: HubServerTransport): HubTransportContext {
+		return (transport as unknown as { ctx: HubTransportContext }).ctx;
+	}
+
+	function attach(
+		transport: HubServerTransport,
+		clientId: string | undefined,
+	): Promise<{ ok: boolean; error?: { code: string } }> {
+		return transport.handleCommand({
+			version: "v1",
+			requestId: `req-attach-${clientId ?? "anonymous"}`,
+			command: "session.attach",
+			...(clientId ? { clientId } : {}),
+			payload: { sessionId: "session-1" },
+		}) as never;
+	}
+
+	function exposeListedSession(transport: HubServerTransport): void {
+		vi.mocked(getContext(transport).sessionHost.listSessions).mockResolvedValue(
+			[
+				{
+					sessionId: "session-1",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			] as never,
+		);
+	}
+
+	it("refuses an unrelated client on the conservative default", async () => {
+		const transport = createTransport();
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"client-a",
+			"creator",
+		);
+
+		await expect(attach(transport, "intruder-1")).resolves.toMatchObject({
+			ok: false,
+			error: { code: "not_authorized" },
+		});
+	});
+
+	it("filters and denies existing sessions until the caller is authorized", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		exposeListedSession(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator");
+
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					command: "session.list",
+					clientId: "intruder-1",
+				},
+				{ clientId: "intruder-1" },
+			),
+		).resolves.toMatchObject({ ok: true, payload: { sessions: [] } });
+		for (const command of [
+			"session.get",
+			"run.abort",
+			"session.delete",
+		] as const) {
+			await expect(
+				transport.handleCommand(
+					{
+						version: "v1",
+						command,
+						clientId: "intruder-1",
+						sessionId: "session-1",
+					},
+					{ clientId: "intruder-1" },
+				),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "not_authorized" },
+			});
+		}
+		expect(ctx.sessionHost.abort).not.toHaveBeenCalled();
+		expect(ctx.sessionHost.deleteSession).not.toHaveBeenCalled();
+	});
+
+	it("applies the session ACL before paginating a scoped session list", async () => {
+		const getSession = vi.fn(async (sessionId: string) => ({
+			sessionId,
+			status: "completed",
+			startedAt: new Date(sessionId === "older-owned" ? 1 : 2).toISOString(),
+			updatedAt: new Date(2).toISOString(),
+			workspaceRoot: "/tmp/project",
+			cwd: "/tmp/project",
+		}));
+		const listSessions = vi
+			.fn()
+			.mockResolvedValue([
+				{ sessionId: "newer-other" },
+				{ sessionId: "older-owned" },
+			]);
+		const transport = createTransport({
+			sessionHost: { getSession, listSessions },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "newer-other", "client-b", "creator");
+		ensureSessionState(ctx, "older-owned", "client-a", "creator");
+
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					command: "session.list",
+					clientId: "client-a",
+					payload: { limit: 1 },
+				},
+				{ clientId: "client-a" },
+			),
+		).resolves.toMatchObject({
+			ok: true,
+			payload: { sessions: [{ sessionId: "older-owned" }] },
+		});
+		expect(listSessions).not.toHaveBeenCalled();
+	});
+
+	it("applies the session ACL before paginating a scoped run list", async () => {
+		const transport = createTransport({
+			eventLog: false,
+			runQueue: { dbPath: ":memory:" },
+		});
+		await transport.start();
+		try {
+			const ctx = getContext(transport);
+			ensureSessionState(ctx, "session-other", "client-b", "creator");
+			ensureSessionState(ctx, "session-owned", "client-a", "creator");
+			const queue = (transport as unknown as { runQueue: HubRunQueue })
+				.runQueue;
+			queue.admit("session-other", { prompt: "other" }, "client-b");
+			queue.admit("session-owned", { prompt: "owned" }, "client-a");
+
+			await expect(
+				transport.handleCommand(
+					{
+						version: "v1",
+						command: "run.list",
+						clientId: "client-a",
+						payload: { limit: 1 },
+					},
+					{ clientId: "client-a" },
+				),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { runs: [{ sessionId: "session-owned" }] },
+			});
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("authorizes legacy and current session.hook routing against the root session", async () => {
+		const dispatchHookEvent = vi.fn();
+		const transport = createTransport({ sessionHost: { dispatchHookEvent } });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-a", "client-a", "creator");
+		ensureSessionState(ctx, "session-b", "client-b", "creator");
+		const payload = {
+			clineVersion: "test",
+			hookName: "session_shutdown",
+			timestamp: new Date(0).toISOString(),
+			taskId: "session-b",
+			sessionContext: { rootSessionId: "session-b" },
+			workspaceRoots: [],
+			userId: "user",
+			agent_id: "agent",
+			parent_agent_id: null,
+		};
+
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					command: "session.hook",
+					clientId: "client-b",
+					// Legacy v1 shape: root routing exists only inside the hook payload.
+					payload: { payload },
+				},
+				{ clientId: "client-b" },
+			),
+		).resolves.toMatchObject({ ok: true });
+
+		for (const [clientId, sessionId] of [
+			["client-a", undefined],
+			["client-a", "session-a"],
+		] as const) {
+			await expect(
+				transport.handleCommand(
+					{
+						version: "v1",
+						command: "session.hook",
+						clientId,
+						...(sessionId ? { sessionId } : {}),
+						payload: { payload },
+					},
+					{ clientId },
+				),
+			).resolves.toMatchObject({ ok: false });
+		}
+		expect(dispatchHookEvent).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets an authenticated paired device list and attach to machine sessions", async () => {
+		const transport = createTransport();
+		exposeListedSession(transport);
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"client-a",
+			"creator",
+		);
+		const authority = {
+			clientId: "phone-1",
+			pairedDevice: {
+				deviceId: "device-1",
+				approvalPolicy: { read: "auto", write: "ask", execute: "ask" } as const,
+			},
+		};
+
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					command: "session.list",
+					clientId: "phone-1",
+				},
+				authority,
+			),
+		).resolves.toMatchObject({
+			ok: true,
+			payload: { sessions: [{ sessionId: "session-1" }] },
+		});
+		await expect(
+			transport.handleCommand(
+				{
+					version: "v1",
+					command: "session.attach",
+					clientId: "phone-1",
+					sessionId: "session-1",
+				},
+				authority,
+			),
+		).resolves.toMatchObject({ ok: true });
+	});
+
+	it("refuses an attach that names no identity", async () => {
+		const transport = createTransport();
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"client-a",
+			"creator",
+		);
+
+		await expect(attach(transport, undefined)).resolves.toMatchObject({
+			ok: false,
+			error: { code: "not_authorized" },
+		});
+	});
+
+	it("lets the session creator attach", async () => {
+		const transport = createTransport();
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"client-a",
+			"creator",
+		);
+
+		await expect(attach(transport, "client-a")).resolves.toMatchObject({
+			ok: true,
+		});
+	});
+
+	it("lets an allowlisted identity attach", async () => {
+		const transport = createTransport({ attachAllowlist: ["mobile-1"] });
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"client-a",
+			"creator",
+		);
+
+		await expect(attach(transport, "mobile-1")).resolves.toMatchObject({
+			ok: true,
+		});
+	});
+
+	it("honours an injected authorizeAttach seam", async () => {
+		const authorizeAttach = vi.fn(
+			(request: { clientId: string }) => request.clientId === "paired-device",
+		);
+		const transport = createTransport({ authorizeAttach });
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"client-a",
+			"creator",
+		);
+
+		await expect(attach(transport, "paired-device")).resolves.toMatchObject({
+			ok: true,
+		});
+		await expect(attach(transport, "other-device")).resolves.toMatchObject({
+			ok: false,
+			error: { code: "not_authorized" },
+		});
+		expect(authorizeAttach).toHaveBeenCalled();
+	});
+
+	it("closes the register-then-attach approval bypass", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator", {
+			interactive: true,
+		});
+		void requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+		const approvalId = [...ctx.pendingApprovals.keys()][0] ?? "";
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-register-intruder",
+			command: "client.register",
+			clientId: "intruder-1",
+			payload: { clientId: "intruder-1" },
+		});
+		await expect(attach(transport, "intruder-1")).resolves.toMatchObject({
+			ok: false,
+		});
+		await expect(
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-list-intruder",
+				command: "approval.list_pending",
+				clientId: "intruder-1",
+			}),
+		).resolves.toMatchObject({ ok: true, payload: { approvals: [] } });
+		await expect(
+			transport.handleCommand({
+				version: "v1",
+				requestId: "req-respond-intruder",
+				command: "approval.respond",
+				clientId: "intruder-1",
+				payload: { approvalId, approved: true },
+			}),
+		).resolves.toMatchObject({
+			ok: false,
+			error: { code: "not_authorized" },
+		});
+	});
+
+	it("does not own sessions under a guessable default identity", async () => {
+		const transport = createTransport({
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn().mockResolvedValue({
+					sessionId: "session-new",
+					session: {
+						sessionId: "session-new",
+						status: "idle",
+						startedAt: new Date(0).toISOString(),
+						updatedAt: new Date(0).toISOString(),
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+					},
+				}),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-new",
+					status: "idle",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			} as never,
+		});
+		const ctx = getContext(transport);
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-create-anonymous",
+			command: "session.create",
+			payload: { sessionConfig: { sessionId: "session-new" } },
+		});
+
+		const owner = ctx.sessionState.get("session-new")?.createdByClientId;
+		expect(owner).toBeDefined();
+		expect(owner).not.toBe("hub-client");
+	});
+});
+
+describe("HubServerTransport approval lifecycle guarantees", () => {
+	function createTransport(options: Record<string, unknown> = {}) {
+		return new HubServerTransport({
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			scheduleOptions: { dbPath: ":memory:" },
+			sessionHost: {
+				subscribe: vi.fn(),
+				startSession: vi.fn(),
+				stopSession: vi.fn(),
+				runTurn: vi.fn(),
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				getSession: vi.fn().mockResolvedValue(undefined),
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+				listSessions: vi.fn(),
+				deleteSession: vi.fn(),
+				updateSession: vi.fn(),
+				dispatchHookEvent: vi.fn(),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			} as never,
+			...options,
+		});
+	}
+
+	function getContext(transport: HubServerTransport): HubTransportContext {
+		return (transport as unknown as { ctx: HubTransportContext }).ctx;
+	}
+
+	it("publishes approval.resolved for approvals it resolves on shutdown", async () => {
+		const transport = createTransport();
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator", {
+			interactive: true,
+		});
+		const seen: HubEventEnvelope[] = [];
+		transport.subscribe("client-a", (event) => seen.push(event));
+		const pending = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+
+		await transport.stop();
+		await expect(pending).resolves.toMatchObject({ approved: false });
+
+		expect(
+			seen.filter((event) => event.event === "approval.resolved"),
+		).toHaveLength(1);
+	});
+
+	it("does not expire approvals for sessions the caller cannot see", async () => {
+		const transport = createTransport({ approvalTimeoutMs: 5 });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "client-a", "creator", {
+			interactive: true,
+		});
+		const pending = requestToolApproval(ctx, {
+			sessionId: "session-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		await Promise.resolve();
+		const approvalId = [...ctx.pendingApprovals.keys()][0] ?? "";
+		// Force the deadline into the past without letting the timer fire.
+		const record = ctx.pendingApprovals.get(approvalId);
+		if (record) {
+			clearTimeout(record.expiryTimer);
+			record.expiryTimer = undefined;
+			record.expiresAt = Date.now() - 1;
+		}
+		const seen: string[] = [];
+		transport.subscribe("client-a", (event) => seen.push(event.event));
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-lurker",
+			command: "approval.list_pending",
+			clientId: "lurker-1",
+		});
+
+		// An unrelated probe must not be able to resolve somebody else's approval.
+		expect(seen).not.toContain("approval.resolved");
+		expect(ctx.pendingApprovals.has(approvalId)).toBe(true);
+		void pending;
+	});
+
+	it("refuses a non-positive approvalTimeoutMs instead of silently defaulting", () => {
+		expect(() => createTransport({ approvalTimeoutMs: 0 })).toThrow(
+			/approvalTimeoutMs/,
+		);
+		expect(() => createTransport({ approvalTimeoutMs: Number.NaN })).toThrow(
+			/approvalTimeoutMs/,
+		);
 	});
 });

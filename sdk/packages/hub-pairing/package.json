@@ -1,0 +1,44 @@
+{
+	"name": "@cline/hub-pairing",
+	"version": "0.0.66",
+	"description": "Device pairing and end-to-end encrypted framing for the Cline hub (node, browser, react-native)",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/hub-pairing"
+	},
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"react-native": "./dist/index.js",
+			"browser": "./dist/index.js",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "BUILD_MODE=package bun bun.mts",
+		"typecheck": "bun tsc --noEmit",
+		"test": "bun run test:unit",
+		"test:unit": "vitest run --config vitest.config.ts"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@noble/ciphers": "^2.2.0",
+		"@noble/curves": "^2.2.0",
+		"@noble/hashes": "^2.2.0"
+	}
+}

@@ -23,9 +23,17 @@
 			"types": "./dist/hub/index.d.ts",
 			"import": "./dist/hub/index.js"
 		},
+		"./hub/pairing": {
+			"types": "./dist/hub/pairing/index.d.ts",
+			"import": "./dist/hub/pairing/index.js"
+		},
 		"./hub/daemon-entry": {
 			"types": "./dist/hub/daemon/entry.d.ts",
 			"import": "./dist/hub/daemon/entry.js"
+		},
+		"./auth/cline-device": {
+			"types": "./dist/auth/cline-device-entry.d.ts",
+			"import": "./dist/auth/cline-device-entry.js"
 		},
 		"./telemetry": {
 			"types": "./dist/services/telemetry/index.d.ts",
@@ -58,6 +66,8 @@
 	},
 	"dependencies": {
 		"@cline/agents": "workspace:*",
+		"@cline/hub-client": "workspace:*",
+		"@cline/hub-pairing": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@modelcontextprotocol/sdk": "^1.29.0",

@@ -46,6 +46,15 @@ export default defineConfig({
 				find: /^@cline\/shared$/,
 				replacement: resolve(rootDir, "../../sdk/packages/shared/src/index.ts"),
 			},
+			{
+				// Without this the CLI's tests run against a prebuilt `dist`, so changes
+				// to the pairing package are invisible to them.
+				find: /^@cline\/hub-pairing$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/hub-pairing/src/index.ts",
+				),
+			},
 		],
 	},
 	test: {

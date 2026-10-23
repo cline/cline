@@ -2,9 +2,11 @@ import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialog } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
+import { buildHandoffPresentation } from "../../commands/handoff";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
+import { HandoffQrContent } from "../components/dialogs/handoff-qr";
 import { HelpDialogContent } from "../components/dialogs/help-dialog";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { useSession } from "../contexts/session-context";
@@ -32,6 +34,7 @@ export function useLocalCommandActions(input: {
 	onDeleteHistorySession: TuiProps["onDeleteHistorySession"];
 	onCompact: TuiProps["onCompact"];
 	onFork: TuiProps["onFork"];
+	onHandoff?: TuiProps["onHandoff"];
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
 }) {
@@ -55,6 +58,7 @@ export function useLocalCommandActions(input: {
 		onDeleteHistorySession,
 		onCompact,
 		onFork,
+		onHandoff,
 		onUndo,
 		onExit,
 	} = input;
@@ -214,6 +218,44 @@ export function useLocalCommandActions(input: {
 		}
 	}, [canForkSession, dialog, onFork, refocusTextarea, session]);
 
+	const runHandoff = useCallback(async () => {
+		if (!onHandoff) {
+			session.appendEntry({
+				kind: "status",
+				text: "Handoff is not available in this session.",
+			});
+			return;
+		}
+		try {
+			const result = await onHandoff();
+			const presentation = buildHandoffPresentation(result);
+			// The transcript keeps the copyable link after the dialog closes; the QR
+			// only makes sense while it is on screen.
+			session.appendEntry({
+				kind: "status",
+				text: `${presentation.instruction}\n${presentation.uri}\n${presentation.details.join("\n")}`,
+			});
+			await dialog.choice<boolean>({
+				size: "large",
+				closeOnEscape: true,
+				style: { maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<boolean>) => (
+					<HandoffQrContent
+						{...ctx}
+						presentation={presentation}
+						availableRows={termHeight - 2}
+					/>
+				),
+			});
+			refocusTextarea();
+		} catch (error) {
+			session.appendEntry({
+				kind: "error",
+				text: `Handoff failed: ${error instanceof Error ? error.message : String(error)}`,
+			});
+		}
+	}, [dialog, onHandoff, refocusTextarea, session, termHeight]);
+
 	const handleSlashCommand = useCallback(
 		(command: string, invocation?: LocalSlashCommandInvocation) => {
 			const resolved = resolveSlashCommand(slashCommandRegistry, command);
@@ -232,6 +274,7 @@ export function useLocalCommandActions(input: {
 				openThemePicker,
 				runCompact,
 				runFork,
+				runHandoff,
 				runUndo: onUndo,
 				clearConversation: onClearConversation,
 				openHelp,
@@ -253,6 +296,7 @@ export function useLocalCommandActions(input: {
 			openThemePicker,
 			runCompact,
 			runFork,
+			runHandoff,
 			session.isRunning,
 			slashCommandRegistry,
 		],

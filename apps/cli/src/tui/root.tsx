@@ -775,6 +775,7 @@ function App(props: TuiProps) {
 		onDeleteHistorySession: props.onDeleteHistorySession,
 		onCompact: props.onCompact,
 		onFork: props.onFork,
+		onHandoff: props.onHandoff,
 		onUndo: openCheckpointRestore,
 		onExit: exitCline,
 	});

@@ -179,6 +179,12 @@ describe("hub event replay over the wire", () => {
 		const writer = await openSocket(server.url, server.authToken);
 		const writerEvents: HubEventEnvelope[] = [];
 		await commandOverSocket(writer, writerEvents, {
+			command: "client.register",
+			requestId: "req-register-writer",
+			clientId: "writer",
+			payload: { clientId: "writer", clientType: "test" },
+		});
+		await commandOverSocket(writer, writerEvents, {
 			command: "session.create",
 			requestId: "req-create",
 			clientId: "writer",
@@ -197,6 +203,12 @@ describe("hub event replay over the wire", () => {
 		// replays the entire durable history in order.
 		const reader = await openSocket(server.url, server.authToken);
 		const replayed: HubEventEnvelope[] = [];
+		await commandOverSocket(reader, replayed, {
+			command: "client.register",
+			requestId: "req-register-reader",
+			clientId: "late-reader",
+			payload: { clientId: "late-reader", clientType: "test" },
+		});
 		reader.on("message", (raw) => {
 			const frame = JSON.parse(String(raw)) as HubTransportFrame;
 			if (frame.kind === "event") {
@@ -230,6 +242,12 @@ describe("hub event replay over the wire", () => {
 		// history — the legacy contract is untouched.
 		const legacy = await openSocket(server.url, server.authToken);
 		const legacyEvents: HubEventEnvelope[] = [];
+		await commandOverSocket(legacy, legacyEvents, {
+			command: "client.register",
+			requestId: "req-register-legacy",
+			clientId: "legacy-reader",
+			payload: { clientId: "legacy-reader", clientType: "test" },
+		});
 		legacy.on("message", (raw) => {
 			const frame = JSON.parse(String(raw)) as HubTransportFrame;
 			if (frame.kind === "event") {

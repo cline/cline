@@ -1,3 +1,4 @@
+import type { ApprovalPolicy } from "@cline/hub-pairing";
 import type {
 	HubClientRegistration,
 	HubCommandEnvelope,
@@ -9,6 +10,11 @@ import type {
 export interface HubConnectionAuthority {
 	clientId: string;
 	workspaceContext?: HubClientRegistration["workspaceContext"];
+	/** Server-authenticated paired-device identity; never accepted from a frame. */
+	pairedDevice?: {
+		deviceId: string;
+		approvalPolicy: ApprovalPolicy;
+	};
 	/**
 	 * Token-authenticated connections may already bind any workspace at
 	 * registration time, so they are also allowed to explicitly request
@@ -35,6 +41,6 @@ export interface HubCommandTransport {
 	 */
 	replayEventsAfter?(
 		sinceSequence: number,
-		options: { sessionId?: string; limit: number },
-	): HubEventEnvelope[];
+		options: { sessionId?: string; clientId?: string; limit: number },
+	): HubEventEnvelope[] | Promise<HubEventEnvelope[]>;
 }

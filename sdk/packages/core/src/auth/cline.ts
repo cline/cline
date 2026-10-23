@@ -1,9 +1,11 @@
 import {
+	CLINE_ENVIRONMENTS,
+	type ClineEnvironmentConfig,
 	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
 } from "@cline/shared";
-import { hashSecret, sdkDebug } from "../logging/early-logger";
+import { sdkDebug } from "../logging/early-logger";
 import {
 	captureAuthFailed,
 	captureAuthLoggedOut,
@@ -45,6 +47,14 @@ const DEFAULT_RETRYABLE_TOKEN_GRACE_MS = 30 * 1000;
 const DEFAULT_HTTP_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_DEVICE_AUTH_EXPIRES_IN_SECONDS = 300;
 const DEFAULT_DEVICE_AUTH_INTERVAL_SECONDS = 5;
+// A device-authorization response is attacker-influenced input (hostile or merely
+// malformed): an absurd `expires_in`/`interval` would otherwise keep the poll loop
+// alive — and the sign-in UI pinned — for as long as it liked.
+const MIN_DEVICE_AUTH_SECONDS = 1;
+const MAX_DEVICE_AUTH_EXPIRES_IN_SECONDS = 30 * 60;
+const MAX_DEVICE_AUTH_INTERVAL_SECONDS = 60;
+/** RFC 8628 §3.5: back off by 5s each time the server answers `slow_down`. */
+const DEVICE_AUTH_SLOW_DOWN_INCREMENT_SECONDS = 5;
 
 export type ClineTokenResolution = {
 	forceRefresh?: boolean;
@@ -140,6 +150,91 @@ class ClineOAuthTokenError extends Error {
 	}
 }
 
+/**
+ * Thrown when a device-auth call would pair a WorkOS client id with an api base
+ * from a *different* Cline environment.
+ */
+export class ClineAuthEnvironmentMismatchError extends Error {
+	constructor(
+		readonly clientEnvironment: string,
+		readonly apiEnvironment: string,
+	) {
+		super(
+			`Cline device auth environment mismatch: WorkOS client id belongs to "${clientEnvironment}" but apiBaseUrl belongs to "${apiEnvironment}". Pass a client id and api base from the same environment.`,
+		);
+		this.name = "ClineAuthEnvironmentMismatchError";
+	}
+}
+
+function normalizeBaseUrl(value: string | undefined): string | undefined {
+	const trimmed = value?.trim().replace(/\/+$/, "");
+	return trimmed ? trimmed.toLowerCase() : undefined;
+}
+
+/** The known Cline environment owning this api base, when it is one of ours. */
+function findEnvironmentByApiBaseUrl(
+	apiBaseUrl: string | undefined,
+): ClineEnvironmentConfig | undefined {
+	const normalized = normalizeBaseUrl(apiBaseUrl);
+	if (!normalized) {
+		return undefined;
+	}
+	return Object.values(CLINE_ENVIRONMENTS).find(
+		(config) => normalizeBaseUrl(config.apiBaseUrl) === normalized,
+	);
+}
+
+/** The known Cline environment owning this WorkOS client id, if any. */
+function findEnvironmentByClientId(
+	clientId: string | undefined,
+): ClineEnvironmentConfig | undefined {
+	if (!clientId) {
+		return undefined;
+	}
+	return Object.values(CLINE_ENVIRONMENTS).find(
+		(config) => config.workOsClientId === clientId,
+	);
+}
+
+/**
+ * Resolve the WorkOS client id for a device-auth call from ONE environment.
+ *
+ * The old fallback read `getClineEnvironmentConfig()`, whose default is
+ * `production`, independently of the `apiBaseUrl` the caller passes — so a host
+ * that selects its environment outside Node env vars (the mobile app defaults to
+ * staging) silently paired a PROD WorkOS client with a STAGING api base, and the
+ * WorkOS tokens were then registered against the wrong backend.
+ *
+ * Two rules keep that impossible:
+ *  1. when the api base is a known Cline host, the client id is derived from
+ *     THAT environment rather than from ambient env vars, and
+ *  2. an explicit client id from a different known environment than a known api
+ *     base is rejected outright.
+ */
+function resolveDeviceAuthClientId(options: {
+	apiBaseUrl?: string;
+	workOsClientId?: string;
+}): string {
+	const apiEnvironment = findEnvironmentByApiBaseUrl(options.apiBaseUrl);
+	const clientEnvironment = findEnvironmentByClientId(options.workOsClientId);
+	if (
+		apiEnvironment &&
+		clientEnvironment &&
+		apiEnvironment.environment !== clientEnvironment.environment
+	) {
+		throw new ClineAuthEnvironmentMismatchError(
+			clientEnvironment.environment,
+			apiEnvironment.environment,
+		);
+	}
+	if (options.workOsClientId) {
+		return options.workOsClientId;
+	}
+	// No explicit id: prefer the environment the api base names, and only then
+	// the ambient (env-var driven, production-by-default) configuration.
+	return (apiEnvironment ?? getClineEnvironmentConfig()).workOsClientId;
+}
+
 function toEpochMs(isoDateTime: string): number {
 	const epoch = Date.parse(isoDateTime);
 	if (Number.isNaN(epoch)) {
@@ -188,6 +283,28 @@ function toSeconds(value: unknown, fallback: number): number {
 		return fallback;
 	}
 	return Math.floor(value);
+}
+
+/** Clamp an attacker-influenced duration into a range we are willing to wait. */
+function clampSeconds(value: number, max: number): number {
+	if (!Number.isFinite(value)) {
+		return max;
+	}
+	return Math.min(Math.max(Math.floor(value), MIN_DEVICE_AUTH_SECONDS), max);
+}
+
+function clampDeviceAuthExpiresIn(value: unknown): number {
+	return clampSeconds(
+		toSeconds(value, DEFAULT_DEVICE_AUTH_EXPIRES_IN_SECONDS),
+		MAX_DEVICE_AUTH_EXPIRES_IN_SECONDS,
+	);
+}
+
+function clampDeviceAuthInterval(value: unknown): number {
+	return clampSeconds(
+		toSeconds(value, DEFAULT_DEVICE_AUTH_INTERVAL_SECONDS),
+		MAX_DEVICE_AUTH_INTERVAL_SECONDS,
+	);
 }
 
 function asNonEmptyString(value: unknown): string | undefined {
@@ -274,7 +391,7 @@ function requireClineTokenResponse(
 
 async function requestWorkOSDeviceAuthorization(
 	clientId: string,
-	options?: { requestTimeoutMs?: number },
+	options?: { requestTimeoutMs?: number; workOsBaseUrl?: string },
 ): Promise<{
 	deviceCode: string;
 	userCode: string;
@@ -285,7 +402,7 @@ async function requestWorkOSDeviceAuthorization(
 }> {
 	const response = await fetch(
 		resolveUrl(
-			DEFAULT_WORKOS_API_BASE_URL,
+			options?.workOsBaseUrl?.trim() || DEFAULT_WORKOS_API_BASE_URL,
 			DEFAULT_WORKOS_ENDPOINTS.deviceAuthorization,
 		),
 		{
@@ -322,14 +439,8 @@ async function requestWorkOSDeviceAuthorization(
 		userCode: json.user_code,
 		verificationUri: json.verification_uri,
 		verificationUriComplete: json.verification_uri_complete,
-		expiresInSeconds: toSeconds(
-			json.expires_in,
-			DEFAULT_DEVICE_AUTH_EXPIRES_IN_SECONDS,
-		),
-		pollIntervalSeconds: toSeconds(
-			json.interval,
-			DEFAULT_DEVICE_AUTH_INTERVAL_SECONDS,
-		),
+		expiresInSeconds: clampDeviceAuthExpiresIn(json.expires_in),
+		pollIntervalSeconds: clampDeviceAuthInterval(json.interval),
 	};
 }
 
@@ -342,8 +453,14 @@ async function pollWorkOSTokens(options: {
 	workosApiBaseUrl: string;
 	onProgress?: OAuthLoginCallbacks["onProgress"];
 }): Promise<WorkOSTokenSuccess> {
-	const deadline = Date.now() + options.expiresInSeconds * 1000;
-	let intervalSeconds = Math.max(1, options.initialPollIntervalSeconds);
+	// Clamp again here, not only where the authorization response is parsed: these
+	// values cross a public API boundary, so a host may hand back whatever it was
+	// told (or persisted) between the two calls.
+	const deadline =
+		Date.now() + clampDeviceAuthExpiresIn(options.expiresInSeconds) * 1000;
+	let intervalSeconds = clampDeviceAuthInterval(
+		options.initialPollIntervalSeconds,
+	);
 
 	while (Date.now() <= deadline) {
 		const response = await fetch(
@@ -384,7 +501,10 @@ async function pollWorkOSTokens(options: {
 				break;
 			}
 			case "slow_down": {
-				intervalSeconds += 1;
+				intervalSeconds = clampSeconds(
+					intervalSeconds + DEVICE_AUTH_SLOW_DOWN_INCREMENT_SECONDS,
+					MAX_DEVICE_AUTH_INTERVAL_SECONDS,
+				);
 				await sleep(intervalSeconds * 1000);
 				break;
 			}
@@ -642,6 +762,17 @@ export async function loginClineOAuth(
 
 export async function startClineDeviceAuth(options?: {
 	requestTimeoutMs?: number;
+	/** Host override for runtimes whose environment is selected outside Node env vars. */
+	workOsClientId?: string;
+	/**
+	 * The api base the resulting device code will be registered against. Pass it
+	 * whenever the host selects its environment outside Node env vars: the client
+	 * id is then derived from the SAME environment instead of the
+	 * production-by-default ambient config. See {@link resolveDeviceAuthClientId}.
+	 */
+	apiBaseUrl?: string;
+	/** WorkOS API base override; defaults to `https://api.workos.com`. */
+	workOsBaseUrl?: string;
 }): Promise<{
 	deviceCode: string;
 	userCode: string;
@@ -651,7 +782,10 @@ export async function startClineDeviceAuth(options?: {
 	pollIntervalSeconds: number;
 }> {
 	return await requestWorkOSDeviceAuthorization(
-		getClineEnvironmentConfig().workOsClientId,
+		resolveDeviceAuthClientId({
+			apiBaseUrl: options?.apiBaseUrl,
+			workOsClientId: options?.workOsClientId,
+		}),
 		options,
 	);
 }
@@ -665,17 +799,27 @@ export async function completeClineDeviceAuth(options: {
 	headers?: HeaderInput;
 	requestTimeoutMs?: number;
 	telemetry?: ITelemetryService;
+	/** Host override for runtimes whose environment is selected outside Node env vars. */
+	workOsClientId?: string;
+	/** WorkOS API base override; defaults to `https://api.workos.com`. */
+	workOsBaseUrl?: string;
 }): Promise<ClineOAuthCredentials> {
 	const providerName = options.provider ?? "cline";
 	captureAuthStarted(options.telemetry, providerName);
 	try {
 		const workosTokens = await pollWorkOSTokens({
-			clientId: getClineEnvironmentConfig().workOsClientId,
+			// Client id and api base come from ONE resolved environment: a staging
+			// api base can never be paired with the production WorkOS client.
+			clientId: resolveDeviceAuthClientId({
+				apiBaseUrl: options.apiBaseUrl,
+				workOsClientId: options.workOsClientId,
+			}),
 			deviceCode: options.deviceCode,
 			expiresInSeconds: options.expiresInSeconds,
 			initialPollIntervalSeconds: options.pollIntervalSeconds,
 			requestTimeoutMs: options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
-			workosApiBaseUrl: DEFAULT_WORKOS_API_BASE_URL,
+			workosApiBaseUrl:
+				options.workOsBaseUrl?.trim() || DEFAULT_WORKOS_API_BASE_URL,
 		});
 		const credentials = await registerWorkOSTokens(
 			workosTokens,
@@ -720,9 +864,7 @@ export async function refreshClineToken(
 		options.apiBaseUrl,
 		DEFAULT_AUTH_ENDPOINTS.refresh,
 	);
-	sdkDebug(
-		`cline.refresh.request url=${refreshUrl} refreshTokenHash=${hashSecret(current.refresh)}`,
-	);
+	sdkDebug(`cline.refresh.request url=${refreshUrl}`);
 	const response = await fetch(refreshUrl, {
 		method: "POST",
 		headers: {
@@ -759,9 +901,7 @@ export async function refreshClineToken(
 		provider,
 		current,
 	);
-	sdkDebug(
-		`cline.refresh.success newAccessTokenHash=${hashSecret(result.access)} newRefreshTokenHash=${hashSecret(result.refresh)} expires=${result.expires}`,
-	);
+	sdkDebug(`cline.refresh.success expires=${result.expires}`);
 	return result;
 }
 
@@ -799,7 +939,7 @@ export async function getValidClineCredentials(
 	}
 
 	sdkDebug(
-		`cline.getCredentials outcome=needs_refresh forceRefresh=${forceRefresh} accessTokenHash=${hashSecret(currentCredentials.access)}`,
+		`cline.getCredentials outcome=needs_refresh forceRefresh=${forceRefresh}`,
 	);
 
 	try {

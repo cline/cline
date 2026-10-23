@@ -1,0 +1,490 @@
+{
+	"schema": "hub-v1-fixture@1",
+	"generatedBy": "synthetic-hub-fixture",
+	"scenario": "approval-recovery",
+	"description": "approval pending -> new client connects and attaches -> approval.list_pending returns it -> respond -> approval.resolved",
+	"frames": [
+		{
+			"direction": "out",
+			"label": "client.register",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "client.register",
+					"payload": {
+						"actorKind": "client",
+						"clientId": "<client_1>",
+						"clientType": "hub-testkit",
+						"displayName": "hub-testkit",
+						"protocolVersion": "v1",
+						"transport": "native",
+						"workspaceContext": {
+							"cwd": "/testkit/workspace",
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply client.register",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"clientId": "<client_1>"
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "stream.subscribe",
+			"frame": {
+				"clientId": "<client_1>",
+				"kind": "stream.subscribe",
+				"sessionId": "<session_1>"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "session.attach",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "session.attach",
+					"payload": {
+						"sessionId": "<session_1>"
+					},
+					"requestId": "<request_2>",
+					"sessionId": "<session_1>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "session.attached",
+			"frame": {
+				"envelope": {
+					"event": "session.attached",
+					"eventId": "<event_1>",
+					"payload": {
+						"session": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"createdAt": 0,
+							"createdByClientId": "hub",
+							"cwd": "/testkit/workspace",
+							"metadata": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"model": "testkit-model",
+								"provider": "testkit",
+								"source": "core"
+							},
+							"model": "testkit-model",
+							"participants": [
+								{
+									"attachedAt": 0,
+									"clientId": "<client_1>",
+									"role": "participant"
+								}
+							],
+							"provider": "testkit",
+							"runtimeOptions": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"runtimeSession": {
+								"agentId": "<agent_1>"
+							},
+							"sessionId": "<session_1>",
+							"status": "running",
+							"updatedAt": 0,
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply session.attach",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"session": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"createdAt": 0,
+							"createdByClientId": "hub",
+							"cwd": "/testkit/workspace",
+							"metadata": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"model": "testkit-model",
+								"provider": "testkit",
+								"source": "core"
+							},
+							"model": "testkit-model",
+							"participants": [
+								{
+									"attachedAt": 0,
+									"clientId": "<client_1>",
+									"role": "participant"
+								}
+							],
+							"provider": "testkit",
+							"runtimeOptions": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"runtimeSession": {
+								"agentId": "<agent_1>"
+							},
+							"sessionId": "<session_1>",
+							"status": "running",
+							"updatedAt": 0,
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"requestId": "<request_2>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "approval.list_pending",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "approval.list_pending",
+					"payload": {},
+					"requestId": "<request_3>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply approval.list_pending",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"approvals": [
+							{
+								"agentId": "<agent_1>",
+								"approvalId": "<approval_1>",
+								"conversationId": "<conversation_1>",
+								"createdAt": 0,
+								"expiresAt": 0,
+								"inputJson": "{\"command\":\"deploy\"}",
+								"iteration": 1,
+								"policy": {
+									"autoApprove": false
+								},
+								"sessionId": "<session_1>",
+								"toolCallId": "<toolCall_1>",
+								"toolName": "bash"
+							}
+						]
+					},
+					"requestId": "<request_3>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "approval.respond",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "approval.respond",
+					"payload": {
+						"approvalId": "<approval_1>",
+						"approved": true,
+						"reason": "recovered and approved"
+					},
+					"requestId": "<request_4>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "approval.resolved",
+			"frame": {
+				"envelope": {
+					"event": "approval.resolved",
+					"eventId": "<event_2>",
+					"payload": {
+						"approvalId": "<approval_1>",
+						"approved": true,
+						"reason": "recovered and approved"
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "tool.finished",
+			"frame": {
+				"envelope": {
+					"event": "tool.finished",
+					"eventId": "<event_3>",
+					"payload": {
+						"output": "deployed",
+						"toolCallId": "<toolCall_1>",
+						"toolName": "bash"
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply approval.respond",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"approvalId": "<approval_1>",
+						"approved": true
+					},
+					"requestId": "<request_4>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "iteration.finished",
+			"frame": {
+				"envelope": {
+					"event": "iteration.finished",
+					"eventId": "<event_4>",
+					"payload": {
+						"hadToolCalls": true,
+						"iteration": 1,
+						"toolCallCount": 1
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "run.completed",
+			"frame": {
+				"envelope": {
+					"event": "run.completed",
+					"eventId": "<event_5>",
+					"payload": {
+						"reason": "completed",
+						"result": {
+							"durationMs": 0,
+							"endedAt": "<ts>",
+							"finishReason": "completed",
+							"iterations": 1,
+							"messages": [],
+							"model": {
+								"id": "testkit-model",
+								"provider": "testkit"
+							},
+							"startedAt": "<ts>",
+							"text": "",
+							"toolCalls": [
+								{
+									"input": {
+										"command": "deploy"
+									},
+									"name": "bash",
+									"output": "deployed"
+								}
+							],
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							}
+						},
+						"snapshot": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"capabilities": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"createdAt": "<ts>",
+							"endedAt": null,
+							"exitCode": null,
+							"interactive": true,
+							"lineage": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"isSubagent": false
+							},
+							"messages": [
+								{
+									"content": "deploy please",
+									"role": "user"
+								},
+								{
+									"content": [
+										{
+											"id": "call-1",
+											"input": {
+												"command": "deploy"
+											},
+											"name": "bash",
+											"type": "tool_use"
+										}
+									],
+									"role": "assistant"
+								},
+								{
+									"content": [
+										{
+											"content": "\"deployed\"",
+											"is_error": false,
+											"tool_use_id": "call-1",
+											"type": "tool_result"
+										}
+									],
+									"role": "user"
+								},
+								{
+									"content": "",
+									"role": "assistant"
+								}
+							],
+							"model": {
+								"modelId": "testkit-model",
+								"providerId": "testkit"
+							},
+							"sessionId": "<session_1>",
+							"source": "core",
+							"status": "completed",
+							"updatedAt": "<ts>",
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"version": 1,
+							"workspace": {
+								"cwd": "/testkit/workspace",
+								"root": "/testkit/workspace"
+							}
+						}
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "approval.list_pending",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "approval.list_pending",
+					"payload": {},
+					"requestId": "<request_5>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply approval.list_pending",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"approvals": []
+					},
+					"requestId": "<request_5>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		}
+	]
+}

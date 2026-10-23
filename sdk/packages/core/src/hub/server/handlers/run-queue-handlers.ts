@@ -16,7 +16,9 @@ import {
 } from "../hub-run-queue";
 import { logHubMessage } from "../hub-server-logging";
 import {
+	canClientAccessSession,
 	errorReply,
+	extractClientId,
 	extractSessionId,
 	type HubTransportContext,
 	okReply,
@@ -208,8 +210,10 @@ export function handleRunEnqueue(
 }
 
 export function handleRunList(
+	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	queue: HubRunQueue,
+	options: { machineOwner?: boolean } = {},
 ): HubReplyEnvelope {
 	const sessionId = extractSessionId(envelope) || undefined;
 	const limit =
@@ -218,15 +222,35 @@ export function handleRunList(
 		envelope.payload.limit > 0
 			? Math.floor(envelope.payload.limit)
 			: undefined;
+	const clientId = extractClientId(envelope);
+	const machineOwner =
+		options.machineOwner || ctx.sessionTrustModel === "loopback-single-owner";
+	const pageLimit = limit ?? 100;
+	const runs =
+		sessionId || machineOwner
+			? queue.list({ sessionId, limit })
+			: [...ctx.sessionState.keys()]
+					.filter((candidate) =>
+						canClientAccessSession(ctx, candidate, clientId, options),
+					)
+					.flatMap((candidate) =>
+						queue.list({ sessionId: candidate, limit: pageLimit }),
+					)
+					.sort((left, right) => right.acceptedAt - left.acceptedAt)
+					.slice(0, pageLimit);
 	return okReply(envelope, {
-		runs: queue.list({ sessionId, limit }).map((run) => ({
-			runId: run.runId,
-			sessionId: run.sessionId,
-			state: run.state,
-			acceptedAt: run.acceptedAt,
-			startedAt: run.startedAt,
-			endedAt: run.endedAt,
-			error: run.error,
-		})),
+		runs: runs
+			.filter((run) =>
+				canClientAccessSession(ctx, run.sessionId, clientId, options),
+			)
+			.map((run) => ({
+				runId: run.runId,
+				sessionId: run.sessionId,
+				state: run.state,
+				acceptedAt: run.acceptedAt,
+				startedAt: run.startedAt,
+				endedAt: run.endedAt,
+				error: run.error,
+			})),
 	});
 }

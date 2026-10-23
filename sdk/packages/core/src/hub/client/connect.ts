@@ -188,7 +188,10 @@ export async function sendHubCommand(
 	try {
 		return await connection.send({
 			version: envelope.version ?? "v1",
-			clientId: envelope.clientId ?? "hub-client",
+			// No default identity: `"hub-client"` was a name anybody could register
+			// as, and the hub derives authorization from it. This path only carries
+			// hub-wide commands (`schedule.*`), which need no identity at all; callers
+			// that do need one pass their own.
 			...envelope,
 		});
 	} finally {

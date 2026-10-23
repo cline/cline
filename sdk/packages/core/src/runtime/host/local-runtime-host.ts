@@ -1,3 +1,4 @@
+import type { HubModelCatalog } from "@cline/shared";
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -42,6 +43,7 @@ import {
 	emitSessionCreationTelemetry,
 } from "../../services/session-telemetry";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
+import { buildHubModelCatalog } from "./model-catalog";
 import {
 	captureAgentCreated,
 	captureAgentTeamCreated,
@@ -1585,6 +1587,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
 		await this.updateSessionConnection(sessionId, { modelId });
+	}
+
+	/**
+	 * The read half of model selection ({@link updateSessionConnection} is the
+	 * write half): the same provider registry the local `/model` picker reads,
+	 * projected to the wire catalog so a remote client can offer real choices.
+	 */
+	async listModelCatalog(): Promise<HubModelCatalog> {
+		const { listLocalProviders } = await import(
+			"../../services/providers/local-provider-service"
+		);
+		const { providers } = await listLocalProviders(
+			this.providerSettingsManager,
+		);
+		return buildHubModelCatalog(providers);
 	}
 
 	async updateSessionConnection(

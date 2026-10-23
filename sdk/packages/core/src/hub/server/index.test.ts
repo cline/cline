@@ -7,8 +7,9 @@ import {
 } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { HUB_MAX_FRAME_BYTES } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import {
 	clearHubDiscovery,
@@ -769,5 +770,34 @@ describe("hub server startup", () => {
 		} finally {
 			handleUpgrade.mockRestore();
 		}
+	});
+	it("refuses a websocket frame larger than the shared hub frame cap", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-max-payload");
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			allowPortFallback: true,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		const server = requireServer(result.server);
+		servers.add(server);
+
+		const socket = new WebSocket(server.url, [
+			`cline-hub-auth.${server.authToken}`,
+		]);
+		const closeCode = await new Promise<number>((resolve, reject) => {
+			socket.on("open", () => {
+				// `ws` defaults maxPayload to 100 MiB; without an explicit cap the hub
+				// happily buffers a frame no real client would ever send.
+				socket.send("x".repeat(HUB_MAX_FRAME_BYTES + 1));
+			});
+			socket.on("close", (code: number) => resolve(code));
+			socket.on("error", reject);
+		});
+
+		// 1009 = message too big.
+		expect(closeCode).toBe(1009);
 	});
 });

@@ -28,17 +28,25 @@ flowchart LR
   shared["@cline/shared"]
   llms["@cline/llms"]
   agents["@cline/agents"]
+  hubClient["@cline/hub-client"]
   core["@cline/core"]
   apps["Host Apps"]
 
   llms --> shared
   agents --> llms
   agents --> shared
+  hubClient --> shared
   core --> agents
   core --> llms
   core --> shared
+  core --> hubClient
   apps --> core
+  apps --> hubClient
 ```
+
+`apps --> hubClient` is the transport-only path: a host that talks to a hub but
+never runs a local session (a browser or React Native client, for example) can
+depend on `@cline/hub-client` alone.
 
 ## Package Responsibilities
 
@@ -114,6 +122,70 @@ Design rule:
 
 - `agents` should not own persistent storage or host lifecycle concerns.
 
+### `@cline/hub-client`
+
+Owns the universal (platform-agnostic) hub WebSocket client:
+
+- connection factory (`createHubSocket`) with three auth modes: `hub-subprotocol` (sends `cline-hub-auth.<credential>` as a subprotocol — what the local daemon expects and the only mode a browser can use), `bearer-header` (`Authorization: Bearer`, Node and React Native only), and `none`
+- `http(s)` to `ws(s)` endpoint normalization
+- the `HubClient` command/reply/event loop: request correlation and per-command timeouts, reconnect with exponential backoff plus jitter, subscription replay after reconnect, and typed transport/command/incompatible-protocol errors
+- frame-shape and frame-size guards: undecodable or malformed frames and frames larger than `HUB_MAX_FRAME_BYTES` are dropped with a diagnostic instead of being parsed, so a hostile or wedged peer cannot make a mobile client parse an unbounded string
+- `onConnectionState` lifecycle notifications (`connecting`/`connected`/`reconnecting`/`closed`) carrying a monotonic `connectionEpoch`, so a client can tell a fresh socket from a stale one and rehydrate exactly once per reconnect
+- the client half of the register handshake: it advertises its `protocolVersion` and reads the reply's `protocol` metadata and `capabilities`
+
+Design rules:
+
+- `hub-client` depends only on `@cline/shared` and on `WebSocket`, `TextDecoder`, and timers. It must not import Node built-ins, which is enforced by `packages/hub-client/src/no-node-builtins.test.ts`, so browser and React Native hosts can consume it unchanged.
+- host-specific transport concerns (local hub discovery, detached-daemon recovery, reading an auth token off disk) belong in a host-layer subclass through the protected recovery hooks, not in this package.
+
+### `@cline/hub-pairing` and `@cline/hub-relay`
+
+`@cline/hub-pairing` owns device enrollment, pinned identities, revocation records,
+Noise handshakes, and authenticated transport frames. `@cline/hub-relay` is an
+internal transport adapter: a phone-side socket compatible with `HubClient`, a
+laptop-side bridge, and a blind ciphertext broker reference implementation.
+
+The relay envelope carries plaintext routing metadata, but encrypted mode copies
+its channel id and exact sequence inside the sealed payload; receivers require
+the authenticated and outer values to match. The laptop bridge may dial only a
+loopback `ws(s)` hub URL and injects the local hub token on that local leg. It is
+not a general remote WebSocket proxy, and relayed access does not require making
+the core hub non-loopback or weakening its attach authorization.
+
+Design rules:
+
+- account authentication selects a user's relay namespace; paired device keys,
+  not the account token alone, authorize control of the laptop
+- direct LAN device connections also seal every post-handshake Hub frame with
+  the Noise transport keys; a `ws://` LAN address never means plaintext chat or
+  tool traffic
+- a paired device is a revocable machine-owner principal for session access, but
+  its session configuration is forced through the Hub approval callback and
+  unattended (`auto-approved`) responses are capped by the per-device policy
+  stored on the machine. An `ask` response still trusts the enrolled device to
+  represent an interactive user choice; this policy limits unattended behavior,
+  not a fully compromised paired device
+- device revocation and policy changes terminate active channels immediately in
+  process, through the device-file watcher across processes, and through a
+  periodic resync if the operating-system watcher stops delivering events
+- durable-token connections may use plaintext `ws://` only on loopback; direct
+  LAN access uses paired Noise transport, while remote token endpoints require
+  `wss://`
+- the relay never receives the local hub token or plaintext Hub frames
+- transport adapters compose beneath `HubClient`; session/runtime code does not
+  branch on direct versus relayed transport
+- relay channels complete a Noise enrollment or pinned-device reconnection
+  before the phone-side WebSocket emits `open`; only then are Hub frames accepted
+- `/handoff` mints a machine-enforced, single-use offer and normal interactive
+  CLI sessions are hub-owned, so the offer's `sid` names the active runtime
+- production relay access is held by a detached CLI companion, not by
+  `@cline/core`: it obtains a fresh, machine-and-role-scoped relay ticket before
+  each outbound connection and consumes pairing offers from the existing 0600
+  Hub pairing directory. `cline hub remote enable|disable|status` owns that
+  companion lifecycle, while the local Hub remains loopback-only
+- mobile stores its device private key in Keychain/Keystore and pins the hub
+  public key; neither the QR PSK nor the laptop's local hub token is persisted
+
 ### `@cline/core`
 
 Owns stateful orchestration:
@@ -129,11 +201,12 @@ Owns stateful orchestration:
 - telemetry integration
 - hub server and scheduled-runtime services under `src/hub/`
 - hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
-- host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`. `NodeHubClient` extends the universal `HubClient` from `@cline/hub-client` and adds only the Node-flavoured parts: local-hub discovery, detached-daemon recovery, and resolving the local subprotocol auth token from the discovery file.
 
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
+- the hub transport itself belongs to `@cline/hub-client`; `core` owns the hub *server* plus the host-flavoured client subclass and the session/UI adapters layered on top of it.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
@@ -177,8 +250,26 @@ field.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
-8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs, on top of the universal `HubClient` transport from `@cline/hub-client`.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+`client.register` is an active handshake, not just an announcement. The client
+sends its `protocolVersion`; the hub validates it against the range it accepts
+(`CURRENT_HUB_PROTOCOL_VERSION`, `MIN_CLIENT_HUB_PROTOCOL_VERSION`,
+`MAX_CLIENT_HUB_PROTOCOL_VERSION` in `@cline/shared`) and either rejects with a
+typed incompatible-protocol error carrying that range, or replies with its own
+`protocol` metadata plus a `capabilities` list. Capabilities are the commands the
+transport answers on top of the v1 baseline (`HUB_TRANSPORT_CAPABILITIES` in
+`packages/core/src/hub/server/handlers/client-handlers.ts`), so clients
+feature-detect from the reply instead of probing. Clients that predate the
+handshake send no `protocolVersion` and stay compatible.
+
+`approval.list_pending` is the recovery half of the approval flow: an approval
+request is a live event, so a client that connects late, reconnects, or misses an
+event would otherwise never learn about a pending approval. The command returns
+the same shape the approval events publish, letting a client rehydrate the full
+pending set on each new `connectionEpoch` rather than replaying the event stream.
+It is advertised as a capability because older hubs do not implement it.
 
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
@@ -284,7 +375,6 @@ Image-edit inference is intentionally local: when a dedicated image model accept
 image input and the current user message has no explicit image, only an image on
 the immediately preceding assistant message is reused. Older images are not
 implicitly attached across intervening turns.
-
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,
 `core`, and so on), while top-level `StartSessionInput.mode` identifies how the
@@ -370,6 +460,12 @@ reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
+
+A My Machine relay path preserves that same local authority boundary. The laptop
+dials outward to the relay, but every accepted relay channel is bridged to the
+authenticated hub on loopback. The phone sees a `HubClient`-compatible socket;
+Hub commands, replies, events, and reconnect behavior remain unchanged above the
+transport.
 
 ### Interactive CLI Startup
 
@@ -878,8 +974,10 @@ completed turn. Report and cleanup failures are logged separately.
 
 **I want to understand the hub system:**
 - Start: `packages/core/src/hub/server/` — WebSocket server and hub command handlers
-- Clients: `packages/core/src/hub/client/` — host-side hub clients
-- Transport: `packages/core/src/hub/runtime-host/` — hub-backed runtime hosts
+- Transport: `packages/hub-client/src/client.ts` — the universal command/reply/event client
+- Clients: `packages/core/src/hub/client/` — host-side hub clients built on it
+- Runtime hosts: `packages/core/src/hub/runtime-host/` — hub-backed runtime hosts
+- Contract tests: `packages/hub-testkit/` — recorded protocol v1 fixtures and the replay harness
 
 **I want to add a new tool:**
 - Tools registry: `packages/core/src/extensions/tools/` — built-in tool definitions
@@ -909,6 +1007,7 @@ completed turn. Report and cleanup failures are logged separately.
 - **`ClineCore`** — `packages/core/src/index.ts` — the main SDK orchestrator
 - **`Agent`** — `packages/agents/src/agent.ts` — the agent loop
 - **`RuntimeHost`** — `packages/core/src/runtime/host/runtime-host.ts` — execution abstraction
+- **`HubClient`** — `packages/hub-client/src/client.ts` — the universal hub transport
 - **`AgentPlugin`** — `packages/shared/src/plugin/` — plugin contract
 - **`CronSpec`** — `packages/shared/src/cron/cron-spec-types.ts` — automation specs
 
@@ -929,7 +1028,19 @@ The following packages are published to npm:
 - `@cline/shared` — shared types, contracts, and low-level utilities
 - `@cline/llms` — provider integrations and model manifests
 - `@cline/agents` — the agent loop and tool orchestration
+- `@cline/hub-client` — the universal hub WebSocket client (node, browser, React Native)
 - `@cline/core` — the main SDK with session management, hub, and configuration
+
+`@cline/core` depends on `@cline/hub-client`, so the two must be released
+together: publishing `core` without a matching `hub-client` leaves an
+unresolvable dependency for consumers.
+
+### Internal SDK Packages
+
+The following workspace packages under `sdk/packages` are marked `private` and are
+not part of the published surface:
+
+- `@cline/hub-testkit` — deterministic hub protocol v1 contract harness, transcript canonicalizer, and recorded fixtures shared by SDK and client tests
 
 ### Internal Apps
 
@@ -985,7 +1096,7 @@ Customize > Connectors displays the usage-ranked catalog, with search across
 all loaded apps and installation/connection management in its detail dialog.
 The backend includes managed-auth toolkits before anyone has connected them,
 and provisions their auth configuration on first installation. This requires
-the full-catalog backend in core-platform PR #3383. Catalog responses must
+a full-catalog backend. Catalog responses must
 use the paginated contract; malformed responses are rejected.
 
 Connector metadata and cancellation tombstones live in

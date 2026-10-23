@@ -1,0 +1,27 @@
+export {
+	createFileHubPairingAuthority,
+	type DeviceSessionAcceptance,
+	type HubPairingAuthority,
+	type HubPairingAuthorityOptions,
+	HubPairingUnavailableError,
+	type PairedDeviceAcceptance,
+	PairingOfferUnknownError,
+	terminableSocket,
+} from "./authority";
+export {
+	createFileDeviceStore,
+	deletePairingOffer,
+	ensurePrivateDir,
+	hubDevicesPath,
+	hubIdentityPath,
+	hubPairingOfferPath,
+	hubPairingOffersDir,
+	loadOrCreateHubIdentity,
+	openDeviceRegistry,
+	pruneExpiredPairingOffers,
+	readHubIdentity,
+	readPairingOffer,
+	resolveHubPairingDir,
+	writePairingOffer,
+	writePrivateFile,
+} from "./store";

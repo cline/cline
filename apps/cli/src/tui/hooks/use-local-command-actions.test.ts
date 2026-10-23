@@ -18,6 +18,7 @@ function makeActions(
 		openThemePicker: vi.fn(),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
+		runHandoff: vi.fn(),
 		runUndo: vi.fn(async () => {}),
 		clearConversation: vi.fn(async () => {}),
 		openHelp: vi.fn(),
@@ -146,6 +147,29 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(await handledPromise).toBe(true);
 		expect(settled).toBe(true);
+	});
+
+	it("hands the session to a phone with handoff", () => {
+		const runHandoff = vi.fn();
+		const actions = makeActions({ runHandoff });
+
+		const handled = runLocalSlashCommandAction({
+			name: "handoff",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(runHandoff).toHaveBeenCalledOnce();
+	});
+
+	it("still hands off while a turn is running, so you can walk away mid-task", () => {
+		const runHandoff = vi.fn();
+		const actions = makeActions({ isRunning: true, runHandoff });
+
+		expect(runLocalSlashCommandAction({ name: "handoff", ...actions })).toBe(
+			true,
+		);
+		expect(runHandoff).toHaveBeenCalledOnce();
 	});
 
 	it("exits Cline with quit", () => {

@@ -13,7 +13,7 @@ import {
 	setActiveConnectorSupervisor,
 } from "../../../services/connectors/connector-supervisor";
 import { __test__, handleConnectorCommand } from "./connector-handlers";
-import type { HubTransportContext } from "./context";
+import { defaultAuthorizeAttach, type HubTransportContext } from "./context";
 
 describe("connector hub handlers", () => {
 	const previousDataDir = process.env.CLINE_DATA_DIR;
@@ -43,6 +43,9 @@ describe("connector hub handlers", () => {
 			pendingApprovals: new Map(),
 			pendingCapabilityRequests: new Map(),
 			suppressNextTerminalEventBySession: new Map(),
+			sessionTrustModel: "session-scoped" as const,
+			attachAllowlist: new Set<string>(),
+			authorizeAttach: defaultAuthorizeAttach,
 			activeRpcTurnCountBySession: new Map(),
 			telemetry: telemetry as never,
 			sessionHost: {} as never,
@@ -395,6 +398,9 @@ describe("supervised connector hub commands", () => {
 			pendingApprovals: new Map(),
 			pendingCapabilityRequests: new Map(),
 			suppressNextTerminalEventBySession: new Map(),
+			sessionTrustModel: "session-scoped",
+			attachAllowlist: new Set<string>(),
+			authorizeAttach: defaultAuthorizeAttach,
 			activeRpcTurnCountBySession: new Map(),
 			telemetry: { capture: vi.fn() } as never,
 			sessionHost: {} as never,

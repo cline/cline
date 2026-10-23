@@ -1,0 +1,39 @@
+diff --git a/src/hooks/useAnimatedKeyboard.ts b/src/hooks/useAnimatedKeyboard.ts
+--- a/src/hooks/useAnimatedKeyboard.ts
++++ b/src/hooks/useAnimatedKeyboard.ts
+@@ -107,8 +107,8 @@
+ 
+   //#region effects
+   useEffect(() => {
+-    const SCREEN_HEIGHT = Dimensions.get('screen').height;
+     const handleOnKeyboardShow = (event: KeyboardEvent) => {
++      const SCREEN_HEIGHT = Dimensions.get('screen').height;
+       runOnUI(handleKeyboardEvent)(
+         KEYBOARD_STATUS.SHOWN,
+         event.endCoordinates.height,
+diff --git a/lib/module/hooks/useAnimatedKeyboard.js b/lib/module/hooks/useAnimatedKeyboard.js
+--- a/lib/module/hooks/useAnimatedKeyboard.js
++++ b/lib/module/hooks/useAnimatedKeyboard.js
+@@ -81,8 +81,8 @@
+ 
+   //#region effects
+   useEffect(() => {
+-    const SCREEN_HEIGHT = Dimensions.get('screen').height;
+     const handleOnKeyboardShow = event => {
++      const SCREEN_HEIGHT = Dimensions.get('screen').height;
+       runOnUI(handleKeyboardEvent)(KEYBOARD_STATUS.SHOWN, event.endCoordinates.height, event.duration, event.easing, SCREEN_HEIGHT - event.endCoordinates.height - event.endCoordinates.screenY);
+     };
+     const handleOnKeyboardHide = event => {
+diff --git a/lib/commonjs/hooks/useAnimatedKeyboard.js b/lib/commonjs/hooks/useAnimatedKeyboard.js
+--- a/lib/commonjs/hooks/useAnimatedKeyboard.js
++++ b/lib/commonjs/hooks/useAnimatedKeyboard.js
+@@ -85,8 +85,8 @@
+ 
+   //#region effects
+   (0, _react.useEffect)(() => {
+-    const SCREEN_HEIGHT = _reactNative.Dimensions.get('screen').height;
+     const handleOnKeyboardShow = event => {
++      const SCREEN_HEIGHT = _reactNative.Dimensions.get('screen').height;
+       (0, _reactNativeReanimated.runOnUI)(handleKeyboardEvent)(_constants.KEYBOARD_STATUS.SHOWN, event.endCoordinates.height, event.duration, event.easing, SCREEN_HEIGHT - event.endCoordinates.height - event.endCoordinates.screenY);
+     };
+     const handleOnKeyboardHide = event => {

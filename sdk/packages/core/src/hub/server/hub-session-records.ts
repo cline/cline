@@ -72,6 +72,8 @@ export function toHubSessionRecord(
 		updatedAt: Date.parse(session.updatedAt),
 		createdByClientId: state?.createdByClientId ?? "hub",
 		status: mapLocalStatusToHubStatus(session.status),
+		...(session.provider?.trim() ? { provider: session.provider } : {}),
+		...(session.model?.trim() ? { model: session.model } : {}),
 		participants: state ? [...state.participants.values()] : [],
 		metadata: cloneSessionMetadata(session),
 		runtimeOptions: {

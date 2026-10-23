@@ -78,6 +78,9 @@ function createStartedTransportOptions() {
 		runTurn,
 		options: {
 			workspaceRoot: root,
+			// App-server tests model the normal loopback Hub: authenticated local
+			// clients share one owner and may observe each other's sessions.
+			sessionTrustModel: "loopback-single-owner",
 			runtimeHandlers: {
 				startSession: vi.fn(),
 				sendSession: vi.fn(),
@@ -157,7 +160,7 @@ describe("Hub app-server upgrades", () => {
 
 			// Replay from the middle of the stream returns exactly the tail.
 			const cursor = sequences[0] ?? 0;
-			const replay = transport.replayEventsAfter(cursor, { limit: 100 });
+			const replay = await transport.replayEventsAfter(cursor, { limit: 100 });
 			expect(replay.map((event) => event.sequence)).toEqual(sequences.slice(1));
 			expect(transport.lastEventSequence()).toBe(sequences.at(-1));
 		} finally {
@@ -294,6 +297,13 @@ describe("Hub app-server upgrades", () => {
 				input: {},
 				policy: "ask",
 			} as never);
+			const attached = await transport.handleCommand({
+				version: "v1",
+				command: "session.attach",
+				clientId: "late-client",
+				payload: { sessionId: "approval-session" },
+			});
+			expect(attached.ok).toBe(true);
 
 			const seen: HubEventEnvelope[] = [];
 			transport.subscribe("late-client", (event) => seen.push(event), {

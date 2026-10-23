@@ -117,6 +117,87 @@ describe("readSessionConnectionUpdate", () => {
 	});
 });
 
+/**
+ * `session.update_connection` must ANNOUNCE what it changed. Without the
+ * broadcast, a phone that retargets a session's model updates only itself, and
+ * a terminal watching the same session keeps rendering the old model forever —
+ * the same one-client-drifts bug `session.update` already solved by publishing
+ * `session.updated`. The typed provider/model fields ride the same record.
+ */
+import type { HubCommandEnvelope, HubEventEnvelope } from "@cline/shared";
+import type { SessionRecord as LocalSessionRecord } from "../../../types/sessions";
+import type { HubTransportContext } from "./context";
+import { handleSessionUpdateConnection } from "./session-handlers";
+
+function localRecord(model: string): LocalSessionRecord {
+	return {
+		sessionId: "sess_model",
+		source: "hub",
+		pid: 1,
+		startedAt: new Date(1_700_000_000_000).toISOString(),
+		endedAt: null,
+		exitCode: null,
+		status: "idle",
+		interactive: true,
+		provider: "anthropic",
+		model,
+		workspaceRoot: "/tmp/w",
+		enableTools: true,
+		enableSpawn: false,
+		enableTeams: false,
+		isSubagent: false,
+		updatedAt: new Date(1_700_000_000_000).toISOString(),
+	} as LocalSessionRecord;
+}
+
+describe("handleSessionUpdateConnection", () => {
+	it("applies the update and broadcasts the refreshed record", async () => {
+		const published: HubEventEnvelope[] = [];
+		let applied: Record<string, unknown> | undefined;
+		let model = "claude-haiku-4-5";
+		const ctx = {
+			sessionState: new Map(),
+			sessionHost: {
+				updateSessionConnection: async (
+					_sessionId: string,
+					updates: Record<string, unknown>,
+				) => {
+					applied = updates;
+					model = String(updates.modelId);
+				},
+				getSession: async () => localRecord(model),
+			},
+			publish: (event: HubEventEnvelope) => published.push(event),
+			buildEvent: (
+				event: HubEventEnvelope["event"],
+				payload?: Record<string, unknown>,
+				sessionId?: string,
+			) => ({ version: "v1", event, payload, sessionId }) as HubEventEnvelope,
+		} as unknown as HubTransportContext;
+
+		const reply = await handleSessionUpdateConnection(ctx, {
+			version: "v1",
+			command: "session.update_connection",
+			requestId: "hubreq_uc1",
+			clientId: "phone-1",
+			sessionId: "sess_model",
+			payload: {
+				sessionId: "sess_model",
+				updates: { modelId: "claude-opus-5" },
+			},
+		} as unknown as HubCommandEnvelope);
+
+		expect(reply.ok).toBe(true);
+		expect(applied).toEqual({ modelId: "claude-opus-5" });
+		expect(published).toHaveLength(1);
+		expect(published[0]?.event).toBe("session.updated");
+		const record = (
+			published[0]?.payload as { session?: { model?: string } } | undefined
+		)?.session;
+		expect(record?.model).toBe("claude-opus-5");
+	});
+});
+
 describe("resolveSessionAutoApproveTools", () => {
 	it("prefers the effective global tool policy", () => {
 		expect(

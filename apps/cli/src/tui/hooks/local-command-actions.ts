@@ -13,6 +13,7 @@ export interface LocalSlashCommandActionInput {
 	invocation?: LocalSlashCommandInvocation;
 	runCompact: () => void;
 	runFork: () => void;
+	runHandoff: () => void;
 	runUndo: () => Promise<void>;
 	clearConversation: () => Promise<void>;
 	openHelp: () => void;
@@ -62,6 +63,12 @@ export function runLocalSlashCommandAction(
 	}
 	if (normalized === "fork") {
 		input.runFork();
+		return true;
+	}
+	if (normalized === "handoff") {
+		// Deliberately not gated on `isRunning`: handing a *running* turn to your
+		// phone is the main reason to use this.
+		input.runHandoff();
 		return true;
 	}
 	if (normalized === "undo") {

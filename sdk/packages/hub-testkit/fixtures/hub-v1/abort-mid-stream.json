@@ -1,0 +1,634 @@
+{
+	"schema": "hub-v1-fixture@1",
+	"generatedBy": "synthetic-hub-fixture",
+	"scenario": "abort-mid-stream",
+	"description": "run.abort mid-stream -> remaining script is dropped -> run.aborted",
+	"frames": [
+		{
+			"direction": "out",
+			"label": "client.register",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "client.register",
+					"payload": {
+						"actorKind": "client",
+						"clientId": "<client_1>",
+						"clientType": "hub-testkit",
+						"displayName": "hub-testkit",
+						"protocolVersion": "v1",
+						"transport": "native",
+						"workspaceContext": {
+							"cwd": "/testkit/workspace",
+							"workspaceRoot": "/testkit/workspace"
+						}
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply client.register",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"clientId": "<client_1>"
+					},
+					"requestId": "<request_1>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "stream.subscribe",
+			"frame": {
+				"clientId": "<client_1>",
+				"kind": "stream.subscribe"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "session.create",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "session.create",
+					"payload": {
+						"cwd": "/testkit/workspace",
+						"metadata": {
+							"interactive": true,
+							"source": "core"
+						},
+						"sessionConfig": {
+							"cwd": "/testkit/workspace",
+							"modelId": "testkit-model",
+							"providerId": "testkit",
+							"systemPrompt": "testkit",
+							"workspaceRoot": "/testkit/workspace"
+						},
+						"workspaceRoot": "/testkit/workspace"
+					},
+					"requestId": "<request_2>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "session.created",
+			"frame": {
+				"envelope": {
+					"event": "session.created",
+					"eventId": "<event_1>",
+					"payload": {
+						"session": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"createdAt": 0,
+							"createdByClientId": "<client_1>",
+							"cwd": "/testkit/workspace",
+							"metadata": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"model": "testkit-model",
+								"provider": "testkit",
+								"source": "core"
+							},
+							"model": "testkit-model",
+							"participants": [
+								{
+									"attachedAt": 0,
+									"clientId": "<client_1>",
+									"role": "creator"
+								}
+							],
+							"provider": "testkit",
+							"runtimeOptions": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"runtimeSession": {
+								"agentId": "<agent_1>"
+							},
+							"sessionId": "<session_1>",
+							"status": "idle",
+							"updatedAt": 0,
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"workspaceRoot": "/testkit/workspace"
+						},
+						"snapshot": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"capabilities": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"createdAt": "<ts>",
+							"endedAt": null,
+							"exitCode": null,
+							"interactive": true,
+							"lineage": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"isSubagent": false
+							},
+							"messages": [],
+							"model": {
+								"modelId": "testkit-model",
+								"providerId": "testkit"
+							},
+							"sessionId": "<session_1>",
+							"source": "core",
+							"status": "idle",
+							"updatedAt": "<ts>",
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"version": 1,
+							"workspace": {
+								"cwd": "/testkit/workspace",
+								"root": "/testkit/workspace"
+							}
+						}
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply session.create",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"session": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"createdAt": 0,
+							"createdByClientId": "<client_1>",
+							"cwd": "/testkit/workspace",
+							"metadata": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"model": "testkit-model",
+								"provider": "testkit",
+								"source": "core"
+							},
+							"model": "testkit-model",
+							"participants": [
+								{
+									"attachedAt": 0,
+									"clientId": "<client_1>",
+									"role": "creator"
+								}
+							],
+							"provider": "testkit",
+							"runtimeOptions": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"runtimeSession": {
+								"agentId": "<agent_1>"
+							},
+							"sessionId": "<session_1>",
+							"status": "idle",
+							"updatedAt": 0,
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"workspaceRoot": "/testkit/workspace"
+						},
+						"snapshot": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"capabilities": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"createdAt": "<ts>",
+							"endedAt": null,
+							"exitCode": null,
+							"interactive": true,
+							"lineage": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"isSubagent": false
+							},
+							"messages": [],
+							"model": {
+								"modelId": "testkit-model",
+								"providerId": "testkit"
+							},
+							"sessionId": "<session_1>",
+							"source": "core",
+							"status": "idle",
+							"updatedAt": "<ts>",
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"version": 1,
+							"workspace": {
+								"cwd": "/testkit/workspace",
+								"root": "/testkit/workspace"
+							}
+						}
+					},
+					"requestId": "<request_2>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "session.send_input",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "session.send_input",
+					"payload": {
+						"prompt": "stream then stall",
+						"sessionId": "<session_1>"
+					},
+					"requestId": "<request_3>",
+					"sessionId": "<session_1>",
+					"timeoutMs": null,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "run.started",
+			"frame": {
+				"envelope": {
+					"event": "run.started",
+					"eventId": "<event_2>",
+					"payload": {
+						"clientId": "<client_1>",
+						"requestId": "<request_3>"
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "iteration.started",
+			"frame": {
+				"envelope": {
+					"event": "iteration.started",
+					"eventId": "<event_3>",
+					"payload": {
+						"iteration": 1
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "assistant.delta",
+			"frame": {
+				"envelope": {
+					"event": "assistant.delta",
+					"eventId": "<event_4>",
+					"payload": {
+						"text": "one "
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "assistant.delta",
+			"frame": {
+				"envelope": {
+					"event": "assistant.delta",
+					"eventId": "<event_5>",
+					"payload": {
+						"text": "two "
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "assistant.finished",
+			"frame": {
+				"envelope": {
+					"event": "assistant.finished",
+					"eventId": "<event_6>",
+					"payload": {
+						"text": "one two "
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "out",
+			"label": "run.abort",
+			"frame": {
+				"envelope": {
+					"clientId": "<client_1>",
+					"command": "run.abort",
+					"payload": {
+						"reason": "user cancelled",
+						"sessionId": "<session_1>"
+					},
+					"requestId": "<request_4>",
+					"sessionId": "<session_1>",
+					"timeoutMs": 30000,
+					"version": "v1"
+				},
+				"kind": "command"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "iteration.finished",
+			"frame": {
+				"envelope": {
+					"event": "iteration.finished",
+					"eventId": "<event_7>",
+					"payload": {
+						"hadToolCalls": false,
+						"iteration": 1,
+						"toolCallCount": 0
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply run.abort",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"applied": true
+					},
+					"requestId": "<request_4>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "run.aborted",
+			"frame": {
+				"envelope": {
+					"event": "run.aborted",
+					"eventId": "<event_8>",
+					"payload": {
+						"reason": "aborted",
+						"result": {
+							"durationMs": 0,
+							"endedAt": "<ts>",
+							"finishReason": "aborted",
+							"iterations": 1,
+							"messages": [],
+							"model": {
+								"id": "testkit-model",
+								"provider": "testkit"
+							},
+							"startedAt": "<ts>",
+							"text": "user cancelled",
+							"toolCalls": [],
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							}
+						},
+						"snapshot": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"capabilities": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"createdAt": "<ts>",
+							"endedAt": null,
+							"exitCode": null,
+							"interactive": true,
+							"lineage": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"isSubagent": false
+							},
+							"messages": [
+								{
+									"content": "stream then stall",
+									"role": "user"
+								},
+								{
+									"content": "user cancelled",
+									"role": "assistant"
+								}
+							],
+							"model": {
+								"modelId": "testkit-model",
+								"providerId": "testkit"
+							},
+							"sessionId": "<session_1>",
+							"source": "core",
+							"status": "cancelled",
+							"updatedAt": "<ts>",
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"version": 1,
+							"workspace": {
+								"cwd": "/testkit/workspace",
+								"root": "/testkit/workspace"
+							}
+						}
+					},
+					"sessionId": "<session_1>",
+					"timestamp": 0,
+					"version": "v1"
+				},
+				"kind": "event"
+			}
+		},
+		{
+			"direction": "in",
+			"label": "reply session.send_input",
+			"frame": {
+				"envelope": {
+					"ok": true,
+					"payload": {
+						"result": {
+							"durationMs": 0,
+							"endedAt": "<ts>",
+							"finishReason": "aborted",
+							"iterations": 1,
+							"messages": [],
+							"model": {
+								"id": "testkit-model",
+								"provider": "testkit"
+							},
+							"startedAt": "<ts>",
+							"text": "user cancelled",
+							"toolCalls": [],
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							}
+						},
+						"snapshot": {
+							"aggregateUsage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"capabilities": {
+								"enableSpawn": false,
+								"enableTeams": false,
+								"enableTools": true
+							},
+							"createdAt": "<ts>",
+							"endedAt": null,
+							"exitCode": null,
+							"interactive": true,
+							"lineage": {
+								"agentId": "<agent_1>",
+								"conversationId": "<conversation_1>",
+								"isSubagent": false
+							},
+							"messages": [
+								{
+									"content": "stream then stall",
+									"role": "user"
+								},
+								{
+									"content": "user cancelled",
+									"role": "assistant"
+								}
+							],
+							"model": {
+								"modelId": "testkit-model",
+								"providerId": "testkit"
+							},
+							"sessionId": "<session_1>",
+							"source": "core",
+							"status": "cancelled",
+							"updatedAt": "<ts>",
+							"usage": {
+								"cacheReadTokens": 0,
+								"cacheWriteTokens": 0,
+								"inputTokens": 0,
+								"outputTokens": 0,
+								"totalCost": 0
+							},
+							"version": 1,
+							"workspace": {
+								"cwd": "/testkit/workspace",
+								"root": "/testkit/workspace"
+							}
+						}
+					},
+					"requestId": "<request_3>",
+					"version": "v1"
+				},
+				"kind": "reply"
+			}
+		}
+	]
+}

@@ -2,8 +2,28 @@ import { timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import { URL } from "node:url";
 import {
+	type ApprovalPolicy,
+	decodeDeviceBeginFrame,
+	decodePairAttestFrame,
+	decodeSecureDataFrame,
+	encodeDeviceOkFrame,
+	encodeHandshakeErrorFrame,
+	encodePairOkFrame,
+	encodeSecureDataFrame,
+	FRAME_HEADER_LENGTH,
+	HUB_DEVICE_ERROR_FRAME,
+	HUB_HANDSHAKE_MAX_WIRE_BYTES,
+	HUB_PAIR_ERROR_FRAME,
+	HubPairingError,
+	hasDeviceSubprotocol,
+	maxEncodedSecureDataFrameBytes,
+	readPairSubprotocolOfferId,
+	type SecureChannel,
+} from "@cline/hub-pairing";
+import {
 	CURRENT_HUB_PROTOCOL_VERSION,
 	HUB_CAPABILITIES,
+	HUB_MAX_FRAME_BYTES,
 	MAX_CLIENT_HUB_PROTOCOL_VERSION,
 	MIN_CLIENT_HUB_PROTOCOL_VERSION,
 } from "@cline/shared";
@@ -32,7 +52,9 @@ import {
 	isHubLockHeldError,
 	resolveHubInstanceLockPath,
 } from "../discovery/instance-lock";
+import { createFileHubPairingAuthority, terminableSocket } from "../pairing";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
+import { createHandshakeGate, type HandshakeGate } from "./hub-handshake-gate";
 import { logHubMessage } from "./hub-server-logging";
 import type {
 	EnsuredHubWebSocketServerResult,
@@ -62,10 +84,16 @@ type NodeWebSocketLike = {
 	once(event: "close", listener: () => void): void;
 	ping?(): void;
 	terminate?(): void;
+	close?(code?: number, reason?: string): void;
+	readyState?: number;
 };
 
 type TrackedNodeWebSocket = NodeWebSocketLike & {
 	isAlive?: boolean;
+};
+
+type PayloadAdjustableNodeWebSocket = NodeWebSocketLike & {
+	_receiver?: { _maxPayload?: number };
 };
 
 type NodeUpgradeSocketLike = {
@@ -73,6 +101,38 @@ type NodeUpgradeSocketLike = {
 	write(chunk: string): boolean;
 	end(): void;
 };
+
+const CHACHA20_POLY1305_TAG_BYTES = 16;
+const HUB_SECURE_MAX_WIRE_BYTES = maxEncodedSecureDataFrameBytes(
+	HUB_MAX_FRAME_BYTES + FRAME_HEADER_LENGTH + CHACHA20_POLY1305_TAG_BYTES,
+);
+const USES_BUN_WEBSOCKET_COMPAT =
+	typeof (process.versions as NodeJS.ProcessVersions & { bun?: string }).bun ===
+	"string";
+
+/**
+ * Node `ws` fixes maxPayload when it creates a socket's receiver. Pairing
+ * sockets therefore start at the unauthenticated handshake ceiling and are
+ * widened only after Noise authenticates the peer. Bun's compatibility server
+ * does not expose its receiver or enforce `maxPayload`; the handshake gate
+ * still rejects more than the same 64 KiB before authentication there.
+ */
+function allowAuthenticatedPayloads(socket: NodeWebSocketLike): void {
+	const receiver = (socket as PayloadAdjustableNodeWebSocket)._receiver;
+	if (!receiver || typeof receiver._maxPayload !== "number") {
+		if (USES_BUN_WEBSOCKET_COMPAT) return;
+		throw new Error(
+			"Unable to raise the authenticated websocket payload limit",
+		);
+	}
+	receiver._maxPayload = HUB_SECURE_MAX_WIRE_BYTES;
+}
+
+interface PairedSocketAuthority {
+	deviceId: string;
+	approvalPolicy: ApprovalPolicy;
+	channel: SecureChannel;
+}
 
 function decodeSocketData(data: unknown): string {
 	if (typeof data === "string") {
@@ -90,27 +150,123 @@ function decodeSocketData(data: unknown): string {
 	return String(data);
 }
 
-function wrapWsSocket(socket: NodeWebSocketLike) {
+/**
+ * Adapt a `ws` socket to the browser-ish surface {@link BrowserWebSocketHubAdapter}
+ * expects.
+ *
+ * `ws` ignores whatever a listener returns, so anything asynchronous escaping the
+ * adapter would become an unhandled rejection — fatal to the hub process under
+ * `--unhandled-rejections=throw`. The adapter already contains its own failures;
+ * this layer contains them again so no future listener can take the process down
+ * from here.
+ *
+ * @internal Exported for websocket wrapper tests.
+ */
+export function wrapWsSocket(
+	socket: NodeWebSocketLike,
+	/**
+	 * Supplied for a socket that had to complete a handshake before it counted as
+	 * authenticated. Its `message` listener is already installed, so taking frames
+	 * from the gate is the only way to see them once — and the only way to see the
+	 * ones that arrived while the handshake was still running.
+	 */
+	gate?: HandshakeGate,
+	secureChannel?: SecureChannel,
+) {
 	return {
 		send(data: string): void {
-			socket.send(data);
+			try {
+				socket.send(
+					secureChannel
+						? encodeSecureDataFrame(
+								secureChannel.encryptBytes(new TextEncoder().encode(data)),
+							)
+						: data,
+				);
+			} catch (error) {
+				secureChannel?.close();
+				socket.terminate?.();
+				throw error;
+			}
+		},
+		/**
+		 * Heartbeat liveness, used when another connection wants this socket's client
+		 * id. `isAlive` is cleared before every ping and set again on the pong, so
+		 * `false` means "already missed a heartbeat and is queued for termination" —
+		 * exactly the half-open case a reconnecting client must be able to take over
+		 * without waiting for the sweep.
+		 */
+		isAlive(): boolean {
+			return (socket as TrackedNodeWebSocket).isAlive !== false;
+		},
+		close(): void {
+			socket.terminate?.();
 		},
 		addEventListener(
 			type: "message" | "close",
 			listener: (...args: never[]) => void,
 		): void {
 			if (type === "message") {
+				const deliver = (wireText: string): void => {
+					if (
+						!secureChannel &&
+						Buffer.byteLength(wireText) > HUB_MAX_FRAME_BYTES
+					) {
+						try {
+							socket.close?.(1009, "message too big");
+						} catch {
+							socket.terminate?.();
+						}
+						return;
+					}
+					try {
+						const text = secureChannel
+							? new TextDecoder().decode(
+									secureChannel.decryptBytes(
+										decodeSecureDataFrame(wireText).data,
+									),
+								)
+							: wireText;
+						const result = (listener as (event: { data: string }) => unknown)({
+							data: text,
+						});
+						void Promise.resolve(result).catch(logSocketListenerFailure);
+					} catch (error) {
+						logSocketListenerFailure(error);
+						secureChannel?.close();
+						socket.terminate?.();
+					}
+				};
+				if (gate) {
+					gate.pipe(deliver);
+					return;
+				}
 				socket.on("message", (data: unknown) => {
-					(listener as (event: { data: string }) => void)({
-						data: decodeSocketData(data),
-					});
+					let text: string;
+					try {
+						text = decodeSocketData(data);
+					} catch (error) {
+						logSocketListenerFailure(error);
+						return;
+					}
+					deliver(text);
 				});
 				return;
 			}
-			socket.on("close", listener as () => void);
+			socket.on("close", () => {
+				secureChannel?.close();
+				(listener as () => void)();
+			});
 		},
 		removeEventListener(): void {},
 	};
+}
+
+function logSocketListenerFailure(error: unknown): void {
+	logHubMessage("error", "websocket message listener failed", {
+		error:
+			error instanceof Error ? error.stack || error.message : String(error),
+	});
 }
 
 function rejectUpgradeSocket(socket: NodeUpgradeSocketLike): void {
@@ -243,6 +399,12 @@ interface SharedHubServerEntry {
 const SHARED_SERVERS = new Map<string, SharedHubServerEntry>();
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const HUB_SOCKET_HEARTBEAT_INTERVAL_MS = 30_000;
+/**
+ * How long a socket may sit upgraded-but-unauthenticated waiting to send its
+ * handshake frame. Generous enough for a phone on a slow network, short enough
+ * that opening sockets is not a way to hold hub resources without a credential.
+ */
+const HUB_HANDSHAKE_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_ROLLBACK_TIMEOUT_MS = 2_000;
 /** How long ensure waits for a retiring predecessor's endpoint and lock. */
 const ENSURE_RETIRE_WAIT_MS = 3_000;
@@ -314,6 +476,32 @@ function readWebSocketAuthToken(
 	return null;
 }
 
+/**
+ * What the phone shows when the hub refuses a handshake.
+ *
+ * Keyed off the machine-readable `code` so the app never string-matches, and
+ * deliberately vague about the cryptographic failures: an unauthenticated peer
+ * learns that it was refused, not which check refused it.
+ *
+ * @internal Exported for websocket auth tests.
+ */
+export function refusalMessage(code: string): string {
+	switch (code) {
+		case "offer_expired":
+			return "That pairing code has expired. Run /handoff on your computer for a fresh one.";
+		case "offer_consumed":
+			return "That pairing code has already been used. Run /handoff on your computer for a fresh one.";
+		case "offer_invalid":
+			return "This machine has no pairing code waiting. Run /handoff on your computer, then scan again.";
+		case "device_revoked":
+			return "This device was removed from that computer. Run /handoff on it to pair again.";
+		case "device_unknown":
+			return "That computer does not recognise this device. Run /handoff on it to pair again.";
+		default:
+			return "The secure handshake failed. Run /handoff on your computer and try again.";
+	}
+}
+
 /** @internal Exported for websocket auth tests. */
 export function isLocalHubHostName(value: string): boolean {
 	const normalized = value.trim().toLowerCase();
@@ -353,27 +541,41 @@ export async function startHubWebSocketServer(
 	const buildId = resolveHubBuildId();
 	const buildEpochMs = resolveHubBuildEpochMs();
 	const authToken = createHubAuthToken();
-	// Singleton authority is an OS-backed exclusive lock scoped to the owner
-	// context, acquired before any resource is created. A process that cannot
-	// take it must connect to the running Hub or diagnose — never replace it.
-	// This removes kill-based build arbitration as the ownership mechanism:
-	// two live daemons for one owner are now structurally impossible.
+	// Acquire singleton ownership before constructing any durable stores or
+	// listeners. Pairing remains an additive authentication path below.
 	const instanceLock = HubInstanceLock.acquire(
 		resolveHubInstanceLockPath(owner.discoveryPath),
 	);
 	if (!instanceLock.held) {
-		// SQLite is unavailable in this runtime, so singleton enforcement is
-		// off; the Hub still serves (the event log and run queue degrade the
-		// same way) rather than refusing to start over a missing lock backend.
 		logHubMessage("warn", "instance_lock.unavailable", {
 			lockFile: instanceLock.lockFile,
 		});
 	}
+	// Additive, never a replacement: the token path below is unchanged, because the
+	// CLI, desktop app, cline-hub dashboard and the manual-entry form all use it.
+	const pairingAuthority =
+		options.pairing === false
+			? undefined
+			: (options.pairing ??
+				createFileHubPairingAuthority(
+					options.pairingDir ? { pairingDir: options.pairingDir } : {},
+				));
+	// Trust model is chosen here, from the interface the hub is actually reachable
+	// on, and never left to a default. A loopback hub's auth token is only readable
+	// by processes running as the user who started it, so every authenticated
+	// connection is that user: the CLI, desktop app, dashboard and local mobile
+	// bridge attach to and observe each other's sessions. A hub bound anywhere else
+	// gets the conservative model, where "has the token" proves nothing about who
+	// is holding it.
 	let transport: HubServerTransport;
 	try {
-		// The resolved owner context flows into the transport so its durable
-		// stores (event log, run queue) default to owner-scoped files.
-		transport = new HubServerTransport({ ...options, owner });
+		transport = new HubServerTransport({
+			...options,
+			owner,
+			sessionTrustModel:
+				options.sessionTrustModel ??
+				(isLocalHubHostName(host) ? "loopback-single-owner" : "session-scoped"),
+		});
 		await transport.start();
 	} catch (error) {
 		instanceLock.release();
@@ -419,15 +621,20 @@ export async function startHubWebSocketServer(
 			heartbeatTimer = undefined;
 		}
 
-		const webSocketClosed = new Promise<void>((resolve, reject) => {
-			wss.close((error?: Error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-				resolve();
+		const closeWebSocketServer = (webSocketServer: WebSocketServer) =>
+			new Promise<void>((resolve, reject) => {
+				webSocketServer.close((error?: Error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve();
+				});
 			});
-		});
+		const webSocketClosed = Promise.all([
+			closeWebSocketServer(wss),
+			closeWebSocketServer(handshakeWss),
+		]).then(() => undefined);
 		const listenerClosed = new Promise<void>((resolve, reject) => {
 			server.close((error) => {
 				if (error) {
@@ -438,6 +645,10 @@ export async function startHubWebSocketServer(
 			});
 		});
 		const transportStopped = Promise.resolve().then(() => transport.stop());
+		// Releases the device-store watcher, which otherwise keeps the loop alive.
+		const pairingClosed = Promise.resolve().then(() =>
+			pairingAuthority?.close(),
+		);
 		const discoveryRetired = transportStopped.then(async () => {
 			await clearHubDiscoveryIfOwned(owner.discoveryPath, hubId);
 		});
@@ -446,6 +657,7 @@ export async function startHubWebSocketServer(
 				webSocketClosed,
 				listenerClosed,
 				transportStopped,
+				pairingClosed,
 				discoveryRetired,
 			]);
 			const closeErrors = closeResults.flatMap((result) =>
@@ -641,7 +853,18 @@ export async function startHubWebSocketServer(
 		res.statusCode = 404;
 		res.end("Not found");
 	});
-	const wss = new WebSocketServer({ noServer: true });
+	const wss = new WebSocketServer({
+		noServer: true,
+		// A sealed text envelope expands the 8 MiB Hub frame through AEAD + base64.
+		// Plain sockets are still checked against HUB_MAX_FRAME_BYTES in the wrapper.
+		maxPayload: HUB_SECURE_MAX_WIRE_BYTES,
+	});
+	const handshakeWss = new WebSocketServer({
+		noServer: true,
+		// This receiver exists before Noise authentication, so the parser itself —
+		// not a later message callback — owns the pre-authentication memory bound.
+		maxPayload: HUB_HANDSHAKE_MAX_WIRE_BYTES,
+	});
 	heartbeatTimer = setInterval(() => {
 		for (const websocket of sockets) {
 			if (websocket.isAlive === false) {
@@ -677,19 +900,31 @@ export async function startHubWebSocketServer(
 			socket.destroy();
 			return;
 		}
+		const requestedProtocols = request.headers["sec-websocket-protocol"];
 		const isTokenAuthorized = isValidHubAuthToken(
-			readWebSocketAuthToken(request.headers["sec-websocket-protocol"]),
+			readWebSocketAuthToken(requestedProtocols),
 			authToken,
 		);
 		const isAuthorized =
 			isTokenAuthorized ||
 			(isLocalHubHostName(host) && isLocalHubOrigin(request.headers.origin));
-		if (!isAuthorized) {
+		// The second authentication path: a socket that will prove itself with a
+		// Noise handshake once it is open. It is NOT authorized yet — it is only
+		// allowed to *try* — which is why it is attached behind a gate below.
+		const pairingOfferId = pairingAuthority
+			? readPairSubprotocolOfferId(requestedProtocols)
+			: undefined;
+		const wantsDeviceSession = pairingAuthority
+			? hasDeviceSubprotocol(requestedProtocols)
+			: false;
+		const wantsHandshake = Boolean(pairingOfferId) || wantsDeviceSession;
+		if (!isAuthorized && !pairingOfferId && !wantsDeviceSession) {
 			rejectUnauthorizedUpgradeSocket(socket);
 			return;
 		}
 		try {
-			wss.handleUpgrade(
+			const upgradeServer = wantsHandshake ? handshakeWss : wss;
+			upgradeServer.handleUpgrade(
 				request,
 				socket,
 				head,
@@ -700,14 +935,51 @@ export async function startHubWebSocketServer(
 						tracked.isAlive = true;
 					});
 					sockets.add(tracked);
-					const detach = adapter.attach(wrapWsSocket(websocket), {
-						allowRegisteredWorkspace: isTokenAuthorized,
-					});
-					cleanup.add(detach);
-					websocket.once("close", () => {
-						sockets.delete(tracked);
-						detach();
-						cleanup.delete(detach);
+					const authenticate = (
+						gate?: HandshakeGate,
+						paired?: PairedSocketAuthority,
+					): (() => void) => {
+						const detach = adapter.attach(
+							wrapWsSocket(websocket, gate, paired?.channel),
+							{
+								// Device handshakes establish their own scoped identity. Only a
+								// socket authenticated directly with the hub token may register a
+								// workspace underneath the server-owned workspace root.
+								allowRegisteredWorkspace: isTokenAuthorized && !gate,
+								...(paired
+									? {
+											pairedDevice: {
+												deviceId: paired.deviceId,
+												approvalPolicy: paired.approvalPolicy,
+											},
+										}
+									: {}),
+							},
+						);
+						cleanup.add(detach);
+						return detach;
+					};
+					// A socket that asked to prove itself must prove itself. The
+					// `isAuthorized` shortcuts — a valid token, or merely arriving from a
+					// loopback origin — are for sockets that made no such request; letting
+					// one win here attaches a device to the plain JSON transport with its
+					// Noise handshake never run, and its first frame then dies as an
+					// unknown `kind`. React Native sets `Origin` from the socket URL, so
+					// every phone pairing with a loopback hub lands in exactly that case.
+					if (isAuthorized && !wantsHandshake) {
+						const detach = authenticate();
+						websocket.once("close", () => {
+							sockets.delete(tracked);
+							detach();
+							cleanup.delete(detach);
+						});
+						return;
+					}
+					void runHandshakeAuthentication({
+						websocket,
+						tracked,
+						authenticate,
+						...(pairingOfferId ? { offerId: pairingOfferId } : {}),
 					});
 				},
 			);
@@ -715,6 +987,152 @@ export async function startHubWebSocketServer(
 			rejectUpgradeSocket(socket);
 		}
 	});
+
+	/**
+	 * Drives the pairing or device-session handshake on an upgraded-but-unproven
+	 * socket, then attaches it to the protocol adapter exactly as an
+	 * authenticated-at-upgrade socket would have been.
+	 *
+	 * The handshake authenticates the peer and yields the channel used to seal
+	 * every hub frame that follows it.
+	 */
+	async function runHandshakeAuthentication(input: {
+		websocket: NodeWebSocketLike;
+		tracked: TrackedNodeWebSocket;
+		authenticate: (
+			gate?: HandshakeGate,
+			paired?: PairedSocketAuthority,
+		) => () => void;
+		offerId?: string;
+	}): Promise<void> {
+		const { websocket, tracked, authenticate, offerId } = input;
+		const errorFrameType = offerId
+			? HUB_PAIR_ERROR_FRAME
+			: HUB_DEVICE_ERROR_FRAME;
+		const closeSocket = (): void => {
+			try {
+				// 1008 "policy violation": the socket was fine, the credential was not.
+				websocket.close?.(1008, "handshake refused");
+			} catch {
+				// fall through to terminate
+			}
+			try {
+				websocket.terminate?.();
+			} catch {
+				// already gone
+			}
+			sockets.delete(tracked);
+		};
+		const gate = createHandshakeGate(websocket, decodeSocketData, closeSocket);
+		let released: (() => void) | undefined;
+		let detach: (() => void) | undefined;
+		let socketClosed = false;
+		websocket.once("close", () => {
+			socketClosed = true;
+			sockets.delete(tracked);
+			gate.closed();
+			released?.();
+			detach?.();
+			if (detach) cleanup.delete(detach);
+		});
+		let paired: PairedSocketAuthority | undefined;
+		try {
+			const frame = await gate.firstFrame(HUB_HANDSHAKE_TIMEOUT_MS);
+			const authority = pairingAuthority;
+			if (!authority) {
+				throw new HubPairingError(
+					"offer_invalid",
+					"This hub does not accept paired devices.",
+				);
+			}
+			const bind = terminableSocket({
+				close: closeSocket,
+				isClosed: () => !sockets.has(tracked),
+			});
+			if (offerId) {
+				const attest = decodePairAttestFrame(frame);
+				if (attest.offerId !== offerId) {
+					// The subprotocol and the frame must name the same offer; otherwise the
+					// hub would look one offer up and complete a different one.
+					throw new HubPairingError(
+						"offer_invalid",
+						"Pairing frame does not match the offer this socket asked for.",
+					);
+				}
+				const accepted = await authority.pair({
+					offerId,
+					message: attest.message,
+					bind,
+				});
+				released = accepted.release;
+				if (socketClosed) throw new Error("handshake_socket_closed");
+				paired = {
+					deviceId: accepted.deviceId,
+					approvalPolicy: accepted.approvalPolicy,
+					channel: accepted.channel,
+				};
+				websocket.send(
+					encodePairOkFrame({
+						offerId,
+						message: accepted.response,
+						deviceId: accepted.deviceId,
+						hubName: accepted.hubName,
+						hubPublicKey: accepted.hubPublicKey,
+					}),
+				);
+				logHubMessage("info", "paired a device over the hub socket", {
+					deviceId: accepted.deviceId,
+					fingerprint: accepted.fingerprint,
+				});
+			} else {
+				const begin = decodeDeviceBeginFrame(frame);
+				const accepted = await authority.openDeviceSession({
+					message: begin.message,
+					bind,
+				});
+				released = accepted.release;
+				if (socketClosed) throw new Error("handshake_socket_closed");
+				paired = {
+					deviceId: accepted.deviceId,
+					approvalPolicy: accepted.approvalPolicy,
+					channel: accepted.channel,
+				};
+				websocket.send(
+					encodeDeviceOkFrame({
+						message: accepted.response,
+						deviceId: accepted.deviceId,
+					}),
+				);
+			}
+			allowAuthenticatedPayloads(websocket);
+			detach = authenticate(gate, paired);
+		} catch (error) {
+			gate.abandon();
+			released?.();
+			const code =
+				error instanceof HubPairingError ? error.code : "handshake_failed";
+			logHubMessage("warn", "refused a pairing handshake", {
+				code,
+				...(offerId ? { offerId } : {}),
+			});
+			try {
+				websocket.send(
+					encodeHandshakeErrorFrame({
+						type: errorFrameType,
+						code,
+						// Opaque on purpose for the crypto failures: which of "wrong secret",
+						// "unknown device" and "tampered message" it was is not something an
+						// unauthenticated peer gets to learn. The `code` is enough for the
+						// app to show the right recovery.
+						message: refusalMessage(code),
+					}),
+				);
+			} catch {
+				// The socket may already be gone; closing below is enough.
+			}
+			closeSocket();
+		}
+	}
 
 	try {
 		await new Promise<void>((resolve, reject) => {
