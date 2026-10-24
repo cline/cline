@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import {
 	act,
 	Fragment,
@@ -1101,6 +1102,90 @@ describe("ChatInputBar", () => {
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
 			),
 		).toEqual(localSelection);
+	});
+
+	it.each([
+		["an offered model", "cline-test", true, undefined],
+		[
+			"an unoffered ClinePass model",
+			"cline-pass/retired",
+			true,
+			"cline-pass/pass-model",
+		],
+		["an unoffered model", "openai/retired", true, CLINE_DEFAULT_MODEL_ID],
+		[
+			"a ClinePass model without ClinePass",
+			"cline-pass/retired",
+			false,
+			CLINE_DEFAULT_MODEL_ID,
+		],
+	])("starts a new cloud chat on %s", async (_label, model, hasPass, expected) => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: hasPass
+				? ["cline", "cline-pass", "cline-cloud"]
+				: ["cline", "cline-cloud"],
+			providerModels: {
+				cline: ["cline-test", CLINE_DEFAULT_MODEL_ID],
+				"cline-pass": hasPass ? ["cline-pass/pass-model"] : [],
+				"cline-cloud": ["cline-cloud/free-model"],
+			},
+			providerReasoningModels: {},
+		});
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						environmentId="local"
+						attachments={[]}
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession={false}
+						mode="act"
+						model={model}
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() =>
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
+		);
+		await act(async () => await Promise.resolve());
+		if (expected) {
+			await vi.waitFor(() =>
+				expect(onModelChange).toHaveBeenLastCalledWith(expected),
+			);
+		} else {
+			expect(onModelChange).not.toHaveBeenCalled();
+		}
 	});
 
 	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {

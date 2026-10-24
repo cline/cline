@@ -1,4 +1,4 @@
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import { CLINE_DEFAULT_MODEL_ID, isClineProvider } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
 	type ExecutionTarget,
@@ -83,12 +83,22 @@ export function getInitialChatConfig(
 		...local,
 		executionTarget: "cloud",
 		provider: DEFAULT_CHAT_CONFIG.provider,
-		model:
-			readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
-			(provider === DEFAULT_CHAT_CONFIG.provider
-				? model
-				: DEFAULT_CHAT_CONFIG.model),
+		model: getInitialCloudModel(provider, model),
 		workspaceRoot: "",
 		cwd: "",
 	};
+}
+
+/**
+ * The remembered Cloud model, else the local Cline/ClinePass model. The Cloud
+ * model picker replaces it when the cloud catalog does not offer it.
+ */
+export function getInitialCloudModel(
+	localProvider: string,
+	localModel: string,
+): string {
+	return (
+		readModelSelectionStorageFromWindow("cloud").lastModelByProvider.cline ||
+		(isClineProvider(localProvider) ? localModel : CLINE_DEFAULT_MODEL_ID)
+	);
 }

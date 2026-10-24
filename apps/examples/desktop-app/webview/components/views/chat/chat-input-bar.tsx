@@ -1992,6 +1992,14 @@ const ModelSelector = memo(function ModelSelector({
 		) {
 			return rememberedModel;
 		}
+		// Cloud: unoffered ClinePass models resolve to the ClinePass catalog
+		// (first entry); everything else starts on the Cline default model.
+		if (
+			includeCloudModels &&
+			modelsForProvider.includes(CLINE_DEFAULT_MODEL_ID)
+		) {
+			return CLINE_DEFAULT_MODEL_ID;
+		}
 		return (
 			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
 			modelsForProvider[0] ??
