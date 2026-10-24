@@ -941,6 +941,34 @@ export function migrateLegacyProviderSettings(
 	options: MigrateLegacyProviderSettingsOptions,
 ): MigrateLegacyProviderSettingsResult {
 	const existing = options.providerSettingsManager.read();
+	if (existing.legacyImportCompleted) {
+		// A later one-shot repair may still need legacy data, but completed
+		// imports must never collect provider candidates again.
+		const legacyStorage = resolveLegacyStorage(options);
+		if (legacyStorage) {
+			const next = { ...existing, providers: { ...existing.providers } };
+			if (
+				backfillMigratedBedrockProfile(
+					next,
+					legacyStorage.globalState,
+					new Date().toISOString(),
+				)
+			) {
+				options.providerSettingsManager.write(next);
+				return {
+					migrated: true,
+					providerCount: Object.keys(next.providers).length,
+					lastUsedProvider: next.lastUsedProvider,
+				};
+			}
+		}
+		return {
+			migrated: false,
+			providerCount: Object.keys(existing.providers).length,
+			lastUsedProvider: existing.lastUsedProvider,
+		};
+	}
+
 	const legacyStorage = resolveLegacyStorage(options);
 	if (!legacyStorage) {
 		return {
@@ -973,6 +1001,7 @@ export function migrateLegacyProviderSettings(
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
 	next.lastUsedProvider = existing.lastUsedProvider;
+	next.legacyImportCompleted = true;
 	// Everything this function does not own has to survive the rewrite.
 	next.modes = existing.modes;
 	next.repairs = existing.repairs;
@@ -1036,6 +1065,8 @@ export function migrateLegacyProviderSettings(
 		addedCustomProviderCount === 0 &&
 		!repairedBedrockProfile
 	) {
+		// Persist completion even when there was nothing new to import.
+		options.providerSettingsManager.write(next);
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,
