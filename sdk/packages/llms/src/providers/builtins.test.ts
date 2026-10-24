@@ -13,6 +13,11 @@ import {
 	resolveProviderApiLineBaseUrl,
 } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
+import {
+	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
+	resolveGeneratedProviderIdForModelsDevKey,
+	resolveProviderModelCatalogKeys,
+} from "./provider-keys";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
 
@@ -455,6 +460,29 @@ describe("built-in provider metadata", () => {
 		// exact values: the numbers rotate with models.dev.
 		expect(defaultModel?.contextWindow).toBeGreaterThan(128_000);
 		expect(defaultModel?.pricing).toBeDefined();
+	});
+
+	it("maps the models.dev dothoosh entry to the dothoosh catalog and runtime provider", () => {
+		// Takes effect when models.dev lists DotHoosh; until then the provider
+		// is served by the live model fetcher alone.
+		expect(MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS.has("dothoosh")).toBe(true);
+		expect(resolveGeneratedProviderIdForModelsDevKey("dothoosh")).toBe(
+			"dothoosh",
+		);
+		expect(resolveProviderModelCatalogKeys("dothoosh")).toEqual(["dothoosh"]);
+	});
+
+	it("declares DotHoosh as a keyed OpenAI-compatible spec that routes by model protocol", () => {
+		const spec = BUILTIN_SPECS.find((s) => s.id === "dothoosh");
+
+		expect(spec).toMatchObject({
+			name: "DotHoosh",
+			family: "openai-compatible",
+			apiKeyEnv: ["DOTHOOSH_API_KEY"],
+			defaults: { baseUrl: "https://gateway.dothoosh.com/v1" },
+			metadata: { routing: { modelApiProtocol: true } },
+		});
+		expect(spec?.defaultModelId).toBeUndefined();
 	});
 
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
