@@ -1,13 +1,18 @@
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
+	CloudModel,
 	CloudRepositoryOption,
 } from "@cline/core/cloud";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useEffect, useMemo, useState } from "react";
 import { useDialogPalette } from "../../hooks/use-theme";
-import { type SearchableItem, SearchableList } from "../searchable-list";
+import {
+	type SearchableItem,
+	SearchableList,
+	useSearchableList,
+} from "../searchable-list";
 
 export type CloudSetupStage = "sign_in" | "github" | "no_repos";
 export type CloudSetupAction = "sign_in" | "connect" | "check" | "local";
@@ -370,6 +375,87 @@ export function CloudRepoPickerContent(
 			<text fg="gray">
 				Type to search, ↑/↓ navigate, Enter to select, Tab to{" "}
 				{mode === "repos" ? "pick a branch" : "change repository"}, Esc to close
+			</text>
+		</box>
+	);
+}
+
+const CLOUD_MODEL_SECTIONS: Record<CloudModel["catalogId"], string> = {
+	"cline-pass": "ClinePass",
+	"cline-cloud": "Recommended",
+	cline: "All models",
+};
+
+export function CloudModelPickerContent(
+	props: ChoiceContext<CloudModel> & {
+		models: CloudModel[];
+		currentModelId?: string;
+	},
+) {
+	const { resolve, dismiss, dialogId, models, currentModelId } = props;
+	const items = useMemo<SearchableItem[]>(
+		() =>
+			models.map((model) => ({
+				key: model.id,
+				label: model.name,
+				section: CLOUD_MODEL_SECTIONS[model.catalogId],
+				detail: model.id === currentModelId ? "(current)" : undefined,
+				searchText: model.id,
+			})),
+		[models, currentModelId],
+	);
+	const list = useSearchableList(items);
+	const { setSelected } = list;
+
+	useEffect(() => {
+		setSelected(
+			Math.max(
+				0,
+				items.findIndex((item) => item.key === currentModelId),
+			),
+		);
+	}, [items, currentModelId, setSelected]);
+
+	const choose = (item: SearchableItem | undefined) => {
+		const model = models.find((candidate) => candidate.id === item?.key);
+		if (model) resolve(model);
+	};
+
+	useDialogKeyboard((key) => {
+		if (key.name === "escape") {
+			dismiss();
+			return;
+		}
+		if (key.name === "return" || key.name === "enter") {
+			choose(list.selectedItem);
+			return;
+		}
+		if (key.name === "up" || (key.ctrl && key.name === "p")) {
+			list.moveUp();
+			return;
+		}
+		if (key.name === "down" || (key.ctrl && key.name === "n")) {
+			list.moveDown();
+		}
+	}, dialogId);
+
+	return (
+		<box flexDirection="column" gap={1}>
+			<text>Select Cloud Model</text>
+			<SearchableList
+				items={list.filtered}
+				selected={list.safeSelected}
+				placeholder="Search models..."
+				onSearchChange={list.setSearch}
+				onItemSelect={choose}
+				emptyText="No models match"
+			/>
+			<text fg="gray">
+				Cloud sessions run on your Cline account. You can switch models
+				mid-session.
+			</text>
+			<text fg="gray">
+				Type to search, ↑/↓ navigate, Enter to select, Esc to close
 			</text>
 		</box>
 	);

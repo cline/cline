@@ -66,7 +66,10 @@ import { useCloudSessions } from "./hooks/use-cloud-sessions";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
 import { useMcpManager } from "./hooks/use-mcp-manager";
-import { useModelSelector } from "./hooks/use-model-selector";
+import {
+	type OpenModelSelectorOptions,
+	useModelSelector,
+} from "./hooks/use-model-selector";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
@@ -334,6 +337,14 @@ function App(props: TuiProps) {
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 	const resetCloudSession = cloud.reset;
+	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
+	const openTargetModelSelector = useCallback(
+		(options?: OpenModelSelectorOptions) =>
+			cloudActive && !options?.startWithProviderChange
+				? pickCloudModel()
+				: openModelSelector(options),
+		[cloudActive, openModelSelector, pickCloudModel],
+	);
 
 	const clearConversation = useCallback(async () => {
 		const shouldRestartSession = session.hasSubmitted;
@@ -787,7 +798,7 @@ function App(props: TuiProps) {
 		openAccount,
 		openConfig,
 		openMcpManager,
-		openModelSelector,
+		openModelSelector: openTargetModelSelector,
 		openSkills,
 		openThemePicker,
 		refocusTextarea: () => refocusTextareaRef.current(),
@@ -819,13 +830,13 @@ function App(props: TuiProps) {
 				return;
 			}
 			if (result.action === "change-model") {
-				await openModelSelector();
+				await openTargetModelSelector();
 				return;
 			}
 
 			await Promise.resolve(handleSlashCommand(result.action));
 		},
-		[handleSlashCommand, openModelSelector],
+		[handleSlashCommand, openModelSelector, openTargetModelSelector],
 	);
 
 	const commandPaletteOpenRef = useRef(false);

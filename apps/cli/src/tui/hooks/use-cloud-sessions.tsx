@@ -12,6 +12,7 @@ import {
 	readGitOriginUrl,
 } from "../../utils/repo-status";
 import {
+	CloudModelPickerContent,
 	CloudRepoPickerContent,
 	type CloudRepoSelection,
 	type CloudSetupAction,
@@ -85,22 +86,29 @@ export function useCloudSessions(input: {
 	const sessionIdRef = useRef<string | undefined>(undefined);
 	const abortRequestedRef = useRef(false);
 	const pickingRef = useRef(false);
+	const modelsRef = useRef<CloudModel[] | undefined>(undefined);
 	const inputRef = useRef(input);
 	inputRef.current = input;
+
+	const loadModels = useCallback(async (): Promise<CloudModel[]> => {
+		if (!client) throw new Error("Cline Cloud is not available");
+		modelsRef.current ??= await client.listModels();
+		return modelsRef.current;
+	}, [client]);
 
 	const resolveModel = useCallback(async (): Promise<CloudModel> => {
 		if (!client) throw new Error("Cline Cloud is not available");
 		const { providerId, modelId } = inputRef.current;
-		const models = await client.listModels();
+		const models = await loadModels();
 		const next =
 			(providerId === "cline"
 				? models.find((candidate) => candidate.id === modelId)
 				: undefined) ?? models[0];
 		if (!next)
 			throw new Error("No cloud models are available for this account.");
-		setModel(next);
+		setModel((current) => current ?? next);
 		return next;
-	}, [client]);
+	}, [client, loadModels]);
 
 	/** Walks the user through sign-in and GitHub access; undefined means stay local. */
 	const loadRepositories = useCallback(async (): Promise<
@@ -207,6 +215,36 @@ export function useCloudSessions(input: {
 		termHeight,
 	]);
 
+	const pickModel = useCallback(async () => {
+		if (!client) return;
+		try {
+			const models = await loadModels();
+			const picked = await dialog.choice<CloudModel>({
+				style: { maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<CloudModel>) => (
+					<CloudModelPickerContent
+						{...ctx}
+						models={models}
+						currentModelId={model?.id}
+					/>
+				),
+			});
+			if (picked) setModel(picked);
+		} catch (error) {
+			showToast(`Cline Cloud: ${errorMessage(error)}`, "error");
+		} finally {
+			refocusTextarea();
+		}
+	}, [
+		client,
+		dialog,
+		loadModels,
+		model,
+		refocusTextarea,
+		showToast,
+		termHeight,
+	]);
+
 	const toggleTarget = useCallback(() => {
 		if (sessionIdRef.current || sessionStatus) {
 			showToast(
@@ -256,11 +294,11 @@ export function useCloudSessions(input: {
 			if (!client || !selection) {
 				throw new Error("Choose a repository for Cline Cloud first (Ctrl+K).");
 			}
+			const modelId = model?.id ?? (await resolveModel()).id;
 			let id = sessionIdRef.current;
 			if (!id) {
 				setSessionStatus("Starting sandbox in Cline Cloud…");
 				try {
-					const modelId = model?.id ?? (await resolveModel()).id;
 					const created = await client.create({
 						repoUrl: selection.repo.url,
 						branch: selection.branch,
@@ -283,7 +321,7 @@ export function useCloudSessions(input: {
 					id,
 					prompt,
 					delivery,
-					undefined,
+					modelId,
 					attachments?.userImages,
 				);
 				return {
@@ -341,6 +379,7 @@ export function useCloudSessions(input: {
 		hasSession: !!sessionId || sessionStatus !== undefined,
 		toggleTarget: client ? toggleTarget : undefined,
 		pickRepository,
+		pickModel,
 		submit,
 		abort,
 		reset,
