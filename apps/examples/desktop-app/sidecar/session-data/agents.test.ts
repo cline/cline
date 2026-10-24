@@ -42,7 +42,6 @@ vi.mock("@cline/core", async () => {
 
 import {
 	forgetTeammateSession,
-	latestTeammateSessionId,
 	listSessionAgents,
 	readChildSessionMessages,
 	resolveTeammateSessionId,
@@ -448,27 +447,6 @@ describe("resolveTeammateSessionId", () => {
 		expect(resolveTeammateSessionId(root, "ops", { now: 1_001, store })).toBe(
 			`${root}__teamtask__ops__b`,
 		);
-	});
-
-	it("names the run that just ended, whatever its status", () => {
-		addRun(
-			`${ROUTING_ROOT}__teamtask__docs__a`,
-			"docs",
-			"2026-10-20T20:00:00.000Z",
-			"completed",
-		);
-		addRun(
-			`${ROUTING_ROOT}__teamtask__docs__b`,
-			"docs",
-			"2026-10-20T20:04:00.000Z",
-			"failed",
-		);
-		expect(latestTeammateSessionId(ROUTING_ROOT, "docs", { store })).toBe(
-			`${ROUTING_ROOT}__teamtask__docs__b`,
-		);
-		expect(
-			latestTeammateSessionId(ROUTING_ROOT, "ghost", { store }),
-		).toBeUndefined();
 	});
 
 	it("retries a miss soon, since the run's row may not be written yet", () => {

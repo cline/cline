@@ -38,7 +38,6 @@ import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import {
 	forgetTeammateSession,
-	latestTeammateSessionId,
 	resolveTeammateSessionId,
 } from "./session-data/agents";
 import type {
@@ -573,6 +572,26 @@ function forwardTeamProgress(
 }
 
 /**
+ * The child session each teammate's output was last routed to, by root session
+ * and agent. Events reach the sidecar in the order they happened, so when a
+ * teammate's task ends this is the session its ending run was writing to.
+ */
+const routedTeammateSessions = new Map<string, string>();
+const teammateRouteKey = (rootSessionId: string, agentId: string) =>
+	`${rootSessionId}\u0000${agentId}`;
+
+function noteTeammateRoute(
+	rootSessionId: string,
+	agentId: string,
+	childSessionId: string,
+): void {
+	routedTeammateSessions.set(
+		teammateRouteKey(rootSessionId, agentId),
+		childSessionId,
+	);
+}
+
+/**
  * Ends the turn of an open teammate chat whose task just ended. A teammate run
  * that completes or is aborted reports `done` before its task ends, which is
  * routed to the chat and settles it; one that fails reports only an error, so
@@ -583,7 +602,9 @@ function settleTeammateSession(
 	rootSessionId: string,
 	agentId: string,
 ): void {
-	const childSessionId = latestTeammateSessionId(rootSessionId, agentId);
+	const key = teammateRouteKey(rootSessionId, agentId);
+	const childSessionId = routedTeammateSessions.get(key);
+	routedTeammateSessions.delete(key);
 	const child = childSessionId
 		? ctx.liveSessions.get(childSessionId)
 		: undefined;
@@ -665,6 +686,7 @@ export function handleCoreSessionEvent(
 					teamAgentId,
 				);
 				if (teammateSessionId) {
+					noteTeammateRoute(sessionId, teamAgentId, teammateSessionId);
 					handleAgentEvent(ctx, teammateSessionId, agentEvent);
 				}
 				break;
@@ -1226,6 +1248,7 @@ export function handleHubLiveEvent(
 		) {
 			return;
 		}
+		noteTeammateRoute(sessionId, agentId, teammateSessionId);
 		if (isDone) {
 			const reason = AgentFinishReasonSchema.safeParse(event.payload?.reason);
 			handleAgentEvent(ctx, teammateSessionId, {

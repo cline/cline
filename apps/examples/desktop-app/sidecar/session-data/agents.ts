@@ -251,19 +251,6 @@ export function resolveTeammateSessionId(
 	return sessionId;
 }
 
-/**
- * The teammate's newest team-task child session whatever its status: when its
- * task ends, the run that just ended (its successor's row is only written when
- * that task starts).
- */
-export function latestTeammateSessionId(
-	rootSessionId: string,
-	agentId: string,
-	options: { store?: ChildSessionSource } = {},
-): string | undefined {
-	return newestTeamTaskChild(rootSessionId, agentId, options.store)?.session_id;
-}
-
 function newestTeamTaskChild(
 	rootSessionId: string,
 	agentId: string,
