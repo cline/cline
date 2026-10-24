@@ -512,6 +512,36 @@ describe("ChatInputBar", () => {
 		expect(instructionRequests()).toBeGreaterThan(loadsBeforeMenu);
 	});
 
+	it("retries a plugin catalog cut off by closing the menu", async () => {
+		const firstPluginLoad = deferred<unknown>();
+		let pluginRequests = 0;
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			pluginRequests++;
+			return pluginRequests === 1
+				? firstPluginLoad.promise
+				: { status: "ready", commands: [{ name: "deploy" }] };
+		});
+		await renderVoiceComposer({ prompt: "/dep", executionTarget: "local" });
+		await renderVoiceComposer({
+			prompt: "/deploy now",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		const textarea = container.querySelector("textarea");
+		// Moving the caret past the command closes the menu mid-load.
+		await act(async () => {
+			textarea?.setSelectionRange(11, 11);
+			textarea?.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		await vi.waitFor(() =>
+			expect(container.querySelector("[aria-hidden] span")?.textContent).toBe(
+				"/deploy",
+			),
+		);
+	});
+
 	it("refreshes commands on reopen without resetting cached suggestions", async () => {
 		const updated = deferred<{
 			runtimeCommands: Array<{

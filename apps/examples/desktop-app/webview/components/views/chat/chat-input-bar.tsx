@@ -1075,6 +1075,15 @@ function ChatInputBarImpl({
 			return;
 		}
 		let cancelled = false;
+		// Marked loaded only once both catalogs arrive: a cancelled (e.g. a
+		// StrictMode effect replay), failed, or half-finished load must be
+		// retried rather than leaving commands unchipped.
+		let pendingCatalogs = 2;
+		const catalogArrived = () => {
+			pendingCatalogs -= 1;
+			if (pendingCatalogs === 0)
+				loadedCommandCatalogKeyRef.current = catalogKey;
+		};
 		setInstructionLoading(true);
 		setPluginLoading(true);
 		desktopClient
@@ -1084,9 +1093,7 @@ function ChatInputBarImpl({
 			})
 			.then((response) => {
 				if (cancelled) return;
-				// Marked on arrival rather than on request: a cancelled load (e.g.
-				// a StrictMode effect replay) must not count as loaded.
-				loadedCommandCatalogKeyRef.current = catalogKey;
+				catalogArrived();
 				setInstructionResponse({ workspaceRoot, environmentId, response });
 				setInstructionError(undefined);
 			})
@@ -1104,6 +1111,7 @@ function ChatInputBarImpl({
 			})
 			.then((catalog) => {
 				if (cancelled) return;
+				if (catalog.status !== "error") catalogArrived();
 				setPluginResponse({
 					workspaceRoot,
 					environmentId,
