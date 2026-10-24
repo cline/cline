@@ -48,7 +48,7 @@ function addHubOptions(command: Command, defaultCwd?: string): Command {
 	return command
 		.option("--cwd <path>", "Workspace root", defaultCwd)
 		.option("--host <host>", "Hub host")
-		.option("--port <port>", "Hub port", (value) => Number.parseInt(value, 10))
+		.option("--port <port>", "Hub port", parseHubPort)
 		.option("--pathname <path>", "Hub websocket path")
 		.option(
 			"--discovery-path <path>",
@@ -97,6 +97,14 @@ function resolveCliHubOwnerContext() {
 	return resolveClineBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
+}
+
+function parseHubPort(value: string): number {
+	const trimmed = value.trim();
+	if (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(Number(trimmed))) {
+		throw new InvalidArgumentError("--port requires a non-negative integer.");
+	}
+	return Number(trimmed);
 }
 
 function parseWaitSeconds(value: string): number {
