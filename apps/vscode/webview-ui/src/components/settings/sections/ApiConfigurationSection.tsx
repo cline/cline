@@ -4,6 +4,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { CloudIcon, MonitorIcon } from "lucide-react"
 import { useState } from "react"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { TargetButton } from "../../cloud/TaskTargetPanel"
@@ -133,12 +134,14 @@ const LocalModelSettings = ({ initialModelTab }: Pick<ApiConfigurationSectionPro
 
 const CloudModelSettings = () => {
 	const { nextCloudModelId, cloudModelId, currentCloudTask } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
 	return (
 		<>
 			<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
-				Cloud tasks run in an isolated sandbox on a Cline model and use Cline credits. This model is separate from your
-				local Plan and Act models.
+				Cloud tasks run in an isolated sandbox on a Cline model. Usage-Billing models use Cline credits
+				{activeOrganization ? "" : ", ClinePass models use your subscription,"} and ClineFree models are free with limited
+				usage. This model is separate from your local Plan and Act models.
 			</p>
 			{runningModelId && (
 				<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
@@ -146,14 +149,15 @@ const CloudModelSettings = () => {
 				</p>
 			)}
 			<ClineModelPicker
-				currentMode="act"
-				modelSelection={{
+				cloudSelection={{
+					includeClinePass: !activeOrganization,
 					modelId: nextCloudModelId ?? "",
 					onChange: (modelId) =>
 						CloudServiceClient.setCloudModel(StringRequest.create({ value: modelId })).catch((error) =>
 							console.error("Failed to save cloud model:", error),
 						),
 				}}
+				currentMode="act"
 			/>
 		</>
 	)
