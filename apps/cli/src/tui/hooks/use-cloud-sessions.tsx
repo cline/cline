@@ -61,6 +61,8 @@ export function useCloudSessions(input: {
 	modelId: string;
 	/** A local conversation already exists, so this chat cannot move to cloud. */
 	hasLocalConversation: boolean;
+	/** Cloud sessions run in Act mode, so a Plan-mode UI switches over. */
+	onEnterCloud: () => void;
 	loadClineAccount: TuiProps["loadClineAccount"];
 	onAccountChange: TuiProps["onAccountChange"];
 	replaceEntries: (entries: ChatEntry[]) => void;
@@ -220,6 +222,7 @@ export function useCloudSessions(input: {
 			showToast("Clear the conversation (Ctrl+L) to start a cloud session.");
 			return;
 		}
+		inputRef.current.onEnterCloud();
 		setTarget("cloud");
 		if (!selection) void pickRepository();
 	}, [pickRepository, selection, sessionStatus, showToast, target]);
@@ -249,7 +252,7 @@ export function useCloudSessions(input: {
 	}, [applySnapshot, client, sessionId, showToast]);
 
 	const submit = useCallback<TuiProps["onSubmit"]>(
-		async (prompt, mode, delivery, attachments) => {
+		async (prompt, _mode, delivery, attachments) => {
 			if (!client || !selection) {
 				throw new Error("Choose a repository for Cline Cloud first (Ctrl+K).");
 			}
@@ -263,7 +266,7 @@ export function useCloudSessions(input: {
 						branch: selection.branch,
 						modelId,
 						initialPrompt: prompt,
-						mode,
+						mode: "act",
 						autoApproveTools: true,
 					});
 					id = created.sessionId;

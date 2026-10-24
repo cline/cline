@@ -324,6 +324,9 @@ function App(props: TuiProps) {
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
 		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
+		onEnterCloud: () => {
+			if (session.uiMode === "plan") toggleMode();
+		},
 		loadClineAccount: props.loadClineAccount,
 		onAccountChange: props.onAccountChange,
 		replaceEntries: session.replaceEntries,
@@ -1019,6 +1022,7 @@ function App(props: TuiProps) {
 		onAbort: cloud.hasSession ? cloud.abort : props.onAbort,
 		onExit: exitCline,
 		onToggleMode: toggleMode,
+		isCloudTarget: cloud.active,
 		onToggleCloudTarget: cloud.toggleTarget,
 		onChangeCloudRepo:
 			cloud.active && !cloud.hasSession ? cloud.pickRepository : undefined,

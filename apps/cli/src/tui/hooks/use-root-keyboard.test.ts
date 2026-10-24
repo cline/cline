@@ -124,6 +124,25 @@ describe("cloud target keybinds", () => {
 		expect(onChangeCloudRepo).toHaveBeenCalledOnce();
 	});
 
+	it("ignores Tab and Shift+Tab while Cloud is selected", () => {
+		const onToggleMode = vi.fn();
+		useRootKeyboard({
+			...keyboardInput({}),
+			isCloudTarget: true,
+			onToggleMode,
+		});
+		for (const shift of [false, true]) {
+			keyboard.handle({
+				name: "tab",
+				ctrl: false,
+				meta: false,
+				shift,
+				preventDefault: vi.fn(),
+			} as unknown as KeyEvent);
+		}
+		expect(onToggleMode).not.toHaveBeenCalled();
+	});
+
 	it("leaves Ctrl+O and Ctrl+K to the input when cloud is unavailable", () => {
 		useRootKeyboard(keyboardInput({}));
 		expect(pressCtrl("o")).not.toHaveBeenCalled();

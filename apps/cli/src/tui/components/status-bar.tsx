@@ -173,10 +173,8 @@ export function StatusBar(props: StatusBarProps) {
 		onToggleMode,
 		cloud,
 	} = props;
-	const modelId =
-		cloud?.target === "cloud" && cloud.modelName
-			? cloud.modelName
-			: props.modelId;
+	const isCloud = cloud?.target === "cloud";
+	const modelId = isCloud && cloud.modelName ? cloud.modelName : props.modelId;
 
 	const { width } = useTerminalDimensions();
 	const theme = useTheme();
@@ -204,7 +202,7 @@ export function StatusBar(props: StatusBarProps) {
 	// Row 1 layout: [model + context info] .... [Plan/Act toggle]
 	// When the full row doesn't fit, context info drops to its own row 2.
 	// Model ID truncates with "..." before wrapping; toggle stays right-aligned.
-	const toggleWidth = 20;
+	const toggleWidth = isCloud ? 0 : 20;
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
@@ -256,25 +254,27 @@ export function StatusBar(props: StatusBarProps) {
 					{truncatedModel}
 					{firstRowFits && renderContextText(true)}
 				</text>
-				<box
-					flexDirection="row"
-					gap={1}
-					flexShrink={0}
-					onMouseDown={onToggleMode}
-				>
-					<text fg={uiMode === "plan" ? planAccent : "gray"}>
-						{uiMode === "plan" ? "●" : "○"} Plan
-					</text>
-					<text fg={uiMode === "act" ? actAccent : "gray"}>
-						{uiMode === "act" ? "●" : "○"} Act
-					</text>
-					<text fg="gray">(Tab)</text>
-				</box>
+				{!isCloud && (
+					<box
+						flexDirection="row"
+						gap={1}
+						flexShrink={0}
+						onMouseDown={onToggleMode}
+					>
+						<text fg={uiMode === "plan" ? planAccent : "gray"}>
+							{uiMode === "plan" ? "●" : "○"} Plan
+						</text>
+						<text fg={uiMode === "act" ? actAccent : "gray"}>
+							{uiMode === "act" ? "●" : "○"} Act
+						</text>
+						<text fg="gray">(Tab)</text>
+					</box>
+				)}
 			</box>
 
 			{!firstRowFits && <text fg="gray">{renderContextText(false)}</text>}
 
-			{cloud?.target === "cloud" ? (
+			{isCloud ? (
 				<text fg={defaultFg}>
 					<span fg={actAccent}>☁ </span>
 					{cloud.repoFullName ? (
@@ -317,7 +317,7 @@ export function StatusBar(props: StatusBarProps) {
 					</text>
 				))}
 
-			{cloud?.target !== "cloud" &&
+			{!isCloud &&
 				(autoApproveAll ? (
 					<text fg={defaultFg}>
 						<span fg={successColor}>

@@ -56,6 +56,8 @@ export function useRootKeyboard(input: {
 	onAbort: () => boolean;
 	onExit: () => void;
 	onToggleMode: () => void;
+	/** Plan/Act and auto-approve are hidden while Cloud is selected. */
+	isCloudTarget?: boolean;
 	/** Omitted when cloud sessions are unavailable. */
 	onToggleCloudTarget?: () => void;
 	onChangeCloudRepo?: () => void;
@@ -287,6 +289,10 @@ export function useRootKeyboard(input: {
 		if (key.ctrl && key.name === "k" && input.onChangeCloudRepo) {
 			key.preventDefault();
 			input.onChangeCloudRepo();
+			return;
+		}
+
+		if (key.name === "tab" && input.isCloudTarget) {
 			return;
 		}
 
