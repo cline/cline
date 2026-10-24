@@ -14,7 +14,11 @@ vi.mock("../discovery", () => ({
 	probeHubServer: mockProbeHubServer,
 }));
 
-import { describeAddressInUse, parseLsofOwners } from "./bind-diagnostics";
+import {
+	describeAddressInUse,
+	findListeningPid,
+	parseLsofOwners,
+} from "./bind-diagnostics";
 
 const endpoint = { host: "127.0.0.1", port: 25463, pathname: "/hub" };
 
@@ -94,5 +98,41 @@ describe("describeAddressInUse", () => {
 		expect(
 			(await describeAddressInUse(new Error("busy"), endpoint)).port_owners,
 		).toBe("");
+	});
+});
+
+describe("findListeningPid", () => {
+	const listener = (pid: number, name: string) =>
+		process.platform === "win32"
+			? `${pid}\t${name}.exe C:\\Users\\alice\\${name}.exe\r\n`
+			: `p${pid}\nc/Users/alice/${name}\n`;
+
+	it("returns the single pid listening on the port", () => {
+		mockSpawnSync.mockReturnValue({
+			status: 0,
+			stderr: "",
+			stdout: listener(4242, "cline"),
+		});
+		expect(findListeningPid(25463)).toBe(4242);
+	});
+
+	it("refuses to guess when several processes listen on the port", () => {
+		mockSpawnSync.mockReturnValue({
+			status: 0,
+			stderr: "",
+			stdout: listener(4242, "cline") + listener(4243, "node"),
+		});
+		expect(findListeningPid(25463)).toBeUndefined();
+	});
+
+	it("returns undefined when nothing listens or the lookup tool is unavailable", () => {
+		mockSpawnSync.mockReturnValueOnce({ status: 1, stdout: "", stderr: "" });
+		expect(findListeningPid(25463)).toBeUndefined();
+
+		mockSpawnSync.mockReturnValueOnce({
+			error: new Error("ENOENT"),
+			status: null,
+		});
+		expect(findListeningPid(25463)).toBeUndefined();
 	});
 });

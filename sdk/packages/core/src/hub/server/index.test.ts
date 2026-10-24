@@ -175,6 +175,9 @@ describe("hub server startup", () => {
 		).rejects.toThrow("refusing a second endpoint");
 		const health = await fetch(toHubHealthUrl(first.url));
 		expect(health.status).toBe(200);
+		// /health needs no token, so it must name the process: a client whose
+		// discovery record was lost retires the hub by this pid.
+		expect(((await health.json()) as { pid?: number }).pid).toBe(process.pid);
 		expect((await readHubDiscovery(owner.discoveryPath))?.url).toBe(first.url);
 	});
 
