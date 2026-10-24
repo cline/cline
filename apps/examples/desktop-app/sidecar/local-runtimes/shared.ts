@@ -18,9 +18,7 @@ export interface LocalRuntimeBackend {
 	/** Resolves once the runtime responds, or with false after giving up. */
 	start(): Promise<boolean>;
 	/** Throws when the runtime can't be reached. */
-	readModels(): Promise<
-		Pick<LocalModelsStatus, "version" | "installed" | "running">
-	>;
+	readModels(): Promise<Pick<LocalModelsStatus, "installed" | "running">>;
 	/** Folders models may be stored in, most likely first. */
 	modelDirs(): Promise<string[]>;
 	pull(

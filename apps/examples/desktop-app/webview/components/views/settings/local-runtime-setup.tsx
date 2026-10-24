@@ -203,18 +203,9 @@ export function LocalRuntimeSetup({
 		);
 	}
 
-	const url = status.baseUrl || defaultBaseUrl;
-	if (status.reachable) {
-		return (
-			<StatusLine onRefresh={onRefresh} refreshing={refreshing} tone="ok">
-				{name} {status.version} is running
-				{status.baseUrl ? (
-					<span className="text-muted-foreground"> at {url}</span>
-				) : null}
-			</StatusLine>
-		);
-	}
+	if (status.reachable) return null;
 
+	const url = status.baseUrl || defaultBaseUrl;
 	const install = status.install;
 	if (install && !install.localServer) {
 		return (

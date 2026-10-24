@@ -91,13 +91,8 @@ export const ollamaBackend: LocalRuntimeBackend = {
 
 	async readModels() {
 		const client = createClient();
-		const [{ version }, list, ps] = await Promise.all([
-			client.version(),
-			client.list(),
-			client.ps(),
-		]);
+		const [list, ps] = await Promise.all([client.list(), client.ps()]);
 		return {
-			version,
 			installed: list.models.map((model) => {
 				// Newer Ollama versions add these to `list`; the SDK doesn't type them yet.
 				const extra = model as {

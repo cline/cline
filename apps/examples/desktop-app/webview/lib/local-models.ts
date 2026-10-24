@@ -151,7 +151,6 @@ export interface LocalModelsStatus {
 	baseUrl: string;
 	contextWindow?: number;
 	reachable: boolean;
-	version?: string;
 	/** Only checked while the runtime is unreachable. */
 	install?: {
 		installed: boolean;
