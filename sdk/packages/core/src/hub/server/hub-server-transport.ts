@@ -80,12 +80,12 @@ import {
 	type PendingApproval,
 	type PendingCapabilityRequest,
 } from "./handlers/context";
-import { handleProviderCommand } from "./handlers/provider-handlers";
 import {
 	handleSessionMcpAppsCallTool,
 	handleSessionMcpAppsReadResource,
 	handleSessionMcpAppsResolveTool,
 } from "./handlers/mcp-apps-handlers";
+import { handleProviderCommand } from "./handlers/provider-handlers";
 import {
 	handleRunAbort,
 	handleRunProceedWhileRunning,
