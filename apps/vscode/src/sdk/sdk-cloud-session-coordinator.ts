@@ -902,12 +902,12 @@ export class SdkCloudSessionCoordinator {
 
 	/**
 	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
-	 * else the user's Act-mode Cline or ClinePass model when the cloud catalog
-	 * offers it, else the first ClinePass model for a subscriber, else Cline's
-	 * default model. Until the catalog is known, a local Cline or ClinePass
-	 * model is assumed to be offered. Synchronous, and the only source for both
-	 * the composer label and the start path, so the sandbox runs the model the
-	 * user saw when they submitted.
+	 * else the user's Act-mode Cline model, or ClinePass model when the plan
+	 * check confirms a current plan, if the cloud catalog offers it; else the
+	 * first ClinePass model for a subscriber, else Cline's default model. Until
+	 * the catalog is known, a local Cline or ClinePass model is assumed to be
+	 * offered. Synchronous, and the only source for both the composer label and
+	 * the start path, so the sandbox runs the model the user saw when they submitted.
 	 */
 	nextCloudModelId(): string {
 		const chosen = this.options.stateManager.getGlobalStateKey("cloudModelId")?.trim()
@@ -915,15 +915,16 @@ export class SdkCloudSessionCoordinator {
 			return chosen
 		}
 		const apiConfig = this.options.stateManager.getApiConfiguration()
+		const account = this.accountCloudModels()
+		// The local ClinePass provider also serves free models without a subscription,
+		// so only a confirmed plan makes its model a ClinePass model to carry over.
 		const local =
 			apiConfig.actModeApiProvider === "cline"
 				? apiConfig.actModeClineModelId?.trim()
-				: apiConfig.actModeApiProvider === "cline-pass"
+				: apiConfig.actModeApiProvider === "cline-pass" && account?.subscribed
 					? apiConfig.actModeClinePassModelId?.trim()
 					: undefined
-		const account = this.accountCloudModels()
 		const catalog = account?.models
-		// The local ClinePass provider also offers free models, which the cloud does not take.
 		const offered = catalog
 			? catalog.some((model) => model.id === local)
 			: apiConfig.actModeApiProvider === "cline" || !!local?.startsWith("cline-pass/")
