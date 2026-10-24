@@ -569,7 +569,7 @@ describe("RemoteEnvironmentService", () => {
 			"ssh",
 			expect.arrayContaining(["ExitOnForwardFailure=yes"]),
 		);
-		expect(waitForTunnel).toHaveBeenCalledWith(43117, tunnel, 10_000);
+		expect(waitForTunnel).toHaveBeenCalledWith(43117, tunnel, 40_000);
 
 		await expect(service.disconnect()).resolves.toBe(true);
 		expect(requestHubShutdown).toHaveBeenCalledWith(
