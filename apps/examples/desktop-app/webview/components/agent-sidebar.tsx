@@ -10,6 +10,7 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
+	Bug,
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
@@ -20,6 +21,7 @@ import {
 	GitFork,
 	Import,
 	Info,
+	Keyboard,
 	Loader2,
 	Mic,
 	Network,
@@ -105,6 +107,7 @@ import {
 	productNameForVersion,
 } from "@/lib/app-channel";
 import { desktopClient } from "@/lib/desktop-client";
+import { formatAccelerator, useKeybindings } from "@/lib/keybindings";
 import {
 	ALL_SESSION_SOURCES,
 	filterSessionsBySource,
@@ -115,11 +118,14 @@ import {
 	groupScheduledThreads,
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
+	readSidebarSortModeFromWindow,
 	type SidebarListRow,
 	type SidebarScheduleGroup,
+	type SidebarSortMode,
 	scheduleGroupKey,
 	scheduleRunLabel,
 	workspaceDisplayName,
+	writeSidebarSortModeToWindow,
 } from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
@@ -130,7 +136,6 @@ type AppView = "chat" | "sessions" | "settings";
 
 const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
-type SidebarSortMode = "time" | "project";
 type SessionCategory = "pinned" | "scheduled" | "tasks";
 type DesktopProcessContext = {
 	appVersion?: unknown;
@@ -162,11 +167,13 @@ const SETTINGS_SECTION_ICONS = {
 	Providers: Plug,
 	"Local Models": Cpu,
 	Voice: Mic,
+	Keybindings: Keyboard,
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
 	Remote: Network,
 	Account: CircleUserRound,
+	Debug: Bug,
 	About: Info,
 	Customize: Blocks,
 	Marketplace: Store,
@@ -339,7 +346,7 @@ export function AgentSidebar({
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
-	/** Opens the global session search command bar (also bound to Cmd/Ctrl+P). */
+	/** Opens the global session search command bar. */
 	onOpenSearch?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
@@ -348,6 +355,9 @@ export function AgentSidebar({
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
 }) {
+	const keybindings = useKeybindings();
+	const searchKey = keybindings["command-bar"].key;
+	const searchHint = searchKey ? formatAccelerator(searchKey) : null;
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
 	const { user, activeOrganization } = useAccount();
@@ -376,6 +386,11 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
+	// Read after mount: the page is pre-rendered with the default, so reading
+	// localStorage during the first render would mismatch the server HTML.
+	useEffect(() => {
+		setSortMode(readSidebarSortModeFromWindow());
+	}, []);
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
@@ -733,9 +748,11 @@ export function AgentSidebar({
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
 			className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
-			onClick={() =>
-				setSortMode((current) => (current === "time" ? "project" : "time"))
-			}
+			onClick={() => {
+				const next = sortMode === "time" ? "project" : "time";
+				setSortMode(next);
+				writeSidebarSortModeToWindow(next);
+			}}
 			size="icon"
 			title={
 				sortMode === "time"
@@ -963,7 +980,11 @@ export function AgentSidebar({
 								aria-label="Search sessions"
 								className="size-8 shrink-0 justify-center px-0"
 								onClick={onOpenSearch}
-								title="Search sessions (Cmd/Ctrl+P)"
+								title={
+									searchHint
+										? `Search sessions (${searchHint})`
+										: "Search sessions"
+								}
 								type="button"
 								variant="sidebarItem"
 							>

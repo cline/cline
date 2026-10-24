@@ -15,10 +15,12 @@ const ALL_SETTINGS_SECTIONS = [
 	"Local Models",
 	"Providers",
 	"Voice",
+	"Keybindings",
 	"Channels",
 	"Schedules",
 	"Import",
 	"Remote",
+	"Debug",
 	"About",
 ] as const;
 

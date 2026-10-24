@@ -22,6 +22,7 @@ import {
 	type MarketplaceEntryInput,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
+	SKILLS_CLI_PACKAGE,
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin as uninstallLocalPlugin,
 } from "@cline/core";
@@ -763,7 +764,7 @@ async function installSkill(
 	ensureGlobalSkillsDirWritable();
 	const result = await spawnCommand("npx", [
 		"-y",
-		"skills@latest",
+		SKILLS_CLI_PACKAGE,
 		"add",
 		...(entry.install.args ?? []),
 		"-g",

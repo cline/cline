@@ -242,6 +242,7 @@ describe("runDoctorCommand", () => {
 			"ws://127.0.0.1:25463/hub",
 			{
 				authToken: "shielded-token",
+				signal: expect.any(AbortSignal),
 			},
 		);
 		// Without the fallback the live daemon reads as stale and doctor's

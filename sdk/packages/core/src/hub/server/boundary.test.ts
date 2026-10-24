@@ -60,6 +60,48 @@ describe("HubServerTransport boundaries", () => {
 		return (transport as unknown as { ctx: HubTransportContext }).ctx;
 	}
 
+	it("recovers an empty cloud snapshot set from a fresh daemon", async () => {
+		const transport = createTransport({ eventLog: false, runQueue: false });
+		const listener = vi.fn();
+		try {
+			const unsubscribe = transport.subscribe("viewer", listener);
+			await Promise.resolve();
+			expect(listener).toHaveBeenCalledWith(
+				expect.objectContaining({
+					event: "cloud.event",
+					payload: expect.objectContaining({
+						serviceId: expect.any(String),
+						scopeGeneration: 0,
+						snapshots: [],
+					}),
+				}),
+			);
+			unsubscribe();
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("requires connection registration before cloud access even when another client id is known", async () => {
+		const transport = createTransport({ eventLog: false, runQueue: false });
+		try {
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "registered",
+				payload: { clientType: "test" },
+			});
+			const reply = await transport.handleCommand(
+				{ version: "v1", command: "cloud.watch", clientId: "registered" },
+				null,
+			);
+			expect(reply.ok).toBe(false);
+			expect(reply.error?.code).toBe("client_not_registered");
+		} finally {
+			await transport.stop();
+		}
+	});
+
 	it("continues publishing when one listener throws", () => {
 		const transport = createTransport();
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -1962,7 +2004,7 @@ describe("HubServerTransport boundaries", () => {
 		const transport = createTransport();
 		const published: string[] = [];
 		transport.subscribe("test", (event) => {
-			published.push(event.event);
+			if (event.event.startsWith("iteration.")) published.push(event.event);
 		});
 		const ctx = getContext(transport);
 
@@ -2189,7 +2231,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 		const events: HubEventEnvelope[] = [];
 		transport.subscribe("test", (event) => {
-			events.push(event);
+			if (event.event === "usage.updated") events.push(event);
 		});
 		const ctx = getContext(transport);
 
@@ -2256,7 +2298,9 @@ describe("HubServerTransport boundaries", () => {
 	it("projects notices with teammate provenance intact", async () => {
 		const transport = createTransport();
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("test", (event) => events.push(event));
+		transport.subscribe("test", (event) => {
+			if (event.event === "session.notice") events.push(event);
+		});
 		const ctx = getContext(transport);
 
 		await projectSessionEvent(ctx, {
