@@ -241,23 +241,47 @@ export function resolveTeammateSessionId(
 	if (cached && now - cached.checkedAt < ttl) {
 		return cached.sessionId;
 	}
-	let sessionId: string | undefined;
+	const latest = newestTeamTaskChild(rootSessionId, agentId, options.store);
+	const status = latest?.status?.trim().toLowerCase();
+	const sessionId =
+		status === "running" || status === "pending"
+			? latest?.session_id
+			: undefined;
+	teammateSessionCache.set(key, { sessionId, checkedAt: now });
+	return sessionId;
+}
+
+/**
+ * The teammate's newest team-task child session whatever its status: when its
+ * task ends, the run that just ended (its successor's row is only written when
+ * that task starts).
+ */
+export function latestTeammateSessionId(
+	rootSessionId: string,
+	agentId: string,
+	options: { store?: ChildSessionSource } = {},
+): string | undefined {
+	return newestTeamTaskChild(rootSessionId, agentId, options.store)?.session_id;
+}
+
+function newestTeamTaskChild(
+	rootSessionId: string,
+	agentId: string,
+	store?: ChildSessionSource,
+): { session_id: string; status: string } | undefined {
 	try {
-		const store = options.store ?? sessionStore();
-		const [latest] = store.queryAll<{ session_id: string; status: string }>(
+		return (store ?? sessionStore()).queryAll<{
+			session_id: string;
+			status: string;
+		}>(
 			`SELECT session_id, status FROM sessions
 			 WHERE parent_session_id = ? AND agent_id = ?
 			   AND instr(session_id, ?) > 0
 			 ORDER BY started_at DESC LIMIT 1`,
 			[rootSessionId, agentId, TEAM_TASK_MARKER],
-		);
-		const status = latest?.status?.trim().toLowerCase();
-		if (latest && (status === "running" || status === "pending")) {
-			sessionId = latest.session_id;
-		}
+		)[0];
 	} catch {
 		// No session database on this host; nothing to route to.
+		return undefined;
 	}
-	teammateSessionCache.set(key, { sessionId, checkedAt: now });
-	return sessionId;
 }

@@ -18,7 +18,9 @@ import {
 	type ToolApprovalResult,
 } from "@cline/core";
 import {
+	type AgentDoneEvent,
 	type AgentEvent,
+	AgentFinishReasonSchema,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	isGeneratedMedia,
 } from "@cline/shared";
@@ -36,6 +38,7 @@ import { recordHubActivity } from "./hub-admin";
 import { sessionLogPath } from "./paths";
 import {
 	forgetTeammateSession,
+	latestTeammateSessionId,
 	resolveTeammateSessionId,
 } from "./session-data/agents";
 import type {
@@ -562,8 +565,41 @@ function forwardTeamProgress(
 	const { sessionId, lifecycle } = payload;
 	if (lifecycle?.agentId && TEAMMATE_RUN_BOUNDARIES.has(lifecycle.eventType)) {
 		forgetTeammateSession(sessionId, lifecycle.agentId);
+		if (lifecycle.eventType === "task_end") {
+			settleTeammateSession(ctx, sessionId, lifecycle.agentId);
+		}
 	}
 	sendEvent(ctx, "team_progress", payload);
+}
+
+/**
+ * Ends the turn of an open teammate chat whose task just ended. A teammate run
+ * that completes or is aborted reports `done` before its task ends, which is
+ * routed to the chat and settles it; one that fails reports only an error, so
+ * a chat still running here belongs to a failed run.
+ */
+function settleTeammateSession(
+	ctx: SidecarContext,
+	rootSessionId: string,
+	agentId: string,
+): void {
+	const childSessionId = latestTeammateSessionId(rootSessionId, agentId);
+	const child = childSessionId
+		? ctx.liveSessions.get(childSessionId)
+		: undefined;
+	if (
+		!childSessionId ||
+		!child ||
+		(!child.busy && child.status !== "running")
+	) {
+		return;
+	}
+	handleAgentEvent(ctx, childSessionId, {
+		type: "done",
+		reason: "error",
+		text: "",
+		iterations: 0,
+	});
 }
 
 /**
@@ -1166,7 +1202,12 @@ export function handleHubLiveEvent(
 	if (agent?.teamRole === "teammate") {
 		const agentId =
 			typeof agent.teamAgentId === "string" ? agent.teamAgentId : "";
-		if (coreSubscribed || !agentId || !HUB_STREAM_EVENTS.has(event.event)) {
+		const isDone = event.event === "agent.done";
+		if (
+			coreSubscribed ||
+			!agentId ||
+			!(isDone || HUB_STREAM_EVENTS.has(event.event))
+		) {
 			return;
 		}
 		if (
@@ -1177,12 +1218,29 @@ export function handleHubLiveEvent(
 		}
 		const teammateSessionId = resolveTeammateSessionId(sessionId, agentId);
 		if (
-			teammateSessionId &&
-			(ctx.liveSessions.get(sessionId)?.attachedViaHub ||
-				ctx.liveSessions.has(teammateSessionId))
+			!teammateSessionId ||
+			!(
+				ctx.liveSessions.get(sessionId)?.attachedViaHub ||
+				ctx.liveSessions.has(teammateSessionId)
+			)
 		) {
-			emitHubStreamEvent(ctx, teammateSessionId, event);
+			return;
 		}
+		if (isDone) {
+			const reason = AgentFinishReasonSchema.safeParse(event.payload?.reason);
+			handleAgentEvent(ctx, teammateSessionId, {
+				type: "done",
+				reason: reason.success ? reason.data : "completed",
+				text: typeof event.payload?.text === "string" ? event.payload.text : "",
+				iterations:
+					typeof event.payload?.iterations === "number"
+						? event.payload.iterations
+						: 0,
+				usage: event.payload?.usage as AgentDoneEvent["usage"],
+			});
+			return;
+		}
+		emitHubStreamEvent(ctx, teammateSessionId, event);
 		return;
 	}
 

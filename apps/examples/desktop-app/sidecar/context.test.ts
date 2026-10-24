@@ -26,6 +26,8 @@ vi.mock("./session-data/agents", async () => {
 	return {
 		...actual,
 		forgetTeammateSession: forgetTeammateSessionMock,
+		latestTeammateSessionId: (_rootSessionId: string, agentId: string) =>
+			agentId === "reviewer" ? "child-reviewer" : undefined,
 		resolveTeammateSessionId: (_rootSessionId: string, agentId: string) =>
 			agentId === "reviewer" ? "child-reviewer" : undefined,
 	};
@@ -1962,6 +1964,56 @@ describe("Chat chunk pipe selection", () => {
 		expect(forgetTeammateSessionMock.mock.calls).toEqual([
 			["session-1", "reviewer"],
 		]);
+	});
+
+	it("ends a reopened teammate chat when the teammate finishes", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("child-reviewer");
+
+		handleHubLiveEvent(ctx, {
+			event: "agent.done",
+			sessionId: "lead-elsewhere",
+			payload: {
+				reason: "completed",
+				text: "Approved",
+				iterations: 3,
+				agent: teammate,
+			},
+		});
+		handleHubLiveEvent(ctx, {
+			event: "team.progress",
+			sessionId: "lead-elsewhere",
+			payload: {
+				sessionId: "lead-elsewhere",
+				summary: { teamName: "platform" },
+				lastEvent: { eventType: "task_end", agentId: "reviewer" },
+			},
+		});
+
+		expect(
+			chunksFor(ctx, "chat_done").map((chunk) => JSON.parse(chunk).reason),
+		).toEqual(["completed"]);
+		expect(ctx.liveSessions.get("child-reviewer")?.status).toBe("idle");
+	});
+
+	it("ends a teammate chat whose run failed without reporting done", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("child-reviewer");
+
+		handleHubLiveEvent(ctx, {
+			event: "team.progress",
+			sessionId: "lead-elsewhere",
+			payload: {
+				sessionId: "lead-elsewhere",
+				summary: { teamName: "platform" },
+				lastEvent: { eventType: "task_end", agentId: "reviewer" },
+			},
+		});
+
+		expect(
+			chunksFor(ctx, "chat_done").map((chunk) => JSON.parse(chunk).reason),
+		).toEqual(["error"]);
+		expect(ctx.liveSessions.get("child-reviewer")?.busy).toBe(false);
 	});
 
 	it("reports a teammate's tool calls as team activity", async () => {
