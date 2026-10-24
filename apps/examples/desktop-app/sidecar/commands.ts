@@ -2170,7 +2170,7 @@ export async function handleCommand(
 		const binding = getCommandRuntimeBinding(ctx, args);
 		const root = String(args?.workspaceRoot ?? "").trim();
 		if (!root) throw new Error("workspaceRoot is required");
-		const path = String(args?.path ?? "").trim() || root;
+		const path = String(args?.path ?? "") || root;
 		return command === "list_project_entries"
 			? await listProjectEntries(ctx, binding, root, path)
 			: await readProjectFile(ctx, binding, root, path);

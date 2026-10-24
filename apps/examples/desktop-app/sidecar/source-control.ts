@@ -409,7 +409,7 @@ export async function getCommitDetails(
 // Only these mean "no such path on that side"; anything else (an output
 // limit, a corrupt object) must surface rather than pass for a deletion.
 const MISSING_OBJECT =
-	/does not exist|exists on disk, but not in|invalid object name|not a valid object name|bad revision|unknown revision/i;
+	/does not exist|exists on disk, but not in|but not at stage|invalid object name|not a valid object name|bad revision|unknown revision/i;
 
 function showBlob(
 	git: GitRunner,
@@ -422,9 +422,13 @@ function showBlob(
 	});
 }
 
-type TreeEntry = { mode: string; sha: string };
+type TreeEntry = { mode: string; sha: string; stage?: string };
 
-/** Mode and object of a path in a tree (`rev`) or, for `null`, the index. */
+/**
+ * Mode and object of a path in a tree (`rev`) or, for `null`, the index. An
+ * unresolved conflict has no stage-0 index entry, so the index side is our
+ * version (stage 2), the side `git diff` compares a conflict against.
+ */
 async function treeEntry(
 	git: GitRunner,
 	rev: string | null,
@@ -435,8 +439,12 @@ async function treeEntry(
 			? [LITERAL, "ls-files", "--stage", "--", path]
 			: [LITERAL, "ls-tree", rev, "--", path],
 	).catch(() => "");
-	const match = output.match(/^(\d{6}) (?:\w+ )?([0-9a-f]{40,64})/);
-	return match ? { mode: match[1] ?? "", sha: match[2] ?? "" } : undefined;
+	const entries = Array.from(
+		output.matchAll(/^(\d{6}) (?:\w+ )?([0-9a-f]{40,64})(?: (\d))?\t/gm),
+		(match) => ({ mode: match[1] ?? "", sha: match[2] ?? "", stage: match[3] }),
+	);
+	if (rev !== null) return entries[0];
+	return entries.find((entry) => entry.stage === "0" || entry.stage === "2");
 }
 
 const GITLINK = "160000";
@@ -568,7 +576,7 @@ export async function getGitFileDiff(
 	// A submodule replaced by a file (or deleted) in the working tree reads
 	// through the file reader, keeping its binary and truncation flags.
 	const [oldText, working] = await Promise.all([
-		sideContents(git, "", path, indexEntry),
+		sideContents(git, indexEntry?.stage === "2" ? ":2" : "", path, indexEntry),
 		readWorkingFile(path, { symlink: indexEntry?.mode === SYMLINK }),
 	]);
 	return {

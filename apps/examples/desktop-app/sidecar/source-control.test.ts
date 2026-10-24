@@ -457,6 +457,23 @@ describe("against a real repository", () => {
 		expect(diff.newText).toBe("b.ts");
 	});
 
+	it("previews an unresolved conflict against our side", async () => {
+		await git(["checkout", "-q", "-b", "theirs"]);
+		writeFileSync(join(root, "a.ts"), "theirs\n");
+		await git(["commit", "-q", "-am", "theirs"]);
+		await git(["checkout", "-q", "-"]);
+		writeFileSync(join(root, "a.ts"), "ours\n");
+		await git(["commit", "-q", "-am", "ours"]);
+		await git(["merge", "-q", "theirs"]).catch(() => "");
+		expect((await getSourceControlState(git, "local")).unstaged).toContainEqual(
+			expect.objectContaining({ path: "a.ts", status: "U" }),
+		);
+
+		const diff = await getGitFileDiff(git, readWorking, "local", "a.ts", false);
+		expect(diff.oldText).toBe("ours\n");
+		expect(diff.newText).toContain("<<<<<<<");
+	});
+
 	it("previews submodules as the commit each side points at", async () => {
 		const library = mkdtempSync(join(tmpdir(), "cline-submodule-"));
 		const run = (cwd: string) => async (args: string[]) =>
