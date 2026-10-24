@@ -92,6 +92,7 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 	const [pulls, setPulls] = useState<Record<string, PullState>>({})
 	const [actions, setActions] = useState<Record<string, ModelAction>>({})
 	const [errors, setErrors] = useState<Record<string, string>>({})
+	const [confirmingDelete, setConfirmingDelete] = useState<string | undefined>(undefined)
 	const pullSubscriptions = useRef(new Map<string, () => void>())
 
 	const setModelError = useCallback((model: string, message: string | undefined) => {
@@ -195,8 +196,9 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 
 	const contextWindowFor = useCallback(
 		(model: string) => {
-			if (model === activeModel && config?.contextWindow) {
-				return config.contextWindow
+			// Chat requests use the saved context window, so loading at any other size would be redone.
+			if (model === activeModel) {
+				return config?.contextWindow ?? DEFAULT_LOCAL_CONTEXT_WINDOW
 			}
 			return (
 				LOCAL_MODEL_CATALOG.find((entry) => normalizeOllamaModelName(entry.id) === model)?.contextWindow ??
@@ -247,7 +249,8 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 		{ title, entry, details }: { title: string; entry?: LocalModelCatalogEntry; details: ReactNode },
 	) => {
 		const name = normalizeOllamaModelName(model)
-		const isInstalled = installed.has(name)
+		const installedModel = installed.get(name)
+		const isInstalled = !!installedModel
 		const runningModel = running.get(name)
 		const pull = pulls[model]
 		const action = actions[name]
@@ -281,7 +284,7 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 				)}
 				{pull && (
 					<div className="flex flex-col gap-1">
-						<Progress className="h-1.5" value={pullPercent} />
+						<Progress aria-label={`Downloading ${title}`} className="h-1.5" value={pullPercent} />
 						<div className="text-xs text-description flex justify-between gap-2">
 							<span className="truncate">
 								{pull.status.startsWith("pulling") && pull.total > 0
@@ -348,20 +351,37 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 							Unload
 						</Button>
 					)}
-					{isInstalled && (
+					{isInstalled && confirmingDelete !== name && (
 						<Button
 							aria-label={`Delete ${title}`}
 							disabled={!!action}
-							onClick={() =>
-								void runAction(name, "deleting", () =>
-									ModelsServiceClient.deleteOllamaModel(OllamaModelRequest.create({ baseUrl, model: name })),
-								)
-							}
+							onClick={() => setConfirmingDelete(name)}
 							size="sm"
 							title="Delete from disk"
 							variant="ghost">
 							{action === "deleting" ? <Loader2 className="animate-spin" /> : <Trash2 />}
 						</Button>
+					)}
+					{installedModel && confirmingDelete === name && (
+						<>
+							<Button
+								onClick={() => {
+									setConfirmingDelete(undefined)
+									void runAction(name, "deleting", () =>
+										ModelsServiceClient.deleteOllamaModel(
+											OllamaModelRequest.create({ baseUrl, model: name }),
+										),
+									)
+								}}
+								size="sm"
+								variant="danger">
+								<Trash2 />
+								Delete (frees {formatGb(installedModel.sizeBytes)})
+							</Button>
+							<Button onClick={() => setConfirmingDelete(undefined)} size="sm" variant="secondary">
+								Keep
+							</Button>
+						</>
 					)}
 				</div>
 			</div>
@@ -444,9 +464,9 @@ const LocalModelsSection = ({ renderSectionHeader }: LocalModelsSectionProps) =>
 				)}
 
 				<p className="text-xs text-description m-0 mt-2">
-					Models loaded here stay in memory until you unload them. A model Ollama loads on its own, when a message
-					arrives for it, is unloaded after a few minutes idle (configurable with <code>OLLAMA_KEEP_ALIVE</code>). The
-					context window and server URL can be adjusted under API Configuration → Ollama.
+					Models loaded here stay in memory until you unload them. Models Ollama loads on its own, when a message
+					arrives, unload after a few minutes idle (configurable with <code>OLLAMA_KEEP_ALIVE</code>). The context
+					window and server URL can be adjusted under API Configuration → Ollama.
 				</p>
 			</Section>
 		</div>
