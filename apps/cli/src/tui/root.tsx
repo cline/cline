@@ -62,10 +62,14 @@ import { ThemeProvider } from "./hooks/theme-provider";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
 import { useAutocomplete } from "./hooks/use-autocomplete";
+import { useCloudSessions } from "./hooks/use-cloud-sessions";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
 import { useMcpManager } from "./hooks/use-mcp-manager";
-import { useModelSelector } from "./hooks/use-model-selector";
+import {
+	type OpenModelSelectorOptions,
+	useModelSelector,
+} from "./hooks/use-model-selector";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
@@ -314,8 +318,48 @@ function App(props: TuiProps) {
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 
+	const cloud = useCloudSessions({
+		client: props.cloudSessions,
+		dialog,
+		termHeight,
+		cwd: props.config.cwd,
+		localBranch: repoStatus.branch,
+		providerId: props.config.providerId,
+		modelId: props.config.modelId,
+		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
+		onEnterCloud: () => {
+			if (session.uiMode === "plan") toggleMode();
+		},
+		loadClineAccount: props.loadClineAccount,
+		onAccountChange: props.onAccountChange,
+		replaceEntries: session.replaceEntries,
+		setIsRunning: session.setIsRunning,
+		showToast,
+		refocusTextarea: () => refocusTextareaRef.current(),
+	});
+	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
+	const propsOnResumeSession = props.onResumeSession;
+	const resumeSession = useCallback(
+		async (sessionId: string) => {
+			const result = await propsOnResumeSession(sessionId);
+			// A resumed chat is local, so it must not keep sending to Cloud.
+			detachCloudSession();
+			return result;
+		},
+		[detachCloudSession, propsOnResumeSession],
+	);
+	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
+	const openTargetModelSelector = useCallback(
+		(options?: OpenModelSelectorOptions) =>
+			cloudActive && !options?.startWithProviderChange
+				? pickCloudModel()
+				: openModelSelector(options),
+		[cloudActive, openModelSelector, pickCloudModel],
+	);
+
 	const clearConversation = useCallback(async () => {
 		const shouldRestartSession = session.hasSubmitted;
+		resetCloudSession();
 		session.clearEntries();
 		session.setHasSubmitted(false);
 		if (!shouldRestartSession) {
@@ -335,7 +379,7 @@ function App(props: TuiProps) {
 		} finally {
 			refocusTextareaRef.current();
 		}
-	}, [props, session]);
+	}, [props, resetCloudSession, session]);
 
 	const openCheckpointRestore = useCallback(async () => {
 		if (checkpointRestoreInFlightRef.current) {
@@ -765,13 +809,13 @@ function App(props: TuiProps) {
 		openAccount,
 		openConfig,
 		openMcpManager,
-		openModelSelector,
+		openModelSelector: openTargetModelSelector,
 		openSkills,
 		openThemePicker,
 		refocusTextarea: () => refocusTextareaRef.current(),
 		setAppView,
 		onClearConversation: clearConversation,
-		onResumeSession: props.onResumeSession,
+		onResumeSession: resumeSession,
 		onExportHistorySession: props.onExportHistorySession,
 		onDeleteHistorySession: props.onDeleteHistorySession,
 		onCompact: props.onCompact,
@@ -797,13 +841,13 @@ function App(props: TuiProps) {
 				return;
 			}
 			if (result.action === "change-model") {
-				await openModelSelector();
+				await openTargetModelSelector();
 				return;
 			}
 
 			await Promise.resolve(handleSlashCommand(result.action));
 		},
-		[handleSlashCommand, openModelSelector],
+		[handleSlashCommand, openModelSelector, openTargetModelSelector],
 	);
 
 	const commandPaletteOpenRef = useRef(false);
@@ -869,7 +913,7 @@ function App(props: TuiProps) {
 		autocomplete,
 		slashCommandRegistry,
 		handleSlashCommand,
-		onSubmit: props.onSubmit,
+		onSubmit: cloud.active ? cloud.submit : props.onSubmit,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
@@ -929,8 +973,17 @@ function App(props: TuiProps) {
 			promoteQueuedPrompt(selectedQueuedPromptId);
 			return;
 		}
+		if (
+			cloud.active &&
+			!cloud.hasRepository &&
+			!promptInput.getCurrentInputText().trimStart().startsWith("/")
+		) {
+			void cloud.pickRepository();
+			return;
+		}
 		promptInput.handleSubmit();
 	}, [
+		cloud,
 		editingQueuedPromptId,
 		promoteQueuedPrompt,
 		promptInput,
@@ -988,9 +1041,13 @@ function App(props: TuiProps) {
 		getCurrentInputText: promptInput.getCurrentInputText,
 		setInputKey: promptInput.setInputKey,
 		setInputValue: promptInput.setInputValue,
-		onAbort: props.onAbort,
+		onAbort: cloud.hasSession ? cloud.abort : props.onAbort,
 		onExit: exitCline,
 		onToggleMode: toggleMode,
+		isCloudTarget: cloud.active,
+		onToggleCloudTarget: cloud.toggleTarget,
+		onChangeCloudRepo:
+			cloud.active && !cloud.hasSession ? cloud.pickRepository : undefined,
 		onClearConversation: clearConversation,
 		onRestoreCheckpoint: openCheckpointRestore,
 		onOpenCommandPalette: openCommandPalette,
@@ -1019,6 +1076,7 @@ function App(props: TuiProps) {
 		onLargeTextPaste: promptInput.handleLargeTextPaste,
 		onInputFocusRequest: focusPromptInput,
 		repoStatus,
+		cloud: cloud.statusBar,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
 		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,
