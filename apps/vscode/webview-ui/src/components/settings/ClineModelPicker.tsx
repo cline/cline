@@ -56,7 +56,13 @@ interface ClineModelPickerProps {
 	 * Picks the model new cloud tasks run on instead of the Plan/Act model, from
 	 * the cloud catalogs: Usage-Billing, ClinePass (personal accounts only) and ClineFree.
 	 */
-	cloudSelection?: { modelId: string; onChange: (modelId: string) => void; includeClinePass: boolean }
+	cloudSelection?: {
+		modelId: string
+		onChange: (modelId: string) => void
+		includeClinePass: boolean
+		/** Shown above the ClinePass models, e.g. a subscribe prompt. */
+		clinePassNotice?: React.ReactNode
+	}
 }
 
 interface FeaturedModelCardEntry {
@@ -493,6 +499,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 
 				{/* Model Cards */}
 				<div style={{ marginBottom: "6px" }}>
+					{visibleTab.id === "clinePass" && cloudSelection?.clinePassNotice}
 					{visibleTab.models.map((model) => (
 						<FeaturedModelCard
 							description={model.description}

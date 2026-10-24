@@ -137,7 +137,12 @@ describe("ClineModelPicker", () => {
 		const onChange = vi.fn()
 		const { rerender } = render(
 			<ClineModelPicker
-				cloudSelection={{ modelId: "cline-pass/glm-5.3", onChange, includeClinePass: true }}
+				cloudSelection={{
+					modelId: "cline-pass/glm-5.3",
+					onChange,
+					includeClinePass: true,
+					clinePassNotice: <p>Subscribe to ClinePass</p>,
+				}}
 				currentMode="act"
 			/>,
 		)
@@ -146,8 +151,10 @@ describe("ClineModelPicker", () => {
 		expect(await screen.findByText("GLM 5.3")).toBeInTheDocument()
 		expect(screen.getByText("Usage-Billing")).toBeInTheDocument()
 		expect(screen.queryByText("Free")).not.toBeInTheDocument()
+		expect(screen.getByText("Subscribe to ClinePass")).toBeInTheDocument()
 
 		fireEvent.click(screen.getByText("ClineFree"))
+		expect(screen.queryByText("Subscribe to ClinePass")).not.toBeInTheDocument()
 		fireEvent.click(screen.getByText("DeepSeek V4.1 Flash"))
 		expect(onChange).toHaveBeenCalledWith("cline-cloud/deepseek-v4.1-flash")
 

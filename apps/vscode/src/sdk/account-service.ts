@@ -270,6 +270,29 @@ export class ClineAccountService {
 	}
 
 	/**
+	 * Whether the user has a ClinePass subscription, or undefined when that
+	 * could not be checked. ClinePass is the only individual plan, and the API
+	 * reports "No plan found for user" when there is none.
+	 */
+	async fetchClinePassSubscribedRPC(): Promise<boolean | undefined> {
+		try {
+			const current = await this.authenticatedRequest<{ plan?: unknown } | null>(
+				"/api/v1/users/me/plan",
+				{},
+				{ allowNullData: true },
+			)
+			return !!current?.plan
+		} catch (error) {
+			const message = axios.isAxiosError(error) ? error.response?.data?.error : (error as Error)?.message
+			if (typeof message === "string" && message.toLowerCase().includes("no plan found")) {
+				return false
+			}
+			Logger.error("Failed to fetch ClinePass subscription (RPC):", error)
+			return undefined
+		}
+	}
+
+	/**
 	 * Switches the active account to the specified organization, or to the
 	 * personal account when none is given. This is the only path that changes
 	 * the account. Switches are serialised: one requested while another is in

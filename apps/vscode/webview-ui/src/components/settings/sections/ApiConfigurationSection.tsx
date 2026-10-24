@@ -1,12 +1,13 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { CloudIcon, MonitorIcon } from "lucide-react"
-import { useState } from "react"
+import { CloudIcon, MonitorIcon, Sparkles } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { useClinePassPromo } from "@/hooks/useClinePassPromo"
+import { AccountServiceClient, CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { TargetButton } from "../../cloud/TaskTargetPanel"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
@@ -134,13 +135,34 @@ const LocalModelSettings = ({ initialModelTab }: Pick<ApiConfigurationSectionPro
 
 const CloudModelSettings = () => {
 	const { nextCloudModelId, cloudModelId, currentCloudTask } = useExtensionState()
-	const { activeOrganization } = useClineAuth()
+	const { activeOrganization, clineUser } = useClineAuth()
+	const { isClinePassEnabled, openSubscribePage } = useClinePassPromo()
+	const includeClinePass = isClinePassEnabled && !activeOrganization
+	const signedInUserId = clineUser?.uid
+	const [clinePassSubscribed, setClinePassSubscribed] = useState<boolean>()
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
+
+	useEffect(() => {
+		setClinePassSubscribed(undefined)
+		if (!includeClinePass || !signedInUserId) {
+			return
+		}
+		let cancelled = false
+		AccountServiceClient.getClinePassSubscription(EmptyRequest.create())
+			.then((response) => {
+				if (!cancelled) setClinePassSubscribed(response.subscribed)
+			})
+			.catch((error) => console.error("Failed to check ClinePass subscription:", error))
+		return () => {
+			cancelled = true
+		}
+	}, [includeClinePass, signedInUserId])
+
 	return (
 		<>
 			<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
 				Cloud tasks run in an isolated sandbox on a Cline model. Usage-Billing models use Cline credits
-				{activeOrganization ? "" : ", ClinePass models use your subscription,"} and ClineFree models are free with limited
+				{includeClinePass ? ", ClinePass models use your subscription," : ""} and ClineFree models are free with limited
 				usage. This model is separate from your local Plan and Act models.
 			</p>
 			{runningModelId && (
@@ -150,7 +172,22 @@ const CloudModelSettings = () => {
 			)}
 			<ClineModelPicker
 				cloudSelection={{
-					includeClinePass: !activeOrganization,
+					includeClinePass,
+					clinePassNotice: clinePassSubscribed === false && (
+						<div className="flex items-start gap-2 rounded-sm bg-[var(--vscode-textBlockQuote-background)] px-2.5 py-2 mb-1.5">
+							<Sparkles className="size-3.5 shrink-0 mt-0.5 text-[var(--vscode-charts-yellow)]" />
+							<div className="grow text-xs text-description">
+								These models need a <span className="font-semibold text-foreground">ClinePass</span> subscription,
+								a low-cost monthly plan for the latest open-weights models.{" "}
+								<button
+									className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
+									onClick={openSubscribePage}
+									type="button">
+									Subscribe
+								</button>
+							</div>
+						</div>
+					),
 					modelId: nextCloudModelId ?? "",
 					onChange: (modelId) =>
 						CloudServiceClient.setCloudModel(StringRequest.create({ value: modelId })).catch((error) =>
