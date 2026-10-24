@@ -27,6 +27,13 @@ import {
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
+import type {
+	McpAppResourceReadRequest,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -282,6 +289,7 @@ function buildClientContributionRegistration(
 				name: tool.name,
 				description: tool.description,
 				inputSchema: toJsonRecord(tool.inputSchema) ?? {},
+				successContext: tool.successContext,
 				...(tool.lifecycle
 					? {
 							lifecycle: toJsonRecord(
@@ -1312,6 +1320,62 @@ export class HubRuntimeHost implements RuntimeHost {
 			{ sessionId, reason: messageFromUnknown(reason) },
 			sessionId,
 		);
+	}
+
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		try {
+			const reply = await this.client.command(
+				"session.mcp_apps.resolve_tool",
+				{ sessionId, toolName },
+				sessionId,
+				{ timeoutMs: null },
+			);
+			return reply.payload?.binding as McpAppToolBinding | undefined;
+		} catch (error) {
+			if ((error as { code?: unknown })?.code === "unsupported_command") {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.read_resource",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.read_resource"),
+			);
+		}
+		return reply.payload?.result as McpResourceReadResult;
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.call_tool",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.call_tool"),
+			);
+		}
+		return reply.payload?.result;
 	}
 
 	async proceedWhileRunning(
