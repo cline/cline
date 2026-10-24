@@ -753,39 +753,41 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
-	it("starts from the local model the catalog offers, else ClinePass for a subscriber, unless a cloud model was picked", async () => {
-		const plan = deferred<boolean | undefined>()
-		const globalState: Record<string, unknown> = {}
-		let apiConfig: Record<string, unknown> = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-pass/local" }
+	it("starts from the saved or local model the catalog offers, else ClinePass for a local ClinePass user, else Cline's default", async () => {
+		const catalog = deferred<CloudModel[]>()
+		const globalState: Record<string, unknown> = { cloudModelId: "usage/retired-pick" }
+		let apiConfig: Record<string, unknown> = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }
 		const { coordinator, options } = makeCoordinator({
 			stateManager: { ...makeStateManager(globalState), getApiConfiguration: () => apiConfig } as never,
 			getAccountScope: () => "user-1:",
-			loadCloudModels: async () => [
-				{ id: "cline-pass/first", name: "First", catalogId: "cline-pass" },
-				{ id: "cline-pass/local", name: "Local", catalogId: "cline-pass" },
-				{ id: "usage/model", name: "Usage", catalogId: "cline" },
-			],
-			checkClinePassSubscription: vi.fn(() => plan.promise),
+			loadCloudModels: () => catalog.promise,
+			// The plan check only feeds the Settings notice; the default doesn't read it.
+			checkClinePassSubscription: async () => false,
 		})
 
-		// A local ClinePass model carries over without waiting for the plan check.
-		expect(coordinator.nextCloudModelId()).toBe("cline-pass/local")
-		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalledTimes(1))
-		apiConfig = { actModeApiProvider: "anthropic" }
-		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
+		// Until the catalog is known, the Settings pick is assumed to be offered.
+		expect(coordinator.nextCloudModelId()).toBe("usage/retired-pick")
+		catalog.resolve([
+			{ id: "cline-pass/first", name: "First", catalogId: "cline-pass" },
+			{ id: "cline-pass/local", name: "Local", catalogId: "cline-pass" },
+			{ id: "usage/model", name: "Usage", catalogId: "cline" },
+		])
+		await vi.waitFor(() => expect(options.postStateToWebview).toHaveBeenCalled())
 
-		plan.resolve(true)
-		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(true))
-		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
+		// A pick the catalog no longer offers falls through; a ClinePass provider user's free model isn't offered either.
 		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
+		globalState.cloudModelId = "usage/model"
+		expect(coordinator.nextCloudModelId()).toBe("usage/model")
+		delete globalState.cloudModelId
+
+		apiConfig = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-pass/local" }
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/local")
 		apiConfig = { actModeApiProvider: "cline", actModeClineModelId: "usage/model" }
 		expect(coordinator.nextCloudModelId()).toBe("usage/model")
 		apiConfig = { actModeApiProvider: "cline", actModeClineModelId: "usage/retired" }
-		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
-		expect(options.checkClinePassSubscription).toHaveBeenCalledTimes(1)
-
-		globalState.cloudModelId = "usage/picked"
-		expect(coordinator.nextCloudModelId()).toBe("usage/picked")
+		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
+		apiConfig = { actModeApiProvider: "anthropic" }
+		expect(coordinator.nextCloudModelId()).toBe(CLINE_DEFAULT_MODEL_ID)
 		await coordinator.dispose()
 	})
 

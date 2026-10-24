@@ -902,16 +902,18 @@ export class SdkCloudSessionCoordinator {
 
 	/**
 	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
-	 * else the user's Act-mode Cline or ClinePass model when the cloud catalog
-	 * offers it, else the first ClinePass model for a subscriber, else Cline's
-	 * default model. Until the catalog is known, a local Cline or ClinePass
-	 * model is assumed to be offered. Synchronous, and the only source for both
+	 * else the user's Act-mode Cline or ClinePass model, each when the cloud
+	 * catalog offers it; else the first ClinePass model when the local provider
+	 * is ClinePass, else Cline's default model. Until the catalog is known, the
+	 * Settings pick and a local Cline or ClinePass model are assumed to be
+	 * offered. Synchronous, and the only source for both
 	 * the composer label and the start path, so the sandbox runs the model the
 	 * user saw when they submitted.
 	 */
 	nextCloudModelId(): string {
+		const catalog = this.accountCloudModels()?.models
 		const chosen = this.options.stateManager.getGlobalStateKey("cloudModelId")?.trim()
-		if (chosen) {
+		if (chosen && (!catalog || catalog.some((model) => model.id === chosen))) {
 			return chosen
 		}
 		const apiConfig = this.options.stateManager.getApiConfiguration()
@@ -921,8 +923,6 @@ export class SdkCloudSessionCoordinator {
 				: apiConfig.actModeApiProvider === "cline-pass"
 					? apiConfig.actModeClinePassModelId?.trim()
 					: undefined
-		const account = this.accountCloudModels()
-		const catalog = account?.models
 		// The local ClinePass provider also offers free models, which the cloud does not take.
 		const offered = catalog
 			? catalog.some((model) => model.id === local)
@@ -930,7 +930,10 @@ export class SdkCloudSessionCoordinator {
 		if (local && offered) {
 			return local
 		}
-		const firstPass = account?.subscribed ? catalog?.find((model) => model.catalogId === "cline-pass")?.id : undefined
+		const firstPass =
+			apiConfig.actModeApiProvider === "cline-pass"
+				? catalog?.find((model) => model.catalogId === "cline-pass")?.id
+				: undefined
 		return firstPass ?? CLINE_DEFAULT_MODEL_ID
 	}
 
