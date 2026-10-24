@@ -126,7 +126,7 @@ export function LocalModelIndicator({
 			<PopoverTrigger asChild>
 				<button
 					aria-label={`Local model: ${label}`}
-					className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-surface-hover data-[state=open]:bg-surface-hover"
+					className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-surface-hover data-[state=open]:bg-surface-hover group-data-[compact]/composer:size-7 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0"
 					title={
 						running
 							? `${selected} is loaded and using ${formatGb(running.sizeBytes)} of memory`
@@ -147,7 +147,7 @@ export function LocalModelIndicator({
 							)}
 						/>
 					</span>
-					<span className="max-[560px]:sr-only">{label}</span>
+					<span className="group-data-[compact]/composer:sr-only">{label}</span>
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
