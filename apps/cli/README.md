@@ -90,6 +90,7 @@ Cline CLI runs in a few different shapes depending on what you need:
 - JSON: `cline --json "..."` streams NDJSON events for piping into other tools
 - Yolo: `cline --yolo "..."` skips approval prompts and exits when the turn finishes
 - Zen: `cline --zen "..."` fires the task to the background hub daemon and exits immediately (see below)
+- Cloud (experimental): `cline --cloud "..."` sends the task to a new Cline Cloud session for this folder's GitHub repo and exits once it starts (see below)
 
 ## Headless mode for CI/CD
 
@@ -329,6 +330,23 @@ Behavior:
 - If the Cline menubar app is running, it subscribes to hub `ui.notify` events and will surface a system notification when the task completes.
 - If the menubar app is not running, there is no live UI for the task. Use `cline history` later to find the session and inspect the result.
 - `--zen` is incompatible with `--data-dir` (the implicit sandbox requires a local backend that exits with the CLI) and with `--tui` (there is no terminal UI to render into).
+
+## Cloud mode (experimental)
+
+With `CLINE_CLOUD_SESSIONS=1`, `--cloud` sends a task to a new Cline Cloud session and exits as soon as the sandbox accepts it. The task keeps running in the cloud, and the CLI prints a link to follow it.
+
+```sh
+cline --cloud "Fix the flaky retry test and open a PR"
+git diff | cline --cloud "Review this change"
+```
+
+Behavior:
+
+- The repository comes from this folder's git `origin`, which must be a GitHub repo your Cline account can access. The branch is your current branch if it exists on GitHub, otherwise the repo's default branch.
+- The model is your cloud pick from the TUI's `/model` if you made one, otherwise your local Cline or ClinePass model when the cloud offers it, otherwise ClinePass for ClinePass users or Cline's default usage-billed model.
+- Cloud sessions run in Act mode with tools auto-approved in their sandbox.
+- With `--json`, the CLI prints one `cloud_dispatched` line with the session ID, link, repository, branch and model.
+- `--cloud` can't be combined with `--tui`, `--id`, `--worktree`, or `--zen`.
 
 ## Tool approval
 

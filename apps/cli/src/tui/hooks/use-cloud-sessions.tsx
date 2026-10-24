@@ -4,10 +4,10 @@ import type {
 	CloudRepositoryOption,
 	CloudSessionSnapshot,
 } from "@cline/core/cloud";
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { resolveCloudModel } from "../../runtime/interactive/cloud-sessions";
 import open from "../../utils/open";
 import {
 	parseGitHubRepoFullName,
@@ -116,22 +116,11 @@ export function useCloudSessions(input: {
 	}, [client]);
 
 	const resolveModel = useCallback(async (): Promise<CloudModel> => {
-		const models = await loadModels();
-		const offered = (id: string | undefined) =>
-			id ? models.find((candidate) => candidate.id === id) : undefined;
-		// An explicit pick wins while the catalog still offers it. Otherwise the
-		// default is recomputed each time: the local Cline/ClinePass model if it's
-		// offered, then ClinePass for ClinePass users, then Cline's default
-		// usage-billed model.
-		const next =
-			offered(explicitModelId) ??
-			offered(localModelId) ??
-			(localProviderId === "cline-pass"
-				? models.find((candidate) => candidate.catalogId === "cline-pass")
-				: undefined) ??
-			offered(CLINE_DEFAULT_MODEL_ID) ??
-			models.find((candidate) => candidate.catalogId === "cline") ??
-			models[0];
+		const next = resolveCloudModel(await loadModels(), {
+			explicitModelId,
+			localModelId,
+			localProviderId,
+		});
 		if (!next)
 			throw new Error("No cloud models are available for this account.");
 		return next;
