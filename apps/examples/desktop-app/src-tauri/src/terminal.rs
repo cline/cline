@@ -223,8 +223,42 @@ pub fn terminal_spawn(
     }
 
     let id = options.id;
-    let reader_sessions = sessions.clone();
-    let reader_id = id.clone();
+
+    // Waits for the shell, then drops the session. Dropping the master is what
+    // ends the reader on Windows: ConPTY keeps the output pipe open until the
+    // pseudoconsole is closed, so EOF never arrives from the child exiting alone.
+    let (exit_tx, exit_rx) = channel::<Option<u32>>();
+    let waiter_sessions = sessions.clone();
+    let waiter_id = id.clone();
+    let waiter = std::thread::Builder::new()
+        .name(format!("pty-waiter-{id}"))
+        .spawn(move || {
+            let code = child.wait().ok().map(|status| status.exit_code());
+            let removed = {
+                let mut map = waiter_sessions.lock().unwrap_or_else(|e| e.into_inner());
+                if map
+                    .get(&waiter_id)
+                    .is_some_and(|session| session.generation == generation)
+                {
+                    map.remove(&waiter_id)
+                } else {
+                    None
+                }
+            };
+            drop(removed);
+            let _ = exit_tx.send(code);
+        });
+    if let Err(error) = waiter {
+        if let Some(mut session) = sessions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id)
+        {
+            let _ = session.killer.kill();
+        }
+        return Err(format!("Failed to start the terminal waiter: {error}"));
+    }
+
     std::thread::Builder::new()
         .name(format!("pty-reader-{id}"))
         .spawn(move || {
@@ -243,21 +277,14 @@ pub fn terminal_spawn(
                     }
                 }
             }
-            let code = child.wait().ok().map(|status| status.exit_code());
-            {
-                let mut map = reader_sessions.lock().unwrap_or_else(|e| e.into_inner());
-                if map
-                    .get(&reader_id)
-                    .is_some_and(|session| session.generation == generation)
-                {
-                    map.remove(&reader_id);
-                }
-            }
+            // Output is fully drained by now, so the exit lands after it.
+            let code = exit_rx.recv().ok().flatten();
             let _ = on_event.send(TerminalEvent::Exit { code });
         })
         .map_err(|error| {
             // Without a reader nobody would notice the shell exit; don't leave it running.
-            if let Some(mut session) = sessions
+            if let Some(mut session) = state
+                .sessions
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .remove(&id)
