@@ -350,10 +350,8 @@ ownership model settle.
 `@cline/sdk`: production releases use the npm `latest` tag and nightly builds
 use `nightly`. See [Publishing](../../CONTRIBUTING.md#publishing).
 
-Earlier standalone releases used `0.1.0` and `0.2.0-next.N`. Releases on the
-SDK version line are numerically lower than those, so consumers pinned to an
-earlier release should move with an explicit
-`bun add --exact '@cline/ui@<version>'` rather than `bun update`.
+Earlier standalone releases used `0.1.0` and `0.2.0-next.N`. The SDK moved to
+`0.2.0` when the UI joined it, so SDK releases continue that version line.
 
 ### 0.2.0-next.10 compatibility notes
 
