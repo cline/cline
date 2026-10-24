@@ -78,7 +78,10 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
-import { preserveRoutineCron } from "@/lib/routine-schedule-cron";
+import {
+	expandCronDays,
+	preserveRoutineCron,
+} from "@/lib/routine-schedule-cron";
 import { routineScheduleTimezone } from "@/lib/routine-schedule-timezone";
 import { cn } from "@/lib/utils";
 import {
@@ -412,37 +415,6 @@ function buildCronPattern(
 		return `${cronMinute} ${cronHour} * * *`;
 	}
 	return `${cronMinute} ${cronHour} * * ${normalizedDays.join(",")}`;
-}
-
-function expandCronDays(dayExpression: string | undefined): string[] {
-	const raw = dayExpression?.trim().toUpperCase();
-	if (!raw || raw === "*") {
-		return WEEKDAY_OPTIONS.map((option) => option.value);
-	}
-	const values = new Set<string>();
-	for (const part of raw.split(",")) {
-		const trimmed = part.trim();
-		if (!trimmed) continue;
-		const rangeMatch = /^([A-Z]{3})-([A-Z]{3})$/.exec(trimmed);
-		if (rangeMatch) {
-			const start = WEEKDAY_OPTIONS.findIndex(
-				(option) => option.value === rangeMatch[1],
-			);
-			const end = WEEKDAY_OPTIONS.findIndex(
-				(option) => option.value === rangeMatch[2],
-			);
-			if (start >= 0 && end >= start) {
-				for (let index = start; index <= end; index += 1) {
-					values.add(WEEKDAY_OPTIONS[index].value);
-				}
-			}
-			continue;
-		}
-		if (WEEKDAY_OPTIONS.some((option) => option.value === trimmed)) {
-			values.add(trimmed);
-		}
-	}
-	return normalizeScheduleDays([...values]);
 }
 
 function parseCronPattern(
