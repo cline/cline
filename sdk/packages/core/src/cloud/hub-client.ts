@@ -184,7 +184,7 @@ export class HubCloudSessionClient {
 					error.code !== "hub_command_timeout";
 				if (operation === "createAndSend" && dispatched && !rejected)
 					throw new CloudSessionError(
-						"request_unconfirmed",
+						"request_failed",
 						"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
 					);
 				throw error;

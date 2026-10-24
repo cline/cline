@@ -44,7 +44,7 @@ describe("summary handoff lifecycle", () => {
 		await h.lifecycle.onRpcRejected("local", {
 			handoffAttemptId,
 			error: new Error(
-				`CLOUD_SESSION_ERROR:${JSON.stringify({ code: "request_unconfirmed", message })}`,
+				`CLOUD_SESSION_ERROR:${JSON.stringify({ code: "request_failed", message })}`,
 			),
 			nextCommand: "Continue",
 			sourceAttachments: attachments,
@@ -57,7 +57,7 @@ describe("summary handoff lifecycle", () => {
 		});
 		expect(h.toast).toHaveBeenCalledWith(
 			expect.objectContaining({
-				title: "Check cloud tasks",
+				title: "Cloud request needs attention",
 				description: message,
 			}),
 		);

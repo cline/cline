@@ -9,7 +9,6 @@ export type CloudSessionError = {
 		| "session_not_found"
 		| "session_expired"
 		| "session_failed"
-		| "request_unconfirmed"
 		| "request_failed";
 	message: string;
 	connectUrl?: string;
@@ -50,7 +49,6 @@ export function parseCloudSessionError(
 			parsed.code !== "session_not_found" &&
 			parsed.code !== "session_expired" &&
 			parsed.code !== "session_failed" &&
-			parsed.code !== "request_unconfirmed" &&
 			parsed.code !== "request_failed"
 		) {
 			return null;

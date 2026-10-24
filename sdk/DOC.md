@@ -124,7 +124,8 @@ The callback does not confirm acceptance.
 `createAndSend(input, images?)` combines creation and the initial prompt, returning
 `{ target, send }`. A failed `send` includes `dispatched`; only `false` means the
 prompt can be retried on that target. Through `HubCloudSessionClient`, the operation survives viewer
-disconnects. A lost reply raises `request_unconfirmed`; check cloud tasks before retrying.
+disconnects. A lost reply raises `request_failed` with a warning that the task may
+have started; check cloud tasks before retrying.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 

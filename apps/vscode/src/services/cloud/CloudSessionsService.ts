@@ -137,7 +137,6 @@ export class CloudSessionsService {
 					session_expired: 410,
 					github_not_connected: 412,
 					session_failed: undefined,
-					request_unconfirmed: undefined,
 					request_failed: undefined,
 				}[error.code]
 			throw new CloudSessionError(error.code, error.detail, error.connectUrl, status)

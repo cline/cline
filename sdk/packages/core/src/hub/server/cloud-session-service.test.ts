@@ -273,7 +273,11 @@ describe("hub-owned cloud sessions", () => {
 		expect(failure).toBeInstanceOf(Error);
 		expect(failure).not.toBeInstanceOf(CloudSendError);
 		if (operation === "createAndSend")
-			expect(failure).toMatchObject({ code: "request_unconfirmed" });
+			expect(failure).toMatchObject({
+				code: "request_failed",
+				detail:
+					"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
+			});
 		expect(f.controllers[0]?.controller.send).toHaveBeenCalledOnce();
 	});
 
@@ -707,7 +711,7 @@ describe("cloud RPC over a shared hub socket", () => {
 			});
 			await viewer.dispose();
 			await client.dispose();
-			expect(await created).toMatchObject({ code: "request_unconfirmed" });
+			expect(await created).toMatchObject({ code: "request_failed" });
 			provisioning.resolve({ sessionId: "ses-one", status: "ready" });
 			await vi.waitFor(() =>
 				expect(controller.send).toHaveBeenCalledExactlyOnceWith(
