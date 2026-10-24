@@ -2186,16 +2186,15 @@ const ModelSelector = memo(function ModelSelector({
 		}
 	}, [lastSelection, persistSelection]);
 
+	// A selection made mid-turn waits for the turn to end.
+	const pendingSelectionRef = useRef<ModelSelectionChangedDetail | null>(null);
 	useEffect(() => {
 		if (includeCloudModels) return;
 		const handleSelectionChanged = (event: Event) => {
-			const { providerId, modelId } = (
+			pendingSelectionRef.current = (
 				event as CustomEvent<ModelSelectionChangedDetail>
 			).detail;
 			setLastSelection(readModelSelectionStorageFromWindow());
-			if (isBusy) return;
-			onProviderChange(providerId);
-			onModelChange(modelId);
 		};
 		window.addEventListener(
 			MODEL_SELECTION_CHANGED_EVENT,
@@ -2206,7 +2205,14 @@ const ModelSelector = memo(function ModelSelector({
 				MODEL_SELECTION_CHANGED_EVENT,
 				handleSelectionChanged,
 			);
-	}, [includeCloudModels, isBusy, onModelChange, onProviderChange]);
+	}, [includeCloudModels]);
+	useEffect(() => {
+		const pending = pendingSelectionRef.current;
+		if (isBusy || !pending) return;
+		pendingSelectionRef.current = null;
+		onProviderChange(pending.providerId);
+		onModelChange(pending.modelId);
+	}, [isBusy, lastSelection, onModelChange, onProviderChange]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
