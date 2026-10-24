@@ -99,6 +99,7 @@ describe("SDK remote-config coordination", () => {
 				getCurrentTaskInfo: () => undefined,
 				getCloudModelId: () => "cloud-model",
 				nextCloudModelId: () => "cloud-model",
+				clinePassSubscribed: () => undefined,
 			},
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => minter },

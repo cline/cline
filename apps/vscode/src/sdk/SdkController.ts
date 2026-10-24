@@ -729,6 +729,9 @@ export class Controller {
 			telemetry: this.sdkTelemetry.telemetry,
 			pendingStartsDir: path.join(resolveDataDirFromEnv(), "cloud-pending-starts"),
 			getAccountScope,
+			// ClinePass bills the personal account; organization cloud sessions don't get it.
+			checkClinePassSubscription: async () =>
+				this.authService.getActiveOrganizationId() ? false : this.accountService.fetchClinePassSubscribedRPC(),
 		})
 		// Every account change, whichever path requests it, tears down the
 		// previous account's cloud task and connections first and holds cloud
@@ -2700,6 +2703,7 @@ export class Controller {
 				currentCloudTask,
 				cloudModelId: isCloudSessionsFeatureEnabled() || currentCloudTask ? this.cloud.getCloudModelId() : undefined,
 				nextCloudModelId: isCloudSessionsFeatureEnabled() || currentCloudTask ? this.cloud.nextCloudModelId() : undefined,
+				clinePassSubscribed: isCloudSessionsFeatureEnabled() ? this.cloud.clinePassSubscribed() : undefined,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

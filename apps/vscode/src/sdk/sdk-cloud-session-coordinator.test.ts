@@ -782,6 +782,46 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		resetClineRecommendedModelsCacheForTests()
 	})
 
+	it("defaults a ClinePass subscriber to ClinePass once the plan check answers, unless a cloud model was picked", async () => {
+		resetClineRecommendedModelsCacheForTests()
+		vi.spyOn(ClineEnv, "config").mockReturnValue({ apiBaseUrl: "https://api.cline-test.bot" } as ReturnType<
+			typeof ClineEnv.config
+		>)
+		vi.spyOn(sdkCore, "fetchClineRecommendedModels").mockResolvedValue({
+			recommended: [{ id: "usage/model", name: "Usage", description: "", tags: [] }],
+			free: [],
+			clinePass: [{ id: "cline-pass/first", name: "First", description: "", tags: [] }],
+		})
+		const plan = deferred<boolean | undefined>()
+		const globalState: Record<string, unknown> = {}
+		let apiConfig: Record<string, unknown> = { actModeApiProvider: "anthropic" }
+		const { coordinator, options } = makeCoordinator({
+			stateManager: { ...makeStateManager(globalState), getApiConfiguration: () => apiConfig } as never,
+			getAccountScope: () => "user-1:",
+			checkClinePassSubscription: vi.fn(() => plan.promise),
+		})
+
+		coordinator.nextCloudModelId()
+		await vi.waitFor(() => expect(coordinator.nextCloudModelId()).toBe("usage/model"))
+		vi.mocked(options.postStateToWebview).mockClear()
+		plan.resolve(true)
+		await vi.waitFor(() => expect(coordinator.clinePassSubscribed()).toBe(true))
+		expect(options.postStateToWebview).toHaveBeenCalledTimes(1)
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
+		expect(options.checkClinePassSubscription).toHaveBeenCalledTimes(1)
+
+		// The local ClinePass pick carries over; its free models don't run in the cloud.
+		apiConfig = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-pass/local" }
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/local")
+		apiConfig = { actModeApiProvider: "cline-pass", actModeClinePassModelId: "cline-free/local" }
+		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
+
+		globalState.cloudModelId = "usage/picked"
+		expect(coordinator.nextCloudModelId()).toBe("usage/picked")
+		await coordinator.dispose()
+		resetClineRecommendedModelsCacheForTests()
+	})
+
 	it("refuses to connect when the control plane omits the canonical task id", async () => {
 		const withoutTaskId = { ...record, metadata: { modelId: "fixture-model" } }
 		const { coordinator, cloudSessions, options } = makeCoordinator()

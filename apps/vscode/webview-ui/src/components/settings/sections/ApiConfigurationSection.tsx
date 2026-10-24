@@ -1,13 +1,13 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { CloudIcon, MonitorIcon, Sparkles } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useClinePassPromo } from "@/hooks/useClinePassPromo"
-import { AccountServiceClient, CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { TargetButton } from "../../cloud/TaskTargetPanel"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
 import ApiOptions from "../ApiOptions"
@@ -134,29 +134,11 @@ const LocalModelSettings = ({ initialModelTab }: Pick<ApiConfigurationSectionPro
 }
 
 const CloudModelSettings = () => {
-	const { nextCloudModelId, cloudModelId, currentCloudTask } = useExtensionState()
-	const { activeOrganization, clineUser } = useClineAuth()
+	const { nextCloudModelId, cloudModelId, currentCloudTask, clinePassSubscribed } = useExtensionState()
+	const { activeOrganization } = useClineAuth()
 	const { isClinePassEnabled, openSubscribePage } = useClinePassPromo()
 	const includeClinePass = isClinePassEnabled && !activeOrganization
-	const signedInUserId = clineUser?.uid
-	const [clinePassSubscribed, setClinePassSubscribed] = useState<boolean>()
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
-
-	useEffect(() => {
-		setClinePassSubscribed(undefined)
-		if (!includeClinePass || !signedInUserId) {
-			return
-		}
-		let cancelled = false
-		AccountServiceClient.getClinePassSubscription(EmptyRequest.create())
-			.then((response) => {
-				if (!cancelled) setClinePassSubscribed(response.subscribed)
-			})
-			.catch((error) => console.error("Failed to check ClinePass subscription:", error))
-		return () => {
-			cancelled = true
-		}
-	}, [includeClinePass, signedInUserId])
 
 	return (
 		<>

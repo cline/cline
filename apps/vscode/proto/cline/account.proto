@@ -57,14 +57,6 @@ service AccountService {
   // Submits a spend limit increase request to the user's org admin.
   // Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
   rpc submitLimitIncreaseRequest(EmptyRequest) returns (SubmitLimitIncreaseResponse);
-
-  // Whether the signed-in user has a ClinePass subscription
-  rpc getClinePassSubscription(EmptyRequest) returns (ClinePassSubscription);
-}
-
-message ClinePassSubscription {
-  // Unset when the subscription could not be checked
-  optional bool subscribed = 1;
 }
 
 message AuthStateChangedRequest {

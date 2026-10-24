@@ -159,6 +159,8 @@ export interface ExtensionState {
 	cloudModelId?: string
 	/** Cline model a new cloud task would run on; Settings edits this one. */
 	nextCloudModelId?: string
+	/** Whether the account has ClinePass for cloud tasks; unset until checked, or when the check failed. */
+	clinePassSubscribed?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }
 

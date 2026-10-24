@@ -202,6 +202,8 @@ export interface SdkCloudSessionCoordinatorOptions {
 	pendingStartsDir?: string
 	/** Identity of the active account (user and organization), so recovery acts only for the account that started a sandbox. */
 	getAccountScope?: () => string | undefined
+	/** Whether the active account can use ClinePass models in the cloud; undefined when that could not be checked. */
+	checkClinePassSubscription?: () => Promise<boolean | undefined>
 }
 
 interface CloudSessionEntry {
@@ -249,6 +251,8 @@ export class SdkCloudSessionCoordinator {
 	/** The one recommendation fetch started for the composer label; see warmRecommendedModels. */
 	private recommendedModelsWarmup: Promise<unknown> | undefined
 	private recommendedModelsRetryAt = 0
+	/** The ClinePass check for one account scope; `subscribed` stays unset until it settles with an answer. */
+	private clinePassPlan: { scope: string; subscribed?: boolean } | undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 	private readonly statusResolutionAttempts = new Map<string, number>()
@@ -905,9 +909,11 @@ export class SdkCloudSessionCoordinator {
 
 	/**
 	 * The Cline model a new sandbox runs: the cloud model picked in Settings,
-	 * else the user's Act-mode Cline model, else the top recommendation known
-	 * so far. Synchronous, and the only source for both the composer label and
-	 * the start path, so the sandbox runs the model the user saw when they submitted.
+	 * else the user's Act-mode Cline model, else for a ClinePass subscriber
+	 * their Act-mode ClinePass model or the first ClinePass recommendation,
+	 * else the top recommendation known so far. Synchronous, and the only
+	 * source for both the composer label and the start path, so the sandbox
+	 * runs the model the user saw when they submitted.
 	 */
 	nextCloudModelId(): string {
 		const chosen = this.options.stateManager.getGlobalStateKey("cloudModelId")?.trim()
@@ -919,8 +925,46 @@ export class SdkCloudSessionCoordinator {
 			return apiConfig.actModeClineModelId.trim()
 		}
 		this.warmRecommendedModels()
-		const recommended = getCachedClineRecommendedModels() ?? CLINE_RECOMMENDED_MODELS_FALLBACK
+		const cached = getCachedClineRecommendedModels()
+		if (this.clinePassSubscribed()) {
+			// The local ClinePass provider also offers free models, which the cloud does not take.
+			const localPass =
+				apiConfig.actModeApiProvider === "cline-pass" ? apiConfig.actModeClinePassModelId?.trim() : undefined
+			const pass = localPass?.startsWith("cline-pass/") ? localPass : cached?.clinePass?.[0]?.id
+			if (pass) {
+				return pass
+			}
+		}
+		const recommended = cached ?? CLINE_RECOMMENDED_MODELS_FALLBACK
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
+	}
+
+	/**
+	 * Whether the active account has ClinePass, as far as is known now. The
+	 * first read for an account starts the check and posts state when it
+	 * answers, so the composer label and Settings catch up. A failed check is
+	 * not retried until the account changes.
+	 */
+	clinePassSubscribed(): boolean | undefined {
+		const scope = this.options.getAccountScope?.()
+		const check = this.options.checkClinePassSubscription
+		if (!scope || !check) {
+			return undefined
+		}
+		if (this.clinePassPlan?.scope === scope) {
+			return this.clinePassPlan.subscribed
+		}
+		const plan: { scope: string; subscribed?: boolean } = { scope }
+		this.clinePassPlan = plan
+		check()
+			.catch(() => undefined)
+			.then((subscribed) => {
+				plan.subscribed = subscribed
+				if (!this.disposed && this.clinePassPlan === plan && subscribed !== undefined) {
+					this.options.postStateToWebview().catch(() => {})
+				}
+			})
+		return undefined
 	}
 
 	/**
