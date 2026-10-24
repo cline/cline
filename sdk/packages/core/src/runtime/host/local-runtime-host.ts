@@ -1878,10 +1878,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		session.agent.updateConnection(updates);
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
-		// Keep the persisted manifest in sync so session history reflects the
-		// connection the session is now using, not the one it started with.
+		// Persist the row and manifest together in selection order; inactive reads
+		// prefer the row, while restored artifacts can fall back to the manifest.
 		if (updates.providerId || updates.modelId) {
-			await this.mutateSessionManifest(session, (manifest) => {
+			await this.mutateSessionManifest(session, async (manifest) => {
+				await this.invoke<void>("updateSessionModelSelection", {
+					sessionId,
+					provider: updates.providerId,
+					model: updates.modelId,
+				});
 				if (updates.providerId) manifest.provider = updates.providerId;
 				if (updates.modelId) manifest.model = updates.modelId;
 			});
@@ -1898,7 +1903,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	 */
 	private async mutateSessionManifest(
 		session: ActiveSession,
-		mutate: (manifest: SessionManifest) => void,
+		mutate: (manifest: SessionManifest) => void | Promise<void>,
 	): Promise<SessionManifest | undefined> {
 		const artifacts = session.artifacts;
 		if (!artifacts) return undefined;
@@ -1911,7 +1916,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					"readSessionManifest",
 					sessionId,
 				)) ?? artifacts.manifest;
-			mutate(latest);
+			await mutate(latest);
 			artifacts.manifest = latest;
 			await this.invoke<void>(
 				"writeSessionManifest",
