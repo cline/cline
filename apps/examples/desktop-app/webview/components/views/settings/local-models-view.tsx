@@ -64,6 +64,7 @@ import {
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
+import { InUseBadge } from "./in-use-badge";
 import { LocalModelDetailsDialog } from "./local-model-details-dialog";
 import { LocalRuntimeSetup } from "./local-runtime-setup";
 
@@ -774,6 +775,7 @@ export function LocalModelsContent() {
 						to switch Cline to it with the right settings.
 					</>
 				}
+				meta={<InUseBadge section="Local Models" />}
 				title="Local Models"
 			/>
 			<section className="flex max-w-3xl flex-col gap-6">
@@ -932,7 +934,7 @@ export function LocalModelsContent() {
 							idle.
 						</>
 					)}{" "}
-					The server URL can be changed under Providers → {runtimeName}.
+					The server URL can be changed under Providers → BYOK → {runtimeName}.
 				</p>
 			</section>
 

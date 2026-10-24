@@ -1303,6 +1303,49 @@ describe("AgentSidebar session organization", () => {
 		).toBeNull();
 	});
 
+	it("groups Cline Account, Local, and BYOK under a Providers row", async () => {
+		const onSettingsSectionChange = vi.fn();
+		const renderSidebar = async (
+			section: "General" | "Local Models",
+		): Promise<ParentNode> => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								onHome={vi.fn()}
+								onSettingsSectionChange={onSettingsSectionChange}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection={section}
+								view="settings"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+			return container.querySelector(
+				'[aria-label="Settings sections"]',
+			) as ParentNode;
+		};
+
+		const closedNav = await renderSidebar("General");
+		expect(closedNav.querySelector('[aria-label="BYOK"]')).toBeNull();
+		await click(buttonWithText("Providers", closedNav));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Account");
+
+		const openNav = await renderSidebar("Local Models");
+		expect(buttonWithText("Local", openNav).getAttribute("aria-current")).toBe(
+			"page",
+		);
+		expect(buttonWithText("Providers", openNav).className.split(" ")).toContain(
+			"bg-surface-hover-lighter",
+		);
+		await click(buttonWithText("BYOK", openNav));
+		expect(onSettingsSectionChange).toHaveBeenCalledWith("Providers");
+	});
+
 	it("highlights the New row only while the new-task page is active", async () => {
 		const renderSidebar = async (newTaskActive: boolean) => {
 			await act(async () => {
