@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	CLINE_DEFAULT_MODEL_ID,
-	type ProviderAuthInfo,
-} from "@cline/shared/browser";
+import type { ProviderAuthInfo } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
 import { Loader2, LoaderCircle, SquareTerminal } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -57,7 +54,10 @@ import {
 } from "@/components/window-title-bar";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	getInitialChatConfig,
+	getInitialCloudModel,
+} from "@/hooks/chat-session/constants";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useHubStartup } from "@/hooks/use-hub-startup";
@@ -107,11 +107,7 @@ import {
 } from "@/lib/keybindings";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import { createLocalEnvironmentSelection } from "@/lib/local-environment-selection";
-import {
-	readModelSelectionStorageFromWindow,
-	writeExecutionTargetToWindow,
-	writeModelSelectionStorageToWindow,
-} from "@/lib/model-selection";
+import { writeExecutionTargetToWindow } from "@/lib/model-selection";
 import {
 	hasCompletedOnboarding,
 	markOnboardingCompleted,
@@ -2343,14 +2339,11 @@ function ChatThreadPane({
 						workspaceRoot: prev.workspaceRoot,
 						cwd: prev.cwd,
 					};
-					const remembered = readModelSelectionStorageFromWindow("cloud");
 					return {
 						...prev,
 						executionTarget: "cloud",
 						provider: "cline",
-						model:
-							remembered.lastModelByProvider.cline ||
-							(prev.provider === "cline" ? prev.model : CLINE_DEFAULT_MODEL_ID),
+						model: getInitialCloudModel(prev.provider, prev.model),
 						apiKey: providerCredentials.cline?.apiKey ?? "",
 						workspaceRoot: "",
 						cwd: "",
@@ -2464,25 +2457,11 @@ function ChatThreadPane({
 	}, [abort]);
 	const handleModelChange = useCallback(
 		(nextModel: string) => {
-			// The shared model picker only persists Local selections.
-			if (config.executionTarget === "cloud") {
-				try {
-					writeModelSelectionStorageToWindow(
-						{
-							lastProvider: "cline",
-							lastModelByProvider: { cline: nextModel },
-						},
-						"cloud",
-					);
-				} catch {
-					// Ignore localStorage persistence failures.
-				}
-			}
 			setConfig((prev) =>
 				prev.model === nextModel ? prev : { ...prev, model: nextModel },
 			);
 		},
-		[config.executionTarget, setConfig],
+		[setConfig],
 	);
 	const handleModeToggle = useCallback(
 		() =>

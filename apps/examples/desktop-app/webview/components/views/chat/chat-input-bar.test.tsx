@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import {
 	act,
 	Fragment,
@@ -17,6 +18,7 @@ import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
 	REASONING_SELECTION_STORAGE_KEY,
+	readModelSelectionStorageFromWindow,
 } from "@/lib/model-selection";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
@@ -1075,6 +1077,10 @@ describe("ChatInputBar", () => {
 		expect(container.textContent).not.toContain("Local only");
 		await act(async () => alternateModel?.click());
 		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "cline",
+			lastModelByProvider: { cline: "cline-alt" },
+		});
 		for (const [label, model] of [
 			["ClinePass", "cline-pass/pass-model"],
 			["ClineFree", "cline-cloud/free-model"],
@@ -1101,6 +1107,113 @@ describe("ChatInputBar", () => {
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
 			),
 		).toEqual(localSelection);
+	});
+
+	it.each([
+		["an offered model", "cline-test", true, "cline-pass", undefined],
+		[
+			"a local ClinePass free model",
+			"cline-free/free-model",
+			true,
+			"cline-pass",
+			"cline-pass/first-pass",
+		],
+		[
+			"an unoffered model for a local Cline user",
+			"cline-pass/retired",
+			true,
+			"cline",
+			CLINE_DEFAULT_MODEL_ID,
+		],
+		[
+			"a local ClinePass model on an organization account",
+			"cline-pass/retired",
+			false,
+			"cline-pass",
+			CLINE_DEFAULT_MODEL_ID,
+		],
+	])("starts a new cloud chat on %s", async (_label, model, hasPass, localProvider, expected) => {
+		window.localStorage.clear();
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: localProvider,
+				lastModelByProvider: { [localProvider]: model },
+			}),
+		);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: hasPass
+				? ["cline", "cline-pass", "cline-cloud"]
+				: ["cline", "cline-cloud"],
+			providerModels: {
+				cline: ["cline-test", CLINE_DEFAULT_MODEL_ID],
+				"cline-pass": hasPass
+					? ["cline-pass/first-pass", "cline-pass/second-pass"]
+					: [],
+				"cline-cloud": ["cline-cloud/free-model"],
+			},
+			providerReasoningModels: {},
+		});
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						environmentId="local"
+						attachments={[]}
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession={false}
+						mode="act"
+						model={model}
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() =>
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
+		);
+		await act(async () => await Promise.resolve());
+		if (expected) {
+			await vi.waitFor(() =>
+				expect(onModelChange).toHaveBeenLastCalledWith(expected),
+			);
+		} else {
+			expect(onModelChange).not.toHaveBeenCalled();
+		}
+		// Automatic choices stay defaults; only explicit picks are remembered.
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "",
+			lastModelByProvider: {},
+		});
 	});
 
 	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
