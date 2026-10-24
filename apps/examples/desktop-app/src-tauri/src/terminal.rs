@@ -336,6 +336,13 @@ pub fn terminal_resize(
         .map_err(|error| error.to_string())
 }
 
+/// Called when the webview loads: tabs from a previous page load are gone, so
+/// any shell still running belongs to nobody and could never be reached again.
+#[tauri::command]
+pub fn terminal_kill_all(state: State<'_, TerminalState>) {
+    state.kill_all();
+}
+
 #[tauri::command]
 pub fn terminal_kill(state: State<'_, TerminalState>, id: String) {
     let removed = state

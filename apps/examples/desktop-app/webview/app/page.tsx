@@ -392,7 +392,17 @@ function App() {
 		height: 280,
 	});
 	useEffect(() => {
-		setTerminalAvailable(isTauriAvailable());
+		if (isTauriAvailable()) {
+			// A reload discards every tab, so shells from the previous page load
+			// are unreachable. Reap them before offering the terminal, or a
+			// restored panel's new shell could be caught by the reap.
+			void import("@tauri-apps/api/core")
+				.then(({ invoke }) => invoke("terminal_kill_all"))
+				.catch(() => {
+					// Nothing to reap.
+				})
+				.finally(() => setTerminalAvailable(true));
+		}
 		const stored = readTerminalPanelState();
 		setTerminalPanel({
 			...stored,

@@ -1708,7 +1708,8 @@ fn main() {
             terminal::terminal_spawn,
             terminal::terminal_write,
             terminal::terminal_resize,
-            terminal::terminal_kill
+            terminal::terminal_kill,
+            terminal::terminal_kill_all
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
