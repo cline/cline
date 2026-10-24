@@ -5,6 +5,11 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
+import {
+	type DotHooshModelsPayload,
+	mapDotHooshModels,
+	pickDotHooshDefaultModel,
+} from "./dothoosh-models";
 import type {
 	ModelCatalogConfig,
 	ModelInfo,
@@ -536,6 +541,48 @@ async function fetchPoolsidePrivateModels(
 	return models;
 }
 
+/** Linear-time trailing "/" trim; a /\/+$/ regex is quadratic on long slash runs. */
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) {
+		end -= 1;
+	}
+	return value.slice(0, end);
+}
+
+async function fetchDotHooshPrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl =
+		normalizeBaseUrl(config.baseUrl) || "https://gateway.dothoosh.com/v1";
+	const endpoint = `${trimTrailingSlashes(baseUrl)}/models`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`DotHoosh model refresh failed: HTTP ${response.status}`);
+	}
+	let payload: unknown;
+	try {
+		payload = await response.json();
+	} catch {
+		throw new Error("DotHoosh model refresh failed: response is not JSON");
+	}
+	// A 200 that is not a usable listing (error envelope, wrong shape, empty
+	// list) is an outage, not an empty catalog: throwing keeps it out of the
+	// model cache so the next refresh retries.
+	const models = mapDotHooshModels(payload as DotHooshModelsPayload);
+	if (Object.keys(models).length === 0) {
+		throw new Error("DotHoosh model refresh failed: listing has no models");
+	}
+	return models;
+}
+
 interface LiteLlmModelInfoResponse {
 	model_name?: string;
 	litellm_params?: {
@@ -657,6 +704,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	PrivateProviderModelFetcher
 > = {
 	baseten: fetchBasetenPrivateModels,
+	dothoosh: fetchDotHooshPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
@@ -992,6 +1040,14 @@ export async function resolveProviderConfig(
 
 		return {
 			...defaults,
+			// DotHoosh has no bundled default: the first usable model of the live
+			// catalog is the default, so it can never point at a retired id.
+			...(providerId === "dothoosh" && !privateModels[defaults.modelId]
+				? {
+						modelId:
+							pickDotHooshDefaultModel(privateModels) ?? defaults.modelId,
+					}
+				: {}),
 			knownModels,
 		};
 	} catch (error) {

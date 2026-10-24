@@ -18,6 +18,7 @@ afterEach(() => {
 describe("isPrivateModelCatalogProvider", () => {
 	it.each([
 		"baseten",
+		"dothoosh",
 		"hicap",
 		"litellm",
 		"poolside",
@@ -709,6 +710,232 @@ describe("resolveProviderConfig", () => {
 				status: "active",
 			}),
 		);
+	});
+
+	it("loads DotHoosh models and per-million prices from the gateway", async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({
+				object: "list",
+				data: [
+					{
+						id: "gpt-5",
+						context_length: 400_000,
+						max_output_tokens: 50_000,
+						pricing: { prompt: "0.00000125", completion: "0.00001" },
+						supported_parameters: ["tools"],
+					},
+				],
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"dothoosh",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "dothoosh",
+				modelId: "gpt-5",
+				apiKey: "dh-key",
+				baseUrl: "https://gateway.dothoosh.com/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://gateway.dothoosh.com/v1/models",
+			expect.objectContaining({
+				headers: expect.objectContaining({ Authorization: "Bearer dh-key" }),
+			}),
+		);
+		expect(resolved?.knownModels?.["gpt-5"]).toEqual(
+			expect.objectContaining({
+				contextWindow: 400_000,
+				maxTokens: 50_000,
+				pricing: { input: 1.25, output: 10 },
+			}),
+		);
+	});
+
+	it.each([
+		["no trailing slash", "https://gateway.dothoosh.com/v1"],
+		["one trailing slash", "https://gateway.dothoosh.com/v1/"],
+		["several trailing slashes", "https://gateway.dothoosh.com/v1///"],
+	])("builds the DotHoosh listing URL from a base URL with %s", async (_name, baseUrl) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ data: [{ id: "gpt-5" }] }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await resolveProviderConfig(
+			"dothoosh",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{ providerId: "dothoosh", modelId: "gpt-5", apiKey: "dh-key", baseUrl },
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://gateway.dothoosh.com/v1/models",
+			expect.anything(),
+		);
+	});
+
+	it("trims DotHoosh base URL slashes in linear time on adversarial input", async () => {
+		// A regex such as /\/+$/ backtracks quadratically on a long run of
+		// slashes that is not at the end of the string (CodeQL js/polynomial-redos).
+		const baseUrl = `https://gateway.dothoosh.com/v1${"/".repeat(50_000)}x`;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ data: [{ id: "gpt-5" }] })),
+		);
+
+		const startedAt = performance.now();
+		await resolveProviderConfig(
+			"dothoosh",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{ providerId: "dothoosh", modelId: "gpt-5", apiKey: "dh-key", baseUrl },
+		);
+
+		expect(performance.now() - startedAt).toBeLessThan(500);
+	});
+
+	it("derives the default DotHoosh model from the live listing", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					data: [
+						{
+							id: "retired",
+							status: "deprecated",
+							supported_parameters: ["tools"],
+						},
+						{ id: "live-first", supported_parameters: ["tools"] },
+						{ id: "live-second", supported_parameters: ["tools"] },
+					],
+				}),
+			),
+		);
+		const resolved = await resolveProviderConfig(
+			"dothoosh",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "dothoosh",
+				modelId: "default",
+				apiKey: "dh-key",
+				baseUrl: "https://gateway.dothoosh.com/v1",
+			},
+		);
+		expect(resolved?.modelId).toBe("live-first");
+		expect(Object.keys(resolved?.knownModels ?? {})).toContain("live-first");
+	});
+
+	it("surfaces a failed DotHoosh refresh instead of an empty list", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("nope", { status: 503 })),
+		);
+		await expect(
+			resolveProviderConfig(
+				"dothoosh",
+				{ failOnError: true, cacheTtlMs: 0 },
+				{ providerId: "dothoosh", modelId: "x", apiKey: "k" },
+			),
+		).rejects.toThrow(/DotHoosh model refresh failed: HTTP 503/);
+	});
+
+	describe("DotHoosh listing validation", () => {
+		const dothooshConfig = {
+			providerId: "dothoosh" as const,
+			modelId: "x",
+			apiKey: "dh-key",
+			baseUrl: "https://gateway.dothoosh.com/v1",
+		};
+		const resolveStrict = () =>
+			resolveProviderConfig(
+				"dothoosh",
+				{ failOnError: true, cacheTtlMs: 0 },
+				dothooshConfig,
+			);
+
+		it.each([
+			["an error envelope", { error: { message: "upstream down" } }],
+			["a null body", null],
+			["a data field that is not a list", { data: "nope" }],
+			["an empty data list", { object: "list", data: [] }],
+			["entries that all lack an id", { data: [{ id: " " }, {}, null] }],
+		])("treats %s as a failed refresh, never as an empty catalog", async (_name, body) => {
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => Response.json(body)),
+			);
+			await expect(resolveStrict()).rejects.toThrow(
+				/DotHoosh model refresh failed/,
+			);
+		});
+
+		it("treats a non-JSON body as a failed refresh", async () => {
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => new Response("<html>bad gateway</html>")),
+			);
+			await expect(resolveStrict()).rejects.toThrow(
+				/DotHoosh model refresh failed/,
+			);
+		});
+
+		it("does not cache a malformed listing as the catalog", async () => {
+			const fetchMock = vi
+				.fn()
+				.mockResolvedValueOnce(Response.json({ error: "boom" }))
+				.mockResolvedValueOnce(
+					Response.json({ data: [{ id: "gpt-5", context_length: 400_000 }] }),
+				);
+			vi.stubGlobal("fetch", fetchMock);
+			const config = { failOnError: false, cacheTtlMs: 60_000 };
+			const first = await resolveProviderConfig(
+				"dothoosh",
+				config,
+				dothooshConfig,
+			);
+			expect(first?.knownModels?.["gpt-5"]).toBeUndefined();
+			const second = await resolveProviderConfig(
+				"dothoosh",
+				config,
+				dothooshConfig,
+			);
+			expect(second?.knownModels?.["gpt-5"]).toBeDefined();
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it("keeps the live context window, caps and base prices through the merge", async () => {
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () =>
+					Response.json({
+						data: [
+							{
+								id: "claude-haiku-5-5",
+								context_length: 1_000_000,
+								max_output_tokens: 64_000,
+								pricing: { prompt: "0.000001", completion: "0.000005" },
+								pricing_tiers: [
+									{
+										above_input_tokens: 100_000,
+										pricing: { prompt: "0.000002", completion: "0.00001" },
+									},
+								],
+							},
+						],
+					}),
+				),
+			);
+			const resolved = await resolveStrict();
+			const model = resolved?.knownModels?.["claude-haiku-5-5"];
+			expect(model?.contextWindow).toBe(1_000_000);
+			expect(model?.maxInputTokens).toBe(1_000_000);
+			expect(model?.maxTokens).toBe(64_000);
+			// Cline prices have no tier slot: the base (lowest) tier stays, a
+			// higher tier never overwrites it.
+			expect(model?.pricing).toEqual({ input: 1, output: 5 });
+		});
 	});
 
 	it("falls back to /model/info for LiteLLM private models", async () => {
