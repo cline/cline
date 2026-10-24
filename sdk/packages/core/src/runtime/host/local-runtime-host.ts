@@ -164,6 +164,11 @@ import {
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
 
+type InitializedSession = {
+	active: ActiveSession;
+	started: StartSessionResult;
+};
+
 const MAX_SCAN_LIMIT = 5000;
 
 // Detached-log retention timers are process-local and intentionally unref'd.
@@ -305,7 +310,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly sessions = new Map<string, ActiveSession>();
 	private readonly startingSessions = new Map<
 		string,
-		Promise<StartSessionResult>
+		Promise<InitializedSession>
 	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
@@ -533,7 +538,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 						workspaceRoot: existingResumeManifest.workspace_root,
 					}
 				: await resolveStartSessionWorkspace(input.config);
-			return await this.startResolvedSession(
+			return await this.initializeSession(
 				{ ...input, config },
 				sessionId,
 				requestedSessionId.length > 0,
@@ -541,19 +546,66 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 		});
 		this.startingSessions.set(sessionId, starting);
+		let initialized: InitializedSession;
 		try {
-			return await starting;
+			initialized = await starting;
 		} finally {
 			this.startingSessions.delete(sessionId);
 		}
+		const { active, started } = initialized;
+		let result: AgentResult | undefined;
+		try {
+			if (input.prompt?.trim()) {
+				result = await this.executeTurn(active, {
+					prompt: input.prompt,
+					userImages: input.userImages,
+					userFiles: input.userFiles,
+				});
+				if (!active.interactive) {
+					await this.finalizeSingleRun(active, result.finishReason);
+				} else {
+					await this.completeInteractiveTurn(active, result.finishReason);
+				}
+			}
+		} catch (error) {
+			if (active.interactive && active.aborting) {
+				result = await this.completeAbortedInteractiveTurn(active);
+			} else {
+				captureSdkError(active.config.telemetry, {
+					component: "core",
+					operation: "session.start",
+					error,
+					severity: "error",
+					handled: false,
+					context: {
+						sessionId: active.sessionId,
+						providerId: active.config.providerId,
+						modelId: active.config.modelId,
+					},
+				});
+				try {
+					await this.failSession(active);
+				} catch (cleanupError) {
+					// Never let cleanup failures mask the error that actually
+					// killed the turn; that one is what callers must see.
+					active.config.logger?.error?.("Session failure cleanup threw", {
+						sessionId: active.sessionId,
+						error: cleanupError,
+					});
+				}
+				throw error;
+			}
+		}
+
+		return { ...started, result };
 	}
 
-	private async startResolvedSession(
+	private async initializeSession(
 		input: ResolvedStartSessionInput,
 		sessionId: string,
 		wasSessionIdRequested: boolean,
 		existingResumeManifest?: SessionManifest,
-	): Promise<StartSessionResult> {
+	): Promise<InitializedSession> {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
 		const startInput: ResolvedStartSessionInput =
@@ -1156,59 +1208,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		this.emitStatus(sessionId, active.status);
 
-		let result: AgentResult | undefined;
-		try {
-			if (startInput.prompt?.trim()) {
-				result = await this.executeTurn(active, {
-					prompt: startInput.prompt,
-					userImages: startInput.userImages,
-					userFiles: startInput.userFiles,
-				});
-				if (!active.interactive) {
-					await this.finalizeSingleRun(active, result.finishReason);
-				} else {
-					await this.completeInteractiveTurn(active, result.finishReason);
-				}
-			}
-		} catch (error) {
-			if (active.interactive && active.aborting) {
-				result = await this.completeAbortedInteractiveTurn(active);
-			} else {
-				captureSdkError(active.config.telemetry, {
-					component: "core",
-					operation: "session.start",
-					error,
-					severity: "error",
-					handled: false,
-					context: {
-						sessionId: active.sessionId,
-						providerId: active.config.providerId,
-						modelId: active.config.modelId,
-					},
-				});
-				try {
-					await this.failSession(active);
-				} catch (cleanupError) {
-					// Never let cleanup failures mask the error that actually
-					// killed the turn; that one is what callers must see.
-					active.config.logger?.error?.("Session failure cleanup threw", {
-						sessionId: active.sessionId,
-						error: cleanupError,
-					});
-				}
-				throw error;
-			}
-		}
-
 		return {
-			sessionId,
-			manifest,
-			manifestPath,
-			messagesPath,
-			result,
-			...(bootstrap.pluginIssues.length > 0
-				? { pluginIssues: bootstrap.pluginIssues }
-				: {}),
+			active,
+			started: {
+				sessionId,
+				manifest,
+				manifestPath,
+				messagesPath,
+				...(bootstrap.pluginIssues.length > 0
+					? { pluginIssues: bootstrap.pluginIssues }
+					: {}),
+			},
 		};
 	}
 

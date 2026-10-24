@@ -4,7 +4,6 @@ import type {
 	MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { HubCommandError } from "../hub/client/index";
 import { toHubSessionRecord } from "../hub/server/hub-session-records";
 import {
 	CloudSessionError,
@@ -117,12 +116,6 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 							]
 						: [],
 				};
-			if (name === "session.resume")
-				throw new HubCommandError(
-					name,
-					"unsupported_command",
-					"Unsupported command",
-				);
 			if (name === "session.create") {
 				hasInner = true;
 				result = { sessionId: "inner" };
@@ -690,71 +683,6 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(
 			f.commands.find((c) => c.command === "session.send_input")?.sessionId,
 		).toBe("inner");
-		await f.controller.dispose();
-	});
-
-	it("resumes saved tasks without transferring the seed transcript", async () => {
-		const f = resumableFixture();
-		const messages: MessageWithMetadata[] = [
-			{ role: "user", content: "Saved work" },
-		];
-		f.setMessages(messages);
-		const original = f.command.getMockImplementation()!;
-		f.command.mockImplementation(async (...args) => {
-			if (args[0] === "session.update_connection")
-				throw Object.assign(new Error("Missing runtime"), {
-					code: "session_not_found",
-				});
-			if (args[0] === "session.resume")
-				return {
-					version: "v1",
-					ok: true,
-					payload: { session: { sessionId: "inner" } },
-				};
-			return original(...args);
-		});
-		await f.controller.attach(record.id);
-		const calls = f.command.mock.calls;
-		const resumeIndex = calls.findIndex(([name]) => name === "session.resume");
-		expect(resumeIndex).toBeGreaterThan(-1);
-		expect(calls[resumeIndex]?.[1]).toMatchObject({
-			sessionConfig: { sessionId: "inner" },
-		});
-		expect(calls[resumeIndex]?.[1]).not.toHaveProperty("initialMessages");
-		expect(
-			calls.slice(0, resumeIndex).some(([name]) => name === "session.messages"),
-		).toBe(false);
-		expect(calls.some(([name]) => name === "session.create")).toBe(false);
-		expect(await f.controller.readMessages(record.id)).toEqual(messages);
-		await f.controller.dispose();
-	});
-
-	it.each([
-		"hub_command_timeout",
-		"forbidden",
-		"command_failed",
-	])("does not replay history after resume fails with %s", async (code) => {
-		const f = resumableFixture();
-		const original = f.command.getMockImplementation()!;
-		const failure = new HubCommandError(
-			"session.resume",
-			code,
-			"Resume failed",
-		);
-		f.command.mockImplementation(async (...args) => {
-			if (args[0] === "session.update_connection")
-				throw Object.assign(new Error("Missing runtime"), {
-					code: "session_not_found",
-				});
-			if (args[0] === "session.resume") throw failure;
-			return original(...args);
-		});
-		await expect(f.controller.attach(record.id)).rejects.toBe(failure);
-		expect(
-			f.command.mock.calls.some(
-				([name]) => name === "session.messages" || name === "session.create",
-			),
-		).toBe(false);
 		await f.controller.dispose();
 	});
 

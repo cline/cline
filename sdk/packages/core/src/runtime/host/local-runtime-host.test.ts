@@ -44,6 +44,7 @@ import type { SessionManifest } from "../../session/models/session-manifest";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
+import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { type StartSessionInput, splitCoreSessionConfig } from "./runtime-host";
 
@@ -365,6 +366,65 @@ describe("LocalRuntimeHost", () => {
 				sessionId: "same-id",
 			});
 		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it("releases startup admission before the initial prompt finishes", async () => {
+		let releaseTurn: (() => void) | undefined;
+		const turnResult = new Promise<AgentResult>((resolve) => {
+			releaseTurn = () => resolve(createResult());
+		});
+		const run = vi
+			.spyOn(SessionRuntime.prototype, "run")
+			.mockImplementationOnce(() => turnResult);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+		const input: StartSessionInput = {
+			config: createConfig({
+				sessionId: "initial-prompt",
+				providerId: "openai",
+				modelId: "gpt-4.1",
+				apiKey: "test-key",
+				cwd: isolatedHomeDir,
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+			localRuntime: { configExtensions: [] },
+			interactive: true,
+		};
+		const first = manager.startSession({ ...input, prompt: "held prompt" });
+		try {
+			await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+			let conflict: unknown;
+			const resume = manager
+				.startSession({
+					...input,
+					localRuntime: { ...input.localRuntime, rejectExistingSession: true },
+				})
+				.catch((error: unknown) => {
+					conflict = error;
+				});
+			await vi.waitFor(() =>
+				expect(conflict).toMatchObject({ code: "session_already_exists" }),
+			);
+			await resume;
+			let rebuilt = false;
+			const replacement = manager.startSession(input).then((result) => {
+				rebuilt = true;
+				return result;
+			});
+			await vi.waitFor(() => expect(rebuilt).toBe(true));
+			await expect(replacement).resolves.toMatchObject({
+				sessionId: "initial-prompt",
+			});
+		} finally {
+			releaseTurn?.();
+			await first;
+			run.mockRestore();
 			await manager.dispose();
 		}
 	});
