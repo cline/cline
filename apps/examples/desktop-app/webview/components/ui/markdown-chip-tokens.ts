@@ -1,3 +1,5 @@
+import { stripMentionTrailingPunctuation } from "@/lib/composer-tokens";
+
 export const CHIP_TOKEN_TAG = "cline-chip-token";
 
 type MarkdownNode = {
@@ -15,7 +17,6 @@ const SKIPPED_NODE_TYPES = new Set([
 	"link",
 	"linkReference",
 ]);
-const MENTION_TRAILING_PUNCTUATION = /[),.:;!?`'"]+$/;
 
 function chip(value: string): MarkdownNode {
 	return {
@@ -37,9 +38,7 @@ function splitText(
 		const raw = match[2];
 		const isCommand = raw.startsWith("/");
 		if (isCommand && !(allowCommand && start === 0)) continue;
-		const token = isCommand
-			? raw
-			: raw.replace(MENTION_TRAILING_PUNCTUATION, "");
+		const token = isCommand ? raw : stripMentionTrailingPunctuation(raw);
 		if (!tokens.has(token)) continue;
 		if (start > consumed) {
 			nodes.push({ type: "text", value: value.slice(consumed, start) });
