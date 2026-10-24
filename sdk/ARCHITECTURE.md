@@ -1187,6 +1187,7 @@ The following packages are published to npm:
 - `@cline/llms` — provider integrations and model manifests
 - `@cline/agents` — the agent loop and tool orchestration
 - `@cline/core` — the main SDK with session management, hub, and configuration
+- `@cline/ui` — shared web theme and reusable agent UI React components
 
 ### Internal Apps
 
