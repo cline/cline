@@ -536,6 +536,7 @@ export function CloudModelPickerContent(
 								flexDirection="row"
 								gap={1}
 								backgroundColor={isSel ? palette.selection : undefined}
+								onMouseDown={() => chooseProvider(index)}
 							>
 								<text
 									fg={isSel ? palette.textOnSelection : "gray"}

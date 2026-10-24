@@ -341,9 +341,10 @@ function App(props: TuiProps) {
 	const propsOnResumeSession = props.onResumeSession;
 	const resumeSession = useCallback(
 		async (sessionId: string) => {
+			const result = await propsOnResumeSession(sessionId);
 			// A resumed chat is local, so it must not keep sending to Cloud.
 			detachCloudSession();
-			return await propsOnResumeSession(sessionId);
+			return result;
 		},
 		[detachCloudSession, propsOnResumeSession],
 	);
