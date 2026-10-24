@@ -143,6 +143,10 @@ import {
 } from "./keybindings";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
+	handleLocalModelsCommand,
+	LOCAL_MODELS_COMMANDS,
+} from "./local-models";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -3013,6 +3017,11 @@ export async function handleCommand(
 					`Unsupported Composio integrations operation: ${operation}`,
 				);
 		}
+	}
+
+	// ── Local models (Ollama, LM Studio) ───────────────────────────────
+	if (LOCAL_MODELS_COMMANDS.has(command)) {
+		return await handleLocalModelsCommand(ctx, command, args);
 	}
 
 	// ── Provider management ────────────────────────────────────────────
