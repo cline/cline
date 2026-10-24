@@ -380,10 +380,11 @@ export function CloudRepoPickerContent(
 	);
 }
 
+/** Same billing catalogs, names, and order (small lists first) as the desktop app. */
 const CLOUD_MODEL_SECTIONS: Record<CloudModel["catalogId"], string> = {
 	"cline-pass": "ClinePass",
-	"cline-cloud": "Recommended",
-	cline: "All models",
+	"cline-cloud": "ClineFree",
+	cline: "Cline Usage-Billing",
 };
 
 export function CloudModelPickerContent(
@@ -397,7 +398,7 @@ export function CloudModelPickerContent(
 		() =>
 			models.map((model) => ({
 				key: model.id,
-				label: model.name,
+				label: model.name.replace(/^cline-(pass|cloud)\//, ""),
 				section: CLOUD_MODEL_SECTIONS[model.catalogId],
 				detail: model.id === currentModelId ? "(current)" : undefined,
 				searchText: model.id,

@@ -3,6 +3,7 @@ import type {
 	CloudRepositoryOption,
 	CloudSessionSnapshot,
 } from "@cline/core/cloud";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -58,7 +59,6 @@ export function useCloudSessions(input: {
 	termHeight: number;
 	cwd: string;
 	localBranch: string | null;
-	providerId: string;
 	modelId: string;
 	/** A local conversation already exists, so this chat cannot move to cloud. */
 	hasLocalConversation: boolean;
@@ -98,12 +98,14 @@ export function useCloudSessions(input: {
 
 	const resolveModel = useCallback(async (): Promise<CloudModel> => {
 		if (!client) throw new Error("Cline Cloud is not available");
-		const { providerId, modelId } = inputRef.current;
 		const models = await loadModels();
+		// Like the desktop app: the local Cline/ClinePass model, then Cline's
+		// default usage-billed model. Never default into a subscription catalog.
 		const next =
-			(providerId === "cline"
-				? models.find((candidate) => candidate.id === modelId)
-				: undefined) ?? models[0];
+			models.find((candidate) => candidate.id === inputRef.current.modelId) ??
+			models.find((candidate) => candidate.id === CLINE_DEFAULT_MODEL_ID) ??
+			models.find((candidate) => candidate.catalogId === "cline") ??
+			models[0];
 		if (!next)
 			throw new Error("No cloud models are available for this account.");
 		setModel((current) => current ?? next);
