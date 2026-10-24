@@ -383,6 +383,33 @@ describe("readSessionMessages", () => {
 		}
 	});
 
+	it("resolves remote attached files against the remote mention base", async () => {
+		const [message] = await readSessionMessages(
+			{ liveSessions: new Map() } as Parameters<typeof readSessionMessages>[0],
+			"remote-file-projection",
+			800,
+			[
+				{
+					id: "remote-user",
+					role: "user",
+					content: [
+						{ type: "text", text: "Review @src/app.ts" },
+						{
+							type: "file",
+							path: "/home/dev/repo/src/app.ts",
+							content: "export {}",
+						},
+					],
+				},
+			],
+			"/home/dev/repo",
+		);
+		expect(message).toMatchObject({
+			content: "Review @src/app.ts",
+			meta: { attachedFiles: ["src/app.ts"] },
+		});
+	});
+
 	it("preserves absolute user run counts when older messages are omitted", async () => {
 		const sessionId = `run-count-projection-${Date.now()}`;
 		const liveSessions = new Map([

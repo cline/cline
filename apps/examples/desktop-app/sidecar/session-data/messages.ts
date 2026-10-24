@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, relative, sep } from "node:path";
+import nodePath, { dirname } from "node:path";
 import {
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
@@ -37,12 +37,15 @@ function toMentionRelativePath(
 	mentionBaseDir: string | undefined,
 ): string {
 	if (!mentionBaseDir) return filePath;
-	const relativePath = relative(mentionBaseDir, filePath);
+	// SSH sessions report paths from the remote host, whose separators can
+	// differ from this machine's.
+	const pathApi = mentionBaseDir.startsWith("/") ? nodePath.posix : nodePath;
+	const relativePath = pathApi.relative(mentionBaseDir, filePath);
 	return !relativePath ||
 		relativePath.startsWith("..") ||
-		isAbsolute(relativePath)
+		pathApi.isAbsolute(relativePath)
 		? filePath
-		: relativePath.split(sep).join("/");
+		: relativePath.split(pathApi.sep).join("/");
 }
 
 type ChatTurnResult = {
@@ -360,6 +363,8 @@ export function readSessionMessagesSync(
 	maxMessages = 800,
 	/** Explicit authoritative source for remote sessions; bypasses local disk. */
 	sourceMessages?: unknown[],
+	/** Where a remote session resolved `@` mentions (its workspace root). */
+	remoteMentionBaseDir?: string,
 ): unknown[] {
 	const isRemoteRead = sourceMessages !== undefined;
 	const persisted = isRemoteRead
@@ -392,7 +397,7 @@ export function readSessionMessagesSync(
 		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	const mentionBaseDir = isRemoteRead
-		? undefined
+		? remoteMentionBaseDir
 		: readMentionBaseDir(sessionId);
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
@@ -784,6 +789,13 @@ export async function readSessionMessages(
 	sessionId: string,
 	maxMessages = 800,
 	sourceMessages?: unknown[],
+	remoteMentionBaseDir?: string,
 ): Promise<unknown[]> {
-	return readSessionMessagesSync(ctx, sessionId, maxMessages, sourceMessages);
+	return readSessionMessagesSync(
+		ctx,
+		sessionId,
+		maxMessages,
+		sourceMessages,
+		remoteMentionBaseDir,
+	);
 }
