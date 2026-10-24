@@ -6,6 +6,7 @@ import {
 	parseOllamaParameters,
 } from "../../webview/lib/local-models";
 import {
+	authHeaders,
 	firstExecutable,
 	isLocalUrl,
 	type LocalRuntimeBackend,
@@ -22,7 +23,8 @@ const readHost = () =>
 		LOCAL_RUNTIMES.ollama.defaultBaseUrl,
 	);
 
-const createClient = () => new Ollama({ host: readHost() });
+const createClient = () =>
+	new Ollama({ host: readHost(), headers: authHeaders("ollama") });
 
 /**
  * Apps launched from the macOS Dock don't inherit the shell's PATH, so the
@@ -71,7 +73,8 @@ export const ollamaBackend: LocalRuntimeBackend = {
 
 	isLocal: () => isLocalUrl(readHost()),
 
-	isReachable: () => respondsOk(`${readHost()}/api/version`),
+	isReachable: () =>
+		respondsOk(`${readHost()}/api/version`, authHeaders("ollama")),
 
 	isInstalled: async () => !!(await findOllama()),
 
@@ -80,12 +83,14 @@ export const ollamaBackend: LocalRuntimeBackend = {
 		if (!install) {
 			throw new Error("Ollama isn't installed.");
 		}
+		// The desktop apps read their own settings, but `serve` takes the address from here.
+		const serveEnv = { OLLAMA_HOST: new URL(readHost()).host };
 		const spawnError =
 			install.kind === "mac-app"
 				? spawnDetached("open", ["-a", install.path])
 				: install.kind === "windows-app"
 					? spawnDetached(install.path, [])
-					: spawnDetached(install.path, ["serve"]);
+					: spawnDetached(install.path, ["serve"], serveEnv);
 		return await waitUntilReachable(ollamaBackend, 20_000, spawnError);
 	},
 

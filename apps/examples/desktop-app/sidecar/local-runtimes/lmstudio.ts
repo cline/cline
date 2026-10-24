@@ -8,6 +8,7 @@ import {
 	type LocalModelDetails,
 } from "../../webview/lib/local-models";
 import {
+	authHeaders,
 	firstExecutable,
 	isLocalUrl,
 	type LocalRuntimeBackend,
@@ -54,16 +55,10 @@ const readServerUrl = () =>
 		LOCAL_RUNTIMES.lmstudio.defaultBaseUrl,
 	);
 
-/** LM Studio's server can require an API token for every endpoint. */
-function authHeaders(): Record<string, string> {
-	const { apiKey } = readProviderSettings("lmstudio");
-	return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
-}
-
 async function request<T>(pathname: string, body?: unknown): Promise<T> {
 	const response = await fetch(`${readServerUrl()}${pathname}`, {
 		method: body === undefined ? "GET" : "POST",
-		headers: { "content-type": "application/json", ...authHeaders() },
+		headers: { "content-type": "application/json", ...authHeaders("lmstudio") },
 		body: body === undefined ? undefined : JSON.stringify(body),
 	});
 	const payload = (await response.json().catch(() => ({}))) as {
@@ -218,7 +213,7 @@ export const lmstudioBackend: LocalRuntimeBackend = {
 	isLocal: () => isLocalUrl(readServerUrl()),
 
 	isReachable: () =>
-		respondsOk(`${readServerUrl()}/api/v1/models`, authHeaders()),
+		respondsOk(`${readServerUrl()}/api/v1/models`, authHeaders("lmstudio")),
 
 	async isInstalled() {
 		return !!((await findLms(await readHome())) ?? (await findApp()));

@@ -49,6 +49,12 @@ export function readProviderSettings(provider: LocalRuntime): {
 	};
 }
 
+/** Chat sends the saved key as a Bearer token, so servers that require one get it here too. */
+export function authHeaders(provider: LocalRuntime): Record<string, string> {
+	const { apiKey } = readProviderSettings(provider);
+	return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
+}
+
 /** The server root, without the API path providers append to the base URL. */
 export function toServerUrl(baseUrl: string, fallback: string): string {
 	return (
@@ -94,8 +100,13 @@ export async function firstExecutable(
 }
 
 /** Detached so the runtime keeps serving after Cline quits, like when started by hand. */
-export function spawnDetached(command: string, args: string[]): Promise<never> {
+export function spawnDetached(
+	command: string,
+	args: string[],
+	env?: Record<string, string>,
+): Promise<never> {
 	const child = spawn(command, args, {
+		env: env ? { ...process.env, ...env } : undefined,
 		detached: true,
 		stdio: "ignore",
 		windowsHide: true,
