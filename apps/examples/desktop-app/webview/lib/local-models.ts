@@ -209,6 +209,10 @@ export const LOCAL_MODEL_PULL_PROGRESS_EVENT = "local_model_pull_progress";
 
 export const formatGb = (bytes: number) => `${(bytes / 1e9).toFixed(1)} GB`;
 
+/** Memory is counted in binary gigabytes, the way RAM is sold and the machine summary shows it. */
+export const formatMemory = (bytes: number) =>
+	`${(bytes / 1024 ** 3).toFixed(1)} GB`;
+
 export const formatContext = (tokens: number) =>
 	`${Math.round(tokens / 1024)}K context`;
 

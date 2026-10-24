@@ -286,11 +286,13 @@ export function LocalModelDetailsDialog({
 											: "Not supported by this model"
 									}
 								/>
-								<ReadOnlyField
-									hint="Includes loading the model, so large models on slow hardware can hit it."
-									label="Response timeout"
-									value="5 minutes to start responding"
-								/>
+								{isOllama ? (
+									<ReadOnlyField
+										hint="Includes loading the model, so large models on slow hardware can hit it."
+										label="Response timeout"
+										value="5 minutes to start responding"
+									/>
+								) : null}
 							</div>
 						</Section>
 

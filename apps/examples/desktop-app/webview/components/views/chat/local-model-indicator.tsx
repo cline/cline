@@ -15,7 +15,7 @@ import {
 	describeModelPlacement,
 	describeUnloadTime,
 	formatContext,
-	formatGb,
+	formatMemory,
 	getMachineMemoryBytes,
 	LOCAL_RUNTIMES,
 	type LocalModelsStatus,
@@ -112,7 +112,7 @@ export function LocalModelIndicator({
 	const label = !status.reachable
 		? `${name} offline`
 		: running
-			? formatGb(running.sizeBytes)
+			? formatMemory(running.sizeBytes)
 			: "Not loaded";
 
 	return (
@@ -129,7 +129,7 @@ export function LocalModelIndicator({
 					className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-surface-hover data-[state=open]:bg-surface-hover group-data-[compact]/composer:size-7 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0"
 					title={
 						running
-							? `${selected} is loaded and using ${formatGb(running.sizeBytes)} of memory`
+							? `${selected} is loaded and using ${formatMemory(running.sizeBytes)} of memory`
 							: label
 					}
 					type="button"
@@ -201,7 +201,8 @@ export function LocalModelIndicator({
 								{placement ? `Loaded ${placement}` : "Loaded"}
 							</span>
 							<span className="text-xs text-muted-foreground">
-								{formatGb(running.sizeBytes)} of {formatGb(machineMemoryBytes)}
+								{formatMemory(running.sizeBytes)} of{" "}
+								{formatMemory(machineMemoryBytes)}
 							</span>
 						</div>
 						<Progress
@@ -283,7 +284,7 @@ export function LocalModelIndicator({
 									{entry.name}
 								</span>
 								<span className="text-muted-foreground">
-									{formatGb(entry.sizeBytes)}
+									{formatMemory(entry.sizeBytes)}
 								</span>
 								<Button
 									aria-label={`Unload ${entry.name}`}

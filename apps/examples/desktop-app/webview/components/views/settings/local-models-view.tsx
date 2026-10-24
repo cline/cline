@@ -39,6 +39,7 @@ import {
 	evaluateLocalModelFit,
 	formatContext,
 	formatGb,
+	formatMemory,
 	getLocalMemoryBudget,
 	getMachineMemoryBytes,
 	getRecommendedLocalModel,
@@ -143,7 +144,7 @@ function describeRunning(running: RunningModel) {
 	const placement = describeModelPlacement(running);
 	return [
 		placement ? `Loaded ${placement}` : "Loaded",
-		formatGb(running.sizeBytes),
+		formatMemory(running.sizeBytes),
 		running.contextLength > 0 ? formatContext(running.contextLength) : "",
 		describeUnloadTime(running.expiresAtMs) ?? "",
 	]
@@ -622,7 +623,11 @@ export function LocalModelsContent() {
 				) : null}
 				{pull ? (
 					<div className="flex max-w-md flex-col gap-1">
-						<Progress className="h-1.5" value={pullPercent} />
+						<Progress
+							aria-label={`Downloading ${name}`}
+							className="h-1.5"
+							value={pullPercent}
+						/>
 						<div className="flex justify-between gap-2 text-xs text-muted-foreground">
 							<span className="truncate">
 								{pull.total > 0
@@ -817,7 +822,7 @@ export function LocalModelsContent() {
 						<SectionHeading
 							aside={
 								machineMemoryBytes > 0
-									? `${formatGb(loadedBytes)} of ${formatGb(machineMemoryBytes)} memory`
+									? `${formatMemory(loadedBytes)} of ${formatMemory(machineMemoryBytes)} memory`
 									: undefined
 							}
 							title="Loaded in memory"
