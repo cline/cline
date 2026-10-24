@@ -318,7 +318,10 @@ function WorkspacePullRequestMenu({ cwd }: { cwd: string }) {
 													}}
 												>
 													<CheckStateIcon state={check.state} />
-													<span className="min-w-0 flex-1 truncate">
+													<span
+														className="min-w-0 flex-1 truncate"
+														title={check.name}
+													>
 														{check.name}
 													</span>
 													<span className="text-xs text-muted-foreground">

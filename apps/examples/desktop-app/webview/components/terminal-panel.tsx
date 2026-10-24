@@ -138,6 +138,11 @@ function TerminalPanelForCwd({
 			document.body.style.cursor = "row-resize";
 			document.body.style.userSelect = "none";
 			const handleMove = (move: PointerEvent) => {
+				// A release outside the window never delivers pointerup.
+				if (!(move.buttons & 1)) {
+					handleUp();
+					return;
+				}
 				onHeightChange(
 					clampTerminalPanelHeight(
 						startHeight + (startY - move.clientY),
