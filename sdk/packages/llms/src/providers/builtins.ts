@@ -868,6 +868,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "dothoosh",
+		name: "DotHoosh",
+		description: "Iranian AI gateway billed in Toman from a prepaid wallet",
+		family: "openai-compatible",
+		apiKeyEnv: ["DOTHOOSH_API_KEY"],
+		docsUrl: "https://gateway.dothoosh.com/docs",
+		defaults: { baseUrl: "https://gateway.dothoosh.com/v1" },
+		// Models listed on the Responses API (GPT-6) are routed there per model.
+		metadata: { routing: { modelApiProtocol: true } },
+	},
+	{
 		id: "crusoe",
 		name: "Crusoe",
 		description: "Managed inference on renewable-powered GPU infrastructure",
