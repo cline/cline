@@ -14,6 +14,7 @@ import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { SIDEBAR_SORT_MODE_STORAGE_KEY } from "@/lib/sidebar-sort-mode";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
@@ -193,6 +194,44 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("remembers the session sort mode after remounting", async () => {
+		const thread = makeThread("alpha", 1);
+		const history = makeSessionHistory([thread], vi.fn());
+		const renderSidebar = async () => {
+			await act(async () => {
+				root.render(
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={thread.id}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={history}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>,
+				);
+			});
+		};
+
+		await renderSidebar();
+		expect(
+			container.querySelector('[aria-label="Sort sessions: Time"]'),
+		).not.toBeNull();
+		await switchToProjectSort();
+		expect(window.localStorage.getItem(SIDEBAR_SORT_MODE_STORAGE_KEY)).toBe(
+			"project",
+		);
+
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await renderSidebar();
+		expect(
+			container.querySelector('[aria-label="Sort sessions: Project"]'),
+		).not.toBeNull();
+	});
+
 	it("preserves row context-menu rename focus, Escape, and Enter through the shared row", async () => {
 		const thread = makeThread("alpha", 1);
 		const history = makeSessionHistory([thread], vi.fn());

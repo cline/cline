@@ -118,6 +118,11 @@ import {
 	scheduleRunLabel,
 	workspaceDisplayName,
 } from "@/lib/sidebar-session-organization";
+import {
+	readSidebarSortMode,
+	type SidebarSortMode,
+	writeSidebarSortMode,
+} from "@/lib/sidebar-sort-mode";
 import { cn } from "@/lib/utils";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { isTaskWorktreePath } from "@/lib/workspace-paths";
@@ -127,7 +132,6 @@ type AppView = "chat" | "sessions" | "settings";
 
 const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
-type SidebarSortMode = "time" | "project";
 type SessionCategory = "pinned" | "scheduled" | "tasks";
 type DesktopProcessContext = {
 	appVersion?: unknown;
@@ -327,7 +331,8 @@ export function AgentSidebar({
 	const activeThread = activeSessionId ?? "";
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
-	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
+	const [sortMode, setSortMode] =
+		useState<SidebarSortMode>(readSidebarSortMode);
 	const [showMoreCount, setShowMoreCount] = useState(
 		INITIAL_VISIBLE_THREAD_COUNT,
 	);
@@ -685,9 +690,11 @@ export function AgentSidebar({
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
 			className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
-			onClick={() =>
-				setSortMode((current) => (current === "time" ? "project" : "time"))
-			}
+			onClick={() => {
+				const next = sortMode === "time" ? "project" : "time";
+				setSortMode(next);
+				writeSidebarSortMode(next);
+			}}
 			size="icon"
 			title={
 				sortMode === "time"
