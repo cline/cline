@@ -1,3 +1,4 @@
+import { ProviderSettingsManager } from "@cline/core";
 import type {
 	CloudModel,
 	CloudRepositoryOption,
@@ -12,6 +13,7 @@ import {
 	parseGitHubRepoFullName,
 	readGitOriginUrl,
 } from "../../utils/repo-status";
+import { loadCurrentUserPlanFromProviderSettings } from "../cline-account";
 import {
 	CloudModelPickerContent,
 	CloudRepoPickerContent,
@@ -19,6 +21,7 @@ import {
 	type CloudSetupAction,
 	CloudSetupContent,
 	type CloudSetupStage,
+	cloudModelStatusName,
 } from "../components/dialogs/cloud-dialogs";
 import {
 	OAuthLoginContent,
@@ -47,6 +50,17 @@ export function describeCloudSessionStatus(
 	if (snapshot.status === "aborted") return "Stopped in Cline Cloud";
 	if (snapshot.status === "expired") return "Cline Cloud session expired";
 	return "Ready in Cline Cloud";
+}
+
+async function hasClinePassSubscription(): Promise<boolean> {
+	try {
+		const current = await loadCurrentUserPlanFromProviderSettings({
+			providerSettingsManager: new ProviderSettingsManager(),
+		});
+		return !!current?.plan;
+	} catch {
+		return false;
+	}
 }
 
 function errorMessage(error: unknown): string {
@@ -99,10 +113,16 @@ export function useCloudSessions(input: {
 	const resolveModel = useCallback(async (): Promise<CloudModel> => {
 		if (!client) throw new Error("Cline Cloud is not available");
 		const models = await loadModels();
-		// Like the desktop app: the local Cline/ClinePass model, then Cline's
-		// default usage-billed model. Never default into a subscription catalog.
+		const local = models.find(
+			(candidate) => candidate.id === inputRef.current.modelId,
+		);
+		// ClinePass subscribers default to ClinePass; everyone else to Cline's
+		// default usage-billed model.
 		const next =
-			models.find((candidate) => candidate.id === inputRef.current.modelId) ??
+			local ??
+			((await hasClinePassSubscription())
+				? models.find((candidate) => candidate.catalogId === "cline-pass")
+				: undefined) ??
 			models.find((candidate) => candidate.id === CLINE_DEFAULT_MODEL_ID) ??
 			models.find((candidate) => candidate.catalogId === "cline") ??
 			models[0];
@@ -367,7 +387,7 @@ export function useCloudSessions(input: {
 				target,
 				repoFullName: selection?.repo.fullName,
 				branch: selection?.branch,
-				modelName: model?.name,
+				modelName: model ? cloudModelStatusName(model) : undefined,
 				sessionStatus,
 			}
 		: undefined;

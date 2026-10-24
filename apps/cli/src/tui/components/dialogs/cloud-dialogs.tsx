@@ -8,6 +8,7 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useEffect, useMemo, useState } from "react";
 import { useDialogPalette } from "../../hooks/use-theme";
+import { ProviderRow } from "../model-selector/provider-row";
 import {
 	type SearchableItem,
 	SearchableList,
@@ -380,12 +381,27 @@ export function CloudRepoPickerContent(
 	);
 }
 
-/** Same billing catalogs, names, and order (small lists first) as the desktop app. */
-const CLOUD_MODEL_SECTIONS: Record<CloudModel["catalogId"], string> = {
-	"cline-pass": "ClinePass",
-	"cline-cloud": "ClineFree",
-	cline: "Cline Usage-Billing",
-};
+/** The same billing catalogs and names as the desktop app's cloud model picker. */
+export const CLOUD_MODEL_PROVIDERS: {
+	id: CloudModel["catalogId"];
+	name: string;
+}[] = [
+	{ id: "cline-pass", name: "ClinePass" },
+	{ id: "cline-cloud", name: "ClineFree" },
+	{ id: "cline", name: "Cline Usage-Billing" },
+];
+
+/** ClinePass/ClineFree names are raw `cline-pass/...` ids; drop the catalog prefix. */
+export function cloudModelLabel(model: CloudModel): string {
+	return model.name.replace(/^cline-(pass|cloud)\//, "");
+}
+
+/** Status bar form, matching the local "ClinePass: model" display. */
+export function cloudModelStatusName(model: CloudModel): string {
+	if (model.catalogId === "cline") return model.name;
+	const provider = CLOUD_MODEL_PROVIDERS.find((p) => p.id === model.catalogId);
+	return `${provider?.name ?? "Cline"}: ${cloudModelLabel(model)}`;
+}
 
 export function CloudModelPickerContent(
 	props: ChoiceContext<CloudModel> & {
@@ -394,16 +410,29 @@ export function CloudModelPickerContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, models, currentModelId } = props;
+	const providers = useMemo(
+		() =>
+			CLOUD_MODEL_PROVIDERS.filter((provider) =>
+				models.some((model) => model.catalogId === provider.id),
+			),
+		[models],
+	);
+	const [providerId, setProviderId] = useState(
+		() =>
+			models.find((model) => model.id === currentModelId)?.catalogId ??
+			providers[0]?.id,
+	);
 	const items = useMemo<SearchableItem[]>(
 		() =>
-			models.map((model) => ({
-				key: model.id,
-				label: model.name.replace(/^cline-(pass|cloud)\//, ""),
-				section: CLOUD_MODEL_SECTIONS[model.catalogId],
-				detail: model.id === currentModelId ? "(current)" : undefined,
-				searchText: model.id,
-			})),
-		[models, currentModelId],
+			models
+				.filter((model) => model.catalogId === providerId)
+				.map((model) => ({
+					key: model.id,
+					label: cloudModelLabel(model),
+					detail: model.id === currentModelId ? "(current)" : undefined,
+					searchText: model.id,
+				})),
+		[models, providerId, currentModelId],
 	);
 	const list = useSearchableList(items);
 	const { setSelected } = list;
@@ -427,6 +456,15 @@ export function CloudModelPickerContent(
 			dismiss();
 			return;
 		}
+		if (key.name === "tab" && providers.length > 1) {
+			const index = providers.findIndex((p) => p.id === providerId);
+			const step = key.shift ? -1 : 1;
+			list.setSearch("");
+			setProviderId(
+				providers[(index + step + providers.length) % providers.length]?.id,
+			);
+			return;
+		}
 		if (key.name === "return" || key.name === "enter") {
 			choose(list.selectedItem);
 			return;
@@ -443,7 +481,15 @@ export function CloudModelPickerContent(
 	return (
 		<box flexDirection="column" gap={1}>
 			<text>Select Cloud Model</text>
+			<ProviderRow
+				providerName={
+					providers.find((provider) => provider.id === providerId)?.name ??
+					"Cline"
+				}
+				focused={false}
+			/>
 			<SearchableList
+				key={providerId}
 				items={list.filtered}
 				selected={list.safeSelected}
 				placeholder="Search models..."
@@ -452,11 +498,8 @@ export function CloudModelPickerContent(
 				emptyText="No models match"
 			/>
 			<text fg="gray">
-				Cloud sessions run on your Cline account. You can switch models
-				mid-session.
-			</text>
-			<text fg="gray">
-				Type to search, ↑/↓ navigate, Enter to select, Esc to close
+				Type to search, ↑/↓ navigate, Enter to select, Tab to change provider,
+				Esc to close
 			</text>
 		</box>
 	);
