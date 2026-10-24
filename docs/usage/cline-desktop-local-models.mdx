@@ -196,7 +196,21 @@ With LM Studio, Cline can delete models downloaded from the LM Studio Hub, which
 
 ## Which models are recommended
 
-Cline Desktop recommends the same models as the Cline extension for VS Code, and labels them the same way:
+Each recommended model comes with the context window Cline uses for it.
+
+| Model | Download | Memory needed | Context window | Good for |
+| --- | --- | --- | --- | --- |
+| Qwen3.8 27B | 18 GB | ~23 GB | 64K | The best all-round local model for agentic coding |
+| Laguna XS 2.1 | 20 GB | ~24 GB | 64K | Long coding sessions; fast for its size |
+| Qwen3.6 35B A3B | 24 GB | ~26 GB | 64K | Speed over depth |
+| Devstral Small 2 | 15 GB | ~21 GB | 32K | Exploring codebases and multi-file edits |
+| gpt-oss 20B | 14 GB | ~16 GB | 64K | 16-24 GB machines |
+| Qwen3-Coder-Next | 52 GB | ~56 GB | 64K | Machines with 64 GB or more |
+| Qwen3 8B | 5.2 GB | ~10 GB | 32K | 8-16 GB machines and simple edits |
+
+Memory needed is an estimate of the model plus its context window. Smaller models respond faster but handle complex, multi-step tasks less reliably.
+
+Cline compares each model's memory needs against your hardware:
 
 | Label | Meaning |
 | --- | --- |
@@ -204,7 +218,13 @@ Cline Desktop recommends the same models as the Cline extension for VS Code, and
 | **Will run slowly on this machine** | The model only fits by running partly or fully on the CPU. |
 | **Too large for this machine** | The model doesn't fit in memory. |
 
-See [Recommended models](/running-models-locally/local-models-page#recommended-models) for the full list with download sizes and context windows, and [How recommendations work](/running-models-locally/local-models-page#how-recommendations-work) for how Cline measures your GPU memory.
+The **Recommended for you** badge goes to the first model in the list that runs well on your machine. If none do, it goes to the best model that fits, preferring faster mixture-of-experts models.
+
+Cline detects GPU memory like this:
+
+- **Apple Silicon Macs** share memory between the CPU and GPU. Cline counts about three quarters of total memory as available to the GPU.
+- **NVIDIA GPUs** are detected through `nvidia-smi`, which comes with the NVIDIA driver.
+- **Other GPUs** aren't detected yet, so Cline treats the machine as CPU-only and its labels may be more cautious than necessary. You can still download and use any model.
 
 Ollama and LM Studio name the same models differently. With LM Studio selected, the page downloads these from the [LM Studio Hub](https://lmstudio.ai/models):
 
@@ -244,4 +264,3 @@ Ollama and LM Studio name the same models differently. With LM Studio selected, 
 
 1. [Cline Desktop](/usage/cline-desktop)
 2. [Local models overview](/running-models-locally/overview)
-3. [Local Models page in VS Code](/running-models-locally/local-models-page)
