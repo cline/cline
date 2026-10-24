@@ -42,19 +42,23 @@ const SAMPLING_OPTIONS: { key: string; label: string; fallback: string }[] = [
 	{ key: "seed", label: "Seed", fallback: "0 (random)" },
 ];
 
-/** LM Studio load settings, by their REST API name. Unlisted ones show under their raw name. */
+/** The LM Studio load settings worth showing, by their REST API name. */
 const LOAD_CONFIG_LABELS: Record<string, string> = {
 	context_length: "Context length",
 	flash_attention: "Flash attention",
 	offload_kv_cache_to_gpu: "KV cache on GPU",
 	eval_batch_size: "Evaluation batch size",
-	physical_batch_size: "Physical batch size",
 	parallel: "Parallel requests",
 	num_experts: "Active experts",
+	speculative_draft_model: "Draft model",
 };
 
 const formatConfigValue = (value: string | number | boolean) =>
-	typeof value === "boolean" ? (value ? "On" : "Off") : String(value);
+	typeof value === "boolean"
+		? value
+			? "On"
+			: "Off"
+		: value.toLocaleString();
 
 const CAPABILITY_LABELS: Record<string, string> = {
 	completion: "Chat",
@@ -298,14 +302,17 @@ export function LocalModelDetailsDialog({
 							<Section title="Load settings">
 								{details.loadConfig ? (
 									<div className="grid gap-3 sm:grid-cols-2">
-										{Object.entries(details.loadConfig).map(([key, value]) => (
-											<ReadOnlyField
-												key={key}
-												label={LOAD_CONFIG_LABELS[key] ?? key}
-												option={key}
-												value={formatConfigValue(value)}
-											/>
-										))}
+										{Object.entries(LOAD_CONFIG_LABELS).map(([key, label]) => {
+											const value = details.loadConfig?.[key];
+											return value === undefined || value === "" ? null : (
+												<ReadOnlyField
+													key={key}
+													label={label}
+													option={key}
+													value={formatConfigValue(value)}
+												/>
+											);
+										})}
 									</div>
 								) : (
 									<p className="text-sm text-muted-foreground">
