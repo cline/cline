@@ -1040,12 +1040,6 @@ export class CloudSessionController {
 		return listed;
 	}
 
-	async create(
-		input: CreateCloudSessionInput,
-	): Promise<CloudSessionAttachment> {
-		return this.createSession(input);
-	}
-
 	private async createSession(
 		input: CreateCloudSessionInput,
 		beforePublish?: (sessionId: string) => void,
@@ -1067,15 +1061,19 @@ export class CloudSessionController {
 		return await creating;
 	}
 
-	async createAndSend(
-		input: Omit<CreateCloudSessionInput, "handoff"> & { initialPrompt: string },
-		images?: string[],
-	): Promise<{
-		target: CloudSessionAttachment;
-		send:
-			| Awaited<ReturnType<CloudSessionController["send"]>>
-			| CloudSendFailure;
-	}> {
+	async create(
+		input: CreateCloudSessionInput & {
+			initialMessage?: { text: string; images?: string[] };
+		},
+	): Promise<
+		CloudSessionAttachment & {
+			initialSend?:
+				| Awaited<ReturnType<CloudSessionController["send"]>>
+				| CloudSendFailure;
+		}
+	> {
+		const { initialMessage, ...creation } = input;
+		if (!initialMessage) return this.createSession(creation);
 		let dispatched = false;
 		let settle!: (failure?: CloudSendFailure) => void;
 		const initial = {
@@ -1088,25 +1086,28 @@ export class CloudSessionController {
 				settle = resolve;
 			}),
 		};
-		const target = await this.createSession(input, (sessionId) => {
-			if (!this.initialSends.has(sessionId))
-				this.initialSends.set(sessionId, initial);
-		});
+		const target = await this.createSession(
+			{ ...creation, initialPrompt: initialMessage.text },
+			(sessionId) => {
+				if (!this.initialSends.has(sessionId))
+					this.initialSends.set(sessionId, initial);
+			},
+		);
 		try {
 			const send = await this.send(
 				target.sessionId,
-				input.initialPrompt,
+				initialMessage.text,
 				"queue",
 				input.modelId,
-				images,
+				initialMessage.images,
 				initial.lifecycle,
 			);
 			settle();
-			return { target, send };
+			return { ...target, initialSend: send };
 		} catch (error) {
 			const send = serializeCloudSendFailure(error, dispatched);
 			settle(send);
-			return { target, send };
+			return { ...target, initialSend: send };
 		} finally {
 			if (this.initialSends.get(target.sessionId) === initial)
 				this.initialSends.delete(target.sessionId);

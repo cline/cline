@@ -645,13 +645,11 @@ describe("summary cloud handoff", () => {
 		} as unknown as SidecarWebSocketClient);
 		await f.prepare();
 		if (dispatched === undefined) {
-			const createAndSend = f.viewer.createAndSend.bind(f.viewer);
-			vi.spyOn(f.viewer, "createAndSend").mockImplementation(
-				async (...args) => {
-					await createAndSend(...args);
-					throw new Error("Reply lost after send");
-				},
-			);
+			const create = f.viewer.create.bind(f.viewer);
+			vi.spyOn(f.viewer, "create").mockImplementation(async (...args) => {
+				await create(...args);
+				throw new Error("Reply lost after send");
+			});
 		} else {
 			f.send.mockImplementation(async (...args) => {
 				if (dispatched) args[5]?.beforeDispatch?.();

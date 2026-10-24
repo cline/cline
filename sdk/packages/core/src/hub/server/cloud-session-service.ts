@@ -39,16 +39,16 @@ const createInput = creationOptions
 		modelId: id,
 		repoUrl: id,
 		initialPrompt: z.string().optional(),
+		initialMessage: z
+			.object({ text: id, images: z.array(z.string()).optional() })
+			.strict()
+			.optional(),
 		branch: id.optional(),
 		organizationId: id.nullable().optional(),
 	})
 	.strict();
 const schemas = {
 	create: z.tuple([createInput]),
-	createAndSend: z.tuple([
-		createInput.extend({ initialPrompt: id }),
-		z.array(z.string()).nullish(),
-	]),
 	attach: z.tuple([id, creationOptions.nullish()]),
 	send: z.tuple([
 		id,
@@ -344,7 +344,7 @@ export class HubCloudSessionService {
 		const normalized = args.map((value) =>
 			value === null ? undefined : value,
 		);
-		if (name === "create" || name === "createAndSend") {
+		if (name === "create") {
 			const input = normalized[0] as { sandboxType?: string };
 			input.sandboxType ??= "resumable";
 		}

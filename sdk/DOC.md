@@ -121,9 +121,11 @@ The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
 The callback does not confirm acceptance.
-`createAndSend(input, images?)` combines creation and the initial prompt, returning
-`{ target, send }`. A failed `send` includes `dispatched`; only `false` means the
-prompt can be retried on that target. Through `HubCloudSessionClient`, the operation survives viewer
+`create({ ...input, initialMessage: { text, images } })` creates and submits the
+first message, returning the session attachment plus `initialSend`. Without
+`initialMessage`, creation does not send; `initialPrompt` remains metadata only.
+A failed `initialSend` includes `dispatched`; only `false` means the prompt can be
+retried on that target. Through `HubCloudSessionClient`, the operation survives viewer
 disconnects. A lost reply raises `request_failed` with a warning that the task may
 have started; check cloud tasks before retrying.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at

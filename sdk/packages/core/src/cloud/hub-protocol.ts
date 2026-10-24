@@ -1,11 +1,9 @@
 import { z } from "zod";
-import type { CreateCloudSessionInput } from "./api";
 import type { CloudSessionController } from "./controller";
 
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
 export const CLOUD_HUB_OPERATIONS = [
 	"create",
-	"createAndSend",
 	"attach",
 	"send",
 	"abort",
@@ -64,7 +62,7 @@ export class CloudSendError extends Error {
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];
 export type CloudHubMethods = Pick<CloudSessionController, CloudHubOperation>;
 export type CloudHubArgs<K extends CloudHubOperation> = K extends "create"
-	? [input: Omit<CreateCloudSessionInput, "handoff">]
+	? [input: Omit<Parameters<CloudSessionController["create"]>[0], "handoff">]
 	: K extends "send"
 		? [
 				sessionId: string,

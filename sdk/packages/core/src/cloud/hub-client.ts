@@ -157,9 +157,7 @@ export class HubCloudSessionClient {
 		let dispatched = false;
 		const reply = await client
 			.command("cloud.command", { operation, args, scope }, undefined, {
-				timeoutMs: ["create", "createAndSend", "send", "attach"].includes(
-					operation,
-				)
+				timeoutMs: ["create", "send", "attach"].includes(operation)
 					? null
 					: undefined,
 				beforeDispatch: () => {
@@ -182,7 +180,15 @@ export class HubCloudSessionClient {
 					error.name === "HubCommandError" &&
 					"code" in error &&
 					error.code !== "hub_command_timeout";
-				if (operation === "createAndSend" && dispatched && !rejected)
+				if (
+					operation === "create" &&
+					typeof args[0] === "object" &&
+					args[0] !== null &&
+					"initialMessage" in args[0] &&
+					args[0].initialMessage !== undefined &&
+					dispatched &&
+					!rejected
+				)
 					throw new CloudSessionError(
 						"request_failed",
 						"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
@@ -213,13 +219,6 @@ export class HubCloudSessionClient {
 		scope?: CloudHubScope,
 	): Promise<CloudHubResult<"create">> {
 		return this.call("create", [input], scope);
-	}
-	createAndSend(
-		input: CloudHubArgs<"createAndSend">[0],
-		images?: string[],
-		scope?: CloudHubScope,
-	): Promise<CloudHubResult<"createAndSend">> {
-		return this.call("createAndSend", [input, images], scope);
 	}
 	attach(...args: CloudHubArgs<"attach">): Promise<CloudHubResult<"attach">> {
 		return this.call("attach", args);

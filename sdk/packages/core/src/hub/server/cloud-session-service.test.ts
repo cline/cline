@@ -78,27 +78,24 @@ function fixture() {
 				emit = listener;
 				return () => {};
 			},
-			create: vi.fn(
+			provision: vi.fn(
 				async (_input: Parameters<CloudSessionController["create"]>[0]) => ({
 					sessionId: "ses-one",
 					status: "ready",
 				}),
 			),
-			createAndSend: vi.fn(
-				async (
-					...[input, images]: Parameters<
-						CloudSessionController["createAndSend"]
-					>
-				) => {
-					const target = await controller.create(input);
+			create: vi.fn(
+				async (input: Parameters<CloudSessionController["create"]>[0]) => {
+					const target = await controller.provision(input);
+					if (!input.initialMessage) return target;
 					const send = await controller.send(
 						target.sessionId,
-						input.initialPrompt,
+						input.initialMessage.text,
 						"queue",
 						input.modelId,
-						images,
+						input.initialMessage.images,
 					);
-					return { target, send };
+					return { ...target, initialSend: send };
 				},
 			),
 			attach: vi.fn(async (sessionId: string) => {
@@ -220,9 +217,12 @@ describe("hub-owned cloud sessions", () => {
 			() => viewer.listModels(scope),
 			() => viewer.create({ modelId: "model", repoUrl: "repo" }, scope),
 			() =>
-				viewer.createAndSend(
-					{ modelId: "model", repoUrl: "repo", initialPrompt: "Continue" },
-					[],
+				viewer.create(
+					{
+						modelId: "model",
+						repoUrl: "repo",
+						initialMessage: { text: "Continue" },
+					},
 					scope,
 				),
 			() =>
@@ -252,8 +252,9 @@ describe("hub-owned cloud sessions", () => {
 
 	it.each([
 		"send",
-		"createAndSend",
-	] as const)("keeps a lost %s reply unknown without replaying the accepted input", async (operation) => {
+		"create",
+		"create-only",
+	] as const)("keeps a lost %s reply unknown without replaying the request", async (operation) => {
 		const f = fixture();
 		const viewer = f.viewer();
 		await viewer.connect();
@@ -264,21 +265,26 @@ describe("hub-owned cloud sessions", () => {
 		};
 		const failure = await (operation === "send"
 			? viewer.send("ses-one", "Once")
-			: viewer.createAndSend({
+			: viewer.create({
 					modelId: "model",
 					repoUrl: "repo",
-					initialPrompt: "Once",
+					...(operation === "create"
+						? { initialMessage: { text: "Once" } }
+						: { initialPrompt: "Once" }),
 				})
 		).catch((error: unknown) => error);
 		expect(failure).toBeInstanceOf(Error);
 		expect(failure).not.toBeInstanceOf(CloudSendError);
-		if (operation === "createAndSend")
+		if (operation === "create")
 			expect(failure).toMatchObject({
 				code: "request_failed",
 				detail:
 					"The cloud task may have started. Check your cloud tasks before submitting this draft again.",
 			});
-		expect(f.controllers[0]?.controller.send).toHaveBeenCalledOnce();
+		if (operation === "create-only") expect(failure).not.toHaveProperty("code");
+		expect(f.controllers[0]?.controller.send).toHaveBeenCalledTimes(
+			operation === "create-only" ? 0 : 1,
+		);
 	});
 
 	it("does not rebind a prepared request when account recovery runs before dispatch", async () => {
@@ -688,19 +694,19 @@ describe("cloud RPC over a shared hub socket", () => {
 			if (!controller) throw new Error("Missing connected controller");
 			const provisioning = deferred<{ sessionId: string; status: string }>();
 			const sending = deferred<{ sessionId: string; ok: true }>();
-			controller.create.mockReturnValueOnce(provisioning.promise);
+			controller.provision.mockReturnValueOnce(provisioning.promise);
 			controller.send.mockReturnValueOnce(sending.promise);
 			const created = viewer
-				.createAndSend(
-					{
-						modelId: "model",
-						repoUrl: "https://github.com/example/project",
-						initialPrompt: "Summary and next instruction",
-						mode: "plan",
-						workspaceRelativePath: "packages/app",
+				.create({
+					modelId: "model",
+					repoUrl: "https://github.com/example/project",
+					initialMessage: {
+						text: "Summary and next instruction",
+						images: ["image"],
 					},
-					["image"],
-				)
+					mode: "plan",
+					workspaceRelativePath: "packages/app",
+				})
 				.catch((error: unknown) => error);
 			await vi.waitFor(() => expect(controller.create).toHaveBeenCalled());
 			expect((await observer.command("session.list")).payload).toMatchObject({
@@ -728,7 +734,10 @@ describe("cloud RPC over a shared hub socket", () => {
 			expect(controller.create).toHaveBeenCalledExactlyOnceWith({
 				modelId: "model",
 				repoUrl: "https://github.com/example/project",
-				initialPrompt: "Summary and next instruction",
+				initialMessage: {
+					text: "Summary and next instruction",
+					images: ["image"],
+				},
 				mode: "plan",
 				workspaceRelativePath: "packages/app",
 				sandboxType: "resumable",
@@ -802,10 +811,10 @@ describe("cloud RPC over a shared hub socket", () => {
 				/draining/,
 			);
 			await expect(
-				next.createAndSend({
+				next.create({
 					modelId: "model",
 					repoUrl: "repo",
-					initialPrompt: "Continue",
+					initialMessage: { text: "Continue" },
 				}),
 			).rejects.toThrow(/draining/);
 			await next.dispose();

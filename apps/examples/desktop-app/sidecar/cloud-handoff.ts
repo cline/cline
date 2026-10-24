@@ -354,7 +354,7 @@ async function handleHandoffOnce(
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
 	try {
-		const result = await cloud.createAndSend(
+		const result = await cloud.create(
 			{
 				requestId: request.handoffAttemptId?.trim() || randomUUID(),
 				repoUrl: plan.repoUrl,
@@ -362,19 +362,19 @@ async function handleHandoffOnce(
 				modelId,
 				organizationId: organizationId ?? null,
 				...initialTask,
-				initialPrompt: command,
+				initialMessage: { text: command, images },
 			},
-			images,
 			scope,
 		);
-		sessionId = result.target.sessionId;
-		if ("dispatched" in result.send)
-			throw new CloudSendError(
-				result.send.message,
-				result.send.dispatched,
-				result.send.detail,
+		sessionId = result.sessionId;
+		const send = result.initialSend;
+		if (!send)
+			throw new Error(
+				"Cloud task creation did not confirm the initial message.",
 			);
-		if (result.send.recoveredAfterDisconnect) {
+		if ("dispatched" in send)
+			throw new CloudSendError(send.message, send.dispatched, send.detail);
+		if (send.recoveredAfterDisconnect) {
 			warningKind = "unconfirmed";
 			warning =
 				"The cloud connection was interrupted. Check the conversation before resending.";

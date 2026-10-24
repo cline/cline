@@ -4,7 +4,6 @@ import {
 	type CloudHubScope,
 	CloudSendError,
 	type CloudSessionEvent,
-	type CreateCloudSessionInput,
 	HubCloudSessionClient,
 } from "@cline/core/cloud";
 import {
@@ -35,7 +34,7 @@ export class CloudSessionManager extends HubCloudSessionClient {
 		this.subscribe((event) => this.project(event));
 	}
 	override async create(
-		input: Omit<CreateCloudSessionInput, "handoff">,
+		input: Parameters<HubCloudSessionClient["create"]>[0],
 		scope?: CloudHubScope,
 	) {
 		return await super.create(

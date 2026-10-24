@@ -1053,10 +1053,10 @@ describe("CloudSessionController neutral host contract", () => {
 			return original(...args);
 		});
 		try {
-			const creating = f.controller.createAndSend({
+			const creating = f.controller.create({
 				repoUrl: "https://github.com/example/project",
 				modelId: "model",
-				initialPrompt: "INITIAL SUMMARY",
+				initialMessage: { text: "INITIAL SUMMARY" },
 			});
 			await blocked;
 			const following = f.controller.send(record.id, "FOLLOW UP", "queue");
@@ -1069,7 +1069,10 @@ describe("CloudSessionController neutral host contract", () => {
 				f.commands.filter((entry) => entry.command === "session.send_input"),
 			).toEqual([]);
 			release();
-			await creating;
+			const created = await creating;
+			expect(created.initialSend).toMatchObject(
+				rejected ? { dispatched: false } : { ok: true },
+			);
 			expect(await outcome).toBe(rejected ? "rejected" : "sent");
 			expect(
 				f.commands
@@ -1094,21 +1097,42 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it("keeps initialPrompt metadata without submitting a message", async () => {
+		const f = fixture();
+		try {
+			const result = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				modelId: "model",
+				initialPrompt: "Draft metadata",
+			});
+			expect(result.sessionId).toBe(record.id);
+			expect(result).not.toHaveProperty("initialSend");
+			expect(f.controller.getSnapshot(record.id)?.prompt).toBe(
+				"Draft metadata",
+			);
+			expect(
+				f.commands.filter((entry) => entry.command === "session.send_input"),
+			).toEqual([]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("creates and sends one initial prompt with images without a second caller action", async () => {
 		const f = fixture();
 		try {
-			const result = await f.controller.createAndSend(
-				{
-					repoUrl: "https://github.com/example/project",
-					branch: "qa/summary",
-					modelId: "model",
-					initialPrompt: "Summary and next instruction",
+			const result = await f.controller.create({
+				repoUrl: "https://github.com/example/project",
+				branch: "qa/summary",
+				modelId: "model",
+				initialMessage: {
+					text: "Summary and next instruction",
+					images: ["data:image/png;base64,aW1hZ2U="],
 				},
-				["data:image/png;base64,aW1hZ2U="],
-			);
+			});
 			expect(result).toMatchObject({
-				target: { sessionId: record.id, branch: "qa/summary" },
-				send: { ok: true, sessionId: record.id },
+				sessionId: record.id,
+				branch: "qa/summary",
+				initialSend: { ok: true, sessionId: record.id },
 			});
 			expect(
 				f.commands.filter((entry) => entry.command === "session.send_input"),
@@ -1472,10 +1496,10 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 	it.each([
-		["preserve", "create"],
-		["delete", "create"],
-		["preserve", "createAndSend"],
-	] as const)("uses explicit %s policy for %s completing after disposal", async (policy, operation) => {
+		["preserve", false],
+		["delete", false],
+		["preserve", true],
+	] as const)("uses explicit %s policy for creation after disposal (initial message: %s)", async (policy, withMessage) => {
 		let resolve!: (value: {
 			sessionId: string;
 			status: string;
@@ -1492,12 +1516,15 @@ describe("CloudSessionController neutral host contract", () => {
 		});
 		const f = fixture({ lateCreateDisposition: policy });
 		f.api.create.mockImplementationOnce(() => created);
-		const creating = f.controller[operation]({
-			requestId: "request",
-			modelId: "model",
-			repoUrl: record.repoContext.repoUrl!,
-			initialPrompt: "Continue",
-		}).catch((error) => error);
+		const creating = f.controller
+			.create({
+				requestId: "request",
+				modelId: "model",
+				repoUrl: record.repoContext.repoUrl!,
+				initialPrompt: "Continue",
+				...(withMessage ? { initialMessage: { text: "Continue" } } : {}),
+			})
+			.catch((error) => error);
 		await vi.waitFor(() => expect(f.api.create).toHaveBeenCalledOnce());
 		await f.controller.dispose();
 		resolve({
