@@ -3,6 +3,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { type ITheme, Terminal } from "@xterm/xterm";
 import { isTauriAvailable } from "@/lib/desktop-client";
+import { isMacPlatform } from "@/lib/keybindings";
 
 /**
  * Terminal tabs live outside React, keyed by the directory they were opened
@@ -174,6 +175,23 @@ export function createTerminalTab(cwd: string): TerminalTab {
 		scrollback: 5_000,
 		macOptionIsMeta: true,
 		theme: readTerminalTheme(),
+	});
+	// xterm keeps its own selection and binds no copy key. macOS gets Cmd+C
+	// from the native Edit menu; elsewhere Ctrl+C is SIGINT, so terminals
+	// copy on Ctrl+Shift+C (Ctrl+Shift+V already pastes via the browser).
+	term.attachCustomKeyEventHandler((event) => {
+		if (
+			event.type !== "keydown" ||
+			isMacPlatform() ||
+			!event.ctrlKey ||
+			!event.shiftKey ||
+			event.code !== "KeyC"
+		) {
+			return true;
+		}
+		const selection = term.getSelection();
+		if (selection) void navigator.clipboard.writeText(selection);
+		return false;
 	});
 	const fit = new FitAddon();
 	term.loadAddon(fit);
