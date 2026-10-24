@@ -54,11 +54,7 @@ const LOAD_CONFIG_LABELS: Record<string, string> = {
 };
 
 const formatConfigValue = (value: string | number | boolean) =>
-	typeof value === "boolean"
-		? value
-			? "On"
-			: "Off"
-		: value.toLocaleString();
+	typeof value === "boolean" ? (value ? "On" : "Off") : value.toLocaleString();
 
 const CAPABILITY_LABELS: Record<string, string> = {
 	completion: "Chat",
