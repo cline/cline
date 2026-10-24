@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it } from "vitest";
 import type { SessionThread } from "@/hooks/use-session-history";
 import {
 	groupScheduledThreads,
 	groupThreadsByProject,
+	readSidebarSortModeFromWindow,
+	SIDEBAR_SORT_STORAGE_KEY,
 	scheduleRunLabel,
 	workspaceDisplayName,
+	writeSidebarSortModeToWindow,
 } from "./sidebar-session-organization";
 
 function thread(
@@ -150,5 +155,27 @@ describe("sidebar session organization", () => {
 		expect(scheduleRunLabel(thread("c", "/ws", { isScheduled: true }))).toBe(
 			"Run",
 		);
+	});
+});
+
+describe("sidebar sort mode persistence", () => {
+	afterEach(() => {
+		window.localStorage.clear();
+	});
+
+	it("defaults to time and falls back to time for unknown values", () => {
+		expect(readSidebarSortModeFromWindow()).toBe("time");
+		window.localStorage.setItem(SIDEBAR_SORT_STORAGE_KEY, "bogus");
+		expect(readSidebarSortModeFromWindow()).toBe("time");
+	});
+
+	it("round-trips the chosen mode through localStorage", () => {
+		writeSidebarSortModeToWindow("project");
+		expect(window.localStorage.getItem(SIDEBAR_SORT_STORAGE_KEY)).toBe(
+			"project",
+		);
+		expect(readSidebarSortModeFromWindow()).toBe("project");
+		writeSidebarSortModeToWindow("time");
+		expect(readSidebarSortModeFromWindow()).toBe("time");
 	});
 });
