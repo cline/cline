@@ -12,6 +12,7 @@ import {
 	Loader2,
 	MoreHorizontal,
 	Plus,
+	SquareTerminal,
 	Trash2,
 } from "lucide-react";
 import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
@@ -66,6 +67,11 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	/** Shown only where a terminal can run (local sessions in the desktop app). */
+	onToggleTerminal?: () => void;
+	terminalOpen?: boolean;
+	/** Display form of the configured toggle shortcut, for the tooltip. */
+	terminalShortcut?: string;
 };
 
 function AgentHeaderImpl({
@@ -91,6 +97,9 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	onToggleTerminal,
+	terminalOpen = false,
+	terminalShortcut,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -173,6 +182,27 @@ function AgentHeaderImpl({
 										<span className="text-destructive">-{deletions}</span>
 									</span>
 								) : null}
+							</Button>
+						) : null}
+						{onToggleTerminal ? (
+							<Button
+								aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+								aria-pressed={terminalOpen}
+								className={cn(
+									"text-muted-foreground transition-colors hover:text-foreground",
+									terminalOpen && "bg-secondary text-foreground",
+								)}
+								onClick={onToggleTerminal}
+								size="icon-sm"
+								title={
+									terminalShortcut
+										? `Toggle terminal (${terminalShortcut})`
+										: "Toggle terminal"
+								}
+								type="button"
+								variant="ghost"
+							>
+								<SquareTerminal className="size-4" />
 							</Button>
 						) : null}
 						{pullRequest ? (
