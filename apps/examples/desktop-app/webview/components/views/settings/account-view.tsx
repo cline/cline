@@ -31,6 +31,7 @@ import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { buildModelPickerData } from "@/lib/featured-models";
 import {
 	invalidateProviderCatalogCache,
 	loadProviderModels,
@@ -167,14 +168,9 @@ async function fetchClinePassModels(): Promise<string[] | null> {
 		return null;
 	}
 	const models = await loadProviderModels("cline-pass").catch(() => []);
-	return models
-		.filter((model) => model.featured?.tier === "subscribed")
-		.sort((a, b) => (a.featured?.rank ?? 0) - (b.featured?.rank ?? 0))
-		.map((model) =>
-			model.name?.trim() && model.name !== model.id
-				? model.name
-				: model.id.replace(/^cline-pass\//, ""),
-		);
+	return buildModelPickerData("cline-pass", models)
+		.options.filter((option) => option.section === "subscribed")
+		.map((option) => option.label.replace(/^cline-pass\//, ""));
 }
 
 async function switchActiveAccount(
@@ -263,11 +259,11 @@ export function AccountView() {
 				setSignedOut(true);
 				return;
 			}
-			const [balanceData, orgsData, clinePassData] = await Promise.all([
+			// The subscription card is optional, so it neither delays nor breaks the page.
+			void fetchClinePassModels().then(setClinePassModels, () => {});
+			const [balanceData, orgsData] = await Promise.all([
 				fetchAccountBalance(),
 				fetchAccountOrganizations(),
-				// The subscription card is optional; never let it break the page.
-				fetchClinePassModels().catch(() => null),
 			]);
 			if (
 				isClineAccountNotAuthenticatedResult(balanceData) ||
@@ -292,7 +288,6 @@ export function AccountView() {
 			setBalance(balanceData);
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
-			setClinePassModels(clinePassData);
 		} catch (err) {
 			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
