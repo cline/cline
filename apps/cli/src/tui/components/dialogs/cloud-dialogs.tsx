@@ -306,7 +306,8 @@ export function CloudRepoPickerContent(
 			switchMode("branches");
 			return;
 		}
-		if (repo) resolve({ repo, branch: item?.key ?? repo.defaultBranch });
+		// Only a finished result for the current search can be confirmed.
+		if (repo && item && !loadingBranches) resolve({ repo, branch: item.key });
 	};
 
 	useDialogKeyboard((key) => {
@@ -465,18 +466,23 @@ export function CloudModelPickerContent(
 		setChoosingProvider(true);
 	};
 
+	// The search input is recreated when the model list returns, so clear its filter too.
+	const closeProviders = () => {
+		list.setSearch("");
+		setChoosingProvider(false);
+	};
+
 	const chooseProvider = (index: number) => {
 		const provider = providers[index];
 		if (!provider) return;
-		if (provider.id !== providerId) list.setSearch("");
 		setProviderId(provider.id);
-		setChoosingProvider(false);
+		closeProviders();
 	};
 
 	useDialogKeyboard((key) => {
 		if (choosingProvider) {
 			if (key.name === "escape" || key.name === "tab") {
-				setChoosingProvider(false);
+				closeProviders();
 				return;
 			}
 			if (key.name === "return" || key.name === "enter") {
@@ -530,7 +536,6 @@ export function CloudModelPickerContent(
 								flexDirection="row"
 								gap={1}
 								backgroundColor={isSel ? palette.selection : undefined}
-								onMouseDown={() => chooseProvider(index)}
 							>
 								<text
 									fg={isSel ? palette.textOnSelection : "gray"}

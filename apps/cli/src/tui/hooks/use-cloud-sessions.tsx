@@ -70,6 +70,7 @@ export function useCloudSessions(input: {
 	loadClineAccount: TuiProps["loadClineAccount"];
 	onAccountChange: TuiProps["onAccountChange"];
 	replaceEntries: (entries: ChatEntry[]) => void;
+	setIsRunning: (running: boolean) => void;
 	showToast: (message: string, variant?: ToastVariant) => void;
 	refocusTextarea: () => void;
 }) {
@@ -80,6 +81,7 @@ export function useCloudSessions(input: {
 		providerId: localProviderId,
 		modelId: localModelId,
 		replaceEntries,
+		setIsRunning,
 		showToast,
 		refocusTextarea,
 	} = input;
@@ -92,7 +94,16 @@ export function useCloudSessions(input: {
 	const [sessionId, setSessionId] = useState<string>();
 	const [sessionStatus, setSessionStatus] = useState<string>();
 	const sessionIdRef = useRef<string | undefined>(undefined);
+	const creatingRef = useRef<Promise<string> | undefined>(undefined);
+	// Concurrent sends can both try to start the sandbox's task, so each prompt
+	// is dispatched only after the previous one is accepted (as in the desktop app).
+	const dispatchRef = useRef<Promise<void>>(Promise.resolve());
+	// While this chat's own prompt is in flight, the prompt controller owns the
+	// running flag; otherwise snapshots do, so queued turns stay abortable.
+	const sendInFlightRef = useRef(false);
 	const abortRequestedRef = useRef(false);
+	// Stopped before the first prompt reached the sandbox; no later snapshot says so.
+	const stoppedBeforeSendRef = useRef(false);
 	const pickingRef = useRef(false);
 	const modelsRef = useRef<CloudModel[] | undefined>(undefined);
 	const inputRef = useRef(input);
@@ -247,6 +258,8 @@ export function useCloudSessions(input: {
 			const models = await loadModels();
 			const picked = await dialog.choice<CloudModel>({
 				style: { maxHeight: termHeight - 2 },
+				// Esc in the provider list goes back to the models; the content handles it.
+				closeOnEscape: false,
 				content: (ctx: ChoiceContext<CloudModel>) => (
 					<CloudModelPickerContent
 						{...ctx}
@@ -297,13 +310,27 @@ export function useCloudSessions(input: {
 
 	const applySnapshot = useCallback(
 		(snapshot: CloudSessionSnapshot) => {
-			setSessionStatus(describeCloudSessionStatus(snapshot));
+			setSessionStatus(
+				stoppedBeforeSendRef.current
+					? "Stopped in Cline Cloud"
+					: describeCloudSessionStatus(snapshot),
+			);
 			if (snapshot.messages.length > 0) {
 				replaceEntries(hydrateSessionMessages([...snapshot.messages]));
 			}
+			if (!sendInFlightRef.current) setIsRunning(snapshot.busy);
 		},
-		[replaceEntries],
+		[replaceEntries, setIsRunning],
 	);
+
+	/** Detaches this chat from its cloud session; the remote task keeps its state. */
+	const reset = useCallback(() => {
+		sessionIdRef.current = undefined;
+		dispatchRef.current = Promise.resolve();
+		stoppedBeforeSendRef.current = false;
+		setSessionId(undefined);
+		setSessionStatus(undefined);
+	}, []);
 
 	useEffect(() => {
 		if (!client || !sessionId) return;
@@ -313,59 +340,118 @@ export function useCloudSessions(input: {
 			if (event.type === "sync_failed") {
 				showToast(`Cline Cloud: ${event.message}`, "error");
 			}
+			if (event.type === "removed") {
+				// The Hub drops sessions on account changes and deletions.
+				modelsRef.current = undefined;
+				reset();
+				showToast("This Cline Cloud session is no longer available.", "error");
+			}
 		});
 		const current = client.getSnapshot(sessionId);
 		if (current) applySnapshot(current);
 		return unsubscribe;
-	}, [applySnapshot, client, sessionId, showToast]);
+	}, [applySnapshot, client, reset, sessionId, showToast]);
 
 	const submit = useCallback<TuiProps["onSubmit"]>(
 		async (prompt, _mode, delivery, attachments) => {
 			if (!client || !selection) {
 				throw new Error("Choose a repository for Cline Cloud first (Ctrl+K).");
 			}
-			const modelId = (await resolveModel()).id;
-			let id = sessionIdRef.current;
-			if (!id) {
+			if (!delivery) {
+				abortRequestedRef.current = false;
+				stoppedBeforeSendRef.current = false;
+				sendInFlightRef.current = true;
+			}
+			// Set before any await so Esc already routes to this cloud submit.
+			if (!sessionIdRef.current) {
 				setSessionStatus("Starting sandbox in Cline Cloud…");
+			}
+			const aborted = {
+				usage: { inputTokens: 0, outputTokens: 0 },
+				iterations: 0,
+				finishReason: "aborted",
+			};
+			let promptAccepted = false;
+			const stopped = () => {
+				// A prompt the sandbox never accepted produces no later snapshot saying so.
+				if (!delivery && !promptAccepted) {
+					stoppedBeforeSendRef.current = true;
+					setSessionStatus("Stopped in Cline Cloud");
+				}
+				return aborted;
+			};
+			try {
+				const modelId = (await resolveModel()).id;
+				// Follow-ups sent while the sandbox starts wait for the same session.
+				if (!sessionIdRef.current) {
+					creatingRef.current ??= (async () => {
+						setSessionStatus("Starting sandbox in Cline Cloud…");
+						try {
+							const created = await client.create({
+								repoUrl: selection.repo.url,
+								branch: selection.branch,
+								modelId,
+								initialPrompt: prompt,
+								mode: "act",
+								autoApproveTools: true,
+							});
+							sessionIdRef.current = created.sessionId;
+							setSessionId(created.sessionId);
+							return created.sessionId;
+						} catch (error) {
+							setSessionStatus(undefined);
+							throw error;
+						} finally {
+							creatingRef.current = undefined;
+						}
+					})();
+				}
+				const id = sessionIdRef.current ?? (await creatingRef.current);
+				if (!id) return aborted;
+				if (abortRequestedRef.current) return stopped();
+				const previous = dispatchRef.current;
+				let markAccepted = () => {};
+				dispatchRef.current = new Promise<void>((resolve) => {
+					markAccepted = resolve;
+				});
+				let unsubscribe = () => {};
 				try {
-					const created = await client.create({
-						repoUrl: selection.repo.url,
-						branch: selection.branch,
-						modelId,
-						initialPrompt: prompt,
-						mode: "act",
-						autoApproveTools: true,
+					await previous;
+					if (abortRequestedRef.current) return stopped();
+					unsubscribe = client.subscribe((event) => {
+						if (event.sessionId === id && event.type === "prompt_accepted") {
+							promptAccepted = true;
+							markAccepted();
+						}
 					});
-					id = created.sessionId;
-				} catch (error) {
-					setSessionStatus(undefined);
+					const result = await client.send(
+						id,
+						prompt,
+						delivery,
+						modelId,
+						attachments?.userImages,
+					);
+					return {
+						usage: { inputTokens: 0, outputTokens: 0 },
+						iterations: 0,
+						queued: result.queued,
+					};
+				} finally {
+					unsubscribe();
+					markAccepted();
+				}
+			} catch (error) {
+				if (!abortRequestedRef.current) {
+					if (!sessionIdRef.current) setSessionStatus(undefined);
 					throw error;
 				}
-				sessionIdRef.current = id;
-				setSessionId(id);
-			}
-			if (!delivery) abortRequestedRef.current = false;
-			try {
-				const result = await client.send(
-					id,
-					prompt,
-					delivery,
-					modelId,
-					attachments?.userImages,
-				);
-				return {
-					usage: { inputTokens: 0, outputTokens: 0 },
-					iterations: 0,
-					queued: result.queued,
-				};
-			} catch (error) {
-				if (!abortRequestedRef.current) throw error;
-				return {
-					usage: { inputTokens: 0, outputTokens: 0 },
-					iterations: 0,
-					finishReason: "aborted",
-				};
+				if (!sessionIdRef.current) {
+					setSessionStatus(undefined);
+					return aborted;
+				}
+				return stopped();
+			} finally {
+				if (!delivery) sendInFlightRef.current = false;
 			}
 		},
 		[client, resolveModel, selection],
@@ -373,22 +459,24 @@ export function useCloudSessions(input: {
 
 	const abort = useCallback(() => {
 		const id = sessionIdRef.current;
-		if (!client || !id) return false;
+		if (!client || (!id && !sendInFlightRef.current)) return false;
+		// Recorded before the ID exists so a prompt waiting on startup is not sent.
 		abortRequestedRef.current = true;
-		void client
-			.abort(id)
-			.catch((error) =>
-				showToast(`Cline Cloud: ${errorMessage(error)}`, "error"),
-			);
+		if (id) {
+			void client
+				.abort(id)
+				.catch((error) =>
+					showToast(`Cline Cloud: ${errorMessage(error)}`, "error"),
+				);
+		}
 		return true;
 	}, [client, showToast]);
 
-	/** Detaches this chat from its cloud session; the remote task keeps its state. */
-	const reset = useCallback(() => {
-		sessionIdRef.current = undefined;
-		setSessionId(undefined);
-		setSessionStatus(undefined);
-	}, []);
+	/** Leaves Cloud mode entirely, for example when resuming a local chat. */
+	const detach = useCallback(() => {
+		reset();
+		setTarget("local");
+	}, [reset]);
 
 	const statusBar: StatusBarCloud | undefined = client
 		? {
@@ -413,5 +501,6 @@ export function useCloudSessions(input: {
 		submit,
 		abort,
 		reset,
+		detach,
 	};
 }

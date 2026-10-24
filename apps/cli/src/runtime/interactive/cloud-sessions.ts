@@ -18,10 +18,11 @@ export function createCliCloudSessions(workspaceRoot: string): {
 	let hub: NodeHubClient | undefined;
 	const client = new HubCloudSessionClient(async () => {
 		if (hub) return hub;
-		const { url, authToken } = await ensureCliHubServer(workspaceRoot);
+		// No pinned token: the client re-resolves the managed Hub's token on
+		// reconnect, so a restarted Hub (with a new token) is picked up.
+		const { url } = await ensureCliHubServer(workspaceRoot);
 		const next = new NodeHubClient({
 			url,
-			authToken,
 			clientType: "cli-cloud",
 			displayName: "Cline CLI cloud sessions",
 			workspaceRoot,

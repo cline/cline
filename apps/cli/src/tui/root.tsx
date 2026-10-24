@@ -333,10 +333,20 @@ function App(props: TuiProps) {
 		loadClineAccount: props.loadClineAccount,
 		onAccountChange: props.onAccountChange,
 		replaceEntries: session.replaceEntries,
+		setIsRunning: session.setIsRunning,
 		showToast,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
-	const resetCloudSession = cloud.reset;
+	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
+	const propsOnResumeSession = props.onResumeSession;
+	const resumeSession = useCallback(
+		async (sessionId: string) => {
+			// A resumed chat is local, so it must not keep sending to Cloud.
+			detachCloudSession();
+			return await propsOnResumeSession(sessionId);
+		},
+		[detachCloudSession, propsOnResumeSession],
+	);
 	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
 	const openTargetModelSelector = useCallback(
 		(options?: OpenModelSelectorOptions) =>
@@ -804,7 +814,7 @@ function App(props: TuiProps) {
 		refocusTextarea: () => refocusTextareaRef.current(),
 		setAppView,
 		onClearConversation: clearConversation,
-		onResumeSession: props.onResumeSession,
+		onResumeSession: resumeSession,
 		onExportHistorySession: props.onExportHistorySession,
 		onDeleteHistorySession: props.onDeleteHistorySession,
 		onCompact: props.onCompact,
