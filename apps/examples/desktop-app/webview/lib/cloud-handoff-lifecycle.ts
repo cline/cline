@@ -1,8 +1,4 @@
-import {
-	buildHandoffWarningToast,
-	type HandoffProgressPhase,
-	type HandoffResult,
-} from "./cloud-handoff";
+import type { HandoffProgressPhase, HandoffResult } from "./cloud-handoff";
 import type { CloudHandoffUiAction } from "./cloud-handoff-ui-state";
 import {
 	humanizeCloudHandoffError,
@@ -22,7 +18,7 @@ type HandoffLifecycleEffects = {
 	toast: (toast: HandoffLifecycleToast) => void;
 };
 
-type HandoffProgressEventPayload = {
+export type HandoffProgressEventPayload = {
 	sourceSessionId: string;
 	handoffAttemptId?: string;
 	phase: HandoffProgressPhase;
@@ -80,8 +76,16 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					: undefined,
 		});
 		attempt.attachments = [];
-		const warning = buildHandoffWarningToast(result);
-		if (warning) effects.toast(warning);
+		const warning =
+			typeof result.warning === "string" ? result.warning.trim() : "";
+		if (warning)
+			effects.toast({
+				title: "Handoff completed with a warning",
+				description: warning,
+				...(result.warningKind === "unconfirmed"
+					? { variant: "destructive" }
+					: {}),
+			});
 	};
 	return {
 		getCompletedAttemptId(sourceSessionId: string): string | undefined {

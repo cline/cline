@@ -6,11 +6,9 @@ import { ClineAccountService } from "../../account";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { CloudSessionApi } from "../../cloud/api";
 import { CloudSessionController } from "../../cloud/controller";
-import {
-	type CloudHubOperation,
-	type CloudHubScope,
-	type CloudSendFailure,
-	serializeCloudSendFailure,
+import type {
+	CloudHubOperation,
+	CloudHubScope,
 } from "../../cloud/hub-protocol";
 import type {
 	CloudSessionEvent,
@@ -361,22 +359,7 @@ export class HubCloudSessionService {
 		this.activeCommands++;
 		try {
 			const method = controller[name] as (...args: unknown[]) => unknown;
-			let dispatched = false;
-			if (name === "send")
-				normalized[5] = {
-					beforeDispatch: () => {
-						dispatched = true;
-					},
-				};
-			let outcome: { result: unknown } | { sendFailure: CloudSendFailure };
-			try {
-				outcome = { result: await method.apply(controller, normalized) };
-			} catch (error) {
-				if (name !== "send") throw error;
-				outcome = {
-					sendFailure: serializeCloudSendFailure(error, dispatched),
-				};
-			}
+			const result = await method.apply(controller, normalized);
 			this.checkScope();
 			if (this.controller !== controller)
 				throw new Error("Cline account changed during cloud operation");
@@ -384,7 +367,7 @@ export class HubCloudSessionService {
 				serviceId: this.serviceId,
 				revision: this.revision,
 				scopeGeneration: this.scopeGeneration,
-				...outcome,
+				result,
 			};
 		} finally {
 			this.activeCommands--;

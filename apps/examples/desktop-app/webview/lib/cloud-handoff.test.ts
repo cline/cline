@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	buildHandoffWarningToast,
 	isExpectedHandoffSourceActive,
 	parseHandoffCommand,
 	validateHandoffAttachments,
@@ -39,24 +38,5 @@ describe("cloud handoff helpers", () => {
 		expect(
 			isExpectedHandoffSourceActive("thread-a", "thread-a", "settings"),
 		).toBe(false);
-	});
-});
-
-describe("handoff completion warnings", () => {
-	it.each([
-		"unqueued",
-		"unconfirmed",
-	] as const)("describes %s delivery without including the saved prompt", (warningKind) => {
-		expect(
-			buildHandoffWarningToast({ warning: "Could not send.", warningKind }),
-		).toEqual({
-			title: "Handoff completed with a warning",
-			description: "Could not send.",
-			...(warningKind === "unconfirmed" ? { variant: "destructive" } : {}),
-		});
-	});
-	it("returns no toast for a clean completion payload", () => {
-		expect(buildHandoffWarningToast({})).toBeNull();
-		expect(buildHandoffWarningToast({ warning: "   " })).toBeNull();
 	});
 });

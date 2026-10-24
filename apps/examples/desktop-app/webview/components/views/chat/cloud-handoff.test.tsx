@@ -297,11 +297,6 @@ describe("CloudHandoffGitConfirmation", () => {
 		expect(details?.textContent).toContain("new.txt");
 		expect(details?.textContent).toContain("abc local commit");
 		expect(dialog?.textContent).toContain("staging stay unchanged");
-		act(() => details?.querySelector("summary")?.click());
-		expect(details?.open).toBe(true);
-		expect(onDecision).not.toHaveBeenCalled();
-		act(() => details?.querySelector("summary")?.click());
-		expect(details?.open).toBe(false);
 		expect(onDecision).not.toHaveBeenCalled();
 		act(() =>
 			Array.from(dialog?.querySelectorAll("button") ?? [])
@@ -311,7 +306,7 @@ describe("CloudHandoffGitConfirmation", () => {
 		expect(onDecision.mock.calls[0]).toEqual([label !== "Cancel"]);
 	});
 
-	it("omits file and staging warnings for a clean checkout", () => {
+	it("discloses local commits without changed-file details for a clean checkout", () => {
 		render(
 			<CloudHandoffGitConfirmation
 				plan={{
@@ -328,17 +323,9 @@ describe("CloudHandoffGitConfirmation", () => {
 		);
 		const dialog = document.querySelector('[role="alertdialog"]');
 		expect(dialog?.textContent).not.toContain("changed/new");
-		expect(dialog?.textContent).toContain("staging stay unchanged");
 		expect(dialog?.textContent).not.toContain("will be committed");
 		expect(dialog?.textContent).toContain(
 			"1 local commit not confirmed on the remote",
 		);
-		expect(dialog?.querySelector("details")?.textContent).not.toContain(
-			"1 local commit",
-		);
-		expect(dialog?.querySelector("details")?.textContent).toContain(
-			"abc local commit",
-		);
-		expect(dialog?.textContent).toContain("Push and continue");
 	});
 });

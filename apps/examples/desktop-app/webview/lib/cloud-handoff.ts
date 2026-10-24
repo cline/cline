@@ -54,26 +54,3 @@ export function isExpectedHandoffSourceActive(
 		(expectedThreadId === activeThreadId && view === "chat")
 	);
 }
-
-type HandoffWarningToast = {
-	title: string;
-	description: string;
-	variant?: "destructive";
-};
-
-export function buildHandoffWarningToast(fields: {
-	warning?: unknown;
-	warningKind?: unknown;
-}): HandoffWarningToast | null {
-	const warning =
-		typeof fields.warning === "string" ? fields.warning.trim() : "";
-	if (!warning) {
-		return null;
-	}
-	const unconfirmed = fields.warningKind === "unconfirmed";
-	return {
-		title: "Handoff completed with a warning",
-		description: warning,
-		...(unconfirmed ? { variant: "destructive" as const } : {}),
-	};
-}

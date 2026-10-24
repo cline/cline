@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { CloudSessionController } from "./controller";
 
 /** Operations available to cloud UI clients. Lifecycle callbacks remain host-local. */
@@ -26,12 +25,11 @@ export const CLOUD_HUB_OPERATIONS = [
 ] as const;
 export type CloudHubScope = { serviceId: string; scopeGeneration: number };
 
-export const cloudSendFailureSchema = z.object({
-	dispatched: z.boolean(),
-	message: z.string(),
-	detail: z.string().optional(),
-});
-export type CloudSendFailure = z.infer<typeof cloudSendFailureSchema>;
+export type CloudSendFailure = {
+	dispatched: boolean;
+	message: string;
+	detail?: string;
+};
 
 export function serializeCloudSendFailure(
 	error: unknown,
@@ -46,17 +44,6 @@ export function serializeCloudSendFailure(
 			? { detail: error.detail }
 			: {}),
 	};
-}
-
-export class CloudSendError extends Error {
-	constructor(
-		message: string,
-		readonly dispatched: boolean,
-		readonly detail?: string,
-	) {
-		super(message);
-		this.name = "CloudSendError";
-	}
 }
 
 export type CloudHubOperation = (typeof CLOUD_HUB_OPERATIONS)[number];

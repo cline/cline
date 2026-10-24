@@ -182,6 +182,10 @@ describe("summary handoff lifecycle", () => {
 		});
 		expect(h.state()).toBe(completed);
 		expect(h.toast).toHaveBeenCalledOnce();
+		expect(h.toast).toHaveBeenCalledWith({
+			title: "Handoff completed with a warning",
+			description: failed.warning,
+		});
 	});
 	it("retains the target link and ignores repeated completion", async () => {
 		const h = harness();
@@ -200,6 +204,7 @@ describe("summary handoff lifecycle", () => {
 			...result,
 			handoffAttemptId,
 			phase: "complete",
+			warning: "   ",
 		});
 		const completed = h.state();
 		await h.lifecycle.onRpcResolved("local", {
@@ -207,6 +212,7 @@ describe("summary handoff lifecycle", () => {
 			result,
 		});
 		expect(h.state()).toBe(completed);
+		expect(h.toast).not.toHaveBeenCalled();
 		expect(h.state().local).toMatchObject({
 			status: "complete",
 			sessionId: "cloud",

@@ -77,7 +77,6 @@ import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	HANDOFF_PROGRESS_LABELS,
-	type HandoffProgressPhase,
 	type HandoffResult,
 	isExpectedHandoffSourceActive,
 	parseHandoffCommand,
@@ -87,6 +86,7 @@ import {
 	createHandoffLifecycle,
 	type HandoffLifecycle,
 	type HandoffOpenResult,
+	type HandoffProgressEventPayload,
 } from "@/lib/cloud-handoff-lifecycle";
 import {
 	type CloudHandoffUiAction,
@@ -1021,34 +1021,19 @@ function App() {
 		() =>
 			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
 				if (!payload || typeof payload !== "object") return;
-				const progress = payload as {
-					sourceSessionId?: string;
-					handoffAttemptId?: string;
-					phase?: HandoffProgressPhase;
-					message?: string;
-					dashboardUrl?: string;
-					sessionId?: string;
-					warning?: string;
-					warningKind?: "unqueued" | "unconfirmed";
-					unsentPrompt?: string;
-				};
+				const progress = payload as Partial<HandoffProgressEventPayload>;
+				const { sourceSessionId, phase } = progress;
 				if (
-					!progress.sourceSessionId?.trim() ||
-					!progress.phase ||
-					!(progress.phase in HANDOFF_PROGRESS_LABELS)
+					!sourceSessionId?.trim() ||
+					!phase ||
+					!(phase in HANDOFF_PROGRESS_LABELS)
 				) {
 					return;
 				}
 				void handoffLifecycle.onEvent({
-					sourceSessionId: progress.sourceSessionId,
-					handoffAttemptId: progress.handoffAttemptId,
-					phase: progress.phase,
-					message: progress.message,
-					dashboardUrl: progress.dashboardUrl,
-					sessionId: progress.sessionId,
-					warning: progress.warning,
-					warningKind: progress.warningKind,
-					unsentPrompt: progress.unsentPrompt,
+					...progress,
+					sourceSessionId,
+					phase,
 				});
 			}),
 		[handoffLifecycle],

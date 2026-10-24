@@ -1,8 +1,6 @@
 import {
 	type CloudCreationOptions,
 	type CloudHubConnection,
-	type CloudHubScope,
-	CloudSendError,
 	type CloudSessionEvent,
 	HubCloudSessionClient,
 } from "@cline/core/cloud";
@@ -32,18 +30,6 @@ export class CloudSessionManager extends HubCloudSessionClient {
 		super(connect ?? (() => ensureSharedHubClient(owner)));
 		this.ctx = getEnvironmentContext(owner, LOCAL_ENVIRONMENT_ID);
 		this.subscribe((event) => this.project(event));
-	}
-	override async create(
-		input: Parameters<HubCloudSessionClient["create"]>[0],
-		scope?: CloudHubScope,
-	) {
-		return await super.create(
-			{
-				...input,
-				sandboxType: input.sandboxType ?? "resumable",
-			},
-			scope,
-		);
 	}
 	override async listForDiscovery(
 		options: { timeoutMs?: number } = {},
@@ -170,36 +156,26 @@ export class CloudSessionManager extends HubCloudSessionClient {
 		delivery?: "queue" | "steer",
 		modelId?: string,
 		images?: string[],
-		scope?: CloudHubScope,
 	) {
 		// Existing desktop commands update this local preference before lazy inner creation.
 		const config = this.ctx.liveSessions.get(id)?.config;
 		if (config)
-			await this.restoreCreationOptions(
-				id,
-				{
-					...(typeof config.autoApproveTools === "boolean"
-						? { autoApproveTools: config.autoApproveTools }
-						: {}),
-					...(typeof config.thinking === "boolean"
-						? { thinking: config.thinking }
-						: {}),
-					...(typeof config.reasoningEffort === "string"
-						? {
-								reasoningEffort:
-									config.reasoningEffort as CloudCreationOptions["reasoningEffort"],
-							}
-						: {}),
-				},
-				scope,
-			).catch((error: unknown) => {
-				throw new CloudSendError(
-					error instanceof Error ? error.message : String(error),
-					false,
-				);
+			await this.restoreCreationOptions(id, {
+				...(typeof config.autoApproveTools === "boolean"
+					? { autoApproveTools: config.autoApproveTools }
+					: {}),
+				...(typeof config.thinking === "boolean"
+					? { thinking: config.thinking }
+					: {}),
+				...(typeof config.reasoningEffort === "string"
+					? {
+							reasoningEffort:
+								config.reasoningEffort as CloudCreationOptions["reasoningEffort"],
+						}
+					: {}),
 			});
 		try {
-			return await super.send(id, prompt, delivery, modelId, images, scope);
+			return await super.send(id, prompt, delivery, modelId, images);
 		} finally {
 			const snapshot = this.getSnapshot(id);
 			if (snapshot)

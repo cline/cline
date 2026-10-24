@@ -1,10 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { buildCloudHandoffDashboardUrl, type ClineCore } from "@cline/core";
-import {
-	type CloudCreationOptions,
-	type CloudHubScope,
-	CloudSendError,
-} from "@cline/core/cloud";
+import type { CloudCreationOptions, CloudHubScope } from "@cline/core/cloud";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
 	type AgentMode,
@@ -116,10 +112,9 @@ async function assertHandoffIdle(
 
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
+	request: ChatSessionCommandRequest & { sessionId: string },
 ) {
-	const sessionId = request.sessionId?.trim();
-	if (!sessionId) throw new Error("sessionId is required");
+	const { sessionId } = request;
 	assertCloudHandoffAvailable();
 	const manager = getSessionRuntimeBinding(ctx).sessionManager;
 	await assertHandoffIdle(ctx, manager, sessionId);
@@ -204,7 +199,7 @@ export async function handlePrepareHandoff(
 	active.set(sessionId, "capturing");
 	try {
 		const cloud = getCloudSessionManager(ctx);
-		const source = await prepareCloudHandoff(ctx, request);
+		const source = await prepareCloudHandoff(ctx, { ...request, sessionId });
 		await cloud.connect();
 		const scope = cloud.scope;
 		if (!scope) throw new Error("Cloud account is unavailable.");
@@ -252,7 +247,10 @@ type Summarize = (
 
 async function handleHandoffOnce(
 	ctx: SidecarContext,
-	request: ChatSessionCommandRequest,
+	request: ChatSessionCommandRequest & {
+		sessionId: string;
+		handoffAttemptId: string;
+	},
 	summarize: Summarize,
 	approved: HandoffSnapshot,
 ) {
@@ -271,8 +269,7 @@ async function handleHandoffOnce(
 		if (!result.ok) throw new Error(result.message);
 	}
 	assertCloudHandoffAvailable();
-	const sourceSessionId = request.sessionId?.trim();
-	if (!sourceSessionId) throw new Error("sessionId is required");
+	const sourceSessionId = request.sessionId;
 	gitPlans.get(ctx)?.delete(sourceSessionId);
 	const { cloud, scope, config, messages, plan } = approved;
 	assertHandoffAccount(ctx, cloud, scope);
@@ -353,10 +350,11 @@ async function handleHandoffOnce(
 	});
 	let warning: string | undefined;
 	let warningKind: "unqueued" | "unconfirmed" | undefined;
+	let failure: { dispatched: boolean; detail?: string } | undefined;
 	try {
 		const result = await cloud.create(
 			{
-				requestId: request.handoffAttemptId?.trim() || randomUUID(),
+				requestId: request.handoffAttemptId,
 				repoUrl: plan.repoUrl,
 				branch: plan.branch,
 				modelId,
@@ -372,27 +370,25 @@ async function handleHandoffOnce(
 			throw new Error(
 				"Cloud task creation did not confirm the initial message.",
 			);
-		if ("dispatched" in send)
-			throw new CloudSendError(send.message, send.dispatched, send.detail);
-		if (send.recoveredAfterDisconnect) {
+		if ("dispatched" in send) failure = send;
+		else if (send.recoveredAfterDisconnect) {
 			warningKind = "unconfirmed";
 			warning =
 				"The cloud connection was interrupted. Check the conversation before resending.";
 		}
 	} catch (error) {
 		if (!sessionId) throw error;
-		warningKind =
-			error instanceof CloudSendError && !error.dispatched
-				? "unqueued"
-				: "unconfirmed";
+		failure = { dispatched: true };
+	} finally {
+		unsubscribe();
+	}
+	if (failure) {
+		warningKind = failure.dispatched ? "unconfirmed" : "unqueued";
 		warning =
 			warningKind === "unconfirmed"
 				? "The cloud session was created, but delivery is unconfirmed. Check the conversation before resending."
 				: "The cloud workspace was created, but the prompt was not sent. Keep Cline open to retry; closing it loses the unsent draft and may require a new cloud task.";
-		if (error instanceof CloudSendError && error.detail)
-			warning = `${error.detail} ${warning}`;
-	} finally {
-		unsubscribe();
+		if (failure.detail) warning = `${failure.detail} ${warning}`;
 	}
 	assertHandoffAccount(ctx, cloud, scope);
 	const dashboardUrl = buildCloudHandoffDashboardUrl(
@@ -440,7 +436,7 @@ export async function handleHandoff(
 	try {
 		const result = await handleHandoffOnce(
 			ctx,
-			{ ...request, handoffAttemptId: id },
+			{ ...request, sessionId, handoffAttemptId: id },
 			summarize,
 			approved,
 		);

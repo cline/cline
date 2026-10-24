@@ -1,13 +1,11 @@
 import type { HubEventEnvelope, HubReplyEnvelope } from "@cline/shared";
 import type { NodeHubClient } from "../hub/client";
 import { CloudSessionError, type CloudSessionRecord } from "./api";
-import {
-	type CloudHubArgs,
-	type CloudHubOperation,
-	type CloudHubResult,
-	type CloudHubScope,
-	CloudSendError,
-	cloudSendFailureSchema,
+import type {
+	CloudHubArgs,
+	CloudHubOperation,
+	CloudHubResult,
+	CloudHubScope,
 } from "./hub-protocol";
 import { immutableCopy } from "./state";
 import type {
@@ -204,14 +202,6 @@ export class HubCloudSessionClient {
 		)
 			throw new Error("Cloud account changed during request");
 		if (this.disposed) throw new Error("Cloud viewer is disposed");
-		if (operation === "send" && reply.payload?.sendFailure !== undefined) {
-			const failure = cloudSendFailureSchema.parse(reply.payload.sendFailure);
-			throw new CloudSendError(
-				failure.message,
-				failure.dispatched,
-				failure.detail,
-			);
-		}
 		return reply.payload?.result as CloudHubResult<K>;
 	}
 	create(
@@ -223,19 +213,8 @@ export class HubCloudSessionClient {
 	attach(...args: CloudHubArgs<"attach">): Promise<CloudHubResult<"attach">> {
 		return this.call("attach", args);
 	}
-	send(
-		sessionId: string,
-		prompt: string,
-		delivery?: "queue" | "steer",
-		modelId?: string,
-		images?: string[],
-		scope?: CloudHubScope,
-	): Promise<CloudHubResult<"send">> {
-		return this.call(
-			"send",
-			[sessionId, prompt, delivery, modelId, images],
-			scope,
-		);
+	send(...args: CloudHubArgs<"send">): Promise<CloudHubResult<"send">> {
+		return this.call("send", args);
 	}
 	prepareHandoffRepository(
 		repoUrl: string,
@@ -296,11 +275,9 @@ export class HubCloudSessionClient {
 		return this.call("respondApproval", args);
 	}
 	restoreCreationOptions(
-		sessionId: CloudHubArgs<"restoreCreationOptions">[0],
-		options: CloudHubArgs<"restoreCreationOptions">[1],
-		scope?: CloudHubScope,
+		...args: CloudHubArgs<"restoreCreationOptions">
 	): Promise<CloudHubResult<"restoreCreationOptions">> {
-		return this.call("restoreCreationOptions", [sessionId, options], scope);
+		return this.call("restoreCreationOptions", args);
 	}
 	getCrossScopeDiscoveryRecord(
 		...args: CloudHubArgs<"getCrossScopeDiscoveryRecord">

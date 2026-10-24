@@ -11,7 +11,6 @@ import {
 	type CloudHubConnection,
 	HubCloudSessionClient,
 } from "../../cloud/hub-client";
-import { CloudSendError } from "../../cloud/hub-protocol";
 import type {
 	CloudSessionEvent,
 	CloudSessionSnapshot,
@@ -225,16 +224,6 @@ describe("hub-owned cloud sessions", () => {
 					},
 					scope,
 				),
-			() =>
-				viewer.send(
-					"ses-one",
-					"Continue",
-					undefined,
-					undefined,
-					undefined,
-					scope,
-				),
-			() => viewer.restoreCreationOptions("ses-one", { thinking: true }, scope),
 		])
 			await expect(operation()).rejects.toThrow("account changed");
 		const current = f.controllers[1]?.controller;
@@ -243,8 +232,6 @@ describe("hub-owned cloud sessions", () => {
 			current.prepareHandoffRepository,
 			current.listModels,
 			current.create,
-			current.send,
-			current.restoreCreationOptions,
 		])
 			expect(method).not.toHaveBeenCalled();
 		await expect(viewer.listModels()).resolves.toEqual([]);
@@ -274,7 +261,6 @@ describe("hub-owned cloud sessions", () => {
 				})
 		).catch((error: unknown) => error);
 		expect(failure).toBeInstanceOf(Error);
-		expect(failure).not.toBeInstanceOf(CloudSendError);
 		if (operation === "create")
 			expect(failure).toMatchObject({
 				code: "request_failed",
@@ -390,7 +376,6 @@ describe("hub-owned cloud sessions", () => {
 			undefined,
 			undefined,
 			["image"],
-			{ beforeDispatch: expect.any(Function) },
 		);
 		await f.service.dispose();
 		expect(f.controllers[0]!.controller.dispose).toHaveBeenCalledOnce();
@@ -592,7 +577,7 @@ describe("cloud RPC over a shared hub socket", () => {
 		return { root, server };
 	}
 
-	it("preserves repository preparation, send success, and typed delivery failures over the socket", async () => {
+	it("preserves repository preparation and ordinary send results over the socket", async () => {
 		const f = fixture();
 		const { root, server } = await startCloudHub(f);
 		const client = new NodeHubClient({
@@ -621,32 +606,15 @@ describe("cloud RPC over a shared hub socket", () => {
 				undefined,
 				"model",
 				["image"],
-				{ beforeDispatch: expect.any(Function) },
 			);
-			for (const dispatched of [false, true]) {
-				const original = new CloudSessionError(
-					"session_failed",
-					"Repository clone failed.",
-				);
-				const thrown = dispatched
-					? Object.assign(new Error(original.message), {
-							detail: original.detail,
-						})
-					: original;
-				controller.send.mockImplementationOnce(async (...args) => {
-					if (dispatched) args[5]?.beforeDispatch?.();
-					throw thrown;
-				});
-				const error = await viewer
-					.send("ses-one", "Continue")
-					.catch((error: unknown) => error);
-				expect(error).toBeInstanceOf(CloudSendError);
-				expect(error).toMatchObject({
-					dispatched,
-					message: original.message,
-					detail: original.detail,
-				});
-			}
+			const failure = new CloudSessionError(
+				"session_failed",
+				"Repository clone failed.",
+			);
+			controller.send.mockRejectedValueOnce(failure);
+			await expect(viewer.send("ses-one", "Continue")).rejects.toThrow(
+				failure.message,
+			);
 			await client.command("cloud.command", {
 				operation: "send",
 				args: ["ses-one", "Short arguments"],
@@ -655,10 +623,6 @@ describe("cloud RPC over a shared hub socket", () => {
 			expect(controller.send).toHaveBeenLastCalledWith(
 				"ses-one",
 				"Short arguments",
-				undefined,
-				undefined,
-				undefined,
-				{ beforeDispatch: expect.any(Function) },
 			);
 		} finally {
 			await viewer.dispose();
