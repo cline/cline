@@ -1,5 +1,5 @@
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
@@ -78,7 +78,7 @@ describe("ActionButtons", () => {
 		// local processing flag; the latch must clear when the next ask arrives so
 		// the user can act on it.
 		mockTurnState.mockReturnValue({ phase: "awaiting_approval", anchorTs: 1 })
-		const executeButtonAction = vi.fn().mockResolvedValue(undefined)
+		const executeButtonAction = vi.fn().mockResolvedValue(true)
 		const messageHandlers = {
 			executeButtonAction,
 		} as unknown as MessageHandlers
@@ -114,7 +114,7 @@ describe("ActionButtons", () => {
 		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2 })
 		const task: ClineMessage = { ts: 1, type: "say", say: "task", text: "task" }
 		const failed: ClineMessage = { ts: 2, type: "ask", ask: "api_req_failed", text: "server error" }
-		const executeButtonAction = vi.fn().mockResolvedValue(undefined)
+		const executeButtonAction = vi.fn().mockResolvedValue(true)
 		const chatState = {
 			...makeChatState(),
 			inputValue: "unsent draft",
@@ -146,6 +146,79 @@ describe("ActionButtons", () => {
 		expect(chatState.getDraftSnapshot).not.toHaveBeenCalled()
 	})
 
+	it("disables recovery buttons while a composer response is in flight", () => {
+		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2, seq: 3 })
+		const task: ClineMessage = { ts: 1, type: "say", say: "task", text: "task" }
+		const failed: ClineMessage = { ts: 2, type: "ask", ask: "api_req_failed", text: "server error" }
+
+		render(
+			<ActionButtons
+				chatState={makeChatState()}
+				messageHandlers={
+					{
+						executeButtonAction: vi.fn(),
+						recoveryActionInFlight: true,
+					} as unknown as MessageHandlers
+				}
+				messages={[task, failed]}
+				mode="act"
+				task={task}
+			/>,
+		)
+
+		expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled()
+		expect(screen.getByRole("button", { name: "Start New Task" })).toBeDisabled()
+	})
+
+	it("re-enables recovery buttons when the turn sequence advances", () => {
+		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2, seq: 3 })
+		const task: ClineMessage = { ts: 1, type: "say", say: "task", text: "task" }
+		const failed: ClineMessage = { ts: 2, type: "ask", ask: "api_req_failed", text: "server error" }
+		const props = {
+			task,
+			chatState: makeChatState(),
+			messageHandlers: { executeButtonAction: vi.fn().mockResolvedValue(true) } as unknown as MessageHandlers,
+			messages: [task, failed],
+			mode: "act" as const,
+		}
+		const { rerender } = render(<ActionButtons {...props} />)
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+		expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled()
+
+		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2, seq: 4 })
+		rerender(<ActionButtons {...props} />)
+
+		expect(screen.getByRole("button", { name: "Retry" })).not.toBeDisabled()
+		expect(screen.getByRole("button", { name: "Start New Task" })).not.toBeDisabled()
+	})
+
+	it("releases its local latch when another recovery control owns the turn", async () => {
+		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2, seq: 3 })
+		const task: ClineMessage = { ts: 1, type: "say", say: "task", text: "task" }
+		const failed: ClineMessage = { ts: 2, type: "ask", ask: "api_req_failed", text: "server error" }
+
+		render(
+			<ActionButtons
+				chatState={makeChatState()}
+				messageHandlers={
+					{
+						executeButtonAction: vi.fn().mockResolvedValue(false),
+					} as unknown as MessageHandlers
+				}
+				messages={[task, failed]}
+				mode="act"
+				task={task}
+			/>,
+		)
+
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+			await Promise.resolve()
+		})
+		expect(screen.getByRole("button", { name: "Retry" })).not.toBeDisabled()
+	})
+
 	it("passes a submitting action the complete draft snapshot", () => {
 		mockTurnState.mockReturnValue({ phase: "awaiting_approval", anchorTs: 1 })
 		const task = fileApprovalAsk(1, "/notes.txt")
@@ -156,7 +229,7 @@ describe("ActionButtons", () => {
 			images: ["image.png"],
 			files: ["notes.md"],
 		}
-		const executeButtonAction = vi.fn().mockResolvedValue(undefined)
+		const executeButtonAction = vi.fn().mockResolvedValue(true)
 		const chatState = { ...makeChatState(), getDraftSnapshot: vi.fn(() => draft) } as ChatState
 
 		render(

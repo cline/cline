@@ -10,12 +10,15 @@ export default defineConfig({
 			"src/sdk/**/*.test.ts",
 			"src/hosts/vscode/VscodeEditPreview.test.ts",
 			"src/shared/vsCodeSelectorUtils.test.ts",
+			"src/shared/net.test.ts",
 			"src/shared/proto-conversions/models/**/*.test.ts",
 			"src/core/storage/remote-config/**/*.test.ts",
 			"src/core/controller/account/setUserOrganization.test.ts",
+			"src/services/cloud/workspace-cloud-defaults.test.ts",
 			"src/core/controller/remoteConfig/**/*.test.ts",
 			"src/core/controller/state/**/*.test.ts",
 			"src/core/controller/slash/**/*.test.ts",
+			"src/core/controller/task/newTask.test.ts",
 			"src/services/ClineClientIdentity.test.ts",
 			"src/services/mcp/__tests__/settingsLock.test.ts",
 			"src/shared/model-catalog/provider-helpers.test.ts",
@@ -46,6 +49,10 @@ export default defineConfig({
 			// Vite drops Zod's named namespace export on Windows while preserving
 			// its default export. Restore the package's declared `z` export for tests.
 			{ find: /^zod$/, replacement: path.resolve(__dirname, "src/test/zod-vitest-stub.ts") },
+			{
+				find: /^@cline\/core\/cloud$/,
+				replacement: path.resolve(__dirname, "node_modules/@cline/core/dist/cloud/index.js"),
+			},
 			{ find: "@cline/core", replacement: path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts") },
 			{ find: "@cline/llms", replacement: path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js") },
 			// Map @cline/shared subpath exports explicitly. The bare "@cline/shared"

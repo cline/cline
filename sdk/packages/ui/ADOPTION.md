@@ -640,6 +640,44 @@ current product contracts should be compared before standardizing them.
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
 
+## Conversation layout and header
+
+`AgentConversationLayout` takes host-rendered `welcomeHeader`, `body`, `composer`,
+`notice`, `welcomeSetup`, and `welcomeFooter` slots. `AgentSessionContent`
+provides the shared content width; `AgentConversationHeader` groups title/status
+children with optional `actions`. Import `components.css` and theme tokens as
+described above.
+
+`welcome` selects the layout; the body remains mounted when hidden.
+`hideWelcomeComposer` hides the welcome composer without unmounting it, but
+switching layouts can remount the composer. Keep drafts in host state.
+`bodyClassName` accepts host animation classes. Hosts retain scrolling, title
+editing, menus, native title-bar behavior, and all event handlers.
+
+## Composer presentation
+
+`AgentComposer` and its body, field, textarea, action, attachment-list, and
+settings primitives preserve the desktop composer's welcome/conversation
+presentation. They render the original native elements without extra wrappers;
+refs and native event/ARIA props forward to those elements. Import
+`@cline/ui/components.css` and the shared tokens as described above.
+
+Compose the host's PR bar before `AgentComposerBody`. Inside the body, render
+`AgentPromptQueue`, the host's suggestion positioning wrapper and
+`AgentComposerField` (textarea and actions), feedback, and optional
+`AgentComposerAttachments`, in that order. Nested variant-aware primitives
+inherit the `AgentComposer` variant unless they set an explicit override. Pass
+`hasQueue` to the body. Render model/settings controls in
+`AgentComposerSettingsGroup`, with workspace/usage controls in
+`AgentComposerSettingsEnd`, both inside `AgentComposerSettings`.
+
+The host owns draft state, textarea sizing, IME/keyboard/paste behavior, focus
+forwarding, suggestion menus, attachment chips and uploads, queue operations,
+model/settings popovers, voice controls, and send/stop callbacks and visibility.
+The shared send/stop buttons style host-provided children; supply their accessible
+labels, titles, `type="button"`, disabled state, and handlers. This is an additive
+presentation API, not a runtime composer or a form with implicit submission.
+
 ## Session rows
 
 `AgentSessionRow`, `AgentSessionRowEditor`, and `AgentSessionOverview` are
@@ -721,3 +759,75 @@ existing 50%/75% warnings; lifetime token traffic must not be passed as context
 usage. `costLabel` is a separate optional, host-formatted cumulative cost.
 Fetching metrics, choosing the model limit, and computing cumulative cost remain
 host responsibilities.
+
+## Message scroller
+
+Use `@cline/ui/components/message-scroller` with React 19 for transcripts that
+anchor new user turns and preserve the reader's position during streaming.
+The behavior comes from `@shadcn/react`; the shared wrapper adds Cline styles.
+Import `@cline/ui/components.css`, or import
+`@cline/ui/components/message-scroller.css` with theme tokens for a plain CSS
+host. Place the scroller in a parent with a constrained height.
+
+```tsx
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+  useMessageScroller,
+  useMessageScrollerVisibility,
+} from "@cline/ui/components/message-scroller";
+
+function Transcript({ messages }) {
+  return (
+    <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
+      <MessageScroller>
+        <MessageScrollerViewport aria-label="Conversation">
+          <MessageScrollerContent>
+            {messages.map((message) => (
+              <MessageScrollerItem
+                key={message.id}
+                messageId={message.id}
+                scrollAnchor={message.role === "user"}
+              >
+                {message.content}
+              </MessageScrollerItem>
+            ))}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+        <Outline messages={messages} />
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+
+function Outline({ messages }) {
+  const { scrollToMessage } = useMessageScroller();
+  const { currentAnchorId } = useMessageScrollerVisibility();
+  return (
+    <nav aria-label="Transcript outline">
+      {messages.filter((message) => message.role === "user").map((message) => (
+        <button
+          key={message.id}
+          type="button"
+          aria-current={currentAnchorId === message.id ? "location" : undefined}
+          onClick={() => scrollToMessage(message.id, { align: "start" })}
+        >
+          {message.content}
+        </button>
+      ))}
+    </nav>
+  );
+}
+```
+
+Every direct transcript child, including tool groups, loading rows, and
+approval panels, must be a `MessageScrollerItem`. Use stable IDs to support
+jumps and reader-position tracking. A collapsed tool group can keep the same
+row ID as its expanded form. The host chooses which rows anchor turns and
+which messages appear in its outline; transport and session state remain in
+the app. Key the provider by session ID when switching transcripts.

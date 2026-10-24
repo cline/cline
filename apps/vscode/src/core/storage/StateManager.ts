@@ -19,7 +19,6 @@ import type { StorageContext } from "@shared/storage/storage-context"
 import { FSWatcher } from "chokidar"
 import { initializeDistinctId } from "@/services/logging/distinctId"
 import { Logger } from "@/shared/services/Logger"
-import { AgentConfigLoader } from "../task/tools/subagent/AgentConfigLoader"
 import { readTaskSettingsFromStorage, writeTaskSettingsToStorage } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
@@ -110,8 +109,6 @@ export class StateManager {
 			StateManager.instance.populateCache(globalState, secrets, workspaceState)
 
 			StateManager.instance.isInitialized = true
-
-			await AgentConfigLoader.getInstance().ready()
 		} catch (error) {
 			Logger.error("[StateManager] Failed to initialize:", error)
 			throw error

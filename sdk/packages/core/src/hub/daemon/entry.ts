@@ -5,6 +5,11 @@ import {
 	initVcr,
 	resolveClineBuildEnv,
 } from "@cline/shared";
+import {
+	resolveAgentPluginPathsWithDiagnostics,
+	resolvePluginExecutionMode,
+} from "../../extensions/plugin/plugin-config-loader";
+import { getProcessPluginRegistry } from "../../extensions/plugin/plugin-registry";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -22,6 +27,7 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { describeAddressInUse } from "./bind-diagnostics";
 import {
 	createHubDaemonShutdownCoordinator,
 	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
@@ -236,6 +242,8 @@ async function main(): Promise<void> {
 	// instead of taking Node/Bun's default exit path and leaving stale discovery.
 	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
 	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+	// Plugin code runs in workers, never on this thread, so an uncaught error
+	// here is the daemon's own and is fatal.
 	process.on("uncaughtException", (error) => {
 		shutdownFatal("uncaughtException", error);
 	});
@@ -281,12 +289,24 @@ async function main(): Promise<void> {
 	} catch (error) {
 		// Losing the singleton race to a live Hub is expected, not a failure.
 		if (!isHubLockHeldError(error)) {
+			// The lock is taken before binding, so whatever holds the port is
+			// not a live Hub for this owner. Record what it is so the fix can
+			// target the actual cause instead of guessing.
+			const context = isAddressInUseError(error)
+				? await describeAddressInUse(error, endpoint)
+				: undefined;
+			if (context) {
+				process.stderr.write(
+					`[hub-daemon] port ${endpoint.port} is in use: ${JSON.stringify(context)}\n`,
+				);
+			}
 			captureSdkError(daemonTelemetry.telemetry, {
 				component: "hub",
 				operation: "hub.daemon.startup",
 				error,
 				handled: false,
 				severity: "fatal",
+				context,
 			});
 		}
 		// Flush before the top-level catch exits so failed daemon starts are
@@ -364,6 +384,9 @@ async function main(): Promise<void> {
 	}
 
 	resolveHubDaemonReady();
+	// Discover and import global plugins once up front so `plugins.status`
+	// reports them before any session starts. Sessions reuse these modules.
+	void preloadDaemonPlugins(options.cwd);
 	try {
 		// Adopt first: connectors that outlived the previous hub have to be known
 		// before recovery runs, so they are restarted onto this hub's session
@@ -382,6 +405,36 @@ async function main(): Promise<void> {
 	await new Promise<void>(() => {
 		// keep daemon process alive
 	});
+}
+
+async function preloadDaemonPlugins(cwd: string): Promise<void> {
+	// Sandbox mode has no process-wide registry; each session starts its own
+	// subprocess. Worker mode preloads in throwaway workers so status is known
+	// before any session starts.
+	if (resolvePluginExecutionMode() === "sandbox") {
+		return;
+	}
+	try {
+		const resolved = resolveAgentPluginPathsWithDiagnostics({
+			workspacePath: cwd,
+			cwd,
+		});
+		const statuses = await getProcessPluginRegistry().preload({
+			pluginPaths: resolved.paths,
+			disabledPluginPaths: resolved.disabledPaths,
+			discoveryFailures: resolved.discoveryFailures,
+		});
+		const failed = statuses.filter((status) => status.state === "failed");
+		for (const status of failed) {
+			process.stderr.write(
+				`[hub-daemon] plugin "${status.name}" failed (${status.lastError?.phase}): ${status.lastError?.message}\n`,
+			);
+		}
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(`[hub-daemon] plugin preload failed: ${message}\n`);
+	}
 }
 
 void main().catch((error) => {

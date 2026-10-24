@@ -45,6 +45,9 @@ export type HubCapabilityName =
 	| "run.list"
 	| "hub.drain"
 	| "hub.status"
+	| "plugins.list"
+	| "plugins.status"
+	| "plugins.reload"
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
@@ -75,6 +78,9 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"run.list",
 	"hub.drain",
 	"hub.status",
+	"plugins.list",
+	"plugins.status",
+	"plugins.reload",
 	"stream.replay",
 ];
 
@@ -482,6 +488,95 @@ export interface HubSessionSearchHit {
 }
 
 /**
+ * Lifecycle state of one plugin module loaded by a host (normally the Hub).
+ *
+ * - `loading`: the module is being imported.
+ * - `ready`: imported and set up without errors.
+ * - `degraded`: a hook or tool call failed; the plugin is still called.
+ * - `failed`: the last setup failed, or the plugin is off for every session
+ *   because its import failed, a stray error was attributed to it, or calls
+ *   kept failing. Only a setup failure lets the next session try again.
+ * - `disabled`: turned off in settings; never imported.
+ */
+export type PluginRuntimeState =
+	| "loading"
+	| "ready"
+	| "degraded"
+	| "failed"
+	| "disabled";
+
+/**
+ * Where a plugin error happened: `discover`, `import`, `setup`, `dispose`,
+ * `hook:<name>`, `tool:<name>`, `command:<name>`, `rule:<id>`,
+ * `messageBuilder:<name>`, or `uncaught` for a stray exception or rejection
+ * the host attributed to the plugin from its stack.
+ */
+export type PluginErrorPhase =
+	| "discover"
+	| "import"
+	| "setup"
+	| "dispose"
+	| "uncaught"
+	| `hook:${string}`
+	| `tool:${string}`
+	| `command:${string}`
+	| `rule:${string}`
+	| `messageBuilder:${string}`;
+
+export interface PluginErrorRecord {
+	phase: PluginErrorPhase;
+	message: string;
+	stack?: string;
+	pluginPath: string;
+	/** Epoch milliseconds. */
+	timestamp: number;
+	sessionId?: string;
+	timedOut?: boolean;
+}
+
+export interface PluginStatusRecord {
+	/** Plugin `name` export, or a name derived from the path before import. */
+	name: string;
+	pluginPath: string;
+	state: PluginRuntimeState;
+	lastError?: PluginErrorRecord;
+	errorCount: number;
+	timeoutCount: number;
+	/** Live sessions that set this plugin up. */
+	sessionIds: string[];
+	capabilities?: string[];
+	hooks?: string[];
+	/** Epoch milliseconds of the last state or error change. */
+	updatedAt: number;
+}
+
+/**
+ * Per-session plugin selection, shaped like `toolPolicies`: `"*"` sets the
+ * default and named entries override it for one plugin. Plugins are enabled
+ * unless a policy says otherwise.
+ */
+export interface PluginPolicy {
+	enabled?: boolean;
+}
+
+export type PluginPolicies = Record<string, PluginPolicy>;
+
+/** A plugin a session asked for but does not have, reported at session start. */
+export interface SessionPluginIssue {
+	name: string;
+	pluginPath: string;
+	state: PluginRuntimeState;
+	/** `session_policy` when the session's `plugins` policy turned it off. */
+	reason?: "session_policy" | "settings" | "error";
+	lastError?: PluginErrorRecord;
+}
+
+export interface HubPluginsReloadInput {
+	/** Plugin name or absolute module path. */
+	plugin: string;
+}
+
+/**
  * Strongly typed task command payloads. This map is intentionally extensible so
  * other Hub command families can adopt typed payloads without changing the wire
  * envelope.
@@ -497,6 +592,9 @@ export interface HubCommandInputMap {
 	"task.run": HubTaskRevisionInput;
 	"task.automation.get": Record<string, never>;
 	"task.automation.set": HubTaskAutomationSetInput;
+	"plugins.list": Record<string, never>;
+	"plugins.status": Record<string, never>;
+	"plugins.reload": HubPluginsReloadInput;
 }
 
 /** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
@@ -511,6 +609,9 @@ export interface HubCommandOutputMap {
 	"task.run": { task: AgendaTaskRecord; run?: AgendaTaskRunRecord };
 	"task.automation.get": { policy: AgendaAutomationPolicy };
 	"task.automation.set": { policy: AgendaAutomationPolicy };
+	"plugins.list": { plugins: PluginStatusRecord[] };
+	"plugins.status": { plugins: PluginStatusRecord[] };
+	"plugins.reload": { plugins: PluginStatusRecord[] };
 }
 
 export type HubTypedCommandName = keyof HubCommandInputMap & HubCommandName;
@@ -520,6 +621,8 @@ export type HubCommandOutput<TCommand extends HubTypedCommandName> =
 	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
+	| "cloud.command"
+	| "cloud.watch"
 	| "client.register"
 	| "client.update"
 	| "client.unregister"
@@ -540,6 +643,9 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.mcp_apps.resolve_tool"
+	| "session.mcp_apps.read_resource"
+	| "session.mcp_apps.call_tool"
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"
@@ -556,6 +662,9 @@ export type HubCommandName =
 	| "run.proceed_while_running"
 	| "hub.drain"
 	| "hub.status"
+	| "plugins.list"
+	| "plugins.status"
+	| "plugins.reload"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
@@ -587,6 +696,8 @@ export type HubCommandName =
 	| "task.run"
 	| "task.automation.get"
 	| "task.automation.set"
+	| "plugins.commands.list"
+	| "plugins.commands.run"
 	| "settings.list"
 	| "settings.get"
 	| "settings.patch"
@@ -612,6 +723,7 @@ export function getDefaultHubCommandTimeoutMs(
 	switch (command) {
 		case "run.start":
 		case "session.send_input":
+		case "plugins.commands.run":
 			return null;
 		default:
 			return HUB_DEFAULT_COMMAND_TIMEOUT_MS;
@@ -650,6 +762,7 @@ export interface HubReplyEnvelope {
 }
 
 export type HubEventName =
+	| "cloud.event"
 	| "hub.client.registered"
 	| "hub.client.disconnected"
 	| "session.created"
@@ -707,6 +820,7 @@ export type HubEventName =
 	| "task.run.failed"
 	| "task.automation.updated"
 	| "settings.changed"
+	| "plugin.status_changed"
 	| "ui.notify"
 	| "ui.show_window"
 	| "hub.client.updated";
@@ -808,6 +922,7 @@ export interface HubClientToolExecutorContribution
 }
 
 export interface HubClientToolContribution extends HubClientContributionBase {
+	successContext?: string;
 	kind: "tool";
 	name: string;
 	description: string;

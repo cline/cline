@@ -11,5 +11,6 @@
 @import "./components/search-combobox.css";
 @import "./components/session-status.css";
 @import "./components/switch.css";
+@import "./components/message-scroller.css";
 
 @source "./components";

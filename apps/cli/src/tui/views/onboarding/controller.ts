@@ -104,6 +104,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [authStatus, setAuthStatus] = useState("");
 	const [authUrl, setAuthUrl] = useState("");
 	const [authError, setAuthError] = useState("");
+	const [providerSaveError, setProviderSaveError] = useState("");
 	const [activeProviderId, setActiveProviderId] = useState("");
 	const [activeProviderName, setActiveProviderName] = useState("");
 	const localCli = useMemo(
@@ -582,6 +583,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 					existing?.sap?.deploymentId?.trim() ?? "";
 			}
 			setByoValues(initialValues);
+			setProviderSaveError("");
 
 			// Focus the first visible field
 			const firstField = FIELD_ORDER.find(
@@ -599,14 +601,21 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		}
 	}, [localCli, refreshLocalCliStatus]);
 
-	const saveLocalCliConfig = useCallback(() => {
+	const saveLocalCliConfig = useCallback(async () => {
 		if (!canContinueLocalCliSetup(localCli, localCliStatus)) {
 			return;
 		}
-		saveLocalProviderSettings(providerSettingsManager, {
-			providerId: activeProviderId,
-		});
-		transitionToModelPicker(activeProviderId);
+		setProviderSaveError("");
+		try {
+			await saveLocalProviderSettings(providerSettingsManager, {
+				providerId: activeProviderId,
+			});
+			transitionToModelPicker(activeProviderId);
+		} catch (error) {
+			setProviderSaveError(
+				error instanceof Error ? error.message : String(error),
+			);
+		}
 	}, [
 		activeProviderId,
 		localCli,
@@ -615,10 +624,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		transitionToModelPicker,
 	]);
 
-	const saveByoConfig = useCallback(() => {
+	const saveByoConfig = useCallback(async () => {
 		// No required-field validation. If credentials are missing or wrong,
 		// the provider's own auth response is the authoritative error and is
-		// surfaced when the model picker / first turn runs.
+		// surfaced by model discovery or the first turn.
 		const apiKey = byoValues.apiKey?.trim();
 		const awsProfile = byoValues.awsProfile?.trim();
 		const hasAzureFields = byoFields.azureApiVersion;
@@ -630,27 +639,33 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			byoFields.sapResourceGroup ||
 			byoFields.sapDeploymentId;
 
-		saveLocalProviderSettings(providerSettingsManager, {
-			providerId: activeProviderId,
-			apiKey: byoFields.apiKey ? apiKey : undefined,
-			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
-			azure: hasAzureFields ? resolveProviderConfigAzure(byoValues) : undefined,
-			aws: hasAwsFields
-				? {
-						region: resolveProviderConfigAwsRegion(byoValues),
-						authentication: apiKey ? "api-key" : "profile",
-						profile: apiKey ? undefined : awsProfile || undefined,
-					}
-				: undefined,
-			sap: hasSapFields ? resolveProviderConfigSap(byoValues) : undefined,
-		});
-		// Emit a single `user.provider_configured` event mirroring the
-		// `{ provider }` payload shape used by the auth funnel. The save above
-		// is synchronous and infallible, so there's no start/fail counterpart;
-		// invalid credentials surface later as `task.provider_api_error` on
-		// the first real API call.
-		captureProviderConfigured(getCliTelemetryService(), activeProviderId);
-		transitionToModelPicker(activeProviderId);
+		setProviderSaveError("");
+		try {
+			await saveLocalProviderSettings(providerSettingsManager, {
+				providerId: activeProviderId,
+				apiKey: byoFields.apiKey ? apiKey : undefined,
+				baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
+				azure: hasAzureFields
+					? resolveProviderConfigAzure(byoValues)
+					: undefined,
+				aws: hasAwsFields
+					? {
+							region: resolveProviderConfigAwsRegion(byoValues),
+							authentication: apiKey ? "api-key" : "profile",
+							profile: apiKey ? undefined : awsProfile || undefined,
+						}
+					: undefined,
+				sap: hasSapFields ? resolveProviderConfigSap(byoValues) : undefined,
+			});
+			// Emit a single `user.provider_configured` event mirroring the
+			// `{ provider }` payload shape used by the auth funnel after saving succeeds.
+			captureProviderConfigured(getCliTelemetryService(), activeProviderId);
+			transitionToModelPicker(activeProviderId);
+		} catch (error) {
+			setProviderSaveError(
+				error instanceof Error ? error.message : String(error),
+			);
+		}
 	}, [
 		byoValues,
 		byoFields,
@@ -836,6 +851,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		activeProviderName,
 		activeProviderId,
 		authError,
+		providerSaveError,
 		authStatus,
 		authUrl,
 		byoDescription,

@@ -12,7 +12,6 @@
 // credential chain with no region. This mirrors the structured aws block built
 // by the shared provider-settings legacy migration and the CLI.
 
-import type { ProviderSettings } from "@cline/core"
 import type { ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
@@ -83,46 +82,5 @@ export function buildBedrockProviderConfig(configuration: ApiConfiguration, mode
 		aws,
 		useCrossRegionInference: configuration.awsUseCrossRegionInference,
 		useGlobalInference: configuration.awsUseGlobalInference,
-	}
-}
-
-/**
- * Build the full SDK `ProviderSettings` for Bedrock from the extension's
- * ApiConfiguration, suitable for persisting to providers.json via
- * `ProviderSettingsManager.saveProviderSettings`.
- *
- * WHY THIS EXISTS (the second Bedrock bug):
- * The main chat path runs through core's `buildProviderConfig`
- * (local-runtime-bootstrap.ts), which builds the gateway-registered
- * ProviderSettings as `{ ...stored, provider, model, apiKey, baseUrl, ... }`.
- * The `aws` block and `region` come ONLY from `stored` (providers.json) — the
- * session's `providerConfig` is consulted by a different code path and does NOT
- * override the gateway registration. So a stale providers.json Bedrock entry
- * (e.g. a legacy migration with region "us-east-1" + SigV4 keys) silently wins:
- * requests go to the wrong region and 403, even though StateManager has the
- * correct region + apikey auth.
- *
- * Writing the StateManager-derived settings back to providers.json makes
- * `stored` authoritative and correct, so the gateway is configured with the
- * region/auth the user actually selected.
- */
-export function buildBedrockProviderSettings(configuration: ApiConfiguration, modelId: string, mode: Mode): ProviderSettings {
-	const { region, aws, useCrossRegionInference, useGlobalInference } = buildBedrockProviderConfig(configuration, mode)
-	// Only persist the bearer apiKey when actually authenticating with api-key.
-	// Otherwise (profile/iam) a stale key could linger in providers.json; the SDK
-	// ignores it for SigV4 auth, but we keep `stored` clean and unambiguous.
-	const usesApiKeyAuth = aws?.authentication === "apikey" || aws?.authentication === "api-key"
-	const apiKey = usesApiKeyAuth ? trimToUndefined(configuration.awsBedrockApiKey) : undefined
-	return {
-		provider: "bedrock",
-		model: modelId,
-		...(apiKey ? { apiKey } : {}),
-		...(region ? { region } : {}),
-		aws: {
-			...aws,
-			...(region ? { region } : {}),
-			...(useCrossRegionInference !== undefined ? { useCrossRegionInference } : {}),
-			...(useGlobalInference !== undefined ? { useGlobalInference } : {}),
-		},
 	}
 }

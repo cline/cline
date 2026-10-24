@@ -19,6 +19,7 @@
  * OAuth-retry and run replay feasible.
  */
 
+import { randomUUID } from "node:crypto";
 import type { AgentRuntime } from "@cline/agents";
 import { createAgentRuntime } from "@cline/agents";
 import {
@@ -61,10 +62,18 @@ import {
 	captureMistakeLimitReached,
 	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
+import { RunHealthObserver } from "../../services/telemetry/run-health";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 import {
+	DEFAULT_MAX_TOOL_RESULT_CHARS,
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
 } from "../../session/services/message-builder";
+import {
+	prepareToolResultPreview,
+	prepareToolResultRecovery,
+	ToolResultCache,
+} from "../../session/services/tool-result-cache";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -326,6 +335,9 @@ export class SessionRuntime {
 	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
+	private readonly toolResultCache: ToolResultCache;
+	private cacheableToolNames = new Set<string>();
+	private readonly maxCachedResultChars: number;
 	private pendingTerminalError:
 		| Extract<AgentEvent, { type: "error" }>
 		| undefined;
@@ -411,9 +423,7 @@ export class SessionRuntime {
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
-		this.agentId = `agent_${Date.now()}_${Math.random()
-			.toString(36)
-			.slice(2, 8)}`;
+		this.agentId = `agent_${randomUUID()}`;
 		this.parentAgentId = config.parentAgentId;
 		this.logger = deps.logger ?? config.logger;
 		this.telemetry = deps.telemetry ?? config.telemetry;
@@ -421,7 +431,19 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
+		this.toolResultCache = new ToolResultCache(
+			config.sessionId ?? this.agentId,
+		);
+		const messageBuilderOptions = getMessageBuilderOptionsFromEnv();
+		this.maxCachedResultChars =
+			messageBuilderOptions.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS;
+		this.messageBuilder = new MessageBuilder({
+			...messageBuilderOptions,
+			getToolResultRecovery: (result) =>
+				this.cacheableToolNames.has(result.name ?? "")
+					? { uri: this.toolResultCache.uriFor(result.tool_use_id) }
+					: undefined,
+		});
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,
@@ -581,6 +603,7 @@ export class SessionRuntime {
 	}
 
 	private resetConversationBoundaryTrackers(): void {
+		this.toolResultCache.clear();
 		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
 		this.loopTracker.reset();
@@ -686,6 +709,7 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
+		this.toolResultCache.clear();
 	}
 
 	// -------------------------------------------------------------------
@@ -886,7 +910,7 @@ export class SessionRuntime {
 			.slice(2, 8)}`;
 		// Lazily initialize contribution-registry extensions on the
 		// first run, before runtime construction.
-		await this.ensureExtensionsInitialized();
+		await this.initializeExtensions();
 		this.eventAdapter.reset();
 		this.currentRunToolCalls = [];
 		this.currentRunUsage = { inputTokens: 0, outputTokens: 0 };
@@ -976,6 +1000,19 @@ export class SessionRuntime {
 		const initialMessages = messagesToAgentMessages(
 			this.conversation.getMessages(),
 		);
+		this.cacheableToolNames = new Set(
+			tools
+				.filter((tool) => tool.resultPolicy === "cache-oversized")
+				.map((tool) => tool.name.toLowerCase()),
+		);
+		const runHealth =
+			this.telemetry &&
+			new RunHealthObserver(this.telemetry, {
+				sessionId: this.config.sessionId,
+				isSubagent: Boolean(this.parentAgentId),
+				providerId: this.config.providerId,
+				modelId: this.config.modelId,
+			});
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
 			sessionId: this.config.sessionId,
@@ -985,10 +1022,14 @@ export class SessionRuntime {
 			model: agentModel,
 			logger: this.logger,
 			telemetry: this.telemetry,
+			runEndTelemetryProperties: runHealth
+				? () => runHealth.endProperties()
+				: undefined,
 			tools,
 			toolContextMetadata: {
 				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...this.config.toolContextMetadata,
+				toolResultCache: this.toolResultCache,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
@@ -1008,6 +1049,7 @@ export class SessionRuntime {
 			if (event.type === "run-started" && this.abortRequested) {
 				runtime.abort(this.abortReason);
 			}
+			runHealth?.observe(event);
 			this.handleRuntimeEvent(event);
 		});
 		if (this.config.abortSignal) {
@@ -1038,6 +1080,7 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			runHealth?.dispose();
 			this.config.abortSignal?.removeEventListener(
 				"abort",
 				this.handleExternalAbort,
@@ -1098,6 +1141,16 @@ export class SessionRuntime {
 	 * Idempotent: subsequent calls are no-ops once the registry has
 	 * been activated.
 	 */
+	private extensionInitialization?: Promise<void>;
+	async initializeExtensions(): Promise<void> {
+		this.extensionInitialization ??= this.ensureExtensionsInitialized().catch(
+			(error) => {
+				this.extensionInitialization = undefined;
+				throw error;
+			},
+		);
+		return this.extensionInitialization;
+	}
 	private async ensureExtensionsInitialized(): Promise<void> {
 		if (this.extensionsInitialized) {
 			return;
@@ -1129,6 +1182,24 @@ export class SessionRuntime {
 		]);
 		return {
 			...hooks,
+			afterTool: async (ctx) => {
+				const control = await hooks.afterTool?.(ctx);
+				const result = control?.result ?? ctx.result;
+				if (ctx.tool.resultPolicy === "cache-oversized") {
+					const { text: previewText } = prepareToolResultPreview(
+						toPersistedToolResultContent(result.output),
+					);
+					if (
+						typeof previewText === "string" &&
+						previewText.length > this.maxCachedResultChars
+					) {
+						const { text } = prepareToolResultRecovery(result.output);
+						if (typeof text === "string")
+							this.toolResultCache.store(ctx.toolCall.toolCallId, text);
+					}
+				}
+				return control;
+			},
 			beforeModel: async (ctx) => {
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {
@@ -1208,7 +1279,12 @@ export class SessionRuntime {
 		return messagesToAgentMessages(providerMessages);
 	}
 
-	private async prepareProviderMessagesForApi(
+	/**
+	 * Projects canonical messages into the provider-request shape: extension
+	 * message builders, then `MessageBuilder.buildForApi` (tool-result
+	 * truncation, repairs). Produces the `apiMessages` given to `prepareTurn`.
+	 */
+	async prepareProviderMessagesForApi(
 		messages: MessageWithMetadata[],
 	): Promise<MessageWithMetadata[]> {
 		let providerMessages = messages;
@@ -1232,6 +1308,7 @@ export class SessionRuntime {
 				break;
 			}
 			case "turn-started": {
+				this.toolResultCache.advanceIteration();
 				// Reset per-turn tool-outcome counters used by the
 				// MistakeTracker wiring. Parity with pre-Step-9
 				// agent.ts which accumulates per-iteration success/fail
@@ -1590,12 +1667,5 @@ async function buildUserTurnContent(
 }
 
 function tryGetModelInfo(config: AgentConfig): ModelInfo | undefined {
-	if (config.knownModels?.[config.modelId]) {
-		return config.knownModels[config.modelId];
-	}
-	const resolvedKnownModels = resolveKnownModelsFromConfig(config);
-	if (resolvedKnownModels?.[config.modelId]) {
-		return resolvedKnownModels[config.modelId];
-	}
-	return undefined;
+	return resolveKnownModelsFromConfig(config)?.[config.modelId];
 }

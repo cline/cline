@@ -3,11 +3,12 @@ import { isClineInternalTester } from "@shared/internal/account"
 import type { UserOrganization } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
-import deepEqual from "fast-deep-equal"
+import { LoaderCircleIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
+import { CloudGitHubCard } from "@/components/cloud/CloudGitHubCard"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
+import { type ClineUser, handleSignOut, useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import ViewHeader from "../common/ViewHeader"
@@ -68,239 +69,71 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 
 const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
-	const { remoteConfigSettings, environment } = useExtensionState()
+	const { remoteConfigSettings, environment, cloudSessionsEnabled } = useExtensionState()
 
 	// Determine if dropdown should be locked by remote config
 	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
 
-	// Source of truth: Dedicated state for dropdown value that persists through failures
-	// and represents that user's current selection.
-	const [dropdownValue, setDropdownValue] = useState<string>(activeOrganization?.organizationId || uid)
+	const { accountSwitch, accountSwitchError, switchOrganization } = useClineAuth()
+	const dropdownValue = activeOrganization?.organizationId || uid
 	const [isLoading, setIsLoading] = useState(false)
 
-	// Cache data per organization/user ID to avoid showing empty state when switching
-	const dataCache = useRef<Map<string, CachedData>>(new Map())
-
-	// Current displayed data
-	const [balance, setBalance] = useState<number | null>(null)
-	const [usageData, setUsageData] = useState<ClineAccountUsageTransaction[]>([])
-	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
-	const [lastFetchTime, setLastFetchTime] = useState<number>(Date.now())
-
-	// Load cached data for current dropdown value
-	const loadCachedData = useCallback((id: string) => {
-		const cached = dataCache.current.get(id)
-		if (cached) {
-			setBalance(cached.balance)
-			setUsageData(cached.usageData)
-			setPaymentsData(cached.paymentsData)
-			setLastFetchTime(cached.lastFetchTime)
-			return true
-		}
-		return false
-	}, [])
-
-	// Simple cache function without dependencies
-	const cacheCurrentData = useCallback(
-		(id: string) => {
-			dataCache.current.set(id, {
-				balance,
-				usageData,
-				paymentsData,
-				lastFetchTime,
-			})
-		},
-		[balance, usageData, paymentsData, lastFetchTime],
-	)
-	// Track the active organization ID to detect changes
-	const [lastActiveOrgId, setLastActiveOrgId] = useState<string | undefined>(activeOrganization?.organizationId)
-	// Use ref for debounce timeout to avoid re-renders
-	const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-	// Track if manual fetch is in progress to avoid duplicate fetches
-	const manualFetchInProgressRef = useRef<boolean>(false)
-	// Track if initial mount fetch has completed to avoid duplicate fetches
-	const initialFetchCompleteRef = useRef<boolean>(false)
-
+	const [creditData, setCreditData] = useState<CachedData & { accountId: string }>()
+	const creditRequest = useRef<object | null>(null)
+	const activeAccount = useRef(dropdownValue)
+	activeAccount.current = dropdownValue
 	const isClineTester = useMemo(() => (email ? isClineInternalTester(email) : false), [email])
-
-	const fetchUserCredit = useCallback(async () => {
-		try {
-			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
-			const newBalance = response?.balance?.currentBalance
-			// Always update balance, even if it's 0 or null - don't skip undefined
-			setBalance(newBalance ?? null)
-			const newUsage = convertProtoUsageTransactions(response.usageTransactions)
-			setUsageData((prev) => (deepEqual(newUsage, prev) ? prev : newUsage))
-			const newPaymentsData = response.paymentTransactions
-			setPaymentsData((prev) => (deepEqual(newPaymentsData, prev) ? prev : newPaymentsData))
-		} catch (error) {
-			console.error("Failed to fetch user credit:", error)
-		}
-	}, [])
+	const clineUrl = appBaseUrl || "https://app.cline.bot"
 
 	const fetchCreditBalance = useCallback(
-		async (id: string, skipCache = false) => {
+		async (accountId: string) => {
+			const request = {}
+			creditRequest.current = request
+			setIsLoading(true)
 			try {
-				if (isLoading) {
-					return // Prevent multiple concurrent fetches
-				}
-
-				// Load cached data immediately if available (unless skipping cache)
-				if (!skipCache && loadCachedData(id)) {
-					// If we have cached data, show it first, then fetch in background
-				}
-
-				setIsLoading(true)
-				if (id === uid) {
-					await fetchUserCredit()
-				} else {
-					const response = await AccountServiceClient.getOrganizationCredits({
-						organizationId: id,
-					})
-					// Update balance - handle all values including 0 and null
-					const newBalance = response.balance?.currentBalance
-					setBalance(newBalance ?? null)
-
-					const newUsage = convertProtoUsageTransactions(response.usageTransactions)
-					setUsageData((prev) => (deepEqual(newUsage, prev) ? prev : newUsage))
-				}
-
-				// Cache the updated data
-				cacheCurrentData(id)
+				const response =
+					accountId === uid
+						? await AccountServiceClient.getUserCredits(EmptyRequest.create())
+						: await AccountServiceClient.getOrganizationCredits({ organizationId: accountId })
+				if (creditRequest.current !== request || activeAccount.current !== accountId) return
+				setCreditData({
+					accountId,
+					balance: response.balance?.currentBalance ?? null,
+					usageData: convertProtoUsageTransactions(response.usageTransactions),
+					paymentsData: "paymentTransactions" in response ? response.paymentTransactions : [],
+					lastFetchTime: Date.now(),
+				})
 			} catch (error) {
 				console.error("Failed to fetch credit balance:", error)
 			} finally {
-				setLastFetchTime(Date.now())
-				setIsLoading(false)
+				if (creditRequest.current === request) setIsLoading(false)
 			}
 		},
-		[isLoading, uid, fetchUserCredit, loadCachedData],
+		[uid],
 	)
 
-	const handleOrganizationChange = useCallback(
-		async (event: any) => {
-			const target = event.target as HTMLSelectElement
-			if (!target) {
-				return
-			}
-
-			const newValue = target.value
-			if (newValue !== dropdownValue) {
-				// Clear any pending debounced fetch since we're doing a manual one
-				if (debounceTimeoutRef.current) {
-					clearTimeout(debounceTimeoutRef.current)
-					debounceTimeoutRef.current = null
-				}
-
-				// Cache current data before switching
-				cacheCurrentData(dropdownValue)
-				setDropdownValue(newValue)
-
-				// Load cached data for new selection immediately, or clear if no cache
-				// Only clear if we don't have cached data to avoid unnecessary flashing
-				if (!loadCachedData(newValue)) {
-					// No cached data - clear current state to avoid showing wrong data
-					setBalance(null)
-					setUsageData([])
-					setPaymentsData([])
-				}
-
-				// Set flag to indicate manual fetch in progress
-				manualFetchInProgressRef.current = true
-
-				// Fetch the new data
-				await fetchCreditBalance(newValue)
-
-				// Update the last active org ID to prevent the effect from triggering
-				setLastActiveOrgId(newValue === uid ? undefined : newValue)
-
-				// Send the change to the server
-				const organizationId = newValue === uid ? undefined : newValue
-				await AccountServiceClient.setUserOrganization({ organizationId })
-
-				// Clear the manual fetch flag after everything is done
-				manualFetchInProgressRef.current = false
-			}
-		},
-		[uid, dropdownValue, loadCachedData, fetchCreditBalance, cacheCurrentData],
-	)
-
-	// Fetch balance every 60 seconds
-	useInterval(() => {
-		fetchCreditBalance(dropdownValue)
-	}, 60000)
-
-	const clineUrl = appBaseUrl || "https://app.cline.bot"
-
-	// Fetch balance on mount
 	useEffect(() => {
-		async function initialFetch() {
-			await fetchCreditBalance(dropdownValue)
-			initialFetchCompleteRef.current = true
-		}
-		initialFetch()
-	}, [])
-
-	useEffect(() => {
-		// Handle organization changes with 500ms debounce
-		const currentActiveOrgId = activeOrganization?.organizationId
-		const hasActiveOrgChanged = currentActiveOrgId !== lastActiveOrgId
-
-		// Only handle external organization changes (not dropdown changes)
-		// Dropdown changes are handled by handleOrganizationChange
-		const isExternalOrgChange = hasActiveOrgChanged && !manualFetchInProgressRef.current
-
-		if (isExternalOrgChange) {
-			// Clear any existing timeout
-			if (debounceTimeoutRef.current) {
-				clearTimeout(debounceTimeoutRef.current)
-			}
-
-			// Update dropdown to match the new active organization
-			const newDropdownValue = currentActiveOrgId || uid
-			if (newDropdownValue !== dropdownValue) {
-				// Cache current data before switching
-				cacheCurrentData(dropdownValue)
-				setDropdownValue(newDropdownValue)
-
-				// Load cached data for new selection immediately, or clear if no cache
-				// Only clear data if initial fetch has completed to avoid clearing on mount
-				if (!loadCachedData(newDropdownValue) && initialFetchCompleteRef.current) {
-					// No cached data - clear to avoid showing wrong data
-					setBalance(null)
-					setUsageData([])
-					setPaymentsData([])
-				}
-			}
-
-			// Only set timeout if initial fetch is complete
-			if (initialFetchCompleteRef.current) {
-				// Set new timeout to fetch after 500ms
-				debounceTimeoutRef.current = setTimeout(() => {
-					fetchCreditBalance(newDropdownValue)
-					setLastActiveOrgId(currentActiveOrgId)
-				}, 500)
-			} else {
-				// Just update the active org ID
-				setLastActiveOrgId(currentActiveOrgId)
-			}
-		}
-
-		// Cleanup timeout on unmount
+		if (!accountSwitch) void fetchCreditBalance(dropdownValue)
 		return () => {
-			if (debounceTimeoutRef.current) {
-				clearTimeout(debounceTimeoutRef.current)
-			}
+			creditRequest.current = null
 		}
-	}, [
-		activeOrganization?.organizationId,
-		lastActiveOrgId,
-		uid,
-		dropdownValue,
-		loadCachedData,
-		fetchCreditBalance,
-		cacheCurrentData,
-	])
+	}, [dropdownValue, accountSwitch, fetchCreditBalance])
+	useInterval(() => {
+		if (!accountSwitch) void fetchCreditBalance(dropdownValue)
+	}, 60_000)
+
+	const displayedCredit = !accountSwitch && creditData?.accountId === dropdownValue ? creditData : undefined
+	const balance = displayedCredit?.balance ?? null
+	const usageData = displayedCredit?.usageData ?? []
+	const paymentsData = displayedCredit?.paymentsData ?? []
+	const lastFetchTime = displayedCredit?.lastFetchTime ?? 0
+
+	const handleOrganizationChange = (event: { target: EventTarget | null }) => {
+		const newValue = (event.target as HTMLSelectElement | null)?.value
+		if (newValue && newValue !== dropdownValue && !accountSwitch) {
+			void switchOrganization(newValue === uid ? undefined : newValue)
+		}
+	}
 
 	return (
 		<div className="h-full flex flex-col">
@@ -325,8 +158,8 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 									<TooltipTrigger>
 										<VSCodeDropdown
 											className="w-full"
-											currentValue={dropdownValue}
-											disabled={isLoading || isLockedByRemoteConfig}
+											currentValue={accountSwitch ? accountSwitch.organizationId || uid : dropdownValue}
+											disabled={!!accountSwitch || isLockedByRemoteConfig}
 											onChange={handleOrganizationChange}>
 											<VSCodeOption key="personal" value={uid}>
 												Personal
@@ -342,12 +175,29 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 										This cannot be changed while your organization has remote configuration enabled.
 									</TooltipContent>
 								</Tooltip>
-								{activeOrganization && (
-									<VSCodeTag className="text-xs p-2" title="Role">
-										{getMainRole(activeOrganization.roles)}
-									</VSCodeTag>
+								{accountSwitch ? (
+									<LoaderCircleIcon
+										aria-label="Switching account"
+										className="size-4 shrink-0 animate-spin text-description"
+									/>
+								) : (
+									activeOrganization && (
+										<VSCodeTag className="text-xs p-2" title="Role">
+											{getMainRole(activeOrganization.roles)}
+										</VSCodeTag>
+									)
 								)}
 							</div>
+							{accountSwitchError && (
+								<div className="mt-1 text-xs text-error" role="alert">
+									Could not confirm account switch: {accountSwitchError}
+								</div>
+							)}
+							{accountSwitch?.slow && (
+								<div className="mt-1 text-xs text-description" role="status">
+									Account switch is still pending. You can navigate while it finishes.
+								</div>
+							)}
 						</div>
 					</div>
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
@@ -368,11 +218,17 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<VSCodeDivider className="w-full my-6" />
 
+				{cloudSessionsEnabled && (
+					<div className="mb-6">
+						<CloudGitHubCard />
+					</div>
+				)}
+
 				<CreditBalance
 					balance={balance}
 					creditUrl={getClineUris(clineUrl, "credits", dropdownValue === uid ? "account" : "organization")}
 					fetchCreditBalance={() => fetchCreditBalance(dropdownValue)}
-					isLoading={isLoading}
+					isLoading={isLoading || !!accountSwitch}
 					lastFetchTime={lastFetchTime}
 				/>
 
@@ -380,9 +236,9 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-				<div className="grow flex flex-col min-h-0 pb-[0px]">
+				<div className="flex flex-col pb-[0px]">
 					<CreditsHistoryTable
-						isLoading={isLoading}
+						isLoading={isLoading || !!accountSwitch}
 						paymentsData={paymentsData}
 						showPayments={dropdownValue === uid}
 						usageData={usageData}

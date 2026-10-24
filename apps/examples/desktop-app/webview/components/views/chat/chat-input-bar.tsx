@@ -1,10 +1,26 @@
 "use client";
 
+import type { PluginCommandCatalog } from "@cline/core";
+
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import {
+	AgentComposer,
+	AgentComposerActions,
+	AgentComposerAttachments,
+	AgentComposerBody,
+	AgentComposerField,
+	AgentComposerSendButton,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	AgentComposerSettingsGroup,
+	AgentComposerStopButton,
+	AgentComposerTextarea,
+	AgentPromptQueue,
+	SearchCombobox,
+} from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
@@ -31,6 +47,12 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
+import {
+	addKnownMentionPaths,
+	getComposerHighlights,
+	setKnownSlashCommands,
+	useKnownComposerTokens,
+} from "@/lib/composer-tokens";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	buildModelPickerData,
@@ -96,16 +118,15 @@ type UserInstructionConfigResponse = {
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
+		name: "compact",
+		description: "Summarize the conversation to free up context",
+	},
+	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
-
-// Last known user commands, kept across composer instances so reopening the
-// slash menu paints instantly (stale-while-revalidate); the fetch that
-// follows still picks up newly installed skills and workflows.
-let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
@@ -117,27 +138,23 @@ export function buildUserInstructionSlashCommands(
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	const result = commands.flatMap((command) => {
-		const name = command.name;
-		if (!name || seen.has(name)) {
-			return [];
-		}
-		seen.add(name);
-		return [
-			{
-				name,
-				description:
-					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
-			},
-		];
-	});
+	const result: SlashCommand[] = [];
 	for (const command of pluginCommands) {
 		if (!command.name || seen.has(command.name)) continue;
 		seen.add(command.name);
 		result.push({
 			name: command.name,
 			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	for (const command of commands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description:
+				command.description?.trim() ||
+				`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
 		});
 	}
 	return result;
@@ -158,7 +175,6 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
-const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -250,20 +266,15 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	if (slashIndex === -1) {
 		return null;
 	}
-	// Slash must be at the start or preceded by whitespace.
-	if (slashIndex > 0 && !/\s/.test(left[slashIndex - 1] ?? "")) {
+	// The sidecar only runs a command that starts the trimmed prompt, so a
+	// mid-sentence slash is plain text.
+	if (left.slice(0, slashIndex).trim() !== "") {
 		return null;
 	}
 	const query = left.slice(slashIndex + 1);
 	// No whitespace allowed inside the query — once the user typed a space
 	// the slash command has been committed.
 	if (/\s/.test(query)) {
-		return null;
-	}
-	// Don't open slash mode if there's already a completed slash command earlier in the input.
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/;
-	const textBeforeCurrentSlash = input.slice(0, slashIndex);
-	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return null;
 	}
 	return { slashIndex, query };
@@ -288,6 +299,7 @@ export function buildWorkspaceFileSearchKey(
 }
 
 type ChatInputBarProps = {
+	sessionId?: string | null;
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
@@ -338,6 +350,7 @@ type ChatInputBarProps = {
 };
 
 function ChatInputBarImpl({
+	sessionId,
 	environmentId,
 	variant = "conversation",
 	readOnly = false,
@@ -458,6 +471,9 @@ function ChatInputBarImpl({
 	);
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const [cloudModelReady, setCloudModelReady] = useState(false);
+	const needsCloudModel =
+		executionTarget === "cloud" && !hasActiveSession && !cloudModelReady;
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
@@ -521,7 +537,11 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend =
-		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!needsCloudModel &&
+		!readOnly;
 	const steeringPromptRef = useRef(false);
 	const steerFirstQueuedPrompt = async () => {
 		const firstPrompt = promptsInQueue[0];
@@ -549,7 +569,7 @@ function ChatInputBarImpl({
 			reportUnsupportedImages();
 			return;
 		}
-		if (needsCloudRepository) return;
+		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
@@ -563,6 +583,7 @@ function ChatInputBarImpl({
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
+		needsCloudModel,
 		readOnly,
 		onSend,
 		promptInput,
@@ -612,6 +633,7 @@ function ChatInputBarImpl({
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
+	const knownTokens = useKnownComposerTokens();
 
 	// ---- Slash command state ----
 	const activeSlash = useMemo(
@@ -630,11 +652,64 @@ function ChatInputBarImpl({
 		executionTarget === "local" &&
 		slashKey !== null &&
 		dismissedSlashKey !== slashKey;
-	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
-	);
-	const [slashLoading, setSlashLoading] = useState(false);
+	const [instructionResponse, setInstructionResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		response: UserInstructionConfigResponse;
+	}>();
+	const [pluginResponse, setPluginResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		sessionId?: string;
+		commands: SlashCommand[];
+	}>();
+	const slashCommands = useMemo(() => {
+		const current = <
+			T extends { workspaceRoot: string; environmentId: string },
+		>(
+			target: T | undefined,
+		) =>
+			target?.workspaceRoot === workspaceRoot &&
+			target.environmentId === environmentId
+				? target
+				: undefined;
+		return [
+			...BUILTIN_SLASH_COMMANDS,
+			...buildUserInstructionSlashCommands(
+				current(instructionResponse)?.response ?? {},
+				// A session's plugins can differ from the workspace catalog.
+				pluginResponse?.sessionId === (sessionId ?? undefined)
+					? (current(pluginResponse)?.commands ?? [])
+					: [],
+			),
+		];
+	}, [
+		instructionResponse,
+		pluginResponse,
+		workspaceRoot,
+		environmentId,
+		sessionId,
+	]);
+	const [pluginLoading, setPluginLoading] = useState(false);
+	const [instructionLoading, setInstructionLoading] = useState(false);
+	const [pluginError, setPluginError] = useState<string>();
+	const [instructionError, setInstructionError] = useState<string>();
+	const slashLoading = pluginLoading || instructionLoading;
+	const slashError = pluginError ?? instructionError;
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const loadedCommandCatalogKeyRef = useRef<string | null>(null);
+	useEffect(() => {
+		setKnownSlashCommands(slashCommands.map((command) => command.name));
+	}, [slashCommands]);
+	const composerHighlights = useMemo(
+		() =>
+			executionTarget === "local"
+				? getComposerHighlights(promptInput, knownTokens.commandNames, (path) =>
+						knownTokens.mentionPaths.has(path),
+					)
+				: undefined,
+		[executionTarget, promptInput, knownTokens],
+	);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -910,6 +985,7 @@ function ChatInputBarImpl({
 				const nextResults = Array.isArray(results) ? results : [];
 				mentionResultsCacheRef.current.set(requestKey, nextResults);
 				setMentionFiles(nextResults);
+				addKnownMentionPaths(nextResults);
 				setMentionSelectedIndex(0);
 			} catch {
 				if (cancelled) {
@@ -987,45 +1063,77 @@ function ChatInputBarImpl({
 			?.scrollIntoView({ block: "nearest" });
 	}, [mentionOpen, mentionSelectedIndex]);
 
-	// Reload user commands whenever the slash menu opens so newly installed or
-	// edited skills and workflows are reflected without remounting the chat UI.
+	// Load commands once per workspace/session up front (sent messages chip
+	// them too), then refresh whenever the slash menu opens, keeping the last
+	// results while fetching so suggestions do not flash away. Each request
+	// settles independently so one failure cannot hide the other.
 	useEffect(() => {
-		if (!slashOpen) {
+		const catalogKey = `${environmentId}\u0000${workspaceRoot}\u0000${sessionId ?? ""}`;
+		if (!slashOpen && loadedCommandCatalogKeyRef.current === catalogKey) {
+			setInstructionLoading(false);
+			setPluginLoading(false);
 			return;
 		}
 		let cancelled = false;
-		// Only show the loading row when there is nothing cached to show.
-		setSlashLoading(cachedSlashCommands === null);
-		Promise.all([
-			desktopClient.invoke<UserInstructionConfigResponse>(
-				"list_user_instruction_configs",
-				{ workspacePath: workspaceRoot },
-			),
-			desktopClient
-				.invoke<SlashCommand[]>("list_plugin_commands", {
-					workspacePath: workspaceRoot,
-				})
-				.catch((): SlashCommand[] => []),
-		])
-			.then(([response, pluginCommands]) => {
+		// Marked loaded only once both catalogs arrive: a cancelled (e.g. a
+		// StrictMode effect replay), failed, or half-finished load must be
+		// retried rather than leaving commands unchipped.
+		let pendingCatalogs = 2;
+		const catalogArrived = () => {
+			pendingCatalogs -= 1;
+			if (pendingCatalogs === 0)
+				loadedCommandCatalogKeyRef.current = catalogKey;
+		};
+		setInstructionLoading(true);
+		setPluginLoading(true);
+		desktopClient
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs", {
+				workspacePath: workspaceRoot,
+				environmentId,
+			})
+			.then((response) => {
 				if (cancelled) return;
-				const next = [
-					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response, pluginCommands),
-				];
-				cachedSlashCommands = next;
-				setSlashCommands(next);
+				catalogArrived();
+				setInstructionResponse({ workspaceRoot, environmentId, response });
+				setInstructionError(undefined);
 			})
 			.catch(() => {
-				// Keep built-in commands on error.
+				if (!cancelled) setInstructionError("Instruction commands unavailable");
 			})
 			.finally(() => {
-				if (!cancelled) setSlashLoading(false);
+				if (!cancelled) setInstructionLoading(false);
+			});
+		desktopClient
+			.invoke<PluginCommandCatalog>("list_plugin_commands", {
+				workspacePath: workspaceRoot,
+				environmentId,
+				sessionId: sessionId ?? undefined,
+			})
+			.then((catalog) => {
+				if (cancelled) return;
+				if (catalog.status !== "error") catalogArrived();
+				setPluginResponse({
+					workspaceRoot,
+					environmentId,
+					sessionId: sessionId ?? undefined,
+					commands: catalog.commands,
+				});
+				setPluginError(
+					catalog.status === "error"
+						? "Plugin commands unavailable"
+						: undefined,
+				);
+			})
+			.catch(() => {
+				if (!cancelled) setPluginError("Plugin commands unavailable");
+			})
+			.finally(() => {
+				if (!cancelled) setPluginLoading(false);
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen, workspaceRoot]);
+	}, [slashOpen, workspaceRoot, environmentId, sessionId]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
@@ -1049,7 +1157,11 @@ function ChatInputBarImpl({
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
 			if (!activeSlash) return;
-			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
+			// Replace only the typed `/query` (slashIndex..cursor) and keep any
+			// text after the cursor.
+			const suffix = promptInput.slice(cursorIndex);
+			const separator = /^\s/.test(suffix) ? "" : " ";
+			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName}${separator}${suffix}`;
 			// Closes via derivation: the trailing space ends the slash command.
 			setPromptInput(nextValue);
 			const nextCursor = activeSlash.slashIndex + commandName.length + 2;
@@ -1061,7 +1173,7 @@ function ChatInputBarImpl({
 				setCursorIndex(nextCursor);
 			});
 		},
-		[activeSlash, promptInput, setPromptInput],
+		[activeSlash, cursorIndex, promptInput, setPromptInput],
 	);
 
 	// Queued prompts are stored in their runtime form (a /team command is
@@ -1078,26 +1190,10 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<div
-			className={cn(
-				"bg-card",
-				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-			)}
-		>
+		<AgentComposer variant={variant}>
 			{/* Input area */}
 			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
-			<div
-				className={cn(
-					"px-4 py-3",
-					variant === "welcome"
-						? "pb-2 pt-4"
-						: promptsInQueue.length > 0
-							? "pb-4 pt-0"
-							: "py-4",
-				)}
-			>
+			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
@@ -1115,7 +1211,7 @@ function ChatInputBarImpl({
 								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
-										: "No matching commands"}
+										: (slashError ?? "No matching commands")}
 								</div>
 							) : (
 								<>
@@ -1190,14 +1286,9 @@ function ChatInputBarImpl({
 							)}
 						</div>
 					)}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
-					<div
-						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
-								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
-						)}
+					{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
+					<AgentComposerField
+						variant={variant}
 						onMouseDown={(event) => {
 							const target = event.target;
 							if (
@@ -1219,7 +1310,7 @@ function ChatInputBarImpl({
 								<span className="sr-only">Transcribing voice input</span>
 							</output>
 						)}
-						<textarea
+						<AgentComposerTextarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
 									? `slash-command-option-${slashSelectedIndex}`
@@ -1237,10 +1328,8 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							className={cn(
-								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								variant === "welcome" && "self-start",
-							)}
+							highlights={composerHighlights}
+							variant={variant}
 							onChange={(e) => {
 								if (speechInputActive) return;
 								setPromptInput(e.target.value);
@@ -1381,12 +1470,7 @@ function ChatInputBarImpl({
 							}}
 							value={promptInput}
 						/>
-						<div
-							className={cn(
-								"flex shrink-0 items-center gap-2",
-								variant === "conversation" && "self-end",
-							)}
-						>
+						<AgentComposerActions variant={variant}>
 							{needsCloudRepository ? (
 								<span
 									aria-live="polite"
@@ -1396,18 +1480,15 @@ function ChatInputBarImpl({
 								</span>
 							) : null}
 							{canAbort && (
-								<button
+								<AgentComposerStopButton
 									aria-label="Stop agent"
-									className={cn(
-										"bg-foreground p-1.5 text-background hover:bg-destructive",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
-									)}
+									variant={variant}
 									onClick={onAbort}
 									title="Stop the agent (Esc)"
 									type="button"
 								>
 									<CircleStop className="size-3" />
-								</button>
+								</AgentComposerStopButton>
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
@@ -1436,14 +1517,9 @@ function ChatInputBarImpl({
 								/>
 							) : null}
 							{(!isBusy || canSend) && (
-								<button
+								<AgentComposerSendButton
 									aria-label="Send message"
-									className={cn(
-										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
-									)}
+									variant={variant}
 									disabled={!canSend}
 									onClick={handleSend}
 									title={
@@ -1454,10 +1530,10 @@ function ChatInputBarImpl({
 									type="button"
 								>
 									<ArrowUp className="size-3" />
-								</button>
+								</AgentComposerSendButton>
 							)}
-						</div>
-					</div>
+						</AgentComposerActions>
+					</AgentComposerField>
 				</div>
 				{unsupportedDraftImageCount > 0 && (
 					<output className="block px-2 text-sm text-destructive">
@@ -1466,7 +1542,7 @@ function ChatInputBarImpl({
 					</output>
 				)}
 				{attachments.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1.5">
+					<AgentComposerAttachments>
 						{attachments.map((attachment) => (
 							<span
 								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
@@ -1483,13 +1559,13 @@ function ChatInputBarImpl({
 								</button>
 							</span>
 						))}
-					</div>
+					</AgentComposerAttachments>
 				)}
-			</div>
+			</AgentComposerBody>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
-				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
+			<AgentComposerSettings>
+				<AgentComposerSettingsGroup>
 					<button
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
@@ -1551,23 +1627,22 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0 shrink-0">
+					<div className="min-w-0">
 						<ModelSelector
-							allowedProviderIds={
-								executionTarget === "cloud"
-									? CLINE_ONLY_PROVIDER_IDS
-									: undefined
-							}
+							key={executionTarget}
 							autoCorrectModel={!cloudSettingsLocked}
 							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
+							onModelReadyChange={setCloudModelReady}
 							onModelChange={onModelChange}
 							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
-							onOpenModelSettings={onOpenModelSettings}
+							onOpenModelSettings={
+								executionTarget === "cloud" ? undefined : onOpenModelSettings
+							}
 							onProviderChange={onProviderChange}
 							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
@@ -1603,9 +1678,11 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+				</AgentComposerSettingsGroup>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				{/* Reserve room for the model and thinking controls so a long
+				    branch name can't squeeze the model name out entirely. */}
+				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] max-[560px]:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
@@ -1642,9 +1719,9 @@ function ChatInputBarImpl({
 							/>
 						</div>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</AgentComposerSettingsEnd>
+			</AgentComposerSettings>
+		</AgentComposer>
 	);
 }
 
@@ -1668,6 +1745,7 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onModelReadyChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
@@ -1681,15 +1759,15 @@ const ModelSelector = memo(function ModelSelector({
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
+	onModelReadyChange: (ready: boolean) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
 	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
-	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
-	>(FALLBACK_PROVIDER_MODELS);
+	>(includeCloudModels ? {} : FALLBACK_PROVIDER_MODELS);
 	const [providerReasoningModels, setProviderReasoningModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_REASONING_MODELS);
@@ -1704,10 +1782,30 @@ const ModelSelector = memo(function ModelSelector({
 		Record<string, ProviderModel[]>
 	>({});
 	const [lastSelection, setLastSelection] = useState(() =>
-		readModelSelectionStorageFromWindow(),
+		includeCloudModels
+			? { lastProvider: "", lastModelByProvider: {} }
+			: readModelSelectionStorageFromWindow(),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const normalizedProvider = includeCloudModels
+		? (Object.keys(providerModels).find((id) =>
+				providerModels[id]?.includes(model),
+			) ??
+			(model.startsWith("cline-pass/")
+				? "cline-pass"
+				: model.startsWith("cline-cloud/")
+					? "cline-cloud"
+					: "cline"))
+		: normalizeProviderId(provider);
+	useEffect(() => {
+		if (!includeCloudModels) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			setProviderModels({});
+			setEnabledProviderIds([]);
+			setCatalogRevision((current) => current + 1);
+		});
+	}, [includeCloudModels]);
 	useEffect(
 		() =>
 			subscribeToProviderCatalogInvalidation(() =>
@@ -1742,9 +1840,11 @@ const ModelSelector = memo(function ModelSelector({
 	// catalog and briefly flash a stale name in the trigger.
 	const refreshActiveProviderModels = useCallback(() => {
 		if (!normalizedProvider) return;
-		const loading = includeCloudModels
-			? loadProviderModels(normalizedProvider, { includeCloudModels: true })
-			: loadProviderModels(normalizedProvider);
+		if (includeCloudModels) {
+			setCatalogRevision((current) => current + 1);
+			return;
+		}
+		const loading = loadProviderModels(normalizedProvider);
 		loading
 			.then((models) => {
 				if (models.length === 0) return;
@@ -1783,6 +1883,18 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		return providers[0] ?? "";
 	}, [normalizedProvider, providers, rememberedLastProvider]);
+	useEffect(() => {
+		onModelReadyChange(
+			providers.includes(normalizedProvider) &&
+				(providerModels[normalizedProvider]?.includes(model) ?? false),
+		);
+	}, [
+		model,
+		normalizedProvider,
+		onModelReadyChange,
+		providerModels,
+		providers,
+	]);
 	const modelsForProvider = useMemo(
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
@@ -1799,9 +1911,16 @@ const ModelSelector = memo(function ModelSelector({
 			const models = (visibleProviderModels[providerId] ?? []).map(
 				(id) => detailsById.get(id) ?? { id, name: id },
 			);
-			return buildModelPickerData(providerId, models);
+			return includeCloudModels
+				? {
+						options: models.map((entry) => ({
+							label: entry.name,
+							value: entry.id,
+						})),
+					}
+				: buildModelPickerData(providerId, models);
 		},
-		[modelDetails, visibleProviderModels],
+		[includeCloudModels, modelDetails, visibleProviderModels],
 	);
 	useEffect(() => {
 		const selected = modelDetails[normalizedProvider]?.find(
@@ -1835,6 +1954,9 @@ const ModelSelector = memo(function ModelSelector({
 		if (
 			model &&
 			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model)) &&
+			(!includeCloudModels ||
+				!autoCorrectModel ||
 				modelsForProvider.includes(model))
 		) {
 			return model;
@@ -1854,6 +1976,8 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
+		includeCloudModels,
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
@@ -1908,7 +2032,9 @@ const ModelSelector = memo(function ModelSelector({
 
 		async function loadCatalogAndActiveModels() {
 			try {
-				const payload = await loadProviderModelCatalog();
+				const payload = await loadProviderModelCatalog(
+					includeCloudModels ? { includeCloudModels: true } : undefined,
+				);
 				if (cancelled) {
 					return;
 				}
@@ -1925,11 +2051,14 @@ const ModelSelector = memo(function ModelSelector({
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					if (normalizedProvider) {
+					if (
+						normalizedProvider &&
+						(!includeCloudModels || !autoCorrectModel)
+					) {
 						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
-						if (providerId in payload.providerModels) {
+						if (!includeCloudModels && providerId in payload.providerModels) {
 							nextProviderIds.add(providerId);
 						}
 					}
@@ -1939,15 +2068,11 @@ const ModelSelector = memo(function ModelSelector({
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
 
-			if (!normalizedProvider || cancelled) {
+			if (includeCloudModels || !normalizedProvider || cancelled) {
 				return;
 			}
 			try {
-				const models = includeCloudModels
-					? await loadProviderModels(normalizedProvider, {
-							includeCloudModels: true,
-						})
-					: await loadProviderModels(normalizedProvider);
+				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
@@ -1964,6 +2089,7 @@ const ModelSelector = memo(function ModelSelector({
 		};
 	}, [
 		applyProviderModels,
+		autoCorrectModel,
 		catalogRevision,
 		includeCloudModels,
 		normalizedProvider,
@@ -1972,7 +2098,7 @@ const ModelSelector = memo(function ModelSelector({
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
-			if (includeCloudModels && normalizedId === "cline") return;
+			if (includeCloudModels) return;
 			applyProviderModels(normalizedId, models);
 		});
 	}, [applyProviderModels, includeCloudModels]);
@@ -2014,12 +2140,13 @@ const ModelSelector = memo(function ModelSelector({
 	);
 
 	useEffect(() => {
+		if (!persistSelection) return;
 		try {
 			writeModelSelectionStorageToWindow(lastSelection);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection]);
+	}, [lastSelection, persistSelection]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
@@ -2028,7 +2155,11 @@ const ModelSelector = memo(function ModelSelector({
 		if (isBusy) {
 			return;
 		}
-		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
+		if (
+			!includeCloudModels &&
+			resolvedProvider &&
+			resolvedProvider !== normalizedProvider
+		) {
 			onProviderChange(resolvedProvider);
 		}
 		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
@@ -2036,6 +2167,7 @@ const ModelSelector = memo(function ModelSelector({
 		}
 	}, [
 		autoCorrectModel,
+		includeCloudModels,
 		isBusy,
 		model,
 		onModelChange,
@@ -2079,7 +2211,7 @@ const ModelSelector = memo(function ModelSelector({
 				onOpenModelSettings?.();
 				return;
 			}
-			onProviderChange(value);
+			if (!includeCloudModels) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
 			// Preserve live-only remembered models missing from the bundled
@@ -2100,6 +2232,7 @@ const ModelSelector = memo(function ModelSelector({
 			}
 		},
 		[
+			includeCloudModels,
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
@@ -2178,8 +2311,23 @@ const ModelSelector = memo(function ModelSelector({
 		/>
 	);
 
+	if (
+		includeCloudModels &&
+		reasoningCapabilitySource === "fallback" &&
+		providers.length === 0
+	) {
+		return (
+			<button
+				className="text-xs text-destructive"
+				onClick={refreshActiveProviderModels}
+				type="button"
+			>
+				Could not load cloud models. Retry
+			</button>
+		);
+	}
 	return (
-		<div className="relative min-w-0 shrink-0 text-sm">
+		<div className="relative min-w-0 text-sm">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
@@ -2226,9 +2374,11 @@ const ModelSelector = memo(function ModelSelector({
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
 				{/* Wide enough for the longest built-in provider names ("Cline
 				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
-				{renderProviderSelect("max-w-56")}
-				<div className="bg-border-2 h-4 w-[0.1rem]" />
-				{renderModelSelect("max-w-52")}
+				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>
+				<div className="bg-border-2 h-4 w-[0.1rem] shrink-0" />
+				{/* Uncapped so long model names show in full when the row has
+				    room; the name truncates only once the row runs out of space. */}
+				{renderModelSelect("max-w-full")}
 			</div>
 		</div>
 	);

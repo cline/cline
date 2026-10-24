@@ -5,7 +5,7 @@ import { expectVisible } from "./helpers/terminal.js";
 
 // Wide enough that long option descriptions (e.g. --thinking) render on a
 // single line. At narrower widths commander wraps them, splitting phrases
-// like "omitted leaves provider default" across lines so the contiguous
+// like "the level last chosen with /model" across lines so the contiguous
 // getByText assertions below fail.
 const HELP_TERMINAL = { columns: 200, rows: 50 };
 
@@ -29,7 +29,7 @@ test.describe("root flag descriptions", () => {
 			"Configuration directory",
 			"Set reasoning effort:",
 			"Bare --thinking uses medium",
-			"omitted leaves provider default",
+			"the level last chosen with /model, or the provider default",
 			"consecutive mistakes",
 			"Output messages as JSON",
 			"Check for updates and install if available",
@@ -55,7 +55,6 @@ test.describe("history flag descriptions", () => {
 
 	test("all history flags have correct descriptions", async ({ terminal }) => {
 		await expectVisible(terminal, "number of sessions to show");
-		await expectVisible(terminal, "Page number");
 		await expectVisible(terminal, "configuration directory");
 	});
 });

@@ -2,11 +2,19 @@
 // `@ai-sdk/amazon-bedrock` adapter (bedrock.test.ts mocks the constructor).
 // Each case streams one turn through the gateway with a stubbed fetch and
 // asserts on the `additionalModelRequestFields` the adapter put on the
-// Converse request. They pin the reason for the adapter floor of 5.0.65:
-// OpenAI models reached through inference profiles (`us.openai.*`,
-// `global.openai.*`) must get `reasoning.effort`, the field Bedrock accepts,
-// not the generic `reasoningConfig` that older adapters emitted for any id
-// they did not recognise (cline/cline#14451, vercel/ai#19403).
+// Converse request. Together they pin the adapter floor:
+//
+//   1. OpenAI models reached through inference profiles (`us.openai.*`,
+//      `global.openai.*`) get `reasoning.effort`, the field Bedrock accepts,
+//      not the generic `reasoningConfig` that adapters before 5.0.65 emitted
+//      for any id they did not recognise (cline/cline#14451, vercel/ai#19403);
+//   2. models the adapter cannot classify get no reasoning fields at all,
+//      instead of a `reasoningConfig` Bedrock rejects for models without
+//      reasoning support — adapters before 5.0.96 sent it for every
+//      non-Anthropic id (cline/cline#14095, vercel/ai#21487);
+//   3. the families the adapter does classify keep their native shapes from
+//      the id alone even when the catalog does not list the model, so a
+//      catalog that lags a model launch never switches thinking off.
 import type { GatewayStreamRequest, ModelReasoningOption } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { createGateway } from "../gateway";
@@ -14,6 +22,25 @@ import { createGateway } from "../gateway";
 const EFFORT_OPTIONS: readonly ModelReasoningOption[] = [
 	{ type: "effort", values: ["low", "medium", "high", "xhigh", "max"] },
 ];
+
+/**
+ * What the model catalog says about the model under test. Every case states
+ * this explicitly and registers the model on the provider config, so model
+ * selection never depends on the generated catalog. Model-id resolution
+ * still does (`resolveBedrockModelId` routes bare profile-only ids through a
+ * geo profile), which is why the cases below use already-prefixed ids.
+ */
+type CatalogFact =
+	/** Listed, and advertises a user-facing effort control. */
+	| "advertises-effort"
+	/** Listed, but advertises no reasoning control. */
+	| "no-controls"
+	/**
+	 * Not in the catalog at all, e.g. an inference-profile ARN. The helper
+	 * asserts this against the gateway's model list, so a catalog sync that
+	 * adds the id fails the case instead of silently testing the listed path.
+	 */
+	| "unlisted";
 
 interface WireRequest {
 	/** Path of the Converse request, which carries the id the vendor resolved. */
@@ -24,18 +51,12 @@ interface WireRequest {
 
 /**
  * Stream one turn for `modelId` and return what reached the stubbed fetch.
- *
- * Registering the model on the provider config keeps model *selection* off
- * the generated catalog. Model-id *resolution* is not: the vendor still runs
- * every id through `resolveBedrockModelId`, which consults the catalog to
- * route bare profile-only ids (a bare `openai.gpt-…` in us-east-1 goes out as
- * `us.openai.gpt-…`). Ids that already carry a geo/global prefix pass
- * through untouched, so those cases pin the path as well. The stub answers
- * 400: only the request is under test.
+ * The stub answers 400: only the request is under test.
  */
 async function wireRequest(
 	modelId: string,
 	reasoning: GatewayStreamRequest["reasoning"],
+	catalog: CatalogFact = "advertises-effort",
 ): Promise<WireRequest> {
 	let path: string | undefined;
 	let sent: Record<string, unknown> | null | undefined;
@@ -55,17 +76,33 @@ async function wireRequest(
 				apiKey: "test-bearer-key",
 				fetch: fetchStub,
 				options: { region: "us-east-1", authentication: "apikey" },
-				models: [
-					{
-						id: modelId,
-						name: modelId,
-						capabilities: ["text", "reasoning"],
-						reasoningOptions: EFFORT_OPTIONS,
-					},
-				],
+				// A config model overrides a builtin of the same id, so these
+				// definitions decide what the gateway sees regardless of the catalog.
+				...(catalog === "unlisted"
+					? {}
+					: {
+							models: [
+								{
+									id: modelId,
+									name: modelId,
+									capabilities:
+										catalog === "advertises-effort"
+											? ["text", "reasoning"]
+											: ["text"],
+									...(catalog === "advertises-effort"
+										? { reasoningOptions: EFFORT_OPTIONS }
+										: {}),
+								},
+							],
+						}),
 			},
 		],
 	});
+	if (catalog === "unlisted") {
+		expect(
+			gateway.listModels("bedrock").map((model) => model.id),
+		).not.toContain(modelId);
+	}
 	for await (const _event of await gateway.stream({
 		providerId: "bedrock",
 		modelId,
@@ -86,9 +123,6 @@ async function wireRequest(
 }
 
 describe("Bedrock reasoning wire contract", () => {
-	// The regression: these ids reached the adapter with their prefix and got
-	// the generic `reasoningConfig` before 5.0.65. They pass through the
-	// resolver unchanged, so the path assertion needs no catalog.
 	it.each([
 		"us.openai.gpt-6-astra",
 		"global.openai.gpt-5.6-luna",
@@ -99,9 +133,6 @@ describe("Bedrock reasoning wire contract", () => {
 	});
 
 	it("sends reasoning.effort for a bare OpenAI id, whichever profile the resolver picks", async () => {
-		// In us-east-1 the resolver routes this bare id through a geo profile
-		// when the catalog confirms one, so the adapter may see `us.openai.…`.
-		// Either way the OpenAI shape must come out.
 		const { path, sent } = await wireRequest("openai.gpt-6-astra", {
 			effort: "high",
 		});
@@ -111,19 +142,45 @@ describe("Bedrock reasoning wire contract", () => {
 		expect(sent).toEqual({ reasoning: { effort: "high" } });
 	});
 
-	it("keeps reasoning_effort for gpt-oss", async () => {
-		const { path, sent } = await wireRequest("openai.gpt-oss-120b-1:0", {
-			effort: "high",
-		});
-		expect(path).toBe("/model/openai.gpt-oss-120b-1:0/converse-stream");
-		expect(sent).toEqual({ reasoning_effort: "high" });
+	it("sends no reasoning fields for an unlisted inference-profile ARN", async () => {
+		const { sent } = await wireRequest(
+			"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
+			{ effort: "medium" },
+			"unlisted",
+		);
+		expect(sent).toBeNull();
 	});
 
-	it("keeps Anthropic models on the adapter's native shape", async () => {
-		const { path, sent } = await wireRequest("us.anthropic.claude-sonnet-4-6", {
-			effort: "high",
+	it("sends no reasoning fields for a model the adapter cannot classify, even when the catalog lists it", async () => {
+		// Nova Micro has no reasoning support; the adapter (5.0.96+) drops the
+		// portable option for it rather than emitting `reasoningConfig`.
+		const { sent } = await wireRequest(
+			"us.amazon.nova-micro-v1:0",
+			{ effort: "high" },
+			"no-controls",
+		);
+		expect(sent).toBeNull();
+	});
+
+	it("keeps thinking for a Claude id the catalog does not list", async () => {
+		// Sonnet 4 is not in the generated catalog; the adapter derives the
+		// Anthropic shape from the id, so the budget must still go out.
+		const { sent } = await wireRequest(
+			"us.anthropic.claude-sonnet-4-20250514-v1:0",
+			{ effort: "high" },
+			"unlisted",
+		);
+		expect(sent).toMatchObject({
+			thinking: { type: "enabled", budget_tokens: expect.any(Number) },
 		});
-		expect(path).toBe("/model/us.anthropic.claude-sonnet-4-6/converse-stream");
-		expect(sent).toMatchObject({ output_config: { effort: "high" } });
+	});
+
+	it("keeps reasoning.effort for an OpenAI id the catalog does not list", async () => {
+		const { sent } = await wireRequest(
+			"us.openai.gpt-7-preview",
+			{ effort: "high" },
+			"unlisted",
+		);
+		expect(sent).toEqual({ reasoning: { effort: "high" } });
 	});
 });

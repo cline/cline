@@ -1,3 +1,62 @@
+## Plugin slash commands
+
+Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or
+`client.pluginCommands` on an existing `HubSessionClient`. Hosts with a
+`NodeHubClient` can use `createHubPluginCommandsApi(client)` from `@cline/core`.
+These APIs reuse the runtime and connection; clients do not load plugins or own
+a separate command sandbox. Pass the active `sessionId` so a command runs in
+that session's plugin instance and retains the state and context shared with
+its hooks.
+
+If a connection closes after a command is dispatched, execution rejects without
+automatically resending it: the command may already have changed external state.
+
+```ts
+const target = { workspacePath: workspaceRoot, sessionId };
+const catalog = await core.pluginCommands.list(target);
+const result = await core.pluginCommands.run({ ...target, prompt: "/upload-history" });
+// Display result?.reply; submit only result?.submitPrompt to the agent.
+// undefined means no registered command handled the input.
+```
+
+Omit `sessionId`, or pass one the runtime does not have, to use the workspace
+catalog. Every call checks the enabled plugins and their sources and reloads the
+catalog when they change, so call `list` again whenever the command menu needs to be
+current. A failed load lists healthy commands with `status: "error"` and is
+retried after 30 seconds. Workspace catalogs idle for 10 minutes release their
+plugin workers.
+
+For a resident session, listing and execution use its initialized contribution
+registry and existing plugin sandbox. Workspace file changes apply to new
+sessions, not an active session's commands. Built-in command precedence and
+rendering remain host responsibilities. Preserve the original arguments when
+dispatching.
+
+## Model request retries and Langfuse
+
+AI SDK text requests allow three retries after the initial request (four total
+attempts) for retryable request-start failures. Provider errors received after
+streaming starts have a separate budget of three stream retries. Exhausting
+either budget does not trigger another whole-turn retry.
+
+When Langfuse tracing is enabled, each failed request-start or stream attempt
+records its error on its model-call span, including attempts followed by a
+successful retry. Request-start failures close their attempt spans before retry
+backoff begins. A recovered request keeps a successful overall trace; exhausted
+retries mark the overall operation as failed. Span export follows the configured
+telemetry processor's flushing policy.
+
+Caller cancellation closes model-call spans without recording an exception or
+marking a provider failure, including cancellation before the response opens.
+Timeout cancellations remain failures.
+
+## Oversized tool result recovery
+
+Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.
+
+Tools created with `createTool` may set `resultPolicy: "cache-oversized"`. Core enables this for MCP and Composio tools. Original output remains in history and events; synchronous model preparation sends a bounded preview with a `cline://cache/<encoded-session-id>/<result-id>.result.txt` URI for cached oversized responses. Use `read_files` with `start_line`/`end_line` to read omitted content. Shell and filesystem search tools do not support these URIs. The stateless agent runtime does not own a cache.
+
+Entries expire after five further model iterations without a cache read, across follow-up turns. Explicit reads refresh expiry; model requests do not. A 16 MiB UTF-8 text limit per session evicts least recently read entries; individually larger results have no recovery URI. Shutdown, history reset, and restore clear the cache, and resume does not regenerate entries. Missing reads instruct the agent to refetch with an appropriate read/query tool without repeating side-effecting actions. Evicting cached text does not remove original conversation output or change earlier recovery notices; URI references remain until the cache is cleared. Cache-miss feedback appears only when an agent attempts to read missing content.
 
 ## Shared agent review UI
 
@@ -35,18 +94,38 @@ host presentation.
 
 ## Cloud sessions (experimental)
 
+`summarizeConversation({ messages, config, signal? })` from `@cline/core` returns
+a continuation note without changing session history or compaction state.
+Top-level credentials in `config` override those in `providerConfig`.
+The request retains the prior summary, latest instruction, and its most recent
+response. It shortens older context to fit the model's input limit and rejects
+requests if the retained context cannot fit. It also rejects
+empty, incomplete, failed, or cancelled output. Claude Code, Codex CLI, OpenCode,
+and Dify are unsupported because they may execute their own tools.
+
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
 The API handles REST requests; the controller handles remote Hub connections,
 session lifecycle, transcript reconciliation, and approvals. Hosts provide API
 URLs and a fresh-token callback; feature gating and account selection stay in the
 host. Importing this subpath does not start a local agent.
 
+For ordinary creation, `CloudCreationUnconfirmedError` means a dispatched request
+could not be reconciled. It remains a `CloudSessionError` with code `request_failed`;
+hosts should direct users to their session list instead of offering a blind retry.
+
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+The optional sixth argument to `send` accepts a `beforeDispatch` callback.
+The callback runs before submission and can throw to prevent it. A successful
+return without `recoveredAfterDisconnect` confirms acknowledgement.
+The callback does not confirm acceptance.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
+
+`create` accepts `sandboxType: "standard" | "resumable"` (default: `"standard"`).
+The controller resumes suspended sessions when opened and restores their saved tasks.
 
 Hosts replacing controllers during credential refresh can share the
 `pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.
@@ -55,6 +134,65 @@ through `restoreCreationOptions`, until the inner task is found or created (or
 the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
+
+### Hub-owned cloud viewers
+
+`HubCloudSessionClient` from `@cline/core/cloud` uses an authenticated,
+registered `NodeHubClient` from `@cline/core/hub`. Reuse the host's existing
+Hub connection, or create and connect a `NodeHubClient` with the Hub URL,
+auth token, client ID, and workspace root. The cloud client accepts an async
+connection factory and connects lazily; `connect()` explicitly hydrates it.
+
+```ts
+import { HubCloudSessionClient } from "@cline/core/cloud";
+import type { NodeHubClient } from "@cline/core/hub";
+
+async function openCloudSession(hub: NodeHubClient, sessionId: string) {
+  const viewer = new HubCloudSessionClient(async () => {
+    await hub.connect();
+    return hub;
+  });
+  const unsubscribe = viewer.subscribe((event) => console.log(event));
+  try {
+    await viewer.attach(sessionId);
+    return await viewer.readMessages(sessionId);
+  } finally {
+    unsubscribe();
+    await viewer.dispose();
+  }
+}
+```
+
+The Hub owns the account-scoped controller, credentials, organization lookup,
+provisioning, and sandbox connections. Disposing a viewer releases its subscription
+and projected state; admitted cloud work and sandbox connections continue. The
+host retains ownership of its shared `NodeHubClient`. Account changes retire the
+old controller; Hub shutdown disposes it. Direct controller hosts instead own
+and dispose their controller and its connections.
+
+The viewer supports the serializable operations in `CLOUD_HUB_OPERATIONS`,
+with arguments/results described by `CloudHubArgs` and `CloudHubResult`.
+`CloudHubScope` binds commands to the observed Hub instance and account generation;
+callers use the viewer methods rather than constructing RPC envelopes. Snapshot
+recovery includes empty sets, removes deleted sessions, and rejects stale revisions.
+Dispatched actions are not automatically resent after an uncertain reply.
+Handoff callbacks and the sixth `send` lifecycle argument are direct-controller
+features and cannot cross this RPC boundary. Hub-backed creation defaults to
+`"resumable"` sandboxes.
+
+Discovery caches, pending listing requests, and newly created fallback rows are
+scoped to their organization; switching the sidebar preserves other organizations’
+task state without displaying their rows. Discovery’s `timeoutMs` covers both
+organization resolution and listing. If the organization is still unknown at
+the deadline, discovery returns no cloud rows; cached rows are used only after
+establishing their matching organization.
+
+After a successful organization switch, `refreshOrganization()` invalidates the
+Hub's cached organization before fetching the current one. A fetch failure leaves
+the old cache invalidated. Account-switch success and desktop cleanup must not
+depend on this optional refresh; cloud-disabled hosts skip it. A new viewer's
+watch also invalidates the cache, covering switches made while the Hub was
+unreachable without interrupting existing cloud work.
 
 ## Experimental cloud handoff
 
@@ -148,16 +286,36 @@ configuration variables are `CLINE_REMOTE_HELPER_BINARY`,
 `CLINE_REMOTE_HELPER_DIRECTORY`, `CLINE_SSH_PATH`, and
 `CLINE_SSH_KNOWN_HOSTS_FILE`.
 
-Clients package a matching self-contained helper using the
-`@cline/core/remote/helper-entry` executable entrypoint, compiled with Bun for the remote OS and
-architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
-filename (`cline-remote-helper-<target-triple>`). Linux and macOS on x64/arm64
-are supported. Helpers must include the same SDK build as the client; missing
-helpers produce an explicit error, without installing a runtime from the network.
-The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
-and the core detached-daemon sentinel. Agent tools and persistence run remotely;
-the host only manages SSH and forwards the authenticated hub connection.
+Remote Hubs are CLI-managed. Clients package the self-contained Cline CLI
+binary (`apps/cli`, compiled with Bun) for each remote OS and architecture; the
+service stages it on the host and runs `cline hub ensure --json --discovery-path
+<path> ...` to start or reuse a loopback Hub, and `cline hub stop
+--discovery-path <path>` to stop it. Use `remoteHelperBinaryFilename({ platform,
+arch })` for the bundled filename (`cline-<target-triple>`). Linux and macOS on
+x64/arm64 are supported. The CLI must be built from the same SDK build as the
+client; missing binaries produce an explicit error, without installing a
+runtime from the network. Agent tools and persistence run remotely; the host
+only manages SSH and forwards the authenticated hub connection.
 
+Clients whose own process cannot host the Hub daemon can call
+`setHubDaemonLauncher({ command: "/path/to/cline" })` so detached Hubs they
+start are launched through the Cline CLI.
+
+The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
+
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, `resolveProviderLocalCli(provider)`, and
+`resolveProviderApiKeyOptional(provider)`. The resolvers accept provider data
+(`metadata.localCliCommand` with optional `docsUrl`, and `metadata.apiKeyOptional`);
+they perform no registry lookup. Hosts resolve providers through `@cline/llms` and
+then pass that data to the shared helpers. `listLocalProviders` includes the
+resulting facts in each `ProviderListItem.auth` (`localCli`, and `apiKeyOptional`
+for local inference servers and cloud-credential providers that run without a
+key), allowing browser clients to render authentication guidance and gate sessions
+without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
@@ -188,6 +346,34 @@ executes its available tools without inheriting that policy or approval callback
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
 
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
+fails during discovery, the new settings are still saved and the last known
+catalog is retained. Settings and catalog persistence errors still reject the save.
+Provider-service mutations are serialized per catalog file within the process,
+including across manager instances and different providers. Discovery prepares
+the update before the complete settings patch is persisted once. If the catalog
+write fails, the prior provider settings are restored only while the failed
+operation still owns the current settings entry; newer saves and removals are
+preserved. A rollback failure is reported alongside the original error.
+Explicit `updateLocalProvider` calls still reject failed model fetches and retain
+the prior settings and catalog.
+
+Catalog refreshes replace discovery-owned model IDs while retaining manually
+added models, their default selection, and overrides on retained model entries.
+`models.json` records discovery-only IDs in `discoveredModelIds`; IDs also supplied
+explicitly are user-managed. An explicit `models` update replaces the manual list.
+An existing model selection in provider settings does not count as a manual
+addition when initializing a source-backed catalog.
+Provider capabilities are inherited when registering models, so stored per-model
+capability overrides continue to take precedence after refreshes.
 
 ## Shared UI session rows
 
@@ -256,3 +442,154 @@ dialog's tab order. Image source validation and resolution remain host-owned;
 provider-generated URLs must go through an explicit host trust policy before
 rendering. This presentation primitive does not replace `GeneratedMediaContent`
 or its inline-byte validation.
+
+## Shell executor errors
+
+The executor returned by `createShellExecutor` rejects on execution failure.
+The following error classes are exported from `@cline/core` so hosts can
+distinguish process outcomes without parsing messages. They are not an exhaustive
+list of rejections: cancellation, timeout, and stdin-write failures can reject
+with other errors.
+
+- `CommandExitError` — the shell started and exited non-zero. `exitCode` is the
+  numeric process exit code and `output` contains a completion notice and the
+  captured output (subject to the configured truncation limit).
+- `CommandTerminationError` — the process terminated without a numeric exit
+  code. `signal` is the terminating signal, or `null` if none was reported;
+  `output` contains a termination notice and the captured output. This error
+  has no `exitCode` field.
+- `CommandSpawnError` — the shell process could not be started, so there is no
+  exit code. The message keeps the pre-existing `Failed to execute command: …`
+  form. `code` is the operating system error libuv reported (`ENOENT`,
+  `EACCES`, `EFTYPE` for a file that is not a valid executable). Because spawn
+  reports `ENOENT` with the same message when the executable is not found and
+  when the working directory no longer exists, `missing` records which path was
+  absent at failure time: `"executable"` or `"cwd"`. It is `undefined` for every
+  other code. `code` itself is `undefined` if the underlying error has no code.
+
+The public `run_commands` tool catches executor failures and resolves with
+per-command results containing `success: false`, rather than propagating these
+errors as rejected tool calls. For `CommandExitError` and
+`CommandTerminationError`, the failed result retains `output` in its `result`
+field. For `CommandSpawnError`, `result` is empty and `error` includes the spawn
+failure message. Hosts that need the structured error fields must observe the
+executor rejection before this conversion.
+
+Hosts that record command telemetry should label a `CommandSpawnError` by its
+`code` (and `missing`) rather than inventing an exit code. The VS Code and
+standalone adapters do this in the `errorCode` dimension, and use the bounded
+labels `signal` and `no_exit_code` for `CommandTerminationError`. Only an actual
+numeric exit is reported as `exitCode`.
+
+## Tool success context
+
+`AgentTool` and `createTool` accept optional `successContext` text. The agent runtime appends it after the iteration’s tool results, once after-tool hooks have run, without changing the tool output. It reaches the model as a user-role context message with `displayRole: "system"`, hidden from client transcripts. Errors, skipped calls, and hooks that stop execution do not add it. It is retained as conversation history and remains subject to context compaction.
+
+`createAskQuestionTool` and the question tool from `createDefaultTools` use this field to remind the model to continue after an answer, in both direct `Agent` and `ClineCore` sessions.
+
+## Symlinked instruction files
+
+Rules and workflows can be symbolic links to regular files. Source paths and
+fallback names use the link's name and location, not the target's. Broken,
+circular, and non-file targets are skipped.
+
+`UnifiedConfigFileWatcher` watches only the directory containing the link, not
+the link's target. Edits to a symlink's target are picked up on the next
+refresh or new session.
+
+## Unknown model completion recovery
+
+The AI SDK adapter maps unified `length` to `max-tokens` and missing or unrecognized reasons (including `other`) to `unknown`. Explicit `stop`, `tool-calls`, `content-filter`, and `error` retain their meanings. The agent also treats a stream without a finish event as unknown.
+
+Without tool activity, an unknown response is preserved in history and continued once, with the model-visible user message “Previous turn ended unexpectedly. Continue from where you left off.” The message uses `displayRole: "system"` and `userRunSpan: 0`, matching injected hook context so it stays out of live and replayed chat transcripts. The system prompt is unchanged. A second unknown completion fails the run. Queued user instructions are consumed before the continuation, including in the first iteration. Tool calls receive their results through the normal loop; provider-executed actions are not replayed.
+
+## Host connector transport
+
+Pass `connectorsRequest: (path, init) => Promise<Response>` to `LocalRuntimeHost`
+and `createLocalHubScheduleRuntimeHandlers` to supply connector authentication.
+Paths start with `/api/v1/connectors`; the host supplies the API origin and
+authentication. Omit it to retain local account authentication and rollout checks.
+
+## MCP Apps (experimental)
+
+MCP Apps support is off by default.
+`createDefaultMcpServerClientFactory({ mcpApps: true })` turns it on by
+advertising the `io.modelcontextprotocol/ui` extension (`MCP_APPS_EXTENSION_ID`)
+with the `text/html;profile=mcp-app` MIME type during `initialize`, for stdio
+and URL servers alike.
+
+`createMcpTools` always leaves out tools whose `_meta.ui.visibility` does not
+include `"model"`, whether or not the client advertised the extension.
+
+Tool descriptors keep the server's `_meta`. `getMcpAppToolMeta` reads
+`_meta.ui`: `resourceUri` is kept only for `ui://` URIs, and `visibility`
+defaults to `["model", "app"]` when it is not an array. An explicit array is
+used as given after dropping unknown entries, so `[]` makes the tool visible to
+neither. `isMcpToolVisibleToModel` and `isMcpToolVisibleToApp` check those
+lists; a host must reject app-initiated tool calls when
+`isMcpToolVisibleToApp` is false.
+
+`McpManager.readResource({ serverName, uri, context })` sends `resources/read`
+and returns `{ contents, _meta? }`, validated against the MCP SDK schema;
+malformed replies throw. It is optional on `McpManager` and
+`McpServerClient`. `InMemoryMcpManager` reads without waiting for in-flight
+tool calls on an already connected server. A read that starts while the server
+is being disconnected or re-registered can fail with a disconnect error; retry
+it.
+
+For sessions, set `mcpApps: true` in the session config (`CoreRuntimeFeatures`).
+The runtime builder then advertises the extension to every settings and Agent
+Plugin MCP server it connects, and the session gains an MCP Apps runtime that
+uses those same connections. Hosts reach it through `ClineCore`:
+
+- `resolveMcpAppTool(sessionId, toolName)` maps an agent tool name (as it
+  appears in tool events, for example `weather__show_weather`) to
+  `{ serverName, toolName, resourceUri }`. It returns `undefined` for tools with
+  no `ui://` resource, for sessions without MCP Apps, and for runtimes or hub
+  daemons that do not support MCP Apps.
+- `readMcpAppResource(sessionId, { serverName, uri })` reads a `ui://` resource
+  from one of the session's MCP servers. Other URI schemes are rejected.
+- `callMcpAppTool(sessionId, { serverName, toolName, arguments })` calls a tool
+  on the app's behalf. It rejects tools whose visibility lacks `"app"`, tools
+  the server does not list, servers outside the session, and tools the session
+  disables through `toolPolicies` or the global `disabledTools` setting (matched
+  by agent tool name, such as `weather__refresh_view`). App calls are recorded
+  as tool usage telemetry, but do not request tool approval and do not run tool
+  hooks; a host that wants consent must ask before calling.
+
+Reads and calls reach every enabled settings and Agent Plugin server, including
+ones that failed to list tools at startup; the manager reconnects on demand.
+`resolveMcpAppTool` only searches servers that loaded tools at startup, since
+the agent can only call tools from those. Neither method checks which server an
+app came from, so a host bridging app requests must pass the `serverName` from
+the app's `resolveMcpAppTool` binding rather than one the app supplies.
+
+`readMcpAppResource` and `callMcpAppTool` throw when the session was started
+without `mcpApps` or has no MCP servers. Hub-backed hosts send these as the
+`session.mcp_apps.*` commands, so the hub daemon serves them from the session's
+own MCP manager.
+
+## Run stall telemetry
+
+`@cline/core` measures stalls with a `RunHealthObserver`
+(`packages/core/src/services/telemetry/run-health.ts`). `SessionRuntime`
+creates one per run, for root agents and subagents, when telemetry is
+configured. It watches only the run's runtime events and is disposed when the
+run returns.
+
+- `task.run_idle` fires at most once per run, while it is still running and has
+  emitted no runtime event for 60s.
+- When the run ends, `AgentRuntime` calls the optional
+  `AgentRuntimeConfig.runEndTelemetryProperties()` once, while capturing
+  `agent.run-finished` or `agent.run-failed`, and merges the result into that
+  event. Core uses it to add `maxIdleMs`, `maxIdleAfter`, `msSinceLastEvent`,
+  `lastEventType`, `finishReason`, `idleReported`, `endedOn` and
+  `textSignature`. The observer stops its idle check at that point.
+- `tool-call-delta` is a runtime event emitted for each streamed tool-call
+  argument chunk. It carries no arguments and exists so that a slow tool-call
+  stream is not mistaken for a silent one. It is not mirrored to telemetry and
+  is not forwarded as hub hook traffic.
+
+No message text leaves the client: `textSignature` and `session.input_sent`'s
+`bumpKind` are enums computed locally
+(`packages/core/src/services/telemetry/stall-signals.ts`).

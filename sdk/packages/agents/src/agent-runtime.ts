@@ -91,6 +91,14 @@ const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 1_000;
 const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 15_000;
 
 /**
+ * Terminal message for a turn the provider blocked. Kept separate from the
+ * generic empty-response text because the two call for opposite user action:
+ * an empty response is worth retrying, a filtered one reproduces every time.
+ */
+const CONTENT_FILTER_EMPTY_TURN_MESSAGE =
+	"Model returned no content because the response was blocked by a content filter. Retrying is unlikely to help — try rephrasing the request.";
+
+/**
  * Terminal message when a context-window overflow cannot be recovered because
  * there is no conversation history to compact — the system prompt, tools, and
  * current input alone exceed the window.
@@ -391,7 +399,10 @@ function sanitizeHookAttribute(value: string): string {
  */
 type HookContextOrigin =
 	| { source: "RunStart" }
-	| { source: "PreToolUse" | "PostToolUse"; toolCall: AgentToolCallPart };
+	| {
+			source: "PreToolUse" | "PostToolUse" | "ToolSuccess";
+			toolCall: AgentToolCallPart;
+	  };
 
 function formatHookContextBlock(
 	origin: HookContextOrigin,
@@ -571,6 +582,16 @@ export class AgentRuntime {
 		 * telemetry leave this false, so their failures still get reported.
 		 */
 		lastErrorReported: false,
+		/**
+		 * Finish reason carried into the run-failed `sdk.error` event. Set
+		 * only at the throw sites where a finish reason IS the failure's
+		 * cause (empty turn, max-tokens, provider error) — never recorded
+		 * ambiently on finish events, so a failure elsewhere in the loop
+		 * (hooks, listeners, transport, setup) can never inherit a reason
+		 * from a request that did not cause it. Undefined means the
+		 * attribute is omitted, which is always safe; a wrong reason is not.
+		 */
+		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
@@ -583,6 +604,7 @@ export class AgentRuntime {
 	private modelSteerController?: AbortController;
 	private readonly telemetryProviderId?: string;
 	private readonly telemetryModelId?: string;
+	private modelRequestId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		this.telemetryProviderId =
@@ -749,8 +771,12 @@ export class AgentRuntime {
 		].filter((message): message is string => Boolean(message));
 	}
 
-	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
+	private async addUserReminderMessage(
+		text: string,
+		metadata: AgentMessage["metadata"] = {},
+	): Promise<AgentMessage> {
 		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			...metadata,
 			userRunSpan: 0,
 		});
 		this.state.messages.push(reminderMessage);
@@ -770,6 +796,7 @@ export class AgentRuntime {
 
 		this.abortController = new AbortController();
 		this.state.runId = createUID("run");
+		this.modelRequestId = undefined;
 		this.state.status = "running";
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
@@ -777,6 +804,7 @@ export class AgentRuntime {
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorRetryable = undefined;
 		this.state.lastErrorReported = false;
+		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
 		this.state.lastRequestInputTokens = 0;
@@ -839,7 +867,14 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
+					// Attribution is set immediately before each throw: nothing can
+					// interleave between a synchronous set-and-throw and the
+					// run-level catch, so `sdk.error` can never pick up a reason
+					// from a failure it did not cause. Failures with no
+					// finish-reason cause (hooks, listeners, transport) leave the
+					// field unset and the attribute is omitted.
 					if (finishReason === "error") {
+						this.state.lastFinishReason = finishReason;
 						throw new Error(this.state.lastError ?? "Model stream failed");
 					}
 					// Provider-executed tool activity lives in message metadata, not
@@ -848,15 +883,21 @@ export class AgentRuntime {
 					// activity is not empty: keep the message so the transcript and
 					// display projection retain it. Replay stays safe — the codec
 					// renders empty content as its placeholder text block.
-					const modelToolActivities = message.metadata?.modelToolActivities;
-					const hasModelToolActivity =
-						Array.isArray(modelToolActivities) &&
-						modelToolActivities.length > 0;
+					const hasModelToolActivity = this.hasModelToolActivity(message);
 					// A turn that produced no content because it hit the output-token
-					// limit is not a true empty response: fall through so the message is
-					// kept and the max-tokens recovery branch below can nudge and retry.
-					if (!hasModelToolActivity && finishReason !== "max-tokens") {
-						throw new Error("Model returned empty response");
+					// limit or has an unknown finish is incomplete: preserve the message
+					// so finish-reason handling below can surface the right failure or recover.
+					if (
+						!hasModelToolActivity &&
+						finishReason !== "max-tokens" &&
+						finishReason !== "unknown"
+					) {
+						this.state.lastFinishReason = finishReason;
+						throw new Error(
+							finishReason === "content-filter"
+								? CONTENT_FILTER_EMPTY_TURN_MESSAGE
+								: "Model returned empty response",
+						);
 					}
 				}
 				const toolCalls = message.content.filter(
@@ -877,6 +918,13 @@ export class AgentRuntime {
 					continue;
 				}
 
+				// Recovery already continued once, or external tool activity made
+				// replay unsafe. Local calls are handled below with their results.
+				if (finishReason === "unknown" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error("Model ended without a recognized finish reason");
+				}
+
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
 					if (await this.recoverFromIncompleteMaxTokensTurn()) {
 						await this.emit({
@@ -887,9 +935,12 @@ export class AgentRuntime {
 						});
 						continue;
 					}
+					// Same set-and-throw attribution as the empty-content check.
+					this.state.lastFinishReason = finishReason;
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
 				// A turn that yields tool calls is progress: reset the cut-off streak.
@@ -933,6 +984,20 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
+				if (
+					finishReason === "unknown" &&
+					!toolMessages.some((toolMessage) =>
+						toolMessage.content.some(
+							(part) => part.type === "tool-result" && !part.isError,
+						),
+					)
+				) {
+					this.state.lastFinishReason = finishReason;
+					throw new Error(
+						"Model ended without a recognized finish reason or successful tool work",
+					);
+				}
+
 				await this.flushPendingHookContexts();
 				await this.emit({
 					type: "turn-finished",
@@ -1133,16 +1198,41 @@ export class AgentRuntime {
 	 * caller to handle, so this only adds
 	 * resilience and never changes behavior for a turn that would otherwise
 	 * succeed. Context-window overflow recovery and max-tokens recovery still
-	 * run inside each attempt (the latter at most once per run).
+	 * run inside each attempt (the latter at most once per run). An unknown
+	 * finish without tool activity is continued once from the partial history;
+	 * it is never inferred from whether the response contains visible text.
 	 */
 	private async generateAssistantMessageWithProviderRetry(): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
-		return await this.withProviderErrorRetry(() =>
-			this.generateAssistantMessageWithOverflowRecovery(),
+		const issue = () =>
+			this.withProviderErrorRetry(() =>
+				this.generateAssistantMessageWithOverflowRecovery(),
+			);
+		const first = await issue();
+		if (first.finishReason !== "unknown" || first.interrupted) return first;
+
+		// Tool activity cannot be replayed, and local tool calls must receive
+		// their results before another request. Leave those turns to the loop.
+		if (
+			first.message.content.some((part) => part.type === "tool-call") ||
+			this.hasModelToolActivity(first.message)
+		)
+			return first;
+
+		// An unknown terminal reason, independent of text/reasoning content,
+		// permits exactly one continuation from the preserved partial history.
+		await this.recordAssistantMessage(first.message, first.finishReason);
+		// A user-role continuation avoids treating partial history as assistant
+		// prefill. Match hook context visibility in live and replayed transcripts.
+		await this.addUserReminderMessage(
+			"Previous turn ended unexpectedly. Continue from where you left off.",
+			{ displayRole: "system" },
 		);
+		this.resetLastError();
+		return await issue();
 	}
 
 	/**
@@ -1196,9 +1286,11 @@ export class AgentRuntime {
 	 * True when a turn failed with a transient provider error that a retry
 	 * could plausibly recover, and the failed attempt left nothing behind that
 	 * a second stream would duplicate or repeat:
-	 * - no content at all (text, reasoning, media, or local tool calls): those
+	 * - no content beyond reasoning (text, media, or local tool calls): those
 	 *   deltas were already emitted to the UI and there is no event to retract
-	 *   them, so re-streaming would show the output twice;
+	 *   them, so re-streaming would show the output twice. Partial reasoning is
+	 *   tolerated: it is discarded with the failed message, and losing a long
+	 *   thinking phase to a dropped connection is worse than re-streaming it;
 	 * - no provider-executed tool activity (recorded in message metadata, not
 	 *   content): re-issuing the request could run those side effects again;
 	 * - not an auth or context-window failure, which the same request cannot fix.
@@ -1210,7 +1302,7 @@ export class AgentRuntime {
 		if (turn.finishReason !== "error") {
 			return false;
 		}
-		if (turn.message.content.length > 0) {
+		if (turn.message.content.some((part) => part.type !== "reasoning")) {
 			return false;
 		}
 		const modelToolActivities = turn.message.metadata?.modelToolActivities;
@@ -1359,7 +1451,7 @@ export class AgentRuntime {
 		return !this.hasModelToolActivity(turn.message);
 	}
 
-	/** Provider-executed tool activity is recorded in metadata, not content. */
+	/** Tool activity executed outside AgentRuntime is recorded in metadata. */
 	private hasModelToolActivity(message: AgentMessage): boolean {
 		const activities = message.metadata?.modelToolActivities;
 		return Array.isArray(activities) && activities.length > 0;
@@ -1597,17 +1689,14 @@ export class AgentRuntime {
 
 		const startedAt = Date.now();
 
-		if (this.state.iteration > 1) {
-			const pendingUserMessage = await this.consumePendingUserMessage();
-			if (pendingUserMessage) {
-				request = {
-					...request,
-					messages: [
-						...request.messages,
-						...cloneMessages([pendingUserMessage]),
-					],
-				};
-			}
+		// Read queued input at every request boundary, including retries and
+		// continuations within the first iteration.
+		const pendingUserMessage = await this.consumePendingUserMessage();
+		if (pendingUserMessage) {
+			request = {
+				...request,
+				messages: [...request.messages, ...cloneMessages([pendingUserMessage])],
+			};
 		}
 
 		request = await this.prepareTurnForModelRequest(request, options);
@@ -1683,6 +1772,13 @@ export class AgentRuntime {
 		let request = prepared.request;
 
 		this.throwIfAborted();
+		this.modelRequestId = createUID("model_request", 21);
+		request = {
+			...request,
+			options: mergeModelOptions(request.options, {
+				metadata: { modelRequestId: this.modelRequestId },
+			}),
+		};
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
 			durationMs: getTaskLifecycleDurationMs(),
 			phase: "provider_request_started",
@@ -1704,12 +1800,13 @@ export class AgentRuntime {
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
 		const modelToolActivities = new Map<string, AgentModelToolActivity>();
+		let lastToolCallDeltaAt = 0;
 		const invalidToolCalls: InvalidToolCall[] = [];
 		const sequence: Array<
 			{ type: "tool"; key: string } | { type: "part"; part: AgentMessagePart }
 		> = [];
 		let nextToolIndex = 0;
-		let finishReason: AgentModelFinishReason = "stop";
+		let finishReason: AgentModelFinishReason = "unknown";
 		let requestId: string | undefined;
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
@@ -1841,6 +1938,17 @@ export class AgentRuntime {
 							assembly.inputText,
 							event.inputText,
 						);
+					}
+					// Only a progress signal: at most once a second, since each event
+					// copies the whole conversation and a large file write streams
+					// thousands of argument chunks.
+					if (Date.now() - lastToolCallDeltaAt >= 1_000) {
+						lastToolCallDeltaAt = Date.now();
+						await this.emit({
+							type: "tool-call-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+						});
 					}
 					break;
 				}
@@ -2073,6 +2181,7 @@ export class AgentRuntime {
 		const sessionId = trimNonEmpty(this.config.sessionId);
 		captureTaskLifecycleEvent(this.config.telemetry, {
 			event,
+			modelRequestId: this.modelRequestId,
 			sessionId,
 			ulid: sessionId,
 			agentId: this.state.agentId,
@@ -2451,6 +2560,9 @@ export class AgentRuntime {
 	private async executePreparedTool(
 		prepared: PreparedToolExecution,
 	): Promise<AgentMessage> {
+		// A parallel sibling can outlive a stopped run; pushing to the buffer
+		// captured here keeps its context out of whichever run is current then.
+		const hookContexts = this.pendingHookContexts;
 		const startedAt = new Date();
 		await this.emit({
 			type: "tool-started",
@@ -2519,7 +2631,7 @@ export class AgentRuntime {
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
 				if (after?.appendContext?.trim()) {
-					this.pendingHookContexts.push(
+					hookContexts.push(
 						formatHookContextBlock(
 							{ source: "PostToolUse", toolCall: prepared.toolCall },
 							after.appendContext,
@@ -2531,6 +2643,19 @@ export class AgentRuntime {
 					result = after.result;
 				}
 			}
+		}
+
+		if (
+			!prepared.skipReason &&
+			!result.isError &&
+			prepared.tool?.successContext?.trim()
+		) {
+			hookContexts.push(
+				formatHookContextBlock(
+					{ source: "ToolSuccess", toolCall: prepared.toolCall },
+					prepared.tool.successContext,
+				),
+			);
 		}
 
 		const message = createMessage("tool", [
@@ -2646,6 +2771,10 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							modelRequestId: this.modelRequestId,
+							...(this.state.lastFinishReason
+								? { finishReason: this.state.lastFinishReason }
+								: {}),
 						},
 					});
 				}
@@ -2661,7 +2790,18 @@ export class AgentRuntime {
 			case "assistant-text-delta":
 			case "assistant-reasoning-delta":
 			case "assistant-media":
+			case "tool-call-delta":
 			case "tool-updated":
+				break;
+			case "run-finished":
+			case "run-failed":
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: {
+						...(metadata as TelemetryProperties),
+						...this.config.runEndTelemetryProperties?.(),
+					},
+				});
 				break;
 			default:
 				this.config.telemetry?.capture({

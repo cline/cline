@@ -20,6 +20,7 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureRunIdle,
 	captureScheduleRun,
 	captureTaskCompleted,
 	captureTaskCreated,
@@ -390,6 +391,31 @@ describe("captureWorkspacePathResolved", () => {
 				resolution_type: "fallback_to_primary",
 			}),
 		).not.toThrow();
+	});
+});
+
+describe("captureRunIdle", () => {
+	test("emits task.run_idle and drops a missing session id", () => {
+		const stub = createTelemetryStub();
+		captureRunIdle(stub.telemetry, {
+			ulid: undefined,
+			agentId: "agent-1",
+			runId: "run-1",
+			idleMs: 60_000,
+			lastEventType: "tool-started",
+			isSubagent: true,
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: CORE_TELEMETRY_EVENTS.TASK.RUN_IDLE,
+			properties: {
+				agentId: "agent-1",
+				runId: "run-1",
+				idleMs: 60_000,
+				lastEventType: "tool-started",
+				isSubagent: true,
+			},
+		});
 	});
 });
 

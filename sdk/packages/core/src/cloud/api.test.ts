@@ -1,6 +1,7 @@
 import type { MessageWithMetadata } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	CloudCreationUnconfirmedError,
 	CloudHandoffCreationRejectedError,
 	CloudSessionApi,
 	type CloudSessionApiOptions,
@@ -40,6 +41,66 @@ function jwtFor(subject: string, nonce: string): string {
 
 describe("CloudSessionApi", () => {
 	it.each([
+		undefined,
+		"standard",
+		"resumable",
+	] as const)("sends the requested sandbox type (%s) without changing other hosts' default", async (sandboxType) => {
+		const fetch = vi.fn(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				jsonResponse({ data: { sessionId: "ses-new" } }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch,
+		});
+		await api.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			sandboxType,
+		});
+		const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+		if (sandboxType) expect(body.sandboxType).toBe(sandboxType);
+		else expect(body).not.toHaveProperty("sandboxType");
+	});
+
+	it("resumes through authenticated REST and preserves quota errors", async () => {
+		const resumed = {
+			...REMOTE_SESSION,
+			status: "provisioning",
+			sandboxType: "resumable",
+		};
+		const fetch = vi.fn(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				jsonResponse({ data: resumed }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "fresh-token",
+			fetch,
+		});
+		expect(await api.resume("ses/outer")).toEqual(resumed);
+		expect(fetch).toHaveBeenCalledWith(
+			"https://api.example/api/v1/session/ses%2Fouter/resume",
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					Authorization: "Bearer fresh-token",
+				}),
+			}),
+		);
+		fetch.mockResolvedValueOnce(
+			jsonResponse({ error: "Active instance limit reached" }, 429),
+		);
+		await expect(api.resume("ses-outer")).rejects.toMatchObject({
+			status: 429,
+			detail: "Active instance limit reached",
+		});
+	});
+
+	it.each([
 		"rotated",
 		"changed",
 		"revoked",
@@ -71,7 +132,10 @@ describe("CloudSessionApi", () => {
 		});
 		await expect(
 			api.create({ modelId: "model", repoUrl: "repo" }),
-		).rejects.toThrow("POST response lost");
+		).rejects.toMatchObject({
+			name: "CloudCreationUnconfirmedError",
+			cause: expect.objectContaining({ message: "POST response lost" }),
+		});
 		expect(requests).toEqual([
 			{ method: "POST", authorization: `Bearer ${original}` },
 			...(mode === "rotated"
@@ -381,7 +445,11 @@ describe("CloudSessionApi", () => {
 		expect(requests).toEqual(["POST /api/v1/session", "GET /api/v1/session"]);
 	});
 
-	it("recovers the real id after the create request times out", async () => {
+	it.each([
+		"match",
+		"empty",
+		"failed lookup",
+	])("reconciles a timed-out create with %s", async (recovery) => {
 		vi.useFakeTimers();
 		const requests: string[] = [];
 		let recoveryTitle = "";
@@ -405,30 +473,42 @@ describe("CloudSessionApi", () => {
 							);
 						});
 					}
+					if (recovery === "failed lookup")
+						return jsonResponse({ error: "unavailable" }, 500);
 					return jsonResponse({
 						success: true,
-						data: [
-							{
-								...REMOTE_SESSION,
-								id: "ses-recovered",
-								title: recoveryTitle,
-								status: "provisioning",
-								sandboxUrl: "",
-							},
-						],
+						data:
+							recovery === "match"
+								? [
+										{
+											...REMOTE_SESSION,
+											id: "ses-recovered",
+											title: recoveryTitle,
+											status: "provisioning",
+											sandboxUrl: "",
+										},
+									]
+								: [],
 					});
 				},
 			});
 
-			const creating = api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			});
+			const creating = api
+				.create({
+					modelId: "anthropic/claude-sonnet-5",
+					repoUrl: "https://github.com/cline/test",
+				})
+				.catch((error) => error);
 			await vi.advanceTimersByTimeAsync(100);
-
-			await expect(creating).resolves.toMatchObject({
-				sessionId: "ses-recovered",
-			});
+			if (recovery === "match")
+				expect(await creating).toMatchObject({ sessionId: "ses-recovered" });
+			else {
+				expect(await creating).toBeInstanceOf(CloudCreationUnconfirmedError);
+				expect(await creating).toMatchObject({
+					code: "request_failed",
+					cause: expect.any(Error),
+				});
+			}
 			expect(requests).toEqual(["POST /api/v1/session", "GET /api/v1/session"]);
 		} finally {
 			vi.useRealTimers();
@@ -799,7 +879,10 @@ describe("CloudSessionApi", () => {
 		};
 
 		const error = await api.create(input).catch((caught) => caught);
-		expect(error).toMatchObject({ code: "request_failed" });
+		expect(error).toMatchObject({
+			name: "CloudCreationUnconfirmedError",
+			code: "request_failed",
+		});
 		expect(String(error)).toContain("ambiguous result");
 	});
 
@@ -876,6 +959,30 @@ describe("CloudSessionApi", () => {
 			}),
 		).rejects.toThrow(/invalid branch/);
 		expect(listRequests).toBe(0);
+	});
+
+	it("keeps a credential failure before dispatch retryable", async () => {
+		const rejected = new Error("scope changed");
+		const getAuthToken = vi
+			.fn(async () => "token")
+			.mockResolvedValueOnce("token")
+			.mockRejectedValueOnce(rejected);
+		const fetch = vi.fn(
+			async (_url: string | URL | Request, _init?: RequestInit) =>
+				jsonResponse({ data: [] }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken,
+			fetch,
+		});
+		await expect(
+			api.create({ modelId: "model", repoUrl: "repo" }),
+		).rejects.toBe(rejected);
+		expect(fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(
+			false,
+		);
 	});
 
 	it("returns the GitHub connection action when no integration exists", async () => {

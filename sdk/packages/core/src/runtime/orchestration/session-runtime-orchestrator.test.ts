@@ -33,7 +33,10 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import { createDefaultTools } from "../../extensions/tools/definitions";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
+import type { CoreCompactionContext } from "../../types/config";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -887,6 +890,52 @@ describe("SessionRuntime message preparation", () => {
 		expect(prepareTurn).toHaveBeenCalledWith(
 			expect.objectContaining({ previousRequestInputTokens: 123_456 }),
 		);
+	});
+
+	it("passes the resolved model context limit to auto compaction", async () => {
+		const modelId = "local-model";
+		const contextWindow = 65_536;
+		const compact = vi.fn((_context: CoreCompactionContext) => undefined);
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId,
+			compaction: { enabled: true, compact },
+		});
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				// The discovered catalog entry has no limit; a selected-model
+				// override supplies the limit used by the gateway request.
+				knownModels: { [modelId]: { id: modelId, name: modelId } },
+				providerConfig: {
+					providerId: "anthropic",
+					modelId,
+					maxInputTokens: 128_000,
+					modelInfo: { id: modelId, contextWindow },
+				},
+				prepareTurn,
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		await configs[0]?.prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			messages: [makeAgentMessage("m1", "user", "x".repeat(300_000))],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.model.info).toMatchObject({ contextWindow });
+		expect(context?.budget.request.maxInputTokens).toBe(contextWindow);
+		expect(context?.budget.request.triggerTokens).toBe(contextWindow * 0.9);
 	});
 
 	it("allows prepareTurn to return only a system prompt", async () => {
@@ -3046,5 +3095,108 @@ describe("SessionRuntime auth retry", () => {
 		expect(onAuthError).not.toHaveBeenCalled();
 		expect(createdCount()).toBe(1);
 		expect(result.finishReason).toBe("error");
+	});
+});
+
+describe("question continuation context", () => {
+	it.each([
+		{ toolName: "ask_question", fails: false, shouldContinue: true },
+		{ toolName: "ask_question", fails: true, shouldContinue: false },
+		{ toolName: "other_tool", fails: false, shouldContinue: false },
+	])("separates the answer and context for $toolName (fails: $fails)", async ({
+		toolName,
+		fails,
+		shouldContinue,
+	}) => {
+		const requests: AgentMessage[][] = [];
+		const answer = 'use $& and "$1"';
+		const reminder =
+			"The user has answered the question. Continue working on their task using that answer.";
+		const model: AgentModel = {
+			async stream(request) {
+				requests.push(structuredClone([...request.messages]));
+				const first = requests.length === 1;
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "question-1",
+							toolName,
+							inputText: JSON.stringify({
+								question: "Which?",
+								options: ["a", "b"],
+							}),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "Done." };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				tools:
+					toolName === "ask_question"
+						? createDefaultTools({
+								executors: {
+									askQuestion: async () => {
+										if (fails) throw new Error("No answer");
+										return answer;
+									},
+								},
+								enableAskQuestion: true,
+							})
+						: [
+								{
+									name: toolName,
+									description: "Other",
+									inputSchema: { type: "object" },
+									execute: async () => answer,
+								},
+							],
+				hooks: {
+					afterTool: () => ({ appendContext: "Existing hook context" }),
+				},
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		await session.run("Work on the task");
+
+		expect(requests).toHaveLength(2);
+		const next = requests[1] ?? [];
+		const resultIndex = next.findIndex((message) =>
+			message.content.some((part) => part.type === "tool-result"),
+		);
+		expect(resultIndex).toBeGreaterThan(0);
+		const result = next[resultIndex]?.content.find(
+			(part) => part.type === "tool-result",
+		);
+		if (!fails) expect(result).toMatchObject({ output: answer });
+		expect(JSON.stringify(next.slice(resultIndex + 1))).toContain(
+			"Existing hook context",
+		);
+		expect(JSON.stringify(next).includes(reminder)).toBe(shouldContinue);
+		const history = session.getMessages();
+		const context = history.find((message) =>
+			JSON.stringify(message.content).includes("Existing hook context"),
+		);
+		expect(context).toMatchObject({ metadata: { displayRole: "system" } });
+		expect(JSON.stringify(context).includes(reminder)).toBe(shouldContinue);
+		if (!fails) {
+			expect(events).toContainEqual(
+				expect.objectContaining({
+					type: "content_end",
+					contentType: "tool",
+					output: answer,
+				}),
+			);
+		}
 	});
 });

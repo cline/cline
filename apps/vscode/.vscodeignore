@@ -94,7 +94,6 @@ old_docs/**
 
 # Ignore E2E build files
 e2e-build.mjs
-e2e.vsix
 test-results/
 coverage/**
 webview-ui/coverage/**

@@ -13,7 +13,10 @@ import type {
 	ToolPolicy,
 } from "./llms/tools";
 import type { BasicLogger } from "./logging/logger";
-import type { ITelemetryService } from "./services/telemetry";
+import type {
+	ITelemetryService,
+	TelemetryProperties,
+} from "./services/telemetry";
 
 // =============================================================================
 // Lightweight telemetry surface used by AgentRuntime
@@ -172,6 +175,8 @@ export interface AgentToolDefinition {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
+	/** Core may cache oversized output for bounded model recovery. Original output is retained. */
+	resultPolicy?: "cache-oversized";
 	lifecycle?: {
 		/**
 		 * Whether a successful call to this tool completes the current run.
@@ -197,10 +202,20 @@ export interface AgentToolContext {
 	metadata?: Record<string, unknown>;
 	snapshot?: AgentRuntimeStateSnapshot;
 	emitUpdate?: (update: unknown) => void;
+	/** Session working directory. Set by the host for plugin tools. */
+	cwd?: string;
+	/** Sends a plugin event to the calling session. Set by the host for plugin tools. */
+	emitEvent?: (name: string, payload?: unknown) => void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/**
+	 * Model-only context appended after successful tool results and after-tool
+	 * hooks. Hidden from client transcripts via displayRole: "system".
+	 * Omitted for errors, skipped calls, and hooks that stop the run.
+	 */
+	successContext?: string;
 	/** Override the runtime execution mode. Adjacent parallel calls may overlap; sequential calls form ordering boundaries. */
 	executionMode?: "sequential" | "parallel";
 	timeoutMs?: number;
@@ -264,10 +279,25 @@ export interface AgentRuntimePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+/**
+ * Why a model turn stopped producing output.
+ *
+ * `content-filter` is distinct from `stop` because the two need opposite
+ * handling when the turn produced nothing: a `stop` with no content is a
+ * transient upstream flake worth retrying, while a filtered turn will
+ * reproduce on every attempt. Collapsing them (as this union did before)
+ * left both surfacing as "Model returned empty response", which tells a
+ * user to retry something that cannot succeed.
+ *
+ * Missing or unrecognized provider finish reasons normalize to `unknown`: the
+ * response may be cut off and must not be treated as successful completion.
+ */
 export type AgentModelFinishReason =
+	| "unknown"
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"
+	| "content-filter"
 	| "aborted"
 	| "error";
 
@@ -558,6 +588,12 @@ export interface AgentRuntimeConfig {
 	plugins?: readonly AgentRuntimePlugin[];
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	/**
+	 * Extra properties for the `agent.run-finished` / `agent.run-failed`
+	 * telemetry mirror, read once when the run ends. Lets the host attach
+	 * diagnostics it derives from runtime events without the loop owning them.
+	 */
+	runEndTelemetryProperties?: () => TelemetryProperties;
 	initialMessages?: readonly AgentMessage[];
 	maxIterations?: number;
 	completionPolicy?: {
@@ -639,6 +675,16 @@ export type AgentRuntimeEvent =
 			iteration: number;
 			message: AgentMessage;
 			finishReason: AgentModelFinishReason;
+	  }
+	| {
+			/**
+			 * Progress while the model streams a tool call's arguments. Carries
+			 * no arguments: consumers use it only to tell a slow stream from a
+			 * silent one.
+			 */
+			type: "tool-call-delta";
+			snapshot: AgentRuntimeStateSnapshot;
+			iteration: number;
 	  }
 	| {
 			type: "tool-started";

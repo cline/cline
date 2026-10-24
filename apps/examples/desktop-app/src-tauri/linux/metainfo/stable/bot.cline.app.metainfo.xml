@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata for the .deb/.rpm packages. Software centers (GNOME
+  Software, KDE Discover) read this from /usr/share/metainfo to show the app's
+  icon, screenshots, and description; without it the app shows a placeholder
+  icon, "No screenshots", and is missing from the Installed list.
+
+  The launchable must match the .desktop file tauri-bundler generates, which is
+  named after productName. Each channel installs side by side, so each ships its
+  own copy of this file under linux/metainfo/<channel>/.
+-->
+<component type="desktop-application">
+	<id>bot.cline.app</id>
+	<launchable type="desktop-id">Cline.desktop</launchable>
+	<name>Cline</name>
+	<summary>AI coding agent</summary>
+	<developer id="bot.cline">
+		<name>Cline Bot Inc.</name>
+	</developer>
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>Apache-2.0</project_license>
+	<description>
+		<p>Cline is an AI coding agent. It reads your code, edits files, runs commands, and works through tasks with you in any project on your machine.</p>
+	</description>
+	<url type="homepage">https://cline.bot</url>
+	<url type="help">https://docs.cline.bot/usage/cline-desktop</url>
+	<url type="bugtracker">https://github.com/cline/cline/issues</url>
+	<content_rating type="oars-1.1" />
+	<screenshots>
+		<screenshot type="default">
+			<caption>Run a task and review the agent's work</caption>
+			<image>https://raw.githubusercontent.com/cline/cline/main/docs/assets/desktop/desktop-ssh-remote-task.png</image>
+		</screenshot>
+		<screenshot>
+			<caption>Browse skills, MCP servers, and plugins in the marketplace</caption>
+			<image>https://raw.githubusercontent.com/cline/cline/main/docs/assets/desktop/desktop-marketplace.png</image>
+		</screenshot>
+		<screenshot>
+			<caption>Schedule recurring agent runs</caption>
+			<image>https://raw.githubusercontent.com/cline/cline/main/docs/assets/desktop/desktop-new-schedule.png</image>
+		</screenshot>
+	</screenshots>
+</component>
