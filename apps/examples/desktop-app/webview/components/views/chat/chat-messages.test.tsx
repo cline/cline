@@ -2634,7 +2634,7 @@ describe("ChatMessages credential failures", () => {
 	});
 });
 
-describe("ChatMessages turn receipts", () => {
+describe("ChatMessages last turn receipt", () => {
 	const message = (
 		id: string,
 		role: "user" | "assistant",
@@ -2652,66 +2652,48 @@ describe("ChatMessages turn receipts", () => {
 		message("u2", "user", "second ask"),
 		message("a2", "assistant", "second answer"),
 	];
-	const turnChanges = new Map([
-		[
-			1,
-			{
-				files: [
-					{
-						path: "src/a.ts",
-						status: "M" as const,
-						additions: 3,
-						deletions: 1,
-					},
-				],
-				omitted: 0,
-			},
+	const lastTurnChanges = {
+		runCount: 2,
+		files: [
+			{ path: "docs/b.md", status: "A" as const, additions: 5, deletions: 0 },
 		],
-		[
-			2,
-			{
-				files: [
-					{
-						path: "docs/b.md",
-						status: "A" as const,
-						additions: 5,
-						deletions: 0,
-					},
-				],
-				omitted: 0,
-			},
-		],
-	]);
+		omitted: 0,
+	};
+	const receipts = () =>
+		container.querySelectorAll('[data-testid="turn-receipt"]');
 
-	it("closes each turn with a receipt that opens its changes", async () => {
-		const onReviewTurn = vi.fn();
-		await renderMessages(transcript, { onReviewTurn, turnChanges });
-		const receipts = container.querySelectorAll('[data-testid="turn-receipt"]');
-		expect(receipts).toHaveLength(2);
-		// Turn 1's receipt sits between its answer and the next ask.
+	it("closes the finished last turn with a receipt that opens its changes", async () => {
+		const onReviewLastTurn = vi.fn();
+		await renderMessages(transcript, { lastTurnChanges, onReviewLastTurn });
+		expect(receipts()).toHaveLength(1);
 		const text = container.textContent ?? "";
-		expect(text.indexOf("first answer")).toBeLessThan(text.indexOf("+3"));
-		expect(text.indexOf("+3")).toBeLessThan(text.indexOf("second ask"));
+		expect(text.indexOf("second answer")).toBeLessThan(
+			text.indexOf("Changed 1 file"),
+		);
 		await act(async () => {
-			receipts[0]?.querySelector<HTMLButtonElement>("button")?.click();
+			receipts()[0]?.querySelector<HTMLButtonElement>("button")?.click();
 		});
-		expect(onReviewTurn).toHaveBeenCalledWith(1);
+		expect(onReviewLastTurn).toHaveBeenCalledWith();
 		await act(async () => {
-			receipts[1]
+			receipts()[0]
 				?.querySelector<HTMLButtonElement>('[title="docs/b.md"]')
 				?.click();
 		});
-		expect(onReviewTurn).toHaveBeenCalledWith(2, "docs/b.md");
+		expect(onReviewLastTurn).toHaveBeenCalledWith("docs/b.md");
 	});
 
-	it("holds the latest turn's receipt until the turn finishes", async () => {
+	it("hides while a turn runs and once the next message starts a new turn", async () => {
 		await renderMessages(transcript, {
-			onReviewTurn: vi.fn(),
+			lastTurnChanges,
+			onReviewLastTurn: vi.fn(),
 			status: "running",
-			turnChanges,
 		});
-		expect(
-			container.querySelectorAll('[data-testid="turn-receipt"]'),
-		).toHaveLength(1);
+		expect(receipts()).toHaveLength(0);
+		// The next message was sent; the changes still describe turn 2.
+		await renderMessages([...transcript, message("u3", "user", "third ask")], {
+			lastTurnChanges,
+			onReviewLastTurn: vi.fn(),
+		});
+		expect(receipts()).toHaveLength(0);
 	});
 });

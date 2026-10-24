@@ -1404,9 +1404,7 @@ function ChatThreadPane({
 	const [workspacePanel, setWorkspacePanel] = useState<
 		"changes" | "files" | null
 	>(null);
-	const [changesScope, setChangesScope] = useState<ChangesScope>({
-		kind: "session",
-	});
+	const [changesScope, setChangesScope] = useState<ChangesScope>("session");
 	const [changesPath, setChangesPath] = useState<string | null>(null);
 	const toggleFilesPanel = useCallback(
 		() =>
@@ -1414,12 +1412,12 @@ function ChatThreadPane({
 		[],
 	);
 	const toggleChangesPanel = useCallback(() => {
-		setChangesScope({ kind: "session" });
+		setChangesScope("session");
 		setChangesPath(null);
 		setWorkspacePanel((current) => (current === "changes" ? null : "changes"));
 	}, []);
-	const reviewTurn = useCallback((runCount: number, path?: string) => {
-		setChangesScope({ kind: "turn", runCount });
+	const reviewLastTurn = useCallback((path?: string) => {
+		setChangesScope("last-turn");
 		setChangesPath(path ?? null);
 		setWorkspacePanel("changes");
 	}, []);
@@ -2706,13 +2704,6 @@ function ChatThreadPane({
 				: { additions: summary.additions, deletions: summary.deletions },
 		[sessionChanges, summary.additions, summary.deletions],
 	);
-	const turnChanges = useMemo(
-		() =>
-			new Map(
-				(sessionChanges?.turns ?? []).map((turn) => [turn.runCount, turn]),
-			),
-		[sessionChanges],
-	);
 
 	const isAppReady =
 		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
@@ -2889,8 +2880,10 @@ function ChatThreadPane({
 											: undefined
 								}
 								onFixCredentials={handleFixCredentials}
-								turnChanges={canBrowseFiles ? turnChanges : undefined}
-								onReviewTurn={canBrowseFiles ? reviewTurn : undefined}
+								lastTurnChanges={
+									canBrowseFiles ? sessionChanges?.lastTurn : undefined
+								}
+								onReviewLastTurn={canBrowseFiles ? reviewLastTurn : undefined}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

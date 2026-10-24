@@ -18,12 +18,11 @@ export type SessionChangeSet = {
 	omitted: number;
 };
 
-export type SessionTurnChanges = SessionChangeSet & { runCount: number };
-
 export type SessionChanges = {
 	root?: string;
 	session?: SessionChangeSet;
-	turns?: SessionTurnChanges[];
+	/** The latest turn, identified by its run count. */
+	lastTurn?: SessionChangeSet & { runCount: number };
 	/** Set when the workspace has no git checkpoints to compare. */
 	unavailableReason?: string;
 };
@@ -35,10 +34,7 @@ export type SessionChangeContents = {
 	truncated: boolean;
 };
 
-/** A turn without `runCount` means the latest one. */
-export type ChangesScope =
-	| { kind: "session" }
-	| { kind: "turn"; runCount?: number };
+export type ChangesScope = "last-turn" | "session";
 
 export function sumChanges(files: readonly SessionChangeFile[]): {
 	additions: number;
@@ -56,7 +52,7 @@ export function sumChanges(files: readonly SessionChangeFile[]): {
 const REFRESH_DEBOUNCE_MS = 400;
 
 /**
- * Per-turn and whole-session changes for a local session, refetched whenever
+ * Last-turn and whole-session changes for a local session, refetched whenever
  * `refreshKey` changes (tool edits and turn boundaries). Errors, such as an
  * untrusted connection, read as unavailable so hosts fall back to the
  * tool-event reconstruction.

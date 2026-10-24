@@ -5,12 +5,11 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { CheckpointEntry } from "@cline/core";
 
-// What the agent changed, per turn and across the session, from the git
-// checkpoints Core records before each turn's first model call. Turn N's
-// changes are checkpoint N against checkpoint N+1 (or the working tree for
-// the latest turn); the session's are the first checkpoint against the
-// working tree. Each side is reduced to a git tree so a single `diff-tree`
-// yields paths, statuses, and line counts.
+// What the agent changed in the last turn and across the session, from the
+// git checkpoints Core records before each turn's first model call: the
+// latest checkpoint against the working tree, and the first checkpoint
+// against the working tree. Each side is reduced to a git tree so a single
+// `diff-tree` yields paths, statuses, and line counts.
 
 const execFileAsync = promisify(execFile);
 const MAX_FILES = 500;
@@ -41,7 +40,7 @@ export type SessionChangeSet = {
 export type SessionChanges = {
 	root: string;
 	session: SessionChangeSet;
-	turns: Array<SessionChangeSet & { runCount: number }>;
+	lastTurn: SessionChangeSet & { runCount: number };
 };
 
 export type SessionChangeContents = {
@@ -66,11 +65,6 @@ export function localGit(root: string): Git {
 		).stdout;
 }
 
-// Checkpoint trees never change, and diffs between two trees never change,
-// so both are memoized for the life of the sidecar.
-const checkpointTrees = new Map<string, string>();
-const treeDiffs = new Map<string, SessionChangeSet>();
-
 async function withTempIndex<T>(
 	run: (env: Record<string, string>) => Promise<T>,
 ): Promise<T> {
@@ -89,24 +83,17 @@ async function withTempIndex<T>(
  * overlap, since a path is either tracked or untracked).
  */
 async function checkpointTree(git: Git, ref: string): Promise<string> {
-	// Keyed by commit id alone: object ids name content, so the same
-	// checkpoint commit always yields the same snapshot tree.
-	const cached = checkpointTrees.get(ref);
-	if (cached) return cached;
 	const tree = (await git(["rev-parse", `${ref}^{tree}`])).trim();
 	const untracked = (
 		await git(["rev-parse", "--verify", "--quiet", `${ref}^3^{tree}`]).catch(
 			() => "",
 		)
 	).trim();
-	const snapshot = untracked
-		? await withTempIndex(async (env) => {
-				await git(["read-tree", tree, untracked], env);
-				return (await git(["write-tree"], env)).trim();
-			})
-		: tree;
-	checkpointTrees.set(ref, snapshot);
-	return snapshot;
+	if (!untracked) return tree;
+	return await withTempIndex(async (env) => {
+		await git(["read-tree", tree, untracked], env);
+		return (await git(["write-tree"], env)).trim();
+	});
 }
 
 /**
@@ -184,9 +171,6 @@ async function diffTrees(
 	to: string,
 ): Promise<SessionChangeSet> {
 	if (from === to) return { files: [], omitted: 0 };
-	const key = `${from}:${to}`;
-	const cached = treeDiffs.get(key);
-	if (cached) return cached;
 	const base = ["diff-tree", "-r", "-z", "--no-renames", "--no-abbrev"];
 	const [raw, numstat] = await Promise.all([
 		git([...base, from, to]),
@@ -199,44 +183,31 @@ async function diffTrees(
 			...(counts.get(file.path) ?? { additions: null, deletions: null }),
 		}))
 		.sort((a, b) => a.path.localeCompare(b.path));
-	const result = {
+	return {
 		files: files.slice(0, MAX_FILES),
 		omitted: Math.max(0, files.length - MAX_FILES),
 	};
-	treeDiffs.set(key, result);
-	return result;
 }
 
 export async function getSessionChanges(
 	git: Git,
 	root: string,
+	/** Non-empty; callers report a session without checkpoints themselves. */
 	checkpoints: readonly CheckpointEntry[],
 ): Promise<SessionChanges> {
-	const ordered = [
-		...new Map(checkpoints.map((entry) => [entry.runCount, entry])).values(),
-	].sort((a, b) => a.runCount - b.runCount);
-	if (ordered.length === 0) {
-		return { root, session: { files: [], omitted: 0 }, turns: [] };
-	}
-	const [snapshots, worktree] = await Promise.all([
-		Promise.all(ordered.map((entry) => checkpointTree(git, entry.ref))),
+	const ordered = [...checkpoints].sort((a, b) => a.runCount - b.runCount);
+	const first = ordered[0] as CheckpointEntry;
+	const last = ordered.at(-1) as CheckpointEntry;
+	const [firstTree, lastTree, worktree] = await Promise.all([
+		checkpointTree(git, first.ref),
+		checkpointTree(git, last.ref),
 		worktreeTree(git, root),
 	]);
-	const points = [...snapshots, worktree];
-	const [session, ...turns] = await Promise.all([
-		diffTrees(git, points[0] as string, worktree),
-		...ordered.map((_, index) =>
-			diffTrees(git, points[index] as string, points[index + 1] as string),
-		),
+	const [session, lastTurn] = await Promise.all([
+		diffTrees(git, firstTree, worktree),
+		diffTrees(git, lastTree, worktree),
 	]);
-	return {
-		root,
-		session: session as SessionChangeSet,
-		turns: turns.map((turn, index) => ({
-			runCount: (ordered[index] as CheckpointEntry).runCount,
-			...turn,
-		})),
-	};
+	return { root, session, lastTurn: { runCount: last.runCount, ...lastTurn } };
 }
 
 async function readBlob(

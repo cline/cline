@@ -74,15 +74,10 @@ export function ChangesPanel({
 	const [copied, setCopied] = useState(false);
 	const copyTimerRef = useRef<number | null>(null);
 
-	const turns = changes?.turns ?? [];
-	const latestTurn = turns.at(-1)?.runCount;
-	const viewedTurn =
-		scope.kind === "turn" ? (scope.runCount ?? latestTurn) : undefined;
 	const usingFallback = changes !== null && !changes.session;
-	const set =
-		scope.kind === "session"
-			? changes?.session
-			: turns.find((turn) => turn.runCount === viewedTurn);
+	// The tool-event fallback only knows the whole session.
+	const activeScope: ChangesScope = usingFallback ? "session" : scope;
+	const set = activeScope === "session" ? changes?.session : changes?.lastTurn;
 	const files = useMemo<ListedFile[]>(
 		() =>
 			usingFallback ? fallbackFiles(fallbackFileDiffs) : (set?.files ?? []),
@@ -168,40 +163,19 @@ export function ChangesPanel({
 		[environmentId],
 	);
 
-	const scopeOptions: Array<{
-		id: string;
-		label: string;
-		scope: ChangesScope;
-	}> = [
-		...(viewedTurn !== undefined && viewedTurn !== latestTurn
-			? [
-					{
-						id: "turn",
-						label: `Turn ${viewedTurn}`,
-						scope: { kind: "turn", runCount: viewedTurn } as const,
-					},
-				]
-			: []),
-		{ id: "last", label: "Last turn", scope: { kind: "turn" } },
-		{ id: "session", label: "Session", scope: { kind: "session" } },
+	const scopeOptions: Array<{ scope: ChangesScope; label: string }> = [
+		{ scope: "last-turn", label: "Last turn" },
+		{ scope: "session", label: "Session" },
 	];
-	const activeOption =
-		scope.kind === "session"
-			? "session"
-			: viewedTurn !== undefined && viewedTurn !== latestTurn
-				? "turn"
-				: "last";
 	const notice = usingFallback
 		? `${changes?.unavailableReason ?? "Git checkpoints are unavailable."} Showing edits reconstructed from this session's tool calls.`
 		: set?.omitted
 			? `${set.omitted} more changed files are not listed.`
 			: null;
 	const description =
-		scope.kind === "session" || usingFallback
+		activeScope === "session"
 			? "since the session started"
-			: viewedTurn !== undefined
-				? `in turn ${viewedTurn}`
-				: null;
+			: "in the last turn";
 
 	return (
 		<WorkspacePanelFrame id="changes-panel">
@@ -217,15 +191,15 @@ export function ChangesPanel({
 					>
 						{scopeOptions.map((option) => (
 							<button
-								aria-selected={activeOption === option.id}
+								aria-selected={activeScope === option.scope}
 								className={cn(
 									"h-6 flex-1 rounded-[5px] px-2 whitespace-nowrap",
-									activeOption === option.id
+									activeScope === option.scope
 										? "bg-background text-foreground shadow-xs"
 										: "text-muted-foreground hover:text-foreground",
 								)}
-								disabled={usingFallback && option.scope.kind === "turn"}
-								key={option.id}
+								disabled={usingFallback && option.scope === "last-turn"}
+								key={option.scope}
 								onClick={() => onScopeChange(option.scope)}
 								role="tab"
 								type="button"
@@ -257,7 +231,7 @@ export function ChangesPanel({
 						</div>
 					) : files.length === 0 ? (
 						<p className="px-2 py-3 text-[11px] text-muted-foreground/80">
-							No files changed {description ?? "yet"}.
+							No files changed {description}.
 						</p>
 					) : (
 						files.map((file) => (

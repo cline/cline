@@ -103,7 +103,7 @@ const summary = (
 	);
 
 describe("getSessionChanges", () => {
-	it("splits changes by turn, including files the agent created but never staged", async () => {
+	it("reports the last turn and the session, including files the agent created but never staged", async () => {
 		writeFileSync(join(repo, "notes.txt"), "user scratch\n");
 		const first = checkpoint(1);
 		// Turn 1: edit a tracked file and create an untracked one.
@@ -120,12 +120,8 @@ describe("getSessionChanges", () => {
 			first,
 		]);
 
-		expect(changes.turns.map((turn) => turn.runCount)).toEqual([1, 2]);
-		expect(summary(changes.turns[0]?.files ?? [])).toEqual([
-			"M a.ts +2 -1",
-			"A new.ts +1 -0",
-		]);
-		expect(summary(changes.turns[1]?.files ?? [])).toEqual([
+		expect(changes.lastTurn.runCount).toBe(2);
+		expect(summary(changes.lastTurn.files)).toEqual([
 			"M new.ts +1 -0",
 			"D README.md +0 -1",
 		]);

@@ -7,17 +7,15 @@ import { FileIcon } from "../file-icons";
 const LISTED_FILES = 3;
 
 /**
- * What one finished turn changed, shown at the end of the turn. Selecting it
- * (or a file) opens the changes pane scoped to that turn.
+ * What the last turn changed, shown at the end of the transcript once the
+ * turn finishes. Selecting it (or a file) opens the changes pane on it.
  */
 export function TurnReceipt({
-	runCount,
 	changes,
 	onReview,
 }: {
-	runCount: number;
 	changes: SessionChangeSet;
-	onReview: (runCount: number, path?: string) => void;
+	onReview: (path?: string) => void;
 }) {
 	const { additions, deletions } = sumChanges(changes.files);
 	const count = changes.files.length + changes.omitted;
@@ -29,9 +27,9 @@ export function TurnReceipt({
 			data-testid="turn-receipt"
 		>
 			<button
-				aria-label={`Review turn ${runCount} changes: ${count} files, ${additions} additions, ${deletions} deletions`}
+				aria-label={`Review last turn changes: ${count} files, ${additions} additions, ${deletions} deletions`}
 				className="flex w-full items-center gap-2 bg-muted/40 px-3 py-1.5 text-left hover:bg-surface-hover"
-				onClick={() => onReview(runCount)}
+				onClick={() => onReview()}
 				type="button"
 			>
 				<FileDiff className="size-3.5 shrink-0 text-muted-foreground" />
@@ -50,7 +48,7 @@ export function TurnReceipt({
 				<button
 					className="flex h-7 w-full items-center gap-1.5 border-t border-border/50 px-3 text-left hover:bg-surface-hover"
 					key={file.path}
-					onClick={() => onReview(runCount, file.path)}
+					onClick={() => onReview(file.path)}
 					title={file.path}
 					type="button"
 				>
@@ -70,7 +68,7 @@ export function TurnReceipt({
 			{hidden > 0 ? (
 				<button
 					className="flex h-7 w-full items-center border-t border-border/50 px-3 text-left text-[11px] text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-					onClick={() => onReview(runCount)}
+					onClick={() => onReview()}
 					type="button"
 				>
 					{hidden} more file{hidden === 1 ? "" : "s"}
