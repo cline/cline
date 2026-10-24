@@ -2744,179 +2744,173 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-				{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
-				<AttachmentDropZone
-					className={
-						isWelcomeState
-							? "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-							: filesPanelVisible
-								? // The panel is placed explicitly in column 2 spanning both
-									// rows, so the transcript and composer auto-flow into column 1.
-									"grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
-								: "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
-					}
-					disabled={isCloudSessionExpired}
-					description={
-						isCloudSession
-							? "Images will be added to your next message"
-							: undefined
-					}
-					onAttachFiles={handleAttachFiles}
-				>
-					{!isWelcomeState ? (
-						<WindowTitleBarContent>
-							<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-								<AgentHeader
-									agentActivity={isCloudSession ? undefined : agentActivity}
-									agents={isCloudSession ? undefined : agents}
-									agentsError={agentsError}
-									agentsLoading={agentsLoading}
-									onAgentsOpenChange={setAgentPanelOpen}
-									onOpenAgentSession={onOpenAgentSession}
-									onOpenParentSession={onOpenAgentSession}
-									parentSession={
-										hideDeletedSessionUi ? undefined : parentSession
-									}
-									canEditTitle={Boolean(activeSessionForTitle)}
-									canDeleteSession={Boolean(activeSessionToDelete)}
-									deletingSession={deletingSession}
-									diff={isCloudSession ? undefined : headerDiff}
-									onDeleteSession={requestDeleteSession}
-									onNewThread={onNewThread}
-									onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
-									filesOpen={filesPanelVisible}
-									pullRequest={isCloudSession ? undefined : pullRequestSource}
-									onRenameTitle={handleRenameTitle}
-									renamingTitle={renamingSession}
-									status={headerStatus}
-									title={threadTitle}
-									onToggleTerminal={
-										terminalEnabled ? terminal?.onToggle : undefined
-									}
-									terminalOpen={terminalEnabled && terminal?.open}
-									terminalShortcut={terminal?.shortcut}
-								/>
-							</div>
-						</WindowTitleBarContent>
-					) : null}
-					<WelcomeScreen
-						active={isWelcomeState}
-						body={
-							isCloudSession &&
-							displayedIsSwitching &&
-							displayedMessages.length === 0 ? (
-								// Keep opening an existing cloud session visually continuous.
-								<CloudProvisioningPane phase="Opening session..." />
-							) : (
-								<ChatMessages
-									onAnswerAskQuestion={handleAnswerAskQuestion}
-									onApproveToolApproval={handleApproveToolApproval}
-									onRejectToolApproval={handleRejectToolApproval}
-									chatTransportState={chatTransportState}
-									activityLabel={activityLabel}
-									error={cloudSessionError?.message ?? displayedError}
-									errorAction={
-										cloudConnectUrl
-											? {
-													label: "Connect GitHub",
-													onClick: () => openGitHubConnect(cloudConnectUrl),
-												}
-											: undefined
-									}
-									importedFromTool={importedFromTool}
-									messages={displayedMessages}
-									onEditMessage={isCloudSession ? undefined : handleEditMessage}
-									onRestoreCheckpoint={
-										isCloudSession ? undefined : handleRestoreCheckpoint
-									}
-									onForkSession={isCloudSession ? undefined : handleForkSession}
-									onProceedWhileRunning={
-										isCloudSession ? undefined : proceedWhileRunning
-									}
-									startingLabel={
-										isProvisioningCloudSession
-											? provisioningPhase
-											: isCloudSession && !displayedSessionId
-												? provisioningPhase
-												: undefined
-									}
-									onFixCredentials={handleFixCredentials}
-									pendingToolApprovals={pendingToolApprovals}
-									pendingAskQuestions={pendingAskQuestions}
-									sessionId={displayedSessionId}
-									streamingMessageId={activeAssistantMessageId}
-									isSessionSwitching={displayedIsSwitching}
-									status={
-										isProvisioningCloudSession ? "starting" : displayedStatus
-									}
-								/>
-							)
-						}
-						composer={composer}
-						environmentSelector={
-							<EnvironmentSelector
-								activeEnvironmentId={environmentId}
-								cloudEnabled={cloudAgentsEnabled}
-								executionTarget={isCloudSession ? "cloud" : "local"}
-								onSelectExecutionTarget={handleSelectExecutionTarget}
-								loading={environmentProfilesLoading}
-								onAddSshHost={onAddSshHost}
-								onSelectEnvironment={onSelectEnvironment}
-								profiles={environmentProfiles}
+			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+			<AttachmentDropZone
+				className={
+					isWelcomeState
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: filesPanelVisible
+							? // The panel is placed explicitly in column 2 spanning both
+								// rows, so the transcript and composer auto-flow into column 1.
+								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+				}
+				disabled={isCloudSessionExpired}
+				description={
+					isCloudSession
+						? "Images will be added to your next message"
+						: undefined
+				}
+				onAttachFiles={handleAttachFiles}
+			>
+				{!isWelcomeState ? (
+					<WindowTitleBarContent>
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={isCloudSession ? undefined : agentActivity}
+								agents={isCloudSession ? undefined : agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenAgentSession}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={isCloudSession ? undefined : headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onToggleFiles={canBrowseFiles ? toggleFilesPanel : undefined}
+								filesOpen={filesPanelVisible}
+								pullRequest={isCloudSession ? undefined : pullRequestSource}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={headerStatus}
+								title={threadTitle}
+								onToggleTerminal={
+									terminalEnabled ? terminal?.onToggle : undefined
+								}
+								terminalOpen={terminalEnabled && terminal?.open}
+								terminalShortcut={terminal?.shortcut}
 							/>
-						}
-						gitBranch={gitBranch}
-						notice={
-							providersLoaded &&
-							hasConnectedProvider === false &&
-							onOpenSetup &&
-							onOpenModelSettings ? (
-								<WelcomeSetupNotice
-									onOpenModelSettings={onOpenModelSettings}
-									onOpenSetup={onOpenSetup}
-								/>
-							) : undefined
-						}
-						onListGitBranches={listGitBranches}
-						onOpenSession={onOpenSessionById}
-						onSwitchGitBranch={switchGitBranch}
-						executionTarget={isCloudSession ? "cloud" : "local"}
-						repoUrl={config.repoUrl ?? ""}
-						cloudBranch={config.branch ?? ""}
-						onRepoUrlChange={handleCloudRepoUrlChange}
-						onCloudBranchChange={handleCloudBranchChange}
-						cloudAgentsEnabled={
-							cloudAgentsEnabled ||
-							(cloudAgentsFlagEnabled === null &&
-								config.executionTarget === "cloud")
-						}
-						onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
-						workIn={workIn}
-						terminalToggle={terminalToggle}
-						bottomInset={
-							terminalEnabled && terminal?.open ? terminal.height : 0
-						}
-					/>
-					{filesPanelVisible ? (
-						<ProjectFilesPanel
-							cwd={config.cwd || config.workspaceRoot}
-							environmentId={environmentId}
-							fileDiffs={fileDiffs}
-							onClose={toggleFilesPanel}
-							workspaceRoot={resolvedWorkspaceRoot}
+						</div>
+					</WindowTitleBarContent>
+				) : null}
+				<WelcomeScreen
+					active={isWelcomeState}
+					body={
+						isCloudSession &&
+						displayedIsSwitching &&
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
+							<CloudProvisioningPane phase="Opening session..." />
+						) : (
+							<ChatMessages
+								onAnswerAskQuestion={handleAnswerAskQuestion}
+								onApproveToolApproval={handleApproveToolApproval}
+								onRejectToolApproval={handleRejectToolApproval}
+								chatTransportState={chatTransportState}
+								activityLabel={activityLabel}
+								error={cloudSessionError?.message ?? displayedError}
+								errorAction={
+									cloudConnectUrl
+										? {
+												label: "Connect GitHub",
+												onClick: () => openGitHubConnect(cloudConnectUrl),
+											}
+										: undefined
+								}
+								importedFromTool={importedFromTool}
+								messages={displayedMessages}
+								onEditMessage={isCloudSession ? undefined : handleEditMessage}
+								onRestoreCheckpoint={
+									isCloudSession ? undefined : handleRestoreCheckpoint
+								}
+								onForkSession={isCloudSession ? undefined : handleForkSession}
+								onProceedWhileRunning={
+									isCloudSession ? undefined : proceedWhileRunning
+								}
+								startingLabel={
+									isProvisioningCloudSession
+										? provisioningPhase
+										: isCloudSession && !displayedSessionId
+											? provisioningPhase
+											: undefined
+								}
+								onFixCredentials={handleFixCredentials}
+								pendingToolApprovals={pendingToolApprovals}
+								pendingAskQuestions={pendingAskQuestions}
+								sessionId={displayedSessionId}
+								streamingMessageId={activeAssistantMessageId}
+								isSessionSwitching={displayedIsSwitching}
+								status={
+									isProvisioningCloudSession ? "starting" : displayedStatus
+								}
+							/>
+						)
+					}
+					composer={composer}
+					environmentSelector={
+						<EnvironmentSelector
+							activeEnvironmentId={environmentId}
+							cloudEnabled={cloudAgentsEnabled}
+							executionTarget={isCloudSession ? "cloud" : "local"}
+							onSelectExecutionTarget={handleSelectExecutionTarget}
+							loading={environmentProfilesLoading}
+							onAddSshHost={onAddSshHost}
+							onSelectEnvironment={onSelectEnvironment}
+							profiles={environmentProfiles}
 						/>
-					) : null}
-				</AttachmentDropZone>
-				{terminalEnabled && terminal?.open ? (
-					<TerminalPanel
-						cwd={activeWorkspaceCwd}
-						height={terminal.height}
-						onClose={terminal.onClose}
-						onHeightChange={terminal.onHeightChange}
+					}
+					gitBranch={gitBranch}
+					notice={
+						providersLoaded &&
+						hasConnectedProvider === false &&
+						onOpenSetup &&
+						onOpenModelSettings ? (
+							<WelcomeSetupNotice
+								onOpenModelSettings={onOpenModelSettings}
+								onOpenSetup={onOpenSetup}
+							/>
+						) : undefined
+					}
+					onListGitBranches={listGitBranches}
+					onOpenSession={onOpenSessionById}
+					onSwitchGitBranch={switchGitBranch}
+					executionTarget={isCloudSession ? "cloud" : "local"}
+					repoUrl={config.repoUrl ?? ""}
+					cloudBranch={config.branch ?? ""}
+					onRepoUrlChange={handleCloudRepoUrlChange}
+					onCloudBranchChange={handleCloudBranchChange}
+					cloudAgentsEnabled={
+						cloudAgentsEnabled ||
+						(cloudAgentsFlagEnabled === null &&
+							config.executionTarget === "cloud")
+					}
+					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+					workIn={workIn}
+					terminalToggle={terminalToggle}
+					bottomInset={terminalEnabled && terminal?.open ? terminal.height : 0}
+				/>
+				{filesPanelVisible ? (
+					<ProjectFilesPanel
+						cwd={config.cwd || config.workspaceRoot}
+						environmentId={environmentId}
+						fileDiffs={fileDiffs}
+						onClose={toggleFilesPanel}
+						workspaceRoot={resolvedWorkspaceRoot}
 					/>
 				) : null}
-			</div>
+			</AttachmentDropZone>
+			{terminalEnabled && terminal?.open ? (
+				<TerminalPanel
+					cwd={activeWorkspaceCwd}
+					height={terminal.height}
+					onClose={terminal.onClose}
+					onHeightChange={terminal.onHeightChange}
+				/>
+			) : null}
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {
